@@ -1,4 +1,3 @@
-import { loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { ExecutionState } from '@/executor/execution/state'
 import { BlockResolver } from './block'
@@ -115,7 +114,6 @@ const MOCK_BLOCKS = vi.hoisted(
     }) as Record<string, any>
 )
 
-vi.mock('@sim/logger', () => loggerMock)
 vi.mock('@/blocks/registry', () => ({
   getBlock: (type: string) => MOCK_BLOCKS[type] ?? undefined,
   registry: MOCK_BLOCKS,

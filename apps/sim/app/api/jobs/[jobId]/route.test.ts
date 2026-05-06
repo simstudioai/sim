@@ -1,75 +1,45 @@
 /**
  * @vitest-environment node
  */
-import type { NextRequest } from 'next/server'
+import { hybridAuthMockFns, workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing'
+import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckHybridAuth,
-  mockGetJobQueue,
-  mockVerifyWorkflowAccess,
-  mockGetWorkflowById,
-  mockGetJob,
-} = vi.hoisted(() => ({
-  mockCheckHybridAuth: vi.fn(),
+const { mockGetJobQueue, mockAuthorizeWorkflow, mockGetJob } = vi.hoisted(() => ({
   mockGetJobQueue: vi.fn(),
-  mockVerifyWorkflowAccess: vi.fn(),
-  mockGetWorkflowById: vi.fn(),
+  mockAuthorizeWorkflow: vi.fn(),
   mockGetJob: vi.fn(),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  checkHybridAuth: mockCheckHybridAuth,
 }))
 
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: mockGetJobQueue,
 }))
 
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('request-1'),
+vi.mock('@sim/workflow-authz', () => ({
+  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflow,
 }))
 
-vi.mock('@/socket/middleware/permissions', () => ({
-  verifyWorkflowAccess: mockVerifyWorkflowAccess,
-}))
-
-vi.mock('@/lib/workflows/utils', () => ({
-  getWorkflowById: mockGetWorkflowById,
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { GET } from './route'
 
 function createMockRequest(): NextRequest {
-  return {
-    headers: {
-      get: () => null,
-    },
-  } as NextRequest
+  return new NextRequest(new URL('http://localhost:3000/api/jobs/test'))
 }
 
 describe('GET /api/jobs/[jobId]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockCheckHybridAuth.mockResolvedValue({
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
       apiKeyType: undefined,
       workspaceId: undefined,
     })
 
-    mockVerifyWorkflowAccess.mockResolvedValue({ hasAccess: true })
-    mockGetWorkflowById.mockResolvedValue({
+    mockAuthorizeWorkflow.mockResolvedValue({ allowed: true, status: 200 })
+    workflowsUtilsMockFns.mockGetWorkflowById.mockResolvedValue({
       id: 'workflow-1',
       workspaceId: 'workspace-1',
     })

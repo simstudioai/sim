@@ -1,4 +1,5 @@
 import type { SupabaseGetRowParams, SupabaseGetRowResponse } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse> = {
@@ -51,7 +52,7 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
     url: (params) => {
       // Construct the URL for the Supabase REST API
       const selectColumns = params.select?.trim() || '*'
-      let url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=${encodeURIComponent(selectColumns)}`
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=${encodeURIComponent(selectColumns)}`
 
       // Add filters (required for get_row) - using PostgREST syntax
       if (params.filter?.trim()) {

@@ -1,5 +1,11 @@
+import type { AshbyCreateCandidateParams, AshbyCreateCandidateResponse } from '@/tools/ashby/types'
+import {
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  CANDIDATE_OUTPUTS,
+  mapCandidate,
+} from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
-import type { AshbyCreateCandidateParams, AshbyCreateCandidateResponse } from './types'
 
 export const createCandidateTool: ToolConfig<
   AshbyCreateCandidateParams,
@@ -25,7 +31,7 @@ export const createCandidateTool: ToolConfig<
     },
     email: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'Primary email address for the candidate',
     },
@@ -47,30 +53,61 @@ export const createCandidateTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'GitHub profile URL',
     },
+    website: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Personal website URL',
+    },
     sourceId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'UUID of the source to attribute the candidate to',
     },
+    creditedToUserId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'UUID of the Ashby user to credit with sourcing this candidate',
+    },
+    createdAt: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Backdated creation timestamp in ISO 8601 (e.g. 2024-01-01T00:00:00Z). Defaults to now.',
+    },
+    alternateEmailAddresses: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Array of additional email address strings to add to the candidate, e.g. ["a@x.com","b@y.com"]',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/candidate.create',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {
         name: params.name,
-        email: params.email,
       }
+      if (params.email) body.email = params.email
       if (params.phoneNumber) body.phoneNumber = params.phoneNumber
       if (params.linkedInUrl) body.linkedInUrl = params.linkedInUrl
       if (params.githubUrl) body.githubUrl = params.githubUrl
-      if (params.sourceId) body.sourceId = params.sourceId
+      if (params.website) body.website = params.website
+      if (params.sourceId) body.sourceId = params.sourceId.trim()
+      if (params.creditedToUserId) body.creditedToUserId = params.creditedToUserId.trim()
+      if (params.createdAt) body.createdAt = params.createdAt
+      if (
+        Array.isArray(params.alternateEmailAddresses) &&
+        params.alternateEmailAddresses.length > 0
+      )
+        body.alternateEmailAddresses = params.alternateEmailAddresses
       return body
     },
   },
@@ -79,58 +116,14 @@ export const createCandidateTool: ToolConfig<
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to create candidate')
+      throw new Error(ashbyErrorMessage(data, 'Failed to create candidate'))
     }
-
-    const r = data.results
 
     return {
       success: true,
-      output: {
-        id: r.id ?? null,
-        name: r.name ?? null,
-        primaryEmailAddress: r.primaryEmailAddress
-          ? {
-              value: r.primaryEmailAddress.value ?? '',
-              type: r.primaryEmailAddress.type ?? 'Other',
-              isPrimary: r.primaryEmailAddress.isPrimary ?? true,
-            }
-          : null,
-        primaryPhoneNumber: r.primaryPhoneNumber
-          ? {
-              value: r.primaryPhoneNumber.value ?? '',
-              type: r.primaryPhoneNumber.type ?? 'Other',
-              isPrimary: r.primaryPhoneNumber.isPrimary ?? true,
-            }
-          : null,
-        createdAt: r.createdAt ?? null,
-      },
+      output: mapCandidate(data.results),
     }
   },
 
-  outputs: {
-    id: { type: 'string', description: 'Created candidate UUID' },
-    name: { type: 'string', description: 'Full name' },
-    primaryEmailAddress: {
-      type: 'object',
-      description: 'Primary email contact info',
-      optional: true,
-      properties: {
-        value: { type: 'string', description: 'Email address' },
-        type: { type: 'string', description: 'Contact type (Personal, Work, Other)' },
-        isPrimary: { type: 'boolean', description: 'Whether this is the primary email' },
-      },
-    },
-    primaryPhoneNumber: {
-      type: 'object',
-      description: 'Primary phone contact info',
-      optional: true,
-      properties: {
-        value: { type: 'string', description: 'Phone number' },
-        type: { type: 'string', description: 'Contact type (Personal, Work, Other)' },
-        isPrimary: { type: 'boolean', description: 'Whether this is the primary phone' },
-      },
-    },
-    createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
-  },
+  outputs: CANDIDATE_OUTPUTS,
 }

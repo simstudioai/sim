@@ -1,6 +1,6 @@
+import { generateId } from '@sim/utils/id'
 import { TraceCollector } from '@/lib/copilot/request/trace'
 import type { StreamingContext } from '@/lib/copilot/request/types'
-import { generateId } from '@/lib/core/utils/uuid'
 
 /**
  * Create a fresh StreamingContext.

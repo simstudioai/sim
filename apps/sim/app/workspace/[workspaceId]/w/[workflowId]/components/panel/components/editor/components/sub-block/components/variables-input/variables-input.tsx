@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { generateId } from '@sim/utils/id'
 import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -12,7 +13,6 @@ import {
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
-import { generateId } from '@/lib/core/utils/uuid'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   checkTagTrigger,
@@ -22,6 +22,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { Variable } from '@/stores/variables/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface VariableAssignment {
   id: string
@@ -89,6 +90,17 @@ export function VariablesInput({
   const workflowVariables = useVariablesStore((s) => s.variables)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
+  /**
+   * Gate destructive cleanup on the active workflow being fully hydrated. Without this gate,
+   * a brief render frame where the variables store has not yet hydrated for the current
+   * workflow would treat all assignments as orphaned and persist an empty array — destroying
+   * legitimate references. Only trust `currentWorkflowVariables` once hydration says it owns
+   * this workflow's data.
+   */
+  const isHydratedForWorkflow = useWorkflowRegistry(
+    (s) => s.hydration.phase === 'ready' && s.hydration.workflowId === workflowId
+  )
+
   const [showTags, setShowTags] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null)
@@ -133,6 +145,11 @@ export function VariablesInput({
 
   useEffect(() => {
     if (isReadOnly || assignments.length === 0) return
+    // Only purge stale `variableId` references after the variables store is authoritative
+    // for this workflow. Otherwise a transient empty store on mount would wipe valid
+    // assignments — see the duplicate-of-duplicate regression where this destroyed
+    // remapped variable references on the second copy.
+    if (!isHydratedForWorkflow) return
 
     const currentVariableIds = new Set(currentWorkflowVariables.map((v) => v.id))
     const validAssignments = assignments.filter((assignment) => {
@@ -145,7 +162,7 @@ export function VariablesInput({
     } else if (validAssignments.length !== assignments.length) {
       setStoreValue(validAssignments.length > 0 ? validAssignments : [])
     }
-  }, [currentWorkflowVariables, assignments, isReadOnly, setStoreValue])
+  }, [currentWorkflowVariables, assignments, isReadOnly, isHydratedForWorkflow, setStoreValue])
 
   const addAssignment = () => {
     if (isReadOnly || allVariablesAssigned) return

@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Check, Copy } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
@@ -13,6 +12,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  SecretReveal,
 } from '@/components/emcn'
 import { type ApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
 
@@ -50,8 +50,6 @@ export function CreateApiKeyModal({
   const [createError, setCreateError] = useState<string | null>(null)
   const [newKey, setNewKey] = useState<ApiKey | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
-  const [copySuccess, setCopySuccess] = useState(false)
-
   const createApiKeyMutation = useCreateApiKey()
 
   const handleCreateKey = async () => {
@@ -103,12 +101,6 @@ export function CreateApiKeyModal({
     setKeyName('')
     setKeyType(defaultKeyType)
     setCreateError(null)
-  }
-
-  const copyToClipboard = (key: string) => {
-    navigator.clipboard.writeText(key)
-    setCopySuccess(true)
-    setTimeout(() => setCopySuccess(false), 2000)
   }
 
   return (
@@ -209,7 +201,6 @@ export function CreateApiKeyModal({
           setShowNewKeyDialog(dialogOpen)
           if (!dialogOpen) {
             setNewKey(null)
-            setCopySuccess(false)
           }
         }}
       >
@@ -223,27 +214,7 @@ export function CreateApiKeyModal({
               </span>
             </p>
 
-            {newKey && (
-              <div className='relative mt-2.5'>
-                <div className='flex h-9 items-center rounded-md border bg-[var(--surface-1)] px-2.5 pr-10'>
-                  <code className='flex-1 truncate font-mono text-[var(--text-primary)] text-sm'>
-                    {newKey.key}
-                  </code>
-                </div>
-                <Button
-                  variant='ghost'
-                  className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] rounded-sm text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
-                  onClick={() => copyToClipboard(newKey.key)}
-                >
-                  {copySuccess ? (
-                    <Check className='h-[14px] w-[14px]' />
-                  ) : (
-                    <Copy className='h-[14px] w-[14px]' />
-                  )}
-                  <span className='sr-only'>Copy to clipboard</span>
-                </Button>
-              </div>
-            )}
+            {newKey && <SecretReveal value={newKey.key} className='mt-2.5' />}
           </ModalBody>
         </ModalContent>
       </Modal>

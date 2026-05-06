@@ -216,7 +216,7 @@ export function Knowledge() {
       result = result.filter((kb) => ownerFilter.includes(kb.userId))
     }
 
-    const col = activeSort?.column ?? 'created'
+    const col = activeSort?.column ?? 'updated'
     const dir = activeSort?.direction ?? 'desc'
     return [...result].sort((a, b) => {
       let cmp = 0

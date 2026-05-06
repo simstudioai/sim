@@ -107,7 +107,6 @@ export const TrelloBlock: BlockConfig<TrelloResponse> = {
       canonicalParamId: 'boardId',
       serviceId: 'trello',
       selectorKey: 'trello.boards',
-      selectorAllowSearch: false,
       placeholder: 'Select Trello board',
       dependsOn: ['credential'],
       mode: 'basic',
@@ -126,6 +125,7 @@ export const TrelloBlock: BlockConfig<TrelloResponse> = {
       type: 'short-input',
       canonicalParamId: 'boardId',
       placeholder: 'Enter Trello board ID',
+      dependsOn: ['credential'],
       mode: 'advanced',
       condition: {
         field: 'operation',

@@ -2,32 +2,40 @@
  * @vitest-environment node
  */
 
-import { databaseMock } from '@sim/testing'
+import {
+  databaseMock,
+  hybridAuthMockFns,
+  posthogServerMock,
+  workflowAuthzMockFns,
+  workflowsUtilsMock,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCheckHybridAuth,
-  mockAuthorizeWorkflowByWorkspacePermission,
   mockMarkExecutionCancelled,
   mockAbortManualExecution,
-  mockCancelPausedExecution,
-  mockSetExecutionMeta,
+  mockBeginPausedCancellation,
+  mockBlockQueuedResumesForCancellation,
+  mockClearPausedCancellationIntent,
+  mockCompletePausedCancellation,
+  mockGetPausedCancellationStatus,
+  mockFinalizeExecutionStream,
+  mockReadExecutionMetaState,
   mockWriteEvent,
-  mockCloseWriter,
+  mockWriteTerminalEvent,
 } = vi.hoisted(() => ({
-  mockCheckHybridAuth: vi.fn(),
-  mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
   mockMarkExecutionCancelled: vi.fn(),
   mockAbortManualExecution: vi.fn(),
-  mockCancelPausedExecution: vi.fn(),
-  mockSetExecutionMeta: vi.fn(),
+  mockBeginPausedCancellation: vi.fn(),
+  mockBlockQueuedResumesForCancellation: vi.fn(),
+  mockClearPausedCancellationIntent: vi.fn(),
+  mockCompletePausedCancellation: vi.fn(),
+  mockGetPausedCancellationStatus: vi.fn(),
+  mockFinalizeExecutionStream: vi.fn(),
+  mockReadExecutionMetaState: vi.fn(),
   mockWriteEvent: vi.fn(),
-  mockCloseWriter: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  checkHybridAuth: (...args: unknown[]) => mockCheckHybridAuth(...args),
+  mockWriteTerminalEvent: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/cancellation', () => ({
@@ -40,24 +48,27 @@ vi.mock('@/lib/execution/manual-cancellation', () => ({
 
 vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
   PauseResumeManager: {
-    cancelPausedExecution: (...args: unknown[]) => mockCancelPausedExecution(...args),
+    beginPausedCancellation: (...args: unknown[]) => mockBeginPausedCancellation(...args),
+    blockQueuedResumesForCancellation: (...args: unknown[]) =>
+      mockBlockQueuedResumesForCancellation(...args),
+    clearPausedCancellationIntent: (...args: unknown[]) =>
+      mockClearPausedCancellationIntent(...args),
+    completePausedCancellation: (...args: unknown[]) => mockCompletePausedCancellation(...args),
+    getPausedCancellationStatus: (...args: unknown[]) => mockGetPausedCancellationStatus(...args),
   },
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  authorizeWorkflowByWorkspacePermission: (params: unknown) =>
-    mockAuthorizeWorkflowByWorkspacePermission(params),
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 vi.mock('@/lib/execution/event-buffer', () => ({
-  setExecutionMeta: (...args: unknown[]) => mockSetExecutionMeta(...args),
+  finalizeExecutionStream: (...args: unknown[]) => mockFinalizeExecutionStream(...args),
+  readExecutionMetaState: (...args: unknown[]) => mockReadExecutionMetaState(...args),
   createExecutionEventWriter: () => ({
     write: (...args: unknown[]) => mockWriteEvent(...args),
-    close: () => mockCloseWriter(),
+    writeTerminal: (...args: unknown[]) => mockWriteTerminalEvent(...args),
+    close: vi.fn().mockResolvedValue(undefined),
   }),
 }))
 
@@ -73,13 +84,20 @@ const makeParams = () => ({ params: Promise.resolve({ id: 'wf-1', executionId: '
 describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckHybridAuth.mockResolvedValue({ success: true, userId: 'user-1' })
-    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({ allowed: true })
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({ success: true, userId: 'user-1' })
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: true,
+    })
     mockAbortManualExecution.mockReturnValue(false)
-    mockCancelPausedExecution.mockResolvedValue(false)
-    mockSetExecutionMeta.mockResolvedValue(undefined)
+    mockBeginPausedCancellation.mockResolvedValue(false)
+    mockBlockQueuedResumesForCancellation.mockResolvedValue(false)
+    mockClearPausedCancellationIntent.mockResolvedValue(undefined)
+    mockCompletePausedCancellation.mockResolvedValue(false)
+    mockGetPausedCancellationStatus.mockResolvedValue(null)
+    mockFinalizeExecutionStream.mockResolvedValue(true)
+    mockReadExecutionMetaState.mockResolvedValue({ status: 'missing' })
     mockWriteEvent.mockResolvedValue({ eventId: 1 })
-    mockCloseWriter.mockResolvedValue(undefined)
+    mockWriteTerminalEvent.mockResolvedValue({ eventId: 1 })
   })
 
   it('returns success when cancellation was durably recorded', async () => {
@@ -164,11 +182,8 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
   })
 
   it('returns success when a paused HITL execution is cancelled directly in the database', async () => {
-    mockMarkExecutionCancelled.mockResolvedValue({
-      durablyRecorded: false,
-      reason: 'redis_unavailable',
-    })
-    mockCancelPausedExecution.mockResolvedValue(true)
+    mockBeginPausedCancellation.mockResolvedValue(true)
+    mockCompletePausedCancellation.mockResolvedValue(true)
 
     const response = await POST(makeRequest(), makeParams())
 
@@ -176,16 +191,84 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     await expect(response.json()).resolves.toEqual({
       success: true,
       executionId: 'ex-1',
+      redisAvailable: true,
+      durablyRecorded: true,
+      locallyAborted: false,
+      pausedCancelled: true,
+      reason: 'recorded',
+    })
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockWriteTerminalEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'execution:cancelled',
+        executionId: 'ex-1',
+        workflowId: 'wf-1',
+      }),
+      'cancelled'
+    )
+    expect(mockFinalizeExecutionStream).not.toHaveBeenCalled()
+  })
+
+  it('publishes paused cancellation event even when Redis cancellation is recorded', async () => {
+    mockBeginPausedCancellation.mockResolvedValue(true)
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      executionId: 'ex-1',
+      durablyRecorded: true,
+      pausedCancelled: true,
+    })
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockWriteTerminalEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'execution:cancelled',
+        executionId: 'ex-1',
+        workflowId: 'wf-1',
+      }),
+      'cancelled'
+    )
+    expect(mockFinalizeExecutionStream).not.toHaveBeenCalled()
+  })
+
+  it('does not confirm paused cancellation when terminal event publication fails', async () => {
+    mockBeginPausedCancellation.mockResolvedValue(true)
+    mockCompletePausedCancellation.mockResolvedValue(true)
+    mockWriteTerminalEvent.mockRejectedValue(new Error('Redis unavailable'))
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      executionId: 'ex-1',
       redisAvailable: false,
       durablyRecorded: false,
       locallyAborted: false,
-      pausedCancelled: true,
-      reason: 'redis_unavailable',
+      pausedCancelled: false,
+      reason: 'paused_event_publish_failed',
     })
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockCompletePausedCancellation).not.toHaveBeenCalled()
+    expect(mockWriteTerminalEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'execution:cancelled',
+        executionId: 'ex-1',
+        workflowId: 'wf-1',
+      }),
+      'cancelled'
+    )
+    expect(mockFinalizeExecutionStream).not.toHaveBeenCalled()
   })
 
   it('returns 401 when auth fails', async () => {
-    mockCheckHybridAuth.mockResolvedValue({ success: false, error: 'Unauthorized' })
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
+      success: false,
+      error: 'Unauthorized',
+    })
 
     const response = await POST(makeRequest(), makeParams())
 
@@ -194,7 +277,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
 
   it('returns 403 when workflow access is denied', async () => {
     mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
-    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: false,
       message: 'Access denied',
       status: 403,
@@ -243,11 +326,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
   })
 
   it('does not update execution log status in DB when only paused execution was cancelled', async () => {
-    mockMarkExecutionCancelled.mockResolvedValue({
-      durablyRecorded: false,
-      reason: 'redis_unavailable',
-    })
-    mockCancelPausedExecution.mockResolvedValue(true)
+    mockBeginPausedCancellation.mockResolvedValue(true)
 
     await POST(makeRequest(), makeParams())
 

@@ -1,16 +1,31 @@
 import { vi } from 'vitest'
 
 /**
- * Mock module for @/lib/audit/log.
- * Use with vi.mock() to replace the real audit logger in tests.
+ * Controllable mock functions for `@sim/audit`.
+ * Exposes `mockRecordAudit` so tests can assert or override behavior per test.
  *
  * @example
  * ```ts
- * vi.mock('@/lib/audit/log', () => auditMock)
+ * import { auditMockFns } from '@sim/testing'
+ *
+ * expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(...)
+ * auditMockFns.mockRecordAudit.mockRejectedValueOnce(new Error('audit failed'))
+ * ```
+ */
+export const auditMockFns = {
+  mockRecordAudit: vi.fn(),
+}
+
+/**
+ * Static mock module for `@sim/audit`.
+ *
+ * @example
+ * ```ts
+ * vi.mock('@sim/audit', () => auditMock)
  * ```
  */
 export const auditMock = {
-  recordAudit: vi.fn(),
+  recordAudit: auditMockFns.mockRecordAudit,
   AuditAction: {
     API_KEY_CREATED: 'api_key.created',
     API_KEY_UPDATED: 'api_key.updated',
@@ -25,8 +40,9 @@ export const auditMock = {
     CHAT_DELETED: 'chat.deleted',
     CREDENTIAL_CREATED: 'credential.created',
     CREDENTIAL_UPDATED: 'credential.updated',
-    CREDENTIAL_DELETED: 'credential.deleted',
     CREDENTIAL_RENAMED: 'credential.renamed',
+    CREDENTIAL_RECONNECTED: 'credential.reconnected',
+    CREDENTIAL_DELETED: 'credential.deleted',
     CREDIT_PURCHASED: 'credit.purchased',
     CREDENTIAL_SET_CREATED: 'credential_set.created',
     CREDENTIAL_SET_UPDATED: 'credential_set.updated',
@@ -40,6 +56,11 @@ export const auditMock = {
     CUSTOM_TOOL_CREATED: 'custom_tool.created',
     CUSTOM_TOOL_UPDATED: 'custom_tool.updated',
     CUSTOM_TOOL_DELETED: 'custom_tool.deleted',
+    DATA_DRAIN_CREATED: 'data_drain.created',
+    DATA_DRAIN_UPDATED: 'data_drain.updated',
+    DATA_DRAIN_DELETED: 'data_drain.deleted',
+    DATA_DRAIN_RAN: 'data_drain.ran',
+    DATA_DRAIN_TESTED: 'data_drain.tested',
     CONNECTOR_DOCUMENT_RESTORED: 'connector_document.restored',
     CONNECTOR_DOCUMENT_EXCLUDED: 'connector_document.excluded',
     DOCUMENT_UPLOADED: 'document.uploaded',
@@ -59,8 +80,10 @@ export const auditMock = {
     FORM_UPDATED: 'form.updated',
     FORM_DELETED: 'form.deleted',
     INVITATION_ACCEPTED: 'invitation.accepted',
+    INVITATION_REJECTED: 'invitation.rejected',
     INVITATION_RESENT: 'invitation.resent',
     INVITATION_REVOKED: 'invitation.revoked',
+    INVITATION_UPDATED: 'invitation.updated',
     CONNECTOR_CREATED: 'connector.created',
     CONNECTOR_UPDATED: 'connector.updated',
     CONNECTOR_DELETED: 'connector.deleted',
@@ -87,6 +110,7 @@ export const auditMock = {
     ORG_MEMBER_REMOVED: 'org_member.removed',
     ORG_MEMBER_ROLE_CHANGED: 'org_member.role_changed',
     ORG_INVITATION_CREATED: 'org_invitation.created',
+    ORG_INVITATION_UPDATED: 'org_invitation.updated',
     ORG_INVITATION_ACCEPTED: 'org_invitation.accepted',
     ORG_INVITATION_REJECTED: 'org_invitation.rejected',
     ORG_INVITATION_CANCELLED: 'org_invitation.cancelled',
@@ -137,6 +161,7 @@ export const auditMock = {
     CREDENTIAL: 'credential',
     CREDENTIAL_SET: 'credential_set',
     CUSTOM_TOOL: 'custom_tool',
+    DATA_DRAIN: 'data_drain',
     DOCUMENT: 'document',
     ENVIRONMENT: 'environment',
     FILE: 'file',

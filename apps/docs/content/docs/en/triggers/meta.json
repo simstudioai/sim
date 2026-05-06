@@ -39,6 +39,7 @@
     "servicenow",
     "slack",
     "stripe",
+    "table",
     "telegram",
     "twilio_voice",
     "typeform",

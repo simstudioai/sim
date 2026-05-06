@@ -10,6 +10,7 @@ export interface STSAssumeRoleParams extends STSConnectionConfig {
   roleArn: string
   roleSessionName: string
   durationSeconds?: number | null
+  policy?: string | null
   externalId?: string | null
   serialNumber?: string | null
   tokenCode?: string | null
@@ -36,6 +37,7 @@ export interface STSAssumeRoleResponse extends ToolResponse {
     assumedRoleArn: string
     assumedRoleId: string
     packedPolicySize: number | null
+    sourceIdentity: string | null
   }
 }
 

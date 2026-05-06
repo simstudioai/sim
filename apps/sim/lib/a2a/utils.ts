@@ -16,8 +16,9 @@ import {
   ClientFactoryOptions,
 } from '@a2a-js/sdk/client'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
-import { generateId } from '@/lib/core/utils/uuid'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { A2A_TERMINAL_STATES } from './constants'
 
@@ -74,7 +75,7 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
   } catch (standardError) {
     logger.debug('Standard agent card path failed, trying root URL', {
       agentUrl,
-      error: standardError instanceof Error ? standardError.message : String(standardError),
+      error: toError(standardError).message,
     })
   }
 
@@ -105,19 +106,29 @@ export interface A2AFile {
   bytes?: string
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object'
+}
+
+function getStringField(source: Record<string, unknown>, key: string): string | undefined {
+  const value = source[key]
+  return typeof value === 'string' ? value : undefined
+}
+
 export function extractFileContent(message: Message): A2AFile[] {
   return message.parts
     .filter((part): part is FilePart => part.kind === 'file')
     .map((part) => {
-      const file = part.file as unknown as Record<string, unknown>
-      const uri = (file.url as string) || (file.uri as string)
-      const hasBytes = Boolean(file.bytes)
+      const file = isRecord(part.file) ? part.file : {}
+      const uri = getStringField(file, 'url') || getStringField(file, 'uri')
+      const bytes = getStringField(file, 'bytes')
+      const hasBytes = Boolean(bytes)
       const canUseUri = Boolean(uri) && (!hasBytes || (uri ? !isInternalFileUrl(uri) : true))
       return {
-        name: file.name as string | undefined,
-        mimeType: file.mimeType as string | undefined,
+        name: getStringField(file, 'name'),
+        mimeType: getStringField(file, 'mimeType'),
         ...(canUseUri ? { uri } : {}),
-        ...(hasBytes ? { bytes: file.bytes as string } : {}),
+        ...(hasBytes ? { bytes } : {}),
       }
     })
 }

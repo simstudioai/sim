@@ -8,8 +8,8 @@
  *   curl -H "x-admin-key: your_admin_key" https://your-instance/api/v1/admin/...
  */
 
-import { createHash, timingSafeEqual } from 'crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
 
@@ -54,7 +54,7 @@ export function authenticateAdminRequest(request: NextRequest): AdminAuthResult 
     }
   }
 
-  if (!constantTimeCompare(providedKey, adminKey)) {
+  if (!safeCompare(providedKey, adminKey)) {
     logger.warn('Invalid admin API key attempted', { keyPrefix: providedKey.slice(0, 8) })
     return {
       authenticated: false,
@@ -63,17 +63,4 @@ export function authenticateAdminRequest(request: NextRequest): AdminAuthResult 
   }
 
   return { authenticated: true }
-}
-
-/**
- * Constant-time string comparison.
- *
- * @param a - First string to compare
- * @param b - Second string to compare
- * @returns True if strings are equal, false otherwise
- */
-function constantTimeCompare(a: string, b: string): boolean {
-  const aHash = createHash('sha256').update(a).digest()
-  const bHash = createHash('sha256').update(b).digest()
-  return timingSafeEqual(aHash, bHash)
 }

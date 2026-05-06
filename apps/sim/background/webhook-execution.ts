@@ -1,16 +1,20 @@
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
+import { createLogger, runWithRequestContext } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
-import { generateId } from '@/lib/core/utils/uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
+import {
+  type WebhookAttachment,
+  WebhookAttachmentProcessor,
+} from '@/lib/webhooks/attachment-processor'
 import { resolveWebhookRecordProviderConfig } from '@/lib/webhooks/env-resolver'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import {
@@ -29,6 +33,99 @@ import { safeAssign } from '@/tools/safe-assign'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('TriggerWebhookExecution')
+
+type WebhookAttachmentInput = Omit<WebhookAttachment, 'data'> & { data: unknown }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isSerializedBuffer(value: unknown): value is { type: 'Buffer'; data: number[] } {
+  return isRecord(value) && value.type === 'Buffer' && Array.isArray(value.data)
+}
+
+function hasSupportedAttachmentData(value: unknown): boolean {
+  return (
+    Buffer.isBuffer(value) ||
+    typeof value === 'string' ||
+    value instanceof ArrayBuffer ||
+    ArrayBuffer.isView(value) ||
+    Array.isArray(value) ||
+    isSerializedBuffer(value)
+  )
+}
+
+function toAttachmentBuffer(data: unknown, name: string): Buffer {
+  if (Buffer.isBuffer(data)) {
+    return data
+  }
+
+  if (isSerializedBuffer(data)) {
+    return Buffer.from(data.data)
+  }
+
+  if (data instanceof ArrayBuffer) {
+    return Buffer.from(data)
+  }
+
+  if (ArrayBuffer.isView(data)) {
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength)
+  }
+
+  if (Array.isArray(data)) {
+    return Buffer.from(data)
+  }
+
+  if (typeof data === 'string') {
+    const trimmed = data.trim()
+    if (trimmed.startsWith('data:')) {
+      const [, base64Data] = trimmed.split(',')
+      return Buffer.from(base64Data ?? '', 'base64')
+    }
+    return Buffer.from(trimmed, 'base64')
+  }
+
+  throw new Error(`Attachment '${name}' has unsupported data format`)
+}
+
+function isWebhookAttachmentInput(value: unknown): value is WebhookAttachmentInput {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return (
+    typeof value.name === 'string' &&
+    typeof value.size === 'number' &&
+    hasSupportedAttachmentData(value.data) &&
+    (value.contentType === undefined || typeof value.contentType === 'string') &&
+    (value.mimeType === undefined || typeof value.mimeType === 'string')
+  )
+}
+
+function normalizeWebhookAttachment(value: unknown): WebhookAttachment | null {
+  if (!isWebhookAttachmentInput(value)) {
+    return null
+  }
+
+  return {
+    name: value.name,
+    data: toAttachmentBuffer(value.data, value.name),
+    contentType: value.contentType,
+    mimeType: value.mimeType,
+    size: value.size,
+  }
+}
+
+function normalizeWebhookAttachments(value: unknown): WebhookAttachment[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.flatMap((attachment) => {
+    const normalized = normalizeWebhookAttachment(attachment)
+    return normalized ? [normalized] : []
+  })
+}
 
 export function buildWebhookCorrelation(
   payload: WebhookExecutionPayload
@@ -73,27 +170,32 @@ async function processTriggerFileOutputs(
   for (const [key, value] of Object.entries(input)) {
     const currentPath = path ? `${path}.${key}` : key
     const outputDef = triggerOutputs[key] as Record<string, unknown> | undefined
-    const val = value as Record<string, unknown>
 
-    if (outputDef?.type === 'file[]' && Array.isArray(val)) {
+    if (outputDef?.type === 'file[]' && Array.isArray(value)) {
       try {
         processed[key] = await WebhookAttachmentProcessor.processAttachments(
-          val as unknown as Parameters<typeof WebhookAttachmentProcessor.processAttachments>[0],
+          normalizeWebhookAttachments(value),
           context
         )
       } catch (error) {
         processed[key] = []
       }
-    } else if (outputDef?.type === 'file' && val) {
+    } else if (outputDef?.type === 'file' && value) {
+      const attachment = normalizeWebhookAttachment(value)
+      if (!attachment) {
+        processed[key] = value
+        continue
+      }
+
       try {
         const [processedFile] = await WebhookAttachmentProcessor.processAttachments(
-          [val] as unknown as Parameters<typeof WebhookAttachmentProcessor.processAttachments>[0],
+          [attachment],
           context
         )
         processed[key] = processedFile
       } catch (error) {
         logger.error(`[${context.requestId}] Error processing ${currentPath}:`, error)
-        processed[key] = val
+        processed[key] = value
       }
     } else if (
       outputDef &&
@@ -102,20 +204,20 @@ async function processTriggerFileOutputs(
       outputDef.properties
     ) {
       processed[key] = await processTriggerFileOutputs(
-        val,
+        value,
         outputDef.properties as Record<string, unknown>,
         context,
         currentPath
       )
     } else if (outputDef && typeof outputDef === 'object' && !outputDef.type) {
       processed[key] = await processTriggerFileOutputs(
-        val,
+        value,
         outputDef as Record<string, unknown>,
         context,
         currentPath
       )
     } else {
-      processed[key] = val
+      processed[key] = value
     }
   }
 
@@ -143,30 +245,32 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
   const executionId = correlation.executionId
   const requestId = correlation.requestId
 
-  logger.info(`[${requestId}] Starting webhook execution`, {
-    webhookId: payload.webhookId,
-    workflowId: payload.workflowId,
-    provider: payload.provider,
-    userId: payload.userId,
-    executionId,
+  return runWithRequestContext({ requestId }, async () => {
+    logger.info(`[${requestId}] Starting webhook execution`, {
+      webhookId: payload.webhookId,
+      workflowId: payload.workflowId,
+      provider: payload.provider,
+      userId: payload.userId,
+      executionId,
+    })
+
+    const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
+      payload.webhookId,
+      payload.headers,
+      payload.body,
+      payload.provider
+    )
+
+    const runOperation = async () => {
+      return await executeWebhookJobInternal(payload, correlation)
+    }
+
+    return await webhookIdempotency.executeWithIdempotency(
+      payload.provider,
+      idempotencyKey,
+      runOperation
+    )
   })
-
-  const idempotencyKey = IdempotencyService.createWebhookIdempotencyKey(
-    payload.webhookId,
-    payload.headers,
-    payload.body,
-    payload.provider
-  )
-
-  const runOperation = async () => {
-    return await executeWebhookJobInternal(payload, correlation)
-  }
-
-  return await webhookIdempotency.executeWithIdempotency(
-    payload.provider,
-    idempotencyKey,
-    runOperation
-  )
 }
 
 export async function resolveWebhookExecutionProviderConfig<
@@ -180,7 +284,7 @@ export async function resolveWebhookExecutionProviderConfig<
   try {
     return await resolveWebhookRecordProviderConfig(webhookRecord, userId, workspaceId)
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
     throw new Error(
       `Failed to resolve webhook provider config for ${provider} webhook ${webhookRecord.id}: ${errorMessage}`
     )
@@ -502,7 +606,7 @@ async function executeWebhookJobInternal(
       provider: payload.provider,
     }
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
     const errorStack = error instanceof Error ? error.stack : undefined
 
     logger.error(`[${requestId}] Webhook execution failed`, {

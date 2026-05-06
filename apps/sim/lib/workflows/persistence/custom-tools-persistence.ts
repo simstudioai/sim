@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
 
 const logger = createLogger('CustomToolsPersistence')
@@ -159,7 +160,7 @@ export async function persistCustomToolsToDatabase(
     saved = validTools.length
     logger.info(`Persisted ${saved} custom tool(s)`, { workspaceId })
   } catch (error) {
-    const errorMsg = `Failed to persist custom tools: ${error instanceof Error ? error.message : String(error)}`
+    const errorMsg = `Failed to persist custom tools: ${toError(error).message}`
     logger.error(errorMsg, { error })
     errors.push(errorMsg)
   }

@@ -4,11 +4,12 @@ description: Your AI command center. Build and manage your entire workspace in n
 ---
 
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
-Describe what you want and Mothership handles it. Build a workflow, run research, generate a presentation, query a table, schedule a recurring job, send a Slack message — Mothership knows your entire workspace and takes action directly.
+<Video src="mothership/create-workflow.mp4" width={700} height={450} />
 
-{/* TODO: Screenshot or GIF of the full Mothership home page — chat pane on the left with a conversation in progress, resource panel on the right with a workflow or file tab open. Hero shot for the page. */}
+Describe what you want and Mothership handles it. Build a workflow, run research, generate a presentation, query a table, schedule a recurring job, send a Slack message — Mothership knows your entire workspace and takes action directly.
 
 ## What You Can Do
 
@@ -44,6 +45,8 @@ For complex tasks, Mothership delegates to specialized subagents automatically. 
 
 Bring any workspace object into the conversation via the **+** menu, `@`-mentions, or drag-and-drop from the sidebar. Mothership also opens resources automatically when it creates or modifies them.
 
+<Video src="mothership/context-menu.mp4" width={700} height={450} />
+
 {/* TODO: Screenshot of the resource panel with multiple tabs open — a workflow tab, a table tab, and a file tab — showing different resource types side by side. */}
 
 | What to add | How it appears |
@@ -58,6 +61,8 @@ Bring any workspace object into the conversation via the **+** menu, `@`-mention
 ## Layout
 
 Mothership has two panes. On the left: the chat thread, where your messages and Mothership's responses appear. On the right: the resource panel, where workflows, tables, files, and knowledge bases open as tabs. The panel is resizable; tabs are draggable and closeable.
+
+<Video src="mothership/split-view.mp4" width={700} height={450} />
 
 <FAQ items={[
   { question: "How is Mothership different from Copilot?", answer: "Copilot is scoped to a single workflow — it helps you build and edit that workflow. Mothership has access to your entire workspace and can build workflows, manage data, run research, schedule jobs, take actions across integrations, and more." },

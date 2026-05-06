@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { bigQueryDatasetsSelectorContract } from '@/lib/api/contracts/selectors/bigquery'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 
@@ -17,23 +20,32 @@ export const dynamic = 'force-dynamic'
  * @param request - Incoming request containing `credential`, `workflowId`, and `projectId` in the JSON body
  * @returns JSON response with a `datasets` array, each entry containing `datasetReference` and optional `friendlyName`
  */
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   try {
-    const body = await request.json()
-    const { credential, workflowId, projectId, impersonateEmail } = body
+    const parsed = await parseRequest(
+      bigQueryDatasetsSelectorContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          const path = error.issues.at(0)?.path[0]
+          const message =
+            path === 'credential'
+              ? 'Credential is required'
+              : path === 'projectId'
+                ? 'Project ID is required'
+                : getValidationErrorMessage(error, 'Invalid request')
+          logger.error(`Validation failed for BigQuery datasets request: ${message}`)
+          return NextResponse.json({ error: message }, { status: 400 })
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!credential) {
-      logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
+    const { credential, workflowId, projectId, impersonateEmail } = parsed.data.body
 
-    if (!projectId) {
-      logger.error('Missing project ID in request')
-      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 })
-    }
-
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
       workflowId,
     })
@@ -103,4 +115,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})

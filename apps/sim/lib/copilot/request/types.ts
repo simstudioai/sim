@@ -1,5 +1,6 @@
 import type { AsyncCompletionSignal } from '@/lib/copilot/async-runs/lifecycle'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
+import type { RequestTraceV1Span } from '@/lib/copilot/generated/request-trace-v1'
 import type { StreamEvent } from '@/lib/copilot/request/session'
 import type { TraceCollector } from '@/lib/copilot/request/trace'
 import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
@@ -54,6 +55,8 @@ export interface ContentBlock {
   toolCall?: ToolCallState
   calledBy?: string
   timestamp: number
+  endedAt?: number
+  parentToolCallId?: string
 }
 
 export interface StreamingContext {
@@ -84,6 +87,7 @@ export interface StreamingContext {
   subAgentParentStack: string[]
   subAgentContent: Record<string, string>
   subAgentToolCalls: Record<string, ToolCallState[]>
+  openSubagentParents?: Set<string>
   pendingContent: string
   streamComplete: boolean
   wasAborted: boolean
@@ -99,6 +103,7 @@ export interface StreamingContext {
     edit?: Record<string, unknown>
   } | null
   trace: TraceCollector
+  subAgentTraceSpans?: Map<string, RequestTraceV1Span>
 }
 
 export interface FileAttachment {
@@ -133,11 +138,13 @@ export interface OrchestratorOptions {
   onComplete?: (result: OrchestratorResult) => void | Promise<void>
   onError?: (error: Error) => void | Promise<void>
   abortSignal?: AbortSignal
+  onAbortObserved?: (reason: string) => void
   interactive?: boolean
 }
 
 export interface OrchestratorResult {
   success: boolean
+  cancelled?: boolean
   content: string
   contentBlocks: ContentBlock[]
   toolCalls: ToolCallSummary[]

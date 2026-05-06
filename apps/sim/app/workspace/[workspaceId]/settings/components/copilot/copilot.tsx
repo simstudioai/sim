@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react'
 // import { useParams } from 'next/navigation'
 import { createLogger } from '@sim/logger'
-import { Check, Copy, Plus, Search } from 'lucide-react'
+import { formatDate } from '@sim/utils/formatting'
+import { Plus, Search } from 'lucide-react'
 import {
   Button,
   Input as EmcnInput,
@@ -12,10 +13,10 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  SecretReveal,
   // Switch,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
-import { formatDate } from '@/lib/core/utils/formatting'
 // import { useMcpServers, useUpdateMcpServer } from '@/hooks/queries/mcp'
 import { CopilotKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/copilot/copilot-skeleton'
 import {
@@ -58,7 +59,6 @@ export function Copilot() {
   const [newKeyName, setNewKeyName] = useState('')
   const [newKey, setNewKey] = useState<string | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
-  const [copySuccess, setCopySuccess] = useState(false)
   const [deleteKey, setDeleteKey] = useState<CopilotKey | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -113,12 +113,6 @@ export function Copilot() {
       logger.error('Failed to generate copilot API key', { error })
       setCreateError('Failed to create API key. Please check your connection and try again.')
     }
-  }
-
-  const copyToClipboard = (key: string) => {
-    navigator.clipboard.writeText(key)
-    setCopySuccess(true)
-    setTimeout(() => setCopySuccess(false), 2000)
   }
 
   const handleDeleteKey = async () => {
@@ -316,7 +310,6 @@ export function Copilot() {
           setShowNewKeyDialog(open)
           if (!open) {
             setNewKey(null)
-            setCopySuccess(false)
           }
         }}
       >
@@ -330,27 +323,7 @@ export function Copilot() {
               </span>
             </p>
 
-            {newKey && (
-              <div className='relative mt-2.5'>
-                <div className='flex h-9 items-center rounded-md border bg-[var(--surface-1)] px-2.5 pr-10'>
-                  <code className='flex-1 truncate font-mono text-[var(--text-primary)] text-sm'>
-                    {newKey}
-                  </code>
-                </div>
-                <Button
-                  variant='ghost'
-                  className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] rounded-sm text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
-                  onClick={() => copyToClipboard(newKey)}
-                >
-                  {copySuccess ? (
-                    <Check className='h-[14px] w-[14px]' />
-                  ) : (
-                    <Copy className='h-[14px] w-[14px]' />
-                  )}
-                  <span className='sr-only'>Copy to clipboard</span>
-                </Button>
-              </div>
-            )}
+            {newKey && <SecretReveal value={newKey} className='mt-2.5' />}
           </ModalBody>
         </ModalContent>
       </Modal>

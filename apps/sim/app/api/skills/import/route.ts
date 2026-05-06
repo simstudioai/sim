@@ -1,16 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { importSkillContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SkillsImportAPI')
 
 const FETCH_TIMEOUT_MS = 15_000
-
-const ImportSchema = z.object({
-  url: z.string().url('A valid URL is required'),
-})
 
 /**
  * Converts a standard GitHub file URL to its raw.githubusercontent.com equivalent.
@@ -42,7 +40,7 @@ function toRawGitHubUrl(url: string): string {
 }
 
 /** POST - Fetch a SKILL.md from a GitHub URL and return its raw content */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -52,8 +50,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
-    const { url } = ImportSchema.parse(body)
+    const validation = await parseRequest(importSkillContract, req, {})
+    if (!validation.success) return validation.response
+    const { url } = validation.data.body
 
     let rawUrl: string
     try {
@@ -92,10 +91,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ content })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid request', details: error.errors }, { status: 400 })
-    }
-
     if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
       logger.warn(`[${requestId}] GitHub fetch timed out`)
       return NextResponse.json({ error: 'Request timed out' }, { status: 504 })
@@ -104,4 +99,4 @@ export async function POST(req: NextRequest) {
     logger.error(`[${requestId}] Error importing skill`, error)
     return NextResponse.json({ error: 'Failed to import skill' }, { status: 500 })
   }
-}
+})

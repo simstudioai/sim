@@ -1,8 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { onePasswordListVaultsContract } from '@/lib/api/contracts/tools/onepassword'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   connectRequest,
   createOnePasswordClient,
@@ -12,15 +14,7 @@ import {
 
 const logger = createLogger('OnePasswordListVaultsAPI')
 
-const ListVaultsSchema = z.object({
-  connectionMode: z.enum(['service_account', 'connect']).nullish(),
-  serviceAccountToken: z.string().nullish(),
-  serverUrl: z.string().nullish(),
-  apiKey: z.string().nullish(),
-  filter: z.string().nullish(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   const auth = await checkInternalAuth(request)
@@ -30,8 +24,16 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json()
-    const params = ListVaultsSchema.parse(body)
+    const parsed = await parseRequest(
+      onePasswordListVaultsContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => validationErrorResponse(error, 'Invalid request data'),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
     const creds = resolveCredentials(params)
 
     logger.info(`[${requestId}] Listing 1Password vaults (${creds.mode} mode)`)
@@ -72,14 +74,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data)
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
     const message = error instanceof Error ? error.message : 'Unknown error'
     logger.error(`[${requestId}] List vaults failed:`, error)
     return NextResponse.json({ error: `Failed to list vaults: ${message}` }, { status: 500 })
   }
-}
+})

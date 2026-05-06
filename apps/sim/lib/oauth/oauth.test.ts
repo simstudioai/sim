@@ -1,4 +1,4 @@
-import { createEnvMock, createMockFetch, loggerMock } from '@sim/testing'
+import { createEnvMock, createMockFetch } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env', () =>
@@ -51,8 +51,6 @@ vi.mock('@/lib/core/config/env', () =>
     SPOTIFY_CLIENT_SECRET: 'spotify_client_secret',
   })
 )
-
-vi.mock('@sim/logger', () => loggerMock)
 
 import { refreshOAuthToken } from '@/lib/oauth'
 

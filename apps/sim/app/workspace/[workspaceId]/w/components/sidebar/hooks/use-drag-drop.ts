@@ -252,11 +252,13 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       if (!isDragging) {
         isDraggingRef.current = true
         setIsDragging(true)
+      } else if (scrollAnimationRef.current === null) {
+        scrollAnimationRef.current = requestAnimationFrame(handleAutoScroll)
       }
 
       return true
     },
-    [isDragging]
+    [isDragging, handleAutoScroll]
   )
 
   const getSiblingItems = useCallback(
@@ -615,6 +617,34 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     setHoverFolderId(null)
     siblingsCacheRef.current.clear()
   }, [])
+
+  useEffect(() => {
+    if (!isDragging) return
+    const container = scrollContainerRef.current
+    if (!container) return
+    const onLeave = (e: DragEvent) => {
+      const related = e.relatedTarget as Node | null
+      if (related && container.contains(related)) return
+      if (scrollAnimationRef.current !== null) {
+        cancelAnimationFrame(scrollAnimationRef.current)
+        scrollAnimationRef.current = null
+      }
+      dropIndicatorRef.current = null
+      setDropIndicator(null)
+      setHoverFolderId(null)
+    }
+    const onWindowDrop = (e: DragEvent) => {
+      const target = e.target as Node | null
+      if (target && container.contains(target)) return
+      handleDragEnd()
+    }
+    container.addEventListener('dragleave', onLeave)
+    window.addEventListener('drop', onWindowDrop, true)
+    return () => {
+      container.removeEventListener('dragleave', onLeave)
+      window.removeEventListener('drop', onWindowDrop, true)
+    }
+  }, [isDragging, handleDragEnd])
 
   const setScrollContainer = useCallback((element: HTMLDivElement | null) => {
     scrollContainerRef.current = element

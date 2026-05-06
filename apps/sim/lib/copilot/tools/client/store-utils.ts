@@ -1,5 +1,6 @@
-import type { LucideIcon } from 'lucide-react'
-import { FileText, Loader2 } from 'lucide-react'
+import type { ComponentType } from 'react'
+import { FileText } from 'lucide-react'
+import { Loader } from '@/components/emcn'
 import { Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
@@ -11,7 +12,7 @@ const INTERNAL_RESPOND_TOOL = 'respond'
 
 interface ClientToolDisplay {
   text: string
-  icon: LucideIcon
+  icon: ComponentType<{ className?: string }>
 }
 
 export function resolveToolDisplay(
@@ -36,7 +37,7 @@ function specialToolDisplay(
   if (toolName === INTERNAL_RESPOND_TOOL || toolName.endsWith(HIDDEN_TOOL_SUFFIX)) {
     return {
       text: formatRespondLabel(state),
-      icon: Loader2,
+      icon: Loader,
     }
   }
 
@@ -70,7 +71,7 @@ function formatReadingLabel(target: string | undefined, state: ClientToolCallSta
     case ClientToolCallState.success:
       return `Read${suffix}`
     case ClientToolCallState.error:
-      return `Failed reading${suffix}`
+      return `Attempted to read${suffix}`
     case ClientToolCallState.rejected:
     case ClientToolCallState.aborted:
       return `Skipped reading${suffix}`
@@ -126,14 +127,16 @@ function humanizedFallback(
   toolName: string,
   state: ClientToolCallState
 ): ClientToolDisplay | undefined {
-  const formattedName = toolName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  const titleCaseName = toolName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  if (state === ClientToolCallState.error) {
+    const lowerCaseName = toolName.replace(/_/g, ' ').toLowerCase()
+    return { text: `Attempted to ${lowerCaseName}`, icon: Loader }
+  }
   const stateVerb =
     state === ClientToolCallState.success
       ? 'Executed'
-      : state === ClientToolCallState.error
-        ? 'Failed'
-        : state === ClientToolCallState.rejected || state === ClientToolCallState.aborted
-          ? 'Skipped'
-          : 'Executing'
-  return { text: `${stateVerb} ${formattedName}`, icon: Loader2 }
+      : state === ClientToolCallState.rejected || state === ClientToolCallState.aborted
+        ? 'Skipped'
+        : 'Executing'
+  return { text: `${stateVerb} ${titleCaseName}`, icon: Loader }
 }

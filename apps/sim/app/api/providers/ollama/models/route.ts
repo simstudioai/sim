@@ -1,7 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  ollamaUpstreamResponseSchema,
+  providerModelsResponseSchema,
+} from '@/lib/api/contracts/providers'
 import { getOllamaUrl } from '@/lib/core/utils/urls'
-import type { ModelsObject } from '@/providers/ollama/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('OllamaModelsAPI')
@@ -10,7 +14,7 @@ const OLLAMA_HOST = getOllamaUrl()
 /**
  * Get available Ollama models
  */
-export async function GET(_request: NextRequest) {
+export const GET = withRouteHandler(async (_request: NextRequest) => {
   if (isProviderBlacklisted('ollama')) {
     logger.info('Ollama provider is blacklisted, returning empty models')
     return NextResponse.json({ models: [] })
@@ -36,7 +40,7 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ models: [] })
     }
 
-    const data = (await response.json()) as ModelsObject
+    const data = ollamaUpstreamResponseSchema.parse(await response.json())
     const allModels = data.models.map((model) => model.name)
     const models = filterBlacklistedModels(allModels)
 
@@ -46,7 +50,7 @@ export async function GET(_request: NextRequest) {
       models,
     })
 
-    return NextResponse.json({ models })
+    return NextResponse.json(providerModelsResponseSchema.parse({ models }))
   } catch (error) {
     logger.error('Failed to fetch Ollama models', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -55,4 +59,4 @@ export async function GET(_request: NextRequest) {
 
     return NextResponse.json({ models: [] })
   }
-}
+})

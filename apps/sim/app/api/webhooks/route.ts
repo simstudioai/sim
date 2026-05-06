@@ -1,13 +1,21 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { permissions, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId, generateShortId } from '@sim/utils/id'
+import {
+  assertWorkflowMutable,
+  authorizeWorkflowByWorkspacePermission,
+  WorkflowLockedError,
+} from '@sim/workflow-authz'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { listWebhooksContract, upsertWebhookContract } from '@/lib/api/contracts/webhooks'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId, generateShortId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
@@ -19,7 +27,6 @@ import {
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import { mergeNonUserFields } from '@/lib/webhooks/utils'
 import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { extractCredentialSetId, isCredentialSetValue } from '@/executor/constants'
 
 const logger = createLogger('WebhooksAPI')
@@ -56,7 +63,7 @@ async function revertSavedWebhook(
 }
 
 // Get all webhooks for the current user
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -66,9 +73,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const workflowId = searchParams.get('workflowId')
-    const blockId = searchParams.get('blockId')
+    const parsed = await parseRequest(listWebhooksContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { workflowId, blockId } = parsed.data.query
 
     if (workflowId && blockId) {
       // Collaborative-aware path: allow collaborators with read access to view webhooks
@@ -168,10 +175,10 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching webhooks`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 // Create or Update a webhook
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   const session = await getSession()
   const userId = session?.user?.id
@@ -182,8 +189,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json()
-    const { workflowId, path, provider, providerConfig, blockId } = body
+    const parsed = await parseRequest(upsertWebhookContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const body = parsed.data.body
+    const { workflowId, path, providerConfig, blockId } = body
+    const provider = body.provider || ''
 
     // Validate input
     if (!workflowId) {
@@ -286,6 +297,7 @@ export async function POST(request: NextRequest) {
       )
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
+    await assertWorkflowMutable(workflowId)
 
     // Determine existing webhook to update (prefer by workflow+block for credential-based providers)
     let targetWebhookId: string | null = null
@@ -375,7 +387,7 @@ export async function POST(request: NextRequest) {
         try {
           const syncResult = await syncWebhooksForCredentialSet({
             workflowId,
-            blockId,
+            blockId: blockId || '',
             provider,
             basePath: finalPath,
             credentialSetId,
@@ -713,10 +725,14 @@ export async function POST(request: NextRequest) {
     const status = targetWebhookId ? 200 : 201
     return NextResponse.json({ webhook: savedWebhook }, { status })
   } catch (error: any) {
+    if (error instanceof WorkflowLockedError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
     logger.error(`[${requestId}] Error creating/updating webhook`, {
       message: error.message,
       stack: error.stack,
     })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

@@ -1,10 +1,11 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { chat, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
@@ -198,7 +199,7 @@ export async function executeDeployApi(
       },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -440,7 +441,7 @@ export async function executeDeployChat(
       },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -712,7 +713,7 @@ export async function executeDeployMcp(
       },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -764,6 +765,6 @@ export async function executeRedeploy(
       },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }

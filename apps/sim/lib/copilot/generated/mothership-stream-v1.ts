@@ -66,6 +66,10 @@ export interface MothershipStreamV1StreamRef {
   streamId: string
 }
 export interface MothershipStreamV1Trace {
+  /**
+   * OTel trace ID from the first Go ingress. May differ from requestId when Sim assigns the canonical request identity.
+   */
+  goTraceId?: string
   requestId: string
   spanId?: string
 }

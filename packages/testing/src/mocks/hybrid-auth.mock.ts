@@ -1,96 +1,59 @@
-/**
- * Mock for @/lib/auth/hybrid module.
- * Provides controllable mock functions for checkHybridAuth, checkSessionOrInternalAuth, and checkInternalAuth.
- */
 import { vi } from 'vitest'
-import type { MockUser } from './auth.mock'
-import { defaultMockUser } from './auth.mock'
+import { authMockFns } from './auth.mock'
 
 /**
- * Auth type constants matching @/lib/auth/hybrid AuthType.
- * Include this in vi.mock() factories so route code can reference AuthType.*.
+ * Auth type constants matching `@/lib/auth/hybrid` AuthType. Included in
+ * `hybridAuthMock.AuthType` so route code can reference `AuthType.SESSION` etc.
  */
-export const AuthTypeMock = {
+const AuthTypeMock = {
   SESSION: 'session',
   API_KEY: 'api_key',
   INTERNAL_JWT: 'internal_jwt',
 } as const
 
-interface HybridAuthResponse {
-  success: boolean
-  userId?: string
-  userName?: string | null
-  userEmail?: string | null
-  authType?: (typeof AuthTypeMock)[keyof typeof AuthTypeMock]
-  error?: string
-}
-
 /**
- * Result object returned by mockHybridAuth with helper methods
+ * Default session-delegating implementation for `checkSessionOrInternalAuth`.
+ * Mirrors the real function's session-auth path so tests that only mock
+ * `getSession` (via `authMockFns.mockGetSession`) continue to work when the
+ * hybrid module is globally mocked.
  */
-export interface MockHybridAuthResult {
-  mockCheckHybridAuth: ReturnType<typeof vi.fn>
-  mockCheckSessionOrInternalAuth: ReturnType<typeof vi.fn>
-  mockCheckInternalAuth: ReturnType<typeof vi.fn>
-  setAuthenticated: (user?: MockUser) => void
-  setUnauthenticated: () => void
+const defaultCheckSessionOrInternalAuth = async () => {
+  const session = await authMockFns.mockGetSession()
+  if (session?.user?.id) {
+    return {
+      success: true,
+      userId: session.user.id,
+      userName: session.user.name,
+      userEmail: session.user.email,
+      authType: AuthTypeMock.SESSION,
+    }
+  }
+  return { success: false, error: 'Unauthorized' }
 }
 
 /**
- * Mock hybrid authentication for API tests.
- * Uses vi.doMock to mock the @/lib/auth/hybrid module.
- *
- * @param user - Optional default user for authenticated state
- * @returns Object with mock functions and authentication helpers
+ * Controllable mock functions for `@/lib/auth/hybrid`. Override per-test with
+ * `hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce(...)`.
+ */
+export const hybridAuthMockFns = {
+  mockCheckHybridAuth: vi.fn(defaultCheckSessionOrInternalAuth),
+  mockCheckSessionOrInternalAuth: vi.fn(defaultCheckSessionOrInternalAuth),
+  mockCheckInternalAuth: vi.fn(),
+  mockHasExternalApiCredentials: vi.fn(() => false),
+}
+
+/**
+ * Static mock module for `@/lib/auth/hybrid`.
  *
  * @example
  * ```ts
- * const hybridAuth = mockHybridAuth()
- * hybridAuth.setAuthenticated() // All hybrid auth checks succeed
- * hybridAuth.setUnauthenticated() // All hybrid auth checks fail
+ * vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
  * ```
  */
-export function mockHybridAuth(user: MockUser = defaultMockUser): MockHybridAuthResult {
-  const mockCheckHybridAuth = vi.fn<() => Promise<HybridAuthResponse>>()
-  const mockCheckSessionOrInternalAuth = vi.fn<() => Promise<HybridAuthResponse>>()
-  const mockCheckInternalAuth = vi.fn<() => Promise<HybridAuthResponse>>()
-
-  vi.doMock('@/lib/auth/hybrid', () => ({
-    AuthType: AuthTypeMock,
-    checkHybridAuth: mockCheckHybridAuth,
-    checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-    checkInternalAuth: mockCheckInternalAuth,
-  }))
-
-  const setAuthenticated = (customUser?: MockUser) => {
-    const u = customUser || user
-    const response: HybridAuthResponse = {
-      success: true,
-      userId: u.id,
-      userName: u.name ?? null,
-      userEmail: u.email,
-      authType: 'session',
-    }
-    mockCheckHybridAuth.mockResolvedValue(response)
-    mockCheckSessionOrInternalAuth.mockResolvedValue(response)
-    mockCheckInternalAuth.mockResolvedValue(response)
-  }
-
-  const setUnauthenticated = () => {
-    const response: HybridAuthResponse = {
-      success: false,
-      error: 'Unauthorized',
-    }
-    mockCheckHybridAuth.mockResolvedValue(response)
-    mockCheckSessionOrInternalAuth.mockResolvedValue(response)
-    mockCheckInternalAuth.mockResolvedValue(response)
-  }
-
-  return {
-    mockCheckHybridAuth,
-    mockCheckSessionOrInternalAuth,
-    mockCheckInternalAuth,
-    setAuthenticated,
-    setUnauthenticated,
-  }
+export const hybridAuthMock = {
+  AuthType: AuthTypeMock,
+  checkHybridAuth: hybridAuthMockFns.mockCheckHybridAuth,
+  checkSessionOrInternalAuth: hybridAuthMockFns.mockCheckSessionOrInternalAuth,
+  checkInternalAuth: hybridAuthMockFns.mockCheckInternalAuth,
+  hasExternalApiCredentials: hybridAuthMockFns.mockHasExternalApiCredentials,
 }

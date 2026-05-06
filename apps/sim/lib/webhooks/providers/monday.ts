@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { validateMondayNumericId } from '@/lib/core/security/input-validation'
 import {
@@ -163,7 +164,7 @@ export const mondayHandler: WebhookProviderHandler = {
         throw error
       }
       logger.error(`[${ctx.requestId}] Error creating Monday webhook`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       throw new Error(
         'Failed to create Monday.com webhook. Please verify your account connection and board ID, then try again.'
@@ -207,7 +208,7 @@ export const mondayHandler: WebhookProviderHandler = {
     } catch (error) {
       logger.warn(
         `[${ctx.requestId}] Could not resolve credentials for Monday webhook deletion (non-fatal)`,
-        { error: error instanceof Error ? error.message : String(error) }
+        { error: toError(error).message }
       )
     }
 
@@ -260,7 +261,7 @@ export const mondayHandler: WebhookProviderHandler = {
       }
     } catch (error) {
       logger.warn(`[${ctx.requestId}] Error deleting Monday webhook ${externalId} (non-fatal)`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   },

@@ -18,11 +18,14 @@ export const getTriggerBlocksServerTool: BaseServerTool<
   name: 'get_trigger_blocks',
   inputSchema: GetTriggerBlocksInput,
   outputSchema: GetTriggerBlocksResult,
-  async execute(_args: unknown, context?: { userId: string }) {
+  async execute(_args: unknown, context?: { userId: string; workspaceId?: string }) {
     const logger = createLogger('GetTriggerBlocksServerTool')
     logger.debug('Executing get_trigger_blocks')
 
-    const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
+    const permissionConfig =
+      context?.userId && context?.workspaceId
+        ? await getUserPermissionConfig(context.userId, context.workspaceId)
+        : null
     const allowedIntegrations =
       permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
 

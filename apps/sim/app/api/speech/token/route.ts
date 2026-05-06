@@ -3,6 +3,7 @@ import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { speechTokenBodySchema } from '@/lib/api/contracts/media/speech'
 import { getSession } from '@/lib/auth'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { recordUsage } from '@/lib/billing/core/usage-log'
@@ -11,6 +12,7 @@ import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-f
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { validateAuthToken } from '@/lib/core/security/deployment'
 import { getClientIp } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SpeechTokenAPI')
 
@@ -70,10 +72,12 @@ async function validateChatAuth(
   }
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const body = await request.json().catch(() => ({}))
-    const chatId = body?.chatId as string | undefined
+    const rawBody = await request.json().catch(() => ({}))
+    const body = speechTokenBodySchema.safeParse(rawBody)
+    const chatId =
+      body.success && typeof body.data.chatId === 'string' ? body.data.chatId : undefined
 
     let billingUserId: string | undefined
 
@@ -171,4 +175,4 @@ export async function POST(request: NextRequest) {
     logger.error('Speech token error:', error)
     return NextResponse.json({ error: message }, { status: 500 })
   }
-}
+})

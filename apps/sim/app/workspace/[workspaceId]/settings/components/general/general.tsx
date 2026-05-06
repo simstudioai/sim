@@ -18,6 +18,8 @@ import {
   Switch,
   Tooltip,
 } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { telemetryContract } from '@/lib/api/contracts/telemetry'
 import { signOut, useSession } from '@/lib/auth/auth-client'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
@@ -230,14 +232,12 @@ export function General() {
 
       if (checked) {
         if (typeof window !== 'undefined') {
-          fetch('/api/telemetry', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          requestJson(telemetryContract, {
+            body: {
               category: 'consent',
               action: 'enable_from_settings',
               timestamp: new Date().toISOString(),
-            }),
+            },
           }).catch(() => {})
         }
       }

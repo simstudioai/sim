@@ -3,15 +3,82 @@
  * Ephemeral — no persistence. Stacks are keyed by tableId.
  */
 
+import { generateShortId } from '@sim/utils/id'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { generateShortId } from '@/lib/core/utils/uuid'
 import type { TableUndoAction, TableUndoStacks, TableUndoState, UndoEntry } from './types'
 
 const STACK_CAPACITY = 100
 const EMPTY_STACKS: TableUndoStacks = { undo: [], redo: [] }
 
 let undoRedoInProgress = false
+
+function patchRowIdInEntry(entry: UndoEntry, oldRowId: string, newRowId: string): UndoEntry {
+  const { action } = entry
+  switch (action.type) {
+    case 'update-cell':
+      if (action.rowId === oldRowId) {
+        return { ...entry, action: { ...action, rowId: newRowId } }
+      }
+      break
+    case 'clear-cells': {
+      const hasMatch = action.cells.some((c) => c.rowId === oldRowId)
+      if (hasMatch) {
+        const patched = action.cells.map((c) =>
+          c.rowId === oldRowId ? { ...c, rowId: newRowId } : c
+        )
+        return { ...entry, action: { ...action, cells: patched } }
+      }
+      break
+    }
+    case 'update-cells': {
+      const hasMatch = action.cells.some((c) => c.rowId === oldRowId)
+      if (hasMatch) {
+        const patched = action.cells.map((c) =>
+          c.rowId === oldRowId ? { ...c, rowId: newRowId } : c
+        )
+        return { ...entry, action: { ...action, cells: patched } }
+      }
+      break
+    }
+    case 'create-row':
+      if (action.rowId === oldRowId) {
+        return { ...entry, action: { ...action, rowId: newRowId } }
+      }
+      break
+    case 'create-rows': {
+      const hasMatch = action.rows.some((r) => r.rowId === oldRowId)
+      if (hasMatch) {
+        const patched = action.rows.map((r) =>
+          r.rowId === oldRowId ? { ...r, rowId: newRowId } : r
+        )
+        return { ...entry, action: { ...action, rows: patched } }
+      }
+      break
+    }
+    case 'delete-rows': {
+      const hasMatch = action.rows.some((r) => r.rowId === oldRowId)
+      if (hasMatch) {
+        const patched = action.rows.map((r) =>
+          r.rowId === oldRowId ? { ...r, rowId: newRowId } : r
+        )
+        return { ...entry, action: { ...action, rows: patched } }
+      }
+      break
+    }
+    case 'delete-column': {
+      const hasMatch = action.cellData.some((c) => c.rowId === oldRowId)
+      if (hasMatch) {
+        const patched = action.cellData.map((c) =>
+          c.rowId === oldRowId ? { ...c, rowId: newRowId } : c
+        )
+        return { ...entry, action: { ...action, cellData: patched } }
+      }
+      break
+    }
+  }
+  return entry
+}
 
 /**
  * Run a function without recording undo entries.
@@ -83,46 +150,35 @@ export const useTableUndoStore = create<TableUndoState>()(
       },
 
       patchRedoRowId: (tableId: string, oldRowId: string, newRowId: string) => {
-        const stacks = get().stacks[tableId]
-        if (!stacks) return
-
-        const patchedRedo = stacks.redo.map((entry) => {
-          const { action } = entry
-          if (action.type === 'delete-rows') {
-            const patchedRows = action.rows.map((r) =>
-              r.rowId === oldRowId ? { ...r, rowId: newRowId } : r
-            )
-            return { ...entry, action: { ...action, rows: patchedRows } }
+        set((state) => {
+          const stacks = state.stacks[tableId]
+          if (!stacks) return state
+          const patchedRedo = stacks.redo.map((entry) =>
+            patchRowIdInEntry(entry, oldRowId, newRowId)
+          )
+          return {
+            stacks: {
+              ...state.stacks,
+              [tableId]: { ...stacks, redo: patchedRedo },
+            },
           }
-          return entry
         })
-
-        set((state) => ({
-          stacks: {
-            ...state.stacks,
-            [tableId]: { ...stacks, redo: patchedRedo },
-          },
-        }))
       },
 
       patchUndoRowId: (tableId: string, oldRowId: string, newRowId: string) => {
-        const stacks = get().stacks[tableId]
-        if (!stacks) return
-
-        const patchedUndo = stacks.undo.map((entry) => {
-          const { action } = entry
-          if (action.type === 'create-row' && action.rowId === oldRowId) {
-            return { ...entry, action: { ...action, rowId: newRowId } }
+        set((state) => {
+          const stacks = state.stacks[tableId]
+          if (!stacks) return state
+          const patchedUndo = stacks.undo.map((entry) =>
+            patchRowIdInEntry(entry, oldRowId, newRowId)
+          )
+          return {
+            stacks: {
+              ...state.stacks,
+              [tableId]: { ...stacks, undo: patchedUndo },
+            },
           }
-          return entry
         })
-
-        set((state) => ({
-          stacks: {
-            ...state.stacks,
-            [tableId]: { ...stacks, undo: patchedUndo },
-          },
-        }))
       },
 
       clear: (tableId: string) => {

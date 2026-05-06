@@ -1,11 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/stores/workflows/workflow/store', () => ({
   useWorkflowStore: {

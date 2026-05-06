@@ -3,9 +3,12 @@
 import { useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { requestJson } from '@/lib/api/client/request'
+import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
+import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
-import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
+import { useWorkspacesWithMetadata, type WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
 
 const logger = createLogger('WorkspacePage')
 
@@ -33,10 +36,10 @@ export default function WorkspacePage() {
     const urlParams = new URLSearchParams(window.location.search)
     const redirectWorkflowId = urlParams.get('redirect_workflow')
 
-    const { workspaces, lastActiveWorkspaceId } = data
+    const { workspaces, lastActiveWorkspaceId, creationPolicy } = data
 
     if (workspaces.length === 0) {
-      handleNoWorkspaces(router)
+      handleNoWorkspaces(router, creationPolicy)
       return
     }
 
@@ -82,15 +85,14 @@ async function handleWorkflowRedirect(
   router: ReturnType<typeof useRouter>
 ): Promise<void> {
   try {
-    const response = await fetch(`/api/workflows/${workflowId}`)
-    if (response.ok) {
-      const workflowData = await response.json()
-      const workspaceId = workflowData.data?.workspaceId
-      if (workspaceId) {
-        logger.info(`Redirecting workflow ${workflowId} to workspace ${workspaceId}`)
-        router.replace(`/workspace/${workspaceId}/w/${workflowId}`)
-        return
-      }
+    const workflowData = await requestJson(getWorkflowStateContract, {
+      params: { id: workflowId },
+    })
+    const workspaceId = workflowData.data.workspaceId
+    if (workspaceId) {
+      logger.info(`Redirecting workflow ${workflowId} to workspace ${workspaceId}`)
+      router.replace(`/workspace/${workspaceId}/w/${workflowId}`)
+      return
     }
   } catch (error) {
     logger.error('Error fetching workflow for redirect:', error)
@@ -98,21 +100,29 @@ async function handleWorkflowRedirect(
   router.replace(`/workspace/${fallbackWorkspaceId}/home`)
 }
 
-async function handleNoWorkspaces(router: ReturnType<typeof useRouter>): Promise<void> {
+async function handleNoWorkspaces(
+  router: ReturnType<typeof useRouter>,
+  creationPolicy: WorkspaceCreationPolicy | null
+): Promise<void> {
+  if (creationPolicy && !creationPolicy.canCreate) {
+    logger.warn('No workspaces found and workspace creation is blocked', {
+      reason: creationPolicy.reason,
+      workspaceMode: creationPolicy.workspaceMode,
+      organizationId: creationPolicy.organizationId,
+    })
+    router.replace('/')
+    return
+  }
+
   logger.warn('No workspaces found, creating default workspace')
   try {
-    const response = await fetch('/api/workspaces', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'My Workspace' }),
+    const data = await requestJson(createWorkspaceContract, {
+      body: { name: 'My Workspace' },
     })
-    if (response.ok) {
-      const data = await response.json()
-      if (data.workspace?.id) {
-        logger.info(`Created default workspace: ${data.workspace.id}`)
-        router.replace(`/workspace/${data.workspace.id}/home`)
-        return
-      }
+    if (data.workspace?.id) {
+      logger.info(`Created default workspace: ${data.workspace.id}`)
+      router.replace(`/workspace/${data.workspace.id}/home`)
+      return
     }
     logger.error('Failed to create default workspace')
   } catch (error) {

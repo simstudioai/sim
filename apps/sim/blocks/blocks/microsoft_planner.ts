@@ -87,7 +87,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       canonicalParamId: 'planId',
       serviceId: 'microsoft-planner',
       selectorKey: 'microsoft.planner.plans',
-      selectorAllowSearch: false,
       placeholder: 'Select a plan',
       dependsOn: ['credential'],
       mode: 'basic',

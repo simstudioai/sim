@@ -1,6 +1,10 @@
+import { db } from '@sim/db'
+import { knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import { eq } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { generateId } from '@/lib/core/utils/uuid'
 import { restoreKnowledgeBase } from '@/lib/knowledge/service'
 import { getTableById, restoreTable } from '@/lib/table/service'
 import {
@@ -9,6 +13,8 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { restoreWorkflow } from '@/lib/workflows/lifecycle'
 import { performRestoreFolder } from '@/lib/workflows/orchestration/folder-lifecycle'
+import { getWorkflowById } from '@/lib/workflows/utils'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('RestoreResource')
 
@@ -32,10 +38,25 @@ export async function executeRestoreResource(
   }
 
   const requestId = generateId().slice(0, 8)
+  const callerWorkspaceId = context.workspaceId
+
+  const hasWriteAccess = async (resourceWorkspaceId: string | null | undefined) => {
+    if (!resourceWorkspaceId || resourceWorkspaceId !== callerWorkspaceId) return false
+    const permission = await getUserEntityPermissions(
+      context.userId,
+      'workspace',
+      resourceWorkspaceId
+    )
+    return permission === 'write' || permission === 'admin'
+  }
 
   try {
     switch (type) {
       case 'workflow': {
+        const existing = await getWorkflowById(id, { includeArchived: true })
+        if (!existing || !(await hasWriteAccess(existing.workspaceId))) {
+          return { success: false, error: 'Workflow not found' }
+        }
         const result = await restoreWorkflow(id, { requestId })
         if (!result.restored) {
           return { success: false, error: 'Workflow not found or not archived' }
@@ -49,9 +70,13 @@ export async function executeRestoreResource(
       }
 
       case 'table': {
+        const existing = await getTableById(id, { includeArchived: true })
+        if (!existing || !(await hasWriteAccess(existing.workspaceId))) {
+          return { success: false, error: 'Table not found' }
+        }
         await restoreTable(id, requestId)
         const table = await getTableById(id)
-        const tableName = table?.name || id
+        const tableName = table?.name || existing.name
         logger.info('Table restored via copilot', { tableId: id, name: tableName })
         return {
           success: true,
@@ -61,6 +86,9 @@ export async function executeRestoreResource(
       }
 
       case 'file': {
+        if (!(await hasWriteAccess(context.workspaceId))) {
+          return { success: false, error: 'File not found' }
+        }
         await restoreWorkspaceFile(context.workspaceId, id)
         const fileRecord = await getWorkspaceFile(context.workspaceId, id)
         const fileName = fileRecord?.name || id
@@ -73,6 +101,14 @@ export async function executeRestoreResource(
       }
 
       case 'knowledgebase': {
+        const [existing] = await db
+          .select({ workspaceId: knowledgeBase.workspaceId })
+          .from(knowledgeBase)
+          .where(eq(knowledgeBase.id, id))
+          .limit(1)
+        if (!existing || !(await hasWriteAccess(existing.workspaceId))) {
+          return { success: false, error: 'Knowledge base not found' }
+        }
         await restoreKnowledgeBase(id, requestId)
         logger.info('Knowledge base restored via copilot', { knowledgeBaseId: id })
         return {
@@ -82,6 +118,9 @@ export async function executeRestoreResource(
       }
 
       case 'folder': {
+        if (!(await hasWriteAccess(context.workspaceId))) {
+          return { success: false, error: 'Folder not found' }
+        }
         const result = await performRestoreFolder({
           folderId: id,
           workspaceId: context.workspaceId,
@@ -101,6 +140,6 @@ export async function executeRestoreResource(
         return { success: false, error: `Unsupported type: ${type}` }
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }

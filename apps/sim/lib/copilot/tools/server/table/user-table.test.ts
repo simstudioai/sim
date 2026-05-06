@@ -19,22 +19,14 @@ const {
   mockReplaceTableRows: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}))
-
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn().mockReturnValue('deadbeefcafef00d'),
   generateShortId: vi.fn().mockReturnValue('short-id'),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
-  downloadWorkspaceFile: mockDownloadWorkspaceFile,
+  fetchWorkspaceFileBuffer: mockDownloadWorkspaceFile,
 }))
 
 vi.mock('@/lib/table/service', () => ({

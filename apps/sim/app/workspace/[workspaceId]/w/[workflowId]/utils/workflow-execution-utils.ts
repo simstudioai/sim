@@ -1,25 +1,31 @@
 import { createLogger } from '@sim/logger'
-import { generateId } from '@/lib/core/utils/uuid'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
+import type { TraceSpan } from '@/lib/logs/types'
 import type {
+  BlockChildWorkflowStartedData,
   BlockCompletedData,
   BlockErrorData,
   BlockStartedData,
 } from '@/lib/workflows/executor/execution-events'
-import type {
-  BlockLog,
-  BlockState,
-  ExecutionResult,
-  NormalizedBlockOutput,
-  StreamingExecution,
-} from '@/executor/types'
+import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
-import { processSSEStream } from '@/hooks/use-execution-stream'
+import {
+  processSSEStream,
+  SSEEventHandlerError,
+  SSEStreamInterruptedError,
+} from '@/hooks/use-execution-stream'
 
 const logger = createLogger('workflow-execution-utils')
 
 import { useExecutionStore } from '@/stores/execution'
 import type { ConsoleEntry, ConsoleUpdate } from '@/stores/terminal'
-import { saveExecutionPointer, useTerminalConsoleStore } from '@/stores/terminal'
+import {
+  clearExecutionPointer,
+  consolePersistence,
+  saveExecutionPointer,
+  useTerminalConsoleStore,
+} from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -112,7 +118,6 @@ export interface BlockEventHandlerConfig {
   accumulatedBlockLogs: BlockLog[]
   accumulatedBlockStates: Map<string, BlockState>
   executedBlockIds: Set<string>
-  consoleMode: 'update' | 'add'
   includeStartConsoleEntry: boolean
   onBlockCompleteCallback?: (blockId: string, output: unknown) => Promise<void>
 }
@@ -124,6 +129,8 @@ export interface BlockEventHandlerDeps {
   setBlockRunStatus: (workflowId: string, blockId: string, status: 'success' | 'error') => void
   setEdgeRunStatus: (workflowId: string, edgeId: string, status: 'success' | 'error') => void
 }
+
+type BlockChildWorkflowStartedUpdate = BlockChildWorkflowStartedData
 
 /**
  * Creates block event handlers for SSE execution events.
@@ -142,12 +149,12 @@ export function createBlockEventHandlers(
     accumulatedBlockLogs,
     accumulatedBlockStates,
     executedBlockIds,
-    consoleMode,
     includeStartConsoleEntry,
     onBlockCompleteCallback,
   } = config
 
   const { addConsole, updateConsole, setActiveBlocks, setBlockRunStatus, setEdgeRunStatus } = deps
+  const pendingChildWorkflowStarts = new Map<string, BlockChildWorkflowStartedUpdate>()
 
   const isStaleExecution = () =>
     !!(
@@ -186,6 +193,94 @@ export function createBlockEventHandlers(
     }),
   })
 
+  const parentIterationsMatch = (
+    left: ConsoleEntry['parentIterations'],
+    right: BlockStartedData['parentIterations']
+  ) => {
+    if (!left?.length && !right?.length) return true
+    if (!left || !right || left.length !== right.length) return false
+    return left.every((entry, index) => {
+      const other = right[index]
+      return (
+        entry.iterationCurrent === other.iterationCurrent &&
+        entry.iterationTotal === other.iterationTotal &&
+        entry.iterationType === other.iterationType &&
+        entry.iterationContainerId === other.iterationContainerId
+      )
+    })
+  }
+
+  type StartedIdentity = {
+    blockId: string
+    executionOrder?: number
+    iterationCurrent?: BlockStartedData['iterationCurrent']
+    iterationTotal?: BlockStartedData['iterationTotal']
+    iterationType?: BlockStartedData['iterationType']
+    iterationContainerId?: BlockStartedData['iterationContainerId']
+    childWorkflowBlockId?: BlockStartedData['childWorkflowBlockId']
+    childWorkflowName?: BlockStartedData['childWorkflowName']
+    parentIterations?: BlockStartedData['parentIterations']
+  }
+
+  const startedEntryKey = (data: StartedIdentity) =>
+    JSON.stringify({
+      blockId: data.blockId,
+      executionOrder: data.executionOrder,
+      iterationCurrent: data.iterationCurrent,
+      iterationTotal: data.iterationTotal,
+      iterationType: data.iterationType,
+      iterationContainerId: data.iterationContainerId,
+      childWorkflowBlockId: data.childWorkflowBlockId,
+      childWorkflowName: data.childWorkflowName,
+      parentIterations: data.parentIterations ?? [],
+    })
+
+  const matchesStartedIdentity = (entry: ConsoleEntry, data: StartedIdentity) =>
+    entry.executionId === executionIdRef.current &&
+    entry.blockId === data.blockId &&
+    (data.executionOrder === undefined || entry.executionOrder === data.executionOrder) &&
+    entry.iterationCurrent === data.iterationCurrent &&
+    entry.iterationTotal === data.iterationTotal &&
+    entry.iterationType === data.iterationType &&
+    entry.iterationContainerId === data.iterationContainerId &&
+    entry.childWorkflowBlockId === data.childWorkflowBlockId &&
+    entry.childWorkflowName === data.childWorkflowName &&
+    parentIterationsMatch(entry.parentIterations, data.parentIterations)
+
+  const hasExistingStartedEntry = (data: StartedIdentity) => {
+    if (!workflowId) return false
+    return useTerminalConsoleStore
+      .getState()
+      .getWorkflowEntries(workflowId)
+      .some((entry) => matchesStartedIdentity(entry, data))
+  }
+
+  const applyChildWorkflowStart = (data: BlockChildWorkflowStartedUpdate) => {
+    updateConsole(
+      data.blockId,
+      {
+        childWorkflowInstanceId: data.childWorkflowInstanceId,
+        ...(data.iterationCurrent !== undefined && { iterationCurrent: data.iterationCurrent }),
+        ...(data.iterationTotal !== undefined && { iterationTotal: data.iterationTotal }),
+        ...(data.iterationType !== undefined && { iterationType: data.iterationType }),
+        ...(data.iterationContainerId !== undefined && {
+          iterationContainerId: data.iterationContainerId,
+        }),
+        ...(data.parentIterations !== undefined && {
+          parentIterations: data.parentIterations,
+        }),
+        ...(data.childWorkflowBlockId !== undefined && {
+          childWorkflowBlockId: data.childWorkflowBlockId,
+        }),
+        ...(data.childWorkflowName !== undefined && {
+          childWorkflowName: data.childWorkflowName,
+        }),
+        ...(data.executionOrder !== undefined && { executionOrder: data.executionOrder }),
+      },
+      executionIdRef.current
+    )
+  }
+
   const createBlockLogEntry = (
     data: BlockCompletedData | BlockErrorData,
     options: { success: boolean; output?: unknown; error?: string }
@@ -202,45 +297,6 @@ export function createBlockEventHandlers(
     executionOrder: data.executionOrder,
     endedAt: data.endedAt,
   })
-
-  const addConsoleEntry = (data: BlockCompletedData, output: NormalizedBlockOutput) => {
-    if (!workflowId) return
-    addConsole({
-      input: data.input || {},
-      output,
-      success: true,
-      durationMs: data.durationMs,
-      startedAt: data.startedAt,
-      executionOrder: data.executionOrder,
-      endedAt: data.endedAt,
-      workflowId,
-      blockId: data.blockId,
-      executionId: executionIdRef.current,
-      blockName: data.blockName || 'Unknown Block',
-      blockType: data.blockType || 'unknown',
-      ...extractIterationFields(data),
-    })
-  }
-
-  const addConsoleErrorEntry = (data: BlockErrorData) => {
-    if (!workflowId) return
-    addConsole({
-      input: data.input || {},
-      output: {},
-      success: false,
-      error: data.error,
-      durationMs: data.durationMs,
-      startedAt: data.startedAt,
-      executionOrder: data.executionOrder,
-      endedAt: data.endedAt,
-      workflowId,
-      blockId: data.blockId,
-      executionId: executionIdRef.current,
-      blockName: data.blockName || 'Unknown Block',
-      blockType: data.blockType || 'unknown',
-      ...extractIterationFields(data),
-    })
-  }
 
   const updateConsoleEntry = (data: BlockCompletedData) => {
     updateConsole(
@@ -284,6 +340,7 @@ export function createBlockEventHandlers(
     updateActiveBlocks(data.blockId, true)
 
     if (!includeStartConsoleEntry || !workflowId) return
+    if (hasExistingStartedEntry(data)) return
 
     const startedAt = new Date().toISOString()
     addConsole({
@@ -302,6 +359,13 @@ export function createBlockEventHandlers(
       isRunning: true,
       ...extractIterationFields(data),
     })
+
+    const pendingKey = startedEntryKey(data)
+    const pending = pendingChildWorkflowStarts.get(pendingKey)
+    if (pending) {
+      applyChildWorkflowStart(pending)
+      pendingChildWorkflowStarts.delete(pendingKey)
+    }
   }
 
   const onBlockCompleted = (data: BlockCompletedData) => {
@@ -337,11 +401,7 @@ export function createBlockEventHandlers(
 
     accumulatedBlockLogs.push(createBlockLogEntry(data, { success: true, output: data.output }))
 
-    if (consoleMode === 'update') {
-      updateConsoleEntry(data)
-    } else {
-      addConsoleEntry(data, data.output as NormalizedBlockOutput)
-    }
+    updateConsoleEntry(data)
 
     if (onBlockCompleteCallback) {
       onBlockCompleteCallback(data.blockId, data.output).catch((error) => {
@@ -375,40 +435,203 @@ export function createBlockEventHandlers(
       createBlockLogEntry(data, { success: false, output: {}, error: data.error })
     )
 
-    if (consoleMode === 'update') {
-      updateConsoleErrorEntry(data)
-    } else {
-      addConsoleErrorEntry(data)
-    }
+    updateConsoleErrorEntry(data)
   }
 
-  const onBlockChildWorkflowStarted = (data: {
-    blockId: string
-    childWorkflowInstanceId: string
-    iterationCurrent?: number
-    iterationContainerId?: string
-    executionOrder?: number
-  }) => {
+  const onBlockChildWorkflowStarted = (data: BlockChildWorkflowStartedUpdate) => {
     if (isStaleExecution()) return
-    updateConsole(
-      data.blockId,
-      {
-        childWorkflowInstanceId: data.childWorkflowInstanceId,
-        ...(data.iterationCurrent !== undefined && { iterationCurrent: data.iterationCurrent }),
-        ...(data.iterationContainerId !== undefined && {
-          iterationContainerId: data.iterationContainerId,
-        }),
-        ...(data.executionOrder !== undefined && { executionOrder: data.executionOrder }),
-      },
-      executionIdRef.current
-    )
+    applyChildWorkflowStart(data)
+    if (!hasExistingStartedEntry(data)) {
+      pendingChildWorkflowStarts.set(startedEntryKey(data), data)
+    }
   }
 
   return { onBlockStarted, onBlockCompleted, onBlockError, onBlockChildWorkflowStarted }
 }
 
 type AddConsoleFn = (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry | undefined
-type CancelRunningEntriesFn = (workflowId: string) => void
+type CancelRunningEntriesFn = (workflowId: string, executionId?: string) => void
+type UpdateConsoleFn = (
+  blockId: string,
+  update: string | ConsoleUpdate,
+  executionId?: string
+) => void
+
+/**
+ * Bundle of console-store actions used by the execution-level handlers.
+ * Mirrors the deps-object pattern established by `createBlockEventHandlers`.
+ */
+export interface ExecutionConsoleDeps {
+  addConsole: AddConsoleFn
+  updateConsole: UpdateConsoleFn
+  cancelRunningEntries: CancelRunningEntriesFn
+}
+
+/**
+ * Reconciles still-running console entries with the server's authoritative
+ * `finalBlockLogs` so that any block whose terminal `block:completed`/`block:error`
+ * SSE event was lost gets the correct success/error state instead of being
+ * swept to "canceled".
+ */
+export function reconcileFinalBlockLogs(
+  updateConsole: UpdateConsoleFn,
+  workflowId: string,
+  executionId: string | undefined,
+  finalBlockLogs: BlockLog[] | undefined
+): void {
+  if (!finalBlockLogs?.length || !executionId) return
+  for (const log of finalBlockLogs) {
+    const entries = useTerminalConsoleStore.getState().getWorkflowEntries(workflowId)
+    const matchesFinalLog = (entry: ConsoleEntry) =>
+      entry.blockId === log.blockId &&
+      entry.executionId === executionId &&
+      entry.executionOrder === log.executionOrder
+    const matchingEntry = entries.find(matchesFinalLog)
+    const runningEntry = entries.find((entry) => matchesFinalLog(entry) && entry.isRunning)
+    if (runningEntry) {
+      updateConsole(
+        log.blockId,
+        {
+          executionOrder: log.executionOrder,
+          replaceOutput: (log.output ?? {}) as Record<string, unknown>,
+          ...(log.input ? { input: log.input } : {}),
+          success: log.success,
+          ...(log.error ? { error: log.error } : {}),
+          durationMs: log.durationMs,
+          startedAt: log.startedAt,
+          endedAt: log.endedAt,
+          isRunning: false,
+          isCanceled: false,
+        },
+        executionId
+      )
+    }
+
+    const childWorkflowInstanceId = matchingEntry?.childWorkflowInstanceId
+    if (childWorkflowInstanceId && log.childTraceSpans?.length) {
+      reconcileChildTraceSpans(
+        updateConsole,
+        workflowId,
+        log.blockId,
+        childWorkflowInstanceId,
+        executionId,
+        log.childTraceSpans
+      )
+    }
+  }
+}
+
+function reconcileChildTraceSpans(
+  updateConsole: UpdateConsoleFn,
+  workflowId: string,
+  childWorkflowBlockId: string,
+  childWorkflowInstanceId: string,
+  executionId: string,
+  spans: TraceSpan[]
+): void {
+  for (const span of spans) {
+    const matchingEntry = span.blockId
+      ? findConsoleEntryForSpan(workflowId, executionId, childWorkflowBlockId, span)
+      : undefined
+    if (span.blockId) {
+      const errorMessage = normalizeSpanError(span.output?.error)
+      updateConsole(
+        span.blockId,
+        {
+          ...spanConsoleIdentity(span, childWorkflowBlockId),
+          replaceOutput: (span.output ?? {}) as Record<string, unknown>,
+          success: span.status !== 'error',
+          ...(errorMessage !== undefined ? { error: errorMessage } : {}),
+          durationMs: span.duration,
+          startedAt: span.startTime,
+          endedAt: span.endTime,
+          isRunning: false,
+          isCanceled: false,
+        },
+        executionId
+      )
+    }
+    if (span.children?.length) {
+      reconcileChildTraceSpans(
+        updateConsole,
+        workflowId,
+        matchingEntry?.blockId ?? childWorkflowBlockId,
+        matchingEntry?.childWorkflowInstanceId ?? childWorkflowInstanceId,
+        executionId,
+        span.children
+      )
+    }
+  }
+}
+
+function spanConsoleIdentity(span: TraceSpan, childWorkflowBlockId: string): ConsoleUpdate {
+  const iterationContainerId = span.loopId ?? span.parallelId
+  const iterationType = span.loopId ? 'loop' : span.parallelId ? 'parallel' : undefined
+  return {
+    ...(span.executionOrder !== undefined && { executionOrder: span.executionOrder }),
+    ...(span.iterationIndex !== undefined && { iterationCurrent: span.iterationIndex }),
+    ...(iterationType !== undefined && { iterationType }),
+    ...(iterationContainerId !== undefined && { iterationContainerId }),
+    ...(span.parentIterations !== undefined && { parentIterations: span.parentIterations }),
+    childWorkflowBlockId,
+  }
+}
+
+function findConsoleEntryForSpan(
+  workflowId: string,
+  executionId: string,
+  childWorkflowBlockId: string,
+  span: TraceSpan
+): ConsoleEntry | undefined {
+  if (!span.blockId) return undefined
+  const identity = spanConsoleIdentity(span, childWorkflowBlockId)
+  return useTerminalConsoleStore
+    .getState()
+    .getWorkflowEntries(workflowId)
+    .find(
+      (entry) =>
+        entry.blockId === span.blockId &&
+        entry.executionId === executionId &&
+        matchesConsoleIdentity(entry, identity)
+    )
+}
+
+function matchesConsoleIdentity(entry: ConsoleEntry, identity: ConsoleUpdate): boolean {
+  if (identity.executionOrder !== undefined && entry.executionOrder !== identity.executionOrder) {
+    return false
+  }
+  if (
+    identity.iterationCurrent !== undefined &&
+    entry.iterationCurrent !== identity.iterationCurrent
+  ) {
+    return false
+  }
+  if (
+    identity.iterationContainerId !== undefined &&
+    entry.iterationContainerId !== identity.iterationContainerId
+  ) {
+    return false
+  }
+  if (
+    identity.childWorkflowBlockId !== undefined &&
+    entry.childWorkflowBlockId !== identity.childWorkflowBlockId
+  ) {
+    return false
+  }
+  if (
+    identity.childWorkflowInstanceId !== undefined &&
+    entry.childWorkflowInstanceId !== undefined &&
+    entry.childWorkflowInstanceId !== identity.childWorkflowInstanceId
+  ) {
+    return false
+  }
+  return true
+}
+
+function normalizeSpanError(error: unknown): string | undefined {
+  if (error === undefined || error === null) return undefined
+  return typeof error === 'string' ? error : toError(error).message
+}
 
 export interface ExecutionTimingFields {
   durationMs: number
@@ -435,6 +658,8 @@ export interface ExecutionErrorConsoleParams {
   durationMs?: number
   blockLogs: BlockLog[]
   isPreExecutionError?: boolean
+  /** Server's authoritative per-block terminal states, used to reconcile lost SSE events. */
+  finalBlockLogs?: BlockLog[]
 }
 
 /**
@@ -445,7 +670,19 @@ export function addExecutionErrorConsoleEntry(
   addConsole: AddConsoleFn,
   params: ExecutionErrorConsoleParams
 ): void {
-  const hasBlockError = params.blockLogs.some((log) => log.error)
+  const hasBlockErrorInLogs = params.blockLogs.some((log) => log.error)
+  const hasBlockErrorInConsole = useTerminalConsoleStore
+    .getState()
+    .getWorkflowEntries(params.workflowId)
+    .some(
+      (entry) =>
+        entry.executionId === params.executionId &&
+        entry.error != null &&
+        entry.error !== '' &&
+        entry.blockType !== 'error' &&
+        entry.blockType !== 'validation'
+    )
+  const hasBlockError = hasBlockErrorInLogs || hasBlockErrorInConsole
   const isPreExecutionError = params.isPreExecutionError ?? false
   if (!isPreExecutionError && hasBlockError) return
 
@@ -475,15 +712,22 @@ export function addExecutionErrorConsoleEntry(
 }
 
 /**
- * Cancels running entries and adds an execution-level error console entry.
+ * Reconciles `finalBlockLogs` against still-running entries, sweeps any
+ * remaining running entries to canceled, and adds an execution-level error
+ * console entry when no block-level error already covers it.
  */
 export function handleExecutionErrorConsole(
-  addConsole: AddConsoleFn,
-  cancelRunningEntries: CancelRunningEntriesFn,
+  deps: ExecutionConsoleDeps,
   params: ExecutionErrorConsoleParams
 ): void {
-  cancelRunningEntries(params.workflowId)
-  addExecutionErrorConsoleEntry(addConsole, params)
+  reconcileFinalBlockLogs(
+    deps.updateConsole,
+    params.workflowId,
+    params.executionId,
+    params.finalBlockLogs
+  )
+  deps.cancelRunningEntries(params.workflowId, params.executionId)
+  addExecutionErrorConsoleEntry(deps.addConsole, params)
 }
 
 export interface HttpErrorConsoleParams {
@@ -523,6 +767,8 @@ export interface CancelledConsoleParams {
   workflowId: string
   executionId?: string
   durationMs?: number
+  /** Server's authoritative per-block terminal states, used to reconcile lost SSE events. */
+  finalBlockLogs?: BlockLog[]
 }
 
 /**
@@ -551,15 +797,22 @@ export function addCancelledConsoleEntry(
 }
 
 /**
- * Cancels running entries and adds a cancelled console entry.
+ * Reconciles `finalBlockLogs` against still-running entries, sweeps any
+ * remaining running entries to canceled, and adds the execution-level
+ * cancellation console entry.
  */
 export function handleExecutionCancelledConsole(
-  addConsole: AddConsoleFn,
-  cancelRunningEntries: CancelRunningEntriesFn,
+  deps: ExecutionConsoleDeps,
   params: CancelledConsoleParams
 ): void {
-  cancelRunningEntries(params.workflowId)
-  addCancelledConsoleEntry(addConsole, params)
+  reconcileFinalBlockLogs(
+    deps.updateConsole,
+    params.workflowId,
+    params.executionId,
+    params.finalBlockLogs
+  )
+  deps.cancelRunningEntries(params.workflowId, params.executionId)
+  addCancelledConsoleEntry(deps.addConsole, params)
 }
 
 export interface WorkflowExecutionOptions {
@@ -573,6 +826,7 @@ export interface WorkflowExecutionOptions {
   useDraftState?: boolean
   stopAfterBlockId?: string
   abortSignal?: AbortSignal
+  preserveExecutionOnTerminal?: boolean
   /** For run_from_block / run_block: start from a specific block using cached state */
   runFromBlock?: {
     startBlockId: string
@@ -595,7 +849,9 @@ export async function executeWorkflowWithFullLogging(
   }
 
   const executionId = options.executionId || generateId()
-  const { addConsole, updateConsole, cancelRunningEntries } = useTerminalConsoleStore.getState()
+  const { addConsole, updateConsole, cancelRunningEntries, finishRunningEntries } =
+    useTerminalConsoleStore.getState()
+  const clearOnTerminal = options.preserveExecutionOnTerminal !== true
   const { setActiveBlocks, setBlockRunStatus, setEdgeRunStatus, setCurrentExecutionId } =
     useExecutionStore.getState()
   const wfId = targetWorkflowId
@@ -605,6 +861,17 @@ export async function executeWorkflowWithFullLogging(
   const activeBlockRefCounts = new Map<string, number>()
   const executionIdRef = { current: executionId }
   const accumulatedBlockLogs: BlockLog[] = []
+  const isCurrentExecution = () => {
+    return useExecutionStore.getState().getCurrentExecutionId(wfId) === executionIdRef.current
+  }
+  const clearExecutionState = () => {
+    if (!isCurrentExecution()) return
+    setCurrentExecutionId(wfId, null)
+    clearExecutionPointer(wfId)
+    consolePersistence.executionEnded()
+    useExecutionStore.getState().setIsExecuting(wfId, false)
+    setActiveBlocks(wfId, new Set())
+  }
 
   const blockHandlers = createBlockEventHandlers(
     {
@@ -616,7 +883,6 @@ export async function executeWorkflowWithFullLogging(
       accumulatedBlockLogs,
       accumulatedBlockStates: new Map(),
       executedBlockIds: new Set(),
-      consoleMode: 'update',
       includeStartConsoleEntry: true,
       onBlockCompleteCallback: options.onBlockComplete,
     },
@@ -641,6 +907,7 @@ export async function executeWorkflowWithFullLogging(
       : {}),
   }
 
+  // boundary-raw-fetch: workflow execute returns an SSE stream consumed via response.body.getReader() in processSSEStream
   const response = await fetch(`/api/workflows/${targetWorkflowId}/execute`, {
     method: 'POST',
     headers: {
@@ -678,18 +945,24 @@ export async function executeWorkflowWithFullLogging(
     output: {},
     logs: [],
   }
+  let executionFinished = false
+  let preserveExecutionForRecovery = false
 
   try {
     await processSSEStream(
       response.body.getReader(),
       {
         onEventId: (eventId) => {
+          if (executionFinished) return
           if (wfId && executionIdRef.current && eventId % 5 === 0) {
-            saveExecutionPointer({
-              workflowId: wfId,
-              executionId: executionIdRef.current,
-              lastEventId: eventId,
-            })
+            const executionId = executionIdRef.current
+            return consolePersistence.persist().then(() =>
+              saveExecutionPointer({
+                workflowId: wfId,
+                executionId,
+                lastEventId: eventId,
+              })
+            )
           }
         },
 
@@ -703,7 +976,10 @@ export async function executeWorkflowWithFullLogging(
         onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
 
         onExecutionCompleted: (data) => {
-          setCurrentExecutionId(wfId, null)
+          if (!isCurrentExecution()) return
+          executionFinished = true
+          reconcileFinalBlockLogs(updateConsole, wfId, executionIdRef.current, data.finalBlockLogs)
+          finishRunningEntries(wfId, executionIdRef.current)
           executionResult = {
             success: data.success,
             output: data.output,
@@ -714,20 +990,58 @@ export async function executeWorkflowWithFullLogging(
               endTime: data.endTime,
             },
           }
+          if (clearOnTerminal) {
+            clearExecutionState()
+          }
         },
 
-        onExecutionCancelled: () => {
-          setCurrentExecutionId(wfId, null)
+        onExecutionPaused: (data) => {
+          if (!isCurrentExecution()) return
+          executionFinished = true
+          reconcileFinalBlockLogs(updateConsole, wfId, executionIdRef.current, data.finalBlockLogs)
+          finishRunningEntries(wfId, executionIdRef.current)
+          executionResult = {
+            success: true,
+            output: data.output,
+            logs: accumulatedBlockLogs,
+            metadata: {
+              duration: data.duration,
+              startTime: data.startTime,
+              endTime: data.endTime,
+            },
+          }
+          if (clearOnTerminal) {
+            clearExecutionState()
+          }
+        },
+
+        onExecutionCancelled: (data) => {
+          if (!isCurrentExecution()) return
+          executionFinished = true
           executionResult = {
             success: false,
             output: {},
             error: 'Run was cancelled',
             logs: accumulatedBlockLogs,
           }
+
+          handleExecutionCancelledConsole(
+            { addConsole, updateConsole, cancelRunningEntries },
+            {
+              workflowId: wfId,
+              executionId: executionIdRef.current,
+              durationMs: data?.duration,
+              finalBlockLogs: data?.finalBlockLogs,
+            }
+          )
+          if (clearOnTerminal) {
+            clearExecutionState()
+          }
         },
 
         onExecutionError: (data) => {
-          setCurrentExecutionId(wfId, null)
+          if (!isCurrentExecution()) return
+          executionFinished = true
           const errorMessage = data.error || 'Run failed'
           executionResult = {
             success: false,
@@ -737,21 +1051,34 @@ export async function executeWorkflowWithFullLogging(
             metadata: { duration: data.duration },
           }
 
-          handleExecutionErrorConsole(addConsole, cancelRunningEntries, {
-            workflowId: wfId,
-            executionId: executionIdRef.current,
-            error: errorMessage,
-            durationMs: data.duration || 0,
-            blockLogs: accumulatedBlockLogs,
-            isPreExecutionError: accumulatedBlockLogs.length === 0,
-          })
+          handleExecutionErrorConsole(
+            { addConsole, updateConsole, cancelRunningEntries },
+            {
+              workflowId: wfId,
+              executionId: executionIdRef.current,
+              error: errorMessage,
+              durationMs: data.duration || 0,
+              blockLogs: accumulatedBlockLogs,
+              isPreExecutionError: accumulatedBlockLogs.length === 0,
+              finalBlockLogs: data.finalBlockLogs,
+            }
+          )
+          if (clearOnTerminal) {
+            clearExecutionState()
+          }
         },
       },
       'CopilotExecution'
     )
+  } catch (error) {
+    if (error instanceof SSEEventHandlerError || error instanceof SSEStreamInterruptedError) {
+      preserveExecutionForRecovery = true
+    }
+    throw error
   } finally {
-    setCurrentExecutionId(wfId, null)
-    setActiveBlocks(wfId, new Set())
+    if (!preserveExecutionForRecovery && clearOnTerminal) {
+      clearExecutionState()
+    }
   }
 
   return executionResult

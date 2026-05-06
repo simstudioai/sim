@@ -5,6 +5,8 @@ import path from 'path'
 import { createLogger } from '@sim/logger'
 import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
+import { fileParseContract } from '@/lib/api/contracts/storage-transfer'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
@@ -29,6 +31,7 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 import '@/lib/uploads/core/setup.server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,7 +65,7 @@ interface ParseResult {
 /**
  * Main API route handler
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const startTime = Date.now()
 
   try {
@@ -83,8 +86,26 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = authResult.userId
-    const requestData = await request.json()
-    const { filePath, fileType, workspaceId, workflowId, executionId } = requestData
+
+    const parsed = await parseRequest(
+      fileParseContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              filePath: '',
+            },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const { filePath, fileType, workspaceId, workflowId, executionId } = parsed.data.body
 
     if (!filePath || (typeof filePath === 'string' && filePath.trim() === '')) {
       return NextResponse.json({ success: false, error: 'No file path provided' }, { status: 400 })
@@ -189,7 +210,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * Parse a single file and return its content

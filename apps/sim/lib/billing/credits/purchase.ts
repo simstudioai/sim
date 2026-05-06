@@ -2,12 +2,15 @@ import { db } from '@sim/db'
 import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import type Stripe from 'stripe'
 import { getPlanPricing } from '@/lib/billing/core/billing'
+import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { canPurchaseCredits, isOrgAdmin } from '@/lib/billing/credits/balance'
-import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
+import { canPurchaseCredits } from '@/lib/billing/credits/balance'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { getCustomerId, resolveDefaultPaymentMethod } from '@/lib/billing/stripe-payment-method'
+import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 
 const logger = createLogger('CreditPurchase')
 
@@ -24,8 +27,10 @@ export async function setUsageLimitForCredits(
 ): Promise<void> {
   try {
     const { basePrice } = getPlanPricing(plan)
+
+    const seatCount = seats || 1
     const planBase =
-      entityType === 'organization' ? Number(basePrice) * (seats || 1) : Number(basePrice)
+      entityType === 'organization' ? Number(basePrice) * seatCount : Number(basePrice)
     const creditBalanceNum = Number(creditBalance)
     const newLimit = planBase + creditBalanceNum
 
@@ -36,8 +41,7 @@ export async function setUsageLimitForCredits(
         .where(eq(organization.id, entityId))
         .limit(1)
 
-      const currentLimit =
-        orgRows.length > 0 ? Number.parseFloat(orgRows[0].orgUsageLimit || '0') : 0
+      const currentLimit = orgRows.length > 0 ? toNumber(toDecimal(orgRows[0].orgUsageLimit)) : 0
 
       if (newLimit > currentLimit) {
         await db
@@ -63,7 +67,7 @@ export async function setUsageLimitForCredits(
         .limit(1)
 
       const currentLimit =
-        userStatsRows.length > 0 ? Number.parseFloat(userStatsRows[0].currentUsageLimit || '0') : 0
+        userStatsRows.length > 0 ? toNumber(toDecimal(userStatsRows[0].currentUsageLimit)) : 0
 
       if (newLimit > currentLimit) {
         await db
@@ -97,12 +101,6 @@ export interface PurchaseResult {
   error?: string
 }
 
-function getPaymentMethodId(
-  pm: string | Stripe.PaymentMethod | null | undefined
-): string | undefined {
-  return typeof pm === 'string' ? pm : pm?.id
-}
-
 export async function purchaseCredits(params: PurchaseCreditsParams): Promise<PurchaseResult> {
   const { userId, amountDollars, requestId } = params
 
@@ -128,8 +126,10 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
   let entityType: 'user' | 'organization' = 'user'
   let entityId = userId
 
-  if (isTeam(subscription.plan)) {
-    const isAdmin = await isOrgAdmin(userId, subscription.referenceId)
+  // Org-scoped subs route credit purchases to the organization and must be authorized
+  // by an org owner/admin. We've already rejected enterprise above.
+  if (isOrgScopedSubscription(subscription, userId)) {
+    const isAdmin = await isOrganizationOwnerOrAdmin(userId, subscription.referenceId)
     if (!isAdmin) {
       return { success: false, error: 'Only organization owners and admins can purchase credits' }
     }
@@ -140,22 +140,17 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
   try {
     const stripe = requireStripeClient()
 
-    // Get customer ID and payment method from subscription
     const stripeSub = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId)
-    const customerId =
-      typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id
-
-    // Get default payment method
-    let defaultPaymentMethod: string | undefined
-    const subPm = getPaymentMethodId(stripeSub.default_payment_method)
-    if (subPm) {
-      defaultPaymentMethod = subPm
-    } else {
-      const customer = await stripe.customers.retrieve(customerId)
-      if (customer && !('deleted' in customer)) {
-        defaultPaymentMethod = getPaymentMethodId(customer.invoice_settings?.default_payment_method)
-      }
+    const customerId = getCustomerId(stripeSub.customer)
+    if (!customerId) {
+      return { success: false, error: 'Subscription missing customer' }
     }
+
+    const { paymentMethodId: defaultPaymentMethod } = await resolveDefaultPaymentMethod(
+      stripe,
+      subscription.stripeSubscriptionId,
+      customerId
+    )
 
     if (!defaultPaymentMethod) {
       return {
@@ -198,7 +193,7 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
         description: `Prepaid credits ($${amountDollars})`,
         metadata: creditMetadata,
       },
-      { idempotencyKey }
+      { idempotencyKey: `${idempotencyKey}-item` }
     )
 
     // Finalize and pay
@@ -206,13 +201,18 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
       return { success: false, error: 'Failed to create invoice' }
     }
 
-    const finalized = await stripe.invoices.finalizeInvoice(invoice.id)
+    const finalized = await stripe.invoices.finalizeInvoice(
+      invoice.id,
+      {},
+      { idempotencyKey: `${idempotencyKey}-finalize` }
+    )
 
     if (finalized.status === 'open' && finalized.id) {
-      await stripe.invoices.pay(finalized.id, {
-        payment_method: defaultPaymentMethod,
-      })
-      // Credits are added via webhook (handleInvoicePaymentSucceeded) after payment confirmation
+      await stripe.invoices.pay(
+        finalized.id,
+        { payment_method: defaultPaymentMethod },
+        { idempotencyKey: `${idempotencyKey}-pay` }
+      )
     }
 
     logger.info('Credit purchase invoice created and paid', {

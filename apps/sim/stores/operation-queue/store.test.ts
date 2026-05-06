@@ -2,16 +2,6 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}))
-
 import { registerEmitFunctions, useOperationQueueStore } from '@/stores/operation-queue/store'
 
 describe('operation queue room gating', () => {

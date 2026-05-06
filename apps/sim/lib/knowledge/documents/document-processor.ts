@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { PDFDocument } from 'pdf-lib'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import {
@@ -12,7 +13,7 @@ import {
   TokenChunker,
 } from '@/lib/chunkers'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
-import { env } from '@/lib/core/config/env'
+import { env, envNumber } from '@/lib/core/config/env'
 import { parseBuffer, parseFile } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
 import { resolveParserExtension } from '@/lib/knowledge/documents/parser-extension'
@@ -29,7 +30,7 @@ const TIMEOUTS = {
   MISTRAL_OCR_API: 120000,
 } as const
 
-const MAX_CONCURRENT_CHUNKS = env.KB_CONFIG_CHUNK_CONCURRENCY
+const MAX_CONCURRENT_CHUNKS = envNumber(env.KB_CONFIG_CHUNK_CONCURRENCY, 10)
 
 type OCRResult = {
   success: boolean
@@ -153,6 +154,7 @@ async function applyStrategy(
       const chunker = new RegexChunker({
         ...baseOptions,
         pattern: strategyOptions.pattern,
+        strictBoundaries: strategyOptions.strictBoundaries,
       })
       return chunker.chunk(content)
     }
@@ -325,7 +327,7 @@ async function handleFileForOCR(
         logger.warn(
           `handleFileForOCR: Failed to download external PDF for page count check, proceeding without batching`,
           {
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           }
         )
         return { httpsUrl: fileUrl, buffer: undefined }
@@ -523,7 +525,7 @@ async function parseWithAzureMistralOCR(fileUrl: string, filename: string, mimeT
     return { content, processingMethod: 'mistral-ocr' as const, cloudUrl: undefined }
   } catch (error) {
     logger.error(`Azure Mistral OCR failed for ${filename}:`, {
-      message: error instanceof Error ? error.message : String(error),
+      message: toError(error).message,
     })
 
     logger.info(`Falling back to file parser: ${filename}`)
@@ -583,7 +585,7 @@ async function parseWithMistralOCR(
     return { content, processingMethod: 'mistral-ocr' as const, cloudUrl }
   } catch (error) {
     logger.error(`Mistral OCR failed for ${filename}:`, {
-      message: error instanceof Error ? error.message : String(error),
+      message: toError(error).message,
     })
 
     logger.info(`Falling back to file parser: ${filename}`)
@@ -695,7 +697,7 @@ async function processChunk(
     return { index: chunkIndex, content: null }
   } catch (error) {
     logger.error(`Chunk ${chunkIndex + 1}/${totalChunks} failed:`, {
-      message: error instanceof Error ? error.message : String(error),
+      message: toError(error).message,
     })
     return { index: chunkIndex, content: null }
   } finally {
@@ -705,7 +707,7 @@ async function processChunk(
         logger.info(`Cleaned up chunk ${chunkIndex + 1} from S3`)
       } catch (deleteError) {
         logger.warn(`Failed to clean up chunk ${chunkIndex + 1} from S3:`, {
-          message: deleteError instanceof Error ? deleteError.message : String(deleteError),
+          message: toError(deleteError).message,
         })
       }
     }

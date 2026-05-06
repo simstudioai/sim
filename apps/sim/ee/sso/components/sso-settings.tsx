@@ -3,7 +3,18 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
-import { Button, Combobox, Input, Skeleton, Switch, Textarea } from '@/components/emcn'
+import {
+  Button,
+  Combobox,
+  Expandable,
+  ExpandableContent,
+  FormField,
+  Input,
+  Skeleton,
+  Switch,
+  Textarea,
+  toast,
+} from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -43,7 +54,6 @@ const DEFAULT_FORM_DATA = {
   audience: '',
   wantAssertionsSigned: true,
   idpMetadata: '',
-  showAdvanced: false,
 }
 
 const DEFAULT_ERRORS = {
@@ -64,9 +74,13 @@ export function SSO() {
   const { data: session } = useSession()
   const { data: orgsData } = useOrganizations()
   const { data: subscriptionData } = useSubscriptionData()
-  const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders()
 
   const activeOrganization = orgsData?.activeOrganization
+
+  const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders({
+    organizationId: activeOrganization?.id,
+  })
+
   const providers = providersData?.providers || []
   const existingProvider = providers[0] as SSOProvider | undefined
 
@@ -84,19 +98,20 @@ export function SSO() {
 
   const configureSSOMutation = useConfigureSSO()
 
-  const [error, setError] = useState<string | null>(null)
   const [showClientSecret, setShowClientSecret] = useState(false)
   const [copied, setCopied] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const [formData, setFormData] = useState(DEFAULT_FORM_DATA)
+  const [originalFormData, setOriginalFormData] = useState(DEFAULT_FORM_DATA)
   const [errors, setErrors] = useState<Record<string, string[]>>(DEFAULT_ERRORS)
   const [showErrors, setShowErrors] = useState(false)
 
   if (isBillingEnabled) {
     if (!activeOrganization) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
           You must be part of an organization to configure Single Sign-On.
         </div>
       )
@@ -104,7 +119,7 @@ export function SSO() {
 
     if (!hasEnterprisePlan) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
           Single Sign-On is available on Enterprise plans only.
         </div>
       )
@@ -112,15 +127,27 @@ export function SSO() {
 
     if (!canManageSSO) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
           Only organization owners and admins can configure Single Sign-On settings.
         </div>
       )
     }
   } else {
-    if (!isLoadingProviders && isSSOProviderOwner === false && providers.length > 0) {
+    if (activeOrganization && !canManageSSO) {
       return (
-        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
+          Only organization owners and admins can configure Single Sign-On settings.
+        </div>
+      )
+    }
+    if (
+      !activeOrganization &&
+      !isLoadingProviders &&
+      isSSOProviderOwner === false &&
+      providers.length > 0
+    ) {
+      return (
+        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
           Only the user who configured SSO can manage these settings.
         </div>
       )
@@ -153,7 +180,7 @@ export function SSO() {
     if (!value || !value.trim()) return ['Domain is required.']
     if (/^https?:\/\//i.test(value.trim())) out.push('Do not include protocol (https://).')
     if (!/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(value.trim()))
-      out.push('Enter a valid domain like your-domain.identityprovider.com')
+      out.push('Enter a valid domain like company.com')
     return out
   }
 
@@ -201,6 +228,11 @@ export function SSO() {
   const hasAnyErrors = (errs: Record<string, string[]>) =>
     Object.values(errs).some((l) => l.length > 0)
 
+  const hasChanges = () =>
+    (Object.keys(formData) as (keyof typeof formData)[]).some(
+      (k) => formData[k] !== originalFormData[k]
+    )
+
   const isFormValid = () => {
     const requiredFields = ['providerId', 'issuerUrl', 'domain']
     const hasRequiredFields = requiredFields.every((field) => {
@@ -227,7 +259,6 @@ export function SSO() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(null)
 
     setShowErrors(true)
     const validation = validateAll(formData)
@@ -274,27 +305,22 @@ export function SSO() {
       await configureSSOMutation.mutateAsync(requestBody)
 
       logger.info('SSO provider configured', { providerId: formData.providerId })
+      toast.success(isEditing ? 'SSO provider updated' : 'SSO provider configured')
       setFormData(DEFAULT_FORM_DATA)
       setErrors(DEFAULT_ERRORS)
       setShowErrors(false)
       setIsEditing(false)
-      setError(null)
+      setShowAdvanced(false)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error occurred'
-      setError(message)
+      toast.error(message)
       logger.error('Failed to configure SSO provider', { error: err })
     }
   }
 
-  const handleInputChange = (field: keyof typeof formData, value: string) => {
+  const handleInputChange = (field: keyof typeof formData, value: string | boolean) => {
     setFormData((prev) => {
-      let processedValue: any = value
-
-      if (field === 'wantAssertionsSigned' || field === 'showAdvanced') {
-        processedValue = value === 'true'
-      }
-
-      const next = { ...prev, [field]: processedValue }
+      const next = { ...prev, [field]: value }
 
       if (field === 'providerType') {
         setShowErrors(false)
@@ -306,7 +332,8 @@ export function SSO() {
     })
   }
 
-  const callbackUrl = `${getBaseUrl()}/api/auth/sso/callback/${formData.providerId || existingProvider?.providerId || 'provider-id'}`
+  const isSaml = formData.providerType === 'saml'
+  const callbackUrl = `${getBaseUrl()}/api/auth/${isSaml ? 'sso/saml2/callback' : 'sso/callback'}/${formData.providerId || existingProvider?.providerId || 'provider-id'}`
 
   const copyToClipboard = async (url: string) => {
     try {
@@ -342,10 +369,10 @@ export function SSO() {
         callbackUrl = config.callbackUrl || ''
         audience = config.audience || ''
         wantAssertionsSigned = config.wantAssertionsSigned ?? true
-        idpMetadata = config.idpMetadata || ''
+        idpMetadata = config.idpMetadata?.metadata || config.idpMetadata || ''
       }
 
-      setFormData({
+      const snapshot = {
         providerType: existingProvider.providerType,
         providerId: existingProvider.providerId,
         issuerUrl: existingProvider.issuer,
@@ -359,14 +386,15 @@ export function SSO() {
         audience,
         wantAssertionsSigned,
         idpMetadata,
-        showAdvanced: false,
-      })
+      }
+      setFormData(snapshot)
+      setOriginalFormData(snapshot)
       setIsEditing(true)
-      setError(null)
       setShowErrors(false)
+      setShowAdvanced(false)
     } catch (err) {
       logger.error('Failed to parse provider config', { error: err })
-      setError('Failed to load provider configuration')
+      toast.error('Failed to load provider configuration')
     }
   }
 
@@ -375,69 +403,56 @@ export function SSO() {
   }
 
   if (existingProvider && !isEditing) {
-    const providerCallbackUrl = `${getBaseUrl()}/api/auth/sso/callback/${existingProvider.providerId}`
+    const providerCallbackUrl = `${getBaseUrl()}/api/auth/${existingProvider.providerType === 'saml' ? 'sso/saml2/callback' : 'sso/callback'}/${existingProvider.providerId}`
 
     return (
       <div className='flex h-full flex-col gap-4.5'>
-        {/* Scrollable Content */}
         <div className='min-h-0 flex-1 overflow-y-auto'>
           <div className='flex flex-col gap-4.5'>
-            {/* Provider Info */}
-            <div className='flex flex-col gap-2'>
-              <span className='font-medium text-[var(--text-secondary)] text-sm'>Provider ID</span>
-              <p className='text-[var(--text-primary)] text-base'>{existingProvider.providerId}</p>
-            </div>
+            <FormField label='Provider ID'>
+              <p className='text-[var(--text-primary)] text-small'>{existingProvider.providerId}</p>
+            </FormField>
 
-            <div className='flex flex-col gap-2'>
-              <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                Provider Type
-              </span>
-              <p className='text-[var(--text-primary)] text-base'>
+            <FormField label='Provider Type'>
+              <p className='text-[var(--text-primary)] text-small'>
                 {existingProvider.providerType.toUpperCase()}
               </p>
-            </div>
+            </FormField>
 
-            <div className='flex flex-col gap-2'>
-              <span className='font-medium text-[var(--text-secondary)] text-sm'>Domain</span>
-              <p className='text-[var(--text-primary)] text-base'>{existingProvider.domain}</p>
-            </div>
+            <FormField label='Domain'>
+              <p className='text-[var(--text-primary)] text-small'>{existingProvider.domain}</p>
+            </FormField>
 
-            <div className='flex flex-col gap-2'>
-              <span className='font-medium text-[var(--text-secondary)] text-sm'>Issuer URL</span>
-              <p className='break-all font-mono text-[var(--text-primary)] text-sm'>
+            <FormField label='Issuer URL'>
+              <p className='break-all font-mono text-[var(--text-primary)] text-small leading-relaxed'>
                 {existingProvider.issuer}
               </p>
-            </div>
+            </FormField>
 
-            {/* Callback URL */}
-            <div className='flex flex-col gap-2'>
-              <div className='flex items-center justify-between'>
-                <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                  Callback URL
-                </span>
+            <FormField label='Callback URL'>
+              <div className='relative'>
+                <Input value={providerCallbackUrl} readOnly className='h-9 pr-9' />
                 <Button
                   type='button'
                   variant='ghost'
                   onClick={() => copyToClipboard(providerCallbackUrl)}
-                  className='h-[22px] w-[22px] rounded-sm p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  className='-translate-y-1/2 absolute top-1/2 right-[8px] h-6 w-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
+                  aria-label='Copy callback URL'
                 >
                   {copied ? (
-                    <Check className='h-[13px] w-[13px]' />
+                    <Check className='h-[14px] w-[14px]' />
                   ) : (
-                    <Clipboard className='h-[13px] w-[13px]' />
+                    <Clipboard className='h-[14px] w-[14px]' />
                   )}
-                  <span className='sr-only'>Copy callback URL</span>
                 </Button>
               </div>
-              <Input value={providerCallbackUrl} readOnly className='h-9' />
-              <p className='text-[var(--text-muted)] text-sm'>
+              <p className='text-[var(--text-muted)] text-small'>
                 Configure this in your identity provider
               </p>
-            </div>
+            </FormField>
           </div>
         </div>
 
-        {/* Footer */}
         <div className='mt-auto flex items-center justify-end'>
           <Button onClick={handleEdit} variant='primary'>
             Edit
@@ -449,12 +464,12 @@ export function SSO() {
 
   return (
     <form onSubmit={handleSubmit} autoComplete='off' className='flex h-full flex-col gap-4.5'>
-      {/* Hidden dummy inputs to prevent browser password manager autofill */}
+      {/* Off-screen inputs to prevent browser password manager autofill */}
       <input
         type='text'
         name='fakeusernameremembered'
         autoComplete='username'
-        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        className='-left-[9999px] pointer-events-none absolute opacity-0'
         tabIndex={-1}
         readOnly
       />
@@ -462,7 +477,7 @@ export function SSO() {
         type='password'
         name='fakepasswordremembered'
         autoComplete='current-password'
-        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        className='-left-[9999px] pointer-events-none absolute opacity-0'
         tabIndex={-1}
         readOnly
       />
@@ -470,18 +485,16 @@ export function SSO() {
         type='email'
         name='fakeemailremembered'
         autoComplete='email'
-        style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
+        className='-left-[9999px] pointer-events-none absolute opacity-0'
         tabIndex={-1}
         readOnly
       />
-      <input type='text' name='hidden' style={{ display: 'none' }} autoComplete='false' />
+      <input type='text' name='hidden' className='hidden' autoComplete='false' />
 
-      {/* Scrollable Content */}
       <div className='min-h-0 flex-1 overflow-y-auto'>
         <div className='flex flex-col gap-4.5'>
-          {/* Provider Type Selection */}
-          <div className='flex flex-col gap-2'>
-            <span className='font-medium text-[var(--text-secondary)] text-sm'>Provider Type</span>
+          {/* Provider Type */}
+          <FormField label='Provider Type'>
             <Combobox
               value={formData.providerType}
               onChange={(value: string) =>
@@ -495,16 +508,20 @@ export function SSO() {
               editable={false}
               className='h-9'
             />
-            <p className='text-[var(--text-muted)] text-sm'>
+            <p className='text-[var(--text-muted)] text-small'>
               {formData.providerType === 'oidc'
                 ? 'OpenID Connect (Okta, Azure AD, Auth0, etc.)'
                 : 'Security Assertion Markup Language (ADFS, Shibboleth, etc.)'}
             </p>
-          </div>
+          </FormField>
 
           {/* Provider ID */}
-          <div className='flex flex-col gap-2'>
-            <span className='font-medium text-[var(--text-secondary)] text-sm'>Provider ID</span>
+          <FormField
+            label='Provider ID'
+            error={
+              showErrors && errors.providerId.length > 0 ? errors.providerId.join(' ') : undefined
+            }
+          >
             <Combobox
               value={formData.providerId}
               onChange={(value: string) => handleInputChange('providerId', value)}
@@ -512,26 +529,24 @@ export function SSO() {
                 label: id,
                 value: id,
               }))}
-              placeholder='Select a provider ID'
+              placeholder='Select or enter a provider ID'
               editable={true}
               className={cn(
                 'h-9',
-                showErrors &&
-                  errors.providerId.length > 0 &&
-                  'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                showErrors && errors.providerId.length > 0 && 'border-[var(--text-error)]'
               )}
             />
-            {showErrors && errors.providerId.length > 0 && (
-              <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
-                {errors.providerId.join(' ')}
-              </p>
-            )}
-          </div>
+          </FormField>
 
           {/* Issuer URL */}
-          <div className='flex flex-col gap-2'>
-            <span className='font-medium text-[var(--text-secondary)] text-sm'>Issuer URL</span>
+          <FormField
+            label='Issuer URL'
+            error={
+              showErrors && errors.issuerUrl.length > 0 ? errors.issuerUrl.join(' ') : undefined
+            }
+          >
             <Input
+              id='sso-issuer'
               type='url'
               placeholder='https://your-identity-provider.com/oauth2/default'
               value={formData.issuerUrl}
@@ -544,24 +559,20 @@ export function SSO() {
               onChange={(e) => handleInputChange('issuerUrl', e.target.value)}
               className={cn(
                 'h-9',
-                showErrors &&
-                  errors.issuerUrl.length > 0 &&
-                  'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                showErrors && errors.issuerUrl.length > 0 && 'border-[var(--text-error)]'
               )}
             />
-            {showErrors && errors.issuerUrl.length > 0 && (
-              <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
-                {errors.issuerUrl.join(' ')}
-              </p>
-            )}
-          </div>
+          </FormField>
 
           {/* Domain */}
-          <div className='flex flex-col gap-2'>
-            <span className='font-medium text-[var(--text-secondary)] text-sm'>Domain</span>
+          <FormField
+            label='Domain'
+            error={showErrors && errors.domain.length > 0 ? errors.domain.join(' ') : undefined}
+          >
             <Input
+              id='sso-domain'
               type='text'
-              placeholder='your-domain.identityprovider.com'
+              placeholder='company.com'
               value={formData.domain}
               name='sso_identity_domain'
               autoComplete='off'
@@ -572,24 +583,25 @@ export function SSO() {
               onChange={(e) => handleInputChange('domain', e.target.value)}
               className={cn(
                 'h-9',
-                showErrors &&
-                  errors.domain.length > 0 &&
-                  'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                showErrors && errors.domain.length > 0 && 'border-[var(--text-error)]'
               )}
             />
-            {showErrors && errors.domain.length > 0 && (
-              <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
-                {errors.domain.join(' ')}
-              </p>
-            )}
-          </div>
+            <p className='text-[var(--text-muted)] text-small'>
+              The email domain users sign in with (e.g. company.com)
+            </p>
+          </FormField>
 
-          {/* Provider-specific fields */}
           {formData.providerType === 'oidc' ? (
             <>
-              <div className='flex flex-col gap-2'>
-                <span className='font-medium text-[var(--text-secondary)] text-sm'>Client ID</span>
+              {/* Client ID */}
+              <FormField
+                label='Client ID'
+                error={
+                  showErrors && errors.clientId.length > 0 ? errors.clientId.join(' ') : undefined
+                }
+              >
                 <Input
+                  id='sso-client-id'
                   type='text'
                   placeholder='Enter Client ID'
                   value={formData.clientId}
@@ -602,24 +614,23 @@ export function SSO() {
                   onChange={(e) => handleInputChange('clientId', e.target.value)}
                   className={cn(
                     'h-9',
-                    showErrors &&
-                      errors.clientId.length > 0 &&
-                      'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                    showErrors && errors.clientId.length > 0 && 'border-[var(--text-error)]'
                   )}
                 />
-                {showErrors && errors.clientId.length > 0 && (
-                  <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
-                    {errors.clientId.join(' ')}
-                  </p>
-                )}
-              </div>
+              </FormField>
 
-              <div className='flex flex-col gap-2'>
-                <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                  Client Secret
-                </span>
+              {/* Client Secret */}
+              <FormField
+                label='Client Secret'
+                error={
+                  showErrors && errors.clientSecret.length > 0
+                    ? errors.clientSecret.join(' ')
+                    : undefined
+                }
+              >
                 <div className='relative'>
                   <Input
+                    id='sso-client-secret'
                     type='text'
                     placeholder='Enter Client Secret'
                     value={formData.clientSecret}
@@ -641,9 +652,7 @@ export function SSO() {
                     }
                     className={cn(
                       'h-9 pr-9',
-                      showErrors &&
-                        errors.clientSecret.length > 0 &&
-                        'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                      showErrors && errors.clientSecret.length > 0 && 'border-[var(--text-error)]'
                     )}
                   />
                   <Button
@@ -654,22 +663,21 @@ export function SSO() {
                     aria-label={showClientSecret ? 'Hide client secret' : 'Show client secret'}
                   >
                     {showClientSecret ? (
-                      <EyeOff className='h-4 w-4' />
+                      <EyeOff className='h-[14px] w-[14px]' />
                     ) : (
-                      <Eye className='h-4 w-4' />
+                      <Eye className='h-[14px] w-[14px]' />
                     )}
                   </Button>
                 </div>
-                {showErrors && errors.clientSecret.length > 0 && (
-                  <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
-                    {errors.clientSecret.join(' ')}
-                  </p>
-                )}
-              </div>
+              </FormField>
 
-              <div className='flex flex-col gap-2'>
-                <span className='font-medium text-[var(--text-secondary)] text-sm'>Scopes</span>
+              {/* Scopes */}
+              <FormField
+                label='Scopes'
+                error={showErrors && errors.scopes.length > 0 ? errors.scopes.join(' ') : undefined}
+              >
                 <Input
+                  id='sso-scopes'
                   type='text'
                   placeholder='openid,profile,email'
                   value={formData.scopes}
@@ -679,28 +687,27 @@ export function SSO() {
                   onChange={(e) => handleInputChange('scopes', e.target.value)}
                   className={cn(
                     'h-9',
-                    showErrors &&
-                      errors.scopes.length > 0 &&
-                      'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                    showErrors && errors.scopes.length > 0 && 'border-[var(--text-error)]'
                   )}
                 />
-                {showErrors && errors.scopes.length > 0 && (
-                  <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
-                    {errors.scopes.join(' ')}
-                  </p>
-                )}
-                <p className='text-[var(--text-muted)] text-sm'>
+                <p className='text-[var(--text-muted)] text-small'>
                   Comma-separated list of OIDC scopes to request
                 </p>
-              </div>
+              </FormField>
             </>
           ) : (
             <>
-              <div className='flex flex-col gap-2'>
-                <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                  Entry Point URL
-                </span>
+              {/* Entry Point URL */}
+              <FormField
+                label='Entry Point URL'
+                error={
+                  showErrors && errors.entryPoint.length > 0
+                    ? errors.entryPoint.join(' ')
+                    : undefined
+                }
+              >
                 <Input
+                  id='sso-entry-point'
                   type='url'
                   placeholder='https://idp.example.com/sso/saml'
                   value={formData.entryPoint}
@@ -710,24 +717,19 @@ export function SSO() {
                   onChange={(e) => handleInputChange('entryPoint', e.target.value)}
                   className={cn(
                     'h-9',
-                    showErrors &&
-                      errors.entryPoint.length > 0 &&
-                      'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                    showErrors && errors.entryPoint.length > 0 && 'border-[var(--text-error)]'
                   )}
                 />
-                {showErrors && errors.entryPoint.length > 0 && (
-                  <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
-                    {errors.entryPoint.join(' ')}
-                  </p>
-                )}
-              </div>
+              </FormField>
 
-              <div className='flex flex-col gap-2'>
-                <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                  Identity Provider Certificate
-                </span>
+              {/* Identity Provider Certificate */}
+              <FormField
+                label='Identity Provider Certificate'
+                error={showErrors && errors.cert.length > 0 ? errors.cert.join(' ') : undefined}
+              >
                 <Textarea
-                  placeholder='-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----'
+                  id='sso-cert'
+                  placeholder={'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'}
                   value={formData.cert}
                   autoComplete='off'
                   autoCapitalize='none'
@@ -735,137 +737,135 @@ export function SSO() {
                   onChange={(e) => handleInputChange('cert', e.target.value)}
                   className={cn(
                     'min-h-[80px] font-mono',
-                    showErrors &&
-                      errors.cert.length > 0 &&
-                      'border-[var(--text-error)] focus:border-[var(--text-error)]'
+                    showErrors && errors.cert.length > 0 && 'border-[var(--text-error)]'
                   )}
                   rows={3}
                 />
-                {showErrors && errors.cert.length > 0 && (
-                  <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
-                    {errors.cert.join(' ')}
-                  </p>
-                )}
-              </div>
+              </FormField>
 
-              {/* Advanced SAML Options */}
               <div className='flex flex-col gap-2'>
-                <button
+                <Button
                   type='button'
-                  onClick={() =>
-                    handleInputChange('showAdvanced', formData.showAdvanced ? 'false' : 'true')
-                  }
-                  className='flex w-fit items-center gap-1.5 text-[var(--text-muted)] text-sm hover:text-[var(--text-primary)]'
+                  variant='ghost'
+                  onClick={() => setShowAdvanced((v) => !v)}
+                  className='w-fit gap-1.5 px-0 text-[var(--text-muted)] hover:bg-transparent hover:text-[var(--text-primary)]'
                 >
                   <ChevronDown
                     className={cn(
-                      'h-4 w-4 transition-transform',
-                      formData.showAdvanced && 'rotate-180'
+                      'h-[14px] w-[14px] transition-transform',
+                      showAdvanced && 'rotate-180'
                     )}
                   />
                   Advanced Options
-                </button>
+                </Button>
 
-                {formData.showAdvanced && (
-                  <div className='flex flex-col gap-4.5 pt-2'>
-                    <div className='flex flex-col gap-2'>
-                      <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                        Audience (Entity ID)
-                      </span>
-                      <Input
-                        type='text'
-                        placeholder='Enter Audience'
-                        value={formData.audience}
-                        autoComplete='off'
-                        autoCapitalize='none'
-                        spellCheck={false}
-                        onChange={(e) => handleInputChange('audience', e.target.value)}
-                        className='h-9'
-                      />
-                    </div>
+                <Expandable expanded={showAdvanced}>
+                  <ExpandableContent>
+                    <div className='flex flex-col gap-4.5 pt-2'>
+                      <FormField label='Audience (Entity ID)' optional>
+                        <Input
+                          type='text'
+                          placeholder='Enter Audience'
+                          value={formData.audience}
+                          autoComplete='off'
+                          autoCapitalize='none'
+                          spellCheck={false}
+                          onChange={(e) => handleInputChange('audience', e.target.value)}
+                          className='h-9'
+                        />
+                      </FormField>
 
-                    <div className='flex flex-col gap-2'>
-                      <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                        Callback URL Override
-                      </span>
-                      <Input
-                        type='url'
-                        placeholder='Enter Callback URL'
-                        value={formData.callbackUrl}
-                        autoComplete='off'
-                        autoCapitalize='none'
-                        spellCheck={false}
-                        onChange={(e) => handleInputChange('callbackUrl', e.target.value)}
-                        className='h-9'
-                      />
-                    </div>
+                      <FormField label='Callback URL Override' optional>
+                        <Input
+                          type='url'
+                          placeholder={`${getBaseUrl()}/api/auth/sso/saml2/callback/provider-id`}
+                          value={formData.callbackUrl}
+                          autoComplete='off'
+                          autoCapitalize='none'
+                          spellCheck={false}
+                          onChange={(e) => handleInputChange('callbackUrl', e.target.value)}
+                          className='h-9'
+                        />
+                      </FormField>
 
-                    <div className='flex flex-col gap-2'>
-                      <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                        Require signed SAML assertions
-                      </span>
-                      <Switch
-                        checked={formData.wantAssertionsSigned}
-                        onCheckedChange={(checked) =>
-                          handleInputChange('wantAssertionsSigned', checked ? 'true' : 'false')
-                        }
-                      />
-                    </div>
+                      <FormField label='Require signed SAML assertions'>
+                        <Switch
+                          checked={formData.wantAssertionsSigned}
+                          onCheckedChange={(checked) =>
+                            handleInputChange('wantAssertionsSigned', checked)
+                          }
+                        />
+                      </FormField>
 
-                    <div className='flex flex-col gap-2'>
-                      <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                        IDP Metadata XML
-                      </span>
-                      <Textarea
-                        placeholder='Paste IDP metadata XML here (optional)'
-                        value={formData.idpMetadata}
-                        autoComplete='off'
-                        autoCapitalize='none'
-                        spellCheck={false}
-                        onChange={(e) => handleInputChange('idpMetadata', e.target.value)}
-                        className='min-h-[60px] font-mono'
-                        rows={2}
-                      />
+                      <FormField label='IDP Metadata XML' optional>
+                        <Textarea
+                          placeholder='Paste IDP metadata XML here'
+                          value={formData.idpMetadata}
+                          autoComplete='off'
+                          autoCapitalize='none'
+                          spellCheck={false}
+                          onChange={(e) => handleInputChange('idpMetadata', e.target.value)}
+                          className='min-h-[60px] font-mono'
+                          rows={2}
+                        />
+                      </FormField>
                     </div>
-                  </div>
-                )}
+                  </ExpandableContent>
+                </Expandable>
               </div>
             </>
           )}
 
-          {/* Callback URL display */}
-          <div className='flex flex-col gap-2'>
-            <div className='flex items-center justify-between'>
-              <span className='font-medium text-[var(--text-secondary)] text-sm'>Callback URL</span>
+          {/* Callback URL */}
+          <FormField label='Callback URL'>
+            <div className='relative'>
+              <Input value={callbackUrl} readOnly className='h-9 pr-9' />
               <Button
                 type='button'
                 variant='ghost'
                 onClick={() => copyToClipboard(callbackUrl)}
-                className='h-[22px] w-[22px] rounded-sm p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                className='-translate-y-1/2 absolute top-1/2 right-[8px] h-6 w-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
+                aria-label='Copy callback URL'
               >
                 {copied ? (
-                  <Check className='h-[13px] w-[13px]' />
+                  <Check className='h-[14px] w-[14px]' />
                 ) : (
-                  <Clipboard className='h-[13px] w-[13px]' />
+                  <Clipboard className='h-[14px] w-[14px]' />
                 )}
-                <span className='sr-only'>Copy callback URL</span>
               </Button>
             </div>
-            <Input value={callbackUrl} readOnly className='h-9' />
-            <p className='text-[var(--text-muted)] text-sm'>
+            <p className='text-[var(--text-muted)] text-small'>
               Configure this in your identity provider
             </p>
-          </div>
+          </FormField>
         </div>
       </div>
 
-      {/* Footer */}
       <div className='mt-auto flex items-center justify-end gap-2'>
-        {error && <p className='mr-auto text-[var(--text-error)] text-small'>{error}</p>}
+        {isEditing && (
+          <Button
+            type='button'
+            variant='default'
+            onClick={() => {
+              setIsEditing(false)
+              setFormData(DEFAULT_FORM_DATA)
+              setErrors(DEFAULT_ERRORS)
+              setShowErrors(false)
+              setShowAdvanced(false)
+            }}
+          >
+            Cancel
+          </Button>
+        )}
         <Button
           type='submit'
           variant='primary'
-          disabled={configureSSOMutation.isPending || hasAnyErrors(errors) || !isFormValid()}
+          disabled={
+            configureSSOMutation.isPending ||
+            hasAnyErrors(errors) ||
+            !isFormValid() ||
+            (isEditing && !hasChanges())
+          }
         >
           {configureSSOMutation.isPending
             ? isEditing
@@ -883,38 +883,16 @@ export function SSO() {
 function SsoSkeleton() {
   return (
     <div className='flex h-full flex-col gap-4.5'>
-      {/* Form fields skeleton */}
       <div className='min-h-0 flex-1 overflow-y-auto'>
         <div className='flex flex-col gap-4.5'>
-          <div className='flex flex-col gap-2'>
-            <Skeleton className='h-[13px] w-[80px]' />
-            <Skeleton className='h-9 w-full' />
-            <Skeleton className='h-[13px] w-[200px]' />
-          </div>
-          <div className='flex flex-col gap-2'>
-            <Skeleton className='h-[13px] w-[70px]' />
-            <Skeleton className='h-9 w-full' />
-          </div>
-          <div className='flex flex-col gap-2'>
-            <Skeleton className='h-[13px] w-[60px]' />
-            <Skeleton className='h-9 w-full' />
-          </div>
-          <div className='flex flex-col gap-2'>
-            <Skeleton className='h-[13px] w-[50px]' />
-            <Skeleton className='h-9 w-full' />
-          </div>
-          <div className='flex flex-col gap-2'>
-            <Skeleton className='h-[13px] w-[60px]' />
-            <Skeleton className='h-9 w-full' />
-          </div>
-          <div className='flex flex-col gap-2'>
-            <Skeleton className='h-[13px] w-[80px]' />
-            <Skeleton className='h-9 w-full' />
-          </div>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className='flex flex-col gap-2'>
+              <Skeleton className='h-[13px] w-[80px]' />
+              <Skeleton className='h-9 w-full' />
+            </div>
+          ))}
         </div>
       </div>
-
-      {/* Footer skeleton */}
       <div className='mt-auto flex items-center justify-end'>
         <Skeleton className='h-9 w-[60px]' />
       </div>

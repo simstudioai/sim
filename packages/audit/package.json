@@ -1,0 +1,39 @@
+{
+  "name": "@sim/audit",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.2.13",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@sim/db": "workspace:*",
+    "@sim/logger": "workspace:*",
+    "@sim/utils": "workspace:*",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@sim/testing": "workspace:*",
+    "@sim/tsconfig": "workspace:*",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.8"
+  }
+}

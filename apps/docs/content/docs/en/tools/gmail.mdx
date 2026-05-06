@@ -90,6 +90,34 @@ Draft emails using Gmail. Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Email labels |
 
+### `gmail_edit_draft`
+
+Update an existing Gmail draft in place without deleting and recreating it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `draftId` | string | Yes | ID of the draft to update \(from Gmail List Drafts or Gmail Get Draft\) |
+| `to` | string | Yes | Recipient email address |
+| `subject` | string | No | Email subject |
+| `body` | string | Yes | Email body content |
+| `contentType` | string | No | Content type for the email body \(text or html\) |
+| `threadId` | string | No | Thread ID to associate the draft with \(for threading\) |
+| `replyToMessageId` | string | No | Gmail message ID to reply to - use the "id" field from Gmail Read results \(not the RFC "messageId"\) |
+| `cc` | string | No | CC recipients \(comma-separated\) |
+| `bcc` | string | No | BCC recipients \(comma-separated\) |
+| `attachments` | file[] | No | Files to attach to the email draft |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `draftId` | string | Draft ID |
+| `messageId` | string | Gmail message ID for the draft |
+| `threadId` | string | Gmail thread ID |
+| `labelIds` | array | Email labels |
+
 ### `gmail_read`
 
 Read emails from Gmail. Returns API-aligned fields only.

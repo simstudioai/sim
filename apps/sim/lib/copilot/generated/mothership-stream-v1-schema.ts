@@ -1316,6 +1316,11 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
     MothershipStreamV1Trace: {
       additionalProperties: false,
       properties: {
+        goTraceId: {
+          description:
+            'OTel trace ID from the first Go ingress. May differ from requestId when Sim assigns the canonical request identity.',
+          type: 'string',
+        },
         requestId: {
           type: 'string',
         },

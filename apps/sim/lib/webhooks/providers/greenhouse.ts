@@ -1,6 +1,6 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@/lib/core/security/encryption'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import type {
   EventMatchContext,
   FormatInputContext,
@@ -25,7 +25,7 @@ function validateGreenhouseSignature(secretKey: string, signature: string, body:
       return false
     }
     const providedDigest = signature.substring(prefix.length)
-    const computedDigest = crypto.createHmac('sha256', secretKey).update(body, 'utf8').digest('hex')
+    const computedDigest = hmacSha256Hex(body, secretKey)
     return safeCompare(computedDigest, providedDigest)
   } catch {
     logger.error('Error validating Greenhouse signature')

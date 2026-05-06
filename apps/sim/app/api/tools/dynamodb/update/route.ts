@@ -1,31 +1,29 @@
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsDynamodbUpdateContract } from '@/lib/api/contracts/tools/aws/dynamodb-update'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createDynamoDBClient, updateItem } from '@/app/api/tools/dynamodb/utils'
 
-const UpdateSchema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  tableName: z.string().min(1, 'Table name is required'),
-  key: z.record(z.unknown()).refine((val) => Object.keys(val).length > 0, {
-    message: 'Key is required',
-  }),
-  updateExpression: z.string().min(1, 'Update expression is required'),
-  expressionAttributeNames: z.record(z.string()).optional(),
-  expressionAttributeValues: z.record(z.unknown()).optional(),
-  conditionExpression: z.string().optional(),
-})
+const logger = createLogger('DynamoDBUpdateAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validatedData = UpdateSchema.parse(body)
+    const parsed = await parseToolRequest(awsDynamodbUpdateContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
+
+    logger.info(`Updating item in table '${validatedData.tableName}'`)
 
     const client = createDynamoDBClient({
       region: validatedData.region,
@@ -33,30 +31,31 @@ export async function POST(request: NextRequest) {
       secretAccessKey: validatedData.secretAccessKey,
     })
 
-    const result = await updateItem(
-      client,
-      validatedData.tableName,
-      validatedData.key,
-      validatedData.updateExpression,
-      {
-        expressionAttributeNames: validatedData.expressionAttributeNames,
-        expressionAttributeValues: validatedData.expressionAttributeValues,
-        conditionExpression: validatedData.conditionExpression,
-      }
-    )
-
-    return NextResponse.json({
-      message: 'Item updated successfully',
-      item: result.attributes,
-    })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.errors[0]?.message ?? 'Invalid request' },
-        { status: 400 }
+    try {
+      const result = await updateItem(
+        client,
+        validatedData.tableName,
+        validatedData.key,
+        validatedData.updateExpression,
+        {
+          expressionAttributeNames: validatedData.expressionAttributeNames,
+          expressionAttributeValues: validatedData.expressionAttributeValues,
+          conditionExpression: validatedData.conditionExpression,
+        }
       )
+
+      logger.info(`Update completed for table '${validatedData.tableName}'`)
+
+      return NextResponse.json({
+        message: 'Item updated successfully',
+        item: result.attributes,
+      })
+    } finally {
+      client.destroy()
     }
-    const errorMessage = error instanceof Error ? error.message : 'DynamoDB update failed'
+  } catch (error) {
+    const errorMessage = toError(error).message || 'DynamoDB update failed'
+    logger.error('DynamoDB update failed:', error)
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})

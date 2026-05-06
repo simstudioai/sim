@@ -1,5 +1,11 @@
+import type { AshbyGetCandidateResponse } from '@/tools/ashby/types'
+import {
+  ashbyAuthHeaders,
+  ashbyErrorMessage,
+  CANDIDATE_OUTPUTS,
+  mapCandidate,
+} from '@/tools/ashby/utils'
 import type { ToolConfig } from '@/tools/types'
-import type { AshbyGetCandidateResponse } from './types'
 
 interface AshbyUpdateCandidateParams {
   apiKey: string
@@ -10,7 +16,12 @@ interface AshbyUpdateCandidateParams {
   linkedInUrl?: string
   githubUrl?: string
   websiteUrl?: string
+  alternateEmail?: string
   sourceId?: string
+  creditedToUserId?: string
+  createdAt?: string
+  sendNotifications?: boolean
+  socialLinks?: Array<{ type: string; url: string }>
 }
 
 export const updateCandidateTool: ToolConfig<
@@ -71,24 +82,53 @@ export const updateCandidateTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Personal website URL',
     },
+    alternateEmail: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'An additional email address to add to the candidate',
+    },
     sourceId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'UUID of the source to attribute the candidate to',
     },
+    creditedToUserId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'UUID of the Ashby user to credit with sourcing this candidate',
+    },
+    createdAt: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Backdated creation timestamp in ISO 8601. Only updatable if originally backdated.',
+    },
+    sendNotifications: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to send a notification when the source is updated (default true)',
+    },
+    socialLinks: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Array of social link objects to set on the candidate, e.g. [{"type":"LinkedIn","url":"https://..."}]. Replaces existing social links.',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/candidate.update',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = {
-        candidateId: params.candidateId,
+        candidateId: params.candidateId.trim(),
       }
       if (params.name) body.name = params.name
       if (params.email) body.email = params.email
@@ -96,7 +136,13 @@ export const updateCandidateTool: ToolConfig<
       if (params.linkedInUrl) body.linkedInUrl = params.linkedInUrl
       if (params.githubUrl) body.githubUrl = params.githubUrl
       if (params.websiteUrl) body.websiteUrl = params.websiteUrl
-      if (params.sourceId) body.sourceId = params.sourceId
+      if (params.alternateEmail) body.alternateEmail = params.alternateEmail
+      if (params.sourceId) body.sourceId = params.sourceId.trim()
+      if (params.creditedToUserId) body.creditedToUserId = params.creditedToUserId.trim()
+      if (params.createdAt) body.createdAt = params.createdAt
+      if (params.sendNotifications !== undefined) body.sendNotifications = params.sendNotifications
+      if (Array.isArray(params.socialLinks) && params.socialLinks.length > 0)
+        body.socialLinks = params.socialLinks
       return body
     },
   },
@@ -105,97 +151,14 @@ export const updateCandidateTool: ToolConfig<
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to update candidate')
+      throw new Error(ashbyErrorMessage(data, 'Failed to update candidate'))
     }
-
-    const r = data.results
 
     return {
       success: true,
-      output: {
-        id: r.id ?? null,
-        name: r.name ?? null,
-        primaryEmailAddress: r.primaryEmailAddress
-          ? {
-              value: r.primaryEmailAddress.value ?? '',
-              type: r.primaryEmailAddress.type ?? 'Other',
-              isPrimary: r.primaryEmailAddress.isPrimary ?? true,
-            }
-          : null,
-        primaryPhoneNumber: r.primaryPhoneNumber
-          ? {
-              value: r.primaryPhoneNumber.value ?? '',
-              type: r.primaryPhoneNumber.type ?? 'Other',
-              isPrimary: r.primaryPhoneNumber.isPrimary ?? true,
-            }
-          : null,
-        profileUrl: r.profileUrl ?? null,
-        position: r.position ?? null,
-        company: r.company ?? null,
-        linkedInUrl:
-          (r.socialLinks ?? []).find((l: { type: string }) => l.type === 'LinkedIn')?.url ?? null,
-        githubUrl:
-          (r.socialLinks ?? []).find((l: { type: string }) => l.type === 'GitHub')?.url ?? null,
-        tags: (r.tags ?? []).map((t: { id: string; title: string }) => ({
-          id: t.id,
-          title: t.title,
-        })),
-        applicationIds: r.applicationIds ?? [],
-        createdAt: r.createdAt ?? null,
-        updatedAt: r.updatedAt ?? null,
-      },
+      output: mapCandidate(data.results),
     }
   },
 
-  outputs: {
-    id: { type: 'string', description: 'Candidate UUID' },
-    name: { type: 'string', description: 'Full name' },
-    primaryEmailAddress: {
-      type: 'object',
-      description: 'Primary email contact info',
-      optional: true,
-      properties: {
-        value: { type: 'string', description: 'Email address' },
-        type: { type: 'string', description: 'Contact type (Personal, Work, Other)' },
-        isPrimary: { type: 'boolean', description: 'Whether this is the primary email' },
-      },
-    },
-    primaryPhoneNumber: {
-      type: 'object',
-      description: 'Primary phone contact info',
-      optional: true,
-      properties: {
-        value: { type: 'string', description: 'Phone number' },
-        type: { type: 'string', description: 'Contact type (Personal, Work, Other)' },
-        isPrimary: { type: 'boolean', description: 'Whether this is the primary phone' },
-      },
-    },
-    profileUrl: {
-      type: 'string',
-      description: 'URL to the candidate Ashby profile',
-      optional: true,
-    },
-    position: { type: 'string', description: 'Current position or title', optional: true },
-    company: { type: 'string', description: 'Current company', optional: true },
-    linkedInUrl: { type: 'string', description: 'LinkedIn profile URL', optional: true },
-    githubUrl: { type: 'string', description: 'GitHub profile URL', optional: true },
-    tags: {
-      type: 'array',
-      description: 'Tags applied to the candidate',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Tag UUID' },
-          title: { type: 'string', description: 'Tag title' },
-        },
-      },
-    },
-    applicationIds: {
-      type: 'array',
-      description: 'IDs of associated applications',
-      items: { type: 'string', description: 'Application UUID' },
-    },
-    createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
-    updatedAt: { type: 'string', description: 'ISO 8601 last update timestamp' },
-  },
+  outputs: CANDIDATE_OUTPUTS,
 }

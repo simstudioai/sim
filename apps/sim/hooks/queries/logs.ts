@@ -7,33 +7,50 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  cancelWorkflowExecutionContract,
+  type DashboardStatsResponse,
+  type ExecutionSnapshotData,
+  getDashboardStatsContract,
+  getExecutionSnapshotContract,
+  getLogByExecutionIdContract,
+  getLogDetailContract,
+  listLogsContract,
+  type SegmentStats,
+  type WorkflowLogDetail,
+  type WorkflowLogSummary,
+  type WorkflowStats,
+} from '@/lib/api/contracts/logs'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
-import type {
-  DashboardStatsResponse,
-  SegmentStats,
-  WorkflowStats,
-} from '@/app/api/logs/stats/route'
-import type { LogsResponse, TimeRange, WorkflowLog } from '@/stores/logs/filters/types'
+import type { TimeRange } from '@/stores/logs/filters/types'
 
 export type { DashboardStatsResponse, SegmentStats, WorkflowStats }
+
+export type LogSortBy = 'date' | 'duration' | 'cost' | 'status'
+export type LogSortOrder = 'asc' | 'desc'
 
 export const logKeys = {
   all: ['logs'] as const,
   lists: () => [...logKeys.all, 'list'] as const,
-  list: (workspaceId: string | undefined, filters: Omit<LogFilters, 'page'>) =>
+  list: (workspaceId: string | undefined, filters: LogFilters) =>
     [...logKeys.lists(), workspaceId ?? '', filters] as const,
   details: () => [...logKeys.all, 'detail'] as const,
   detail: (logId: string | undefined) => [...logKeys.details(), logId ?? ''] as const,
-  statsAll: () => [...logKeys.all, 'stats'] as const,
-  stats: (workspaceId: string | undefined, filters: object) =>
-    [...logKeys.statsAll(), workspaceId ?? '', filters] as const,
+  byExecutionAll: () => [...logKeys.all, 'byExecution'] as const,
+  byExecution: (workspaceId: string | undefined, executionId: string | undefined) =>
+    [...logKeys.byExecutionAll(), workspaceId ?? '', executionId ?? ''] as const,
+  stats: () => [...logKeys.all, 'stats'] as const,
+  stat: (workspaceId: string | undefined, filters: object) =>
+    [...logKeys.stats(), workspaceId ?? '', filters] as const,
   executionSnapshots: () => [...logKeys.all, 'executionSnapshot'] as const,
   executionSnapshot: (executionId: string | undefined) =>
     [...logKeys.executionSnapshots(), executionId ?? ''] as const,
 }
 
-interface LogFilters {
+export interface LogFilters {
   timeRange: TimeRange
   startDate?: string
   endDate?: string
@@ -43,13 +60,14 @@ interface LogFilters {
   triggers: string[]
   searchQuery: string
   limit: number
+  sortBy: LogSortBy
+  sortOrder: LogSortOrder
 }
 
-/**
- * Applies common filter parameters to a URLSearchParams object.
- * Shared between paginated and non-paginated log fetches.
- */
-function applyFilterParams(params: URLSearchParams, filters: Omit<LogFilters, 'limit'>): void {
+function applyFilterParams(
+  params: URLSearchParams,
+  filters: Omit<LogFilters, 'limit' | 'sortBy' | 'sortOrder'>
+): void {
   if (filters.level !== 'all') {
     params.set('level', filters.level)
   }
@@ -86,49 +104,52 @@ function applyFilterParams(params: URLSearchParams, filters: Omit<LogFilters, 'l
   }
 }
 
-function buildQueryParams(workspaceId: string, filters: LogFilters, page: number): string {
+function buildListQuery(workspaceId: string, filters: LogFilters, cursor: string | null) {
   const params = new URLSearchParams()
-
-  params.set('workspaceId', workspaceId)
-  params.set('limit', filters.limit.toString())
-  params.set('offset', ((page - 1) * filters.limit).toString())
-
   applyFilterParams(params, filters)
 
-  return params.toString()
+  return {
+    workspaceId,
+    limit: filters.limit,
+    sortBy: filters.sortBy,
+    sortOrder: filters.sortOrder,
+    ...(cursor ? { cursor } : {}),
+    ...Object.fromEntries(params.entries()),
+  }
+}
+
+interface LogsPage {
+  logs: WorkflowLogSummary[]
+  nextCursor: string | null
 }
 
 async function fetchLogsPage(
   workspaceId: string,
   filters: LogFilters,
-  page: number,
+  cursor: string | null,
   signal?: AbortSignal
-): Promise<{ logs: WorkflowLog[]; hasMore: boolean; nextPage: number | undefined }> {
-  const queryParams = buildQueryParams(workspaceId, filters, page)
-  const response = await fetch(`/api/logs?${queryParams}`, { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch logs')
-  }
-
-  const apiData: LogsResponse = await response.json()
-  const hasMore = apiData.data.length === filters.limit && apiData.page < apiData.totalPages
+): Promise<LogsPage> {
+  const apiData = await requestJson(listLogsContract, {
+    query: buildListQuery(workspaceId, filters, cursor),
+    signal,
+  })
 
   return {
-    logs: apiData.data || [],
-    hasMore,
-    nextPage: hasMore ? page + 1 : undefined,
+    logs: apiData.data,
+    nextCursor: apiData.nextCursor,
   }
 }
 
-async function fetchLogDetail(logId: string, signal?: AbortSignal): Promise<WorkflowLog> {
-  const response = await fetch(`/api/logs/${logId}`, { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch log details')
-  }
-
-  const { data } = await response.json()
+export async function fetchLogDetail(
+  logId: string,
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkflowLogDetail> {
+  const { data } = await requestJson(getLogDetailContract, {
+    params: { id: logId },
+    query: { workspaceId },
+    signal,
+  })
   return data
 }
 
@@ -148,10 +169,10 @@ export function useLogsList(
       fetchLogsPage(workspaceId as string, filters, pageParam, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
-    staleTime: 0,
+    staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
-    initialPageParam: 1,
-    getNextPageParam: (lastPage) => lastPage.nextPage,
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
   })
 }
 
@@ -160,52 +181,69 @@ interface UseLogDetailOptions {
   refetchInterval?:
     | number
     | false
-    | ((query: { state: { data?: WorkflowLog } }) => number | false | undefined)
+    | ((query: { state: { data?: WorkflowLogDetail } }) => number | false | undefined)
 }
 
-export function useLogDetail(logId: string | undefined, options?: UseLogDetailOptions) {
+export function useLogDetail(
+  logId: string | undefined,
+  workspaceId: string | undefined,
+  options?: UseLogDetailOptions
+) {
   return useQuery({
     queryKey: logKeys.detail(logId),
-    queryFn: ({ signal }) => fetchLogDetail(logId as string, signal),
-    enabled: Boolean(logId) && (options?.enabled ?? true),
+    queryFn: ({ signal }) => fetchLogDetail(logId as string, workspaceId as string, signal),
+    enabled: Boolean(logId) && Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
     staleTime: 30 * 1000,
-    placeholderData: keepPreviousData,
+    retry: (failureCount, err) =>
+      !(isApiClientError(err) && err.status === 404) && failureCount < 3,
   })
 }
 
-/**
- * Prefetches log detail data on hover for instant panel rendering on click.
- */
-export function prefetchLogDetail(queryClient: QueryClient, logId: string) {
-  queryClient.prefetchQuery({
-    queryKey: logKeys.detail(logId),
-    queryFn: ({ signal }) => fetchLogDetail(logId, signal),
+export function useLogByExecutionId(
+  workspaceId: string | undefined,
+  executionId: string | null | undefined
+) {
+  const queryClient = useQueryClient()
+  return useQuery({
+    queryKey: logKeys.byExecution(workspaceId, executionId ?? undefined),
+    queryFn: async ({ signal }) => {
+      const { data } = await requestJson(getLogByExecutionIdContract, {
+        params: { executionId: executionId as string },
+        query: { workspaceId: workspaceId as string },
+        signal,
+      })
+      queryClient.setQueryData(logKeys.detail(data.id), data)
+      return data
+    },
+    enabled: Boolean(workspaceId) && Boolean(executionId),
     staleTime: 30 * 1000,
   })
 }
 
-/**
- * Fetches dashboard stats from the server-side aggregation endpoint.
- * Uses SQL aggregation for efficient computation without arbitrary limits.
- */
+export function prefetchLogDetail(queryClient: QueryClient, logId: string, workspaceId: string) {
+  queryClient.prefetchQuery({
+    queryKey: logKeys.detail(logId),
+    queryFn: ({ signal }) => fetchLogDetail(logId, workspaceId, signal),
+    staleTime: 30 * 1000,
+  })
+}
+
 async function fetchDashboardStats(
   workspaceId: string,
-  filters: Omit<LogFilters, 'limit'>,
+  filters: Omit<LogFilters, 'limit' | 'sortBy' | 'sortOrder'>,
   signal?: AbortSignal
 ): Promise<DashboardStatsResponse> {
   const params = new URLSearchParams()
-  params.set('workspaceId', workspaceId)
-
   applyFilterParams(params, filters)
 
-  const response = await fetch(`/api/logs/stats?${params.toString()}`, { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch dashboard stats')
-  }
-
-  return response.json()
+  return requestJson(getDashboardStatsContract, {
+    query: {
+      workspaceId,
+      ...Object.fromEntries(params.entries()),
+    },
+    signal,
+  })
 }
 
 interface UseDashboardStatsOptions {
@@ -213,55 +251,31 @@ interface UseDashboardStatsOptions {
   refetchInterval?: number | false
 }
 
-/**
- * Hook for fetching dashboard stats using server-side aggregation.
- * No arbitrary limits - uses SQL aggregation for accurate metrics.
- */
 export function useDashboardStats(
   workspaceId: string | undefined,
-  filters: Omit<LogFilters, 'limit'>,
+  filters: Omit<LogFilters, 'limit' | 'sortBy' | 'sortOrder'>,
   options?: UseDashboardStatsOptions
 ) {
   return useQuery({
-    queryKey: logKeys.stats(workspaceId, filters),
+    queryKey: logKeys.stat(workspaceId, filters),
     queryFn: ({ signal }) => fetchDashboardStats(workspaceId as string, filters, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
-    staleTime: 0,
+    staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
   })
 }
 
-export interface ExecutionSnapshotData {
-  executionId: string
-  workflowId: string
-  workflowState: Record<string, unknown>
-  childWorkflowSnapshots?: Record<string, Record<string, unknown>>
-  executionMetadata: {
-    trigger: string
-    startedAt: string
-    endedAt?: string
-    totalDurationMs?: number
-    cost: {
-      total: number | null
-      input: number | null
-      output: number | null
-    }
-    totalTokens: number | null
-  }
-}
+export type { ExecutionSnapshotData }
 
 async function fetchExecutionSnapshot(
   executionId: string,
   signal?: AbortSignal
 ): Promise<ExecutionSnapshotData> {
-  const response = await fetch(`/api/logs/execution/${executionId}`, { signal })
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch execution snapshot: ${response.statusText}`)
-  }
-
-  const data = await response.json()
+  const data = await requestJson(getExecutionSnapshotContract, {
+    params: { executionId },
+    signal,
+  })
   if (!data) {
     throw new Error('No execution snapshot data returned')
   }
@@ -274,11 +288,9 @@ export function useExecutionSnapshot(executionId: string | undefined) {
     queryKey: logKeys.executionSnapshot(executionId),
     queryFn: ({ signal }) => fetchExecutionSnapshot(executionId as string, signal),
     enabled: Boolean(executionId),
-    staleTime: 5 * 60 * 1000, // 5 minutes - execution snapshots don't change
+    staleTime: 5 * 60 * 1000,
   })
 }
-
-type LogsPage = { logs: WorkflowLog[]; hasMore: boolean; nextPage: number | undefined }
 
 export function useCancelExecution() {
   const queryClient = useQueryClient()
@@ -290,11 +302,9 @@ export function useCancelExecution() {
       workflowId: string
       executionId: string
     }) => {
-      const res = await fetch(`/api/workflows/${workflowId}/executions/${executionId}/cancel`, {
-        method: 'POST',
+      const data = await requestJson(cancelWorkflowExecutionContract, {
+        params: { id: workflowId, executionId },
       })
-      if (!res.ok) throw new Error('Failed to cancel run')
-      const data = await res.json()
       if (!data.success) throw new Error('Failed to cancel run')
       return data
     },
@@ -305,30 +315,78 @@ export function useCancelExecution() {
         queryKey: logKeys.lists(),
       })
 
+      let affectedLogId: string | null = null
       queryClient.setQueriesData<InfiniteData<LogsPage>>({ queryKey: logKeys.lists() }, (old) => {
         if (!old) return old
         return {
           ...old,
           pages: old.pages.map((page) => ({
             ...page,
-            logs: page.logs.map((log) =>
-              log.executionId === executionId ? { ...log, status: 'cancelling' } : log
-            ),
+            logs: page.logs.map((log) => {
+              if (log.executionId !== executionId) return log
+              affectedLogId = log.id
+              return { ...log, status: 'cancelling' }
+            }),
           })),
         }
       })
 
-      return { previousQueries }
+      let previousDetail: WorkflowLogDetail | undefined
+      if (affectedLogId) {
+        previousDetail = queryClient.getQueryData<WorkflowLogDetail>(logKeys.detail(affectedLogId))
+        if (previousDetail) {
+          queryClient.setQueryData<WorkflowLogDetail>(logKeys.detail(affectedLogId), {
+            ...previousDetail,
+            status: 'cancelling',
+          })
+        }
+      }
+
+      return { previousQueries, affectedLogId, previousDetail }
     },
     onError: (_err, _variables, context) => {
       for (const [queryKey, data] of context?.previousQueries ?? []) {
         queryClient.setQueryData(queryKey, data)
       }
+      if (context?.affectedLogId && context.previousDetail !== undefined) {
+        queryClient.setQueryData(logKeys.detail(context.affectedLogId), context.previousDetail)
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: logKeys.lists() })
       queryClient.invalidateQueries({ queryKey: logKeys.details() })
-      queryClient.invalidateQueries({ queryKey: logKeys.statsAll() })
+      queryClient.invalidateQueries({ queryKey: logKeys.byExecutionAll() })
+      queryClient.invalidateQueries({ queryKey: logKeys.stats() })
+    },
+  })
+}
+
+export function useRetryExecution() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ workflowId, input }: { workflowId: string; input?: unknown }) => {
+      // boundary-raw-fetch: stream response, body is a ReadableStream consumed one chunk at a time
+      const res = await fetch(`/api/workflows/${workflowId}/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input, triggerType: 'manual', stream: true }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to retry execution')
+      }
+      const reader = res.body?.getReader()
+      if (reader) {
+        await reader.read()
+        reader.cancel()
+      }
+      return { started: true }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: logKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: logKeys.details() })
+      queryClient.invalidateQueries({ queryKey: logKeys.byExecutionAll() })
+      queryClient.invalidateQueries({ queryKey: logKeys.stats() })
     },
   })
 }

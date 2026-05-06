@@ -1,8 +1,12 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import { listCreatorOrganizationsContract } from '@/lib/api/contracts/creator-profile'
+import { subscriptionTransferContract } from '@/lib/api/contracts/user'
 import { client, useSession, useSubscription } from '@/lib/auth/auth-client'
-import { buildPlanName, isOrgPlan } from '@/lib/billing/plan-helpers'
+import { buildPlanName, getDisplayPlanName, isPaid } from '@/lib/billing/plan-helpers'
 import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { organizationKeys } from '@/hooks/queries/organization'
 
@@ -53,34 +57,37 @@ export function useSubscriptionUpgrade() {
 
       if (targetPlan === 'team') {
         try {
-          const orgsResponse = await fetch('/api/organizations')
-          if (!orgsResponse.ok) {
-            await orgsResponse.text().catch(() => {})
-            throw new Error('Failed to check organization status')
+          let orgsData
+          try {
+            orgsData = await requestJson(listCreatorOrganizationsContract, {})
+          } catch (err) {
+            if (err instanceof ApiClientError) {
+              throw new Error('Failed to check organization status')
+            }
+            throw err
           }
-
-          const orgsData = await orgsResponse.json()
           const existingOrg = orgsData.organizations?.find(
-            (org: any) => org.role === 'owner' || org.role === 'admin'
+            (org) => org.role === 'owner' || org.role === 'admin'
           )
 
           if (existingOrg) {
-            // Check if this org already has an active team subscription
-            const existingTeamSub = allSubscriptions.find(
+            const existingOrgSub = allSubscriptions.find(
               (sub: any) =>
                 hasPaidSubscriptionStatus(sub.status) &&
                 sub.referenceId === existingOrg.id &&
-                isOrgPlan(sub.plan)
+                isPaid(sub.plan)
             )
 
-            if (existingTeamSub) {
-              logger.warn('Organization already has an active team subscription', {
+            if (existingOrgSub) {
+              logger.warn('Organization already has an active subscription', {
                 userId,
                 organizationId: existingOrg.id,
-                existingSubscriptionId: existingTeamSub.id,
+                existingSubscriptionId: existingOrgSub.id,
+                plan: existingOrgSub.plan,
               })
+              const existingPlanName = getDisplayPlanName(existingOrgSub.plan)
               throw new Error(
-                'This organization already has an active team subscription. Please manage it from the billing settings.'
+                `This organization is already on the ${existingPlanName} plan. Manage it from the billing settings.`
               )
             }
 
@@ -147,26 +154,25 @@ export function useSubscriptionUpgrade() {
               organizationId: referenceId,
             })
 
-            const transferResponse = await fetch(
-              `/api/users/me/subscription/${currentSubscriptionId}/transfer`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ organizationId: referenceId }),
-              }
-            )
-
-            if (!transferResponse.ok) {
-              const text = await transferResponse.text()
-              logger.error('Failed to transfer subscription to organization', {
-                subscriptionId: currentSubscriptionId,
-                organizationId: referenceId,
-                error: text,
+            try {
+              await requestJson(subscriptionTransferContract, {
+                params: { id: currentSubscriptionId },
+                body: { organizationId: referenceId },
               })
-            } else {
               logger.info('Successfully transferred subscription to organization', {
                 subscriptionId: currentSubscriptionId,
                 organizationId: referenceId,
+              })
+            } catch (transferError) {
+              logger.error('Failed to transfer subscription to organization', {
+                subscriptionId: currentSubscriptionId,
+                organizationId: referenceId,
+                error:
+                  transferError instanceof ApiClientError
+                    ? (transferError.rawBody ?? transferError.message)
+                    : transferError instanceof Error
+                      ? transferError.message
+                      : 'Unknown error',
               })
             }
           } catch (error) {

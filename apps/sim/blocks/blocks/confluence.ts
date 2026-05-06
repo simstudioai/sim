@@ -589,7 +589,6 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       canonicalParamId: 'spaceId',
       serviceId: 'confluence',
       selectorKey: 'confluence.spaces',
-      selectorAllowSearch: false,
       placeholder: 'Select Confluence space',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',

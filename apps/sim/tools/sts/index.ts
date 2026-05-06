@@ -7,3 +7,5 @@ export const stsAssumeRoleTool = assumeRoleTool
 export const stsGetCallerIdentityTool = getCallerIdentityTool
 export const stsGetSessionTokenTool = getSessionTokenTool
 export const stsGetAccessKeyInfoTool = getAccessKeyInfoTool
+
+export * from './types'

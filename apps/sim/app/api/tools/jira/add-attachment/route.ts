@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { jiraAddAttachmentContract } from '@/lib/api/contracts/selectors/jira'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
@@ -11,15 +12,7 @@ const logger = createLogger('JiraAddAttachmentAPI')
 
 export const dynamic = 'force-dynamic'
 
-const JiraAddAttachmentSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  domain: z.string().min(1, 'Domain is required'),
-  issueKey: z.string().min(1, 'Issue key is required'),
-  files: RawFileInputArraySchema,
-  cloudId: z.string().optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = `jira-attach-${Date.now()}`
 
   try {
@@ -31,8 +24,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const body = await request.json()
-    const validatedData = JiraAddAttachmentSchema.parse(body)
+    const parsed = await parseRequest(jiraAddAttachmentContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const userFiles = processFilesToUserFiles(validatedData.files, requestId, logger)
     if (userFiles.length === 0) {
@@ -106,17 +100,10 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Jira attachment upload error`, error)
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     )
   }
-}
+})

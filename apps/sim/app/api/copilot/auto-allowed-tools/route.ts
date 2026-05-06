@@ -1,8 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  addCopilotAutoAllowedToolContract,
+  removeCopilotAutoAllowedToolContract,
+} from '@/lib/api/contracts/copilot'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotAutoAllowedToolsAPI')
 
@@ -20,7 +28,7 @@ function copilotHeaders(): Record<string, string> {
 /**
  * GET - Fetch user's auto-allowed integration tools
  */
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   try {
     const session = await getSession()
 
@@ -30,9 +38,15 @@ export async function GET() {
 
     const userId = session.user.id
 
-    const res = await fetch(
+    const res = await fetchGo(
       `${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed?userId=${encodeURIComponent(userId)}`,
-      { method: 'GET', headers: copilotHeaders() }
+      {
+        method: 'GET',
+        headers: copilotHeaders(),
+        spanName: 'sim → go /api/tool-preferences/auto-allowed',
+        operation: 'list_auto_allowed_tools',
+        attributes: { [TraceAttr.UserId]: userId },
+      }
     )
 
     if (!res.ok) {
@@ -46,12 +60,12 @@ export async function GET() {
     logger.error('Failed to fetch auto-allowed tools', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 /**
  * POST - Add a tool to the auto-allowed list
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
 
@@ -60,16 +74,27 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = session.user.id
-    const body = await request.json()
+    const parsed = await parseRequest(
+      addCopilotAutoAllowedToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: () =>
+          NextResponse.json({ error: 'toolId must be a string' }, { status: 400 }),
+        invalidJsonResponse: () =>
+          NextResponse.json({ error: 'toolId must be a string' }, { status: 400 }),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const { toolId } = parsed.data.body
 
-    if (!body.toolId || typeof body.toolId !== 'string') {
-      return NextResponse.json({ error: 'toolId must be a string' }, { status: 400 })
-    }
-
-    const res = await fetch(`${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed`, {
+    const res = await fetchGo(`${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed`, {
       method: 'POST',
       headers: copilotHeaders(),
-      body: JSON.stringify({ userId, toolId: body.toolId }),
+      body: JSON.stringify({ userId, toolId }),
+      spanName: 'sim → go /api/tool-preferences/auto-allowed',
+      operation: 'add_auto_allowed_tool',
+      attributes: { [TraceAttr.UserId]: userId, [TraceAttr.ToolId]: toolId },
     })
 
     if (!res.ok) {
@@ -86,12 +111,12 @@ export async function POST(request: NextRequest) {
     logger.error('Failed to add auto-allowed tool', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 /**
  * DELETE - Remove a tool from the auto-allowed list
  */
-export async function DELETE(request: NextRequest) {
+export const DELETE = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
 
@@ -100,16 +125,27 @@ export async function DELETE(request: NextRequest) {
     }
 
     const userId = session.user.id
-    const { searchParams } = new URL(request.url)
-    const toolId = searchParams.get('toolId')
+    const parsed = await parseRequest(
+      removeCopilotAutoAllowedToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: () =>
+          NextResponse.json({ error: 'toolId query parameter is required' }, { status: 400 }),
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const { toolId } = parsed.data.query
 
-    if (!toolId) {
-      return NextResponse.json({ error: 'toolId query parameter is required' }, { status: 400 })
-    }
-
-    const res = await fetch(
+    const res = await fetchGo(
       `${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed?userId=${encodeURIComponent(userId)}&toolId=${encodeURIComponent(toolId)}`,
-      { method: 'DELETE', headers: copilotHeaders() }
+      {
+        method: 'DELETE',
+        headers: copilotHeaders(),
+        spanName: 'sim → go /api/tool-preferences/auto-allowed',
+        operation: 'remove_auto_allowed_tool',
+        attributes: { [TraceAttr.UserId]: userId, [TraceAttr.ToolId]: toolId },
+      }
     )
 
     if (!res.ok) {
@@ -126,4 +162,4 @@ export async function DELETE(request: NextRequest) {
     logger.error('Failed to remove auto-allowed tool', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

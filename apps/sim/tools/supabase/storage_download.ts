@@ -4,6 +4,7 @@ import {
   type SupabaseStorageDownloadParams,
   type SupabaseStorageDownloadResponse,
 } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SupabaseStorageDownloadTool')
@@ -52,7 +53,7 @@ export const storageDownloadTool: ToolConfig<
 
   request: {
     url: (params) => {
-      return `https://${params.projectId}.supabase.co/storage/v1/object/${params.bucket}/${params.path}`
+      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/${params.bucket}/${params.path}`
     },
     method: 'GET',
     headers: (params) => ({

@@ -1,6 +1,12 @@
 'use client'
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  listSsoProvidersContract,
+  type SsoRegistrationBody,
+  ssoRegistrationContract,
+} from '@/lib/api/contracts/auth'
 import { organizationKeys } from '@/hooks/queries/organization'
 
 /**
@@ -14,12 +20,11 @@ export const ssoKeys = {
 /**
  * Fetch SSO providers
  */
-async function fetchSSOProviders(signal: AbortSignal) {
-  const response = await fetch('/api/auth/sso/providers', { signal })
-  if (!response.ok) {
-    throw new Error('Failed to fetch SSO providers')
-  }
-  return response.json()
+async function fetchSSOProviders(signal: AbortSignal, organizationId?: string) {
+  return requestJson(listSsoProvidersContract, {
+    query: organizationId ? { organizationId } : {},
+    signal,
+  })
 }
 
 /**
@@ -27,12 +32,13 @@ async function fetchSSOProviders(signal: AbortSignal) {
  */
 interface UseSSOProvidersOptions {
   enabled?: boolean
+  organizationId?: string
 }
 
-export function useSSOProviders({ enabled = true }: UseSSOProvidersOptions = {}) {
+export function useSSOProviders({ enabled = true, organizationId }: UseSSOProvidersOptions = {}) {
   return useQuery({
-    queryKey: ssoKeys.providers(),
-    queryFn: ({ signal }) => fetchSSOProviders(signal),
+    queryKey: [...ssoKeys.providers(), organizationId ?? ''],
+    queryFn: ({ signal }) => fetchSSOProviders(signal, organizationId),
     staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
     enabled,
@@ -42,42 +48,23 @@ export function useSSOProviders({ enabled = true }: UseSSOProvidersOptions = {})
 /**
  * Configure SSO provider mutation
  */
-interface ConfigureSSOParams {
-  provider: string
-  domain: string
-  clientId: string
-  clientSecret: string
-  orgId?: string
-}
+type ConfigureSSOParams = Record<string, unknown>
 
 export function useConfigureSSO() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (config: ConfigureSSOParams) => {
-      const response = await fetch('/api/auth/sso/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to configure SSO')
-      }
-
-      return response.json()
-    },
-    onSuccess: (_data, variables) => {
+    mutationFn: (config: ConfigureSSOParams) =>
+      requestJson(ssoRegistrationContract, {
+        body: config as SsoRegistrationBody,
+      }),
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: ssoKeys.providers() })
 
-      if (variables.orgId) {
-        queryClient.invalidateQueries({
-          queryKey: organizationKeys.detail(variables.orgId),
-        })
-        queryClient.invalidateQueries({
-          queryKey: organizationKeys.lists(),
-        })
+      const orgId = typeof variables.orgId === 'string' ? variables.orgId : undefined
+      if (orgId) {
+        queryClient.invalidateQueries({ queryKey: organizationKeys.detail(orgId) })
+        queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
       }
     },
   })

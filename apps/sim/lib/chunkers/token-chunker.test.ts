@@ -2,11 +2,8 @@
  * @vitest-environment node
  */
 
-import { loggerMock } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { TokenChunker } from './token-chunker'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 describe('TokenChunker', () => {
   describe('empty and whitespace input', () => {

@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { notionPagesSelectorContract } from '@/lib/api/contracts/selectors'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { extractTitleFromItem } from '@/tools/notion/utils'
 
@@ -9,20 +12,16 @@ const logger = createLogger('NotionPagesAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   try {
-    const body = await request.json()
-    const { credential, workflowId } = body
+    const parsed = await parseRequest(notionPagesSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, workflowId } = parsed.data.body
 
-    if (!credential) {
-      logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
-
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
-      workflowId,
+      workflowId: workflowId || undefined,
     })
     if (!authz.ok || !authz.credentialOwnerUserId) {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
@@ -83,4 +82,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})

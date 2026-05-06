@@ -1,10 +1,12 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { copilotChats, workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { z } from 'zod'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { generateId } from '@/lib/core/utils/uuid'
 import { parseCronToHumanReadable, validateCronExpression } from '@/lib/workflows/schedules/utils'
 
 const logger = createLogger('JobTools')
@@ -16,22 +18,57 @@ const ACTIVE_JOB_CONDITION = (workspaceId: string) =>
     isNull(workflowSchedule.archivedAt)
   )
 
-interface CreateJobParams {
-  title?: string
-  prompt: string
-  cron?: string
-  time?: string
-  timezone?: string
-  lifecycle?: 'persistent' | 'until_complete'
-  successCondition?: string
-  maxRuns?: number
-}
+const JobLifecycleSchema = z.enum(['persistent', 'until_complete'])
+
+const CreateJobParamsSchema = z
+  .object({
+    title: z.string().optional(),
+    prompt: z.string().optional(),
+    cron: z.string().optional(),
+    time: z.string().optional(),
+    timezone: z.string().optional(),
+    lifecycle: JobLifecycleSchema.optional(),
+    successCondition: z.string().optional(),
+    maxRuns: z.number().optional(),
+  })
+  .passthrough()
+
+const ManageJobArgsSchema = z
+  .object({
+    jobId: z.string().optional(),
+    jobIds: z.array(z.string()).optional(),
+    title: z.string().optional(),
+    prompt: z.string().optional(),
+    cron: z.string().optional(),
+    time: z.string().optional(),
+    timezone: z.string().optional(),
+    status: z.string().optional(),
+    lifecycle: z.string().optional(),
+    successCondition: z.string().optional(),
+    maxRuns: z.number().optional(),
+  })
+  .passthrough()
+
+const ManageJobParamsSchema = z
+  .object({
+    operation: z.string().optional(),
+    args: ManageJobArgsSchema.optional(),
+  })
+  .passthrough()
+
+type CreateJobParams = z.infer<typeof CreateJobParamsSchema>
+type ManageJobParams = z.infer<typeof ManageJobParamsSchema>
 
 export async function executeCreateJob(
   params: Record<string, unknown>,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
-  const rawParams = params as unknown as CreateJobParams
+  const parsedParams = CreateJobParamsSchema.safeParse(params)
+  if (!parsedParams.success) {
+    return { success: false, error: 'Invalid create job parameters' }
+  }
+
+  const rawParams: CreateJobParams = parsedParams.data
   const timezone = rawParams.timezone || context.userTimezone || 'UTC'
   const { title, prompt, cron, time, lifecycle, successCondition, maxRuns } = rawParams
 
@@ -59,7 +96,7 @@ export async function executeCreateJob(
     } catch (err) {
       logger.warn('Failed to look up chat title for job', {
         chatId: context.chatId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
     }
   }
@@ -174,26 +211,9 @@ export async function executeCreateJob(
     }
   } catch (err) {
     logger.error('Failed to create job', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return { success: false, error: 'Failed to create job' }
-  }
-}
-
-interface ManageJobParams {
-  operation: 'create' | 'list' | 'get' | 'update' | 'delete'
-  args?: {
-    jobId?: string
-    jobIds?: string[]
-    title?: string
-    prompt?: string
-    cron?: string
-    time?: string
-    timezone?: string
-    status?: string
-    lifecycle?: 'persistent' | 'until_complete'
-    successCondition?: string
-    maxRuns?: number
   }
 }
 
@@ -201,7 +221,12 @@ export async function executeManageJob(
   params: Record<string, unknown>,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
-  const rawParams = params as unknown as ManageJobParams
+  const parsedParams = ManageJobParamsSchema.safeParse(params)
+  if (!parsedParams.success) {
+    return { success: false, error: 'Invalid manage job parameters' }
+  }
+
+  const rawParams: ManageJobParams = parsedParams.data
   const { operation, args } = rawParams
 
   if (!context.userId || !context.workspaceId) {
@@ -271,7 +296,7 @@ export async function executeManageJob(
         }
       } catch (err) {
         logger.error('Failed to list jobs', {
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
         return { success: false, error: 'Failed to list jobs' }
       }
@@ -317,7 +342,7 @@ export async function executeManageJob(
         }
       } catch (err) {
         logger.error('Failed to get job', {
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
         return { success: false, error: 'Failed to get job' }
       }
@@ -373,7 +398,7 @@ export async function executeManageJob(
         }
 
         if (args.lifecycle !== undefined) {
-          if (!['persistent', 'until_complete'].includes(args.lifecycle)) {
+          if (args.lifecycle !== 'persistent' && args.lifecycle !== 'until_complete') {
             return { success: false, error: 'lifecycle must be "persistent" or "until_complete"' }
           }
           updates.lifecycle = args.lifecycle
@@ -417,7 +442,7 @@ export async function executeManageJob(
         }
       } catch (err) {
         logger.error('Failed to update job', {
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
         return { success: false, error: 'Failed to update job' }
       }
@@ -467,7 +492,7 @@ export async function executeManageJob(
         }
       } catch (err) {
         logger.error('Failed to delete job', {
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
         return { success: false, error: 'Failed to delete job' }
       }
@@ -547,7 +572,7 @@ export async function executeCompleteJob(
     }
   } catch (err) {
     logger.error('Failed to complete job', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return { success: false, error: 'Failed to complete job' }
   }
@@ -597,7 +622,7 @@ export async function executeUpdateJobHistory(
     }
   } catch (err) {
     logger.error('Failed to update job history', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return { success: false, error: 'Failed to update job history' }
   }

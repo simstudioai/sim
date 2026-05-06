@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { confluencePageAncestorsContract } from '@/lib/api/contracts/selectors/confluence'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
@@ -13,15 +16,17 @@ export const dynamic = 'force-dynamic'
  * Get ancestors (parent pages) of a specific Confluence page.
  * Uses GET /wiki/api/v2/pages/{id}/ancestors
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { domain, accessToken, pageId, cloudId: providedCloudId, limit = 25 } = body
+    const parsed = await parseRequest(confluencePageAncestorsContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const { domain, accessToken, pageId, cloudId: providedCloudId, limit } = parsed.data.body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -96,4 +101,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

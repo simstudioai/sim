@@ -1,8 +1,8 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl, getSocketServerUrl } from '@/lib/core/utils/urls'
@@ -27,7 +27,7 @@ import {
   createSchedulesForDeploy,
   validateWorkflowSchedules,
 } from '@/lib/workflows/schedules'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployOrchestration')
 
@@ -229,6 +229,27 @@ export async function performFullDeploy(
 
   await syncMcpToolsForWorkflow({ workflowId, requestId, context: 'deploy' })
 
+  // Drop stale block refs from any table workflow column targeting this workflow,
+  // so columns that referenced just-removed blocks collapse cleanly instead of
+  // showing perpetual "Waiting" indicators on future row runs.
+  if (workflowData.workspaceId) {
+    try {
+      const { pruneStaleWorkflowGroupOutputs } = await import('@/lib/table/service')
+      const validBlockIds = new Set(Object.keys(normalizedData.blocks))
+      await pruneStaleWorkflowGroupOutputs({
+        workflowId,
+        workspaceId: workflowData.workspaceId as string,
+        validBlockIds,
+        requestId,
+      })
+    } catch (pruneError) {
+      logger.warn(
+        `[${requestId}] Failed to prune stale workflow column outputs for ${workflowId}`,
+        pruneError
+      )
+    }
+  }
+
   recordAudit({
     workspaceId: (workflowData.workspaceId as string) || null,
     actorId: actorId,
@@ -416,9 +437,7 @@ export async function performActivateVersion(
     .limit(1)
   const previousVersionId = currentActiveVersion?.id
 
-  const scheduleValidation = validateWorkflowSchedules(
-    blocks as Record<string, import('@/stores/workflows/workflow/types').BlockState>
-  )
+  const scheduleValidation = validateWorkflowSchedules(blocks as Record<string, BlockState>)
   if (!scheduleValidation.isValid) {
     return {
       success: false,
@@ -432,7 +451,7 @@ export async function performActivateVersion(
     workflowId,
     workflow,
     userId,
-    blocks: blocks as Record<string, import('@/stores/workflows/workflow/types').BlockState>,
+    blocks: blocks as Record<string, BlockState>,
     requestId,
     deploymentVersionId: versionRow.id,
     previousVersionId,
@@ -457,7 +476,7 @@ export async function performActivateVersion(
 
   const scheduleResult = await createSchedulesForDeploy(
     workflowId,
-    blocks as Record<string, import('@/stores/workflows/workflow/types').BlockState>,
+    blocks as Record<string, BlockState>,
     db,
     versionRow.id
   )

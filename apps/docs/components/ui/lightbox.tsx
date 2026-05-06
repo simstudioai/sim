@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { getAssetUrl } from '@/lib/utils'
 
 interface LightboxProps {
@@ -9,10 +9,12 @@ interface LightboxProps {
   src: string
   alt: string
   type: 'image' | 'video'
+  startTime?: number
 }
 
-export function Lightbox({ isOpen, onClose, src, alt, type }: LightboxProps) {
+export function Lightbox({ isOpen, onClose, src, alt, type, startTime }: LightboxProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -40,6 +42,12 @@ export function Lightbox({ isOpen, onClose, src, alt, type }: LightboxProps) {
     }
   }, [isOpen, onClose])
 
+  useLayoutEffect(() => {
+    if (isOpen && type === 'video' && videoRef.current && startTime != null && startTime > 0) {
+      videoRef.current.currentTime = startTime
+    }
+  }, [isOpen, startTime, type])
+
   if (!isOpen) return null
 
   return (
@@ -61,6 +69,7 @@ export function Lightbox({ isOpen, onClose, src, alt, type }: LightboxProps) {
           />
         ) : (
           <video
+            ref={videoRef}
             src={getAssetUrl(src)}
             autoPlay
             loop

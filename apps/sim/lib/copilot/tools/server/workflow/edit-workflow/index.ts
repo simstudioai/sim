@@ -1,6 +1,8 @@
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { EditWorkflow } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
@@ -25,7 +27,6 @@ import {
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
@@ -118,8 +119,10 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       workflowState = fromDb.workflowState
     }
 
-    // Get permission config for the user
-    const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
+    const permissionConfig =
+      context?.userId && workspaceId
+        ? await getUserPermissionConfig(context.userId, workspaceId)
+        : null
 
     // Pre-validate credential and apiKey inputs before applying operations
     // This filters out invalid credentials and apiKeys for hosted models
@@ -155,7 +158,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         validationErrors.push(...selectorErrors)
       } catch (error) {
         logger.warn('Selector ID validation failed', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }
@@ -249,7 +252,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       } catch (error) {
         logger.warn('Targeted autolayout failed, using default positions', {
           workflowId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }

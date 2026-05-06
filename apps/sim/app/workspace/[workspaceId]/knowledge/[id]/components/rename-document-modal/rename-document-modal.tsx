@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -39,12 +39,15 @@ export function RenameDocumentModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Reset form fields when the modal opens (open transitions false → true).
+  const prevOpenRef = useRef(open)
+  if (prevOpenRef.current !== open) {
+    prevOpenRef.current = open
     if (open) {
       setName(initialName)
       setError(null)
     }
-  }, [open, initialName])
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

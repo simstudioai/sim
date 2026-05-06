@@ -17,6 +17,7 @@ export type BYOKProviderId =
   | 'linkup'
   | 'brandfetch'
   | 'parallel_ai'
+  | 'cohere'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 

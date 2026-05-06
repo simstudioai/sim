@@ -170,8 +170,6 @@ Create and share Slack canvases in channels. Canvases are collaborative document
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `canvas_id` | string | Unique canvas identifier |
-| `channel` | string | Channel where canvas was created |
-| `title` | string | Canvas title |
 
 ### `slack_message_reader`
 
@@ -522,6 +520,7 @@ List all channels in a Slack workspace. Returns public and private channels the 
 | `includePrivate` | boolean | No | Include private channels the bot is a member of \(default: true\) |
 | `excludeArchived` | boolean | No | Exclude archived channels \(default: true\) |
 | `limit` | number | No | Maximum number of channels to return \(default: 100, max: 200\) |
+| `cursor` | string | No | Pagination cursor from a previous response.next_cursor |
 
 #### Output
 
@@ -547,6 +546,7 @@ List all channels in a Slack workspace. Returns public and private channels the 
 | `ids` | array | Array of channel IDs for easy access |
 | `names` | array | Array of channel names for easy access |
 | `count` | number | Total number of channels returned |
+| `nextCursor` | string | Cursor for the next page; null if no more pages |
 
 ### `slack_list_members`
 
@@ -560,6 +560,7 @@ List all members (user IDs) in a Slack channel. Use with Get User Info to resolv
 | `botToken` | string | No | Bot token for Custom Bot |
 | `channel` | string | Yes | Channel ID to list members from |
 | `limit` | number | No | Maximum number of members to return \(default: 100, max: 200\) |
+| `cursor` | string | No | Pagination cursor from a previous response.next_cursor |
 
 #### Output
 
@@ -567,6 +568,7 @@ List all members (user IDs) in a Slack channel. Use with Get User Info to resolv
 | --------- | ---- | ----------- |
 | `members` | array | Array of user IDs who are members of the channel \(e.g., U1234567890\) |
 | `count` | number | Total number of members returned |
+| `nextCursor` | string | Cursor for the next page; null if no more pages |
 
 ### `slack_list_users`
 
@@ -580,6 +582,7 @@ List all users in a Slack workspace. Returns user profiles with names and avatar
 | `botToken` | string | No | Bot token for Custom Bot |
 | `includeDeleted` | boolean | No | Include deactivated/deleted users \(default: false\) |
 | `limit` | number | No | Maximum number of users to return \(default: 100, max: 200\) |
+| `cursor` | string | No | Pagination cursor from a previous response.next_cursor |
 
 #### Output
 
@@ -602,6 +605,7 @@ List all users in a Slack workspace. Returns user profiles with names and avatar
 | `ids` | array | Array of user IDs for easy access |
 | `names` | array | Array of usernames for easy access |
 | `count` | number | Total number of users returned |
+| `nextCursor` | string | Cursor for the next page; null if no more pages |
 
 ### `slack_get_user`
 
@@ -638,7 +642,6 @@ Get detailed information about a specific Slack user by their user ID.
 |   ↳ `is_restricted` | boolean | Whether the user is a guest \(restricted\) |
 |   ↳ `is_ultra_restricted` | boolean | Whether the user is a single-channel guest |
 |   ↳ `is_app_user` | boolean | Whether user is an app user |
-|   ↳ `is_stranger` | boolean | Whether user is from different workspace |
 |   ↳ `deleted` | boolean | Whether the user is deactivated |
 |   ↳ `color` | string | User color for display |
 |   ↳ `timezone` | string | Timezone identifier \(e.g., America/Los_Angeles\) |
@@ -924,6 +927,139 @@ Create a canvas pinned to a Slack channel as its resource hub
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `canvas_id` | string | ID of the created channel canvas |
+
+### `slack_get_canvas`
+
+Get Slack canvas file metadata by canvas ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `canvasId` | string | Yes | Canvas file ID to retrieve \(e.g., F1234ABCD\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `canvas` | object | Canvas file information returned by Slack |
+|   ↳ `id` | string | Unique canvas file identifier |
+|   ↳ `created` | number | Unix timestamp when the canvas was created |
+|   ↳ `timestamp` | number | Unix timestamp associated with the canvas |
+|   ↳ `name` | string | Canvas file name |
+|   ↳ `title` | string | Canvas title |
+|   ↳ `mimetype` | string | MIME type of the canvas file |
+|   ↳ `filetype` | string | Slack file type for the canvas |
+|   ↳ `pretty_type` | string | Human-readable file type |
+|   ↳ `user` | string | User ID of the canvas creator |
+|   ↳ `editable` | boolean | Whether the canvas file is editable |
+|   ↳ `size` | number | Canvas file size in bytes |
+|   ↳ `mode` | string | File mode |
+|   ↳ `is_external` | boolean | Whether the canvas is externally hosted |
+|   ↳ `is_public` | boolean | Whether the canvas is public |
+|   ↳ `url_private` | string | Private URL for the canvas file |
+|   ↳ `url_private_download` | string | Private download URL for the canvas file |
+|   ↳ `permalink` | string | Permanent URL for the canvas |
+|   ↳ `channels` | array | Public channel IDs where the canvas appears |
+|   ↳ `groups` | array | Private channel IDs where the canvas appears |
+|   ↳ `ims` | array | Direct message IDs where the canvas appears |
+|   ↳ `canvas_readtime` | number | Approximate read time for canvas content |
+|   ↳ `is_channel_space` | boolean | Whether this canvas is linked to a channel |
+|   ↳ `linked_channel_id` | string | Channel ID linked to this canvas |
+|   ↳ `canvas_creator_id` | string | User ID of the canvas creator |
+
+### `slack_list_canvases`
+
+List Slack canvases available to the authenticated user or bot
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | No | Filter canvases appearing in a specific channel ID |
+| `count` | number | No | Number of canvases to return per page |
+| `page` | number | No | Page number to return |
+| `user` | string | No | Filter canvases created by a single user ID |
+| `tsFrom` | string | No | Filter canvases created after this Unix timestamp |
+| `tsTo` | string | No | Filter canvases created before this Unix timestamp |
+| `teamId` | string | No | Encoded team ID, required when using an org-level token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `canvases` | array | Canvas file objects returned by Slack |
+|   ↳ `id` | string | Unique canvas file identifier |
+|   ↳ `created` | number | Unix timestamp when the canvas was created |
+|   ↳ `timestamp` | number | Unix timestamp associated with the canvas |
+|   ↳ `name` | string | Canvas file name |
+|   ↳ `title` | string | Canvas title |
+|   ↳ `mimetype` | string | MIME type of the canvas file |
+|   ↳ `filetype` | string | Slack file type for the canvas |
+|   ↳ `pretty_type` | string | Human-readable file type |
+|   ↳ `user` | string | User ID of the canvas creator |
+|   ↳ `editable` | boolean | Whether the canvas file is editable |
+|   ↳ `size` | number | Canvas file size in bytes |
+|   ↳ `mode` | string | File mode |
+|   ↳ `is_external` | boolean | Whether the canvas is externally hosted |
+|   ↳ `is_public` | boolean | Whether the canvas is public |
+|   ↳ `url_private` | string | Private URL for the canvas file |
+|   ↳ `url_private_download` | string | Private download URL for the canvas file |
+|   ↳ `permalink` | string | Permanent URL for the canvas |
+|   ↳ `channels` | array | Public channel IDs where the canvas appears |
+|   ↳ `groups` | array | Private channel IDs where the canvas appears |
+|   ↳ `ims` | array | Direct message IDs where the canvas appears |
+|   ↳ `canvas_readtime` | number | Approximate read time for canvas content |
+|   ↳ `is_channel_space` | boolean | Whether this canvas is linked to a channel |
+|   ↳ `linked_channel_id` | string | Channel ID linked to this canvas |
+|   ↳ `canvas_creator_id` | string | User ID of the canvas creator |
+| `paging` | object | Pagination information from Slack |
+|   ↳ `count` | number | Number of items requested per page |
+|   ↳ `total` | number | Total number of matching files |
+|   ↳ `page` | number | Current page number |
+|   ↳ `pages` | number | Total number of pages |
+
+### `slack_lookup_canvas_sections`
+
+Find Slack canvas section IDs matching criteria for later edits
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `canvasId` | string | Yes | Canvas ID to search \(e.g., F1234ABCD\) |
+| `criteria` | json | Yes | Section lookup criteria, such as \{"section_types":\["h1"\],"contains_text":"Roadmap"\} |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sections` | array | Canvas sections matching the lookup criteria |
+|   ↳ `id` | string | Canvas section identifier |
+
+### `slack_delete_canvas`
+
+Delete a Slack canvas by its canvas ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `canvasId` | string | Yes | Canvas ID to delete \(e.g., F1234ABCD\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack deleted the canvas successfully |
 
 ### `slack_create_conversation`
 

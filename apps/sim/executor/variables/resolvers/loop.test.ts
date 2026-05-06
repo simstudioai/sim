@@ -1,11 +1,8 @@
-import { loggerMock } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { LoopScope } from '@/executor/execution/state'
 import { InvalidFieldError } from '@/executor/utils/block-reference'
 import { LoopResolver } from './loop'
 import type { ResolutionContext } from './reference'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 interface LoopDef {
   nodes: string[]

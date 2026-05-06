@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { boxUploadContract } from '@/lib/api/contracts/storage-transfer'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
@@ -11,15 +12,7 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('BoxUploadAPI')
 
-const BoxUploadSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  parentFolderId: z.string().min(1, 'Parent folder ID is required'),
-  file: FileInputSchema.optional().nullable(),
-  fileContent: z.string().optional().nullable(),
-  fileName: z.string().optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -35,8 +28,9 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[${requestId}] Authenticated Box upload request via ${authResult.authType}`)
 
-    const body = await request.json()
-    const validatedData = BoxUploadSchema.parse(body)
+    const parsed = await parseRequest(boxUploadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     let fileBuffer: Buffer
     let fileName: string
@@ -123,18 +117,10 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Validation error:`, error.errors)
-      return NextResponse.json(
-        { success: false, error: error.errors[0]?.message || 'Validation failed' },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Unexpected error:`, error)
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }
-}
+})

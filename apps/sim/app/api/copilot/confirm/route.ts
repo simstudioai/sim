@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { copilotConfirmContract } from '@/lib/api/contracts/copilot'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import {
   ASYNC_TOOL_CONFIRMATION_STATUS,
   ASYNC_TOOL_STATUS,
@@ -13,33 +15,21 @@ import {
   getRunSegment,
   upsertAsyncToolCall,
 } from '@/lib/copilot/async-runs/repository'
+import { CopilotConfirmOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { publishToolConfirmation } from '@/lib/copilot/persistence/tool-confirm'
 import {
   authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
+import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotConfirmAPI')
-
-// Schema for confirmation request
-const ConfirmationSchema = z.object({
-  toolCallId: z.string().min(1, 'Tool call ID is required'),
-  status: z.enum(
-    Object.values(ASYNC_TOOL_CONFIRMATION_STATUS) as [
-      AsyncConfirmationStatus,
-      ...AsyncConfirmationStatus[],
-    ],
-    {
-      errorMap: () => ({ message: 'Invalid notification status' }),
-    }
-  ),
-  message: z.string().optional(),
-  data: z.unknown().optional(),
-})
 
 /**
  * Persist terminal durable tool status, then publish a wakeup event.
@@ -106,99 +96,124 @@ async function updateToolCallStatus(
     logger.error('Failed to update tool call status', {
       toolCallId,
       status,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return false
   }
 }
 
-/**
- * POST /api/copilot/confirm
- * Accept client tool completion or detach confirmations.
- */
-export async function POST(req: NextRequest) {
+// POST /api/copilot/confirm — delivery path for client-executed tool
+// results. Correlate via `toolCallId` when the awaiting chat stream
+// stalls.
+export const POST = withRouteHandler((req: NextRequest) => {
   const tracker = createRequestTracker()
 
-  try {
-    // Authenticate user using consolidated helper
-    const { userId: authenticatedUserId, isAuthenticated } =
-      await authenticateCopilotRequestSessionOnly()
+  return withIncomingGoSpan(
+    req.headers,
+    TraceSpan.CopilotConfirmToolResult,
+    { [TraceAttr.RequestId]: tracker.requestId },
+    async (span) => {
+      try {
+        const { userId: authenticatedUserId, isAuthenticated } =
+          await authenticateCopilotRequestSessionOnly()
 
-    if (!isAuthenticated) {
-      return createUnauthorizedResponse()
+        if (!isAuthenticated || !authenticatedUserId) {
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Unauthorized)
+          return createUnauthorizedResponse()
+        }
+
+        const parsed = await parseRequest(
+          copilotConfirmContract,
+          req,
+          {},
+          {
+            validationErrorResponse: (error) => {
+              span.setAttribute(
+                TraceAttr.CopilotConfirmOutcome,
+                CopilotConfirmOutcome.ValidationError
+              )
+              return validationErrorResponse(
+                error,
+                `Invalid request data: ${error.issues.map((e) => e.message).join(', ')}`
+              )
+            },
+          }
+        )
+        if (!parsed.success) return parsed.response
+        const { toolCallId, status, message, data } = parsed.data.body
+        span.setAttributes({
+          [TraceAttr.ToolCallId]: toolCallId,
+          [TraceAttr.ToolConfirmationStatus]: status,
+          [TraceAttr.UserId]: authenticatedUserId,
+        })
+
+        const existing = await getAsyncToolCall(toolCallId).catch((err) => {
+          logger.warn('Failed to fetch async tool call', {
+            toolCallId,
+            error: err instanceof Error ? err.message : String(err),
+          })
+          return null
+        })
+
+        if (!existing) {
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
+          return createNotFoundResponse('Tool call not found')
+        }
+        if (existing.toolName) span.setAttribute(TraceAttr.ToolName, existing.toolName)
+        if (existing.runId) span.setAttribute(TraceAttr.RunId, existing.runId)
+
+        const run = await getRunSegment(existing.runId).catch((err) => {
+          logger.warn('Failed to fetch run segment', {
+            runId: existing.runId,
+            error: err instanceof Error ? err.message : String(err),
+          })
+          return null
+        })
+        if (!run) {
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.RunNotFound)
+          return createNotFoundResponse('Tool call run not found')
+        }
+        if (run.userId !== authenticatedUserId) {
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Forbidden)
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+
+        const updated = await updateToolCallStatus(existing, status, message, data)
+
+        if (!updated) {
+          logger.error(`[${tracker.requestId}] Failed to update tool call status`, {
+            userId: authenticatedUserId,
+            toolCallId,
+            status,
+            internalStatus: status,
+            message,
+          })
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.UpdateFailed)
+          // DB write failed — 500, not 400. 400 is a client-shape error.
+          return createInternalServerErrorResponse('Failed to update tool call status')
+        }
+
+        span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Delivered)
+        return NextResponse.json({
+          success: true,
+          message: message || `Tool call ${toolCallId} has been ${status.toLowerCase()}`,
+          toolCallId,
+          status,
+        })
+      } catch (error) {
+        const duration = tracker.getDuration()
+
+        logger.error(`[${tracker.requestId}] Unexpected error:`, {
+          duration,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+        })
+
+        span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.InternalError)
+        return createInternalServerErrorResponse(
+          error instanceof Error ? error.message : 'Internal server error'
+        )
+      }
     }
-
-    const body = await req.json()
-    const { toolCallId, status, message, data } = ConfirmationSchema.parse(body)
-    const existing = await getAsyncToolCall(toolCallId).catch((err) => {
-      logger.warn('Failed to fetch async tool call', {
-        toolCallId,
-        error: err instanceof Error ? err.message : String(err),
-      })
-      return null
-    })
-
-    if (!existing) {
-      return createNotFoundResponse('Tool call not found')
-    }
-
-    const run = await getRunSegment(existing.runId).catch((err) => {
-      logger.warn('Failed to fetch run segment', {
-        runId: existing.runId,
-        error: err instanceof Error ? err.message : String(err),
-      })
-      return null
-    })
-    if (!run) {
-      return createNotFoundResponse('Tool call run not found')
-    }
-    if (run.userId !== authenticatedUserId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    // Update the durable tool call status and wake any waiters.
-    const updated = await updateToolCallStatus(existing, status, message, data)
-
-    if (!updated) {
-      logger.error(`[${tracker.requestId}] Failed to update tool call status`, {
-        userId: authenticatedUserId,
-        toolCallId,
-        status,
-        internalStatus: status,
-        message,
-      })
-      return createBadRequestResponse('Failed to update tool call status or tool call not found')
-    }
-
-    const duration = tracker.getDuration()
-
-    return NextResponse.json({
-      success: true,
-      message: message || `Tool call ${toolCallId} has been ${status.toLowerCase()}`,
-      toolCallId,
-      status,
-    })
-  } catch (error) {
-    const duration = tracker.getDuration()
-
-    if (error instanceof z.ZodError) {
-      logger.error(`[${tracker.requestId}] Request validation error:`, {
-        duration,
-        errors: error.errors,
-      })
-      return createBadRequestResponse(
-        `Invalid request data: ${error.errors.map((e) => e.message).join(', ')}`
-      )
-    }
-
-    logger.error(`[${tracker.requestId}] Unexpected error:`, {
-      duration,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-    })
-
-    return createInternalServerErrorResponse(
-      error instanceof Error ? error.message : 'Internal server error'
-    )
-  }
-}
+  )
+})

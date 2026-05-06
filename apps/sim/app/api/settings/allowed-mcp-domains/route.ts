@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getAllowedMcpDomainsFromEnv } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   const session = await getSession()
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -24,4 +25,4 @@ export async function GET() {
   } catch {}
 
   return NextResponse.json({ allowedMcpDomains: configuredDomains })
-}
+})

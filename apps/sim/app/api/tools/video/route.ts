@@ -1,18 +1,21 @@
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
+import { videoProviders, videoToolContract } from '@/lib/api/contracts/tools/media/video'
+import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
-import type { VideoRequestBody } from '@/tools/video/types'
 
 const logger = createLogger('VideoProxyAPI')
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 600 // 10 minutes for video generation
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId()
   logger.info(`[${requestId}] Video generation request started`)
 
@@ -22,18 +25,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body: VideoRequestBody = await request.json()
+    const parsed = await parseRequest(
+      videoToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid video request:`, error.issues)
+          return validationErrorResponse(
+            error,
+            getValidationErrorMessage(error, 'Invalid request data')
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const body = parsed.data.body
     const { provider, apiKey, model, prompt, duration, aspectRatio, resolution } = body
 
-    if (!provider || !apiKey || !prompt) {
-      return NextResponse.json(
-        { error: 'Missing required fields: provider, apiKey, and prompt' },
-        { status: 400 }
-      )
-    }
-
-    const validProviders = ['runway', 'veo', 'luma', 'minimax', 'falai']
-    if (!validProviders.includes(provider)) {
+    const validProviders = videoProviders
+    if (!validProviders.includes(provider as (typeof videoProviders)[number])) {
       return NextResponse.json(
         { error: `Invalid provider. Must be one of: ${validProviders.join(', ')}` },
         { status: 400 }
@@ -186,11 +198,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: errorMessage }, { status: 500 })
     }
 
-    const hasExecutionContext = body.workspaceId && body.workflowId && body.executionId
+    const executionContext =
+      body.workspaceId && body.workflowId && body.executionId
+        ? {
+            workspaceId: body.workspaceId,
+            workflowId: body.workflowId,
+            executionId: body.executionId,
+          }
+        : null
 
     logger.info(`[${requestId}] Storing video file, size: ${videoBuffer.length} bytes`)
 
-    if (hasExecutionContext) {
+    if (executionContext) {
       const { uploadExecutionFile } = await import('@/lib/uploads/contexts/execution')
       const timestamp = Date.now()
       const fileName = `video-${provider}-${timestamp}.mp4`
@@ -198,11 +217,7 @@ export async function POST(request: NextRequest) {
       let videoFile
       try {
         videoFile = await uploadExecutionFile(
-          {
-            workspaceId: body.workspaceId!,
-            workflowId: body.workflowId!,
-            executionId: body.executionId!,
-          },
+          executionContext,
           videoBuffer,
           fileName,
           'video/mp4',
@@ -270,7 +285,7 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})
 
 async function generateWithRunway(
   apiKey: string,
@@ -973,8 +988,4 @@ function getVideoDimensions(
   const width = Math.round((height * ratioW) / ratioH)
 
   return { width, height }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }

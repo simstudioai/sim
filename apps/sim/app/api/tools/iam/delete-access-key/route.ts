@@ -1,33 +1,29 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsIamDeleteAccessKeyContract } from '@/lib/api/contracts/tools/aws/iam-delete-access-key'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createIAMClient, deleteAccessKey } from '../utils'
 
 const logger = createLogger('IAMDeleteAccessKeyAPI')
 
-const Schema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  accessKeyIdToDelete: z.string().min(1, 'Access key ID to delete is required'),
-  userName: z.string().optional(),
-})
-
-export async function POST(request: NextRequest) {
-  const requestId = generateId().slice(0, 8)
-
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const body = await request.json()
-    const params = Schema.parse(body)
+    const parsed = await parseToolRequest(awsIamDeleteAccessKeyContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
 
-    logger.info(`[${requestId}] Deleting IAM access key "${params.accessKeyIdToDelete}"`)
+    logger.info(`Deleting IAM access key "${params.accessKeyIdToDelete}"`)
 
     const client = createIAMClient({
       region: params.region,
@@ -37,24 +33,16 @@ export async function POST(request: NextRequest) {
 
     try {
       await deleteAccessKey(client, params.accessKeyIdToDelete, params.userName)
-      logger.info(`[${requestId}] Successfully deleted access key "${params.accessKeyIdToDelete}"`)
+      logger.info(`Successfully deleted access key "${params.accessKeyIdToDelete}"`)
       return NextResponse.json({ message: `Access key "${params.accessKeyIdToDelete}" deleted` })
     } finally {
       client.destroy()
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-    logger.error(`[${requestId}] Failed to delete access key:`, error)
+    logger.error(`Failed to delete access key:`, error)
     return NextResponse.json(
-      { error: `Failed to delete access key: ${errorMessage}` },
+      { error: `Failed to delete access key: ${toError(error).message}` },
       { status: 500 }
     )
   }
-}
+})

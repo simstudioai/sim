@@ -27,6 +27,7 @@ import {
   useResendWorkspaceInvitation,
   useUpdateWorkspacePermissions,
 } from '@/hooks/queries/invitations'
+import { useOrganizationBilling } from '@/hooks/queries/organization'
 import type { PermissionType, UserPermissions } from './components/types'
 
 const logger = createLogger('InviteModal')
@@ -35,9 +36,17 @@ interface InviteModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workspaceName?: string
+  inviteDisabledReason?: string | null
+  organizationId?: string | null
 }
 
-export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalProps) {
+export function InviteModal({
+  open,
+  onOpenChange,
+  workspaceName,
+  inviteDisabledReason = null,
+  organizationId = null,
+}: InviteModalProps) {
   const formRef = useRef<HTMLFormElement>(null)
   const [emailItems, setEmailItems] = useState<TagItem[]>([])
   const [userPermissions, setUserPermissions] = useState<UserPermissions[]>([])
@@ -70,6 +79,10 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
   const { data: pendingInvitations = [], isLoading: isPendingInvitationsLoading } =
     usePendingInvitations(open ? workspaceId : undefined)
 
+  const { data: organizationBillingData } = useOrganizationBilling(organizationId ?? '', {
+    enabled: open,
+  })
+
   const batchSendInvitations = useBatchSendWorkspaceInvitations()
   const cancelInvitation = useCancelWorkspaceInvitation()
   const resendInvitation = useResendWorkspaceInvitation()
@@ -79,6 +92,17 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
   const hasPendingChanges = Object.keys(existingUserPermissionChanges).length > 0
   const validEmails = emailItems.filter((item) => item.isValid).map((item) => item.value)
   const hasNewInvites = validEmails.length > 0
+  const canInviteMembers = userPerms.canAdmin && !inviteDisabledReason
+
+  const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
+  const usedSeats = organizationBillingData?.data?.usedSeats ?? 0
+  const availableSeats = Math.max(0, totalSeats - usedSeats)
+  const hasSeatData = !!organizationId && totalSeats > 0
+  const exceedsSeatCapacity =
+    hasSeatData && userPerms.canAdmin && validEmails.length > availableSeats
+  const seatLimitReason = exceedsSeatCapacity
+    ? `Only ${availableSeats} internal seat${availableSeats === 1 ? '' : 's'} available. External workspace invites do not require seats.`
+    : null
 
   const isSubmitting = batchSendInvitations.isPending
   const isSaving = updatePermissionsMutation.isPending
@@ -157,7 +181,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
   const fileInputOptions: FileInputOptions = useMemo(
     () => ({
-      enabled: userPerms.canAdmin,
+      enabled: canInviteMembers,
       accept: '.csv,.txt,text/csv,text/plain',
       extractValues: (text: string) => {
         const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
@@ -167,7 +191,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
       },
       tooltip: 'Upload emails',
     }),
-    [userPerms.canAdmin]
+    [canInviteMembers]
   )
 
   const handlePermissionChange = useCallback(
@@ -206,7 +230,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     }))
 
     updatePermissionsMutation.mutate(
-      { workspaceId, updates },
+      { workspaceId, organizationId: organizationId ?? undefined, updates },
       {
         onSuccess: (data) => {
           if (data.users && data.total !== undefined) {
@@ -224,6 +248,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     userPerms.canAdmin,
     hasPendingChanges,
     workspaceId,
+    organizationId,
     existingUserPermissionChanges,
     updatePermissions,
     updatePermissionsMutation,
@@ -255,7 +280,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     }
 
     removeMember.mutate(
-      { userId: memberToRemove.userId, workspaceId },
+      { userId: memberToRemove.userId, workspaceId, organizationId },
       {
         onSuccess: () => {
           if (workspacePermissions) {
@@ -289,6 +314,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     workspacePermissions,
     updatePermissions,
     removeMember,
+    organizationId,
   ])
 
   const handleRemoveMemberCancel = useCallback(() => {
@@ -305,7 +331,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
     setErrorMessage(null)
 
     cancelInvitation.mutate(
-      { invitationId: invitationToRemove.invitationId, workspaceId },
+      { invitationId: invitationToRemove.invitationId, workspaceId, organizationId },
       {
         onSuccess: () => {
           setInvitationToRemove(null)
@@ -317,7 +343,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         },
       }
     )
-  }, [invitationToRemove, workspaceId, userPerms.canAdmin, cancelInvitation])
+  }, [invitationToRemove, workspaceId, userPerms.canAdmin, cancelInvitation, organizationId])
 
   const handleRemoveInvitationCancel = useCallback(() => {
     setInvitationToRemove(null)
@@ -398,7 +424,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
       setErrorMessage(null)
 
-      if (validEmails.length === 0 || !workspaceId) {
+      if (!canInviteMembers || validEmails.length === 0 || !workspaceId) {
         return
       }
 
@@ -411,7 +437,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
       })
 
       batchSendInvitations.mutate(
-        { workspaceId, invitations },
+        { workspaceId, organizationId, invitations },
         {
           onSuccess: (result) => {
             if (result.failed.length > 0) {
@@ -432,7 +458,14 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         }
       )
     },
-    [validEmails, workspaceId, userPermissions, batchSendInvitations]
+    [
+      canInviteMembers,
+      validEmails,
+      workspaceId,
+      organizationId,
+      userPermissions,
+      batchSendInvitations,
+    ]
   )
 
   const resetState = useCallback(() => {
@@ -456,6 +489,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         email: inv.email,
         permissionType: inv.permissionType,
         isPendingInvitation: true,
+        isExternal: inv.isExternal,
         invitationId: inv.invitationId,
       })),
     [pendingInvitations]
@@ -524,15 +558,21 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                   onRemove={removeEmailItem}
                   onInputChange={() => setErrorMessage(null)}
                   placeholder={
-                    !userPerms.canAdmin
-                      ? 'Only administrators can invite new members'
+                    !canInviteMembers
+                      ? inviteDisabledReason || 'Only administrators can invite new members'
                       : 'Enter emails'
                   }
                   placeholderWithTags='Add email'
-                  disabled={isSubmitting || !userPerms.canAdmin}
+                  disabled={isSubmitting || !canInviteMembers}
                   fileInputOptions={fileInputOptions}
                 />
               </div>
+              {inviteDisabledReason && (
+                <p className='mt-1 text-[var(--text-muted)] text-caption'>{inviteDisabledReason}</p>
+              )}
+              {seatLimitReason && (
+                <p className='mt-1 text-[var(--text-muted)] text-caption'>{seatLimitReason}</p>
+              )}
               {errorMessage && (
                 <p className='mt-1 text-[var(--text-error)] text-caption'>{errorMessage}</p>
               )}
@@ -586,17 +626,26 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
             <Button
               type='button'
               variant='primary'
-              onClick={() => formRef.current?.requestSubmit()}
+              onClick={() => {
+                formRef.current?.requestSubmit()
+              }}
               disabled={
-                !userPerms.canAdmin || isSubmitting || isSaving || !workspaceId || !hasNewInvites
+                !userPerms.canAdmin ||
+                !!inviteDisabledReason ||
+                isSubmitting ||
+                isSaving ||
+                !workspaceId ||
+                !hasNewInvites
               }
               className='ml-auto'
             >
-              {!userPerms.canAdmin
-                ? 'Admin Access Required'
-                : isSubmitting
-                  ? 'Inviting...'
-                  : 'Invite'}
+              {inviteDisabledReason
+                ? 'Invites Disabled'
+                : !userPerms.canAdmin
+                  ? 'Admin Access Required'
+                  : isSubmitting
+                    ? 'Inviting...'
+                    : 'Invite'}
             </Button>
           </ModalFooter>
         </form>

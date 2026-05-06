@@ -957,7 +957,7 @@ export const EditWorkflow: ToolCatalogEntry = {
             params: {
               type: 'object',
               description:
-                'Parameters for the operation. \nFor edit: {"inputs": {"temperature": 0.5}} NOT {"subBlocks": {"temperature": {"value": 0.5}}}\nFor add: {"type": "agent", "name": "My Agent", "inputs": {"model": "gpt-4o"}}\nFor delete: {} (empty object)',
+                'Parameters for the operation. \nFor edit: {"inputs": {"temperature": 0.5}} NOT {"subBlocks": {"temperature": {"value": 0.5}}}\nFor add: {"type": "agent", "name": "My Agent", "inputs": {"model": "claude-sonnet-4-6"}}\nFor delete: {} (empty object)',
             },
           },
           required: ['operation_type', 'block_id', 'params'],
@@ -2867,6 +2867,17 @@ export const UserTable: ToolCatalogEntry = {
             type: 'string',
             description:
               'Pipe query_rows results directly to a NEW workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use .csv for tabular exports. Use a flat path like "files/export.csv" — nested paths are not supported.',
+          },
+          position: {
+            type: 'integer',
+            description:
+              'Zero-based index at which to insert the row (optional, insert_row only). Rows at and below that index shift down. Omit to append at the end.',
+          },
+          positions: {
+            type: 'array',
+            description:
+              'Per-row insertion indices for batch_insert_rows (optional). Must be the same length as rows and contain no duplicates. Values are final positions in the resulting table — lower-index shifts are applied automatically. Omit to append all rows at the end.',
+            items: { type: 'integer' },
           },
           rowId: {
             type: 'string',

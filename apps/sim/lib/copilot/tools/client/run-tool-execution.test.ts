@@ -9,6 +9,8 @@ const {
   executeWorkflowWithFullLogging,
   getWorkflowEntries,
   loadExecutionPointer,
+  MockSSEEventHandlerError,
+  MockSSEStreamInterruptedError,
   saveExecutionPointer,
   setActiveWorkflow,
 } = vi.hoisted(() => ({
@@ -16,12 +18,32 @@ const {
   executeWorkflowWithFullLogging: vi.fn(),
   getWorkflowEntries: vi.fn(() => []),
   loadExecutionPointer: vi.fn(),
+  MockSSEEventHandlerError: class SSEEventHandlerError extends Error {
+    executionId?: string
+
+    constructor(message: string, executionId?: string) {
+      super(message)
+      this.name = 'SSEEventHandlerError'
+      this.executionId = executionId
+    }
+  },
+  MockSSEStreamInterruptedError: class SSEStreamInterruptedError extends Error {
+    executionId?: string
+
+    constructor(message: string, executionId?: string) {
+      super(message)
+      this.name = 'SSEStreamInterruptedError'
+      this.executionId = executionId
+    }
+  },
   saveExecutionPointer: vi.fn(),
   setActiveWorkflow: vi.fn(),
 }))
 
 const setIsExecuting = vi.fn()
+const setActiveBlocks = vi.fn()
 const setCurrentExecutionId = vi.fn()
+const getCurrentExecutionId = vi.fn()
 const getWorkflowExecution = vi.fn(() => ({ isExecuting: false }))
 
 vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils', () => ({
@@ -31,11 +53,18 @@ vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-u
 vi.mock('@/stores/execution/store', () => ({
   useExecutionStore: {
     getState: () => ({
+      getCurrentExecutionId,
       getWorkflowExecution,
+      setActiveBlocks,
       setIsExecuting,
       setCurrentExecutionId,
     }),
   },
+}))
+
+vi.mock('@/hooks/use-execution-stream', () => ({
+  SSEEventHandlerError: MockSSEEventHandlerError,
+  SSEStreamInterruptedError: MockSSEStreamInterruptedError,
 }))
 
 vi.mock('@/stores/workflows/registry/store', () => ({
@@ -73,6 +102,7 @@ import {
 describe('run tool execution cancellation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getCurrentExecutionId.mockReturnValue(null)
     getWorkflowEntries.mockReturnValue([])
     loadExecutionPointer.mockResolvedValue(null)
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
@@ -144,7 +174,9 @@ describe('run tool execution cancellation', () => {
     )
   })
 
-  it('binds a recovered execution without starting a new workflow run', async () => {
+  it('treats a tab-local execution pointer as handled in background', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
     loadExecutionPointer.mockResolvedValueOnce({
       workflowId: 'wf-1',
       executionId: 'exec-existing',
@@ -153,14 +185,67 @@ describe('run tool execution cancellation', () => {
 
     await expect(bindRunToolToExecution('tool-3', 'wf-1')).resolves.toBe(true)
 
-    expect(setActiveWorkflow).toHaveBeenCalledWith('wf-1')
-    expect(setIsExecuting).toHaveBeenCalledWith('wf-1', true)
-    expect(setCurrentExecutionId).toHaveBeenCalledWith('wf-1', 'exec-existing')
-    expect(saveExecutionPointer).toHaveBeenCalledWith({
-      workflowId: 'wf-1',
-      executionId: 'exec-existing',
-      lastEventId: 7,
-    })
+    expect(setActiveWorkflow).not.toHaveBeenCalled()
+    expect(setIsExecuting).not.toHaveBeenCalled()
+    expect(setCurrentExecutionId).not.toHaveBeenCalled()
+    expect(saveExecutionPointer).not.toHaveBeenCalled()
     expect(executeWorkflowWithFullLogging).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/copilot/confirm',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"status":"background"'),
+      })
+    )
+  })
+
+  it('does not recover from shared console rows without a tab-local pointer', async () => {
+    loadExecutionPointer.mockResolvedValueOnce(null)
+    getWorkflowEntries.mockReturnValueOnce([
+      {
+        workflowId: 'wf-1',
+        executionId: 'exec-shared',
+        isRunning: true,
+        startedAt: new Date().toISOString(),
+      },
+    ])
+
+    await expect(bindRunToolToExecution('tool-4', 'wf-1')).resolves.toBe(false)
+
+    expect(setActiveWorkflow).not.toHaveBeenCalled()
+    expect(setIsExecuting).not.toHaveBeenCalled()
+    expect(setCurrentExecutionId).not.toHaveBeenCalled()
+    expect(saveExecutionPointer).not.toHaveBeenCalled()
+  })
+
+  it('reports local stream handler failures as background instead of workflow errors', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    getCurrentExecutionId.mockImplementation(
+      () => saveExecutionPointer.mock.calls[0]?.[0]?.executionId ?? null
+    )
+    executeWorkflowWithFullLogging.mockRejectedValueOnce(
+      new MockSSEEventHandlerError('handler failed', 'exec-1')
+    )
+
+    executeRunToolOnClient('tool-5', 'run_workflow', { workflowId: 'wf-1' })
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/copilot/confirm',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"status":"background"'),
+        })
+      )
+    })
+    expect(clearExecutionPointer).not.toHaveBeenCalled()
+    expect(setIsExecuting).toHaveBeenCalledWith('wf-1', false)
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/api/copilot/confirm',
+      expect.objectContaining({
+        body: expect.stringContaining('"status":"error"'),
+      })
+    )
   })
 })

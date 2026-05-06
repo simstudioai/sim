@@ -1,7 +1,6 @@
 /**
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockToolsChannel, mockWorkflowToolsChannel } = vi.hoisted(() => {
@@ -18,7 +17,6 @@ const { mockToolsChannel, mockWorkflowToolsChannel } = vi.hoisted(() => {
   return { mockToolsChannel, mockWorkflowToolsChannel }
 })
 
-vi.mock('@sim/logger', () => loggerMock)
 vi.mock('@/lib/events/pubsub', () => ({
   createPubSubChannel: vi.fn((config: { label: string }) => {
     if (config.label === 'mcp-tools') return mockToolsChannel

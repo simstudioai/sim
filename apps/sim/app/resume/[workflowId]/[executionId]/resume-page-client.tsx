@@ -1,8 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+
+const logger = createLogger('ResumePage')
+
 import {
   Badge,
   Button,
@@ -25,6 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { requestJson } from '@/lib/api/client/request'
+import { resumeWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
 import { useBrandConfig } from '@/ee/whitelabeling'
 import type { ResumeStatus } from '@/executor/types'
@@ -82,6 +88,8 @@ interface PausePointWithQueue {
   latestResumeEntry?: ResumeQueueEntrySummary | null
   parallelScope?: any
   loopScope?: any
+  pauseKind?: 'human' | 'time'
+  resumeAt?: string
 }
 
 interface PausedExecutionSummary {
@@ -529,6 +537,7 @@ export default function ResumeExecutionPage({
     const loadDetail = async () => {
       setLoadingDetail(true)
       try {
+        // boundary-raw-fetch: GET /api/resume/[workflowId]/[executionId]/[contextId] has no contract (server route only models POST resume submission)
         const response = await fetch(
           `/api/resume/${workflowId}/${executionId}/${selectedContextId}`,
           {
@@ -592,7 +601,7 @@ export default function ResumeExecutionPage({
         }
       } catch (err) {
         if ((err as any)?.name !== 'AbortError') {
-          console.error('Failed to load pause context detail', err)
+          logger.error('Failed to load pause context detail', err)
         }
       } finally {
         setLoadingDetail(false)
@@ -611,13 +620,11 @@ export default function ResumeExecutionPage({
   const refreshExecutionDetail = useCallback(async () => {
     setRefreshingExecution(true)
     try {
-      const response = await fetch(`/api/resume/${workflowId}/${executionId}`, {
-        method: 'GET',
-        credentials: 'include',
-        cache: 'no-store',
+      const raw = await requestJson(resumeWorkflowExecutionContract, {
+        params: { workflowId, executionId },
       })
-      if (!response.ok) return
-      const data: PausedExecutionDetail = await response.json()
+      // double-cast-allowed: contract pause-point shape is z.record(z.string(), z.unknown()) but the page works against the more specific local PausedExecutionDetail / PausePointWithQueue interfaces
+      const data = raw as unknown as PausedExecutionDetail
       setExecutionDetail(data)
       if (!selectedContextId) {
         const first =
@@ -626,7 +633,7 @@ export default function ResumeExecutionPage({
         setSelectedContextId(first)
       }
     } catch (err) {
-      console.error('Failed to refresh execution detail', err)
+      logger.error('Failed to refresh execution detail', err)
     } finally {
       setRefreshingExecution(false)
     }
@@ -636,6 +643,7 @@ export default function ResumeExecutionPage({
     async (contextId: string, showLoader = true) => {
       try {
         if (showLoader) setLoadingDetail(true)
+        // boundary-raw-fetch: GET /api/resume/[workflowId]/[executionId]/[contextId] has no contract (server route only models POST resume submission)
         const response = await fetch(`/api/resume/${workflowId}/${executionId}/${contextId}`, {
           method: 'GET',
           credentials: 'include',
@@ -691,7 +699,7 @@ export default function ResumeExecutionPage({
           setFormErrors({})
         }
       } catch (err) {
-        console.error('Failed to refresh pause context detail', err)
+        logger.error('Failed to refresh pause context detail', err)
       } finally {
         if (showLoader) setLoadingDetail(false)
       }
@@ -746,6 +754,7 @@ export default function ResumeExecutionPage({
       resumePayload = parsedInput
     }
     try {
+      // boundary-raw-fetch: resume-context POST contract has no body schema (route uses tolerant raw JSON parse for resume input forwarded to PauseResumeManager)
       const response = await fetch(
         `/api/resume/${workflowId}/${executionId}/${selectedContextId}`,
         {

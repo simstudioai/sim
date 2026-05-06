@@ -1,6 +1,6 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@/lib/core/security/encryption'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Base64 } from '@sim/security/hmac'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -23,7 +23,7 @@ function validateTypeformSignature(secret: string, signature: string, body: stri
       return false
     }
     const providedSignature = signature.substring(7)
-    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('base64')
+    const computedHash = hmacSha256Base64(body, secret)
     return safeCompare(computedHash, providedSignature)
   } catch (error) {
     logger.error('Error validating Typeform signature:', error)

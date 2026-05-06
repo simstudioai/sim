@@ -3,38 +3,41 @@
  *
  * @vitest-environment node
  */
-import { databaseMock, loggerMock, requestUtilsMock } from '@sim/testing'
+import {
+  encryptionMock,
+  encryptionMockFns,
+  loggingSessionMock,
+  workflowsUtilsMock,
+} from '@sim/testing'
 import type { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockDecryptSecret,
   mockMergeSubblockStateWithValues,
   mockMergeSubBlockValues,
   mockValidateAuthToken,
   mockSetDeploymentAuthCookie,
   mockAddCorsHeaders,
   mockIsEmailAllowed,
+  mockGetSession,
 } = vi.hoisted(() => ({
-  mockDecryptSecret: vi.fn(),
   mockMergeSubblockStateWithValues: vi.fn().mockReturnValue({}),
   mockMergeSubBlockValues: vi.fn().mockReturnValue({}),
   mockValidateAuthToken: vi.fn().mockReturnValue(false),
   mockSetDeploymentAuthCookie: vi.fn(),
   mockAddCorsHeaders: vi.fn((response: unknown) => response),
   mockIsEmailAllowed: vi.fn(),
+  mockGetSession: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => databaseMock)
-vi.mock('@sim/logger', () => loggerMock)
-
-vi.mock('@/lib/logs/execution/logging-session', () => ({
-  LoggingSession: vi.fn().mockImplementation(() => ({
-    safeStart: vi.fn().mockResolvedValue(undefined),
-    safeComplete: vi.fn().mockResolvedValue(undefined),
-    safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
-  })),
+vi.mock('@/lib/auth', () => ({
+  auth: { api: { getSession: vi.fn() } },
+  getSession: mockGetSession,
 }))
+
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+
+vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
 vi.mock('@/executor', () => ({
   Executor: vi.fn(),
@@ -44,16 +47,12 @@ vi.mock('@/serializer', () => ({
   Serializer: vi.fn(),
 }))
 
-vi.mock('@/lib/workflows/subblocks', () => ({
+vi.mock('@sim/workflow-persistence/subblocks', () => ({
   mergeSubblockStateWithValues: mockMergeSubblockStateWithValues,
   mergeSubBlockValues: mockMergeSubBlockValues,
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-}))
-
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/core/security/deployment', () => ({
   validateAuthToken: mockValidateAuthToken,
@@ -68,9 +67,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isProd: false,
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  authorizeWorkflowByWorkspacePermission: vi.fn(),
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'
@@ -294,6 +291,68 @@ describe('Chat API Utils', () => {
       })
       expect(result3.authorized).toBe(false)
       expect(result3.error).toBe('Email not authorized')
+    })
+
+    describe('SSO auth', () => {
+      const ssoDeployment = {
+        id: 'chat-id',
+        authType: 'sso',
+        allowedEmails: ['user@example.com', '@company.com'],
+      }
+
+      const postRequest = {
+        method: 'POST',
+        cookies: { get: vi.fn().mockReturnValue(null) },
+      } as any
+
+      it('rejects when no session is present', async () => {
+        mockGetSession.mockResolvedValue(null)
+
+        const result = await validateChatAuth('request-id', ssoDeployment, postRequest, {
+          input: 'hello',
+        })
+
+        expect(result.authorized).toBe(false)
+        expect(result.error).toBe('auth_required_sso')
+      })
+
+      it('ignores body-supplied email and uses the session email', async () => {
+        mockGetSession.mockResolvedValue({ user: { email: 'session@example.com' } })
+        mockIsEmailAllowed.mockReturnValue(true)
+
+        await validateChatAuth('request-id', ssoDeployment, postRequest, {
+          email: 'attacker@evil.com',
+          input: 'hello',
+        })
+
+        expect(mockIsEmailAllowed).toHaveBeenCalledWith(
+          'session@example.com',
+          ssoDeployment.allowedEmails
+        )
+      })
+
+      it('authorizes execution when session email is allowlisted', async () => {
+        mockGetSession.mockResolvedValue({ user: { email: 'user@example.com' } })
+        mockIsEmailAllowed.mockReturnValue(true)
+
+        const result = await validateChatAuth('request-id', ssoDeployment, postRequest, {
+          input: 'hello',
+        })
+
+        expect(result.authorized).toBe(true)
+      })
+
+      it('rejects execution when session email is not allowlisted', async () => {
+        mockGetSession.mockResolvedValue({ user: { email: 'stranger@other.com' } })
+        mockIsEmailAllowed.mockReturnValue(false)
+
+        const result = await validateChatAuth('request-id', ssoDeployment, postRequest, {
+          input: 'hello',
+        })
+
+        expect(result.authorized).toBe(false)
+        expect(result.error).toBe('Your email is not authorized to access this chat')
+      })
     })
   })
 

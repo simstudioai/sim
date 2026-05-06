@@ -1,28 +1,6 @@
 import { StagehandIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
-import type { ToolResponse } from '@/tools/types'
-
-export interface StagehandExtractResponse extends ToolResponse {
-  output: {
-    data: Record<string, any>
-  }
-}
-
-export interface StagehandAgentResponse extends ToolResponse {
-  output: {
-    agentResult: {
-      success: boolean
-      completed: boolean
-      message: string
-      actions?: Array<{
-        type: string
-        description: string
-        result?: string
-      }>
-    }
-    structuredOutput?: Record<string, any>
-  }
-}
+import type { StagehandAgentResponse, StagehandExtractResponse } from '@/tools/stagehand/types'
 
 export type StagehandResponse = StagehandExtractResponse | StagehandAgentResponse
 
@@ -345,6 +323,27 @@ Example 3 (Data Collection):
         generationType: 'json-schema',
       },
     },
+    {
+      id: 'mode',
+      title: 'Agent Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'DOM (default)', id: 'dom' },
+        { label: 'Hybrid', id: 'hybrid' },
+        { label: 'CUA', id: 'cua' },
+      ],
+      value: () => 'dom',
+      condition: { field: 'operation', value: 'agent' },
+      mode: 'advanced',
+    },
+    {
+      id: 'maxSteps',
+      title: 'Max Steps',
+      type: 'short-input',
+      placeholder: '20',
+      condition: { field: 'operation', value: 'agent' },
+      mode: 'advanced',
+    },
     // Shared API key field
     {
       id: 'apiKey',
@@ -352,6 +351,7 @@ Example 3 (Data Collection):
       type: 'short-input',
       placeholder: 'Enter your API key for the selected provider',
       password: true,
+      dependsOn: ['provider'],
       required: true,
     },
   ],
@@ -360,6 +360,36 @@ Example 3 (Data Collection):
     config: {
       tool: (params) => {
         return params.operation === 'agent' ? 'stagehand_agent' : 'stagehand_extract'
+      },
+      params: (params) => {
+        const baseParams = {
+          operation: params.operation,
+          provider: params.provider,
+          apiKey: params.apiKey,
+        }
+
+        if (params.operation !== 'agent') {
+          return {
+            ...baseParams,
+            url: params.url,
+            instruction: params.instruction,
+            schema: params.schema,
+          }
+        }
+
+        const maxStepsInput =
+          typeof params.maxSteps === 'string' ? params.maxSteps.trim() : params.maxSteps
+        const maxSteps = maxStepsInput === '' ? Number.NaN : Number(maxStepsInput)
+
+        return {
+          ...baseParams,
+          startUrl: params.startUrl,
+          task: params.task,
+          variables: params.variables,
+          outputSchema: params.outputSchema,
+          mode: params.mode,
+          maxSteps: Number.isFinite(maxSteps) ? maxSteps : undefined,
+        }
       },
     },
   },
@@ -376,6 +406,8 @@ Example 3 (Data Collection):
     task: { type: 'string', description: 'Task description (agent operation)' },
     variables: { type: 'json', description: 'Task variables (agent operation)' },
     outputSchema: { type: 'json', description: 'Output schema (agent operation)' },
+    mode: { type: 'string', description: 'Agent mode: dom, hybrid, or cua (agent operation)' },
+    maxSteps: { type: 'number', description: 'Max agent steps (agent operation)' },
   },
   outputs: {
     // Extract outputs
@@ -383,5 +415,10 @@ Example 3 (Data Collection):
     // Agent outputs
     agentResult: { type: 'json', description: 'Agent execution result (agent operation)' },
     structuredOutput: { type: 'json', description: 'Structured output data (agent operation)' },
+    liveViewUrl: {
+      type: 'string',
+      description: 'Embeddable Browserbase live view URL (agent operation)',
+    },
+    sessionId: { type: 'string', description: 'Browserbase session identifier (agent operation)' },
   },
 }

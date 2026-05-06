@@ -1,18 +1,21 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { sharepointSiteQuerySchema } from '@/lib/api/contracts/selectors/sharepoint'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SharePointSiteAPI')
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   try {
@@ -22,12 +25,17 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-    const siteId = searchParams.get('siteId')
-
-    if (!credentialId || !siteId) {
-      return NextResponse.json({ error: 'Credential ID and Site ID are required' }, { status: 400 })
+    const validation = sharepointSiteQuerySchema.safeParse({
+      credentialId: searchParams.get('credentialId') ?? '',
+      siteId: searchParams.get('siteId') ?? '',
+    })
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: getValidationErrorMessage(validation.error, 'Invalid request') },
+        { status: 400 }
+      )
     }
+    const { credentialId, siteId } = validation.data
 
     const siteIdValidation = validateMicrosoftGraphId(siteId, 'siteId')
     if (!siteIdValidation.isValid) {
@@ -116,4 +124,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching site from SharePoint`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

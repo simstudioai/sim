@@ -2,6 +2,9 @@
  * @vitest-environment node
  */
 
+import { propagation, trace } from '@opentelemetry/api'
+import { W3CTraceContextPropagator } from '@opentelemetry/core'
+import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
@@ -29,6 +32,8 @@ function createLifecycleResult(overrides?: Partial<OrchestratorResult>): Orchest
 
 describe('runHeadlessCopilotLifecycle', () => {
   beforeEach(() => {
+    trace.setGlobalTracerProvider(new BasicTracerProvider())
+    propagation.setGlobalPropagator(new W3CTraceContextPropagator())
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
@@ -153,6 +158,40 @@ describe('runHeadlessCopilotLifecycle', () => {
     const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
     const body = JSON.parse(String(init.body))
     expect(body.simRequestId).toBe('workflow-request-id')
+  })
+
+  it('passes an OTel context to the lifecycle and trace report', async () => {
+    let lifecycleTraceparent = ''
+    runCopilotLifecycle.mockImplementationOnce(async (_payload, options) => {
+      const { traceHeaders } = await import('@/lib/copilot/request/go/propagation')
+      lifecycleTraceparent = traceHeaders({}, options.otelContext).traceparent ?? ''
+      return createLifecycleResult()
+    })
+
+    await runHeadlessCopilotLifecycle(
+      {
+        message: 'hello',
+        messageId: 'req-otel',
+      },
+      {
+        userId: 'user-1',
+        chatId: 'chat-1',
+        workflowId: 'workflow-1',
+        goRoute: '/api/mothership/execute',
+        interactive: false,
+      }
+    )
+
+    expect(lifecycleTraceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[0-9a-f]$/)
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+    const headers = init.headers as Record<string, string>
+    // The outbound trace report now runs inside its own OTel child span, so
+    // traceparent has the same trace-id as the lifecycle but a different
+    // span-id. Both must stay on the same trace.
+    const lifecycleTraceId = lifecycleTraceparent.split('-')[1]
+    expect(headers.traceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[0-9a-f]$/)
+    expect(headers.traceparent.split('-')[1]).toBe(lifecycleTraceId)
+    expect(headers.traceparent.split('-')[2]).not.toBe(lifecycleTraceparent.split('-')[2])
   })
 
   it('reports an error trace when the lifecycle throws', async () => {

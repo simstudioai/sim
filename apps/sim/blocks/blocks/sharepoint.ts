@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { MicrosoftSharepointIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
@@ -107,7 +108,6 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
       canonicalParamId: 'listId',
       serviceId: 'sharepoint',
       selectorKey: 'sharepoint.lists',
-      selectorAllowSearch: false,
       placeholder: 'Select a list',
       dependsOn: ['credential', 'siteSelector'],
       mode: 'basic',
@@ -439,7 +439,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             parsedItemFields = JSON.parse(listItemFields)
           } catch (error) {
             logger.error('Failed to parse listItemFields JSON', {
-              error: error instanceof Error ? error.message : String(error),
+              error: toError(error).message,
             })
           }
         }

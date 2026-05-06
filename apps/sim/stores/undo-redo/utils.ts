@@ -1,6 +1,6 @@
+import { UNDO_REDO_OPERATIONS } from '@sim/realtime-protocol/constants'
+import { generateId } from '@sim/utils/id'
 import type { Edge } from 'reactflow'
-import { generateId } from '@/lib/core/utils/uuid'
-import { UNDO_REDO_OPERATIONS } from '@/socket/constants'
 import type {
   BatchAddBlocksOperation,
   BatchAddEdgesOperation,

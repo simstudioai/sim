@@ -16,9 +16,7 @@ import {
   createParallelBlock,
   createStarterBlock,
   createWorkflowState,
-  loggerMock,
 } from '@sim/testing'
-import { drizzleOrmMock } from '@sim/testing/mocks'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   BlockState as AppBlockState,
@@ -113,10 +111,6 @@ vi.mock('@sim/db', () => ({
   workflow: {},
   webhook: {},
 }))
-
-vi.mock('drizzle-orm', () => drizzleOrmMock)
-
-vi.mock('@sim/logger', () => loggerMock)
 
 import * as dbHelpers from '@/lib/workflows/persistence/utils'
 

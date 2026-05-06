@@ -2,10 +2,13 @@ import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import type { NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { ttsStreamContract } from '@/lib/api/contracts/media/tts-stream'
+import { parseRequest } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
 import { validateAuthToken } from '@/lib/core/security/deployment'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('ProxyTTSStreamAPI')
 
@@ -51,24 +54,25 @@ async function validateChatAuth(request: NextRequest, chatId: string): Promise<b
   }
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    let body: any
-    try {
-      body = await request.json()
-    } catch {
-      return new Response('Invalid request body', { status: 400 })
-    }
+    const parsed = await parseRequest(
+      ttsStreamContract,
+      request,
+      {},
+      {
+        invalidJsonResponse: () => new NextResponse('Invalid request body', { status: 400 }),
+        validationErrorResponse: (error) => {
+          if (error.issues.some((issue) => issue.path[0] === 'chatId')) {
+            return new NextResponse('chatId is required', { status: 400 })
+          }
+          return new NextResponse('Missing required parameters', { status: 400 })
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const { text, voiceId, modelId = 'eleven_turbo_v2_5', chatId } = body
-
-    if (!chatId) {
-      return new Response('chatId is required', { status: 400 })
-    }
-
-    if (!text || !voiceId) {
-      return new Response('Missing required parameters', { status: 400 })
-    }
+    const { text, voiceId, modelId, chatId } = parsed.data.body
 
     const isChatAuthed = await validateChatAuth(request, chatId)
     if (!isChatAuthed) {
@@ -175,4 +179,4 @@ export async function POST(request: NextRequest) {
       status: 500,
     })
   }
-}
+})

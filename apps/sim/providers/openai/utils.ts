@@ -140,8 +140,12 @@ export function toResponsesToolChoice(
   return 'auto'
 }
 
-function extractTextFromMessageItem(item: Record<string, unknown>): string {
-  if (!item) {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function extractTextFromMessageItem(item: unknown): string {
+  if (!isRecord(item)) {
     return ''
   }
 
@@ -155,7 +159,7 @@ function extractTextFromMessageItem(item: Record<string, unknown>): string {
 
   const textParts: string[] = []
   for (const part of item.content) {
-    if (!part || typeof part !== 'object') {
+    if (!isRecord(part)) {
       continue
     }
 
@@ -190,13 +194,36 @@ export function extractResponseText(output: OpenAI.Responses.ResponseOutputItem[
       continue
     }
 
-    const text = extractTextFromMessageItem(item as unknown as Record<string, unknown>)
+    const text = extractTextFromMessageItem(item)
     if (text) {
       textParts.push(text)
     }
   }
 
   return textParts.join('')
+}
+
+/**
+ * Extracts reasoning summary text from Responses API output items. Reasoning
+ * items (emitted by o1/o3/gpt-5) carry a `summary[]` of `{ type, text }` entries
+ * — we join the text for trace display. The raw `encrypted_content` is left
+ * alone; it's opaque plumbing for round-tripping across turns.
+ */
+export function extractResponseReasoning(output: OpenAI.Responses.ResponseOutputItem[]): string {
+  if (!Array.isArray(output)) return ''
+
+  const parts: string[] = []
+  for (const item of output) {
+    if (!item || item.type !== 'reasoning') continue
+    const summary = (item as unknown as { summary?: Array<{ text?: string | null } | null> })
+      .summary
+    if (!Array.isArray(summary)) continue
+    for (const entry of summary) {
+      const text = entry?.text
+      if (typeof text === 'string' && text.length > 0) parts.push(text)
+    }
+  }
+  return parts.join('\n\n')
 }
 
 /**
@@ -211,12 +238,12 @@ export function convertResponseOutputToInputItems(
 
   const items: ResponsesInputItem[] = []
   for (const item of output) {
-    if (!item || typeof item !== 'object') {
+    if (!isRecord(item)) {
       continue
     }
 
     if (item.type === 'message') {
-      const text = extractTextFromMessageItem(item as unknown as Record<string, unknown>)
+      const text = extractTextFromMessageItem(item)
       if (text) {
         items.push({
           role: 'assistant',
@@ -225,8 +252,7 @@ export function convertResponseOutputToInputItems(
       }
 
       // Handle Chat Completions-style tool_calls nested under message items
-      const msgRecord = item as unknown as Record<string, unknown>
-      const toolCalls = Array.isArray(msgRecord.tool_calls) ? msgRecord.tool_calls : []
+      const toolCalls = Array.isArray(item.tool_calls) ? item.tool_calls : []
       for (const toolCall of toolCalls) {
         const tc = toolCall as Record<string, unknown>
         const fn = tc.function as Record<string, unknown> | undefined
@@ -252,11 +278,12 @@ export function convertResponseOutputToInputItems(
 
     if (item.type === 'function_call') {
       const fc = item as OpenAI.Responses.ResponseFunctionToolCall
-      const fcRecord = item as unknown as Record<string, unknown>
-      const callId = fc.call_id ?? (fcRecord.id as string | undefined)
+      const callId = fc.call_id ?? (typeof item.id === 'string' ? item.id : undefined)
       const name =
         fc.name ??
-        ((fcRecord.function as Record<string, unknown> | undefined)?.name as string | undefined)
+        (isRecord(item.function) && typeof item.function.name === 'string'
+          ? item.function.name
+          : undefined)
       if (!callId || !name) {
         continue
       }
@@ -289,17 +316,18 @@ export function extractResponseToolCalls(
   const toolCalls: ResponsesToolCall[] = []
 
   for (const item of output) {
-    if (!item || typeof item !== 'object') {
+    if (!isRecord(item)) {
       continue
     }
 
     if (item.type === 'function_call') {
       const fc = item as OpenAI.Responses.ResponseFunctionToolCall
-      const fcRecord = item as unknown as Record<string, unknown>
-      const callId = fc.call_id ?? (fcRecord.id as string | undefined)
+      const callId = fc.call_id ?? (typeof item.id === 'string' ? item.id : undefined)
       const name =
         fc.name ??
-        ((fcRecord.function as Record<string, unknown> | undefined)?.name as string | undefined)
+        (isRecord(item.function) && typeof item.function.name === 'string'
+          ? item.function.name
+          : undefined)
       if (!callId || !name) {
         continue
       }
@@ -316,9 +344,8 @@ export function extractResponseToolCalls(
     }
 
     // Handle Chat Completions-style tool_calls nested under message items
-    const msgRecord = item as unknown as Record<string, unknown>
-    if (item.type === 'message' && Array.isArray(msgRecord.tool_calls)) {
-      for (const toolCall of msgRecord.tool_calls) {
+    if (item.type === 'message' && Array.isArray(item.tool_calls)) {
+      for (const toolCall of item.tool_calls) {
         const tc = toolCall as Record<string, unknown>
         const fn = tc.function as Record<string, unknown> | undefined
         const callId = tc.id as string | undefined

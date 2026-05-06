@@ -1,11 +1,11 @@
 import { useMemo, useRef } from 'react'
-import { Loader2, RotateCw, X } from 'lucide-react'
-import { Badge, Button, Skeleton, Tooltip } from '@/components/emcn'
+import { RotateCw, X } from 'lucide-react'
+import { Badge, Button, Loader, Skeleton, Tooltip } from '@/components/emcn'
+import { PermissionSelector } from '@/components/permissions'
 import { useSession } from '@/lib/auth/auth-client'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { WorkspacePermissions } from '@/hooks/queries/workspace'
-import { PermissionSelector } from './permission-selector'
 import type { UserPermissions } from './types'
 
 const PermissionsTableSkeleton = () => (
@@ -89,6 +89,7 @@ export const PermissionsTable = ({
           permissionType:
             changes.permissionType !== undefined ? changes.permissionType : permissionType,
           isCurrentUser: user.email === session?.user?.email,
+          isExternal: user.isExternal,
         }
       }) || [],
     [workspacePermissions?.users, existingUserPermissionChanges, session?.user?.email]
@@ -146,7 +147,7 @@ export const PermissionsTable = ({
         <div className='rounded-lg border border-[var(--border-1)] bg-[var(--surface-3)]'>
           <div className='flex items-center justify-center py-12'>
             <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
-              <Loader2 className='h-[16px] w-[16px] animate-spin' />
+              <Loader className='h-[16px] w-[16px]' animate />
               <span className='font-medium text-small'>Saving permission changes...</span>
             </div>
           </div>
@@ -212,6 +213,11 @@ export const PermissionsTable = ({
                         )}
                       </Badge>
                     )}
+                    {user.isExternal && (
+                      <Badge variant='default' className='text-caption'>
+                        External
+                      </Badge>
+                    )}
                     {hasChanges && (
                       <Badge variant='default' className='text-caption'>
                         Modified
@@ -237,7 +243,7 @@ export const PermissionsTable = ({
                                 className='h-[16px] w-[16px] p-0'
                               >
                                 {resendingInvitationIds?.[user.invitationId!] ? (
-                                  <Loader2 className='h-[12px] w-[12px] animate-spin' />
+                                  <Loader className='h-[12px] w-[12px]' animate />
                                 ) : (
                                   <RotateCw className='h-[12px] w-[12px]' />
                                 )}

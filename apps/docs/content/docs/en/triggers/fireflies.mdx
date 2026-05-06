@@ -29,6 +29,7 @@ Trigger workflow when a Fireflies meeting transcription is complete
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `meetingId` | string | The ID of the transcribed meeting |
-| `eventType` | string | The type of event \(Transcription completed\) |
+| `eventType` | string | The type of event \(e.g. Transcription completed, meeting.transcribed\) |
 | `clientReferenceId` | string | Custom reference ID if set during upload |
+| `timestamp` | number | Unix timestamp in milliseconds when the event was fired \(V2 webhooks\) |
 

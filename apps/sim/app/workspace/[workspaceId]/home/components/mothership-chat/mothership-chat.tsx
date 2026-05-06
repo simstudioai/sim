@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
@@ -22,6 +22,7 @@ import type {
   QueuedMessage,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
+import { useProgressiveList } from '@/hooks/use-progressive-list'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChatSkeleton } from './mothership-chat-skeleton'
 
@@ -45,6 +46,7 @@ interface MothershipChatProps {
   onContextAdd?: (context: ChatContext) => void
   onContextRemove?: (context: ChatContext) => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  draftScopeKey?: string
   layout?: 'mothership-view' | 'copilot-view'
   initialScrollBlocked?: boolean
   animateInput?: boolean
@@ -92,6 +94,7 @@ export function MothershipChat({
   onContextAdd,
   onContextRemove,
   onWorkspaceResourceSelect,
+  draftScopeKey,
   layout = 'mothership-view',
   initialScrollBlocked = false,
   animateInput = false,
@@ -104,25 +107,37 @@ export function MothershipChat({
     scrollOnMount: true,
   })
   const hasMessages = messages.length > 0
+  const stagingKey = chatId ?? 'pending-chat'
+  const { staged: stagedMessages, isStaging } = useProgressiveList(messages, stagingKey)
+  const stagedMessageCount = stagedMessages.length
+  const stagedOffset = messages.length - stagedMessages.length
+  const precedingUserContentByIndex: Array<string | undefined> = []
+  let lastUserContent: string | undefined
+  for (const [index, message] of messages.entries()) {
+    precedingUserContentByIndex[index] = lastUserContent
+    if (message.role === 'user') {
+      lastUserContent = message.content
+    }
+  }
   const initialScrollDoneRef = useRef(false)
   const userInputRef = useRef<UserInputHandle>(null)
-  const handleSendQueuedHead = useCallback(() => {
+
+  function handleSendQueuedHead() {
     const topMessage = messageQueue[0]
     if (!topMessage) return
     void onSendQueuedMessage(topMessage.id)
-  }, [messageQueue, onSendQueuedMessage])
-  const handleEditQueued = useCallback(
-    (id: string) => {
-      const msg = onEditQueuedMessage(id)
-      if (msg) userInputRef.current?.loadQueuedMessage(msg)
-    },
-    [onEditQueuedMessage]
-  )
-  const handleEditQueuedTail = useCallback(() => {
+  }
+
+  function handleEditQueued(id: string) {
+    const msg = onEditQueuedMessage(id)
+    if (msg) userInputRef.current?.loadQueuedMessage(msg)
+  }
+
+  function handleEditQueuedTail() {
     const tail = messageQueue[messageQueue.length - 1]
     if (!tail) return
     handleEditQueued(tail.id)
-  }, [messageQueue, handleEditQueued])
+  }
 
   useLayoutEffect(() => {
     if (!hasMessages) {
@@ -134,6 +149,11 @@ export function MothershipChat({
     scrollToBottom()
   }, [hasMessages, initialScrollBlocked, scrollToBottom])
 
+  useLayoutEffect(() => {
+    if (!isStaging || initialScrollBlocked || !initialScrollDoneRef.current) return
+    scrollToBottom()
+  }, [isStaging, stagedMessageCount, initialScrollBlocked, scrollToBottom])
+
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
       <div ref={scrollContainerRef} className={styles.scrollContainer}>
@@ -141,7 +161,8 @@ export function MothershipChat({
           <MothershipChatSkeleton layout={layout} />
         ) : (
           <div className={styles.content}>
-            {messages.map((msg, index) => {
+            {stagedMessages.map((msg, localIndex) => {
+              const index = stagedOffset + localIndex
               if (msg.role === 'user') {
                 const hasAttachments = Boolean(msg.attachments?.length)
                 return (
@@ -177,10 +198,7 @@ export function MothershipChat({
               }
 
               const isLastMessage = index === messages.length - 1
-              const precedingUserMsg = [...messages]
-                .slice(0, index)
-                .reverse()
-                .find((m) => m.role === 'user')
+              const precedingUserContent = precedingUserContentByIndex[index]
 
               return (
                 <div key={msg.id} className={styles.assistantRow}>
@@ -196,8 +214,9 @@ export function MothershipChat({
                       <MessageActions
                         content={msg.content}
                         chatId={chatId}
-                        userQuery={precedingUserMsg?.content}
+                        userQuery={precedingUserContent}
                         requestId={msg.requestId}
+                        messageId={msg.id}
                       />
                     </div>
                   )}
@@ -230,6 +249,7 @@ export function MothershipChat({
             onContextRemove={onContextRemove}
             onSendQueuedHead={handleSendQueuedHead}
             onEditQueuedTail={handleEditQueuedTail}
+            draftScopeKey={draftScopeKey}
           />
         </div>
       </div>

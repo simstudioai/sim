@@ -1,9 +1,14 @@
-import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo } from 'react'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
 import { usePersonalEnvironment } from '@/hooks/queries/environment'
 import { getSelectorDefinition, mergeOption } from '@/hooks/selectors/registry'
-import type { SelectorKey, SelectorOption, SelectorQueryArgs } from '@/hooks/selectors/types'
+import type {
+  SelectorKey,
+  SelectorOption,
+  SelectorPage,
+  SelectorQueryArgs,
+} from '@/hooks/selectors/types'
 
 interface SelectorHookArgs extends Omit<SelectorQueryArgs, 'key'> {
   search?: string
@@ -11,7 +16,29 @@ interface SelectorHookArgs extends Omit<SelectorQueryArgs, 'key'> {
   enabled?: boolean
 }
 
-export function useSelectorOptions(key: SelectorKey, args: SelectorHookArgs) {
+export interface SelectorOptionsResult {
+  data: SelectorOption[] | undefined
+  isLoading: boolean
+  isFetching: boolean
+  /**
+   * True while paginated selectors are draining remaining pages in the
+   * background. Always false for non-paginated selectors.
+   */
+  isFetchingMore: boolean
+  /**
+   * True when the paginated selector still has more pages queued. Always false
+   * for non-paginated selectors.
+   */
+  hasMore: boolean
+  error: Error | null
+}
+
+const EMPTY_PAGE: SelectorPage = { items: [], nextCursor: undefined }
+
+export function useSelectorOptions(
+  key: SelectorKey,
+  args: SelectorHookArgs
+): SelectorOptionsResult {
   const definition = getSelectorDefinition(key)
   const queryArgs: SelectorQueryArgs = {
     key,
@@ -19,12 +46,65 @@ export function useSelectorOptions(key: SelectorKey, args: SelectorHookArgs) {
     search: args.search,
   }
   const isEnabled = args.enabled ?? (definition.enabled ? definition.enabled(queryArgs) : true)
-  return useQuery<SelectorOption[]>({
+  const supportsPagination = Boolean(definition.fetchPage)
+
+  const flatQuery = useQuery<SelectorOption[]>({
     queryKey: definition.getQueryKey(queryArgs),
     queryFn: ({ signal }) => definition.fetchList({ ...queryArgs, signal }),
-    enabled: isEnabled,
+    enabled: !supportsPagination && isEnabled,
     staleTime: definition.staleTime ?? 30_000,
   })
+
+  const pagedQuery = useInfiniteQuery<SelectorPage>({
+    queryKey: [...definition.getQueryKey(queryArgs), 'paged'],
+    queryFn: ({ pageParam, signal }) => {
+      if (!definition.fetchPage) return Promise.resolve(EMPTY_PAGE)
+      return definition.fetchPage({
+        ...queryArgs,
+        cursor: pageParam as string | undefined,
+        signal,
+      })
+    },
+    getNextPageParam: (last) => last.nextCursor,
+    initialPageParam: undefined as string | undefined,
+    enabled: supportsPagination && isEnabled,
+    staleTime: definition.staleTime ?? 30_000,
+  })
+
+  const { hasNextPage, isFetchingNextPage, fetchNextPage, isError } = pagedQuery
+  useEffect(() => {
+    if (!supportsPagination) return
+    if (isError) return
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage()
+    }
+  }, [supportsPagination, hasNextPage, isFetchingNextPage, isError, fetchNextPage])
+
+  const pagedOptions = useMemo<SelectorOption[] | undefined>(() => {
+    if (!supportsPagination) return undefined
+    if (!pagedQuery.data) return undefined
+    return pagedQuery.data.pages.flatMap((page) => page.items)
+  }, [supportsPagination, pagedQuery.data])
+
+  if (supportsPagination) {
+    return {
+      data: pagedOptions,
+      isLoading: pagedQuery.isLoading,
+      isFetching: pagedQuery.isFetching,
+      isFetchingMore: pagedQuery.isFetchingNextPage,
+      hasMore: pagedQuery.hasNextPage ?? false,
+      error: (pagedQuery.error as Error | null) ?? null,
+    }
+  }
+
+  return {
+    data: flatQuery.data,
+    isLoading: flatQuery.isLoading,
+    isFetching: flatQuery.isFetching,
+    isFetchingMore: false,
+    hasMore: false,
+    error: (flatQuery.error as Error | null) ?? null,
+  }
 }
 
 export function useSelectorOptionDetail(

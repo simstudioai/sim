@@ -1,7 +1,7 @@
 import { db, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 import type { DbOrTx } from '@/lib/db/types'
 import { cleanupWebhooksForWorkflow } from '@/lib/webhooks/deploy'
 import type { BlockState } from '@/lib/workflows/schedules/utils'

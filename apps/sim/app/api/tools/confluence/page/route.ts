@@ -1,8 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  confluenceDeletePageContract,
+  confluencePageSelectorContract,
+  confluenceUpdatePageContract,
+} from '@/lib/api/contracts/selectors/confluence'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
@@ -10,88 +16,17 @@ const logger = createLogger('ConfluencePageAPI')
 
 export const dynamic = 'force-dynamic'
 
-const postPageSchema = z
-  .object({
-    domain: z.string().min(1, 'Domain is required'),
-    accessToken: z.string().min(1, 'Access token is required'),
-    cloudId: z.string().optional(),
-    pageId: z.string().min(1, 'Page ID is required'),
-  })
-  .refine(
-    (data) => {
-      const validation = validateAlphanumericId(data.pageId, 'pageId', 255)
-      return validation.isValid
-    },
-    (data) => {
-      const validation = validateAlphanumericId(data.pageId, 'pageId', 255)
-      return { message: validation.error || 'Invalid page ID', path: ['pageId'] }
-    }
-  )
-
-const putPageSchema = z
-  .object({
-    domain: z.string().min(1, 'Domain is required'),
-    accessToken: z.string().min(1, 'Access token is required'),
-    cloudId: z.string().optional(),
-    pageId: z.string().min(1, 'Page ID is required'),
-    title: z.string().optional(),
-    body: z
-      .object({
-        value: z.string().optional(),
-      })
-      .optional(),
-    version: z
-      .object({
-        message: z.string().optional(),
-      })
-      .optional(),
-  })
-  .refine(
-    (data) => {
-      const validation = validateAlphanumericId(data.pageId, 'pageId', 255)
-      return validation.isValid
-    },
-    (data) => {
-      const validation = validateAlphanumericId(data.pageId, 'pageId', 255)
-      return { message: validation.error || 'Invalid page ID', path: ['pageId'] }
-    }
-  )
-
-const deletePageSchema = z
-  .object({
-    domain: z.string().min(1, 'Domain is required'),
-    accessToken: z.string().min(1, 'Access token is required'),
-    cloudId: z.string().optional(),
-    pageId: z.string().min(1, 'Page ID is required'),
-    purge: z.boolean().optional(),
-  })
-  .refine(
-    (data) => {
-      const validation = validateAlphanumericId(data.pageId, 'pageId', 255)
-      return validation.isValid
-    },
-    (data) => {
-      const validation = validateAlphanumericId(data.pageId, 'pageId', 255)
-      return { message: validation.error || 'Invalid page ID', path: ['pageId'] }
-    }
-  )
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
+    const parsed = await parseRequest(confluencePageSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const validation = postPageSchema.safeParse(body)
-    if (!validation.success) {
-      const firstError = validation.error.errors[0]
-      return NextResponse.json({ error: firstError.message }, { status: 400 })
-    }
-
-    const { domain, accessToken, cloudId: providedCloudId, pageId } = validation.data
+    const { domain, accessToken, cloudId: providedCloudId, pageId } = parsed.data.body
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
@@ -149,22 +84,17 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
-export async function PUT(request: NextRequest) {
+export const PUT = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-
-    const validation = putPageSchema.safeParse(body)
-    if (!validation.success) {
-      const firstError = validation.error.errors[0]
-      return NextResponse.json({ error: firstError.message }, { status: 400 })
-    }
+    const parsed = await parseRequest(confluenceUpdatePageContract, request, {})
+    if (!parsed.success) return parsed.response
 
     const {
       domain,
@@ -174,7 +104,7 @@ export async function PUT(request: NextRequest) {
       title,
       body: pageBody,
       version,
-    } = validation.data
+    } = parsed.data.body
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
@@ -264,24 +194,19 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
+    const parsed = await parseRequest(confluenceDeletePageContract, request, {})
+    if (!parsed.success) return parsed.response
 
-    const validation = deletePageSchema.safeParse(body)
-    if (!validation.success) {
-      const firstError = validation.error.errors[0]
-      return NextResponse.json({ error: firstError.message }, { status: 400 })
-    }
-
-    const { domain, accessToken, cloudId: providedCloudId, pageId, purge } = validation.data
+    const { domain, accessToken, cloudId: providedCloudId, pageId, purge } = parsed.data.body
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
@@ -326,4 +251,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

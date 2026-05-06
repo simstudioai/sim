@@ -1,5 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
+import { mcpServerTestBodySchema } from '@/lib/api/contracts/mcp'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { McpClient } from '@/lib/mcp/client'
 import {
   McpDnsResolutionError,
@@ -23,15 +26,6 @@ export const dynamic = 'force-dynamic'
  */
 function isUrlBasedTransport(transport: McpTransport): boolean {
   return transport === 'streamable-http'
-}
-
-interface TestConnectionRequest {
-  name: string
-  transport: McpTransport
-  url?: string
-  headers?: Record<string, string>
-  timeout?: number
-  workspaceId: string
 }
 
 interface TestConnectionResult {
@@ -64,10 +58,17 @@ function sanitizeConnectionError(error: unknown): string {
 /**
  * POST - Test connection to an MCP server before registering it
  */
-export const POST = withMcpAuth('write')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+export const POST = withRouteHandler(
+  withMcpAuth('write')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
-      const body: TestConnectionRequest = getParsedBody(request) || (await request.json())
+      const rawBody = getParsedBody(request) ?? (await request.json())
+      const parsedBody = mcpServerTestBodySchema.safeParse(rawBody)
+
+      if (!parsedBody.success) {
+        return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
+      }
+
+      const body = parsedBody.data
 
       logger.info(`[${requestId}] Testing MCP server connection:`, {
         name: body.name,
@@ -75,14 +76,6 @@ export const POST = withMcpAuth('write')(
         url: body.url ? `${body.url.substring(0, 50)}...` : undefined, // Partial URL for security
         workspaceId,
       })
-
-      if (!body.name || !body.transport) {
-        return createMcpErrorResponse(
-          new Error('Missing required fields: name and transport are required'),
-          'Missing required fields',
-          400
-        )
-      }
 
       if (isUrlBasedTransport(body.transport) && !body.url) {
         return createMcpErrorResponse(
@@ -220,11 +213,7 @@ export const POST = withMcpAuth('write')(
       return createMcpSuccessResponse(result, result.success ? 200 : 400)
     } catch (error) {
       logger.error(`[${requestId}] Error testing MCP server connection:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to test server connection'),
-        'Failed to test server connection',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to test server connection', 500)
     }
-  }
+  })
 )

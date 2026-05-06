@@ -10,6 +10,7 @@ import {
   workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, count, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
@@ -446,7 +447,7 @@ export async function generateWorkspaceContext(
   } catch (err) {
     logger.error('Failed to generate workspace context', {
       workspaceId,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return '## Workspace\n(unavailable)\n\n## Workflows\n(unavailable)\n\n## Knowledge Bases\n(unavailable)\n\n## Tables\n(unavailable)\n\n## Files\n(unavailable)\n\n## Connected Integrations\n(unavailable)'
   }

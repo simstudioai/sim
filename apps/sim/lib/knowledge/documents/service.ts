@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { db } from '@sim/db'
 import {
   document,
@@ -8,6 +7,9 @@ import {
   knowledgeConnector,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
 import {
   and,
@@ -28,11 +30,11 @@ import {
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
-import { env } from '@/lib/core/config/env'
+import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
-import { generateId } from '@/lib/core/utils/uuid'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import {
   buildUndefinedTagsError,
@@ -42,20 +44,22 @@ import {
   validateTagValue,
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
+import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('DocumentService')
 
 const TIMEOUTS = {
-  OVERALL_PROCESSING: (env.KB_CONFIG_MAX_DURATION || 600) * 1000,
+  OVERALL_PROCESSING: envNumber(env.KB_CONFIG_MAX_DURATION, 600) * 1000,
 } as const
 
 const LARGE_DOC_CONFIG = {
   MAX_CHUNKS_PER_BATCH: 500,
-  MAX_EMBEDDING_BATCH: env.KB_CONFIG_BATCH_SIZE || 2000,
+  MAX_EMBEDDING_BATCH: envNumber(env.KB_CONFIG_BATCH_SIZE, 2000),
   MAX_FILE_SIZE: 100 * 1024 * 1024,
   MAX_CHUNKS_PER_DOCUMENT: 100000,
 }
@@ -74,10 +78,11 @@ function withTimeout<T>(
 }
 
 const PROCESSING_CONFIG = {
-  maxConcurrentDocuments: Math.max(1, Math.floor((env.KB_CONFIG_CONCURRENCY_LIMIT || 20) / 5)) || 4,
-  batchSize: Math.max(1, Math.floor((env.KB_CONFIG_BATCH_SIZE || 20) / 2)) || 10,
-  delayBetweenBatches: (env.KB_CONFIG_DELAY_BETWEEN_BATCHES || 100) * 2,
-  delayBetweenDocuments: (env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS || 50) * 2,
+  maxConcurrentDocuments:
+    Math.max(1, Math.floor(envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20) / 5)) || 4,
+  batchSize: Math.max(1, Math.floor(envNumber(env.KB_CONFIG_BATCH_SIZE, 20) / 2)) || 10,
+  delayBetweenBatches: envNumber(env.KB_CONFIG_DELAY_BETWEEN_BATCHES, 100) * 2,
+  delayBetweenDocuments: envNumber(env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS, 50) * 2,
 }
 
 export function getProcessingConfig() {
@@ -379,13 +384,27 @@ export async function processDocumentAsync(
         userId: knowledgeBase.userId,
         workspaceId: knowledgeBase.workspaceId,
         chunkingConfig: knowledgeBase.chunkingConfig,
+        embeddingModel: knowledgeBase.embeddingModel,
       })
       .from(knowledgeBase)
       .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
       .limit(1)
 
     if (kb.length === 0) {
-      throw new Error(`Knowledge base not found: ${knowledgeBaseId}`)
+      logger.warn(
+        `[${documentId}] Skipping document processing: knowledge base ${knowledgeBaseId} is deleted`
+      )
+      await db
+        .update(document)
+        .set({
+          processingStatus: 'failed',
+          processingError: 'Knowledge base deleted',
+          processingCompletedAt: new Date(),
+        })
+        .where(
+          and(eq(document.id, documentId), isNull(document.archivedAt), isNull(document.deletedAt))
+        )
+      return
     }
 
     await db
@@ -415,9 +434,18 @@ export async function processDocumentAsync(
       overlap: rawConfig?.overlap ?? 200,
     }
 
+    const kbEmbeddingModel = kb[0].embeddingModel
+    if (!kb[0].workspaceId) {
+      throw new Error(`Knowledge base ${knowledgeBaseId} is missing workspace billing context`)
+    }
+    const billingUserId = await getWorkspaceBilledAccountUserId(kb[0].workspaceId)
+    if (!billingUserId) {
+      throw new Error(`Workspace ${kb[0].workspaceId} is missing billed account`)
+    }
     let totalEmbeddingTokens = 0
     let embeddingIsBYOK = false
-    let embeddingModelName = 'text-embedding-3-small'
+    let embeddingModelName = kbEmbeddingModel
+    let embeddingPricingId = kbEmbeddingModel
 
     await withTimeout(
       (async () => {
@@ -466,7 +494,8 @@ export async function processDocumentAsync(
               totalTokens: batchTokens,
               isBYOK,
               modelName,
-            } = await generateEmbeddings(batch, undefined, kb[0].workspaceId)
+              pricingId,
+            } = await generateEmbeddings(batch, kbEmbeddingModel, kb[0].workspaceId)
             for (const emb of batchEmbeddings) {
               embeddings.push(emb)
             }
@@ -474,6 +503,7 @@ export async function processDocumentAsync(
             if (i === 0) {
               embeddingIsBYOK = isBYOK
               embeddingModelName = modelName
+              embeddingPricingId = pricingId
             }
           }
         }
@@ -514,17 +544,19 @@ export async function processDocumentAsync(
 
         logger.info(`[${documentId}] Creating embedding records with tags`)
 
+        const tokenizerProvider = getEmbeddingModelInfo(kbEmbeddingModel).tokenizerProvider
+
         const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
           id: generateId(),
           knowledgeBaseId,
           documentId,
           chunkIndex,
-          chunkHash: crypto.createHash('sha256').update(chunk.text).digest('hex'),
+          chunkHash: sha256Hex(chunk.text),
           content: chunk.text,
           contentLength: chunk.text.length,
-          tokenCount: Math.ceil(chunk.text.length / 4),
+          tokenCount: estimateTokenCount(chunk.text, tokenizerProvider).count,
           embedding: embeddings[chunkIndex] || null,
-          embeddingModel: 'text-embedding-3-small',
+          embeddingModel: kbEmbeddingModel,
           startOffset: chunk.metadata.startIndex,
           endOffset: chunk.metadata.endIndex,
           tag1: documentTags.tag1,
@@ -602,11 +634,11 @@ export async function processDocumentAsync(
     const processingTime = Date.now() - startTime
     logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
 
-    if (!embeddingIsBYOK && totalEmbeddingTokens > 0 && kb[0].userId) {
+    if (!embeddingIsBYOK && totalEmbeddingTokens > 0 && billingUserId) {
       try {
         const costMultiplier = getCostMultiplier()
         const { total: cost } = calculateCost(
-          embeddingModelName,
+          embeddingPricingId,
           totalEmbeddingTokens,
           0,
           false,
@@ -614,7 +646,7 @@ export async function processDocumentAsync(
         )
         if (cost > 0) {
           await recordUsage({
-            userId: kb[0].userId,
+            userId: billingUserId,
             workspaceId: kb[0].workspaceId ?? undefined,
             entries: [
               {
@@ -629,7 +661,7 @@ export async function processDocumentAsync(
               totalTokensUsed: sql`total_tokens_used + ${totalEmbeddingTokens}`,
             },
           })
-          await checkAndBillOverageThreshold(kb[0].userId)
+          await checkAndBillOverageThreshold(billingUserId)
         } else {
           logger.warn(
             `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
@@ -833,8 +865,8 @@ export interface TagFilterCondition {
   tagSlot: string
   fieldType: 'text' | 'number' | 'date' | 'boolean'
   operator: string
-  value: string
-  valueTo?: string
+  value: unknown
+  valueTo?: unknown
 }
 
 const ALLOWED_TAG_SLOTS = new Set([
@@ -867,7 +899,7 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   const col = document[filter.tagSlot as keyof typeof document]
 
   if (filter.fieldType === 'text') {
-    const v = filter.value
+    const v = String(filter.value ?? '')
     switch (filter.operator) {
       case 'eq':
         return eq(col as typeof document.tag1, v)
@@ -924,7 +956,7 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   }
 
   if (filter.fieldType === 'date') {
-    const v = filter.value
+    const v = String(filter.value ?? '')
     switch (filter.operator) {
       case 'eq':
         return eq(col as typeof document.date1, new Date(v))
@@ -940,9 +972,10 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
         return lte(col as typeof document.date1, new Date(v))
       case 'between': {
         if (!filter.valueTo) return undefined
+        const valueTo = String(filter.valueTo)
         return and(
           gte(col as typeof document.date1, new Date(v)),
-          lte(col as typeof document.date1, new Date(filter.valueTo))
+          lte(col as typeof document.date1, new Date(valueTo))
         )
       }
       default:
@@ -951,7 +984,9 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   }
 
   if (filter.fieldType === 'boolean') {
-    const boolVal = filter.value === 'true'
+    const boolVal =
+      typeof filter.value === 'boolean' ? filter.value : parseBooleanValue(String(filter.value))
+    if (boolVal === null) return undefined
     switch (filter.operator) {
       case 'eq':
         return eq(col as typeof document.boolean1, boolVal)
@@ -980,6 +1015,7 @@ export async function getDocuments(
 ): Promise<{
   documents: Array<{
     id: string
+    knowledgeBaseId: string
     filename: string
     fileUrl: string
     fileSize: number
@@ -1062,7 +1098,7 @@ export async function getDocuments(
     .from(document)
     .where(and(...whereConditions))
 
-  const total = totalResult[0]?.count || 0
+  const total = Number(totalResult[0]?.count ?? 0)
   const hasMore = offset + limit < total
 
   const getOrderByColumn = () => {
@@ -1093,6 +1129,7 @@ export async function getDocuments(
   const documents = await db
     .select({
       id: document.id,
+      knowledgeBaseId: document.knowledgeBaseId,
       filename: document.filename,
       fileUrl: document.fileUrl,
       fileSize: document.fileSize,
@@ -1141,6 +1178,7 @@ export async function getDocuments(
   return {
     documents: documents.map((doc) => ({
       id: doc.id,
+      knowledgeBaseId: doc.knowledgeBaseId,
       filename: doc.filename,
       fileUrl: doc.fileUrl,
       fileSize: doc.fileSize,
@@ -1820,7 +1858,7 @@ export async function deleteDocumentStorageFiles(
       } catch (error) {
         logger.warn(`[${requestId}] Failed to delete document storage file`, {
           documentId: doc.id,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     })

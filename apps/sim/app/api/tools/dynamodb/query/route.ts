@@ -1,30 +1,29 @@
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsDynamodbQueryContract } from '@/lib/api/contracts/tools/aws/dynamodb-query'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createDynamoDBClient, queryItems } from '@/app/api/tools/dynamodb/utils'
 
-const QuerySchema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  tableName: z.string().min(1, 'Table name is required'),
-  keyConditionExpression: z.string().min(1, 'Key condition expression is required'),
-  filterExpression: z.string().optional(),
-  expressionAttributeNames: z.record(z.string()).optional(),
-  expressionAttributeValues: z.record(z.unknown()).optional(),
-  indexName: z.string().optional(),
-  limit: z.number().positive().optional(),
-})
+const logger = createLogger('DynamoDBQueryAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validatedData = QuerySchema.parse(body)
+    const parsed = await parseToolRequest(awsDynamodbQueryContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
+
+    logger.info(`Querying table '${validatedData.tableName}'`)
 
     const client = createDynamoDBClient({
       region: validatedData.region,
@@ -32,32 +31,38 @@ export async function POST(request: NextRequest) {
       secretAccessKey: validatedData.secretAccessKey,
     })
 
-    const result = await queryItems(
-      client,
-      validatedData.tableName,
-      validatedData.keyConditionExpression,
-      {
-        filterExpression: validatedData.filterExpression,
-        expressionAttributeNames: validatedData.expressionAttributeNames,
-        expressionAttributeValues: validatedData.expressionAttributeValues,
-        indexName: validatedData.indexName,
-        limit: validatedData.limit,
-      }
-    )
-
-    return NextResponse.json({
-      message: `Query returned ${result.count} items`,
-      items: result.items,
-      count: result.count,
-    })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.errors[0]?.message ?? 'Invalid request' },
-        { status: 400 }
+    try {
+      const result = await queryItems(
+        client,
+        validatedData.tableName,
+        validatedData.keyConditionExpression,
+        {
+          filterExpression: validatedData.filterExpression,
+          expressionAttributeNames: validatedData.expressionAttributeNames,
+          expressionAttributeValues: validatedData.expressionAttributeValues,
+          indexName: validatedData.indexName,
+          limit: validatedData.limit,
+          exclusiveStartKey: validatedData.exclusiveStartKey,
+          scanIndexForward: validatedData.scanIndexForward,
+        }
       )
+
+      logger.info(
+        `Query completed for table '${validatedData.tableName}', returned ${result.count} items`
+      )
+
+      return NextResponse.json({
+        message: `Query returned ${result.count} items`,
+        items: result.items,
+        count: result.count,
+        ...(result.lastEvaluatedKey && { lastEvaluatedKey: result.lastEvaluatedKey }),
+      })
+    } finally {
+      client.destroy()
     }
-    const errorMessage = error instanceof Error ? error.message : 'DynamoDB query failed'
+  } catch (error) {
+    const errorMessage = toError(error).message || 'DynamoDB query failed'
+    logger.error('DynamoDB query failed:', error)
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})

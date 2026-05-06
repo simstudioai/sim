@@ -1,8 +1,8 @@
 import { db, mothershipInboxWebhook, workspace } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import type { InboxConfig } from '@/lib/mothership/inbox/types'
 

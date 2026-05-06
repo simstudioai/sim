@@ -1,123 +1,71 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { formIdParamsSchema, updateFormContract } from '@/lib/api/contracts/forms'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkFormAccess, DEFAULT_FORM_CUSTOMIZATIONS } from '@/app/api/form/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('FormManageAPI')
 
-const fieldConfigSchema = z.object({
-  name: z.string(),
-  type: z.string(),
-  label: z.string(),
-  description: z.string().optional(),
-  required: z.boolean().optional(),
-})
-
-const updateFormSchema = z.object({
-  identifier: z
-    .string()
-    .min(1, 'Identifier is required')
-    .max(100, 'Identifier must be 100 characters or less')
-    .regex(/^[a-z0-9-]+$/, 'Identifier can only contain lowercase letters, numbers, and hyphens')
-    .optional(),
-  title: z
-    .string()
-    .min(1, 'Title is required')
-    .max(200, 'Title must be 200 characters or less')
-    .optional(),
-  description: z.string().max(1000, 'Description must be 1000 characters or less').optional(),
-  customizations: z
-    .object({
-      primaryColor: z.string().optional(),
-      welcomeMessage: z
-        .string()
-        .max(500, 'Welcome message must be 500 characters or less')
-        .optional(),
-      thankYouTitle: z
-        .string()
-        .max(100, 'Thank you title must be 100 characters or less')
-        .optional(),
-      thankYouMessage: z
-        .string()
-        .max(500, 'Thank you message must be 500 characters or less')
-        .optional(),
-      logoUrl: z.string().url('Logo URL must be a valid URL').optional().or(z.literal('')),
-      fieldConfigs: z.array(fieldConfigSchema).optional(),
-    })
-    .optional(),
-  authType: z.enum(['public', 'password', 'email']).optional(),
-  password: z
-    .string()
-    .min(6, 'Password must be at least 6 characters')
-    .optional()
-    .or(z.literal('')),
-  allowedEmails: z.array(z.string()).optional(),
-  showBranding: z.boolean().optional(),
-  isActive: z.boolean().optional(),
-})
-
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await getSession()
-
-    if (!session) {
-      return createErrorResponse('Unauthorized', 401)
-    }
-
-    const { id } = await params
-
-    const { hasAccess, form: formRecord } = await checkFormAccess(id, session.user.id)
-
-    if (!hasAccess || !formRecord) {
-      return createErrorResponse('Form not found or access denied', 404)
-    }
-
-    const { password: _password, ...formWithoutPassword } = formRecord
-
-    return createSuccessResponse({
-      form: {
-        ...formWithoutPassword,
-        hasPassword: !!formRecord.password,
-      },
-    })
-  } catch (error: any) {
-    logger.error('Error fetching form:', error)
-    return createErrorResponse(error.message || 'Failed to fetch form', 500)
-  }
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await getSession()
-
-    if (!session) {
-      return createErrorResponse('Unauthorized', 401)
-    }
-
-    const { id } = await params
-
-    const {
-      hasAccess,
-      form: formRecord,
-      workspaceId: formWorkspaceId,
-    } = await checkFormAccess(id, session.user.id)
-
-    if (!hasAccess || !formRecord) {
-      return createErrorResponse('Form not found or access denied', 404)
-    }
-
-    const body = await request.json()
-
+export const GET = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     try {
-      const validatedData = updateFormSchema.parse(body)
+      const session = await getSession()
 
+      if (!session) {
+        return createErrorResponse('Unauthorized', 401)
+      }
+
+      const { id } = formIdParamsSchema.parse(await params)
+
+      const { hasAccess, form: formRecord } = await checkFormAccess(id, session.user.id)
+
+      if (!hasAccess || !formRecord) {
+        return createErrorResponse('Form not found or access denied', 404)
+      }
+
+      const { password: _password, ...formWithoutPassword } = formRecord
+
+      return createSuccessResponse({
+        form: {
+          ...formWithoutPassword,
+          hasPassword: !!formRecord.password,
+        },
+      })
+    } catch (error) {
+      logger.error('Error fetching form:', error)
+      return createErrorResponse(getErrorMessage(error, 'Failed to fetch form'), 500)
+    }
+  }
+)
+
+export const PATCH = withRouteHandler(
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    try {
+      const session = await getSession()
+
+      if (!session) {
+        return createErrorResponse('Unauthorized', 401)
+      }
+
+      const parsed = await parseRequest(updateFormContract, request, context, {
+        validationErrorResponse: (error) =>
+          createErrorResponse(getValidationErrorMessage(error), 400, 'VALIDATION_ERROR'),
+      })
+      if (!parsed.success) return parsed.response
+
+      const { id } = parsed.data.params
       const {
         identifier,
         title,
@@ -128,7 +76,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         allowedEmails,
         showBranding,
         isActive,
-      } = validatedData
+      } = parsed.data.body
+
+      const {
+        hasAccess,
+        form: formRecord,
+        workspaceId: formWorkspaceId,
+      } = await checkFormAccess(id, session.user.id)
+
+      if (!hasAccess || !formRecord) {
+        return createErrorResponse('Form not found or access denied', 404)
+      }
 
       if (identifier && identifier !== formRecord.identifier) {
         const existingIdentifier = await db
@@ -157,7 +115,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         )
       }
 
-      const updateData: Record<string, any> = {
+      const updateData: Record<string, unknown> = {
         updatedAt: new Date(),
       }
 
@@ -170,7 +128,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (allowedEmails !== undefined) updateData.allowedEmails = allowedEmails
 
       if (customizations !== undefined) {
-        const existingCustomizations = (formRecord.customizations as Record<string, any>) || {}
+        const existingCustomizations = (formRecord.customizations as Record<string, unknown>) || {}
         updateData.customizations = {
           ...DEFAULT_FORM_CUSTOMIZATIONS,
           ...existingCustomizations,
@@ -211,65 +169,58 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return createSuccessResponse({
         message: 'Form updated successfully',
       })
-    } catch (validationError) {
-      if (validationError instanceof z.ZodError) {
-        const errorMessage = validationError.errors[0]?.message || 'Invalid request data'
-        return createErrorResponse(errorMessage, 400, 'VALIDATION_ERROR')
+    } catch (error) {
+      logger.error('Error updating form:', error)
+      return createErrorResponse(getErrorMessage(error, 'Failed to update form'), 500)
+    }
+  }
+)
+
+export const DELETE = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    try {
+      const session = await getSession()
+
+      if (!session) {
+        return createErrorResponse('Unauthorized', 401)
       }
-      throw validationError
+
+      const { id } = formIdParamsSchema.parse(await params)
+
+      const {
+        hasAccess,
+        form: formRecord,
+        workspaceId: formWorkspaceId,
+      } = await checkFormAccess(id, session.user.id)
+
+      if (!hasAccess || !formRecord) {
+        return createErrorResponse('Form not found or access denied', 404)
+      }
+
+      await db.delete(form).where(eq(form.id, id))
+
+      logger.info(`Form ${id} deleted (soft delete)`)
+
+      recordAudit({
+        workspaceId: formWorkspaceId ?? null,
+        actorId: session.user.id,
+        action: AuditAction.FORM_DELETED,
+        resourceType: AuditResourceType.FORM,
+        resourceId: id,
+        actorName: session.user.name ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        resourceName: formRecord.title ?? undefined,
+        description: `Deleted form "${formRecord.title}"`,
+        metadata: { identifier: formRecord.identifier, workflowId: formRecord.workflowId },
+        request,
+      })
+
+      return createSuccessResponse({
+        message: 'Form deleted successfully',
+      })
+    } catch (error) {
+      logger.error('Error deleting form:', error)
+      return createErrorResponse(getErrorMessage(error, 'Failed to delete form'), 500)
     }
-  } catch (error: any) {
-    logger.error('Error updating form:', error)
-    return createErrorResponse(error.message || 'Failed to update form', 500)
   }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const session = await getSession()
-
-    if (!session) {
-      return createErrorResponse('Unauthorized', 401)
-    }
-
-    const { id } = await params
-
-    const {
-      hasAccess,
-      form: formRecord,
-      workspaceId: formWorkspaceId,
-    } = await checkFormAccess(id, session.user.id)
-
-    if (!hasAccess || !formRecord) {
-      return createErrorResponse('Form not found or access denied', 404)
-    }
-
-    await db.delete(form).where(eq(form.id, id))
-
-    logger.info(`Form ${id} deleted (soft delete)`)
-
-    recordAudit({
-      workspaceId: formWorkspaceId ?? null,
-      actorId: session.user.id,
-      action: AuditAction.FORM_DELETED,
-      resourceType: AuditResourceType.FORM,
-      resourceId: id,
-      actorName: session.user.name ?? undefined,
-      actorEmail: session.user.email ?? undefined,
-      resourceName: formRecord.title ?? undefined,
-      description: `Deleted form "${formRecord.title}"`,
-      metadata: { identifier: formRecord.identifier, workflowId: formRecord.workflowId },
-      request,
-    })
-
-    return createSuccessResponse({
-      message: 'Form deleted successfully',
-    })
-  } catch (error: any) {
-    logger.error('Error deleting form:', error)
-    return createErrorResponse(error.message || 'Failed to delete form', 500)
-  }
-}
+)

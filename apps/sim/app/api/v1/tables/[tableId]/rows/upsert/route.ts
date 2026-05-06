@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { v1UpsertTableRowContract } from '@/lib/api/contracts/v1/tables'
+import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData } from '@/lib/table'
 import { upsertRow } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
@@ -16,18 +19,12 @@ const logger = createLogger('V1TableUpsertAPI')
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-const UpsertRowSchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  data: z.record(z.unknown(), { required_error: 'Row data is required' }),
-  conflictTarget: z.string().optional(),
-})
-
 interface UpsertRouteParams {
   params: Promise<{ tableId: string }>
 }
 
 /** POST /api/v1/tables/[tableId]/rows/upsert — Insert or update a row based on unique columns. */
-export async function POST(request: NextRequest, { params }: UpsertRouteParams) {
+export const POST = withRouteHandler(async (request: NextRequest, context: UpsertRouteParams) => {
   const requestId = generateRequestId()
 
   try {
@@ -37,16 +34,10 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
     }
 
     const userId = rateLimit.userId!
-    const { tableId } = await params
-
-    let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-    }
-
-    const validated = UpsertRowSchema.parse(body)
+    const parsed = await parseRequest(v1UpsertTableRowContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { tableId } = parsed.data.params
+    const validated = parsed.data.body
 
     const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
@@ -92,14 +83,10 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
-    }
+    const validationResponse = validationErrorResponseFromError(error)
+    if (validationResponse) return validationResponse
 
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
 
     if (
       errorMessage.includes('unique column') ||
@@ -116,4 +103,4 @@ export async function POST(request: NextRequest, { params }: UpsertRouteParams) 
     logger.error(`[${requestId}] Error upserting row:`, error)
     return NextResponse.json({ error: 'Failed to upsert row' }, { status: 500 })
   }
-}
+})

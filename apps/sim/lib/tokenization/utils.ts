@@ -3,6 +3,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import {
   LLM_BLOCK_TYPES,
   MAX_PREVIEW_LENGTH,
@@ -10,6 +11,7 @@ import {
 } from '@/lib/tokenization/constants'
 import { createTokenizationError } from '@/lib/tokenization/errors'
 import type { ProviderTokenizationConfig, TokenUsage } from '@/lib/tokenization/types'
+import type { BlockTokens } from '@/executor/types'
 import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('TokenizationUtils')
@@ -38,7 +40,7 @@ export function getProviderForTokenization(model: string): string {
   } catch (error) {
     logger.warn(`Failed to get provider for model ${model}, using default`, {
       model,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return TOKENIZATION_CONFIG.defaults.provider
   }
@@ -55,9 +57,11 @@ export function isTokenizableBlockType(blockType?: string): boolean {
 /**
  * Checks if tokens/cost data is meaningful (non-zero)
  */
-export function hasRealTokenData(tokens?: TokenUsage): boolean {
+export function hasRealTokenData(
+  tokens?: Pick<BlockTokens, 'total' | 'input' | 'output'>
+): boolean {
   if (!tokens) return false
-  return tokens.total > 0 || tokens.input > 0 || tokens.output > 0
+  return (tokens.total ?? 0) > 0 || (tokens.input ?? 0) > 0 || (tokens.output ?? 0) > 0
 }
 
 /**
@@ -86,7 +90,7 @@ export function extractTextContent(input: unknown): string {
     } catch (error) {
       logger.warn('Failed to stringify input object', {
         inputType: typeof input,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return ''
     }

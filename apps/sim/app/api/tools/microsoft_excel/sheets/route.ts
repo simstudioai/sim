@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { microsoftExcelSheetsSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { getItemBasePath } from '@/tools/microsoft_excel/utils'
 
@@ -23,26 +26,14 @@ interface WorksheetsResponse {
 /**
  * Get worksheets (tabs) from a Microsoft Excel workbook
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Microsoft Excel sheets request received`)
 
   try {
-    const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-    const spreadsheetId = searchParams.get('spreadsheetId')
-    const driveId = searchParams.get('driveId') || undefined
-    const workflowId = searchParams.get('workflowId') || undefined
-
-    if (!credentialId) {
-      logger.warn(`[${requestId}] Missing credentialId parameter`)
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
-    }
-
-    if (!spreadsheetId) {
-      logger.warn(`[${requestId}] Missing spreadsheetId parameter`)
-      return NextResponse.json({ error: 'Spreadsheet ID is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(microsoftExcelSheetsSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credentialId, spreadsheetId, driveId, workflowId } = parsed.data.query
 
     const authz = await authorizeCredentialUse(request, { credentialId, workflowId })
     if (!authz.ok || !authz.credentialOwnerUserId) {
@@ -117,4 +108,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching Microsoft Excel worksheets`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

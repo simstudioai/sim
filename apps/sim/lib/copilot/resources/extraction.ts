@@ -7,7 +7,6 @@ import {
   FunctionExecute,
   GenerateImage,
   GenerateVisualization,
-  GetWorkflowLogs,
   Knowledge,
   KnowledgeBase,
   UserTable,
@@ -30,7 +29,6 @@ const RESOURCE_TOOL_NAMES: Set<string> = new Set([
   Knowledge.id,
   GenerateVisualization.id,
   GenerateImage.id,
-  GetWorkflowLogs.id,
 ])
 
 export function isResourceToolName(toolName: string): boolean {
@@ -209,19 +207,6 @@ export function extractResourcesFromToolResult(
             id,
             title: (kb.name as string) || 'Knowledge Base',
           })
-        }
-      }
-      return resources
-    }
-
-    case GetWorkflowLogs.id: {
-      const entries = Array.isArray(output) ? output : Array.isArray(result.data) ? result.data : []
-      const resources: ChatResource[] = []
-      for (const entry of entries) {
-        const rec = asRecord(entry)
-        const logId = rec.id as string | undefined
-        if (logId) {
-          resources.push({ type: 'log', id: logId, title: 'Log' })
         }
       }
       return resources

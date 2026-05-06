@@ -3,17 +3,21 @@
  *
  * @vitest-environment node
  */
-import { auditMock, createMockRequest, type MockUser } from '@sim/testing'
+import {
+  auditMock,
+  authMockFns,
+  createMockRequest,
+  type MockUser,
+  permissionsMock,
+  permissionsMockFns,
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetSession,
-  mockGetUserEntityPermissions,
-  mockLogger,
-  mockDbRef,
-  mockPerformDeleteFolder,
-  mockCheckForCircularReference,
-} = vi.hoisted(() => {
+const { mockLogger, mockDbRef } = vi.hoisted(() => {
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -24,36 +28,29 @@ const {
     child: vi.fn(),
   }
   return {
-    mockGetSession: vi.fn(),
-    mockGetUserEntityPermissions: vi.fn(),
     mockLogger: logger,
     mockDbRef: { current: null as any },
-    mockPerformDeleteFolder: vi.fn(),
-    mockCheckForCircularReference: vi.fn(),
   }
 })
 
-vi.mock('@/lib/audit/log', () => auditMock)
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
+const mockPerformDeleteFolder = workflowsOrchestrationMockFns.mockPerformDeleteFolder
+
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
+
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue(mockLogger),
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
+  getRequestContext: () => undefined,
 }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@sim/db', () => ({
   get db() {
     return mockDbRef.current
   },
 }))
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performDeleteFolder: mockPerformDeleteFolder,
-}))
-vi.mock('@/lib/workflows/utils', () => ({
-  checkForCircularReference: mockCheckForCircularReference,
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { DELETE, PUT } from '@/app/api/folders/[id]/route'
 
@@ -146,11 +143,11 @@ function createFolderDbMock(options: FolderDbMockOptions = {}) {
 }
 
 function mockAuthenticatedUser(user?: MockUser) {
-  mockGetSession.mockResolvedValue({ user: user || TEST_USER })
+  authMockFns.mockGetSession.mockResolvedValue({ user: user || TEST_USER })
 }
 
 function mockUnauthenticated() {
-  mockGetSession.mockResolvedValue(null)
+  authMockFns.mockGetSession.mockResolvedValue(null)
 }
 
 describe('Individual Folder API Route', () => {
@@ -163,7 +160,7 @@ describe('Individual Folder API Route', () => {
       success: true,
       deletedItems: { folders: 1, workflows: 0 },
     })
-    mockCheckForCircularReference.mockResolvedValue(false)
+    workflowsUtilsMockFns.mockCheckForCircularReference.mockResolvedValue(false)
   })
 
   describe('PUT /api/folders/[id]', () => {
@@ -398,7 +395,7 @@ describe('Individual Folder API Route', () => {
         },
       })
 
-      mockCheckForCircularReference.mockResolvedValue(true)
+      workflowsUtilsMockFns.mockCheckForCircularReference.mockResolvedValue(true)
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder 3',
@@ -412,7 +409,10 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Cannot create circular folder reference')
-      expect(mockCheckForCircularReference).toHaveBeenCalledWith('folder-3', 'folder-1')
+      expect(workflowsUtilsMockFns.mockCheckForCircularReference).toHaveBeenCalledWith(
+        'folder-3',
+        'folder-1'
+      )
     })
   })
 

@@ -1,4 +1,5 @@
 import type { SupabaseRpcParams, SupabaseRpcResponse } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const rpcTool: ToolConfig<SupabaseRpcParams, SupabaseRpcResponse> = {
@@ -36,7 +37,7 @@ export const rpcTool: ToolConfig<SupabaseRpcParams, SupabaseRpcResponse> = {
 
   request: {
     url: (params) => {
-      return `https://${params.projectId}.supabase.co/rest/v1/rpc/${params.functionName}`
+      return `${supabaseBaseUrl(params.projectId)}/rest/v1/rpc/${params.functionName}`
     },
     method: 'POST',
     headers: (params) => ({

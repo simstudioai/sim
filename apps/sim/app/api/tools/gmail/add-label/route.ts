@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { gmailAddLabelContract } from '@/lib/api/contracts/tools/google'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,13 +13,7 @@ const logger = createLogger('GmailAddLabelAPI')
 
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
-const GmailAddLabelSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  messageId: z.string().min(1, 'Message ID is required'),
-  labelIds: z.string().min(1, 'At least one label ID is required'),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -38,8 +34,9 @@ export async function POST(request: NextRequest) {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = GmailAddLabelSchema.parse(body)
+    const parsed = await parseRequest(gmailAddLabelContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Adding label(s) to Gmail email`, {
       messageId: validatedData.messageId,
@@ -116,18 +113,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error adding label to Gmail email:`, error)
 
     return NextResponse.json(
@@ -138,4 +123,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

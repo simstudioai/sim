@@ -293,6 +293,7 @@ describe('InvalidFieldError', () => {
     expect(error.fieldPath).toBe('invalid.path')
     expect(error.availableFields).toEqual(['field1', 'field2'])
     expect(error.name).toBe('InvalidFieldError')
+    expect(error.statusCode).toBe(400)
   })
 
   it('should format message correctly', () => {

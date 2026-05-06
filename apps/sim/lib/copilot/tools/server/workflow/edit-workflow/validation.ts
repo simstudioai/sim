@@ -3,7 +3,9 @@ import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
+import { getModelOptions } from '@/blocks/utils'
 import { EDGE, normalizeName } from '@/executor/constants'
+import { isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type {
   EdgeHandleValidationResult,
@@ -350,9 +352,31 @@ export function validateValueForSubBlockType(
     case 'short-input':
     case 'long-input':
     case 'combobox': {
-      // Should be string (combobox allows custom values)
+      const usesProviderCatalog =
+        fieldName === 'model' && subBlockConfig.options === getModelOptions
+
+      if (usesProviderCatalog) {
+        const stringValue = typeof value === 'string' ? value : String(value)
+        const trimmed = stringValue.trim()
+        if (trimmed !== '' && !isKnownModelId(trimmed)) {
+          const suggestions = suggestModelIdsForUnknownModel(trimmed)
+          const suggestionText =
+            suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
+          return {
+            valid: false,
+            error: {
+              blockId,
+              blockType,
+              field: fieldName,
+              value,
+              error: `Unknown model id "${trimmed}" for block "${blockType}". Read components/blocks/${blockType}.json (the model.options array) for valid ids; prefer entries with recommended: true and avoid deprecated: true. For user-configured models (Ollama, vLLM, OpenRouter, Fireworks), prefix the id with the provider slash, e.g. "ollama/llama3.1:8b".${suggestionText}`,
+            },
+          }
+        }
+        return { valid: true, value: trimmed }
+      }
+
       if (typeof value !== 'string' && typeof value !== 'number') {
-        // Convert to string but don't error
         return { valid: true, value: String(value) }
       }
       return { valid: true, value }

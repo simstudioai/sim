@@ -3,16 +3,14 @@ import { credential, credentialMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { leaveCredentialQuerySchema } from '@/lib/api/contracts/credentials'
+import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CredentialMembershipsAPI')
 
-const leaveCredentialSchema = z.object({
-  credentialId: z.string().min(1),
-})
-
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   const session = await getSession()
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -40,20 +38,23 @@ export async function GET() {
     logger.error('Failed to list credential memberships', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const parseResult = leaveCredentialSchema.safeParse({
+    const parseResult = leaveCredentialQuerySchema.safeParse({
       credentialId: new URL(request.url).searchParams.get('credentialId'),
     })
     if (!parseResult.success) {
-      return NextResponse.json({ error: parseResult.error.errors[0]?.message }, { status: 400 })
+      return NextResponse.json(
+        { error: getValidationErrorMessage(parseResult.error) },
+        { status: 400 }
+      )
     }
 
     const { credentialId } = parseResult.data
@@ -117,4 +118,4 @@ export async function DELETE(request: NextRequest) {
     logger.error('Failed to leave credential', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

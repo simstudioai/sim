@@ -1,25 +1,26 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { mcpToolExecutionBodySchema } from '@/lib/api/contracts/mcp'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getExecutionTimeout } from '@/lib/core/execution-limits'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SIM_VIA_HEADER } from '@/lib/execution/call-chain'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpTool, McpToolCall, McpToolResult } from '@/lib/mcp/types'
+import { categorizeError, createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 import {
-  categorizeError,
-  createMcpErrorResponse,
-  createMcpSuccessResponse,
-  validateStringParam,
-} from '@/lib/mcp/utils'
+  assertPermissionsAllowed,
+  McpToolsNotAllowedError,
+} from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('McpToolExecutionAPI')
 
 export const dynamic = 'force-dynamic'
 
 interface SchemaProperty {
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array'
+  type: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array'
   description?: string
   enum?: unknown[]
   format?: string
@@ -40,14 +41,20 @@ function hasType(prop: unknown): prop is SchemaProperty {
 /**
  * POST - Execute a tool on an MCP server
  */
-export const POST = withMcpAuth('read')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+export const POST = withRouteHandler(
+  withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
-      const body = getParsedBody(request) || (await request.json())
+      const rawBody = getParsedBody(request) ?? (await request.json())
+      const parsedBody = mcpToolExecutionBodySchema.safeParse(rawBody)
+
+      if (!parsedBody.success) {
+        return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
+      }
+
+      const body = parsedBody.data
 
       logger.info(`[${requestId}] MCP tool execution request received`, {
         hasAuthHeader: !!request.headers.get('authorization'),
-        authHeaderType: request.headers.get('authorization')?.substring(0, 10),
         bodyKeys: Object.keys(body),
         serverId: body.serverId,
         toolName: body.toolName,
@@ -59,16 +66,17 @@ export const POST = withMcpAuth('read')(
       const { serverId, toolName, arguments: rawArgs } = body
       const args = rawArgs || {}
 
-      const serverIdValidation = validateStringParam(serverId, 'serverId')
-      if (!serverIdValidation.isValid) {
-        logger.warn(`[${requestId}] Invalid serverId: ${serverId}`)
-        return createMcpErrorResponse(new Error(serverIdValidation.error), 'Invalid serverId', 400)
-      }
-
-      const toolNameValidation = validateStringParam(toolName, 'toolName')
-      if (!toolNameValidation.isValid) {
-        logger.warn(`[${requestId}] Invalid toolName: ${toolName}`)
-        return createMcpErrorResponse(new Error(toolNameValidation.error), 'Invalid toolName', 400)
+      try {
+        await assertPermissionsAllowed({
+          userId,
+          workspaceId,
+          toolKind: 'mcp',
+        })
+      } catch (err) {
+        if (err instanceof McpToolsNotAllowedError) {
+          return createMcpErrorResponse(err, err.message, 403)
+        }
+        throw err
       }
 
       logger.info(
@@ -77,27 +85,18 @@ export const POST = withMcpAuth('read')(
 
       let tool: McpTool | null = null
       try {
-        if (body.toolSchema) {
-          tool = {
-            name: toolName,
-            inputSchema: body.toolSchema,
-            serverId: serverId,
-            serverName: 'provided-schema',
-          } as McpTool
-        } else {
-          const tools = await mcpService.discoverServerTools(userId, serverId, workspaceId)
-          tool = tools.find((t) => t.name === toolName) ?? null
+        const tools = await mcpService.discoverServerTools(userId, serverId, workspaceId)
+        tool = tools.find((t) => t.name === toolName) ?? null
 
-          if (!tool) {
-            logger.warn(`[${requestId}] Tool ${toolName} not found on server ${serverId}`, {
-              availableTools: tools.map((t) => t.name),
-            })
-            return createMcpErrorResponse(
-              new Error('Tool not found'),
-              'Tool not found on the specified server',
-              404
-            )
-          }
+        if (!tool) {
+          logger.warn(`[${requestId}] Tool ${toolName} not found on server ${serverId}`, {
+            availableTools: tools.map((t) => t.name),
+          })
+          return createMcpErrorResponse(
+            new Error('Tool not found'),
+            'Tool not found on the specified server',
+            404
+          )
         }
 
         if (tool.inputSchema?.properties) {
@@ -152,7 +151,7 @@ export const POST = withMcpAuth('read')(
         }
       } catch (error) {
         logger.warn(
-          `[${requestId}] Failed to discover tools for validation, proceeding anyway:`,
+          `[${requestId}] Failed to discover tools for validation, proceeding without schema`,
           error
         )
       }
@@ -224,7 +223,7 @@ export const POST = withMcpAuth('read')(
       const { message, status } = categorizeError(error)
       return createMcpErrorResponse(new Error(message), message, status)
     }
-  }
+  })
 )
 
 function validateToolArguments(tool: McpTool, args: Record<string, unknown>): string | null {
@@ -255,6 +254,12 @@ function validateToolArguments(tool: McpTool, args: Record<string, unknown>): st
         if (expectedType === 'number' && actualType !== 'number') {
           return `Property ${propName} must be a number`
         }
+        if (
+          expectedType === 'integer' &&
+          (actualType !== 'number' || !Number.isInteger(propValue))
+        ) {
+          return `Property ${propName} must be an integer`
+        }
         if (expectedType === 'boolean' && actualType !== 'boolean') {
           return `Property ${propName} must be a boolean`
         }
@@ -276,9 +281,15 @@ function validateToolArguments(tool: McpTool, args: Record<string, unknown>): st
 
 function transformToolResult(result: McpToolResult): ToolExecutionResult {
   if (result.isError) {
+    const firstContent = Array.isArray(result.content) ? result.content[0] : undefined
+    const errorText =
+      firstContent && typeof firstContent === 'object' && typeof firstContent.text === 'string'
+        ? firstContent.text
+        : undefined
+
     return {
       success: false,
-      error: result.content?.[0]?.text || 'Tool execution failed',
+      error: errorText && errorText.trim().length > 0 ? errorText : 'Tool execution failed',
     }
   }
 

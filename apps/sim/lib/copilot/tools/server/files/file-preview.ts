@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import {
-  downloadWorkspaceFile,
+  fetchWorkspaceFileBuffer,
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -147,13 +148,13 @@ export async function loadWorkspaceFileTextForPreview(
   try {
     const record = await getWorkspaceFile(workspaceId, fileId)
     if (!record) return undefined
-    const buffer = await downloadWorkspaceFile(record)
+    const buffer = await fetchWorkspaceFileBuffer(record)
     return buffer.toString('utf-8')
   } catch (error) {
     logger.warn('Failed to load workspace file text for preview', {
       workspaceId,
       fileId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return undefined
   }

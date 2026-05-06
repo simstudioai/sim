@@ -3,30 +3,25 @@
  *
  * @vitest-environment node
  */
-import { databaseMock, loggerMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns, workflowsUtilsMock } from '@sim/testing'
 import type { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockDecryptSecret,
   mockValidateAuthToken,
   mockSetDeploymentAuthCookie,
   mockAddCorsHeaders,
   mockIsEmailAllowed,
 } = vi.hoisted(() => ({
-  mockDecryptSecret: vi.fn(),
   mockValidateAuthToken: vi.fn().mockReturnValue(false),
   mockSetDeploymentAuthCookie: vi.fn(),
   mockAddCorsHeaders: vi.fn((response: unknown) => response),
   mockIsEmailAllowed: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => databaseMock)
-vi.mock('@sim/logger', () => loggerMock)
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/core/security/deployment', () => ({
   validateAuthToken: mockValidateAuthToken,
@@ -41,9 +36,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isProd: false,
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  authorizeWorkflowByWorkspacePermission: vi.fn(),
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { decryptSecret } from '@/lib/core/security/encryption'
 import {

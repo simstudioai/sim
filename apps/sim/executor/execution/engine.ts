@@ -1,4 +1,5 @@
 import { createLogger, type Logger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { BlockType } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
@@ -226,7 +227,7 @@ export class ExecutionEngine {
       .catch((error) => {
         if (!this.errorFlag) {
           this.errorFlag = true
-          this.executionError = error instanceof Error ? error : new Error(String(error))
+          this.executionError = toError(error)
         }
       })
       .finally(() => {
@@ -335,6 +336,11 @@ export class ExecutionEngine {
       })
 
       this.context.metadata.pendingBlocks = []
+      return
+    }
+
+    if (this.context.metadata.resumeFromSnapshot === true) {
+      this.execLogger.info('Resume snapshot has no downstream work to queue')
       return
     }
 
@@ -483,6 +489,8 @@ export class ExecutionEngine {
       parallelScope: pause.parallelScope,
       loopScope: pause.loopScope,
       resumeLinks: pause.resumeLinks,
+      pauseKind: pause.pauseKind,
+      resumeAt: pause.resumeAt,
     }))
 
     return {
@@ -509,7 +517,7 @@ export class ExecutionEngine {
       return parsedSnapshot.state
     } catch (error) {
       this.execLogger.warn('Failed to serialize execution state', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return undefined
     }

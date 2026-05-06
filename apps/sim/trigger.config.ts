@@ -15,25 +15,18 @@ export default defineConfig({
   },
   dirs: ['./background'],
   build: {
-    external: ['isolated-vm', 'pptxgenjs', 'docx', 'pdf-lib'],
+    external: ['isolated-vm'],
     extensions: [
       additionalFiles({
         files: [
           './lib/execution/isolated-vm-worker.cjs',
-          './lib/execution/pptx-worker.cjs',
-          './lib/execution/doc-worker.cjs',
+          './lib/execution/sandbox/bundles/pptxgenjs.cjs',
+          './lib/execution/sandbox/bundles/docx.cjs',
+          './lib/execution/sandbox/bundles/pdf-lib.cjs',
         ],
       }),
       additionalPackages({
-        packages: [
-          'unpdf',
-          'pdf-lib',
-          'isolated-vm',
-          'pptxgenjs',
-          'docx',
-          'react-dom',
-          '@react-email/render',
-        ],
+        packages: ['unpdf', 'isolated-vm', 'react-dom', '@react-email/render'],
       }),
     ],
   },

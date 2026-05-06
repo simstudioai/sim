@@ -38,10 +38,10 @@ export const firefliesTranscriptionCompleteTrigger: TriggerConfig = {
       defaultValue: [
         'Go to <a href="https://app.fireflies.ai/settings" target="_blank" rel="noopener noreferrer">app.fireflies.ai/settings</a>',
         'Navigate to the <strong>Developer settings</strong> tab',
-        'In the <strong>Webhook</strong> section, paste the Webhook URL above',
+        'In the <strong>Webhook</strong> or <strong>Webhooks V2</strong> section, paste the Webhook URL above',
         'Enter a <strong>Secret</strong> (16-32 characters) and save it here as well',
         'Click <strong>Save</strong> in Fireflies to activate the webhook',
-        'Your workflow will now trigger when any meeting transcription completes',
+        'Both Webhook V1 and V2 formats are supported automatically',
       ]
         .map(
           (instruction, index) =>
@@ -59,11 +59,15 @@ export const firefliesTranscriptionCompleteTrigger: TriggerConfig = {
     },
     eventType: {
       type: 'string',
-      description: 'The type of event (Transcription completed)',
+      description: 'The type of event (e.g. Transcription completed, meeting.transcribed)',
     },
     clientReferenceId: {
       type: 'string',
       description: 'Custom reference ID if set during upload',
+    },
+    timestamp: {
+      type: 'number',
+      description: 'Unix timestamp in milliseconds when the event was fired (V2 webhooks)',
     },
   },
 

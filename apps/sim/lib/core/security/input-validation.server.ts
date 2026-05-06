@@ -3,6 +3,7 @@ import http from 'http'
 import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
@@ -23,6 +24,7 @@ export interface AsyncValidationResult extends ValidationResult {
  * - Octal notation (0177.0.0.1)
  * - Hex notation (0x7f000001)
  * - IPv4-mapped IPv6 (::ffff:127.0.0.1)
+ * - IPv4-compatible IPv6 (::a.b.c.d / ::xxxx:xxxx, RFC 4291 §2.5.5.1, deprecated)
  * - Various edge cases that regex patterns miss
  */
 export function isPrivateOrReservedIP(ip: string): boolean {
@@ -34,7 +36,26 @@ export function isPrivateOrReservedIP(ip: string): boolean {
     const addr = ipaddr.process(ip)
     const range = addr.range()
 
-    return range !== 'unicast'
+    if (range !== 'unicast') {
+      return true
+    }
+
+    if (addr.kind() === 'ipv6') {
+      const v6 = addr as ipaddr.IPv6
+      const parts = v6.parts
+      const firstSixZero = parts.slice(0, 6).every((p) => p === 0)
+      if (firstSixZero) {
+        const embedded = ipaddr.fromByteArray([
+          (parts[6] >> 8) & 0xff,
+          parts[6] & 0xff,
+          (parts[7] >> 8) & 0xff,
+          parts[7] & 0xff,
+        ])
+        return embedded.range() !== 'unicast'
+      }
+    }
+
+    return false
   } catch {
     return true
   }
@@ -111,7 +132,7 @@ export async function validateUrlWithDNS(
     logger.warn('DNS lookup failed for URL', {
       paramName,
       hostname,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return {
       isValid: false,
@@ -175,7 +196,7 @@ export async function validateDatabaseHost(
     logger.warn('DNS lookup failed for database host', {
       paramName,
       hostname: host,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return {
       isValid: false,
@@ -191,6 +212,7 @@ export interface SecureFetchOptions {
   timeout?: number
   maxRedirects?: number
   maxResponseBytes?: number
+  signal?: AbortSignal
 }
 
 export class SecureFetchHeaders {
@@ -309,7 +331,7 @@ export async function secureFetchWithPinnedIP(
         validateUrlWithDNS(redirectUrl, 'redirectUrl', { allowHttp: options.allowHttp })
           .then((validation) => {
             if (!validation.isValid) {
-              reject(new Error(`Redirect blocked: ${validation.error}`))
+              settledReject(new Error(`Redirect blocked: ${validation.error}`))
               return
             }
             return secureFetchWithPinnedIP(
@@ -320,15 +342,15 @@ export async function secureFetchWithPinnedIP(
             )
           })
           .then((response) => {
-            if (response) resolve(response)
+            if (response) settledResolve(response)
           })
-          .catch(reject)
+          .catch(settledReject)
         return
       }
 
       if (isRedirectStatus(statusCode) && location && redirectCount >= maxRedirects) {
         res.resume()
-        reject(new Error(`Too many redirects (max: ${maxRedirects})`))
+        settledReject(new Error(`Too many redirects (max: ${maxRedirects})`))
         return
       }
 
@@ -354,7 +376,7 @@ export async function secureFetchWithPinnedIP(
       })
 
       res.on('error', (error) => {
-        reject(error)
+        settledReject(error)
       })
 
       res.on('end', () => {
@@ -370,7 +392,7 @@ export async function secureFetchWithPinnedIP(
           }
         }
 
-        resolve({
+        settledResolve({
           ok: statusCode >= 200 && statusCode < 300,
           status: statusCode,
           statusText: res.statusMessage || '',
@@ -386,14 +408,43 @@ export async function secureFetchWithPinnedIP(
       })
     })
 
+    let onAbort: (() => void) | null = null
+    const cleanupAbort = () => {
+      if (onAbort && options.signal) {
+        options.signal.removeEventListener('abort', onAbort)
+        onAbort = null
+      }
+    }
+    const settledResolve: typeof resolve = (value) => {
+      cleanupAbort()
+      resolve(value)
+    }
+    const settledReject: typeof reject = (reason) => {
+      cleanupAbort()
+      reject(reason)
+    }
+
     req.on('error', (error) => {
-      reject(error)
+      settledReject(error)
     })
 
     req.on('timeout', () => {
       req.destroy()
-      reject(new Error(`Request timed out after ${requestOptions.timeout}ms`))
+      settledReject(new Error(`Request timed out after ${requestOptions.timeout}ms`))
     })
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        req.destroy()
+        settledReject(options.signal.reason ?? new Error('Aborted'))
+        return
+      }
+      onAbort = () => {
+        req.destroy()
+        settledReject(options.signal?.reason ?? new Error('Aborted'))
+      }
+      options.signal.addEventListener('abort', onAbort, { once: true })
+    }
 
     if (options.body) {
       req.write(options.body)

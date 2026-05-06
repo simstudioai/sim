@@ -34,6 +34,7 @@ export interface RequestTraceV1SimReport {
   startMs: number
   streamId?: string
   usage?: RequestTraceV1UsageSummary
+  userMessage?: string
 }
 /**
  * This interface was referenced by `RequestTraceV1SimReport`'s JSON-Schema
@@ -112,6 +113,7 @@ export interface RequestTraceV1SimReport1 {
   startMs: number
   streamId?: string
   usage?: RequestTraceV1UsageSummary
+  userMessage?: string
 }
 
 export const RequestTraceV1Outcome = {

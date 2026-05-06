@@ -77,6 +77,19 @@ export const describeLogGroupsTool: ToolConfig<
   },
 
   outputs: {
-    logGroups: { type: 'array', description: 'List of CloudWatch log groups with metadata' },
+    logGroups: {
+      type: 'array',
+      description: 'List of CloudWatch log groups with metadata',
+      items: {
+        type: 'object',
+        properties: {
+          logGroupName: { type: 'string', description: 'Log group name' },
+          arn: { type: 'string', description: 'Log group ARN' },
+          storedBytes: { type: 'number', description: 'Total stored bytes' },
+          retentionInDays: { type: 'number', description: 'Retention period in days (if set)' },
+          creationTime: { type: 'number', description: 'Creation time in epoch milliseconds' },
+        },
+      },
+    },
   },
 }

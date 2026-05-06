@@ -2,12 +2,34 @@ import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import { requestJson, requestRaw } from '@/lib/api/client/request'
+import {
+  type ActivateDeploymentVersionResponse,
+  activateDeploymentVersionContract,
+  type ChatDeploymentStatus,
+  type ChatDetail,
+  type DeploymentInfoResponse,
+  type DeploymentVersionsResponse,
+  type DeployWorkflowResponse,
+  deployWorkflowContract,
+  getChatDeploymentStatusContract,
+  getChatDetailContract,
+  getDeployedWorkflowStateContract,
+  getDeploymentInfoContract,
+  listDeploymentVersionsContract,
+  type UpdateDeploymentVersionMetadataResponse,
+  undeployWorkflowContract,
+  updateDeploymentVersionMetadataContract,
+  updatePublicApiContract,
+} from '@/lib/api/contracts/deployments'
+import { wandGenerateStreamContract } from '@/lib/api/contracts/hotspots'
 import { fetchDeploymentVersionState } from '@/hooks/queries/utils/fetch-deployment-version-state'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeploymentQueries')
+
+export type { ChatDeploymentStatus, ChatDetail, DeploymentVersionsResponse }
 
 /**
  * Query key factory for deployment-related queries
@@ -47,11 +69,7 @@ export function invalidateDeploymentQueries(queryClient: QueryClient, workflowId
   ])
 }
 
-/**
- * Response type from /api/workflows/[id]/deploy GET endpoint
- */
-export interface WorkflowDeploymentInfo {
-  isDeployed: boolean
+export type WorkflowDeploymentInfo = DeploymentInfoResponse & {
   deployedAt: string | null
   apiKey: string | null
   needsRedeployment: boolean
@@ -65,13 +83,10 @@ async function fetchDeploymentInfo(
   workflowId: string,
   signal?: AbortSignal
 ): Promise<WorkflowDeploymentInfo> {
-  const response = await fetch(`/api/workflows/${workflowId}/deploy`, { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch deployment information')
-  }
-
-  const data = await response.json()
+  const data = await requestJson(getDeploymentInfoContract, {
+    params: { id: workflowId },
+    signal,
+  })
   return {
     isDeployed: data.isDeployed ?? false,
     deployedAt: data.deployedAt ?? null,
@@ -106,14 +121,10 @@ async function fetchDeployedWorkflowState(
   workflowId: string,
   signal?: AbortSignal
 ): Promise<WorkflowState | null> {
-  const response = await fetch(`/api/workflows/${workflowId}/deployed`, { signal })
-
-  if (!response.ok) {
-    if (response.status === 404) return null
-    throw new Error('Failed to fetch deployed workflow state')
-  }
-
-  const data = await response.json()
+  const data = await requestJson(getDeployedWorkflowStateContract, {
+    params: { id: workflowId },
+    signal,
+  })
   return data.deployedState || null
 }
 
@@ -135,26 +146,16 @@ export function useDeployedWorkflowState(
 }
 
 /**
- * Response type from /api/workflows/[id]/deployments GET endpoint
- */
-export interface DeploymentVersionsResponse {
-  versions: WorkflowDeploymentVersionResponse[]
-}
-
-/**
  * Fetches all deployment versions for a workflow
  */
 async function fetchDeploymentVersions(
   workflowId: string,
   signal?: AbortSignal
 ): Promise<DeploymentVersionsResponse> {
-  const response = await fetch(`/api/workflows/${workflowId}/deployments`, { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch deployment versions')
-  }
-
-  const data = await response.json()
+  const data = await requestJson(listDeploymentVersionsContract, {
+    params: { id: workflowId },
+    signal,
+  })
   return {
     versions: Array.isArray(data.versions) ? data.versions : [],
   }
@@ -175,30 +176,16 @@ export function useDeploymentVersions(workflowId: string | null, options?: { ena
 }
 
 /**
- * Response type from /api/workflows/[id]/chat/status GET endpoint
- */
-export interface ChatDeploymentStatus {
-  isDeployed: boolean
-  deployment: {
-    id: string
-    identifier: string
-  } | null
-}
-
-/**
  * Fetches chat deployment status for a workflow
  */
 async function fetchChatDeploymentStatus(
   workflowId: string,
   signal?: AbortSignal
 ): Promise<ChatDeploymentStatus> {
-  const response = await fetch(`/api/workflows/${workflowId}/chat/status`, { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch chat deployment status')
-  }
-
-  const data = await response.json()
+  const data = await requestJson(getChatDeploymentStatusContract, {
+    params: { id: workflowId },
+    signal,
+  })
   return {
     isDeployed: data.isDeployed ?? false,
     deployment: data.deployment ?? null,
@@ -223,37 +210,13 @@ export function useChatDeploymentStatus(
 }
 
 /**
- * Response type from /api/chat/manage/[id] GET endpoint
- */
-export interface ChatDetail {
-  id: string
-  identifier: string
-  title: string
-  description: string
-  authType: 'public' | 'password' | 'email' | 'sso'
-  allowedEmails: string[]
-  outputConfigs: Array<{ blockId: string; path: string }>
-  customizations?: {
-    welcomeMessage?: string
-    imageUrl?: string
-    primaryColor?: string
-  }
-  isActive: boolean
-  chatUrl: string
-  hasPassword: boolean
-}
-
-/**
  * Fetches chat detail by chat ID
  */
 async function fetchChatDetail(chatId: string, signal?: AbortSignal): Promise<ChatDetail> {
-  const response = await fetch(`/api/chat/manage/${chatId}`, { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch chat detail')
-  }
-
-  return response.json()
+  return requestJson(getChatDetailContract, {
+    params: { id: chatId },
+    signal,
+  })
 }
 
 /**
@@ -307,17 +270,11 @@ export function useChatDeploymentInfo(workflowId: string | null, options?: { ena
  */
 interface DeployWorkflowVariables {
   workflowId: string
-  deployChatEnabled?: boolean
 }
 
-/**
- * Response from deploy workflow mutation
- */
-interface DeployWorkflowResult {
-  isDeployed: boolean
+type DeployWorkflowResult = Omit<DeployWorkflowResponse, 'deployedAt' | 'apiKey'> & {
   deployedAt?: string
   apiKey?: string
-  warnings?: string[]
 }
 
 /**
@@ -328,30 +285,14 @@ export function useDeployWorkflow() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({
-      workflowId,
-      deployChatEnabled = false,
-    }: DeployWorkflowVariables): Promise<DeployWorkflowResult> => {
-      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          deployChatEnabled,
-        }),
+    mutationFn: async ({ workflowId }: DeployWorkflowVariables): Promise<DeployWorkflowResult> => {
+      const data = await requestJson(deployWorkflowContract, {
+        params: { id: workflowId },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to deploy workflow')
-      }
-
-      const data = await response.json()
       return {
         isDeployed: data.isDeployed ?? false,
-        deployedAt: data.deployedAt,
-        apiKey: data.apiKey,
+        deployedAt: data.deployedAt ?? undefined,
+        apiKey: data.apiKey ?? undefined,
         warnings: data.warnings,
       }
     },
@@ -387,14 +328,9 @@ export function useUndeployWorkflow() {
 
   return useMutation({
     mutationFn: async ({ workflowId }: UndeployWorkflowVariables): Promise<void> => {
-      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-        method: 'DELETE',
+      await requestJson(undeployWorkflowContract, {
+        params: { id: workflowId },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to undeploy workflow')
-      }
     },
     onSettled: (_data, error, variables) => {
       if (error) {
@@ -422,13 +358,7 @@ interface UpdateDeploymentVersionVariables {
   description?: string | null
 }
 
-/**
- * Response from update deployment version mutation
- */
-interface UpdateDeploymentVersionResult {
-  name: string | null
-  description: string | null
-}
+type UpdateDeploymentVersionResult = UpdateDeploymentVersionMetadataResponse
 
 /**
  * Mutation hook for updating a deployment version's name or description.
@@ -444,33 +374,24 @@ export function useUpdateDeploymentVersion() {
       name,
       description,
     }: UpdateDeploymentVersionVariables): Promise<UpdateDeploymentVersionResult> => {
-      const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name, description }),
+      return requestJson(updateDeploymentVersionMetadataContract, {
+        params: { id: workflowId, version },
+        body: { name, description },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to update deployment version')
-      }
-
-      return response.json()
     },
-    onSuccess: (_, variables) => {
-      logger.info('Deployment version updated', {
-        workflowId: variables.workflowId,
-        version: variables.version,
-      })
+    onSettled: (_data, error, variables) => {
+      if (!error) {
+        logger.info('Deployment version updated', {
+          workflowId: variables.workflowId,
+          version: variables.version,
+        })
+      } else {
+        logger.error('Failed to update deployment version', { error })
+      }
 
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.versions(variables.workflowId),
       })
-    },
-    onError: (error) => {
-      logger.error('Failed to update deployment version', { error })
     },
   })
 }
@@ -538,25 +459,23 @@ export function useGenerateVersionDescription() {
         workflowId
       )
 
-      const wandResponse = await fetch('/api/wand', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-transform',
+      const wandResponse = await requestRaw(
+        wandGenerateStreamContract,
+        {
+          body: {
+            prompt: `Generate a deployment version description based on these changes:\n\n${diffText}`,
+            systemPrompt: VERSION_DESCRIPTION_SYSTEM_PROMPT,
+            stream: true,
+            workflowId,
+          },
         },
-        body: JSON.stringify({
-          prompt: `Generate a deployment version description based on these changes:\n\n${diffText}`,
-          systemPrompt: VERSION_DESCRIPTION_SYSTEM_PROMPT,
-          stream: true,
-          workflowId,
-        }),
-        cache: 'no-store',
-      })
-
-      if (!wandResponse.ok) {
-        const errorText = await wandResponse.text()
-        throw new Error(errorText || 'Failed to generate description')
-      }
+        {
+          headers: {
+            'Cache-Control': 'no-cache, no-transform',
+          },
+          cache: 'no-store',
+        }
+      )
 
       if (!wandResponse.body) {
         throw new Error('Response body is null')
@@ -590,14 +509,7 @@ interface ActivateVersionVariables {
   version: number
 }
 
-/**
- * Response from activate version mutation
- */
-interface ActivateVersionResult {
-  deployedAt?: string
-  apiKey?: string
-  warnings?: string[]
-}
+type ActivateVersionResult = ActivateDeploymentVersionResponse
 
 /**
  * Mutation hook for activating (promoting) a specific deployment version.
@@ -611,20 +523,10 @@ export function useActivateDeploymentVersion() {
       workflowId,
       version,
     }: ActivateVersionVariables): Promise<ActivateVersionResult> => {
-      const response = await fetch(`/api/workflows/${workflowId}/deployments/${version}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ isActive: true }),
+      return requestJson(activateDeploymentVersionContract, {
+        params: { id: workflowId, version },
+        body: { isActive: true },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to activate version')
-      }
-
-      return response.json()
     },
     onMutate: async ({ workflowId, version }) => {
       await queryClient.cancelQueries({ queryKey: deploymentKeys.versions(workflowId) })
@@ -683,31 +585,24 @@ export function useUpdatePublicApi() {
 
   return useMutation({
     mutationFn: async ({ workflowId, isPublicApi }: UpdatePublicApiVariables) => {
-      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isPublicApi }),
+      return requestJson(updatePublicApiContract, {
+        params: { id: workflowId },
+        body: { isPublicApi },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to update public API setting')
-      }
-
-      return response.json()
     },
-    onSuccess: (_, variables) => {
-      logger.info('Public API setting updated', {
-        workflowId: variables.workflowId,
-        isPublicApi: variables.isPublicApi,
-      })
+    onSettled: (_data, error, variables) => {
+      if (!error) {
+        logger.info('Public API setting updated', {
+          workflowId: variables.workflowId,
+          isPublicApi: variables.isPublicApi,
+        })
+      } else {
+        logger.error('Failed to update public API setting', { error })
+      }
 
       queryClient.invalidateQueries({
         queryKey: deploymentKeys.info(variables.workflowId),
       })
-    },
-    onError: (error) => {
-      logger.error('Failed to update public API setting', { error })
     },
   })
 }

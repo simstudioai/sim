@@ -521,6 +521,44 @@ export interface AgentResponse extends ToolResponse {
   }
 }
 
+export interface ParseParams {
+  apiKey: string
+  file: unknown
+  formats?: Array<{ type: string } | string>
+  onlyMainContent?: boolean
+  includeTags?: string[]
+  excludeTags?: string[]
+  timeout?: number
+  parsers?: Array<{ type: string; mode?: string } | string>
+  removeBase64Images?: boolean
+  blockAds?: boolean
+  proxy?: 'basic' | 'auto'
+  zeroDataRetention?: boolean
+}
+
+export interface ParseResponse extends ToolResponse {
+  output: {
+    markdown: string
+    summary?: string | null
+    html?: string | null
+    rawHtml?: string | null
+    screenshot?: string | null
+    links?: string[]
+    metadata?: {
+      title?: string | string[]
+      description?: string | string[]
+      language?: string | string[] | null
+      sourceURL?: string
+      url?: string
+      keywords?: string | string[]
+      statusCode?: number
+      contentType?: string
+      error?: string | null
+    } | null
+    warning?: string | null
+  }
+}
+
 export type FirecrawlResponse =
   | ScrapeResponse
   | SearchResponse
@@ -528,3 +566,4 @@ export type FirecrawlResponse =
   | MapResponse
   | ExtractResponse
   | AgentResponse
+  | ParseResponse

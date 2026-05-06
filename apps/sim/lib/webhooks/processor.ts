@@ -1,6 +1,8 @@
 import { db, webhook, workflow, workflowDeploymentVersion } from '@sim/db'
 import { credentialSet } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing/core/subscription'
@@ -8,7 +10,6 @@ import { tryAdmit } from '@/lib/core/admission/gate'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { isProd } from '@/lib/core/config/feature-flags'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import {
@@ -83,7 +84,7 @@ export async function parseWebhookBody(
     }
   } catch (bodyError) {
     logger.error(`[${requestId}] Failed to read request body`, {
-      error: bodyError instanceof Error ? bodyError.message : String(bodyError),
+      error: toError(bodyError).message,
     })
     return new NextResponse('Failed to read request body', { status: 400 })
   }
@@ -106,7 +107,7 @@ export async function parseWebhookBody(
     }
   } catch (parseError) {
     logger.error(`[${requestId}] Failed to parse webhook body`, {
-      error: parseError instanceof Error ? parseError.message : String(parseError),
+      error: toError(parseError).message,
       contentType: request.headers.get('content-type'),
       bodyPreview: `${rawBody?.slice(0, 100)}...`,
     })
@@ -597,7 +598,7 @@ export async function queueWebhookExecution(
           const output = await executeWebhookJob(payload)
           await jobQueue.completeJob(jobId, output)
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
+          const errorMessage = toError(error).message
           logger.error(`[${options.requestId}] Webhook execution failed`, {
             jobId,
             error: errorMessage,
@@ -639,23 +640,11 @@ export interface PolledWebhookEventResult {
   success: boolean
   error?: string
   statusCode?: number
+  executionId?: string
 }
 
-interface PolledWebhookRecord {
-  id: string
-  path: string
-  provider: string | null
-  blockId: string | null
-  providerConfig: unknown
-  credentialSetId: string | null
-  workflowId: string
-}
-
-interface PolledWorkflowRecord {
-  id: string
-  userId: string
-  workspaceId: string
-}
+type PolledWebhookRecord = typeof webhook.$inferSelect
+type PolledWorkflowRecord = typeof workflow.$inferSelect
 
 /**
  * Processes a polled webhook event directly, bypassing the HTTP trigger route.
@@ -738,6 +727,7 @@ export async function processPolledWebhookEvent(
         triggerType: 'webhook',
       } satisfies AsyncExecutionCorrelation)
 
+    const workspaceId = foundWorkflow.workspaceId ?? undefined
     const payload = {
       webhookId: foundWebhook.id,
       workflowId: foundWorkflow.id,
@@ -750,7 +740,7 @@ export async function processPolledWebhookEvent(
       headers: { 'content-type': 'application/json' } as Record<string, string>,
       path: foundWebhook.path,
       blockId: foundWebhook.blockId ?? undefined,
-      workspaceId: foundWorkflow.workspaceId,
+      workspaceId,
       ...(credentialId ? { credentialId } : {}),
     }
 
@@ -758,7 +748,7 @@ export async function processPolledWebhookEvent(
       const jobId = await (await getJobQueue()).enqueue('webhook-execution', payload, {
         metadata: {
           workflowId: foundWorkflow.id,
-          workspaceId: foundWorkflow.workspaceId,
+          workspaceId,
           userId: actorUserId,
           correlation,
         },
@@ -771,7 +761,7 @@ export async function processPolledWebhookEvent(
       const jobId = await jobQueue.enqueue('webhook-execution', payload, {
         metadata: {
           workflowId: foundWorkflow.id,
-          workspaceId: foundWorkflow.workspaceId,
+          workspaceId,
           userId: actorUserId,
           correlation,
         },
@@ -784,7 +774,7 @@ export async function processPolledWebhookEvent(
           const output = await executeWebhookJob(payload)
           await jobQueue.completeJob(jobId, output)
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
+          const errorMessage = toError(error).message
           logger.error(`[${requestId}] Webhook execution failed`, {
             jobId,
             error: errorMessage,
@@ -804,7 +794,7 @@ export async function processPolledWebhookEvent(
       })()
     }
 
-    return { success: true }
+    return { success: true, executionId }
   } catch (error: unknown) {
     logger.error(`[${requestId}] Failed to process polled webhook event:`, error)
     return { success: false, error: 'Internal server error', statusCode: 500 }

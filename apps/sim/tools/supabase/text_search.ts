@@ -1,4 +1,5 @@
 import type { SupabaseTextSearchParams, SupabaseTextSearchResponse } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSearchResponse> = {
@@ -77,7 +78,7 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
       const language = params.language || 'english'
 
       // Build the text search filter
-      let url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=*`
 
       // Map search types to PostgREST operators
       // plfts = plainto_tsquery (natural language), phfts = phraseto_tsquery, wfts = websearch_to_tsquery

@@ -1,10 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { sharepointUploadContract } from '@/lib/api/contracts/tools/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
@@ -13,16 +14,7 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SharepointUploadAPI')
 
-const SharepointUploadSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  siteId: z.string().default('root'),
-  driveId: z.string().optional().nullable(),
-  folderPath: z.string().optional().nullable(),
-  fileName: z.string().optional().nullable(),
-  files: RawFileInputArraySchema.optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -46,8 +38,9 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    const body = await request.json()
-    const validatedData = SharepointUploadSchema.parse(body)
+    const parsed = await parseRequest(sharepointUploadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Uploading files to SharePoint`, {
       siteId: validatedData.siteId,
@@ -275,4 +268,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

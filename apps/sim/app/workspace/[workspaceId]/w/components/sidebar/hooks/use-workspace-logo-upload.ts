@@ -67,14 +67,17 @@ export function useWorkspaceLogoUpload({
       formData.append('workspaceId', workspaceIdRef.current)
     }
 
+    // boundary-raw-fetch: multipart/form-data upload (FileUpload boundary), incompatible with requestJson which JSON-stringifies bodies
     const response = await fetch('/api/files/upload', {
       method: 'POST',
       body: formData,
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: response.statusText }))
-      throw new Error(errorData.error || `Failed to upload file: ${response.status}`)
+      const errorData = await response.json().catch(() => ({ message: response.statusText }))
+      throw new Error(
+        errorData.message || errorData.error || `Failed to upload file: ${response.status}`
+      )
     }
 
     const data = await response.json()

@@ -1,28 +1,29 @@
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsDynamodbDeleteContract } from '@/lib/api/contracts/tools/aws/dynamodb-delete'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createDynamoDBClient, deleteItem } from '@/app/api/tools/dynamodb/utils'
 
-const DeleteSchema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  tableName: z.string().min(1, 'Table name is required'),
-  key: z.record(z.unknown()).refine((val) => Object.keys(val).length > 0, {
-    message: 'Key is required',
-  }),
-  conditionExpression: z.string().optional(),
-})
+const logger = createLogger('DynamoDBDeleteAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validatedData = DeleteSchema.parse(body)
+    const parsed = await parseToolRequest(awsDynamodbDeleteContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
+
+    logger.info(`Deleting item from table '${validatedData.tableName}'`)
 
     const client = createDynamoDBClient({
       region: validatedData.region,
@@ -30,24 +31,24 @@ export async function POST(request: NextRequest) {
       secretAccessKey: validatedData.secretAccessKey,
     })
 
-    await deleteItem(
-      client,
-      validatedData.tableName,
-      validatedData.key,
-      validatedData.conditionExpression
-    )
+    try {
+      await deleteItem(client, validatedData.tableName, validatedData.key, {
+        conditionExpression: validatedData.conditionExpression,
+        expressionAttributeNames: validatedData.expressionAttributeNames,
+        expressionAttributeValues: validatedData.expressionAttributeValues,
+      })
 
-    return NextResponse.json({
-      message: 'Item deleted successfully',
-    })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.errors[0]?.message ?? 'Invalid request' },
-        { status: 400 }
-      )
+      logger.info(`Delete completed for table '${validatedData.tableName}'`)
+
+      return NextResponse.json({
+        message: 'Item deleted successfully',
+      })
+    } finally {
+      client.destroy()
     }
-    const errorMessage = error instanceof Error ? error.message : 'DynamoDB delete failed'
+  } catch (error) {
+    const errorMessage = toError(error).message || 'DynamoDB delete failed'
+    logger.error('DynamoDB delete failed:', error)
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})

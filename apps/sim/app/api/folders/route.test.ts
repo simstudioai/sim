@@ -3,11 +3,17 @@
  *
  * @vitest-environment node
  */
-import { auditMock, createMockRequest } from '@sim/testing'
+import {
+  auditMock,
+  authMockFns,
+  createMockRequest,
+  permissionsMock,
+  permissionsMockFns,
+} from '@sim/testing'
 import { drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetUserEntityPermissions, mockLogger } = vi.hoisted(() => {
+const { mockLogger } = vi.hoisted(() => {
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -18,26 +24,23 @@ const { mockGetSession, mockGetUserEntityPermissions, mockLogger } = vi.hoisted(
     child: vi.fn(),
   }
   return {
-    mockGetSession: vi.fn(),
-    mockGetUserEntityPermissions: vi.fn(),
     mockLogger: logger,
   }
 })
 
-vi.mock('@/lib/audit/log', () => auditMock)
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
+
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('drizzle-orm', () => ({
   ...drizzleOrmMock,
   min: vi.fn((field) => ({ type: 'min', field })),
 }))
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
 vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue(mockLogger),
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
+  getRequestContext: () => undefined,
 }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { db } from '@sim/db'
 import { GET, POST } from '@/app/api/folders/route'
@@ -131,11 +134,11 @@ describe('Folders API Route', () => {
   const mockTransaction = mockDb.transaction
 
   function mockAuthenticatedUser() {
-    mockGetSession.mockResolvedValue({ user: defaultMockUser })
+    authMockFns.mockGetSession.mockResolvedValue({ user: defaultMockUser })
   }
 
   function mockUnauthenticated() {
-    mockGetSession.mockResolvedValue(null)
+    authMockFns.mockGetSession.mockResolvedValue(null)
   }
 
   beforeEach(() => {
@@ -161,10 +164,12 @@ describe('Folders API Route', () => {
     it('should return folders for a valid workspace', async () => {
       mockAuthenticatedUser()
 
-      const mockRequest = createMockRequest('GET')
-      Object.defineProperty(mockRequest, 'url', {
-        value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
-      })
+      const mockRequest = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+      )
 
       const response = await GET(mockRequest)
 
@@ -183,10 +188,12 @@ describe('Folders API Route', () => {
     it('should return 401 for unauthenticated requests', async () => {
       mockUnauthenticated()
 
-      const mockRequest = createMockRequest('GET')
-      Object.defineProperty(mockRequest, 'url', {
-        value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
-      })
+      const mockRequest = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+      )
 
       const response = await GET(mockRequest)
 
@@ -199,27 +206,32 @@ describe('Folders API Route', () => {
     it('should return 400 when workspaceId is missing', async () => {
       mockAuthenticatedUser()
 
-      const mockRequest = createMockRequest('GET')
-      Object.defineProperty(mockRequest, 'url', {
-        value: 'http://localhost:3000/api/folders',
-      })
+      const mockRequest = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/folders'
+      )
 
       const response = await GET(mockRequest)
 
       expect(response.status).toBe(400)
 
       const data = await response.json()
-      expect(data).toHaveProperty('error', 'Workspace ID is required')
+      expect(data).toHaveProperty('error', 'Validation error')
+      expect(data.details?.[0]?.message).toBe('Workspace ID is required')
     })
 
     it('should return 403 when user has no workspace permissions', async () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue(null)
 
-      const mockRequest = createMockRequest('GET')
-      Object.defineProperty(mockRequest, 'url', {
-        value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
-      })
+      const mockRequest = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+      )
 
       const response = await GET(mockRequest)
 
@@ -233,10 +245,12 @@ describe('Folders API Route', () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue('read')
 
-      const mockRequest = createMockRequest('GET')
-      Object.defineProperty(mockRequest, 'url', {
-        value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
-      })
+      const mockRequest = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+      )
 
       const response = await GET(mockRequest)
 
@@ -253,10 +267,12 @@ describe('Folders API Route', () => {
         throw new Error('Database connection failed')
       })
 
-      const mockRequest = createMockRequest('GET')
-      Object.defineProperty(mockRequest, 'url', {
-        value: 'http://localhost:3000/api/folders?workspaceId=workspace-123',
-      })
+      const mockRequest = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/folders?workspaceId=workspace-123'
+      )
 
       const response = await GET(mockRequest)
 
@@ -455,7 +471,7 @@ describe('Folders API Route', () => {
         expect(response.status).toBe(400)
 
         const data = await response.json()
-        expect(data).toHaveProperty('error', 'Invalid request data')
+        expect(data).toHaveProperty('error', 'Validation error')
       }
     })
 

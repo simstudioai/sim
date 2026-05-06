@@ -3,7 +3,7 @@
  */
 
 import { useCallback } from 'react'
-import { generateShortId } from '@/lib/core/utils/uuid'
+import { generateShortId } from '@sim/utils/id'
 import type { ColumnOption } from '../types'
 import {
   COMPARISON_OPERATORS,

@@ -68,13 +68,20 @@ app:
 
   # Environment variables
   env:
-    # Application URLs
+    # Application URLs — set NEXT_PUBLIC_APP_URL to your public origin (e.g. https://sim.example.com).
+    # Leaving these at localhost in a production deployment will break sign-up/sign-in for browsers,
+    # because the auth client and Better Auth `trustedOrigins` use these values.
     NEXT_PUBLIC_APP_URL: "http://localhost:3000"
     BETTER_AUTH_URL: "http://localhost:3000"
     INTERNAL_API_BASE_URL: ""  # Optional server-side internal base URL for /api self-calls (include http:// or https://); falls back to NEXT_PUBLIC_APP_URL when empty
+    # TRUSTED_ORIGINS: comma-separated extra public origins to trust for auth (e.g. apex+www, alias hostnames).
+    # Merged into Better Auth `trustedOrigins` alongside NEXT_PUBLIC_APP_URL. Leave empty when serving from a single origin.
+    TRUSTED_ORIGINS: ""
     # SOCKET_SERVER_URL: Auto-detected when realtime.enabled=true (uses internal service)
-    # Only set this if using an external WebSocket service with realtime.enabled=false
-    NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"  # Public WebSocket URL for browsers
+    # NEXT_PUBLIC_SOCKET_URL: public WebSocket URL for browsers. Leave empty to default to the
+    # page's own origin (assumes the ingress/reverse proxy routes /socket.io to the realtime service).
+    # Set explicitly only when realtime is on a separate host:port from the app (e.g. wss://socket.example.com).
+    NEXT_PUBLIC_SOCKET_URL: ""
     
     # Node environment
     NODE_ENV: "production"
@@ -158,6 +165,17 @@ app:
     EXECUTION_TIMEOUT_ASYNC_PRO: "5400"                   # Pro tier async timeout (90 minutes)
     EXECUTION_TIMEOUT_ASYNC_TEAM: "5400"                  # Team tier async timeout (90 minutes)
     EXECUTION_TIMEOUT_ASYNC_ENTERPRISE: "5400"            # Enterprise tier async timeout (90 minutes)
+
+    # Table Feature Limits (per workspace, per plan)
+    # Apply when billing is disabled (free tier defaults) or for billed plans
+    FREE_TABLES_LIMIT: "3"                                # Max user tables per workspace on free tier
+    FREE_TABLE_ROWS_LIMIT: "1000"                         # Max rows per table on free tier
+    PRO_TABLES_LIMIT: "25"                                # Max user tables per workspace on pro tier
+    PRO_TABLE_ROWS_LIMIT: "5000"                          # Max rows per table on pro tier
+    TEAM_TABLES_LIMIT: "100"                              # Max user tables per workspace on team tier
+    TEAM_TABLE_ROWS_LIMIT: "10000"                        # Max rows per table on team tier
+    ENTERPRISE_TABLES_LIMIT: "10000"                      # Max user tables per workspace on enterprise tier
+    ENTERPRISE_TABLE_ROWS_LIMIT: "1000000"                # Max rows per table on enterprise tier
 
     # Isolated-VM Worker Pool Configuration
     IVM_POOL_SIZE: "4"                                    # Max worker processes in pool
@@ -244,6 +262,8 @@ app:
     NEXT_PUBLIC_WHITELABELING_ENABLED: ""                 # Show whitelabeling settings page ("true" to enable)
     AUDIT_LOGS_ENABLED: ""                                # Enable audit logs on self-hosted ("true" to enable)
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED: ""                    # Show audit logs settings page ("true" to enable)
+    DATA_DRAINS_ENABLED: ""                               # Enable data drains on self-hosted ("true" to enable)
+    NEXT_PUBLIC_DATA_DRAINS_ENABLED: ""                   # Show data drains settings page ("true" to enable)
 
     # AWS Bedrock Credential Mode
     # Set to "true" when the deployment uses AWS default credential chain (IAM roles, instance
@@ -256,6 +276,12 @@ app:
     # server-side. When enabled, the Azure endpoint, API key, and API version fields are hidden
     # in the Agent block UI — users just pick an Azure model and run.
     NEXT_PUBLIC_AZURE_CONFIGURED: ""                      # Set to "true" to hide Azure credential fields
+
+    # Cohere Reranker (Knowledge block)
+    # Set COHERE_API_KEY (or COHERE_API_KEY_1/2/3 for rotation) and NEXT_PUBLIC_COHERE_CONFIGURED=true
+    # to pre-configure the Cohere reranker server-side. When configured, the Cohere API Key field is
+    # hidden in the Knowledge block UI.
+    NEXT_PUBLIC_COHERE_CONFIGURED: ""                     # Set to "true" to hide the Cohere API Key field on the Knowledge block
 
     # AWS S3 Cloud Storage Configuration (optional - for file storage)
     # If configured, files will be stored in S3 instead of local storage
@@ -352,16 +378,17 @@ realtime:
   
   # Environment variables
   env:
-    # Application URLs
+    # Application URLs — must mirror the public origin used by the main app.
     NEXT_PUBLIC_APP_URL: "http://localhost:3000"
     BETTER_AUTH_URL: "http://localhost:3000"
-    NEXT_PUBLIC_SOCKET_URL: "http://localhost:3002"
-    
+
     # Authentication secret (REQUIRED for production)
     # Must match the BETTER_AUTH_SECRET value from the main app configuration
     BETTER_AUTH_SECRET: ""  # REQUIRED - set via --set flag or external secret manager
-    
-    # Cross-Origin Resource Sharing (CORS) allowed origins
+
+    # Cross-Origin Resource Sharing (CORS) allowed origins for the realtime service.
+    # Set to the same public origin(s) as the main app (comma-separated). The realtime
+    # service rejects WebSocket upgrades from origins not in this list.
     ALLOWED_ORIGINS: "http://localhost:3000"
     
     # Node environment
@@ -971,11 +998,29 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    timePauseResumePoll:
+      enabled: true
+      name: time-pause-resume-poll
+      schedule: "*/1 * * * *"
+      path: "/api/resume/poll"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     connectorSync:
       enabled: true
       name: connector-sync
       schedule: "*/5 * * * *"
       path: "/api/knowledge/connectors/sync"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    runDataDrains:
+      enabled: true
+      name: run-data-drains
+      schedule: "0 * * * *"
+      path: "/api/cron/run-data-drains"
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1

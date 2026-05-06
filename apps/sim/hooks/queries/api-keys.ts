@@ -1,5 +1,19 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import type { ContractBodyInput } from '@/lib/api/contracts'
+import {
+  type ApiKey,
+  createPersonalApiKeyContract,
+  createWorkspaceApiKeyContract,
+  deletePersonalApiKeyContract,
+  deleteWorkspaceApiKeyContract,
+  listPersonalApiKeysContract,
+  listWorkspaceApiKeysContract,
+  updateWorkspaceContract,
+} from '@/lib/api/contracts'
 import { workspaceKeys } from '@/hooks/queries/workspace'
+
+export type { ApiKey }
 
 /**
  * Query key factories for API keys-related queries
@@ -13,24 +27,7 @@ export const apiKeysKeys = {
   combined: (workspaceId: string) => [...apiKeysKeys.combineds(), workspaceId] as const,
 }
 
-/**
- * API Key type definition
- */
-export interface ApiKey {
-  id: string
-  name: string
-  key: string
-  displayKey?: string
-  lastUsed?: string
-  createdAt: string
-  expiresAt?: string
-  createdBy?: string
-}
-
-/**
- * Combined API keys response
- */
-interface ApiKeysResponse {
+type CombinedApiKeysData = {
   workspaceKeys: ApiKey[]
   personalKeys: ApiKey[]
   conflicts: string[]
@@ -39,23 +36,16 @@ interface ApiKeysResponse {
 /**
  * Fetch both workspace and personal API keys
  */
-async function fetchApiKeys(workspaceId: string, signal?: AbortSignal): Promise<ApiKeysResponse> {
-  const [workspaceResponse, personalResponse] = await Promise.all([
-    fetch(`/api/workspaces/${workspaceId}/api-keys`, { signal }),
-    fetch('/api/users/me/api-keys', { signal }),
+async function fetchApiKeys(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<CombinedApiKeysData> {
+  const [workspaceData, personalData] = await Promise.all([
+    requestJson(listWorkspaceApiKeysContract, { params: { id: workspaceId }, signal }),
+    requestJson(listPersonalApiKeysContract, { signal }),
   ])
-
-  if (!workspaceResponse.ok) {
-    throw new Error(`Failed to fetch workspace API keys: ${workspaceResponse.status}`)
-  }
-  if (!personalResponse.ok) {
-    throw new Error(`Failed to fetch personal API keys: ${personalResponse.status}`)
-  }
-
-  const workspaceData = await workspaceResponse.json()
-  const personalData = await personalResponse.json()
-  const workspaceKeys: ApiKey[] = workspaceData.keys || []
-  const personalKeys: ApiKey[] = personalData.keys || []
+  const workspaceKeys: ApiKey[] = workspaceData.keys
+  const personalKeys: ApiKey[] = personalData.keys
 
   const workspaceKeyNames = new Set(workspaceKeys.map((k) => k.name))
   const conflicts = personalKeys
@@ -85,12 +75,10 @@ export function useApiKeys(workspaceId: string) {
 /**
  * Create API key mutation params
  */
-interface CreateApiKeyParams {
+type CreateApiKeyParams = {
   workspaceId: string
-  name: string
   keyType: 'personal' | 'workspace'
-  source?: 'settings' | 'deploy_modal'
-}
+} & ContractBodyInput<typeof createWorkspaceApiKeyContract>
 
 /**
  * Hook to create a new API key
@@ -100,26 +88,14 @@ export function useCreateApiKey() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, name, keyType, source }: CreateApiKeyParams) => {
-      const url =
-        keyType === 'workspace'
-          ? `/api/workspaces/${workspaceId}/api-keys`
-          : '/api/users/me/api-keys'
-
-      const body: Record<string, unknown> = { name: name.trim() }
-      if (keyType === 'workspace' && source) body.source = source
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Failed to create API key' }))
-        throw new Error(error.error || 'Failed to create API key')
+      if (keyType === 'workspace') {
+        return requestJson(createWorkspaceApiKeyContract, {
+          params: { id: workspaceId },
+          body: { name, source },
+        })
       }
 
-      return response.json()
+      return requestJson(createPersonalApiKeyContract, { body: { name } })
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
@@ -132,7 +108,7 @@ export function useCreateApiKey() {
 /**
  * Delete API key mutation params
  */
-interface DeleteApiKeyParams {
+type DeleteApiKeyParams = {
   workspaceId: string
   keyId: string
   keyType: 'personal' | 'workspace'
@@ -146,21 +122,13 @@ export function useDeleteApiKey() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, keyId, keyType }: DeleteApiKeyParams) => {
-      const url =
-        keyType === 'workspace'
-          ? `/api/workspaces/${workspaceId}/api-keys/${keyId}`
-          : `/api/users/me/api-keys/${keyId}`
-
-      const response = await fetch(url, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Failed to delete API key' }))
-        throw new Error(error.error || 'Failed to delete API key')
+      if (keyType === 'workspace') {
+        return requestJson(deleteWorkspaceApiKeyContract, {
+          params: { id: workspaceId, keyId },
+        })
       }
 
-      return response.json()
+      return requestJson(deletePersonalApiKeyContract, { params: { id: keyId } })
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
@@ -173,10 +141,10 @@ export function useDeleteApiKey() {
 /**
  * Update workspace API key settings mutation params
  */
-interface UpdateWorkspaceApiKeySettingsParams {
-  workspaceId: string
-  allowPersonalApiKeys: boolean
-}
+type UpdateWorkspaceApiKeySettingsParams = { workspaceId: string } & Pick<
+  ContractBodyInput<typeof updateWorkspaceContract>,
+  'allowPersonalApiKeys'
+>
 
 /**
  * Hook to update workspace API key settings
@@ -189,18 +157,10 @@ export function useUpdateWorkspaceApiKeySettings() {
       workspaceId,
       allowPersonalApiKeys,
     }: UpdateWorkspaceApiKeySettingsParams) => {
-      const response = await fetch(`/api/workspaces/${workspaceId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ allowPersonalApiKeys }),
+      return requestJson(updateWorkspaceContract, {
+        params: { id: workspaceId },
+        body: { allowPersonalApiKeys },
       })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Failed to update settings' }))
-        throw new Error(error.error || 'Failed to update workspace settings')
-      }
-
-      return response.json()
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({

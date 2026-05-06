@@ -11,6 +11,8 @@ import {
   createExecutionContext,
   createMockFetch,
   type ExecutionContext,
+  inputValidationMock,
+  inputValidationMockFns,
   type MockFetchResponse,
 } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,8 +28,6 @@ const {
   mockListCustomTools,
   mockGetCustomToolByIdOrTitle,
   mockGenerateInternalToken,
-  mockSecureFetchWithPinnedIP,
-  mockValidateUrlWithDNS,
   mockResolveWorkspaceFileReference,
 } = vi.hoisted(() => ({
   mockIsHosted: { value: false },
@@ -43,10 +43,11 @@ const {
   mockListCustomTools: vi.fn(),
   mockGetCustomToolByIdOrTitle: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
-  mockSecureFetchWithPinnedIP: vi.fn(),
-  mockValidateUrlWithDNS: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
 }))
+
+const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
+const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
 
 // Mock feature flags
 vi.mock('@/lib/core/config/feature-flags', () => ({
@@ -77,12 +78,28 @@ vi.mock('@/lib/auth/internal', () => ({
   generateInternalToken: (...args: unknown[]) => mockGenerateInternalToken(...args),
 }))
 
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  assertPermissionsAllowed: vi.fn().mockResolvedValue(undefined),
+  validateBlockType: vi.fn().mockResolvedValue(undefined),
+  validateMcpToolsAllowed: vi.fn().mockResolvedValue(undefined),
+  validateCustomToolsAllowed: vi.fn().mockResolvedValue(undefined),
+  validateSkillsAllowed: vi.fn().mockResolvedValue(undefined),
+  validateModelProvider: vi.fn().mockResolvedValue(undefined),
+  validateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
+  validatePublicApiAllowed: vi.fn().mockResolvedValue(undefined),
+  getUserPermissionConfig: vi.fn().mockResolvedValue(null),
+  ProviderNotAllowedError: class ProviderNotAllowedError extends Error {},
+  IntegrationNotAllowedError: class IntegrationNotAllowedError extends Error {},
+  McpToolsNotAllowedError: class McpToolsNotAllowedError extends Error {},
+  CustomToolsNotAllowedError: class CustomToolsNotAllowedError extends Error {},
+  SkillsNotAllowedError: class SkillsNotAllowedError extends Error {},
+  InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {},
+  PublicApiNotAllowedError: class PublicApiNotAllowedError extends Error {},
+}))
+
 vi.mock('@/lib/billing/core/usage-log', () => ({}))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: (...args: unknown[]) => mockSecureFetchWithPinnedIP(...args),
-  validateUrlWithDNS: (...args: unknown[]) => mockValidateUrlWithDNS(...args),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
@@ -250,6 +267,38 @@ vi.mock('@/tools/registry', () => {
       params: {},
       request: { url: '/api/tools/serper/search', method: 'GET' },
     },
+    notion_add_database_row: {
+      id: 'notion_add_database_row',
+      name: 'Add Notion Database Row',
+      description: 'Add a new row to a Notion database with specified properties',
+      version: '1.0.0',
+      params: {},
+      request: { url: 'https://api.notion.com/v1/pages', method: 'POST' },
+    },
+    notion_add_database_row_v2: {
+      id: 'notion_add_database_row_v2',
+      name: 'Add Notion Database Row',
+      description: 'Add a new row to a Notion database with specified properties',
+      version: '2.0.0',
+      params: {},
+      request: { url: 'https://api.notion.com/v1/pages', method: 'POST' },
+    },
+    notion_update_page: {
+      id: 'notion_update_page',
+      name: 'Notion Page Updater',
+      description: 'Update properties of a Notion page',
+      version: '1.0.0',
+      params: {},
+      request: { url: 'https://api.notion.com/v1/pages/x', method: 'PATCH' },
+    },
+    notion_update_page_v2: {
+      id: 'notion_update_page_v2',
+      name: 'Notion Page Updater',
+      description: 'Update properties of a Notion page',
+      version: '2.0.0',
+      params: {},
+      request: { url: 'https://api.notion.com/v1/pages/x', method: 'PATCH' },
+    },
   }
   return { tools: mockTools }
 })
@@ -371,6 +420,19 @@ describe('Tools Registry', () => {
     expect(gmailTool?.name).toBe('Gmail Read')
   })
 
+  it.each([
+    ['notion_add_database_row', 'notion_add_database_row_v2'],
+    ['notion_update_page', 'notion_update_page_v2'],
+  ])('getTool resolves both the legacy and v2 ids for %s', (legacyId, v2Id) => {
+    const legacy = getTool(legacyId)
+    expect(legacy).toBeDefined()
+    expect(legacy?.id).toBe(legacyId)
+
+    const v2 = getTool(v2Id)
+    expect(v2).toBeDefined()
+    expect(v2?.id).toBe(v2Id)
+  })
+
   it('getTool should return undefined for non-existent tool', () => {
     const nonExistentTool = getTool('non_existent_tool')
     expect(nonExistentTool).toBeUndefined()
@@ -382,11 +444,20 @@ describe('Custom Tools', () => {
     expect(getTool('custom_remote-tool-123', 'workspace-1')).toBeUndefined()
   })
 
+  it('returns the legacy notion_add_database_row tool through the async helper', async () => {
+    const legacy = await getToolAsync('notion_add_database_row')
+    expect(legacy).toBeDefined()
+    expect(legacy?.id).toBe('notion_add_database_row')
+  })
+
   it('resolves custom tools through the async helper', async () => {
     mockGetCustomToolByIdOrTitle.mockResolvedValue({
       id: 'remote-tool-123',
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
       title: 'Custom Weather Tool',
       schema: {
+        type: 'function',
         function: {
           name: 'weather_tool',
           description: 'Get weather information',
@@ -400,6 +471,8 @@ describe('Custom Tools', () => {
         },
       },
       code: '',
+      createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2024-01-01T00:00:00.000Z'),
     })
 
     const customTool = await getToolAsync('custom_remote-tool-123', {

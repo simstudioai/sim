@@ -5,7 +5,7 @@ export const putTool: ToolConfig<DynamoDBPutParams, DynamoDBPutResponse> = {
   id: 'dynamodb_put',
   name: 'DynamoDB Put',
   description: 'Put an item into a DynamoDB table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {
@@ -33,11 +33,32 @@ export const putTool: ToolConfig<DynamoDBPutParams, DynamoDBPutResponse> = {
       description: 'DynamoDB table name (e.g., "Users", "Orders")',
     },
     item: {
-      type: 'object',
+      type: 'json',
       required: true,
       visibility: 'user-or-llm',
       description:
         'Item to put into the table (e.g., {"pk": "USER#123", "name": "John", "email": "john@example.com"})',
+    },
+    conditionExpression: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Condition that must be met for the put to succeed (e.g., "attribute_not_exists(pk)" to prevent overwrites)',
+    },
+    expressionAttributeNames: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Attribute name mappings for reserved words used in conditionExpression (e.g., {"#name": "name"})',
+    },
+    expressionAttributeValues: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Expression attribute values used in conditionExpression (e.g., {":expected": "value"})',
     },
   },
 
@@ -53,6 +74,13 @@ export const putTool: ToolConfig<DynamoDBPutParams, DynamoDBPutResponse> = {
       secretAccessKey: params.secretAccessKey,
       tableName: params.tableName,
       item: params.item,
+      ...(params.conditionExpression && { conditionExpression: params.conditionExpression }),
+      ...(params.expressionAttributeNames && {
+        expressionAttributeNames: params.expressionAttributeNames,
+      }),
+      ...(params.expressionAttributeValues && {
+        expressionAttributeValues: params.expressionAttributeValues,
+      }),
     }),
   },
 
@@ -75,6 +103,6 @@ export const putTool: ToolConfig<DynamoDBPutParams, DynamoDBPutResponse> = {
 
   outputs: {
     message: { type: 'string', description: 'Operation status message' },
-    item: { type: 'object', description: 'Created item' },
+    item: { type: 'json', description: 'Created item', optional: true },
   },
 }

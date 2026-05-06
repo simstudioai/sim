@@ -2,15 +2,13 @@
  * @vitest-environment node
  */
 
-import { loggerMock } from '@sim/testing'
+import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { createEvent } from '@/lib/copilot/request/session/event'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 type StoredEnvelope = {
   score: number
@@ -102,9 +100,7 @@ const createRedisStub = () => {
 
 let mockRedis: ReturnType<typeof createRedisStub>
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: () => mockRedis,
-}))
+vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 import {
   allocateCursor,
@@ -118,6 +114,7 @@ describe('mothership-stream-outbox', () => {
   beforeEach(() => {
     mockRedis = createRedisStub()
     vi.clearAllMocks()
+    redisConfigMockFns.mockGetRedisClient.mockImplementation(() => mockRedis)
   })
 
   it('replays envelopes after a given cursor', async () => {

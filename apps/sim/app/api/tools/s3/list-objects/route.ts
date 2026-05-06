@@ -1,25 +1,17 @@
 import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsS3ListObjectsContract } from '@/lib/api/contracts/tools/aws/s3-list-objects'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('S3ListObjectsAPI')
 
-const S3ListObjectsSchema = z.object({
-  accessKeyId: z.string().min(1, 'Access Key ID is required'),
-  secretAccessKey: z.string().min(1, 'Secret Access Key is required'),
-  region: z.string().min(1, 'Region is required'),
-  bucketName: z.string().min(1, 'Bucket name is required'),
-  prefix: z.string().optional().nullable(),
-  maxKeys: z.number().optional().nullable(),
-  continuationToken: z.string().optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -40,8 +32,12 @@ export async function POST(request: NextRequest) {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = S3ListObjectsSchema.parse(body)
+    const parsed = await parseToolRequest(awsS3ListObjectsContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Listing S3 objects`, {
       bucket: validatedData.bucketName,
@@ -91,18 +87,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error listing S3 objects:`, error)
 
     return NextResponse.json(
@@ -113,4 +97,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

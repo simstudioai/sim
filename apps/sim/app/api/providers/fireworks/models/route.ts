@@ -1,8 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  fireworksProviderModelsQuerySchema,
+  fireworksUpstreamResponseSchema,
+  providerModelsResponseSchema,
+} from '@/lib/api/contracts/providers'
+import { validationErrorResponse } from '@/lib/api/server'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
@@ -20,7 +27,7 @@ interface FireworksModelsResponse {
   object?: string
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   if (isProviderBlacklisted('fireworks')) {
     logger.info('Fireworks provider is blacklisted, returning empty models')
     return NextResponse.json({ models: [] })
@@ -28,7 +35,11 @@ export async function GET(request: NextRequest) {
 
   let apiKey: string | undefined
 
-  const workspaceId = request.nextUrl.searchParams.get('workspaceId')
+  const queryValidation = fireworksProviderModelsQuerySchema.safeParse({
+    workspaceId: request.nextUrl.searchParams.get('workspaceId') ?? undefined,
+  })
+  if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
+  const { workspaceId } = queryValidation.data
   if (workspaceId) {
     const session = await getSession()
     if (session?.user?.id) {
@@ -68,7 +79,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ models: [] })
     }
 
-    const data = (await response.json()) as FireworksModelsResponse
+    const data: FireworksModelsResponse = fireworksUpstreamResponseSchema.parse(
+      await response.json()
+    )
 
     const allModels: string[] = []
     for (const model of data.data ?? []) {
@@ -83,11 +96,11 @@ export async function GET(request: NextRequest) {
       filtered: uniqueModels.length - models.length,
     })
 
-    return NextResponse.json({ models })
+    return NextResponse.json(providerModelsResponseSchema.parse({ models }))
   } catch (error) {
     logger.error('Error fetching Fireworks models', {
       error: error instanceof Error ? error.message : 'Unknown error',
     })
     return NextResponse.json({ models: [] })
   }
-}
+})

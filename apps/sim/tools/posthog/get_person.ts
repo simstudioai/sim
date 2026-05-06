@@ -1,7 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogGetPersonParams {
-  personalApiKey: string
+  apiKey: string
   region?: 'us' | 'eu'
   projectId: string
   personId: string
@@ -28,7 +28,7 @@ export const getPersonTool: ToolConfig<PostHogGetPersonParams, PostHogGetPersonR
   version: '1.0.0',
 
   params: {
-    personalApiKey: {
+    apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
@@ -62,7 +62,7 @@ export const getPersonTool: ToolConfig<PostHogGetPersonParams, PostHogGetPersonR
     },
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bearer ${params.personalApiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
   },

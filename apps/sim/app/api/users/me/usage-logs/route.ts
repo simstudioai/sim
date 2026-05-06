@@ -1,25 +1,19 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { usageLogsQuerySchema } from '@/lib/api/contracts/user'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getUserUsageLogs, type UsageLogSource } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UsageLogsAPI')
-
-const QuerySchema = z.object({
-  source: z.enum(['workflow', 'wand', 'copilot']).optional(),
-  workspaceId: z.string().optional(),
-  period: z.enum(['1d', '7d', '30d', 'all']).optional().default('30d'),
-  limit: z.coerce.number().min(1).max(100).optional().default(50),
-  cursor: z.string().optional(),
-})
 
 /**
  * GET /api/users/me/usage-logs
  * Get usage logs for the authenticated user
  */
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
 
@@ -38,7 +32,7 @@ export async function GET(req: NextRequest) {
       cursor: searchParams.get('cursor') || undefined,
     }
 
-    const validation = QuerySchema.safeParse(queryParams)
+    const validation = usageLogsQuerySchema.safeParse(queryParams)
 
     if (!validation.success) {
       return NextResponse.json(
@@ -109,7 +103,7 @@ export async function GET(req: NextRequest) {
     })
   } catch (error) {
     logger.error('Failed to get usage logs', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
 
     return NextResponse.json(
@@ -119,4 +113,4 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

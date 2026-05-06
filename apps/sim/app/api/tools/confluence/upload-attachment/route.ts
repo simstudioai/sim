@@ -1,8 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { confluenceUploadAttachmentContract } from '@/lib/api/contracts/selectors/confluence'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
-import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { processSingleFileToUserFile, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
@@ -11,15 +14,25 @@ const logger = createLogger('ConfluenceUploadAttachmentAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { domain, accessToken, cloudId: providedCloudId, pageId, file, fileName, comment } = body
+    const parsed = await parseRequest(confluenceUploadAttachmentContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const {
+      domain,
+      accessToken,
+      cloudId: providedCloudId,
+      pageId,
+      file,
+      fileName,
+      comment,
+    } = parsed.data.body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -49,12 +62,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    let fileToProcess = file
+    let fileToProcess = file as RawFileInput
     if (Array.isArray(file)) {
       if (file.length === 0) {
         return NextResponse.json({ error: 'No file provided' }, { status: 400 })
       }
-      fileToProcess = file[0]
+      fileToProcess = file[0] as RawFileInput
     }
 
     let userFile
@@ -137,4 +150,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

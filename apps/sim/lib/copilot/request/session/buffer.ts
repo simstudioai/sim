@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { env } from '@/lib/core/config/env'
+import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { env, envNumber } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
   type PersistedStreamEventEnvelope,
@@ -38,17 +40,9 @@ export type StreamConfig = {
 
 export function getStreamConfig(): StreamConfig {
   return {
-    ttlSeconds: parsePositiveNumber(env.COPILOT_STREAM_TTL_SECONDS, DEFAULT_TTL_SECONDS),
-    eventLimit: parsePositiveNumber(env.COPILOT_STREAM_EVENT_LIMIT, DEFAULT_EVENT_LIMIT),
+    ttlSeconds: envNumber(env.COPILOT_STREAM_TTL_SECONDS, DEFAULT_TTL_SECONDS, { min: 1 }),
+    eventLimit: envNumber(env.COPILOT_STREAM_EVENT_LIMIT, DEFAULT_EVENT_LIMIT, { min: 1 }),
   }
-}
-
-function parsePositiveNumber(value: number | string | undefined, fallback: number) {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-    return value
-  }
-  const parsed = Number(value)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
 async function withRedisRetry<T>(
@@ -65,7 +59,7 @@ async function withRedisRetry<T>(
   for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
     const delay = RETRY_DELAYS_MS[attempt]
     if (delay > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delay))
+      await sleep(delay)
     }
 
     try {
@@ -76,7 +70,7 @@ async function withRedisRetry<T>(
         operation: metadata.operation,
         streamId: metadata.streamId,
         attempt: attempt + 1,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -126,7 +120,7 @@ export async function scheduleBufferCleanup(
     logger.warn('Failed to shorten stream buffer TTL during cleanup', {
       streamId,
       ttlSeconds,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
 }

@@ -2,7 +2,12 @@
  * @vitest-environment node
  */
 import { EventEmitter } from 'node:events'
-import { loggerMock } from '@sim/testing'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+  redisConfigMock,
+  redisConfigMockFns,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type MockProc = EventEmitter & {
@@ -117,54 +122,41 @@ function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: st
   return proc
 }
 
-const { mockSpawn, mockExecSync, mockSecureFetch, mockSanitizeUrl, mockGetRedisClient, mockEnv } =
-  vi.hoisted(() => ({
-    mockSpawn: vi.fn(),
-    mockExecSync: vi.fn(() => Buffer.from('v23.11.0')),
-    mockSecureFetch: vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      headers: new Map<string, string>(),
-      text: async () => '',
-      json: async () => ({}),
-      arrayBuffer: async () => new ArrayBuffer(0),
-    })),
-    mockSanitizeUrl: vi.fn((url: string) => url),
-    mockGetRedisClient: vi.fn(() => null),
-    mockEnv: {
-      IVM_POOL_SIZE: '1',
-      IVM_MAX_CONCURRENT: '100',
-      IVM_MAX_PER_WORKER: '100',
-      IVM_WORKER_IDLE_TIMEOUT_MS: '60000',
-      IVM_MAX_QUEUE_SIZE: '10',
-      IVM_MAX_ACTIVE_PER_OWNER: '100',
-      IVM_MAX_QUEUED_PER_OWNER: '10',
-      IVM_MAX_OWNER_WEIGHT: '5',
-      IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '100',
-      IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: '1000',
-      IVM_QUEUE_TIMEOUT_MS: '1000',
-      IVM_MAX_FETCH_RESPONSE_BYTES: '',
-      IVM_MAX_FETCH_RESPONSE_CHARS: '',
-      IVM_MAX_FETCH_URL_LENGTH: '',
-      IVM_MAX_FETCH_OPTIONS_JSON_CHARS: '',
-      REDIS_URL: '',
-    } as Record<string, string>,
-  }))
-
-vi.mock('@sim/logger', () => loggerMock)
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithValidation: mockSecureFetch,
+const { mockSpawn, mockExecSync, mockSanitizeUrl, mockEnv } = vi.hoisted(() => ({
+  mockSpawn: vi.fn(),
+  mockExecSync: vi.fn(() => Buffer.from('v23.11.0')),
+  mockSanitizeUrl: vi.fn((url: string) => url),
+  mockEnv: {
+    IVM_POOL_SIZE: '1',
+    IVM_MAX_CONCURRENT: '100',
+    IVM_MAX_PER_WORKER: '100',
+    IVM_WORKER_IDLE_TIMEOUT_MS: '60000',
+    IVM_MAX_QUEUE_SIZE: '10',
+    IVM_MAX_ACTIVE_PER_OWNER: '100',
+    IVM_MAX_QUEUED_PER_OWNER: '10',
+    IVM_MAX_OWNER_WEIGHT: '5',
+    IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '100',
+    IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: '1000',
+    IVM_QUEUE_TIMEOUT_MS: '1000',
+    IVM_MAX_FETCH_RESPONSE_BYTES: '',
+    IVM_MAX_FETCH_RESPONSE_CHARS: '',
+    IVM_MAX_FETCH_URL_LENGTH: '',
+    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: '',
+    REDIS_URL: '',
+  } as Record<string, string>,
 }))
+
+const mockSecureFetch = inputValidationMockFns.mockSecureFetchWithValidation
+const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/core/utils/logging', () => ({
   sanitizeUrlForLog: mockSanitizeUrl,
 }))
 vi.mock('@/lib/core/config/env', () => ({
   env: mockEnv,
 }))
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: mockGetRedisClient,
-}))
+vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 vi.mock('node:child_process', () => ({
   execSync: mockExecSync,
   spawn: mockSpawn,

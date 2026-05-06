@@ -77,6 +77,7 @@ export const SUPPORTED_CODE_EXTENSIONS = [
   'editorconfig',
   'prettierrc',
   'eslintrc',
+  'mmd',
 ] as const
 
 export type SupportedCodeExtension = (typeof SUPPORTED_CODE_EXTENSIONS)[number]
@@ -94,13 +95,31 @@ export const SUPPORTED_AUDIO_EXTENSIONS = [
 
 export const SUPPORTED_VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'mkv', 'webm'] as const
 
+export const SUPPORTED_IMAGE_EXTENSIONS = [
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'svg',
+  'bmp',
+  'tif',
+  'tiff',
+  'heic',
+  'heif',
+  'avif',
+  'ico',
+] as const
+
 export type SupportedDocumentExtension = (typeof SUPPORTED_DOCUMENT_EXTENSIONS)[number]
 export type SupportedAudioExtension = (typeof SUPPORTED_AUDIO_EXTENSIONS)[number]
 export type SupportedVideoExtension = (typeof SUPPORTED_VIDEO_EXTENSIONS)[number]
+export type SupportedImageExtension = (typeof SUPPORTED_IMAGE_EXTENSIONS)[number]
 export type SupportedMediaExtension =
   | SupportedDocumentExtension
   | SupportedAudioExtension
   | SupportedVideoExtension
+  | SupportedImageExtension
 
 export const SUPPORTED_MIME_TYPES: Record<SupportedDocumentExtension, string[]> = {
   pdf: ['application/pdf', 'application/x-pdf'],
@@ -179,14 +198,19 @@ const SUPPORTED_IMAGE_MIME_TYPES = [
   'image/gif',
   'image/webp',
   'image/svg+xml',
+  'image/bmp',
+  'image/tiff',
+  'image/heic',
+  'image/heif',
+  'image/avif',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
 ]
-
-const SUPPORTED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
 
 export const CHAT_ACCEPT_ATTRIBUTE = [
   ACCEPT_ATTRIBUTE,
   ...SUPPORTED_IMAGE_MIME_TYPES,
-  ...SUPPORTED_IMAGE_EXTENSIONS,
+  ...SUPPORTED_IMAGE_EXTENSIONS.map((ext) => `.${ext}`),
 ].join(',')
 
 export interface FileValidationError {

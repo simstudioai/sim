@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { TinybirdQueryParams, TinybirdQueryResponse } from '@/tools/tinybird/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -101,7 +102,7 @@ export const queryTool: ToolConfig<TinybirdQueryParams, TinybirdQueryResponse> =
       } catch (parseError) {
         logger.error('Failed to parse JSON response', {
           contentType,
-          parseError: parseError instanceof Error ? parseError.message : String(parseError),
+          parseError: toError(parseError).message,
         })
         throw new Error(
           `Invalid JSON response: ${parseError instanceof Error ? parseError.message : 'Parse error'}`

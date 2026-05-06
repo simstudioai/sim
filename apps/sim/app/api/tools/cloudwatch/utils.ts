@@ -5,6 +5,7 @@ import {
   GetQueryResultsCommand,
   type ResultField,
 } from '@aws-sdk/client-cloudwatch-logs'
+import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 
 interface AwsCredentials {
@@ -79,7 +80,7 @@ export async function pollQueryResults(
       throw new Error(`CloudWatch Log Insights query ${status.toLowerCase()}`)
     }
 
-    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
+    await sleep(pollIntervalMs)
   }
 
   // Timeout -- fetch one last time for partial results
@@ -142,7 +143,7 @@ export async function getLogEvents(
   }[]
 }> {
   const command = new GetLogEventsCommand({
-    logGroupIdentifier: logGroupName,
+    logGroupName,
     logStreamName,
     ...(options?.startTime !== undefined && { startTime: options.startTime * 1000 }),
     ...(options?.endTime !== undefined && { endTime: options.endTime * 1000 }),

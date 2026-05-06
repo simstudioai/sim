@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { Badge, Skeleton } from '@/components/emcn'
+import { requestJson } from '@/lib/api/client/request'
+import { createBillingPortalContract } from '@/lib/api/contracts'
 import { USAGE_PILL_COLORS, USAGE_THRESHOLDS } from '@/lib/billing/client/consts'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
 import {
@@ -86,17 +88,28 @@ interface StatusTextConfig {
 }
 
 /**
- * Determines if user can manage billing based on plan type and org role.
+ * Determines if user can manage billing based on plan type, subscription
+ * scope, and org role.
  *
- * @param planType - The user's current plan type
+ * When the subscription is org-scoped (any subscription whose referenceId
+ * points at an organization — includes `pro_*` plans transferred to an
+ * org, not just team/enterprise), only owners/admins can manage billing.
+ * Otherwise any free/pro user can manage their own.
+ *
+ * @param planType - The user's current plan type (for display category)
  * @param orgRole - The user's role in the organization, if applicable
+ * @param isOrgScoped - Whether the subscription is attached to an org
  * @returns True if the user has billing management permissions
  */
-function canManageBilling(planType: PlanType, orgRole: OrgRole | null): boolean {
-  if (planType === 'free' || planType === 'pro') return true
-  if (planType === 'team' || planType === 'enterprise') {
+function canManageBilling(
+  planType: PlanType,
+  orgRole: OrgRole | null,
+  isOrgScoped: boolean
+): boolean {
+  if (isOrgScoped || planType === 'team' || planType === 'enterprise') {
     return orgRole === 'owner' || orgRole === 'admin'
   }
+  if (planType === 'free' || planType === 'pro') return true
   return false
 }
 
@@ -247,7 +260,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   const isCritical = isBlocked || progressPercentage >= USAGE_THRESHOLDS.CRITICAL
   const isWarning = !isCritical && progressPercentage >= USAGE_THRESHOLDS.WARNING
-  const userCanManageBilling = canManageBilling(planType, orgRole)
+  const isOrgScoped = Boolean(subscriptionData?.data?.isOrgScoped)
+  const userCanManageBilling = canManageBilling(planType, orgRole, isOrgScoped)
 
   const displayState: DisplayState = {
     planType,
@@ -310,7 +324,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   }, [navigateToSettings])
 
   const handleManageSeats = useCallback(() => {
-    navigateToSettings({ section: 'team' })
+    navigateToSettings({ section: 'organization' })
   }, [navigateToSettings])
 
   const handleUpgradeToEnterprise = useCallback(() => {
@@ -323,17 +337,11 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   const contextMenuItems = useMemo(
     () => ({
-      // Set limit: Only for Pro and Team admins (not free, not enterprise)
-      showSetLimit: (isPro || (isTeam && userCanManageBilling)) && !isEnterprise,
-      // Upgrade to Pro: Only for free users
+      showSetLimit: userCanManageBilling && !isFree && !isEnterprise,
       showUpgradeToPro: isFree,
-      // Upgrade to Team: Free users and Pro users with billing permission
       showUpgradeToTeam: isFree || (isPro && userCanManageBilling),
-      // Manage seats: Only for Team admins
       showManageSeats: isTeam && userCanManageBilling,
-      // Upgrade to Enterprise: Only for Team admins (not free, not pro, not enterprise)
       showUpgradeToEnterprise: isTeam && userCanManageBilling,
-      // Contact support: Only for Enterprise admins
       showContactSupport: isEnterprise && userCanManageBilling,
       onSetLimit: handleSetLimit,
       onUpgradeToPro: handleUpgradeToPro,
@@ -435,21 +443,15 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
       if (isBlocked && userCanManageBilling) {
         try {
-          const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+          const context = isOrgScoped ? 'organization' : 'user'
           const organizationId = subscriptionData?.data?.organization?.id
 
-          const response = await fetch('/api/billing/portal', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ context, organizationId }),
+          const { url } = await requestJson(createBillingPortalContract, {
+            body: { context, organizationId },
           })
-
-          if (response.ok) {
-            const { url } = await response.json()
-            window.open(url, '_blank')
-            logger.info('Opened billing portal for blocked account', { context, organizationId })
-            return
-          }
+          window.open(url, '_blank')
+          logger.info('Opened billing portal for blocked account', { context, organizationId })
+          return
         } catch (portalError) {
           logger.warn('Failed to open billing portal, falling back to settings', {
             error: portalError,

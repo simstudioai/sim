@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { memory } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getAccurateTokenCount } from '@/lib/tokenization/estimators'
 import { MEMORY } from '@/executor/constants'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
@@ -109,35 +109,6 @@ export class Memory {
       key,
       count: messagesToStore.length,
     })
-  }
-
-  wrapStreamForPersistence(
-    stream: ReadableStream<Uint8Array>,
-    ctx: ExecutionContext,
-    inputs: AgentInputs
-  ): ReadableStream<Uint8Array> {
-    const chunks: string[] = []
-    const decoder = new TextDecoder()
-
-    const transformStream = new TransformStream<Uint8Array, Uint8Array>({
-      transform: (chunk, controller) => {
-        controller.enqueue(chunk)
-        const decoded = decoder.decode(chunk, { stream: true })
-        chunks.push(decoded)
-      },
-
-      flush: () => {
-        const content = chunks.join('')
-        if (content.trim()) {
-          this.appendToMemory(ctx, inputs, {
-            role: 'assistant',
-            content,
-          }).catch((error) => logger.error('Failed to persist streaming response:', error))
-        }
-      },
-    })
-
-    return stream.pipeThrough(transformStream)
   }
 
   private requireWorkspaceId(ctx: ExecutionContext): string {

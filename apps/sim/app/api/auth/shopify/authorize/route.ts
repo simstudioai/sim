@@ -1,9 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
+import { shopifyAuthorizeQuerySchema } from '@/lib/api/contracts/oauth-connections'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
+import { isSameOrigin } from '@/lib/core/utils/validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getScopesForService } from '@/lib/oauth/utils'
 
 const logger = createLogger('ShopifyAuthorize')
@@ -12,7 +15,7 @@ export const dynamic = 'force-dynamic'
 
 const SHOPIFY_SCOPES = getScopesForService('shopify').join(',')
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -26,11 +29,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Shopify client ID not configured' }, { status: 500 })
     }
 
-    const shopDomain = request.nextUrl.searchParams.get('shop')
-    const returnUrl = request.nextUrl.searchParams.get('returnUrl')
+    const query = shopifyAuthorizeQuerySchema.parse({
+      shop: request.nextUrl.searchParams.get('shop') || undefined,
+      returnUrl: request.nextUrl.searchParams.get('returnUrl') || undefined,
+    })
+    const { shop: shopDomain, returnUrl } = query
 
     if (!shopDomain) {
-      const returnUrlParam = returnUrl ? encodeURIComponent(returnUrl) : ''
+      const safeReturnUrl =
+        returnUrl && isSameOrigin(returnUrl) ? encodeURIComponent(returnUrl) : ''
+      const returnUrlJsLiteral = JSON.stringify(safeReturnUrl)
       return new NextResponse(
         `<!DOCTYPE html>
 <html>
@@ -118,7 +126,7 @@ export async function GET(request: NextRequest) {
     </div>
 
     <script>
-      const returnUrl = '${returnUrlParam}';
+      const returnUrl = ${returnUrlJsLiteral};
       function handleSubmit(e) {
         e.preventDefault();
         let shop = document.getElementById('shop').value.trim().toLowerCase();
@@ -192,7 +200,7 @@ export async function GET(request: NextRequest) {
       path: '/',
     })
 
-    if (returnUrl) {
+    if (returnUrl && isSameOrigin(returnUrl)) {
       response.cookies.set('shopify_return_url', returnUrl, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -207,4 +215,4 @@ export async function GET(request: NextRequest) {
     logger.error('Error initiating Shopify authorization:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

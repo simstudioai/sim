@@ -3,6 +3,7 @@ import type {
   IterationContext,
   ParentIteration,
 } from '@/executor/execution/types'
+import type { BlockLog } from '@/executor/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 export type ExecutionEventType =
@@ -51,6 +52,8 @@ export interface ExecutionCompletedEvent extends BaseExecutionEvent {
     duration: number
     startTime: string
     endTime: string
+    /** Authoritative per-block terminal states from the server's blockLogs. */
+    finalBlockLogs?: BlockLog[]
   }
 }
 
@@ -65,6 +68,8 @@ export interface ExecutionPausedEvent extends BaseExecutionEvent {
     duration: number
     startTime: string
     endTime: string
+    /** Authoritative per-block terminal states from the server's blockLogs. */
+    finalBlockLogs?: BlockLog[]
   }
 }
 
@@ -77,6 +82,8 @@ export interface ExecutionErrorEvent extends BaseExecutionEvent {
   data: {
     error: string
     duration: number
+    /** Authoritative per-block terminal states from the server's blockLogs. */
+    finalBlockLogs?: BlockLog[]
   }
 }
 
@@ -85,6 +92,8 @@ export interface ExecutionCancelledEvent extends BaseExecutionEvent {
   workflowId: string
   data: {
     duration: number
+    /** Authoritative per-block terminal states from the server's blockLogs. */
+    finalBlockLogs?: BlockLog[]
   }
 }
 
@@ -177,7 +186,12 @@ export interface BlockChildWorkflowStartedEvent extends BaseExecutionEvent {
     blockId: string
     childWorkflowInstanceId: string
     iterationCurrent?: number
+    iterationTotal?: number
+    iterationType?: SubflowType
     iterationContainerId?: string
+    parentIterations?: ParentIteration[]
+    childWorkflowBlockId?: string
+    childWorkflowName?: string
     executionOrder?: number
   }
 }
@@ -424,13 +438,14 @@ export function createExecutionCallbacks(options: {
     }
   }
 
-  const onChildWorkflowInstanceReady = (
+  const onChildWorkflowInstanceReady = async (
     blockId: string,
     childWorkflowInstanceId: string,
     iterationContext?: IterationContext,
-    executionOrder?: number
+    executionOrder?: number,
+    childWorkflowContext?: ChildWorkflowContext
   ) => {
-    void sendBufferedEvent({
+    await sendBufferedEvent({
       type: 'block:childWorkflowStarted',
       timestamp: new Date().toISOString(),
       executionId,
@@ -440,7 +455,16 @@ export function createExecutionCallbacks(options: {
         childWorkflowInstanceId,
         ...(iterationContext && {
           iterationCurrent: iterationContext.iterationCurrent,
+          iterationTotal: iterationContext.iterationTotal,
+          iterationType: iterationContext.iterationType,
           iterationContainerId: iterationContext.iterationContainerId,
+          ...(iterationContext.parentIterations?.length && {
+            parentIterations: iterationContext.parentIterations,
+          }),
+        }),
+        ...(childWorkflowContext && {
+          childWorkflowBlockId: childWorkflowContext.parentBlockId,
+          childWorkflowName: childWorkflowContext.workflowName,
         }),
         ...(executionOrder !== undefined && { executionOrder }),
       },

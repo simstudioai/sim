@@ -1,7 +1,8 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
+import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
-import { safeCompare } from '@/lib/core/security/encryption'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -47,7 +48,7 @@ async function resolveSlackFileInfo(
   } catch (error) {
     logger.error('Error calling Slack files.info', {
       fileId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return null
   }
@@ -137,7 +138,7 @@ async function downloadSlackFiles(
     } catch (error) {
       logger.error('Error downloading Slack file, skipping', {
         fileId: f.id,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -174,7 +175,7 @@ async function fetchSlackMessageText(
     logger.warn('Error fetching Slack message text', {
       channel,
       messageTs,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return ''
   }
@@ -206,10 +207,7 @@ function validateSlackSignature(
 
     const providedSignature = signature.substring(3)
     const basestring = `v0:${timestamp}:${rawBody}`
-    const computedHash = crypto
-      .createHmac('sha256', signingSecret)
-      .update(basestring, 'utf8')
-      .digest('hex')
+    const computedHash = hmacSha256Hex(basestring, signingSecret)
 
     return safeCompare(computedHash, providedSignature)
   } catch (error) {

@@ -2,7 +2,7 @@ import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
-import { PROVIDER_DEFINITIONS } from '@/providers/models'
+import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -320,24 +320,38 @@ export function serializeTableMeta(table: {
  * Excludes dynamic providers (ollama, vllm, openrouter) whose models are user-configured.
  * Includes provider ID and whether the model is hosted by Sim (no API key required).
  */
-function getStaticModelOptionsForVFS(): Array<{
+interface StaticModelOption {
   id: string
   provider: string
   hosted: boolean
-}> {
-  const hostedProviders = new Set(['openai', 'anthropic', 'google'])
-  const dynamicProviders = new Set(['ollama', 'vllm', 'openrouter', 'fireworks'])
+  recommended?: boolean
+  speedOptimized?: boolean
+  deprecated?: boolean
+}
 
-  const models: Array<{ id: string; provider: string; hosted: boolean }> = []
+const DYNAMIC_PROVIDERS_NOTE = {
+  note: 'The options array above lists Sim\'s static provider catalog. These providers also accept user-configured models that are NOT enumerated here: the user may have additional ids available at runtime (e.g. local Ollama tags). To reference one, prefix the model id with the provider slash below — for example "ollama/llama3.1:8b" instead of the bare "llama3.1:8b". The server rejects bare ids that are not in the catalog; always use the prefix for user-configured models.',
+  prefixes: DYNAMIC_MODEL_PROVIDERS.map((p) => `${p}/`),
+} as const
+
+function getStaticModelOptionsForVFS(): StaticModelOption[] {
+  const hostedProviders = new Set(['openai', 'anthropic', 'google'])
+  const dynamicProviders = new Set<string>(DYNAMIC_MODEL_PROVIDERS)
+
+  const models: StaticModelOption[] = []
 
   for (const [providerId, def] of Object.entries(PROVIDER_DEFINITIONS)) {
     if (dynamicProviders.has(providerId)) continue
     for (const model of def.models) {
-      models.push({
+      const option: StaticModelOption = {
         id: model.id,
         provider: providerId,
         hosted: hostedProviders.has(providerId),
-      })
+      }
+      if (model.recommended) option.recommended = true
+      if (model.speedOptimized) option.speedOptimized = true
+      if (model.deprecated) option.deprecated = true
+      models.push(option)
     }
   }
 
@@ -378,9 +392,9 @@ export function serializeBlockSchema(block: BlockConfig): string {
     .map((sb) => {
       const serialized = serializeSubBlock(sb)
 
-      // For model comboboxes with function options, inject static model data with hosting info
       if (sb.id === 'model' && sb.type === 'combobox' && typeof sb.options === 'function') {
         serialized.options = getStaticModelOptionsForVFS()
+        serialized.dynamicProviders = DYNAMIC_PROVIDERS_NOTE
       }
 
       return serialized

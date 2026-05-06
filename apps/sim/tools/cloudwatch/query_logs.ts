@@ -97,11 +97,25 @@ export const queryLogsTool: ToolConfig<CloudWatchQueryLogsParams, CloudWatchQuer
   },
 
   outputs: {
-    results: { type: 'array', description: 'Query result rows' },
+    results: {
+      type: 'array',
+      description: 'Query result rows (each row is a key/value map of field name to value)',
+    },
     statistics: {
       type: 'object',
-      description: 'Query statistics (bytesScanned, recordsMatched, recordsScanned)',
+      description: 'Query statistics',
+      properties: {
+        bytesScanned: { type: 'number', description: 'Total bytes of log data scanned' },
+        recordsMatched: {
+          type: 'number',
+          description: 'Number of log records that matched the query',
+        },
+        recordsScanned: { type: 'number', description: 'Total log records scanned' },
+      },
     },
-    status: { type: 'string', description: 'Query completion status' },
+    status: {
+      type: 'string',
+      description: 'Query completion status (Complete, Failed, Cancelled, or Timeout)',
+    },
   },
 }

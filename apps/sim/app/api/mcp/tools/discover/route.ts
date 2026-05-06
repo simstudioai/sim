@@ -1,5 +1,8 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { mcpToolDiscoveryQuerySchema, refreshMcpToolsBodySchema } from '@/lib/api/contracts/mcp'
+import { validationErrorResponse } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpToolDiscoveryResponse } from '@/lib/mcp/types'
@@ -9,12 +12,17 @@ const logger = createLogger('McpToolDiscoveryAPI')
 
 export const dynamic = 'force-dynamic'
 
-export const GET = withMcpAuth('read')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+export const GET = withRouteHandler(
+  withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const { searchParams } = new URL(request.url)
-      const serverId = searchParams.get('serverId')
-      const forceRefresh = searchParams.get('refresh') === 'true'
+      const queryValidation = mcpToolDiscoveryQuerySchema.safeParse(
+        Object.fromEntries(searchParams)
+      )
+      if (!queryValidation.success) return validationErrorResponse(queryValidation.error)
+      const query = queryValidation.data
+      const serverId = query.serverId
+      const forceRefresh = query.refresh === 'true'
 
       logger.info(`[${requestId}] Discovering MCP tools`, { serverId, workspaceId, forceRefresh })
 
@@ -42,22 +50,20 @@ export const GET = withMcpAuth('read')(
       const { message, status } = categorizeError(error)
       return createMcpErrorResponse(new Error(message), 'Failed to discover MCP tools', status)
     }
-  }
+  })
 )
 
-export const POST = withMcpAuth('read')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+export const POST = withRouteHandler(
+  withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
-      const body = getParsedBody(request) || (await request.json())
-      const { serverIds } = body
+      const rawBody = getParsedBody(request) ?? (await request.json())
+      const parsedBody = refreshMcpToolsBodySchema.safeParse(rawBody)
 
-      if (!Array.isArray(serverIds)) {
-        return createMcpErrorResponse(
-          new Error('serverIds must be an array'),
-          'Invalid request format',
-          400
-        )
+      if (!parsedBody.success) {
+        return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
       }
+
+      const { serverIds } = parsedBody.data
 
       logger.info(`[${requestId}] Refreshing tools for ${serverIds.length} servers`)
 
@@ -98,5 +104,5 @@ export const POST = withMcpAuth('read')(
       const { message, status } = categorizeError(error)
       return createMcpErrorResponse(new Error(message), 'Failed to refresh tool discovery', status)
     }
-  }
+  })
 )

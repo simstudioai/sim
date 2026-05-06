@@ -1,37 +1,32 @@
-import { loggerMock } from '@sim/testing'
-import { describe, expect, test, vi } from 'vitest'
+import { workflowsPersistenceUtilsMock, workflowsPersistenceUtilsMockFns } from '@sim/testing'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   calculateCostSummary,
   createEnvironmentObject,
   createTriggerObject,
 } from '@/lib/logs/execution/logging-factory'
 
-// Mock the billing constants
+/** Mock the billing constants */
 vi.mock('@/lib/billing/constants', () => ({
   BASE_EXECUTION_CHARGE: 0.005,
 }))
 
-vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
-// Mock workflow persistence utils
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadDeployedWorkflowState: vi.fn(() =>
-    Promise.resolve({
-      blocks: {},
-      edges: [],
-      loops: {},
-      parallels: {},
-    })
-  ),
-  loadWorkflowFromNormalizedTables: vi.fn(() =>
-    Promise.resolve({
-      blocks: {},
-      edges: [],
-      loops: {},
-      parallels: {},
-    })
-  ),
-}))
+beforeEach(() => {
+  workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState.mockResolvedValue({
+    blocks: {},
+    edges: [],
+    loops: {},
+    parallels: {},
+  })
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables.mockResolvedValue({
+    blocks: {},
+    edges: [],
+    loops: {},
+    parallels: {},
+  })
+})
 
 describe('createTriggerObject', () => {
   test('should create a trigger object with basic type', () => {
@@ -404,5 +399,104 @@ describe('calculateCostSummary', () => {
     expect(result.totalCost).toBe(0.03 + BASE_EXECUTION_CHARGE)
     expect(result.totalInputCost).toBe(0)
     expect(result.totalOutputCost).toBe(0)
+  })
+
+  test('BYOK regression: parent block cost is authoritative; model children are not double-counted', () => {
+    // Reproduces the BYOK billing leak: provider sets parent agent span's
+    // block-level cost to zero (BYOK suppression), but trace enrichers still
+    // wrote gross hosted cost into time-segment children. Before the fix this
+    // test would expect 0.03; after the fix the parent's zero is authoritative.
+    const traceSpans = [
+      {
+        id: 'agent-span',
+        type: 'agent',
+        model: 'claude-opus-4-6',
+        cost: { input: 0, output: 0, total: 0 },
+        tokens: { input: 68057, output: 1548, total: 69605 },
+        children: [
+          {
+            id: 'agent-span-segment-0',
+            type: 'model',
+            model: 'claude-opus-4-6',
+            cost: { input: 0.340285, output: 0.0387, total: 0.378985 },
+            tokens: { input: 68057, output: 1548, total: 69605 },
+          },
+        ],
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.modelCost).toBe(0)
+    expect(result.totalCost).toBe(BASE_EXECUTION_CHARGE)
+    // Model is still tracked for token-usage display, but cost must be zero.
+    expect(result.models['claude-opus-4-6'].total).toBe(0)
+    expect(result.models['claude-opus-4-6'].input).toBe(0)
+    expect(result.models['claude-opus-4-6'].output).toBe(0)
+    expect(result.models['claude-opus-4-6'].tokens.input).toBe(68057)
+    expect(result.models['claude-opus-4-6'].tokens.output).toBe(1548)
+  })
+
+  test('non-BYOK still aggregates parent block cost correctly with model children present', () => {
+    // Same shape as the BYOK case but the parent carries the gross cost
+    // (typical hosted-key path). The parent's cost is counted once; model
+    // children are skipped to avoid double-counting.
+    const traceSpans = [
+      {
+        id: 'agent-span',
+        type: 'agent',
+        model: 'gpt-4o',
+        cost: { input: 0.01, output: 0.02, total: 0.03 },
+        tokens: { input: 1000, output: 2000, total: 3000 },
+        children: [
+          {
+            id: 'agent-span-segment-0',
+            type: 'model',
+            model: 'gpt-4o',
+            cost: { input: 0.01, output: 0.02, total: 0.03 },
+            tokens: { input: 1000, output: 2000, total: 3000 },
+          },
+        ],
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.modelCost).toBe(0.03)
+    expect(result.totalCost).toBe(0.03 + BASE_EXECUTION_CHARGE)
+    expect(result.models['gpt-4o'].total).toBe(0.03)
+  })
+
+  test('preserves parent toolCost while skipping model breakdown children', () => {
+    const traceSpans = [
+      {
+        id: 'agent-span',
+        type: 'agent',
+        model: 'gpt-4o',
+        cost: { input: 0.01, output: 0.02, toolCost: 0.015, total: 0.045 },
+        tokens: { input: 1000, output: 2000, total: 3000 },
+        children: [
+          {
+            id: 'agent-span-model-segment',
+            type: 'model',
+            model: 'gpt-4o',
+            cost: { input: 0.01, output: 0.02, total: 0.03 },
+            tokens: { input: 1000, output: 2000, total: 3000 },
+          },
+          {
+            id: 'agent-span-tool-segment',
+            type: 'tool',
+            name: 'firecrawl_scrape',
+          },
+        ],
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.modelCost).toBe(0.045)
+    expect(result.totalCost).toBe(0.045 + BASE_EXECUTION_CHARGE)
+    expect(result.models['gpt-4o'].total).toBe(0.045)
+    expect(result.models['gpt-4o'].toolCost).toBe(0.015)
   })
 })

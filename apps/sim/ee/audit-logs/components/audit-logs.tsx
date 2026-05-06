@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { formatDateTime } from '@sim/utils/formatting'
 import { ChevronDown, RefreshCw, Search } from 'lucide-react'
 import { Badge, Button, Combobox, type ComboboxOption, Skeleton } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { cn } from '@/lib/core/utils/cn'
-import { formatDateTime } from '@/lib/core/utils/formatting'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'

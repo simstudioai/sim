@@ -1,9 +1,10 @@
-import { loggerMock } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
+import { featureFlagsMock } from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   validateAirtableId,
   validateAlphanumericId,
   validateAwsRegion,
+  validateCallbackUrl,
   validateEnum,
   validateExternalUrl,
   validateFileExtension,
@@ -21,14 +22,17 @@ import {
   validatePathSegment,
   validateProxyUrl,
   validateS3BucketName,
+  validateServiceNowInstanceUrl,
+  validateSupabaseProjectId,
+  validateWorkdayTenantUrl,
 } from '@/lib/core/security/input-validation'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import {
+  isPrivateOrReservedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
 
-vi.mock('@sim/logger', () => loggerMock)
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isHosted: false,
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 describe('validatePathSegment', () => {
   describe('valid inputs', () => {
@@ -558,6 +562,147 @@ describe('sanitizeForLogging', () => {
     const input = 'This is a safe string'
     const result = sanitizeForLogging(input)
     expect(result).toBe(input)
+  })
+})
+
+describe('isPrivateOrReservedIP', () => {
+  describe('IPv4 private/reserved ranges', () => {
+    it.concurrent.each([
+      ['192.168.1.1'],
+      ['192.168.0.0'],
+      ['10.0.0.1'],
+      ['10.255.255.255'],
+      ['172.16.0.1'],
+      ['172.31.255.255'],
+      ['127.0.0.1'],
+      ['127.255.255.255'],
+      ['169.254.169.254'],
+      ['0.0.0.0'],
+      ['224.0.0.1'],
+    ])('blocks IPv4 %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
+  })
+
+  describe('IPv6 reserved ranges', () => {
+    it.concurrent.each([
+      ['::1'],
+      ['::'],
+      ['fe80::1'],
+      ['fc00::1'],
+      ['fd00::1'],
+      ['ff02::1'],
+      ['2001:db8::1'],
+    ])('blocks IPv6 %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
+  })
+
+  describe('IPv4-mapped IPv6 (::ffff:0:0/96)', () => {
+    it.concurrent.each([
+      ['::ffff:192.168.1.1'],
+      ['::ffff:127.0.0.1'],
+      ['::ffff:169.254.169.254'],
+      ['::ffff:c0a8:101'],
+      ['::ffff:0:0'],
+    ])('blocks mapped private/reserved %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
+
+    it.concurrent('allows mapped public IPv4 ::ffff:8.8.8.8', () => {
+      expect(isPrivateOrReservedIP('::ffff:8.8.8.8')).toBe(false)
+    })
+  })
+
+  describe('NAT64 (RFC 6052, 64:ff9b::/96)', () => {
+    it.concurrent('blocks NAT64-encoded private IPv4', () => {
+      expect(isPrivateOrReservedIP('64:ff9b::192.168.1.1')).toBe(true)
+    })
+  })
+
+  describe('IPv4-compatible IPv6 (::a.b.c.d, RFC 4291 §2.5.5.1, deprecated)', () => {
+    it.concurrent.each([
+      ['::c0a8:101', '192.168.1.1 (URL-normalized hex form)'],
+      ['::c0a8:0101', '192.168.1.1 (zero-padded hex form)'],
+      ['::a9fe:a9fe', '169.254.169.254 (cloud metadata)'],
+      ['::7f00:1', '127.0.0.1 (loopback)'],
+      ['::7f00:0001', '127.0.0.1 (zero-padded)'],
+      ['::a00:1', '10.0.0.1 (RFC1918)'],
+      ['::ac10:1', '172.16.0.1 (RFC1918)'],
+      ['::e000:1', '224.0.0.1 (multicast)'],
+      ['::192.168.1.1', 'dotted form ::192.168.1.1'],
+      ['::169.254.169.254', 'dotted form ::169.254.169.254'],
+      ['::127.0.0.1', 'dotted form ::127.0.0.1'],
+      ['::10.0.0.1', 'dotted form ::10.0.0.1'],
+    ])('blocks %s — %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
+
+    it.concurrent.each([
+      ['::8.8.8.8', 'dotted form embedding public IPv4'],
+      ['::808:808', 'hex form embedding 8.8.8.8'],
+      ['::0808:0808', 'zero-padded hex form embedding 8.8.8.8'],
+    ])('allows IPv4-compatible IPv6 with embedded public IPv4 %s — %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(false)
+    })
+
+    it.concurrent.each([
+      ['::ffff:1', 'embedded 255.255.0.1 (Class E reserved) via parts[6]=0xffff'],
+      ['::ffff:0', 'embedded 255.255.0.0 (Class E reserved)'],
+      ['::ffff:abcd', 'embedded 255.255.171.205 (Class E reserved)'],
+      ['::f000:1', 'embedded 240.0.0.1 (Class E reserved)'],
+    ])('blocks IPv4-compatible IPv6 with Class E embedded IPv4 %s — %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
+  })
+
+  describe('non-IPv4-compat unicast IPv6 (must not over-block)', () => {
+    it.concurrent.each([
+      ['2606:4700:4700::1111'],
+      ['2001:4860:4860::8888'],
+      ['::1:c0a8:101'],
+      ['1::c0a8:101'],
+      ['1:2:3:4:5:6:c0a8:101'],
+    ])('allows %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(false)
+    })
+  })
+
+  describe('IPv4 public addresses', () => {
+    it.concurrent.each([['8.8.8.8'], ['1.1.1.1'], ['1.0.0.1']])('allows %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(false)
+    })
+  })
+
+  describe('IPv4 alternate notations', () => {
+    it.concurrent.each([['0177.0.0.1'], ['0x7f000001']])('blocks loopback notation %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
+  })
+
+  describe('invalid input', () => {
+    it.concurrent.each([['not-an-ip'], [''], ['256.256.256.256'], ['::g']])('rejects %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
+  })
+})
+
+describe('URL hostname normalization (Node URL parser + isPrivateOrReservedIP integration)', () => {
+  it.concurrent('Node normalizes [::192.168.1.1] to [::c0a8:101] and validator blocks it', () => {
+    const url = new URL('http://[::192.168.1.1]/')
+    const cleanHostname =
+      url.hostname.startsWith('[') && url.hostname.endsWith(']')
+        ? url.hostname.slice(1, -1)
+        : url.hostname
+    expect(cleanHostname).toBe('::c0a8:101')
+    expect(isPrivateOrReservedIP(cleanHostname)).toBe(true)
+  })
+
+  it.concurrent('Node normalizes [::169.254.169.254] and validator blocks the metadata IP', () => {
+    const url = new URL('http://[::169.254.169.254]/')
+    const cleanHostname = url.hostname.slice(1, -1)
+    expect(cleanHostname).toBe('::a9fe:a9fe')
+    expect(isPrivateOrReservedIP(cleanHostname)).toBe(true)
   })
 })
 
@@ -1310,8 +1455,27 @@ describe('validateAwsRegion', () => {
       expect(result.isValid).toBe(true)
     })
 
+    it.concurrent('should accept us-iso-west-1', () => {
+      const result = validateAwsRegion('us-iso-west-1')
+      expect(result.isValid).toBe(true)
+    })
+
     it.concurrent('should accept us-isob-east-1', () => {
       const result = validateAwsRegion('us-isob-east-1')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('valid Mexico regions', () => {
+    it.concurrent('should accept mx-central-1', () => {
+      const result = validateAwsRegion('mx-central-1')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('valid EU Sovereign Cloud regions', () => {
+    it.concurrent('should accept eu-isoe-west-1', () => {
+      const result = validateAwsRegion('eu-isoe-west-1')
       expect(result.isValid).toBe(true)
     })
   })
@@ -1716,6 +1880,393 @@ describe('validateMondayColumnId', () => {
 
     it.concurrent('should reject strings exceeding max length', () => {
       const result = validateMondayColumnId('a'.repeat(256))
+      expect(result.isValid).toBe(false)
+    })
+  })
+
+  describe('validateSupabaseProjectId', () => {
+    describe('valid inputs', () => {
+      it.concurrent('should accept a typical 20-char lowercase alphanumeric project ID', () => {
+        const result = validateSupabaseProjectId('jdrkgepadsdopsntdlom')
+        expect(result.isValid).toBe(true)
+        expect(result.sanitized).toBe('jdrkgepadsdopsntdlom')
+      })
+
+      it.concurrent('should accept project IDs with digits', () => {
+        const result = validateSupabaseProjectId('abc123def456ghi789jk')
+        expect(result.isValid).toBe(true)
+      })
+
+      it.concurrent('should accept IDs at the minimum length boundary (10)', () => {
+        const result = validateSupabaseProjectId('abcdefghij')
+        expect(result.isValid).toBe(true)
+      })
+
+      it.concurrent('should accept IDs at the maximum length boundary (40)', () => {
+        const result = validateSupabaseProjectId('a'.repeat(40))
+        expect(result.isValid).toBe(true)
+      })
+    })
+
+    describe('SSRF attack vectors', () => {
+      it.concurrent('should reject fragment injection (#)', () => {
+        const result = validateSupabaseProjectId('evil#attacker.com')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject @ for authority injection', () => {
+        const result = validateSupabaseProjectId('evil@attacker.com')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject path traversal with slashes', () => {
+        const result = validateSupabaseProjectId('evil/../../etc/passwd')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject dots (subdomain manipulation)', () => {
+        const result = validateSupabaseProjectId('evil.attacker.com')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject backslashes', () => {
+        const result = validateSupabaseProjectId('evil\\path')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject colons (port injection)', () => {
+        const result = validateSupabaseProjectId('evil:8080')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject URL-encoded characters', () => {
+        const result = validateSupabaseProjectId('evil%23attacker')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject spaces', () => {
+        const result = validateSupabaseProjectId('evil host')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject newlines (header injection)', () => {
+        const result = validateSupabaseProjectId('evil\r\nHost: attacker.com')
+        expect(result.isValid).toBe(false)
+      })
+    })
+
+    describe('invalid formats', () => {
+      it.concurrent('should reject null', () => {
+        const result = validateSupabaseProjectId(null)
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject undefined', () => {
+        const result = validateSupabaseProjectId(undefined)
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject empty string', () => {
+        const result = validateSupabaseProjectId('')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject uppercase letters', () => {
+        const result = validateSupabaseProjectId('JDRKGEPADSDOPSNTDLOM')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject mixed case', () => {
+        const result = validateSupabaseProjectId('jdrkGEPadsdOPSntdlom')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject hyphens', () => {
+        const result = validateSupabaseProjectId('jdrk-gepa-dsdo-psnt')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject underscores', () => {
+        const result = validateSupabaseProjectId('jdrk_gepa_dsdo_psnt')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject IDs shorter than 10 characters', () => {
+        const result = validateSupabaseProjectId('abcdefghi')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject IDs longer than 40 characters', () => {
+        const result = validateSupabaseProjectId('a'.repeat(41))
+        expect(result.isValid).toBe(false)
+      })
+    })
+  })
+})
+
+describe('validateCallbackUrl', () => {
+  const ORIGIN = 'https://sim.app'
+  const originalWindow = (globalThis as { window?: unknown }).window
+
+  beforeEach(() => {
+    ;(globalThis as { window?: unknown }).window = {
+      location: { origin: ORIGIN },
+    }
+  })
+
+  afterEach(() => {
+    if (originalWindow === undefined) {
+      ;(globalThis as { window?: unknown }).window = undefined
+    } else {
+      ;(globalThis as { window?: unknown }).window = originalWindow
+    }
+  })
+
+  describe('accepts legitimate same-origin URLs', () => {
+    it.each([
+      ['/workspace'],
+      ['/invite/abc-123'],
+      ['/invite/abc?foo=bar&baz=qux'],
+      ['/workspace#section'],
+      ['/credential-account/456'],
+      ['?reset=true'],
+      ['/'],
+      ['https://sim.app/workspace'],
+      ['https://sim.app/'],
+      ['HTTPS://SIM.APP/foo'],
+    ])('accepts %s', (url) => {
+      expect(validateCallbackUrl(url)).toBe(true)
+    })
+  })
+
+  describe('rejects open-redirect payloads', () => {
+    it.each([
+      ['', 'empty string'],
+      ['//evil.com', 'protocol-relative'],
+      ['/\\evil.com', 'backslash protocol-relative'],
+      ['\\\\evil.com', 'double backslash'],
+      ['/\t/evil.com', 'tab-stripped protocol-relative'],
+      ['/\n/evil.com', 'newline-stripped protocol-relative'],
+      ['/\r/evil.com', 'CR-stripped protocol-relative'],
+      ['https://evil.com', 'cross-origin absolute URL'],
+      ['https://sim.app@evil.com', 'userinfo smuggling'],
+      ['https://sim.app.evil.com', 'subdomain confusion'],
+      ['https://sim.app:3001/foo', 'different port'],
+      ['http://sim.app/foo', 'different protocol'],
+      ['javascript:alert(1)', 'javascript scheme'],
+      ['data:text/html,<script>alert(1)</script>', 'data scheme'],
+      ['vbscript:msgbox', 'vbscript scheme'],
+    ])('rejects %s (%s)', (url) => {
+      expect(validateCallbackUrl(url)).toBe(false)
+    })
+  })
+
+  describe('server-side (no window)', () => {
+    beforeEach(() => {
+      ;(globalThis as { window?: unknown }).window = undefined
+    })
+
+    it('falls back to placeholder origin and still rejects cross-origin URLs', () => {
+      expect(validateCallbackUrl('/workspace')).toBe(true)
+      expect(validateCallbackUrl('//evil.com')).toBe(false)
+      expect(validateCallbackUrl('https://evil.com')).toBe(false)
+      expect(validateCallbackUrl('javascript:alert(1)')).toBe(false)
+    })
+  })
+})
+
+describe('validateServiceNowInstanceUrl', () => {
+  describe('valid ServiceNow instance URLs', () => {
+    it.concurrent('should accept *.service-now.com', () => {
+      const result = validateServiceNowInstanceUrl('https://acme.service-now.com')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('https://acme.service-now.com')
+    })
+
+    it.concurrent('should accept *.servicenow.com', () => {
+      const result = validateServiceNowInstanceUrl('https://acme.servicenow.com')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept *.servicenowservices.com (GovCloud)', () => {
+      const result = validateServiceNowInstanceUrl('https://acme.servicenowservices.com')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept URLs with paths', () => {
+      const result = validateServiceNowInstanceUrl('https://acme.service-now.com/api/now/table')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept multi-level subdomains', () => {
+      const result = validateServiceNowInstanceUrl('https://dev.acme.service-now.com')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('invalid hosts — allowlist rejection', () => {
+    it.concurrent('should reject attacker-controlled domains', () => {
+      const result = validateServiceNowInstanceUrl('https://evil.com')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('ServiceNow-hosted domain')
+    })
+
+    it.concurrent('should reject lookalike suffixes', () => {
+      const result = validateServiceNowInstanceUrl('https://acme.service-now.com.evil.com')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject embedded substrings', () => {
+      const result = validateServiceNowInstanceUrl('https://service-now.com.evil.com')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject vanity CNAME hosts (Custom URL plugin)', () => {
+      const result = validateServiceNowInstanceUrl('https://support.acme.com')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('ServiceNow-hosted domain')
+    })
+
+    it.concurrent('should reject userinfo smuggling', () => {
+      const result = validateServiceNowInstanceUrl('https://acme.service-now.com@evil.com')
+      expect(result.isValid).toBe(false)
+    })
+  })
+
+  describe('invalid URLs — delegated to validateExternalUrl', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateServiceNowInstanceUrl(null)
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject empty string', () => {
+      const result = validateServiceNowInstanceUrl('')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject http:// protocol', () => {
+      const result = validateServiceNowInstanceUrl('http://acme.service-now.com')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('https://')
+    })
+
+    it.concurrent('should reject private IPs', () => {
+      const result = validateServiceNowInstanceUrl('https://192.168.1.1')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('private IP')
+    })
+
+    it.concurrent('should reject link-local metadata IP', () => {
+      const result = validateServiceNowInstanceUrl('https://169.254.169.254')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject blocked ports', () => {
+      const result = validateServiceNowInstanceUrl('https://acme.service-now.com:22')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('blocked port')
+    })
+
+    it.concurrent('should reject malformed URLs', () => {
+      const result = validateServiceNowInstanceUrl('not-a-url')
+      expect(result.isValid).toBe(false)
+    })
+  })
+})
+
+describe('validateWorkdayTenantUrl', () => {
+  describe('valid Workday tenant URLs', () => {
+    it.concurrent('should accept *.workday.com implementation tenants', () => {
+      const result = validateWorkdayTenantUrl('https://wd2-impl-services1.workday.com')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('https://wd2-impl-services1.workday.com')
+    })
+
+    it.concurrent('should accept *.workday.com production tenants', () => {
+      const result = validateWorkdayTenantUrl('https://wd5-services1.workday.com')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept *.myworkday.com production tenants', () => {
+      const result = validateWorkdayTenantUrl('https://wd5-services1.myworkday.com')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept URLs with trailing slash', () => {
+      const result = validateWorkdayTenantUrl('https://wd2-impl-services1.workday.com/')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should be case-insensitive for hostname', () => {
+      const result = validateWorkdayTenantUrl('https://WD5-Services1.Workday.com')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('invalid hosts — allowlist rejection', () => {
+    it.concurrent('should reject attacker-controlled domains', () => {
+      const result = validateWorkdayTenantUrl('https://evil.com')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('Workday-hosted domain')
+    })
+
+    it.concurrent('should reject lookalike suffixes', () => {
+      const result = validateWorkdayTenantUrl('https://wd5.workday.com.evil.com')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject embedded substrings', () => {
+      const result = validateWorkdayTenantUrl('https://workday.com.evil.com')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject near-miss domains', () => {
+      const result = validateWorkdayTenantUrl('https://evilworkday.com')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject userinfo smuggling', () => {
+      const result = validateWorkdayTenantUrl('https://wd5.workday.com@evil.com')
+      expect(result.isValid).toBe(false)
+    })
+  })
+
+  describe('invalid URLs — delegated to validateExternalUrl', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateWorkdayTenantUrl(null)
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject empty string', () => {
+      const result = validateWorkdayTenantUrl('')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject http:// protocol', () => {
+      const result = validateWorkdayTenantUrl('http://wd2-impl-services1.workday.com')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('https://')
+    })
+
+    it.concurrent('should reject private IPs', () => {
+      const result = validateWorkdayTenantUrl('https://192.168.1.1')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('private IP')
+    })
+
+    it.concurrent('should reject link-local metadata IP (SSRF classic)', () => {
+      const result = validateWorkdayTenantUrl('https://169.254.169.254')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject blocked ports', () => {
+      const result = validateWorkdayTenantUrl('https://wd2-impl-services1.workday.com:22')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('blocked port')
+    })
+
+    it.concurrent('should reject malformed URLs', () => {
+      const result = validateWorkdayTenantUrl('not-a-url')
       expect(result.isValid).toBe(false)
     })
   })

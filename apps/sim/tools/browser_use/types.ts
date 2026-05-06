@@ -3,26 +3,40 @@ import type { ToolResponse } from '@/tools/types'
 export interface BrowserUseRunTaskParams {
   task: string
   apiKey: string
-  variables?: Record<string, string>
+  variables?: Record<string, string> | Array<Record<string, any>>
   model?: string
-  save_browser_data?: boolean
+  startUrl?: string
+  allowedDomains?: string | string[]
+  maxSteps?: number
+  flashMode?: boolean
+  thinking?: boolean
+  vision?: boolean | 'auto'
+  systemPromptExtension?: string
+  structuredOutput?: string
+  highlightElements?: boolean
+  metadata?: Record<string, string>
   profile_id?: string
 }
 
 export interface BrowserUseTaskStep {
-  id: string
-  step: number
-  evaluation_previous_goal: string
-  next_goal: string
-  url?: string
-  extracted_data?: Record<string, any>
+  number: number
+  memory: string
+  evaluationPreviousGoal: string
+  nextGoal: string
+  url: string
+  screenshotUrl?: string | null
+  actions: string[]
+  duration?: number | null
 }
 
 export interface BrowserUseTaskOutput {
   id: string
   success: boolean
-  output: any
+  output: string | null
   steps: BrowserUseTaskStep[]
+  liveUrl: string | null
+  shareUrl: string | null
+  sessionId: string | null
 }
 
 export interface BrowserUseRunTaskResponse extends ToolResponse {
@@ -30,10 +44,5 @@ export interface BrowserUseRunTaskResponse extends ToolResponse {
 }
 
 export interface BrowserUseResponse extends ToolResponse {
-  output: {
-    id: string
-    success: boolean
-    output: any
-    steps: BrowserUseTaskStep[]
-  }
+  output: BrowserUseTaskOutput
 }

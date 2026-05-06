@@ -1,14 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { trelloBoardsSelectorContract } from '@/lib/api/contracts/selectors'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('TrelloBoardsAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   try {
     const apiKey = process.env.TRELLO_API_KEY
@@ -16,17 +19,9 @@ export async function POST(request: NextRequest) {
       logger.error('Trello API key not configured')
       return NextResponse.json({ error: 'Trello API key not configured' }, { status: 500 })
     }
-    const body = (await request.json().catch(() => null)) as {
-      credential?: string
-      workflowId?: string
-    } | null
-    const credential = typeof body?.credential === 'string' ? body.credential : ''
-    const workflowId = typeof body?.workflowId === 'string' ? body.workflowId : undefined
-
-    if (!credential) {
-      logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(trelloBoardsSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, workflowId } = parsed.data.body
 
     const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
@@ -107,4 +102,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

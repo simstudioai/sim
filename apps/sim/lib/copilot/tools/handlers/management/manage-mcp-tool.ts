@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { validateMcpDomain } from '@/lib/mcp/domain-check'
@@ -235,7 +236,7 @@ export async function executeManageMcpTool(
       {
         operation,
         workspaceId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       }
     )
     return {

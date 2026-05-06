@@ -67,8 +67,8 @@ export const agiloftSavedSearchTool: ToolConfig<
           }
         }
 
-        const data = await response.json()
-        const result = data.result ?? data
+        const data = (await response.json()) as Record<string, unknown>
+        const result = (data.result ?? data) as Record<string, unknown>
 
         const searches: Array<{
           name: string
@@ -78,12 +78,12 @@ export const agiloftSavedSearchTool: ToolConfig<
         }> = []
 
         if (Array.isArray(result)) {
-          for (const item of result) {
+          for (const item of result as Record<string, unknown>[]) {
             searches.push({
-              name: item.name ?? '',
-              label: item.label ?? item.name ?? '',
-              id: item.id ?? item.ID ?? '',
-              description: item.description ?? null,
+              name: (item.name as string) ?? '',
+              label: (item.label as string) ?? (item.name as string) ?? '',
+              id: (item.id as string | number) ?? (item.ID as string | number) ?? '',
+              description: (item.description as string | null) ?? null,
             })
           }
         }

@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Loader2, RotateCcw, X } from 'lucide-react'
+import { RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
   Label,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
@@ -302,7 +303,7 @@ export function AddDocumentsModal({
                           </span>
                           <div className='flex flex-shrink-0 items-center gap-1'>
                             {isProcessing ? (
-                              <Loader2 className='h-4 w-4 animate-spin text-[var(--text-muted)]' />
+                              <Loader className='h-4 w-4 text-[var(--text-muted)]' animate />
                             ) : (
                               <>
                                 {isFailed && (

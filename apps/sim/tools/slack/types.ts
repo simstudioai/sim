@@ -400,11 +400,6 @@ export const USER_OUTPUT_PROPERTIES = {
     optional: true,
   },
   is_app_user: { type: 'boolean', description: 'Whether user is an app user', optional: true },
-  is_stranger: {
-    type: 'boolean',
-    description: 'Whether user is from different workspace',
-    optional: true,
-  },
   deleted: { type: 'boolean', description: 'Whether the user is deactivated' },
   color: { type: 'string', description: 'User color for display', optional: true },
   timezone: {
@@ -484,8 +479,91 @@ export const USERS_OUTPUT: OutputProperty = {
  */
 export const CANVAS_OUTPUT_PROPERTIES = {
   canvas_id: { type: 'string', description: 'Unique canvas identifier' },
-  channel: { type: 'string', description: 'Channel where canvas was created' },
-  title: { type: 'string', description: 'Canvas title' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Canvas file object output properties.
+ * Based on Slack file objects returned by files.info and files.list for canvases.
+ */
+export const CANVAS_FILE_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Unique canvas file identifier' },
+  created: { type: 'number', description: 'Unix timestamp when the canvas was created' },
+  timestamp: { type: 'number', description: 'Unix timestamp associated with the canvas' },
+  name: { type: 'string', description: 'Canvas file name', optional: true },
+  title: { type: 'string', description: 'Canvas title', optional: true },
+  mimetype: { type: 'string', description: 'MIME type of the canvas file', optional: true },
+  filetype: { type: 'string', description: 'Slack file type for the canvas', optional: true },
+  pretty_type: { type: 'string', description: 'Human-readable file type', optional: true },
+  user: { type: 'string', description: 'User ID of the canvas creator', optional: true },
+  editable: { type: 'boolean', description: 'Whether the canvas file is editable', optional: true },
+  size: { type: 'number', description: 'Canvas file size in bytes', optional: true },
+  mode: { type: 'string', description: 'File mode', optional: true },
+  is_external: {
+    type: 'boolean',
+    description: 'Whether the canvas is externally hosted',
+    optional: true,
+  },
+  is_public: { type: 'boolean', description: 'Whether the canvas is public', optional: true },
+  url_private: {
+    type: 'string',
+    description: 'Private URL for the canvas file',
+    optional: true,
+  },
+  url_private_download: {
+    type: 'string',
+    description: 'Private download URL for the canvas file',
+    optional: true,
+  },
+  permalink: { type: 'string', description: 'Permanent URL for the canvas', optional: true },
+  channels: {
+    type: 'array',
+    description: 'Public channel IDs where the canvas appears',
+    items: { type: 'string', description: 'Channel ID' },
+    optional: true,
+  },
+  groups: {
+    type: 'array',
+    description: 'Private channel IDs where the canvas appears',
+    items: { type: 'string', description: 'Channel ID' },
+    optional: true,
+  },
+  ims: {
+    type: 'array',
+    description: 'Direct message IDs where the canvas appears',
+    items: { type: 'string', description: 'Conversation ID' },
+    optional: true,
+  },
+  canvas_readtime: {
+    type: 'number',
+    description: 'Approximate read time for canvas content',
+    optional: true,
+  },
+  is_channel_space: {
+    type: 'boolean',
+    description: 'Whether this canvas is linked to a channel',
+    optional: true,
+  },
+  linked_channel_id: {
+    type: 'string',
+    description: 'Channel ID linked to this canvas',
+    optional: true,
+  },
+  canvas_creator_id: {
+    type: 'string',
+    description: 'User ID of the canvas creator',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const CANVAS_PAGING_OUTPUT_PROPERTIES = {
+  count: { type: 'number', description: 'Number of items requested per page' },
+  total: { type: 'number', description: 'Total number of matching files' },
+  page: { type: 'number', description: 'Current page number' },
+  pages: { type: 'number', description: 'Total number of pages' },
+} as const satisfies Record<string, OutputProperty>
+
+export const CANVAS_SECTION_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Canvas section identifier' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -608,7 +686,6 @@ export interface SlackMessageParams extends SlackBaseParams {
   destinationType?: 'channel' | 'dm'
   channel?: string
   dmUserId?: string
-  userId?: string
   text: string
   threadTs?: string
   blocks?: string
@@ -626,7 +703,6 @@ export interface SlackMessageReaderParams extends SlackBaseParams {
   destinationType?: 'channel' | 'dm'
   channel?: string
   dmUserId?: string
-  userId?: string
   limit?: number
   oldest?: string
   latest?: string
@@ -665,16 +741,19 @@ export interface SlackListChannelsParams extends SlackBaseParams {
   includePrivate?: boolean
   excludeArchived?: boolean
   limit?: number
+  cursor?: string
 }
 
 export interface SlackListMembersParams extends SlackBaseParams {
   channel: string
   limit?: number
+  cursor?: string
 }
 
 export interface SlackListUsersParams extends SlackBaseParams {
   includeDeleted?: boolean
   limit?: number
+  cursor?: string
 }
 
 export interface SlackGetUserParams extends SlackBaseParams {
@@ -735,6 +814,29 @@ export interface SlackCreateChannelCanvasParams extends SlackBaseParams {
   content?: string
 }
 
+export interface SlackGetCanvasParams extends SlackBaseParams {
+  canvasId: string
+}
+
+export interface SlackListCanvasesParams extends SlackBaseParams {
+  channel?: string
+  count?: number
+  page?: number
+  user?: string
+  tsFrom?: string
+  tsTo?: string
+  teamId?: string
+}
+
+export interface SlackLookupCanvasSectionsParams extends SlackBaseParams {
+  canvasId: string
+  criteria: Record<string, unknown> | string
+}
+
+export interface SlackDeleteCanvasParams extends SlackBaseParams {
+  canvasId: string
+}
+
 export interface SlackOpenViewParams extends SlackBaseParams {
   triggerId: string
   interactivityPointer?: string
@@ -775,8 +877,6 @@ export interface SlackMessageResponse extends ToolResponse {
 export interface SlackCanvasResponse extends ToolResponse {
   output: {
     canvas_id: string
-    channel: string
-    title: string
   }
 }
 
@@ -955,6 +1055,7 @@ export interface SlackListChannelsResponse extends ToolResponse {
     ids: string[]
     names: string[]
     count: number
+    nextCursor: string | null
   }
 }
 
@@ -962,11 +1063,13 @@ export interface SlackListMembersResponse extends ToolResponse {
   output: {
     members: string[]
     count: number
+    nextCursor: string | null
   }
 }
 
 export interface SlackUser {
   id: string
+  team_id?: string | null
   name: string
   real_name: string
   display_name: string
@@ -982,20 +1085,23 @@ export interface SlackUser {
   is_primary_owner?: boolean
   is_restricted?: boolean
   is_ultra_restricted?: boolean
+  is_app_user?: boolean
   deleted: boolean
-  timezone?: string
-  timezone_label?: string
-  timezone_offset?: number
-  avatar?: string
-  avatar_24?: string
-  avatar_48?: string
-  avatar_72?: string
-  avatar_192?: string
-  avatar_512?: string
+  color?: string | null
+  timezone?: string | null
+  timezone_label?: string | null
+  timezone_offset?: number | null
+  avatar?: string | null
+  avatar_24?: string | null
+  avatar_48?: string | null
+  avatar_72?: string | null
+  avatar_192?: string | null
+  avatar_512?: string | null
   status_text?: string
   status_emoji?: string
-  status_expiration?: number
-  updated?: number
+  status_expiration?: number | null
+  updated?: number | null
+  has_2fa?: boolean
 }
 
 export interface SlackListUsersResponse extends ToolResponse {
@@ -1004,6 +1110,7 @@ export interface SlackListUsersResponse extends ToolResponse {
     ids: string[]
     names: string[]
     count: number
+    nextCursor: string | null
   }
 }
 
@@ -1078,6 +1185,69 @@ export interface SlackCreateChannelCanvasResponse extends ToolResponse {
   }
 }
 
+export interface SlackCanvasFile {
+  id: string
+  created: number | null
+  timestamp: number | null
+  name?: string | null
+  title?: string | null
+  mimetype?: string | null
+  filetype?: string | null
+  pretty_type?: string | null
+  user?: string | null
+  editable?: boolean | null
+  size?: number | null
+  mode?: string | null
+  is_external?: boolean | null
+  is_public?: boolean | null
+  url_private?: string | null
+  url_private_download?: string | null
+  permalink?: string | null
+  channels?: string[]
+  groups?: string[]
+  ims?: string[]
+  canvas_readtime?: number | null
+  is_channel_space?: boolean | null
+  linked_channel_id?: string | null
+  canvas_creator_id?: string | null
+}
+
+export interface SlackCanvasPaging {
+  count: number
+  total: number
+  page: number
+  pages: number
+}
+
+export interface SlackCanvasSection {
+  id: string
+}
+
+export interface SlackGetCanvasResponse extends ToolResponse {
+  output: {
+    canvas: SlackCanvasFile
+  }
+}
+
+export interface SlackListCanvasesResponse extends ToolResponse {
+  output: {
+    canvases: SlackCanvasFile[]
+    paging: SlackCanvasPaging
+  }
+}
+
+export interface SlackLookupCanvasSectionsResponse extends ToolResponse {
+  output: {
+    sections: SlackCanvasSection[]
+  }
+}
+
+export interface SlackDeleteCanvasResponse extends ToolResponse {
+  output: {
+    ok: boolean
+  }
+}
+
 export interface SlackView {
   id: string
   team_id?: string | null
@@ -1143,6 +1313,10 @@ export type SlackResponse =
   | SlackGetUserPresenceResponse
   | SlackEditCanvasResponse
   | SlackCreateChannelCanvasResponse
+  | SlackGetCanvasResponse
+  | SlackListCanvasesResponse
+  | SlackLookupCanvasSectionsResponse
+  | SlackDeleteCanvasResponse
   | SlackCreateConversationResponse
   | SlackInviteToConversationResponse
   | SlackOpenViewResponse

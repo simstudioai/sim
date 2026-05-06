@@ -15,7 +15,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `ENCRYPTION_KEY` | 加密密钥（32 个十六进制字符）：`openssl rand -hex 32` |
 | `INTERNAL_API_SECRET` | 内部 API 密钥（32 个十六进制字符）：`openssl rand -hex 32` |
 | `NEXT_PUBLIC_APP_URL` | 公共应用程序 URL |
-| `NEXT_PUBLIC_SOCKET_URL` | WebSocket URL（默认值：`http://localhost:3002`） |
+| `NEXT_PUBLIC_SOCKET_URL` | 可选。WebSocket URL — 默认使用页面来源；仅当 realtime 部署在独立主机时才需要设置。 |
 
 ## AI 提供商
 
@@ -80,7 +80,6 @@ BETTER_AUTH_URL=https://sim.yourdomain.com
 ENCRYPTION_KEY=<openssl rand -hex 32>
 INTERNAL_API_SECRET=<openssl rand -hex 32>
 NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
-NEXT_PUBLIC_SOCKET_URL=https://sim.yourdomain.com
 OPENAI_API_KEY=sk-...
 ```
 

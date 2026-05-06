@@ -76,8 +76,8 @@ export const agiloftReadRecordTool: ToolConfig<AgiloftReadRecordParams, AgiloftR
           }
         }
 
-        const data = await response.json()
-        const result = data.result ?? data
+        const data = (await response.json()) as Record<string, unknown>
+        const result = (data.result ?? data) as Record<string, unknown>
         const id = result.id ?? result.ID ?? data.id ?? data.ID ?? null
 
         return {

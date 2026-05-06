@@ -2,6 +2,8 @@ import { db } from '@sim/db'
 import {
   apiKey,
   document,
+  invitation,
+  invitationWorkspaceGrant,
   knowledgeBase,
   knowledgeConnector,
   mcpServers,
@@ -10,11 +12,10 @@ import {
   workflowSchedule,
   workspace,
   workspaceFiles,
-  workspaceInvitation,
   workspaceNotificationSubscription,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { mcpService } from '@/lib/mcp/service'
 import { archiveWorkflowsForWorkspace } from '@/lib/workflows/lifecycle'
@@ -115,15 +116,19 @@ export async function archiveWorkspace(
       .where(eq(workspaceNotificationSubscription.workspaceId, workspaceId))
 
     await tx
-      .update(workspaceInvitation)
+      .update(invitation)
       .set({
         status: 'cancelled',
         updatedAt: now,
       })
       .where(
         and(
-          eq(workspaceInvitation.workspaceId, workspaceId),
-          eq(workspaceInvitation.status, 'pending')
+          eq(invitation.status, 'pending'),
+          sql`${invitation.id} IN (
+            SELECT ${invitationWorkspaceGrant.invitationId}
+            FROM ${invitationWorkspaceGrant}
+            WHERE ${invitationWorkspaceGrant.workspaceId} = ${workspaceId}
+          )`
         )
       )
 

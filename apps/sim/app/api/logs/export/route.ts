@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 
 const logger = createLogger('LogsExportAPI')
@@ -19,7 +20,7 @@ function escapeCsv(value: any): string {
   return str
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -147,4 +148,4 @@ export async function GET(request: NextRequest) {
     logger.error('Export error', { error: error?.message })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

@@ -22,6 +22,7 @@ export async function assumeRole(
   roleArn: string,
   roleSessionName: string,
   durationSeconds?: number | null,
+  policy?: string | null,
   externalId?: string | null,
   serialNumber?: string | null,
   tokenCode?: string | null
@@ -30,6 +31,7 @@ export async function assumeRole(
     RoleArn: roleArn,
     RoleSessionName: roleSessionName,
     ...(durationSeconds ? { DurationSeconds: durationSeconds } : {}),
+    ...(policy ? { Policy: policy } : {}),
     ...(externalId ? { ExternalId: externalId } : {}),
     ...(serialNumber ? { SerialNumber: serialNumber } : {}),
     ...(tokenCode ? { TokenCode: tokenCode } : {}),
@@ -45,6 +47,7 @@ export async function assumeRole(
     assumedRoleArn: response.AssumedRoleUser?.Arn ?? '',
     assumedRoleId: response.AssumedRoleUser?.AssumedRoleId ?? '',
     packedPolicySize: response.PackedPolicySize ?? null,
+    sourceIdentity: response.SourceIdentity ?? null,
   }
 }
 

@@ -59,6 +59,9 @@ export interface ModelDefinition {
   contextWindow?: number
   /** ISO date string (YYYY-MM-DD) when the model was first publicly released */
   releaseDate?: string
+  recommended?: boolean
+  speedOptimized?: boolean
+  deprecated?: boolean
 }
 
 export interface ProviderDefinition {
@@ -180,6 +183,49 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 1047576,
         releaseDate: '2025-04-14',
       },
+      // GPT-5.5 family
+      {
+        id: 'gpt-5.5-pro',
+        pricing: {
+          input: 30.0,
+          output: 180.0,
+          updatedAt: '2026-04-23',
+        },
+        capabilities: {
+          nativeStructuredOutputs: true,
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-04-23',
+      },
+      {
+        id: 'gpt-5.5',
+        pricing: {
+          input: 5.0,
+          cachedInput: 0.5,
+          output: 30.0,
+          updatedAt: '2026-04-23',
+        },
+        capabilities: {
+          nativeStructuredOutputs: true,
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
+        releaseDate: '2026-04-23',
+        recommended: true,
+      },
       // GPT-5.4 family
       {
         id: 'gpt-5.4-pro',
@@ -256,6 +302,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 400000,
         releaseDate: '2026-03-17',
+        speedOptimized: true,
       },
       // GPT-5.2 family
       {
@@ -504,6 +551,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2024-05-13',
+        deprecated: true,
       },
     ],
   },
@@ -537,6 +585,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-04-16',
+        recommended: true,
       },
       {
         id: 'claude-opus-4-6',
@@ -577,6 +626,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-02-17',
+        recommended: true,
       },
       {
         id: 'claude-opus-4-5',
@@ -695,6 +745,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-10-15',
+        speedOptimized: true,
       },
       {
         id: 'claude-3-haiku-20240307',
@@ -710,6 +761,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2024-03-07',
+        deprecated: true,
       },
     ],
   },
@@ -1170,6 +1222,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2026-02-19',
+        recommended: true,
       },
       {
         id: 'gemini-3.1-flash-lite-preview',
@@ -1253,6 +1306,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2025-06-17',
+        speedOptimized: true,
       },
       {
         id: 'gemini-2.0-flash',
@@ -2697,6 +2751,58 @@ export function getProviderModels(providerId: string): string[] {
   return PROVIDER_DEFINITIONS[providerId]?.models.map((m) => m.id) || []
 }
 
+export const DYNAMIC_MODEL_PROVIDERS = ['ollama', 'vllm', 'openrouter', 'fireworks'] as const
+
+function getAllStaticModelIds(): string[] {
+  const ids: string[] = []
+  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
+    if ((DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)) continue
+    for (const model of provider.models) ids.push(model.id)
+  }
+  return ids
+}
+
+const STATIC_MODEL_ID_SET = new Set(getAllStaticModelIds().map((id) => id.toLowerCase()))
+
+export function isKnownModelId(modelId: string): boolean {
+  if (!modelId || typeof modelId !== 'string') return false
+  const trimmed = modelId.trim()
+  if (!trimmed) return false
+
+  if (STATIC_MODEL_ID_SET.has(trimmed.toLowerCase())) return true
+
+  const lowered = trimmed.toLowerCase()
+  for (const provider of DYNAMIC_MODEL_PROVIDERS) {
+    if (lowered.startsWith(`${provider}/`)) return true
+  }
+
+  return false
+}
+
+function getRecommendedModels(): string[] {
+  const models: string[] = []
+  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
+    if ((DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)) continue
+    for (const model of provider.models) {
+      if (model.recommended) models.push(model.id)
+    }
+  }
+  return models
+}
+
+export function suggestModelIdsForUnknownModel(_modelId: string, limit = 5): string[] {
+  const recommended = getRecommendedModels()
+  if (recommended.length > 0) return recommended.slice(0, limit)
+
+  return [
+    PROVIDER_DEFINITIONS.anthropic.defaultModel,
+    PROVIDER_DEFINITIONS.openai.defaultModel,
+    PROVIDER_DEFINITIONS.google.defaultModel,
+  ]
+    .filter(Boolean)
+    .slice(0, limit)
+}
+
 export function getBaseModelProviders(): Record<string, ProviderId> {
   return Object.entries(PROVIDER_DEFINITIONS)
     .filter(([providerId]) => !['ollama', 'vllm', 'openrouter'].includes(providerId))
@@ -2916,10 +3022,31 @@ export const EMBEDDING_MODEL_PRICING: Record<string, ModelPricing> = {
     output: 0.0,
     updatedAt: '2026-04-01',
   },
+  'gemini-embedding-001': {
+    input: 0.15, // $0.15 per 1M tokens
+    output: 0.0,
+    updatedAt: '2026-04-29',
+  },
 }
 
 export function getEmbeddingModelPricing(modelId: string): ModelPricing | null {
   return EMBEDDING_MODEL_PRICING[modelId] || null
+}
+
+/**
+ * Cohere rerank pricing in USD per single search unit (one query × ≤100 docs).
+ * Sim caps every rerank request to ≤100 documents, so each call = 1 unit.
+ */
+export const RERANK_MODEL_PRICING: Record<string, { perSearchUnit: number; updatedAt: string }> = {
+  'rerank-v4.0-pro': { perSearchUnit: 0.0025, updatedAt: '2026-04-29' },
+  'rerank-v4.0-fast': { perSearchUnit: 0.002, updatedAt: '2026-04-29' },
+  'rerank-v3.5': { perSearchUnit: 0.002, updatedAt: '2026-04-29' },
+}
+
+export function getRerankModelPricing(
+  modelId: string
+): { perSearchUnit: number; updatedAt: string } | null {
+  return RERANK_MODEL_PRICING[modelId] || null
 }
 
 export function getModelsWithReasoningEffort(): string[] {

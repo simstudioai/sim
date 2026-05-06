@@ -1,25 +1,30 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  jiraProjectSelectorContract,
+  jiraProjectsSelectorContract,
+} from '@/lib/api/contracts/selectors/jira'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JiraProjectsAPI')
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const url = new URL(request.url)
-    const domain = url.searchParams.get('domain')?.trim()
-    const accessToken = url.searchParams.get('accessToken')
-    const providedCloudId = url.searchParams.get('cloudId')
-    const query = url.searchParams.get('query') || ''
+    const parsed = await parseRequest(jiraProjectsSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const { domain, accessToken, cloudId: providedCloudId, query = '' } = parsed.data.query
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -98,16 +103,19 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const { domain, accessToken, projectId, cloudId: providedCloudId } = await request.json()
+    const parsed = await parseRequest(jiraProjectSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+
+    const { domain, accessToken, projectId, cloudId: providedCloudId } = parsed.data.body
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -176,4 +184,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -76,6 +76,76 @@ interface SanitizedCondition {
   value: string
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function toSanitizedCondition(condition: unknown): SanitizedCondition {
+  const record = isRecord(condition) ? condition : {}
+  return {
+    id: String(record.id ?? ''),
+    title: String(record.title ?? ''),
+    value: String(record.value ?? ''),
+  }
+}
+
+function parseArrayValue(value: unknown): unknown[] | null {
+  if (Array.isArray(value)) {
+    return value
+  }
+
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function parseConditions(value: unknown): Array<{ id: string; title: string }> | null {
+  const items = parseArrayValue(value)
+  if (!items) {
+    return null
+  }
+
+  const conditions: Array<{ id: string; title: string }> = []
+  for (const item of items) {
+    if (!isRecord(item) || typeof item.id !== 'string') {
+      return null
+    }
+    conditions.push({
+      id: item.id,
+      title: typeof item.title === 'string' ? item.title : '',
+    })
+  }
+
+  return conditions
+}
+
+function parseRoutes(value: unknown): Array<{ id: string; title?: string }> | null {
+  const items = parseArrayValue(value)
+  if (!items) {
+    return null
+  }
+
+  const routes: Array<{ id: string; title?: string }> = []
+  for (const item of items) {
+    if (!isRecord(item) || typeof item.id !== 'string') {
+      return null
+    }
+    routes.push({
+      id: item.id,
+      title: typeof item.title === 'string' ? item.title : undefined,
+    })
+  }
+
+  return routes
+}
+
 /**
  * Sanitize condition blocks by removing UI-specific metadata
  * Returns cleaned JSON string (not parsed array)
@@ -86,14 +156,7 @@ function sanitizeConditions(conditionsJson: string): string {
     if (!Array.isArray(conditions)) return conditionsJson
 
     // Keep only id, title, and value - remove UI state
-    const cleaned: SanitizedCondition[] = conditions.map((cond: unknown) => {
-      const condition = cond as Record<string, unknown>
-      return {
-        id: String(condition.id ?? ''),
-        title: String(condition.title ?? ''),
-        value: String(condition.value ?? ''),
-      }
-    })
+    const cleaned: SanitizedCondition[] = conditions.map(toSanitizedCondition)
 
     return JSON.stringify(cleaned)
   } catch {
@@ -188,6 +251,10 @@ function sanitizeTools(tools: ToolInput[]): SanitizedTool[] {
   })
 }
 
+function isToolInput(value: unknown): value is ToolInput {
+  return isRecord(value) && typeof value.type === 'string'
+}
+
 /**
  * Sort object keys recursively for consistent comparison
  */
@@ -253,13 +320,7 @@ function sanitizeSubBlocks(
       if (typeof subBlock.value === 'string') {
         sanitized[key] = sanitizeConditions(subBlock.value)
       } else if (Array.isArray(subBlock.value)) {
-        sanitized[key] = (subBlock.value as unknown as Array<Record<string, unknown>>).map(
-          (cond) => ({
-            id: String(cond.id ?? ''),
-            title: String(cond.title ?? ''),
-            value: String(cond.value ?? ''),
-          })
-        )
+        sanitized[key] = subBlock.value.map(toSanitizedCondition)
       } else {
         sanitized[key] = subBlock.value
       }
@@ -267,7 +328,8 @@ function sanitizeSubBlocks(
     }
 
     if (key === 'tools' && Array.isArray(subBlock.value)) {
-      sanitized[key] = sanitizeTools(subBlock.value as unknown as ToolInput[])
+      const toolItems: unknown[] = subBlock.value
+      sanitized[key] = sanitizeTools(toolItems.filter(isToolInput))
       return
     }
 
@@ -304,20 +366,8 @@ function convertConditionHandleToSimple(
     return handle
   }
 
-  let conditions: Array<{ id: string; title: string }>
-  if (Array.isArray(conditionsValue)) {
-    conditions = conditionsValue as unknown as Array<{ id: string; title: string }>
-  } else if (typeof conditionsValue === 'string') {
-    try {
-      conditions = JSON.parse(conditionsValue)
-    } catch {
-      return handle
-    }
-  } else {
-    return handle
-  }
-
-  if (!Array.isArray(conditions)) {
+  const conditions = parseConditions(conditionsValue)
+  if (!conditions) {
     return handle
   }
 
@@ -364,20 +414,8 @@ function convertRouterHandleToSimple(handle: string, _blockId: string, block: Bl
     return handle
   }
 
-  let routes: Array<{ id: string; title?: string }>
-  if (Array.isArray(routesValue)) {
-    routes = routesValue as unknown as Array<{ id: string; title?: string }>
-  } else if (typeof routesValue === 'string') {
-    try {
-      routes = JSON.parse(routesValue)
-    } catch {
-      return handle
-    }
-  } else {
-    return handle
-  }
-
-  if (!Array.isArray(routes)) {
+  const routes = parseRoutes(routesValue)
+  if (!routes) {
     return handle
   }
 

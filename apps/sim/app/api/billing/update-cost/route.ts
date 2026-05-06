@@ -1,33 +1,46 @@
+import type { Span } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { billingUpdateCostContract } from '@/lib/api/contracts/subscription'
+import { parseRequest } from '@/lib/api/server'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
+import { BillingRouteOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
+import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { type AtomicClaimResult, billingIdempotency } from '@/lib/core/idempotency/service'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('BillingUpdateCostAPI')
-
-const UpdateCostSchema = z.object({
-  userId: z.string().min(1, 'User ID is required'),
-  cost: z.number().min(0, 'Cost must be a non-negative number'),
-  model: z.string().min(1, 'Model is required'),
-  inputTokens: z.number().min(0).default(0),
-  outputTokens: z.number().min(0).default(0),
-  source: z
-    .enum(['copilot', 'workspace-chat', 'mcp_copilot', 'mothership_block'])
-    .default('copilot'),
-  idempotencyKey: z.string().min(1).optional(),
-})
 
 /**
  * POST /api/billing/update-cost
  * Update user cost with a pre-calculated cost value (internal API key auth required)
+ *
+ * Parented under the Go-side `sim.update_cost` span via W3C traceparent
+ * propagation. Every mothership request that bills should therefore show
+ * the Go client span AND this Sim server span sharing one trace, with
+ * the actual usage/overage work nested below.
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler((req: NextRequest) =>
+  withIncomingGoSpan(
+    req.headers,
+    TraceSpan.CopilotBillingUpdateCost,
+    {
+      [TraceAttr.HttpMethod]: 'POST',
+      [TraceAttr.HttpRoute]: '/api/billing/update-cost',
+    },
+    async (span) => updateCostInner(req, span)
+  )
+)
+
+async function updateCostInner(req: NextRequest, span: Span): Promise<NextResponse> {
   const requestId = generateRequestId()
   const startTime = Date.now()
   let claim: AtomicClaimResult | null = null
@@ -37,6 +50,8 @@ export async function POST(req: NextRequest) {
     logger.info(`[${requestId}] Update cost request started`)
 
     if (!isBillingEnabled) {
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.BillingDisabled)
+      span.setAttribute(TraceAttr.HttpStatusCode, 200)
       return NextResponse.json({
         success: true,
         message: 'Billing disabled, cost update skipped',
@@ -52,6 +67,8 @@ export async function POST(req: NextRequest) {
     const authResult = checkInternalApiKey(req)
     if (!authResult.success) {
       logger.warn(`[${requestId}] Authentication failed: ${authResult.error}`)
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.AuthFailed)
+      span.setAttribute(TraceAttr.HttpStatusCode, 401)
       return NextResponse.json(
         {
           success: false,
@@ -61,27 +78,53 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const body = await req.json()
-    const validation = UpdateCostSchema.safeParse(body)
-
-    if (!validation.success) {
-      logger.warn(`[${requestId}] Invalid request body`, {
-        errors: validation.error.issues,
-        body,
-      })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request body',
-          details: validation.error.issues,
+    const parsed = await parseRequest(
+      billingUpdateCostContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid request body`, {
+            errors: error.issues,
+          })
+          span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InvalidBody)
+          span.setAttribute(TraceAttr.HttpStatusCode, 400)
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Invalid request body',
+              details: error.issues,
+            },
+            { status: 400 }
+          )
         },
-        { status: 400 }
-      )
-    }
+        invalidJsonResponse: () => {
+          span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InvalidBody)
+          span.setAttribute(TraceAttr.HttpStatusCode, 400)
+          return NextResponse.json(
+            { success: false, error: 'Request body must be valid JSON' },
+            { status: 400 }
+          )
+        },
+      }
+    )
+
+    if (!parsed.success) return parsed.response
 
     const { userId, cost, model, inputTokens, outputTokens, source, idempotencyKey } =
-      validation.data
+      parsed.data.body
     const isMcp = source === 'mcp_copilot'
+
+    span.setAttributes({
+      [TraceAttr.UserId]: userId,
+      [TraceAttr.GenAiRequestModel]: model,
+      [TraceAttr.BillingSource]: source,
+      [TraceAttr.BillingCostUsd]: cost,
+      [TraceAttr.GenAiUsageInputTokens]: inputTokens,
+      [TraceAttr.GenAiUsageOutputTokens]: outputTokens,
+      [TraceAttr.BillingIsMcp]: isMcp,
+      ...(idempotencyKey ? { [TraceAttr.BillingIdempotencyKey]: idempotencyKey } : {}),
+    })
 
     claim = idempotencyKey
       ? await billingIdempotency.atomicallyClaim('update-cost', idempotencyKey)
@@ -93,6 +136,8 @@ export async function POST(req: NextRequest) {
         userId,
         source,
       })
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.DuplicateIdempotencyKey)
+      span.setAttribute(TraceAttr.HttpStatusCode, 409)
       return NextResponse.json(
         {
           success: false,
@@ -157,6 +202,9 @@ export async function POST(req: NextRequest) {
       cost,
     })
 
+    span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.Billed)
+    span.setAttribute(TraceAttr.HttpStatusCode, 200)
+    span.setAttribute(TraceAttr.BillingDurationMs, duration)
     return NextResponse.json({
       success: true,
       data: {
@@ -170,7 +218,7 @@ export async function POST(req: NextRequest) {
     const duration = Date.now() - startTime
 
     logger.error(`[${requestId}] Cost update failed`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
       duration,
     })
@@ -180,7 +228,7 @@ export async function POST(req: NextRequest) {
         .release(claim.normalizedKey, claim.storageMethod)
         .catch((releaseErr) => {
           logger.warn(`[${requestId}] Failed to release idempotency claim`, {
-            error: releaseErr instanceof Error ? releaseErr.message : String(releaseErr),
+            error: toError(releaseErr).message,
             normalizedKey: claim?.normalizedKey,
           })
         })
@@ -191,6 +239,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InternalError)
+    span.setAttribute(TraceAttr.HttpStatusCode, 500)
+    span.setAttribute(TraceAttr.BillingDurationMs, duration)
     return NextResponse.json(
       {
         success: false,

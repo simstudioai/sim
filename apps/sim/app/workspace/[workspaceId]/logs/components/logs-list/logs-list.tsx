@@ -1,13 +1,14 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUpRight, Loader2 } from 'lucide-react'
+import { formatDuration } from '@sim/utils/formatting'
+import { ArrowUpRight } from 'lucide-react'
 import Link from 'next/link'
 import { List, type RowComponentProps, useListRef } from 'react-window'
-import { Badge, buttonVariants } from '@/components/emcn'
+import { Badge, buttonVariants, Loader } from '@/components/emcn'
+import type { WorkflowLogSummary } from '@/lib/api/contracts/logs'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
-import { formatDuration } from '@/lib/core/utils/formatting'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   DELETED_WORKFLOW_COLOR,
@@ -18,16 +19,15 @@ import {
   StatusBadge,
   TriggerBadge,
 } from '@/app/workspace/[workspaceId]/logs/utils'
-import type { WorkflowLog } from '@/stores/logs/filters/types'
 
 const LOG_ROW_HEIGHT = 44 as const
 
 interface LogRowProps {
-  log: WorkflowLog
+  log: WorkflowLogSummary
   isSelected: boolean
-  onClick: (log: WorkflowLog) => void
-  onHover?: (log: WorkflowLog) => void
-  onContextMenu?: (e: React.MouseEvent, log: WorkflowLog) => void
+  onClick: (log: WorkflowLogSummary) => void
+  onHover?: (log: WorkflowLogSummary) => void
+  onContextMenu?: (e: React.MouseEvent, log: WorkflowLogSummary) => void
   selectedRowRef: React.RefObject<HTMLTableRowElement | null> | null
 }
 
@@ -44,7 +44,7 @@ const LogRow = memo(
     onContextMenu,
     selectedRowRef,
   }: LogRowProps) {
-    const formattedDate = useMemo(() => formatDate(log.createdAt), [log.createdAt])
+    const formattedDate = formatDate(log.createdAt)
     const isMothershipJob = log.trigger === 'mothership'
     const isDeletedWorkflow = !isMothershipJob && !log.workflow?.id && !log.workflowId
     const workflowName = isMothershipJob
@@ -56,7 +56,7 @@ const LogRow = memo(
       ? '#ec4899'
       : isDeletedWorkflow
         ? DELETED_WORKFLOW_COLOR
-        : log.workflow?.color
+        : (log.workflow?.color ?? undefined)
 
     const handleClick = () => onClick(log)
     const handleMouseEnter = () => onHover?.(log)
@@ -164,11 +164,11 @@ const LogRow = memo(
 )
 
 interface RowProps {
-  logs: WorkflowLog[]
+  logs: WorkflowLogSummary[]
   selectedLogId: string | null
-  onLogClick: (log: WorkflowLog) => void
-  onLogHover?: (log: WorkflowLog) => void
-  onLogContextMenu?: (e: React.MouseEvent, log: WorkflowLog) => void
+  onLogClick: (log: WorkflowLogSummary) => void
+  onLogHover?: (log: WorkflowLogSummary) => void
+  onLogContextMenu?: (e: React.MouseEvent, log: WorkflowLogSummary) => void
   selectedRowRef: React.RefObject<HTMLTableRowElement | null>
   isFetchingNextPage: boolean
   loaderRef: React.RefObject<HTMLDivElement | null>
@@ -196,7 +196,7 @@ function Row({
         <div ref={loaderRef} className='flex items-center gap-2 text-[var(--text-secondary)]'>
           {isFetchingNextPage ? (
             <>
-              <Loader2 className='h-[16px] w-[16px] animate-spin' />
+              <Loader className='h-[16px] w-[16px]' animate />
               <span className='text-small'>Loading more...</span>
             </>
           ) : (
@@ -225,11 +225,11 @@ function Row({
 }
 
 export interface LogsListProps {
-  logs: WorkflowLog[]
+  logs: WorkflowLogSummary[]
   selectedLogId: string | null
-  onLogClick: (log: WorkflowLog) => void
-  onLogHover?: (log: WorkflowLog) => void
-  onLogContextMenu?: (e: React.MouseEvent, log: WorkflowLog) => void
+  onLogClick: (log: WorkflowLogSummary) => void
+  onLogHover?: (log: WorkflowLogSummary) => void
+  onLogContextMenu?: (e: React.MouseEvent, log: WorkflowLogSummary) => void
   selectedRowRef: React.RefObject<HTMLTableRowElement | null>
   hasNextPage: boolean
   isFetchingNextPage: boolean

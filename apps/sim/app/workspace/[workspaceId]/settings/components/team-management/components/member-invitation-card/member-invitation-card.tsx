@@ -1,11 +1,8 @@
 'use client'
 
-import React from 'react'
 import { ChevronDown } from 'lucide-react'
 import {
   Button,
-  ButtonGroup,
-  ButtonGroupItem,
   Checkbox,
   DropdownMenu,
   DropdownMenuContent,
@@ -14,55 +11,10 @@ import {
   TagInput,
   type TagItem,
 } from '@/components/emcn'
+import { PermissionSelector, type PermissionType } from '@/components/permissions'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import type { AdminWorkspace } from '@/hooks/queries/workspace'
-
-type PermissionType = 'read' | 'write' | 'admin'
-
-interface PermissionSelectorProps {
-  value: PermissionType
-  onChange: (value: PermissionType) => void
-  disabled?: boolean
-  className?: string
-}
-
-const PermissionSelector = React.memo<PermissionSelectorProps>(
-  ({ value, onChange, disabled = false, className = '' }) => {
-    return (
-      <ButtonGroup
-        value={value}
-        onValueChange={(val) => onChange(val as PermissionType)}
-        disabled={disabled}
-        className={className}
-      >
-        <ButtonGroupItem
-          value='read'
-          className='h-[22px] min-w-[38px] px-1.5 py-0 text-xs'
-          title='View only'
-        >
-          Read
-        </ButtonGroupItem>
-        <ButtonGroupItem
-          value='write'
-          className='h-[22px] min-w-[38px] px-1.5 py-0 text-xs'
-          title='Edit content'
-        >
-          Write
-        </ButtonGroupItem>
-        <ButtonGroupItem
-          value='admin'
-          className='h-[22px] min-w-[38px] px-1.5 py-0 text-xs'
-          title='Full access'
-        >
-          Admin
-        </ButtonGroupItem>
-      </ButtonGroup>
-    )
-  }
-)
-
-PermissionSelector.displayName = 'PermissionSelector'
 
 interface MemberInvitationCardProps {
   inviteEmails: TagItem[]
@@ -122,9 +74,9 @@ export function MemberInvitationCard({
   return (
     <div className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
       <div className='px-3.5 py-2.5'>
-        <h4 className='font-medium text-[var(--text-primary)] text-base'>Invite Team Members</h4>
+        <h4 className='font-medium text-[var(--text-primary)] text-base'>Invite Members</h4>
         <p className='text-[var(--text-muted)] text-small'>
-          Add new members to your team and optionally give them access to specific workspaces
+          Invite people to your organization and choose which workspaces they can access.
         </p>
       </div>
 
@@ -228,6 +180,7 @@ export function MemberInvitationCard({
                               }
                               onChange={(permission) => onWorkspaceToggle(workspace.id, permission)}
                               disabled={isInviting}
+                              size='compact'
                             />
                           </div>
                         )}
@@ -241,11 +194,23 @@ export function MemberInvitationCard({
           <Button
             variant='primary'
             onClick={() => onInviteMember()}
-            disabled={!hasValidEmails || isInviting || !hasAvailableSeats}
+            disabled={!hasValidEmails || isInviting || !hasAvailableSeats || selectedCount === 0}
           >
-            {isInviting ? 'Inviting...' : hasAvailableSeats ? 'Invite' : 'No Seats'}
+            {isInviting
+              ? 'Inviting...'
+              : !hasAvailableSeats
+                ? 'No Seats'
+                : selectedCount === 0
+                  ? 'Select Workspace'
+                  : 'Invite'}
           </Button>
         </div>
+
+        {selectedCount === 0 && (
+          <p className='text-[var(--text-muted)] text-small leading-tight'>
+            Select at least one organization workspace before sending an organization invite.
+          </p>
+        )}
 
         {invitationError && (
           <p className='text-[var(--text-error)] text-small leading-tight'>

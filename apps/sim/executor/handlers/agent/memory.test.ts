@@ -1,10 +1,7 @@
-import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MEMORY } from '@/executor/constants'
 import { Memory } from '@/executor/handlers/agent/memory'
 import type { Message } from '@/executor/handlers/agent/types'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/tokenization/estimators', () => ({
   getAccurateTokenCount: vi.fn((text: string) => {

@@ -1,3 +1,4 @@
+import { toError } from '@sim/utils/errors'
 import { LangsmithIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { LangsmithResponse } from '@/tools/langsmith/types'
@@ -221,9 +222,7 @@ Common patch fields: outputs, end_time, status, error`,
             try {
               return JSON.parse(value)
             } catch (error) {
-              throw new Error(
-                `Invalid JSON for ${label}: ${error instanceof Error ? error.message : String(error)}`
-              )
+              throw new Error(`Invalid JSON for ${label}: ${toError(error).message}`)
             }
           }
           return value

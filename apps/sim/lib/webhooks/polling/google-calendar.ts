@@ -1,5 +1,10 @@
+import type { Logger } from '@sim/logger'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
-import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
+import {
+  getProviderConfig,
+  type PollingProviderHandler,
+  type PollWebhookContext,
+} from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
   markWebhookSuccess,
@@ -99,7 +104,7 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
         logger
       )
 
-      const config = webhookData.providerConfig as unknown as GoogleCalendarWebhookConfig
+      const config = getProviderConfig<GoogleCalendarWebhookConfig>(webhookData.providerConfig)
       const calendarId = config.calendarId || config.manualCalendarId || 'primary'
 
       // First poll: seed timestamp, emit nothing
@@ -177,7 +182,7 @@ async function fetchChangedEvents(
   calendarId: string,
   config: GoogleCalendarWebhookConfig,
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<CalendarEvent[]> {
   const allEvents: CalendarEvent[] = []
   const maxEvents = config.maxEventsPerPoll || MAX_EVENTS_PER_POLL
@@ -282,7 +287,7 @@ async function processEvents(
   webhookData: PollWebhookContext['webhookData'],
   workflowData: PollWebhookContext['workflowData'],
   requestId: string,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: Logger
 ): Promise<{ processedCount: number; failedCount: number; latestUpdated: string | null }> {
   let processedCount = 0
   let failedCount = 0

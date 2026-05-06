@@ -1,16 +1,13 @@
-import { loggerMock } from '@sim/testing'
+import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetRedisClient, mockRedisSet } = vi.hoisted(() => ({
-  mockGetRedisClient: vi.fn(),
+const { mockRedisSet } = vi.hoisted(() => ({
   mockRedisSet: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => loggerMock)
+const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: mockGetRedisClient,
-}))
+vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 import { markExecutionCancelled } from './cancellation'
 import {

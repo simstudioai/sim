@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 
 const logger = createLogger('PostHogProxy')
@@ -59,7 +60,7 @@ async function handler(request: NextRequest) {
     logger.error('PostHog proxy error', {
       url,
       method: request.method,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return new NextResponse(null, { status: 502 })
   }

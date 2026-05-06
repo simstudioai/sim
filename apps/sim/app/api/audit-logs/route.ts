@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { listAuditLogsContract } from '@/lib/api/contracts/audit-logs'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import {
@@ -13,7 +16,7 @@ const logger = createLogger('AuditLogsAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: Request) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -27,26 +30,37 @@ export async function GET(request: Request) {
 
     const { orgMemberIds } = authResult.context
 
-    const { searchParams } = new URL(request.url)
-    const search = searchParams.get('search')?.trim() || undefined
-    const startDate = searchParams.get('startDate') || undefined
-    const endDate = searchParams.get('endDate') || undefined
-    const includeDeparted = searchParams.get('includeDeparted') === 'true'
-    const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 50, 1), 100)
-    const cursor = searchParams.get('cursor') || undefined
+    const parsed = await parseRequest(
+      listAuditLogsContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Invalid query parameters') },
+            { status: 400 }
+          ),
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (startDate && Number.isNaN(Date.parse(startDate))) {
-      return NextResponse.json({ error: 'Invalid startDate format' }, { status: 400 })
-    }
-    if (endDate && Number.isNaN(Date.parse(endDate))) {
-      return NextResponse.json({ error: 'Invalid endDate format' }, { status: 400 })
-    }
+    const {
+      search,
+      action,
+      resourceType,
+      actorId,
+      startDate,
+      endDate,
+      includeDeparted,
+      limit,
+      cursor,
+    } = parsed.data.query
 
     const scopeCondition = await buildOrgScopeCondition(orgMemberIds, includeDeparted)
     const filterConditions = buildFilterConditions({
-      action: searchParams.get('action') || undefined,
-      resourceType: searchParams.get('resourceType') || undefined,
-      actorId: searchParams.get('actorId') || undefined,
+      action,
+      resourceType,
+      actorId,
       search,
       startDate,
       endDate,
@@ -68,4 +82,4 @@ export async function GET(request: Request) {
     logger.error('Audit logs fetch error', { error: message })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

@@ -16,9 +16,11 @@ import {
   workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, desc, eq, isNotNull, isNull, ne } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import { buildWorkspaceMd, type WorkspaceMdData } from '@/lib/copilot/chat/workspace-context'
+import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import type { DirEntry, GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
@@ -56,10 +58,15 @@ import {
   getAccessibleOAuthCredentials,
 } from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
+import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
+import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { listTables } from '@/lib/table/service'
 import {
+  fetchWorkspaceFileBuffer,
   findWorkspaceFileRecord,
+  getWorkspaceFile,
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
@@ -309,6 +316,8 @@ function getStaticComponentFiles(): Map<string, string> {
  *   tables/{name}/meta.json
  *   files/{name}/meta.json
  *   files/by-id/{id}/meta.json
+ *   files/by-id/{id}/style            (dynamic — OOXML theme/font extraction for .docx/.pptx)
+ *   files/by-id/{id}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
  *   jobs/{title}/meta.json
  *   jobs/{title}/history.json
  *   jobs/{title}/executions.json
@@ -447,9 +456,85 @@ export class WorkspaceVFS {
   /**
    * Attempt to read dynamic workspace file content from storage.
    * Handles images (base64), parseable documents (PDF, etc.), and text files.
+   * Also handles:
+   *   `files/by-id/{id}/style`           — OOXML theme/style extraction (.docx / .pptx only)
+   *   `files/by-id/{id}/compiled-check`  — compile JS-source binary files or validate Mermaid diagrams
    * Returns null if the path doesn't match `files/{name}` / `files/by-id/{id}` or the file isn't found.
    */
   async readFileContent(path: string): Promise<FileReadResult | null> {
+    // Handle compiled-check path: files/by-id/{id}/compiled-check
+    const compiledCheckMatch = path.match(/^files\/by-id\/([^/]+)\/compiled-check$/)
+    if (compiledCheckMatch) {
+      const fileId = compiledCheckMatch[1]
+      try {
+        const record = await getWorkspaceFile(this._workspaceId, fileId)
+        if (!record) return null
+        const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
+        const taskId = BINARY_DOC_TASKS[ext]
+        const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
+        if (!taskId && !isMermaidFile) return null
+        const buffer = await fetchWorkspaceFileBuffer(record)
+        const code = buffer.toString('utf-8')
+        if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
+          return {
+            content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
+            totalLines: 1,
+          }
+        }
+        if (isMermaidFile) {
+          const result = await validateMermaidSource(code)
+          const json = JSON.stringify(result)
+          return { content: json, totalLines: 1 }
+        }
+        let result: { ok: boolean; error?: string; errorName?: string }
+        try {
+          if (!taskId) return null
+          await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+          result = { ok: true }
+        } catch (err) {
+          if (err instanceof SandboxUserCodeError) {
+            result = { ok: false, error: toError(err).message, errorName: err.name }
+          } else {
+            throw err
+          }
+        }
+        const json = JSON.stringify(result)
+        return { content: json, totalLines: 1 }
+      } catch (err) {
+        logger.warn('Compiled check failed via VFS', {
+          workspaceId: this._workspaceId,
+          fileId,
+          error: toError(err).message,
+        })
+        return null
+      }
+    }
+
+    // Handle style extraction path: files/by-id/{id}/style
+    const styleMatch = path.match(/^files\/by-id\/([^/]+)\/style$/)
+    if (styleMatch) {
+      const fileId = styleMatch[1]
+      try {
+        const record = await getWorkspaceFile(this._workspaceId, fileId)
+        if (!record) return null
+        const rawExt = record.name.split('.').pop()?.toLowerCase()
+        if (rawExt !== 'docx' && rawExt !== 'pptx') return null
+        const ext: 'docx' | 'pptx' = rawExt
+        const buffer = await fetchWorkspaceFileBuffer(record)
+        const summary = await extractDocumentStyle(buffer, ext)
+        if (!summary) return null
+        const json = JSON.stringify(summary, null, 2)
+        return { content: json, totalLines: json.split('\n').length }
+      } catch (err) {
+        logger.warn('Failed to extract document style via VFS', {
+          workspaceId: this._workspaceId,
+          fileId,
+          error: toError(err).message,
+        })
+        return null
+      }
+    }
+
     const deletedMatch = path.match(/^recently-deleted\/files\/(.+?)(?:\/content)?$/)
     const activeMatch = path.match(/^files\/(.+?)(?:\/content)?$/)
     const match = deletedMatch || activeMatch
@@ -472,7 +557,7 @@ export class WorkspaceVFS {
       logger.warn('Failed to list workspace files for readFileContent', {
         workspaceId: this._workspaceId,
         path,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return null
     }
@@ -560,7 +645,7 @@ export class WorkspaceVFS {
         } catch (err) {
           logger.warn('Failed to load workflow state', {
             workflowId: wf.id,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
 
@@ -586,7 +671,7 @@ export class WorkspaceVFS {
         } catch (err) {
           logger.warn('Failed to load execution logs', {
             workflowId: wf.id,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
 
@@ -607,7 +692,7 @@ export class WorkspaceVFS {
         } catch (err) {
           logger.warn('Failed to load deployment data', {
             workflowId: wf.id,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
       })
@@ -683,7 +768,7 @@ export class WorkspaceVFS {
         } catch (err) {
           logger.warn('Failed to load KB documents', {
             knowledgeBaseId: kb.id,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
 
@@ -717,7 +802,7 @@ export class WorkspaceVFS {
         } catch (err) {
           logger.warn('Failed to load KB connectors', {
             knowledgeBaseId: kb.id,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
       })
@@ -765,7 +850,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize tables', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return []
     }
@@ -807,7 +892,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize files', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return []
     }
@@ -936,7 +1021,7 @@ export class WorkspaceVFS {
       } catch (err) {
         logger.warn('Failed to compute needsRedeployment', {
           workflowId,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       }
     }
@@ -983,7 +1068,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize custom tools', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return []
     }
@@ -1020,7 +1105,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize MCP servers', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return []
     }
@@ -1053,7 +1138,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize skills', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return []
     }
@@ -1117,7 +1202,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize tasks', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return []
     }
@@ -1210,7 +1295,7 @@ export class WorkspaceVFS {
         } catch (err) {
           logger.warn('Failed to load job execution logs', {
             jobId: job.id,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
       }
@@ -1229,7 +1314,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize jobs', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return []
     }
@@ -1327,7 +1412,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize recently deleted resources', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
     }
   }
@@ -1392,7 +1477,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize environment data', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return { oauthIntegrations: [], envVariables: [] }
     }

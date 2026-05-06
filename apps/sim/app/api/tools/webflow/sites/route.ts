@@ -1,24 +1,29 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { webflowSitesSelectorContract } from '@/lib/api/contracts/selectors'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebflowSitesAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: Request) {
+interface WebflowSite {
+  id: string
+  displayName?: string
+  shortName?: string
+}
+
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const requestId = generateRequestId()
-    const body = await request.json()
-    const { credential, workflowId, siteId } = body
-
-    if (!credential) {
-      logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(webflowSitesSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, workflowId, siteId } = parsed.data.body
 
     if (siteId) {
       const siteIdValidation = validateAlphanumericId(siteId, 'siteId')
@@ -28,7 +33,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
       workflowId,
     })
@@ -79,16 +84,16 @@ export async function POST(request: Request) {
       )
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as WebflowSite | { sites?: WebflowSite[] }
 
-    let sites: any[]
+    let sites: WebflowSite[]
     if (siteId) {
-      sites = [data]
+      sites = [data as WebflowSite]
     } else {
-      sites = data.sites || []
+      sites = 'sites' in data ? data.sites || [] : []
     }
 
-    const formattedSites = sites.map((site: any) => ({
+    const formattedSites = sites.map((site) => ({
       id: site.id,
       name: site.displayName || site.shortName || site.id,
     }))
@@ -101,4 +106,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})

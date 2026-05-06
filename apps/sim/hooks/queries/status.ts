@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import type { StatusResponse } from '@/app/api/status/types'
+import { requestJson } from '@/lib/api/client/request'
+import type { ContractJsonResponse } from '@/lib/api/contracts'
+import { getStatusContract } from '@/lib/api/contracts'
 
 /**
  * Query key factories for status-related queries
@@ -14,14 +16,10 @@ export const statusKeys = {
  * Fetch current system status from the API
  * The API proxies incident.io and caches for 2 minutes server-side
  */
-async function fetchStatus(signal?: AbortSignal): Promise<StatusResponse> {
-  const response = await fetch('/api/status', { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch status')
-  }
-
-  return response.json()
+async function fetchStatus(
+  signal?: AbortSignal
+): Promise<ContractJsonResponse<typeof getStatusContract>> {
+  return requestJson(getStatusContract, { signal })
 }
 
 /**

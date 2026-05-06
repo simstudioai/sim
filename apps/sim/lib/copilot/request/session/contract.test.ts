@@ -27,6 +27,10 @@ describe('stream session contract parser', () => {
   it('accepts contract text events', () => {
     const event = {
       ...BASE_ENVELOPE,
+      trace: {
+        ...BASE_ENVELOPE.trace,
+        goTraceId: 'go-trace-1',
+      },
       type: 'text' as const,
       payload: {
         channel: 'assistant' as const,
@@ -97,7 +101,11 @@ describe('stream session contract parser', () => {
     const event = {
       ...BASE_ENVELOPE,
       type: 'span' as const,
-      payload: { kind: 'subagent' as const, event: 'start' as const, agent: 'file' },
+      payload: {
+        kind: 'subagent' as const,
+        event: 'start' as const,
+        agent: 'file',
+      },
     }
 
     expect(isContractStreamEventEnvelope(event)).toBe(true)

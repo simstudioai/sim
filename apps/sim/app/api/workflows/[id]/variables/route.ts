@@ -1,74 +1,68 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  assertWorkflowMutable,
+  authorizeWorkflowByWorkspacePermission,
+  WorkflowLockedError,
+} from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { workflowVariablesContract } from '@/lib/api/contracts/workflows'
+import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Variable } from '@/stores/variables/types'
 
 const logger = createLogger('WorkflowVariablesAPI')
 
-const VariableSchema = z.object({
-  id: z.string(),
-  workflowId: z.string(),
-  name: z.string(),
-  type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
-  value: z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.record(z.unknown()),
-    z.array(z.unknown()),
-  ]),
-})
-
-const VariablesSchema = z.object({
-  variables: z.record(z.string(), VariableSchema),
-})
-
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = generateRequestId()
-  const workflowId = (await params).id
-
-  try {
-    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
-    if (!auth.success || !auth.userId) {
-      logger.warn(`[${requestId}] Unauthorized workflow variables update attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    const userId = auth.userId
-
-    const authorization = await authorizeWorkflowByWorkspacePermission({
-      workflowId,
-      userId,
-      action: 'write',
-    })
-    const workflowData = authorization.workflow
-
-    if (!workflowData) {
-      logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
-      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-    }
-    const isAuthorized = authorization.allowed
-
-    if (!isAuthorized) {
-      logger.warn(
-        `[${requestId}] User ${userId} attempted to update variables for workflow ${workflowId} without permission`
-      )
-      return NextResponse.json(
-        { error: authorization.message || 'Access denied' },
-        { status: authorization.status || 403 }
-      )
-    }
-
-    const body = await req.json()
+export const POST = withRouteHandler(
+  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const requestId = generateRequestId()
+    const workflowId = (await context.params).id
 
     try {
-      const { variables } = VariablesSchema.parse(body)
+      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+      if (!auth.success || !auth.userId) {
+        logger.warn(`[${requestId}] Unauthorized workflow variables update attempt`)
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      const userId = auth.userId
+
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId,
+        action: 'write',
+      })
+      const workflowData = authorization.workflow
+
+      if (!workflowData) {
+        logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      }
+      const isAuthorized = authorization.allowed
+
+      if (!isAuthorized) {
+        logger.warn(
+          `[${requestId}] User ${userId} attempted to update variables for workflow ${workflowId} without permission`
+        )
+        return NextResponse.json(
+          { error: authorization.message || 'Access denied' },
+          { status: authorization.status || 403 }
+        )
+      }
+
+      await assertWorkflowMutable(workflowId)
+
+      const parsed = await parseRequest(workflowVariablesContract, req, context)
+      if (!parsed.success) return parsed.response
+      const { variables } = parsed.data.body
+      // Note: prior versions cross-checked that each variable's `workflowId`
+      // equalled the path param. The write contract does not carry `workflowId`
+      // per variable (the path param is the source of truth), so the check
+      // is unreachable and was removed.
 
       // Variables are already in Record format - use directly
       // The frontend is the source of truth for what variables should exist
@@ -99,79 +93,83 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       })
 
       return NextResponse.json({ success: true })
-    } catch (validationError) {
-      if (validationError instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid workflow variables data`, {
-          errors: validationError.errors,
-        })
+    } catch (error) {
+      if (error instanceof WorkflowLockedError) {
+        return NextResponse.json({ error: error.message }, { status: error.status })
+      }
+
+      logger.error(`[${requestId}] Error updating workflow variables`, error)
+      return NextResponse.json({ error: 'Failed to update workflow variables' }, { status: 500 })
+    }
+  }
+)
+
+export const GET = withRouteHandler(
+  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const requestId = generateRequestId()
+    const workflowId = (await params).id
+
+    try {
+      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+      if (!auth.success || !auth.userId) {
+        logger.warn(`[${requestId}] Unauthorized workflow variables access attempt`)
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      const userId = auth.userId
+
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId,
+        action: 'read',
+      })
+      const workflowData = authorization.workflow
+
+      if (!workflowData) {
+        logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      }
+      const isAuthorized = authorization.allowed
+
+      if (!isAuthorized) {
+        logger.warn(
+          `[${requestId}] User ${userId} attempted to access variables for workflow ${workflowId} without permission`
+        )
         return NextResponse.json(
-          { error: 'Invalid request data', details: validationError.errors },
-          { status: 400 }
+          { error: authorization.message || 'Access denied' },
+          { status: authorization.status || 403 }
         )
       }
-      throw validationError
-    }
-  } catch (error) {
-    logger.error(`[${requestId}] Error updating workflow variables`, error)
-    return NextResponse.json({ error: 'Failed to update workflow variables' }, { status: 500 })
-  }
-}
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = generateRequestId()
-  const workflowId = (await params).id
-
-  try {
-    const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
-    if (!auth.success || !auth.userId) {
-      logger.warn(`[${requestId}] Unauthorized workflow variables access attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    const userId = auth.userId
-
-    const authorization = await authorizeWorkflowByWorkspacePermission({
-      workflowId,
-      userId,
-      action: 'read',
-    })
-    const workflowData = authorization.workflow
-
-    if (!workflowData) {
-      logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
-      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-    }
-    const isAuthorized = authorization.allowed
-
-    if (!isAuthorized) {
-      logger.warn(
-        `[${requestId}] User ${userId} attempted to access variables for workflow ${workflowId} without permission`
-      )
-      return NextResponse.json(
-        { error: authorization.message || 'Access denied' },
-        { status: authorization.status || 403 }
-      )
-    }
-
-    // Return variables if they exist
-    const variables = (workflowData.variables as Record<string, Variable>) || {}
-
-    // Add cache headers to prevent frequent reloading
-    const variableHash = JSON.stringify(variables).length
-    const headers = new Headers({
-      'Cache-Control': 'max-age=30, stale-while-revalidate=300', // Cache for 30 seconds, stale for 5 min
-      ETag: `"variables-${workflowId}-${variableHash}"`,
-    })
-
-    return NextResponse.json(
-      { data: variables },
-      {
-        status: 200,
-        headers,
+      // Return variables if they exist. Stamp `workflowId` from the path
+      // param on each entry so the global client-side variables store can
+      // filter by workflow; the read contract requires this stamped field.
+      const persistedVariables =
+        (workflowData.variables as Record<string, Record<string, unknown>>) || {}
+      const variables: Record<string, Variable> = {}
+      for (const [variableId, variable] of Object.entries(persistedVariables)) {
+        if (variable && typeof variable === 'object') {
+          variables[variableId] = { ...variable, workflowId } as Variable
+        }
       }
-    )
-  } catch (error) {
-    logger.error(`[${requestId}] Workflow variables fetch error`, error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+
+      // Add cache headers to prevent frequent reloading
+      const variableHash = JSON.stringify(variables).length
+      const headers = new Headers({
+        'Cache-Control': 'max-age=30, stale-while-revalidate=300', // Cache for 30 seconds, stale for 5 min
+        ETag: `"variables-${workflowId}-${variableHash}"`,
+      })
+
+      return NextResponse.json(
+        { data: variables },
+        {
+          status: 200,
+          headers,
+        }
+      )
+    } catch (error) {
+      logger.error(`[${requestId}] Workflow variables fetch error`, error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      return NextResponse.json({ error: errorMessage }, { status: 500 })
+    }
   }
-}
+)

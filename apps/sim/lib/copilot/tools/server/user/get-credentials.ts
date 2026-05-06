@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { account, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
@@ -91,7 +92,7 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
           displayName = decoded.email || decoded.name || ''
         } catch (error) {
           logger.warn('Failed to decode JWT id token', {
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
         }
       }
@@ -113,7 +114,7 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
         accessToken = refreshedToken || accessToken
       } catch (error) {
         logger.warn('Failed to refresh OAuth access token', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
       connectedCredentials.push({

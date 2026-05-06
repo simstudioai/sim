@@ -13,6 +13,7 @@ import {
   Type,
 } from '@google/genai'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { ProviderRequest } from '@/providers/types'
 import { trackForcedToolUsage } from '@/providers/utils'
 
@@ -301,7 +302,7 @@ export function createReadableStreamFromGeminiStream(
         controller.close()
       } catch (error) {
         logger.error('Error reading Google Gemini stream', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         controller.error(error)
       }

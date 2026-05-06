@@ -10,10 +10,6 @@ vi.mock('@sim/db', () => ({
   workflowDeploymentVersion: {},
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  webhook: {},
-}))
-
 import { whatsappHandler } from './whatsapp'
 
 function reqWithHeaders(headers: Record<string, string>): NextRequest {

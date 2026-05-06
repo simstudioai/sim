@@ -1,27 +1,29 @@
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsDynamodbPutContract } from '@/lib/api/contracts/tools/aws/dynamodb-put'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createDynamoDBClient, putItem } from '@/app/api/tools/dynamodb/utils'
 
-const PutSchema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  tableName: z.string().min(1, 'Table name is required'),
-  item: z.record(z.unknown()).refine((val) => Object.keys(val).length > 0, {
-    message: 'Item is required',
-  }),
-})
+const logger = createLogger('DynamoDBPutAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkInternalAuth(request)
     if (!auth.success || !auth.userId) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const validatedData = PutSchema.parse(body)
+    const parsed = await parseToolRequest(awsDynamodbPutContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
+
+    logger.info(`Putting item into table '${validatedData.tableName}'`)
 
     const client = createDynamoDBClient({
       region: validatedData.region,
@@ -29,20 +31,25 @@ export async function POST(request: NextRequest) {
       secretAccessKey: validatedData.secretAccessKey,
     })
 
-    await putItem(client, validatedData.tableName, validatedData.item)
+    try {
+      await putItem(client, validatedData.tableName, validatedData.item, {
+        conditionExpression: validatedData.conditionExpression,
+        expressionAttributeNames: validatedData.expressionAttributeNames,
+        expressionAttributeValues: validatedData.expressionAttributeValues,
+      })
 
-    return NextResponse.json({
-      message: 'Item created successfully',
-      item: validatedData.item,
-    })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.errors[0]?.message ?? 'Invalid request' },
-        { status: 400 }
-      )
+      logger.info(`Put item completed for table '${validatedData.tableName}'`)
+
+      return NextResponse.json({
+        message: 'Item created successfully',
+        item: validatedData.item,
+      })
+    } finally {
+      client.destroy()
     }
-    const errorMessage = error instanceof Error ? error.message : 'DynamoDB put failed'
+  } catch (error) {
+    const errorMessage = toError(error).message || 'DynamoDB put failed'
+    logger.error('DynamoDB put failed:', error)
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})

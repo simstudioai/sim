@@ -2,6 +2,7 @@ import type {
   SupabaseStorageCreateSignedUrlParams,
   SupabaseStorageCreateSignedUrlResponse,
 } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageCreateSignedUrlTool: ToolConfig<
@@ -54,7 +55,7 @@ export const storageCreateSignedUrlTool: ToolConfig<
 
   request: {
     url: (params) => {
-      return `https://${params.projectId}.supabase.co/storage/v1/object/sign/${params.bucket}/${params.path}`
+      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/sign/${params.bucket}/${params.path}`
     },
     method: 'POST',
     headers: (params) => ({
@@ -84,7 +85,10 @@ export const storageCreateSignedUrlTool: ToolConfig<
     }
 
     const relativePath = data.signedURL || data.signedUrl
-    const fullUrl = `https://${params?.projectId}.supabase.co/storage/v1${relativePath}`
+    if (!params?.projectId) {
+      throw new Error('projectId is required to construct the signed URL')
+    }
+    const fullUrl = `${supabaseBaseUrl(params.projectId)}/storage/v1${relativePath}`
 
     return {
       success: true,

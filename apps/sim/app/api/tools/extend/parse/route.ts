@@ -1,13 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { extendParseContract } from '@/lib/api/contracts/tools/media/document-parse'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
 
@@ -15,16 +16,7 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ExtendParseAPI')
 
-const ExtendParseSchema = z.object({
-  apiKey: z.string().min(1, 'API key is required'),
-  filePath: z.string().optional(),
-  file: RawFileInputSchema.optional(),
-  outputFormat: z.enum(['markdown', 'spatial']).optional(),
-  chunking: z.enum(['page', 'document', 'section']).optional(),
-  engine: z.enum(['parse_performance', 'parse_light']).optional(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -44,8 +36,28 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = authResult.userId
-    const body = await request.json()
-    const validatedData = ExtendParseSchema.parse(body)
+
+    const parsed = await parseRequest(
+      extendParseContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid request data`, { errors: error.issues })
+          return NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request data'),
+              details: error.issues,
+            },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Extend parse request`, {
       fileName: validatedData.file?.name,
@@ -163,18 +175,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error in Extend parse:`, error)
 
     return NextResponse.json(
@@ -185,4 +185,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -3,6 +3,13 @@
  *
  * @vitest-environment node
  */
+import {
+  redisConfigMock,
+  redisConfigMockFns,
+  requestUtilsMockFns,
+  workflowsApiUtilsMock,
+  workflowsApiUtilsMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,7 +19,6 @@ const {
   mockRedisDel,
   mockRedisTtl,
   mockRedisEval,
-  mockGetRedisClient,
   mockRedisClient,
   mockDbSelect,
   mockDbInsert,
@@ -21,10 +27,7 @@ const {
   mockSendEmail,
   mockRenderOTPEmail,
   mockAddCorsHeaders,
-  mockCreateSuccessResponse,
-  mockCreateErrorResponse,
   mockSetChatAuthCookie,
-  mockGenerateRequestId,
   mockGetStorageMethod,
   mockZodParse,
   mockGetEnv,
@@ -41,7 +44,6 @@ const {
     ttl: mockRedisTtl,
     eval: mockRedisEval,
   }
-  const mockGetRedisClient = vi.fn()
   const mockDbSelect = vi.fn()
   const mockDbInsert = vi.fn()
   const mockDbDelete = vi.fn()
@@ -49,10 +51,7 @@ const {
   const mockSendEmail = vi.fn()
   const mockRenderOTPEmail = vi.fn()
   const mockAddCorsHeaders = vi.fn()
-  const mockCreateSuccessResponse = vi.fn()
-  const mockCreateErrorResponse = vi.fn()
   const mockSetChatAuthCookie = vi.fn()
-  const mockGenerateRequestId = vi.fn()
   const mockGetStorageMethod = vi.fn()
   const mockZodParse = vi.fn()
   const mockGetEnv = vi.fn()
@@ -63,7 +62,6 @@ const {
     mockRedisDel,
     mockRedisTtl,
     mockRedisEval,
-    mockGetRedisClient,
     mockRedisClient,
     mockDbSelect,
     mockDbInsert,
@@ -72,19 +70,18 @@ const {
     mockSendEmail,
     mockRenderOTPEmail,
     mockAddCorsHeaders,
-    mockCreateSuccessResponse,
-    mockCreateErrorResponse,
     mockSetChatAuthCookie,
-    mockGenerateRequestId,
     mockGetStorageMethod,
     mockZodParse,
     mockGetEnv,
   }
 })
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: mockGetRedisClient,
-}))
+const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
+const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
+
+vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -103,26 +100,6 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  chat: {
-    id: 'id',
-    identifier: 'identifier',
-    authType: 'authType',
-    allowedEmails: 'allowedEmails',
-    title: 'title',
-    isActive: 'isActive',
-    archivedAt: 'archivedAt',
-  },
-  verification: {
-    id: 'id',
-    identifier: 'identifier',
-    value: 'value',
-    expiresAt: 'expiresAt',
-    createdAt: 'createdAt',
-    updatedAt: 'updatedAt',
-  },
-}))
-
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((field: string, value: string) => ({ field, value, type: 'eq' })),
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
@@ -133,6 +110,16 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('@/lib/core/storage', () => ({
   getStorageMethod: mockGetStorageMethod,
+}))
+
+const { mockCheckRateLimitDirect } = vi.hoisted(() => ({
+  mockCheckRateLimitDirect: vi.fn(),
+}))
+
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mockCheckRateLimitDirect
+  },
 }))
 
 vi.mock('@/lib/messaging/email/mailer', () => ({
@@ -160,19 +147,7 @@ vi.mock('@/app/api/chat/utils', () => ({
   setChatAuthCookie: mockSetChatAuthCookie,
 }))
 
-vi.mock('@/app/api/workflows/utils', () => ({
-  createSuccessResponse: mockCreateSuccessResponse,
-  createErrorResponse: mockCreateErrorResponse,
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 
 vi.mock('@/lib/core/config/env', () => ({
   env: {
@@ -192,24 +167,35 @@ vi.mock('zod', () => {
       this.errors = issues
     }
   }
-  const mockStringReturnValue = {
-    email: vi.fn().mockReturnThis(),
-    length: vi.fn().mockReturnThis(),
-  }
-  return {
-    z: {
-      object: vi.fn().mockReturnValue({
-        parse: mockZodParse,
-      }),
-      string: vi.fn().mockReturnValue(mockStringReturnValue),
-      ZodError,
+  const chainable: Record<string, unknown> = {}
+  const proxy: Record<string, unknown> = new Proxy(chainable, {
+    get(target, prop) {
+      if (prop === 'parse') return mockZodParse
+      if (prop === 'safeParse') {
+        return (data: unknown) => ({ success: true, data })
+      }
+      if (prop === 'then') return undefined
+      if (typeof prop === 'symbol') return Reflect.get(target, prop)
+      if (!(prop in target)) {
+        target[prop as string] = vi.fn().mockReturnValue(proxy)
+      }
+      return target[prop as string]
     },
+  })
+  const makeChain = vi.fn(() => proxy)
+  return {
+    z: new Proxy(
+      { ZodError },
+      {
+        get(target, prop) {
+          if (prop === 'ZodError') return ZodError
+          if (typeof prop === 'symbol') return Reflect.get(target, prop)
+          return makeChain
+        },
+      }
+    ),
   }
 })
-
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: mockGenerateRequestId,
-}))
 
 import { POST, PUT } from './route'
 
@@ -272,7 +258,14 @@ describe('Chat OTP API Route', () => {
       status,
     }))
 
-    mockGenerateRequestId.mockReturnValue('req-123')
+    requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('req-123')
+    requestUtilsMockFns.mockGetClientIp.mockReturnValue('1.2.3.4')
+
+    mockCheckRateLimitDirect.mockResolvedValue({
+      allowed: true,
+      remaining: 10,
+      resetAt: new Date(Date.now() + 60_000),
+    })
 
     mockZodParse.mockImplementation((data: unknown) => data)
 
@@ -319,6 +312,134 @@ describe('Chat OTP API Route', () => {
       )
 
       expect(mockDbInsert).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('POST - Rate limiting', () => {
+    const buildDeploymentSelect = () =>
+      mockDbSelect.mockImplementationOnce(() => ({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([
+              {
+                id: mockChatId,
+                authType: 'email',
+                allowedEmails: [mockEmail],
+                title: 'Test Chat',
+              },
+            ]),
+          }),
+        }),
+      }))
+
+    it('returns 429 with Retry-After when IP rate limit is exceeded', async () => {
+      mockCheckRateLimitDirect.mockResolvedValueOnce({
+        allowed: false,
+        remaining: 0,
+        resetAt: new Date(Date.now() + 900_000),
+        retryAfterMs: 900_000,
+      })
+
+      const headerSet = vi.fn()
+      mockCreateErrorResponse.mockImplementationOnce((message: string, status: number) => ({
+        json: () => Promise.resolve({ error: message }),
+        status,
+        headers: { set: headerSet },
+      }))
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: mockEmail }),
+      })
+
+      const response = await POST(request, {
+        params: Promise.resolve({ identifier: mockIdentifier }),
+      })
+
+      expect(response.status).toBe(429)
+      expect(headerSet).toHaveBeenCalledWith('Retry-After', '900')
+      expect(mockSendEmail).not.toHaveBeenCalled()
+      expect(mockDbSelect).not.toHaveBeenCalled()
+    })
+
+    it('returns 429 with Retry-After when email rate limit is exceeded', async () => {
+      mockCheckRateLimitDirect
+        .mockResolvedValueOnce({
+          allowed: true,
+          remaining: 9,
+          resetAt: new Date(Date.now() + 60_000),
+        })
+        .mockResolvedValueOnce({
+          allowed: false,
+          remaining: 0,
+          resetAt: new Date(Date.now() + 900_000),
+          retryAfterMs: 900_000,
+        })
+
+      const headerSet = vi.fn()
+      mockCreateErrorResponse.mockImplementationOnce((message: string, status: number) => ({
+        json: () => Promise.resolve({ error: message }),
+        status,
+        headers: { set: headerSet },
+      }))
+
+      buildDeploymentSelect()
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: mockEmail }),
+      })
+
+      const response = await POST(request, {
+        params: Promise.resolve({ identifier: mockIdentifier }),
+      })
+
+      expect(response.status).toBe(429)
+      expect(headerSet).toHaveBeenCalledWith('Retry-After', '900')
+      expect(mockSendEmail).not.toHaveBeenCalled()
+    })
+
+    it('falls back to refill interval when retryAfterMs is missing', async () => {
+      mockCheckRateLimitDirect.mockResolvedValueOnce({
+        allowed: false,
+        remaining: 0,
+        resetAt: new Date(Date.now() + 900_000),
+      })
+
+      const headerSet = vi.fn()
+      mockCreateErrorResponse.mockImplementationOnce((message: string, status: number) => ({
+        json: () => Promise.resolve({ error: message }),
+        status,
+        headers: { set: headerSet },
+      }))
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: mockEmail }),
+      })
+
+      await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+
+      expect(headerSet).toHaveBeenCalledWith('Retry-After', '900')
+    })
+
+    it('skips IP rate limit when client IP is unknown', async () => {
+      requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce('unknown')
+      buildDeploymentSelect()
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: mockEmail }),
+      })
+
+      await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+
+      // Only the email-scoped check should run, not the IP-scoped one
+      expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(1)
+      expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
+        expect.stringContaining('chat-otp:email:'),
+        expect.any(Object)
+      )
     })
   })
 

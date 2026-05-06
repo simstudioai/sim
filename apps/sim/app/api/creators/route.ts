@@ -1,43 +1,57 @@
 import { db } from '@sim/db'
 import { member, templateCreators } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  type CreatorProfileDetails,
+  createCreatorProfileContract,
+  listCreatorProfilesQuerySchema,
+} from '@/lib/api/contracts/creator-profile'
+import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
-import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CreatorProfilesAPI')
 
-const CreatorProfileDetailsSchema = z.object({
-  about: z.string().max(2000, 'Max 2000 characters').optional(),
-  xUrl: z.string().url().optional().or(z.literal('')),
-  linkedinUrl: z.string().url().optional().or(z.literal('')),
-  websiteUrl: z.string().url().optional().or(z.literal('')),
-  contactEmail: z.string().email().optional().or(z.literal('')),
-})
-
-const CreateCreatorProfileSchema = z.object({
-  referenceType: z.enum(['user', 'organization']),
-  referenceId: z.string().min(1, 'Reference ID is required'),
-  name: z.string().min(1, 'Name is required').max(100, 'Max 100 characters'),
-  profileImageUrl: z.string().min(1, 'Profile image is required'),
-  details: CreatorProfileDetailsSchema.optional(),
-})
-
 // GET /api/creators - Get creator profiles for current user
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
-  const { searchParams } = new URL(request.url)
-  const userId = searchParams.get('userId')
+  const queryResult = listCreatorProfilesQuerySchema.safeParse(
+    Object.fromEntries(request.nextUrl.searchParams.entries())
+  )
+  if (!queryResult.success) {
+    return NextResponse.json({ error: 'Invalid query parameters' }, { status: 400 })
+  }
 
   try {
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized access attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const requestedUserId = queryResult.data.userId
+    if (requestedUserId && requestedUserId !== session.user.id) {
+      return NextResponse.json({ profiles: [] })
+    }
+
+    if (requestedUserId) {
+      const profiles = await db
+        .select()
+        .from(templateCreators)
+        .where(
+          and(
+            eq(templateCreators.referenceType, 'user'),
+            eq(templateCreators.referenceId, requestedUserId)
+          )
+        )
+
+      logger.info(`[${requestId}] Retrieved ${profiles.length} creator profiles`)
+
+      return NextResponse.json({ profiles })
     }
 
     // Get user's organizations where they're admin or owner
@@ -75,14 +89,14 @@ export async function GET(request: NextRequest) {
     logger.info(`[${requestId}] Retrieved ${profiles.length} creator profiles`)
 
     return NextResponse.json({ profiles })
-  } catch (error: any) {
+  } catch (error) {
     logger.error(`[${requestId}] Error fetching creator profiles`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 // POST /api/creators - Create a new creator profile
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -92,10 +106,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const data = CreateCreatorProfileSchema.parse(body)
+    const parsed = await parseRequest(
+      createCreatorProfileContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid profile data`, { errors: error.issues })
+          return validationErrorResponse(error, 'Invalid profile data')
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const data = parsed.data.body
 
-    // Validate permissions
     if (data.referenceType === 'user') {
       if (data.referenceId !== session.user.id) {
         logger.warn(`[${requestId}] User tried to create profile for another user`)
@@ -164,6 +188,7 @@ export async function POST(request: NextRequest) {
       name: data.name,
       profileImageUrl: data.profileImageUrl || null,
       details: Object.keys(details).length > 0 ? details : null,
+      verified: false,
       createdBy: session.user.id,
       createdAt: now,
       updatedAt: now,
@@ -174,16 +199,8 @@ export async function POST(request: NextRequest) {
     logger.info(`[${requestId}] Successfully created creator profile: ${profileId}`)
 
     return NextResponse.json({ data: newProfile }, { status: 201 })
-  } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid profile data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid profile data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
+  } catch (error) {
     logger.error(`[${requestId}] Error creating creator profile`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

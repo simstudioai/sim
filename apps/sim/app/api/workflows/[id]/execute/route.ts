@@ -1,6 +1,12 @@
+import { db } from '@sim/db'
+import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId, isValidUuid } from '@sim/utils/id'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { executeWorkflowBodySchema } from '@/lib/api/contracts/workflows'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
@@ -12,14 +18,19 @@ import {
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId, isValidUuid } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   buildNextCallChain,
   parseCallChain,
   SIM_VIA_HEADER,
   validateCallChain,
 } from '@/lib/execution/call-chain'
-import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/event-buffer'
+import {
+  createExecutionEventWriter,
+  flushExecutionStreamReplayBuffer,
+  initializeExecutionStreamMeta,
+  type TerminalExecutionStreamStatus,
+} from '@/lib/execution/event-buffer'
 import { processInputFileFields } from '@/lib/execution/files'
 import {
   registerManualExecutionAborter,
@@ -40,12 +51,12 @@ import {
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
-import {
-  authorizeWorkflowByWorkspacePermission,
-  createHttpResponseFromBlock,
-  workflowHasResponseBlock,
-} from '@/lib/workflows/utils'
+import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
+import {
+  PublicApiNotAllowedError,
+  validatePublicApiAllowed,
+} from '@/ee/access-control/utils/permission-check'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
@@ -55,54 +66,11 @@ import type {
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
-import { hasExecutionResult } from '@/executor/utils/errors'
+import { getExecutionErrorStatus, hasExecutionResult } from '@/executor/utils/errors'
 import { Serializer } from '@/serializer'
 import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('WorkflowExecuteAPI')
-
-const ExecuteWorkflowSchema = z.object({
-  selectedOutputs: z.array(z.string()).optional().default([]),
-  triggerType: z.enum(CORE_TRIGGER_TYPES).optional(),
-  stream: z.boolean().optional(),
-  useDraftState: z.boolean().optional(),
-  input: z.any().optional(),
-  isClientSession: z.boolean().optional(),
-  includeFileBase64: z.boolean().optional().default(true),
-  base64MaxBytes: z.number().int().positive().optional(),
-  workflowStateOverride: z
-    .object({
-      blocks: z.record(z.any()),
-      edges: z.array(z.any()),
-      loops: z.record(z.any()).optional(),
-      parallels: z.record(z.any()).optional(),
-    })
-    .optional(),
-  triggerBlockId: z.string().optional(),
-  stopAfterBlockId: z.string().optional(),
-  runFromBlock: z
-    .object({
-      startBlockId: z.string().min(1, 'Start block ID is required'),
-      sourceSnapshot: z
-        .object({
-          blockStates: z.record(z.any()),
-          executedBlocks: z.array(z.string()),
-          blockLogs: z.array(z.any()),
-          decisions: z.object({
-            router: z.record(z.string()),
-            condition: z.record(z.string()),
-          }),
-          completedLoops: z.array(z.string()),
-          loopExecutions: z.record(z.any()).optional(),
-          parallelExecutions: z.record(z.any()).optional(),
-          parallelBlockMapping: z.record(z.any()).optional(),
-          activeExecutionPath: z.array(z.string()),
-        })
-        .optional(),
-      executionId: z.string().optional(),
-    })
-    .optional(),
-})
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -218,7 +186,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
           const output = await executeWorkflowJob(payload)
           await jobQueue.completeJob(jobId, output)
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
+          const errorMessage = toError(error).message
           asyncLogger.error('Async workflow execution failed', {
             jobId,
             error: errorMessage,
@@ -228,10 +196,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
           } catch (markFailedError) {
             asyncLogger.error('Failed to mark job as failed', {
               jobId,
-              error:
-                markFailedError instanceof Error
-                  ? markFailedError.message
-                  : String(markFailedError),
+              error: toError(markFailedError).message,
             })
           }
         }
@@ -251,10 +216,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
     )
   } catch (error: any) {
     asyncLogger.error('Failed to queue async execution', error)
-    return NextResponse.json(
-      { error: `Failed to queue async execution: ${error.message}` },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to queue async execution' }, { status: 500 })
   }
 }
 
@@ -264,23 +226,25 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
  * Unified server-side workflow execution endpoint.
  * Supports both SSE streaming (for interactive/manual runs) and direct JSON responses (for background jobs).
  */
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const isSessionRequest = req.headers.has('cookie') && !hasExternalApiCredentials(req.headers)
-  if (isSessionRequest) {
-    return handleExecutePost(req, params)
-  }
+export const POST = withRouteHandler(
+  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const isSessionRequest = req.headers.has('cookie') && !hasExternalApiCredentials(req.headers)
+    if (isSessionRequest) {
+      return handleExecutePost(req, params)
+    }
 
-  const ticket = tryAdmit()
-  if (!ticket) {
-    return admissionRejectedResponse()
-  }
+    const ticket = tryAdmit()
+    if (!ticket) {
+      return admissionRejectedResponse()
+    }
 
-  try {
-    return await handleExecutePost(req, params)
-  } finally {
-    ticket.release()
+    try {
+      return await handleExecutePost(req, params)
+    } finally {
+      ticket.release()
+    }
   }
-}
+)
 
 async function handleExecutePost(
   req: NextRequest,
@@ -311,31 +275,28 @@ async function handleExecutePost(
         return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
       }
 
-      const { db: dbClient, workflow: workflowTable } = await import('@sim/db')
-      const { eq } = await import('drizzle-orm')
-      const [wf] = await dbClient
+      const [wf] = await db
         .select({
           isPublicApi: workflowTable.isPublicApi,
           isDeployed: workflowTable.isDeployed,
           userId: workflowTable.userId,
+          workspaceId: workflowTable.workspaceId,
         })
         .from(workflowTable)
         .where(eq(workflowTable.id, workflowId))
         .limit(1)
 
-      if (!wf?.isPublicApi || !wf.isDeployed) {
+      if (!wf?.isPublicApi || !wf.isDeployed || !wf.workspaceId) {
         return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
       }
 
-      const { isPublicApiDisabled } = await import('@/lib/core/config/feature-flags')
-      if (isPublicApiDisabled) {
-        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
-      }
-
-      const { getUserPermissionConfig } = await import('@/ee/access-control/utils/permission-check')
-      const ownerConfig = await getUserPermissionConfig(wf.userId)
-      if (ownerConfig?.disablePublicApi) {
-        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+      try {
+        await validatePublicApiAllowed(wf.userId, wf.workspaceId)
+      } catch (err) {
+        if (err instanceof PublicApiNotAllowedError) {
+          return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+        }
+        throw err
       }
 
       userId = wf.userId
@@ -345,22 +306,23 @@ async function handleExecutePost(
     }
 
     let body: any = {}
-    try {
-      const text = await req.text()
-      if (text) {
+    const text = await req.text()
+    if (text) {
+      try {
         body = JSON.parse(text)
+      } catch (error) {
+        reqLogger.warn('Failed to parse request body', { error: toError(error).message })
+        return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
       }
-    } catch (error) {
-      reqLogger.warn('Failed to parse request body, using defaults')
     }
 
-    const validation = ExecuteWorkflowSchema.safeParse(body)
+    const validation = executeWorkflowBodySchema.safeParse(body)
     if (!validation.success) {
-      reqLogger.warn('Invalid request body:', validation.error.errors)
+      reqLogger.warn('Invalid request body:', validation.error.issues)
       return NextResponse.json(
         {
           error: 'Invalid request body',
-          details: validation.error.errors.map((e) => ({
+          details: validation.error.issues.map((e) => ({
             path: e.path.join('.'),
             message: e.message,
           })),
@@ -382,10 +344,12 @@ async function handleExecutePost(
       includeFileBase64,
       base64MaxBytes,
       workflowStateOverride,
-      triggerBlockId,
+      triggerBlockId: parsedTriggerBlockId,
+      startBlockId,
       stopAfterBlockId,
       runFromBlock: rawRunFromBlock,
     } = validation.data
+    const triggerBlockId = parsedTriggerBlockId ?? startBlockId
 
     if (isPublicApiAccess && isClientSession) {
       return NextResponse.json(
@@ -819,6 +783,7 @@ async function handleExecutePost(
         reqLogger.error(`Non-SSE execution failed: ${errorMessage}`)
 
         const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
+        const status = getExecutionErrorStatus(error)
 
         return NextResponse.json(
           {
@@ -833,7 +798,7 @@ async function handleExecutePost(
                 }
               : undefined,
           },
-          { status: 500 }
+          { status }
         )
       } finally {
         timeoutController.cleanup()
@@ -908,11 +873,17 @@ async function handleExecutePost(
     let isManualAbortRegistered = false
 
     const eventWriter = createExecutionEventWriter(executionId)
-    setExecutionMeta(executionId, {
-      status: 'active',
+    const metaInitialized = await initializeExecutionStreamMeta(executionId, {
       userId: actorUserId,
       workflowId,
-    }).catch(() => {})
+    })
+    if (!metaInitialized) {
+      timeoutController.cleanup()
+      return NextResponse.json(
+        { error: 'Run buffer temporarily unavailable' },
+        { status: 503, headers: { 'X-Execution-Id': executionId } }
+      )
+    }
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -921,12 +892,18 @@ async function handleExecutePost(
         registerManualExecutionAborter(executionId, timeoutController.abort)
         isManualAbortRegistered = true
 
-        let localEventSeq = 0
-        const sendEvent = (event: ExecutionEvent) => {
+        let terminalEventPublished = false
+        const sendEvent = async (
+          event: ExecutionEvent,
+          terminalStatus?: TerminalExecutionStreamStatus
+        ) => {
           const isBuffered = event.type !== 'stream:chunk' && event.type !== 'stream:done'
           if (isBuffered) {
-            localEventSeq++
-            event.eventId = localEventSeq
+            const entry = terminalStatus
+              ? await eventWriter.writeTerminal(event, terminalStatus)
+              : await eventWriter.write(event)
+            event.eventId = entry.eventId
+            terminalEventPublished ||= Boolean(terminalStatus)
           }
           if (!isStreamClosed) {
             try {
@@ -935,15 +912,12 @@ async function handleExecutePost(
               isStreamClosed = true
             }
           }
-          if (isBuffered) {
-            eventWriter.write(event).catch(() => {})
-          }
         }
 
         try {
           const startTime = new Date()
 
-          sendEvent({
+          await sendEvent({
             type: 'execution:started',
             timestamp: startTime.toISOString(),
             executionId,
@@ -962,7 +936,7 @@ async function handleExecutePost(
             childWorkflowContext?: ChildWorkflowContext
           ) => {
             reqLogger.info('onBlockStart called', { blockId, blockName, blockType })
-            sendEvent({
+            await sendEvent({
               type: 'block:started',
               timestamp: new Date().toISOString(),
               executionId,
@@ -1016,7 +990,7 @@ async function handleExecutePost(
                 blockType,
                 error: callbackData.output.error,
               })
-              sendEvent({
+              await sendEvent({
                 type: 'block:error',
                 timestamp: new Date().toISOString(),
                 executionId,
@@ -1050,7 +1024,7 @@ async function handleExecutePost(
                 blockName,
                 blockType,
               })
-              sendEvent({
+              await sendEvent({
                 type: 'block:completed',
                 timestamp: new Date().toISOString(),
                 executionId,
@@ -1093,7 +1067,7 @@ async function handleExecutePost(
                 if (done) break
 
                 const chunk = decoder.decode(value, { stream: true })
-                sendEvent({
+                await sendEvent({
                   type: 'stream:chunk',
                   timestamp: new Date().toISOString(),
                   executionId,
@@ -1102,7 +1076,7 @@ async function handleExecutePost(
                 })
               }
 
-              sendEvent({
+              await sendEvent({
                 type: 'stream:done',
                 timestamp: new Date().toISOString(),
                 executionId,
@@ -1147,13 +1121,14 @@ async function handleExecutePost(
             selectedOutputs
           )
 
-          const onChildWorkflowInstanceReady = (
+          const onChildWorkflowInstanceReady = async (
             blockId: string,
             childWorkflowInstanceId: string,
             iterationContext?: IterationContext,
-            executionOrder?: number
+            executionOrder?: number,
+            childWorkflowContext?: ChildWorkflowContext
           ) => {
-            sendEvent({
+            await sendEvent({
               type: 'block:childWorkflowStarted',
               timestamp: new Date().toISOString(),
               executionId,
@@ -1163,7 +1138,16 @@ async function handleExecutePost(
                 childWorkflowInstanceId,
                 ...(iterationContext && {
                   iterationCurrent: iterationContext.iterationCurrent,
+                  iterationTotal: iterationContext.iterationTotal,
+                  iterationType: iterationContext.iterationType,
                   iterationContainerId: iterationContext.iterationContainerId,
+                  ...(iterationContext.parentIterations?.length && {
+                    parentIterations: iterationContext.parentIterations,
+                  }),
+                }),
+                ...(childWorkflowContext && {
+                  childWorkflowBlockId: childWorkflowContext.parentBlockId,
+                  childWorkflowName: childWorkflowContext.workflowName,
                 }),
                 ...(executionOrder !== undefined && { executionOrder }),
               },
@@ -1197,30 +1181,38 @@ async function handleExecutePost(
 
               await loggingSession.markAsFailed(timeoutErrorMessage)
 
-              sendEvent({
-                type: 'execution:error',
-                timestamp: new Date().toISOString(),
-                executionId,
-                workflowId,
-                data: {
-                  error: timeoutErrorMessage,
-                  duration: result.metadata?.duration || 0,
-                },
-              })
               finalMetaStatus = 'error'
+              await sendEvent(
+                {
+                  type: 'execution:error',
+                  timestamp: new Date().toISOString(),
+                  executionId,
+                  workflowId,
+                  data: {
+                    error: timeoutErrorMessage,
+                    duration: result.metadata?.duration || 0,
+                    finalBlockLogs: result.logs,
+                  },
+                },
+                'error'
+              )
             } else {
               reqLogger.info('Workflow execution was cancelled')
 
-              sendEvent({
-                type: 'execution:cancelled',
-                timestamp: new Date().toISOString(),
-                executionId,
-                workflowId,
-                data: {
-                  duration: result.metadata?.duration || 0,
-                },
-              })
               finalMetaStatus = 'cancelled'
+              await sendEvent(
+                {
+                  type: 'execution:cancelled',
+                  timestamp: new Date().toISOString(),
+                  executionId,
+                  workflowId,
+                  data: {
+                    duration: result.metadata?.duration || 0,
+                    finalBlockLogs: result.logs,
+                  },
+                },
+                'cancelled'
+              )
             }
             return
           }
@@ -1234,34 +1226,43 @@ async function handleExecutePost(
             : result.output
 
           if (result.status === 'paused') {
-            sendEvent({
-              type: 'execution:paused',
-              timestamp: new Date().toISOString(),
-              executionId,
-              workflowId,
-              data: {
-                output: sseOutput,
-                duration: result.metadata?.duration || 0,
-                startTime: result.metadata?.startTime || startTime.toISOString(),
-                endTime: result.metadata?.endTime || new Date().toISOString(),
+            finalMetaStatus = 'complete'
+            await sendEvent(
+              {
+                type: 'execution:paused',
+                timestamp: new Date().toISOString(),
+                executionId,
+                workflowId,
+                data: {
+                  output: sseOutput,
+                  duration: result.metadata?.duration || 0,
+                  startTime: result.metadata?.startTime || startTime.toISOString(),
+                  endTime: result.metadata?.endTime || new Date().toISOString(),
+                  finalBlockLogs: result.logs,
+                },
               },
-            })
+              'complete'
+            )
           } else {
-            sendEvent({
-              type: 'execution:completed',
-              timestamp: new Date().toISOString(),
-              executionId,
-              workflowId,
-              data: {
-                success: result.success,
-                output: sseOutput,
-                duration: result.metadata?.duration || 0,
-                startTime: result.metadata?.startTime || startTime.toISOString(),
-                endTime: result.metadata?.endTime || new Date().toISOString(),
+            finalMetaStatus = 'complete'
+            await sendEvent(
+              {
+                type: 'execution:completed',
+                timestamp: new Date().toISOString(),
+                executionId,
+                workflowId,
+                data: {
+                  success: result.success,
+                  output: sseOutput,
+                  duration: result.metadata?.duration || 0,
+                  startTime: result.metadata?.startTime || startTime.toISOString(),
+                  endTime: result.metadata?.endTime || new Date().toISOString(),
+                  finalBlockLogs: result.logs,
+                },
               },
-            })
+              'complete'
+            )
           }
-          finalMetaStatus = 'complete'
         } catch (error: unknown) {
           const isTimeout = isTimeoutError(error) || timeoutController.isTimedOut()
           const errorMessage = isTimeout
@@ -1274,31 +1275,55 @@ async function handleExecutePost(
 
           const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
 
-          sendEvent({
-            type: 'execution:error',
-            timestamp: new Date().toISOString(),
-            executionId,
-            workflowId,
-            data: {
-              error: executionResult?.error || errorMessage,
-              duration: executionResult?.metadata?.duration || 0,
-            },
-          })
           finalMetaStatus = 'error'
+          await sendEvent(
+            {
+              type: 'execution:error',
+              timestamp: new Date().toISOString(),
+              executionId,
+              workflowId,
+              data: {
+                error: executionResult?.error || errorMessage,
+                duration: executionResult?.metadata?.duration || 0,
+                finalBlockLogs: executionResult?.logs,
+              },
+            },
+            'error'
+          )
         } finally {
           if (isManualAbortRegistered) {
             unregisterManualExecutionAborter(executionId)
             isManualAbortRegistered = false
           }
-          try {
-            await eventWriter.close()
-          } catch (closeError) {
-            reqLogger.warn('Failed to close event writer', {
-              error: closeError instanceof Error ? closeError.message : String(closeError),
+          if (finalMetaStatus && !terminalEventPublished) {
+            const replayBufferFlushed = await flushExecutionStreamReplayBuffer(
+              executionId,
+              eventWriter
+            )
+            reqLogger.error('Failed to publish terminal execution event durably', {
+              executionId,
+              status: finalMetaStatus,
+              replayBufferFlushed,
             })
-          }
-          if (finalMetaStatus) {
-            setExecutionMeta(executionId, { status: finalMetaStatus }).catch(() => {})
+            if (!isStreamClosed) {
+              controller.error(new Error('Run buffer terminal event publish failed'))
+              isStreamClosed = true
+            }
+          } else if (terminalEventPublished) {
+            await eventWriter.close().catch((closeError) => {
+              reqLogger.warn('Failed to close execution event writer after terminal publish', {
+                executionId,
+                error: closeError instanceof Error ? closeError.message : String(closeError),
+              })
+            })
+          } else {
+            try {
+              await eventWriter.close()
+            } catch (closeError) {
+              reqLogger.warn('Failed to close event writer', {
+                error: toError(closeError).message,
+              })
+            }
           }
           timeoutController.cleanup()
           if (executionId) {

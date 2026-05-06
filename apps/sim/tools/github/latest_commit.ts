@@ -71,16 +71,23 @@ export const latestCommitV2Tool: ToolConfig = {
   request: latestCommitTool.request,
   oauth: latestCommitTool.oauth,
   transformResponse: async (response: Response) => {
-    const commits = await response.json()
-    const commit = commits[0]
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to fetch latest commit')
+    }
+    const metadata = data.output?.metadata ?? {}
     return {
       success: true,
       output: {
-        sha: commit.sha,
-        html_url: commit.html_url,
-        commit: commit.commit,
-        author: commit.author ?? null,
-        committer: commit.committer ?? null,
+        sha: metadata.sha ?? '',
+        html_url: metadata.html_url ?? '',
+        commit: {
+          message: metadata.commit_message ?? '',
+          author: metadata.author ?? null,
+          committer: metadata.committer ?? null,
+        },
+        author: metadata.author ?? null,
+        committer: metadata.committer ?? null,
       },
     }
   },

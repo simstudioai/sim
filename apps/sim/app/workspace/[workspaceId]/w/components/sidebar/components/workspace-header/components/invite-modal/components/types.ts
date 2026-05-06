@@ -8,5 +8,6 @@ export interface UserPermissions {
   permissionType: PermissionType
   isCurrentUser?: boolean
   isPendingInvitation?: boolean
+  isExternal?: boolean
   invitationId?: string
 }

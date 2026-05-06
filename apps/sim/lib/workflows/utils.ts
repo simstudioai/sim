@@ -1,15 +1,14 @@
 import { db } from '@sim/db'
 import { permissions, userStats, workflowFolder, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, asc, eq, inArray, isNull, max, min, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { generateId } from '@/lib/core/utils/uuid'
-import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import type { ExecutionResult } from '@/executor/types'
 
@@ -228,18 +227,6 @@ export async function resolveWorkflowIdForUser(
   }
 }
 
-type WorkflowRecord = ReturnType<typeof getWorkflowById> extends Promise<infer R>
-  ? NonNullable<R>
-  : never
-
-export interface WorkflowWorkspaceAuthorizationResult {
-  allowed: boolean
-  status: number
-  message?: string
-  workflow: WorkflowRecord | null
-  workspacePermission: PermissionType | null
-}
-
 export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
   try {
     const workflow = await getWorkflowById(workflowId)
@@ -399,86 +386,6 @@ export async function validateWorkflowPermissions(
     error: null,
     session,
     workflow: authorization.workflow,
-  }
-}
-
-export async function authorizeWorkflowByWorkspacePermission(params: {
-  workflowId: string
-  userId: string
-  action?: 'read' | 'write' | 'admin'
-}): Promise<WorkflowWorkspaceAuthorizationResult> {
-  const { workflowId, userId, action = 'read' } = params
-
-  const activeContext = await getActiveWorkflowContext(workflowId)
-  if (!activeContext) {
-    return {
-      allowed: false,
-      status: 404,
-      message: 'Workflow not found',
-      workflow: null,
-      workspacePermission: null,
-    }
-  }
-
-  const workflow = activeContext.workflow
-
-  if (!workflow.workspaceId) {
-    return {
-      allowed: false,
-      status: 403,
-      message:
-        'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot be accessed.',
-      workflow,
-      workspacePermission: null,
-    }
-  }
-
-  const [permissionRow] = await db
-    .select({ permissionType: permissions.permissionType })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workflow.workspaceId)
-      )
-    )
-    .limit(1)
-
-  const workspacePermission = permissionRow?.permissionType ?? null
-
-  if (workspacePermission === null) {
-    return {
-      allowed: false,
-      status: 403,
-      message: `Unauthorized: Access denied to ${action} this workflow`,
-      workflow,
-      workspacePermission,
-    }
-  }
-
-  const permissionSatisfied =
-    action === 'read'
-      ? true
-      : action === 'write'
-        ? workspacePermission === 'write' || workspacePermission === 'admin'
-        : workspacePermission === 'admin'
-
-  if (!permissionSatisfied) {
-    return {
-      allowed: false,
-      status: 403,
-      message: `Unauthorized: Access denied to ${action} this workflow`,
-      workflow,
-      workspacePermission,
-    }
-  }
-
-  return {
-    allowed: true,
-    status: 200,
-    workflow,
-    workspacePermission,
   }
 }
 
@@ -655,6 +562,18 @@ export async function updateFolderRecord(
   if (updates.name !== undefined) setData.name = updates.name
   if (updates.parentId !== undefined) setData.parentId = updates.parentId
   await db.update(workflowFolder).set(setData).where(eq(workflowFolder.id, folderId))
+}
+
+export async function verifyFolderWorkspace(
+  folderId: string,
+  workspaceId: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: workflowFolder.id })
+    .from(workflowFolder)
+    .where(and(eq(workflowFolder.id, folderId), eq(workflowFolder.workspaceId, workspaceId)))
+    .limit(1)
+  return Boolean(row)
 }
 
 export async function deleteFolderRecord(folderId: string): Promise<boolean> {

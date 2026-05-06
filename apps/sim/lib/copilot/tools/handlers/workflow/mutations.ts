@@ -1,13 +1,14 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { createWorkspaceApiKey } from '@/lib/api-key/auth'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import {
   getExecutionState,
@@ -27,6 +28,7 @@ import {
   setWorkflowVariables,
   updateFolderRecord,
   updateWorkflowRecord,
+  verifyFolderWorkspace,
 } from '@/lib/workflows/utils'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -68,7 +70,7 @@ function buildExecutionOutput(
 }
 
 function buildExecutionError(error: unknown): ToolCallResult {
-  const message = error instanceof Error ? error.message : String(error)
+  const message = toError(error).message
   if (hasExecutionResult(error)) {
     return buildExecutionOutput({
       ...error.executionResult,
@@ -268,7 +270,7 @@ export async function executeCreateWorkflow(
       },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -312,7 +314,7 @@ export async function executeCreateFolder(
 
     return { success: true, output: result }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -416,7 +418,7 @@ export async function executeSetGlobalWorkflowVariables(
               return parsed
           } catch (error) {
             logger.warn('Failed to parse JSON value for variable coercion', {
-              error: error instanceof Error ? error.message : String(error),
+              error: toError(error).message,
             })
           }
           return value
@@ -474,7 +476,7 @@ export async function executeSetGlobalWorkflowVariables(
 
     return { success: true, output: { updated: Object.values(byName).length } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -501,7 +503,7 @@ export async function executeRenameWorkflow(
 
     return { success: true, output: { workflowId, name } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -521,7 +523,13 @@ export async function executeMoveWorkflow(
 
     for (const workflowId of workflowIds) {
       try {
-        await ensureWorkflowAccess(workflowId, context.userId, 'write')
+        const { workspaceId } = await ensureWorkflowAccess(workflowId, context.userId, 'write')
+        if (folderId) {
+          if (!workspaceId || !(await verifyFolderWorkspace(folderId, workspaceId))) {
+            failed.push(workflowId)
+            continue
+          }
+        }
         assertWorkflowMutationNotAborted(context)
         await updateWorkflowRecord(workflowId, { folderId })
         moved.push(workflowId)
@@ -532,7 +540,7 @@ export async function executeMoveWorkflow(
 
     return { success: moved.length > 0, output: { moved, failed, folderId } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -561,12 +569,20 @@ export async function executeMoveFolder(
 
     const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+
+    if (!(await verifyFolderWorkspace(folderId, workspaceId))) {
+      return { success: false, error: 'Folder not found' }
+    }
+    if (parentId && !(await verifyFolderWorkspace(parentId, workspaceId))) {
+      return { success: false, error: 'Parent folder not found' }
+    }
+
     assertWorkflowMutationNotAborted(context)
     await updateFolderRecord(folderId, { parentId })
 
     return { success: true, output: { folderId, parentId } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -663,7 +679,7 @@ export async function executeGenerateApiKey(
       },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -764,7 +780,7 @@ export async function executeUpdateWorkflow(
       output: { workflowId, ...updates },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -895,7 +911,7 @@ export async function executeSetBlockEnabled(
       },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -937,7 +953,7 @@ export async function executeDeleteWorkflow(
       output: { deleted, failed },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -983,7 +999,7 @@ export async function executeDeleteFolder(
 
     return { success: deleted.length > 0, output: { deleted, failed } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -1006,12 +1022,17 @@ export async function executeRenameFolder(
 
     const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+
+    if (!(await verifyFolderWorkspace(folderId, workspaceId))) {
+      return { success: false, error: 'Folder not found' }
+    }
+
     assertWorkflowMutationNotAborted(context)
     await updateFolderRecord(folderId, { name })
 
     return { success: true, output: { folderId, name } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 

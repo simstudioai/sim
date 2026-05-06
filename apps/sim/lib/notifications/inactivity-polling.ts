@@ -7,9 +7,9 @@ import {
   workspaceNotificationSubscription,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, gte, inArray, sql } from 'drizzle-orm'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
-import { generateId } from '@/lib/core/utils/uuid'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import {
   executeNotificationDelivery,

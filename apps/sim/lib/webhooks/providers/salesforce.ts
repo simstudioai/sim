@@ -1,5 +1,5 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { NextResponse } from 'next/server'
 import type {
   AuthContext,
@@ -114,7 +114,7 @@ function stableSerialize(value: unknown): string {
 }
 
 function buildFallbackDeliveryFingerprint(body: Record<string, unknown>): string {
-  return crypto.createHash('sha256').update(stableSerialize(body), 'utf8').digest('hex')
+  return sha256Hex(stableSerialize(body))
 }
 
 function pickRecordId(body: Record<string, unknown>, record: Record<string, unknown>): string {

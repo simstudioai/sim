@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { webhookTriggerGetContract, webhookTriggerPostContract } from '@/lib/api/contracts/webhooks'
+import { parseRequest } from '@/lib/api/server'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   checkWebhookPreprocessing,
   findAllWebhooksForPath,
@@ -22,44 +25,49 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ path: string }> }) {
-  const requestId = generateRequestId()
-  const { path } = await params
+export const GET = withRouteHandler(
+  async (request: NextRequest, context: { params: Promise<{ path: string }> }) => {
+    const requestId = generateRequestId()
+    const parsed = await parseRequest(webhookTriggerGetContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { path } = parsed.data.params
 
-  // Handle provider-specific GET verifications (Microsoft Graph, WhatsApp, etc.)
-  const challengeResponse = await handleProviderChallenges({}, request, requestId, path)
-  if (challengeResponse) {
-    return challengeResponse
+    // Handle provider-specific GET verifications (Microsoft Graph, WhatsApp, etc.)
+    const challengeResponse = await handleProviderChallenges({}, request, requestId, path)
+    if (challengeResponse) {
+      return challengeResponse
+    }
+
+    return (
+      (await handlePreLookupWebhookVerification(request.method, undefined, requestId, path)) ||
+      new NextResponse('Method not allowed', { status: 405 })
+    )
   }
+)
 
-  return (
-    (await handlePreLookupWebhookVerification(request.method, undefined, requestId, path)) ||
-    new NextResponse('Method not allowed', { status: 405 })
-  )
-}
+export const POST = withRouteHandler(
+  async (request: NextRequest, context: { params: Promise<{ path: string }> }) => {
+    const ticket = tryAdmit()
+    if (!ticket) {
+      return admissionRejectedResponse()
+    }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ path: string }> }
-) {
-  const ticket = tryAdmit()
-  if (!ticket) {
-    return admissionRejectedResponse()
+    try {
+      return await handleWebhookPost(request, context)
+    } finally {
+      ticket.release()
+    }
   }
-
-  try {
-    return await handleWebhookPost(request, params)
-  } finally {
-    ticket.release()
-  }
-}
+)
 
 async function handleWebhookPost(
   request: NextRequest,
-  params: Promise<{ path: string }>
+  context: { params: Promise<{ path: string }> }
 ): Promise<NextResponse> {
   const requestId = generateRequestId()
-  const { path } = await params
+  const parsed = await parseRequest(webhookTriggerPostContract, request, context)
+  if (!parsed.success) return parsed.response
+  const { path } = parsed.data.params
 
   const earlyChallenge = await handleProviderChallenges({}, request, requestId, path)
   if (earlyChallenge) {

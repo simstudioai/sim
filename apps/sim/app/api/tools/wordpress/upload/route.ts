@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { wordpressUploadContract } from '@/lib/api/contracts/storage-transfer'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   getFileExtension,
   getMimeTypeFromExtension,
@@ -17,18 +18,7 @@ const logger = createLogger('WordPressUploadAPI')
 
 const WORDPRESS_COM_API_BASE = 'https://public-api.wordpress.com/wp/v2/sites'
 
-const WordPressUploadSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  siteId: z.string().min(1, 'Site ID is required'),
-  file: RawFileInputSchema.optional().nullable(),
-  filename: z.string().optional().nullable(),
-  title: z.string().optional().nullable(),
-  caption: z.string().optional().nullable(),
-  altText: z.string().optional().nullable(),
-  description: z.string().optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -52,8 +42,9 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    const body = await request.json()
-    const validatedData = WordPressUploadSchema.parse(body)
+    const parsed = await parseRequest(wordpressUploadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Uploading file to WordPress`, {
       siteId: validatedData.siteId,
@@ -200,18 +191,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid request data',
-          details: error.errors,
-        },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Error uploading file to WordPress:`, error)
 
     return NextResponse.json(
@@ -222,4 +201,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -3,19 +3,19 @@ import { member } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { billingQuerySchema } from '@/lib/api/contracts/subscription'
 import { getSession } from '@/lib/auth'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { getSimplifiedBillingSummary } from '@/lib/billing/core/billing'
 import { getOrganizationBillingData } from '@/lib/billing/core/organization'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { getPlanTierCredits } from '@/lib/billing/plan-helpers'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UnifiedBillingAPI')
 
 /**
  * Unified Billing Endpoint
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
 
   try {
@@ -24,17 +24,20 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') || 'user'
-    const contextId = searchParams.get('id')
-    const includeOrg = searchParams.get('includeOrg') === 'true'
+    const parsedQuery = billingQuerySchema.safeParse({
+      context: searchParams.get('context') || undefined,
+      id: searchParams.get('id') || undefined,
+      includeOrg: searchParams.get('includeOrg') === 'true',
+    })
 
-    // Validate context parameter
-    if (!['user', 'organization'].includes(context)) {
+    if (!parsedQuery.success) {
       return NextResponse.json(
         { error: 'Invalid context. Must be "user" or "organization"' },
         { status: 400 }
       )
     }
+
+    const { context, id: contextId, includeOrg } = parsedQuery.data
 
     // For organization context, require contextId
     if (context === 'organization' && !contextId) {
@@ -47,7 +50,20 @@ export async function GET(request: NextRequest) {
     let billingData
 
     if (context === 'user') {
-      // Get user billing and billing blocked status in parallel
+      if (contextId) {
+        const membership = await db
+          .select({ role: member.role })
+          .from(member)
+          .where(and(eq(member.organizationId, contextId), eq(member.userId, session.user.id)))
+          .limit(1)
+        if (membership.length === 0) {
+          return NextResponse.json(
+            { error: 'Access denied - not a member of this organization' },
+            { status: 403 }
+          )
+        }
+      }
+
       const [billingResult, billingStatus] = await Promise.all([
         getSimplifiedBillingSummary(session.user.id, contextId || undefined),
         getEffectiveBillingStatus(session.user.id),
@@ -107,7 +123,6 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      // Transform data to match component expectations
       billingData = {
         organizationId: rawBillingData.organizationId,
         organizationName: rawBillingData.organizationName,
@@ -122,17 +137,10 @@ export async function GET(request: NextRequest) {
         averageUsagePerMember: rawBillingData.averageUsagePerMember,
         billingPeriodStart: rawBillingData.billingPeriodStart?.toISOString() || null,
         billingPeriodEnd: rawBillingData.billingPeriodEnd?.toISOString() || null,
-        tierCredits: getPlanTierCredits(rawBillingData.subscriptionPlan),
-        totalCurrentUsageCredits: dollarsToCredits(rawBillingData.totalCurrentUsage),
-        totalUsageLimitCredits: dollarsToCredits(rawBillingData.totalUsageLimit),
-        minimumBillingAmountCredits: dollarsToCredits(rawBillingData.minimumBillingAmount),
-        averageUsagePerMemberCredits: dollarsToCredits(rawBillingData.averageUsagePerMember),
         members: rawBillingData.members.map((m) => ({
           ...m,
           joinedAt: m.joinedAt.toISOString(),
           lastActive: m.lastActive?.toISOString() || null,
-          currentUsageCredits: dollarsToCredits(m.currentUsage),
-          usageLimitCredits: dollarsToCredits(m.usageLimit),
         })),
       }
 
@@ -173,4 +181,4 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
 import { webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { generateShortId } from '@/lib/core/utils/uuid'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {

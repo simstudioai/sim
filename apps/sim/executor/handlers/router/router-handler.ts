@@ -71,7 +71,7 @@ export class RouterBlockHandler implements BlockHandler {
       bedrockRegion: inputs.bedrockRegion,
     }
 
-    await validateModelProvider(ctx.userId, routerConfig.model, ctx)
+    await validateModelProvider(ctx.userId, ctx.workspaceId, routerConfig.model, ctx)
 
     const providerId = getProviderFromModel(routerConfig.model)
 
@@ -201,7 +201,7 @@ export class RouterBlockHandler implements BlockHandler {
       bedrockRegion: inputs.bedrockRegion,
     }
 
-    await validateModelProvider(ctx.userId, routerConfig.model, ctx)
+    await validateModelProvider(ctx.userId, ctx.workspaceId, routerConfig.model, ctx)
 
     const providerId = getProviderFromModel(routerConfig.model)
 

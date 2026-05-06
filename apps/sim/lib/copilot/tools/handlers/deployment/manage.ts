@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   chat,
@@ -6,10 +7,10 @@ import {
   workflowMcpServer,
   workflowMcpTool,
 } from '@sim/db/schema'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { generateId } from '@/lib/core/utils/uuid'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
@@ -111,7 +112,7 @@ export async function executeCheckDeploymentStatus(
       output: { isDeployed, api: apiDetails, chat: chatDetails, mcp: mcpDetails },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -171,7 +172,7 @@ export async function executeListWorkspaceMcpServers(
 
     return { success: true, output: { servers: serversWithToolNames, count: servers.length } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -265,7 +266,7 @@ export async function executeCreateWorkspaceMcpServer(
 
     return { success: true, output: { server, addedTools } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -328,7 +329,7 @@ export async function executeUpdateWorkspaceMcpServer(
 
     return { success: true, output: { serverId, ...updates, updatedAt: undefined } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -374,7 +375,7 @@ export async function executeDeleteWorkspaceMcpServer(
 
     return { success: true, output: { serverId, name: existing.name, deleted: true } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -411,7 +412,7 @@ export async function executeGetDeploymentVersion(
 
     return { success: true, output: { version, deployedState: row.state } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -453,6 +454,6 @@ export async function executeRevertToVersion(
       },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }

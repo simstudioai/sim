@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type {
   GraphApiResponse,
   SharepointPageContent,
@@ -288,7 +289,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
         logger.error('Error fetching content for page', {
           pageId: pageInfo.id,
           pageName: pageInfo.name,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
 
         // Still add the page without content

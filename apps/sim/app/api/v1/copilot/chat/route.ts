@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
+import { v1CopilotChatContract } from '@/lib/api/contracts/v1/copilot'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
@@ -11,17 +13,6 @@ export const maxDuration = 3600
 
 const logger = createLogger('CopilotHeadlessAPI')
 const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
-
-const RequestSchema = z.object({
-  message: z.string().min(1, 'message is required'),
-  workflowId: z.string().optional(),
-  workflowName: z.string().optional(),
-  chatId: z.string().optional(),
-  mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
-  model: z.string().optional(),
-  autoExecuteTools: z.boolean().optional().default(true),
-  timeout: z.number().optional().default(3_600_000),
-})
 
 /**
  * POST /api/v1/copilot/chat
@@ -32,7 +23,7 @@ const RequestSchema = z.object({
  * - If exactly one workflow is available, uses that workflow as context
  * - Otherwise requires workflowId or workflowName to disambiguate
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   let messageId: string | undefined
   const auth = await authenticateV1Request(req)
   if (!auth.authenticated || !auth.userId) {
@@ -43,8 +34,27 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json()
-    const parsed = RequestSchema.parse(body)
+    const parsedRequest = await parseRequest(
+      v1CopilotChatContract,
+      req,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          NextResponse.json(
+            {
+              success: false,
+              error: getValidationErrorMessage(error, 'Invalid request'),
+              details: error.issues,
+            },
+            { status: 400 }
+          ),
+        invalidJsonResponse: () =>
+          NextResponse.json({ success: false, error: 'Invalid request' }, { status: 400 }),
+      }
+    )
+    if (!parsedRequest.success) return parsedRequest.response
+
+    const parsed = parsedRequest.data.body
     const selectedModel = parsed.model || DEFAULT_COPILOT_MODEL
 
     // Resolve workflow ID
@@ -124,21 +134,14 @@ export async function POST(req: NextRequest) {
       error: result.error,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid request', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     logger.error(
       messageId
         ? `Headless copilot request failed [messageId:${messageId}]`
         : 'Headless copilot request failed',
       {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       }
     )
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
-}
+})

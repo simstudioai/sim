@@ -1,19 +1,15 @@
 import { createLogger } from '@sim/logger'
 import Redis from 'ioredis'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { redisExecuteContract } from '@/lib/api/contracts/tools/databases/redis'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('RedisAPI')
 
-const RequestSchema = z.object({
-  url: z.string().min(1, 'Redis connection URL is required'),
-  command: z.string().min(1, 'Redis command is required'),
-  args: z.array(z.union([z.string(), z.number()])).default([]),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   let client: Redis | null = null
 
   try {
@@ -22,8 +18,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { url, command, args } = RequestSchema.parse(body)
+    const parsed = await parseToolRequest(redisExecuteContract, request, {
+      errorFormat: 'firstError',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const { url, command, args } = parsed.data.body
 
     const parsedUrl = new URL(url)
     const hostname =
@@ -65,4 +65,4 @@ export async function POST(request: NextRequest) {
       }
     }
   }
-}
+})

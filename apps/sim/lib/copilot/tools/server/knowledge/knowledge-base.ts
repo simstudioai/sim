@@ -1,6 +1,8 @@
 import { db } from '@sim/db'
 import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { KnowledgeBase } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -10,14 +12,17 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import {
   createSingleDocument,
   deleteDocument,
   processDocumentAsync,
   updateDocument,
 } from '@/lib/knowledge/documents/service'
-import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
+import {
+  EMBEDDING_DIMENSIONS,
+  generateSearchEmbedding,
+  getConfiguredEmbeddingModel,
+} from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
   deleteKnowledgeBase,
@@ -36,6 +41,11 @@ import {
 import { StorageService } from '@/lib/uploads'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
+import {
+  checkDocumentWriteAccess,
+  checkKnowledgeBaseAccess,
+  checkKnowledgeBaseWriteAccess,
+} from '@/app/api/knowledge/utils'
 
 const logger = createLogger('KnowledgeBaseServerTool')
 
@@ -101,8 +111,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               description: args.description,
               workspaceId,
               userId: context.userId,
-              embeddingModel: 'text-embedding-3-small',
-              embeddingDimension: 1536,
+              embeddingModel: getConfiguredEmbeddingModel(),
+              embeddingDimension: EMBEDDING_DIMENSIONS,
               chunkingConfig: args.chunkingConfig || {
                 maxSize: 1024,
                 minSize: 1,
@@ -137,6 +147,14 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return {
               success: false,
               message: 'Knowledge base ID is required for get operation',
+            }
+          }
+
+          const access = await checkKnowledgeBaseAccess(args.knowledgeBaseId, context.userId)
+          if (!access.hasAccess) {
+            return {
+              success: false,
+              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
             }
           }
 
@@ -186,6 +204,14 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
+          const access = await checkKnowledgeBaseAccess(args.knowledgeBaseId, context.userId)
+          if (!access.hasAccess) {
+            return {
+              success: false,
+              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
+            }
+          }
+
           const kb = await getKnowledgeBaseById(args.knowledgeBaseId)
           if (!kb) {
             return {
@@ -198,7 +224,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const queryEmbedding = await generateSearchEmbedding(
             args.query,
-            undefined,
+            kb.embeddingModel,
             kb.workspaceId
           )
           const queryVector = JSON.stringify(queryEmbedding)
@@ -256,6 +282,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
+          const writeAccess = await checkKnowledgeBaseWriteAccess(
+            args.knowledgeBaseId,
+            context.userId
+          )
+          if (!writeAccess.hasAccess) {
+            return {
+              success: false,
+              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
+            }
+          }
+
           const targetKb = await getKnowledgeBaseById(args.knowledgeBaseId)
           if (!targetKb || !targetKb.workspaceId) {
             return {
@@ -307,7 +344,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             ).catch((err) => {
               logger.error('Background document processing failed', {
                 documentId: doc.id,
-                error: err instanceof Error ? err.message : String(err),
+                error: toError(err).message,
               })
             })
 
@@ -362,6 +399,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
+          const writeAccess = await checkKnowledgeBaseWriteAccess(
+            args.knowledgeBaseId,
+            context.userId
+          )
+          if (!writeAccess.hasAccess) {
+            return {
+              success: false,
+              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
+            }
+          }
+
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const updatedKb = await updateKnowledgeBase(args.knowledgeBaseId, updates, requestId)
@@ -399,6 +447,12 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           const notFound: string[] = []
 
           for (const kbId of kbIds) {
+            const writeAccess = await checkKnowledgeBaseWriteAccess(kbId, context.userId)
+            if (!writeAccess.hasAccess) {
+              notFound.push(kbId)
+              continue
+            }
+
             const kbToDelete = await getKnowledgeBaseById(kbId)
             if (!kbToDelete) {
               notFound.push(kbId)
@@ -443,8 +497,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           const failed: string[] = []
 
           for (const docId of docIds) {
-            const requestId = generateId().slice(0, 8)
             assertNotAborted()
+            const docAccess = await checkDocumentWriteAccess(
+              args.knowledgeBaseId,
+              docId,
+              context.userId
+            )
+            if (!docAccess.hasAccess) {
+              failed.push(docId)
+              continue
+            }
+            const requestId = generateId().slice(0, 8)
             const result = await deleteDocument(docId, requestId)
             if (result.success) {
               deleted.push(docId)
@@ -480,6 +543,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               message: 'At least one of filename or enabled is required for update_document',
             }
           }
+          const docAccess = await checkDocumentWriteAccess(
+            args.knowledgeBaseId,
+            args.documentId,
+            context.userId
+          )
+          if (!docAccess.hasAccess) {
+            return {
+              success: false,
+              message: `Document with ID "${args.documentId}" not found`,
+            }
+          }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           await updateDocument(args.documentId, updateData, requestId)
@@ -499,6 +573,14 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return {
               success: false,
               message: 'Knowledge base ID is required for list_tags operation',
+            }
+          }
+
+          const access = await checkKnowledgeBaseAccess(args.knowledgeBaseId, context.userId)
+          if (!access.hasAccess) {
+            return {
+              success: false,
+              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
             }
           }
 
@@ -536,6 +618,18 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               message: 'tagDisplayName is required for create_tag operation',
             }
           }
+
+          const writeAccess = await checkKnowledgeBaseWriteAccess(
+            args.knowledgeBaseId,
+            context.userId
+          )
+          if (!writeAccess.hasAccess) {
+            return {
+              success: false,
+              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
+            }
+          }
+
           const fieldType = args.tagFieldType || 'text'
 
           const tagSlot = await getNextAvailableSlot(args.knowledgeBaseId, fieldType)
@@ -605,6 +699,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
+          const writeAccess = await checkKnowledgeBaseWriteAccess(
+            existingTag.knowledgeBaseId,
+            context.userId
+          )
+          if (!writeAccess.hasAccess) {
+            return {
+              success: false,
+              message: `Tag definition with ID "${args.tagDefinitionId}" not found`,
+            }
+          }
+
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const updatedTag = await updateTagDefinition(args.tagDefinitionId, updateData, requestId)
@@ -642,6 +747,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
+          const writeAccess = await checkKnowledgeBaseWriteAccess(
+            args.knowledgeBaseId,
+            context.userId
+          )
+          if (!writeAccess.hasAccess) {
+            return {
+              success: false,
+              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
+            }
+          }
+
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const deleted = await deleteTagDefinition(
@@ -676,6 +792,14 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
+          const access = await checkKnowledgeBaseAccess(args.knowledgeBaseId, context.userId)
+          if (!access.hasAccess) {
+            return {
+              success: false,
+              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
+            }
+          }
+
           const requestId = generateId().slice(0, 8)
           const stats = await getTagUsageStats(args.knowledgeBaseId, requestId)
 
@@ -698,6 +822,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               success: false,
               message:
                 'Either credentialId (for OAuth connectors) or apiKey (for API key connectors) is required for add_connector.',
+            }
+          }
+
+          const writeAccess = await checkKnowledgeBaseWriteAccess(
+            args.knowledgeBaseId,
+            context.userId
+          )
+          if (!writeAccess.hasAccess) {
+            return {
+              success: false,
+              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
             }
           }
 
@@ -761,6 +896,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return { success: false, message: `Connector "${args.connectorId}" not found` }
           }
 
+          const writeAccess = await checkKnowledgeBaseWriteAccess(kbId, context.userId)
+          if (!writeAccess.hasAccess) {
+            return { success: false, message: `Connector "${args.connectorId}" not found` }
+          }
+
           const updateBody: Record<string, unknown> = {}
           if (args.sourceConfig !== undefined) updateBody.sourceConfig = args.sourceConfig
           if (args.syncIntervalMinutes !== undefined)
@@ -809,6 +949,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return { success: false, message: `Connector "${args.connectorId}" not found` }
           }
 
+          const writeAccess = await checkKnowledgeBaseWriteAccess(deleteKbId, context.userId)
+          if (!writeAccess.hasAccess) {
+            return { success: false, message: `Connector "${args.connectorId}" not found` }
+          }
+
           assertNotAborted()
           const deleteRes = await connectorApiCall(
             context.userId,
@@ -839,6 +984,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const syncKbId = await resolveKnowledgeBaseId(args.connectorId)
           if (!syncKbId) {
+            return { success: false, message: `Connector "${args.connectorId}" not found` }
+          }
+
+          const writeAccess = await checkKnowledgeBaseWriteAccess(syncKbId, context.userId)
+          if (!writeAccess.hasAccess) {
             return { success: false, message: `Connector "${args.connectorId}" not found` }
           }
 

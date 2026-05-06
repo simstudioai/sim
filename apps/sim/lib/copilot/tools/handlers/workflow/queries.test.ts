@@ -1,20 +1,26 @@
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   ensureWorkflowAccessMock,
-  loadWorkflowFromNormalizedTablesMock,
   getEffectiveBlockOutputPathsMock,
   hasTriggerCapabilityMock,
   getBlockMock,
-  getWorkflowByIdMock,
 } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
-  loadWorkflowFromNormalizedTablesMock: vi.fn(),
   getEffectiveBlockOutputPathsMock: vi.fn(),
   hasTriggerCapabilityMock: vi.fn(),
   getBlockMock: vi.fn(),
-  getWorkflowByIdMock: vi.fn(),
 }))
+
+const loadWorkflowFromNormalizedTablesMock =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+const getWorkflowByIdMock = workflowsUtilsMockFns.mockGetWorkflowById
 
 vi.mock('../access', () => ({
   ensureWorkflowAccess: ensureWorkflowAccessMock,
@@ -22,10 +28,7 @@ vi.mock('../access', () => ({
   getDefaultWorkspaceId: vi.fn(),
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: loadWorkflowFromNormalizedTablesMock,
-  loadDeployedWorkflowState: vi.fn(),
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/workflows/blocks/block-outputs', () => ({
   getEffectiveBlockOutputPaths: getEffectiveBlockOutputPathsMock,
@@ -39,10 +42,7 @@ vi.mock('@/blocks/registry', () => ({
   getBlock: getBlockMock,
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  getWorkflowById: getWorkflowByIdMock,
-  listFolders: vi.fn(),
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { executeGetBlockOutputs } from './queries'
 

@@ -64,7 +64,6 @@ export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
       canonicalParamId: 'taskListId',
       serviceId: 'google-tasks',
       selectorKey: 'google.tasks.lists',
-      selectorAllowSearch: false,
       placeholder: 'Select task list',
       dependsOn: ['credential'],
       mode: 'basic',

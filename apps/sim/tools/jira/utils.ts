@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 
 const logger = createLogger('JiraUtils')
@@ -61,6 +62,9 @@ export function extractAdfText(content: any): string | null {
     return content.map(extractAdfText).filter(Boolean).join(' ')
   }
   if (content.type === 'text') return content.text || ''
+  if (content.type === 'hardBreak') return '\n'
+  if (content.type === 'mention') return content.attrs?.text || ''
+  if (content.type === 'emoji') return content.attrs?.shortName || content.attrs?.text || ''
   if (content.content) return extractAdfText(content.content)
   return ''
 }
@@ -72,11 +76,11 @@ export function extractAdfText(content: any): string | null {
 export function transformUser(user: any): {
   accountId: string
   displayName: string
-  active?: boolean
-  emailAddress?: string
-  avatarUrl?: string
-  accountType?: string
-  timeZone?: string
+  active: boolean | null
+  emailAddress: string | null
+  avatarUrl: string | null
+  accountType: string | null
+  timeZone: string | null
 } | null {
   if (!user) return null
   return {
@@ -142,14 +146,32 @@ export async function downloadJiraAttachments(
   return downloaded
 }
 
-function normalizeDomain(domain: string): string {
+/**
+ * Normalizes an ISO timestamp into the format Jira's worklog API requires:
+ * `YYYY-MM-DDTHH:mm:ss.sss±HHMM` (offset without colon). Accepts trailing `Z`
+ * and `±HH:MM` offsets and rewrites them to `±HHMM`. If milliseconds are
+ * missing, `.000` is inserted before the offset.
+ */
+export function normalizeJiraWorklogTimestamp(value: string): string {
+  let s = value.trim()
+  s = s.replace(/Z$/i, '+0000')
+  s = s.replace(/([+-]\d{2}):(\d{2})$/, '$1$2')
+  s = s.replace(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})([+-]\d{4})$/, '$1.000$2')
+  return s
+}
+
+export function normalizeDomain(domain: string): string {
   return `https://${domain
     .trim()
     .replace(/^https?:\/\//i, '')
     .replace(/\/+$/, '')}`.toLowerCase()
 }
 
-export async function getJiraCloudId(domain: string, accessToken: string): Promise<string> {
+export async function getJiraCloudId(
+  domain: string,
+  accessToken: string,
+  retryOptions?: RetryOptions
+): Promise<string> {
   const response = await fetchWithRetry(
     'https://api.atlassian.com/oauth/token/accessible-resources',
     {
@@ -158,7 +180,8 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
       },
-    }
+    },
+    retryOptions
   )
 
   if (!response.ok) {

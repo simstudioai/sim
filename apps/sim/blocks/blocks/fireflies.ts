@@ -595,6 +595,10 @@ Return ONLY the summary text - no quotes, no labels.`,
     meetingId: { type: 'string', description: 'Meeting/transcript ID from webhook' },
     eventType: { type: 'string', description: 'Webhook event type' },
     clientReferenceId: { type: 'string', description: 'Custom reference ID if set during upload' },
+    timestamp: {
+      type: 'number',
+      description: 'Unix timestamp in milliseconds when the event was fired',
+    },
   },
   triggers: {
     enabled: true,

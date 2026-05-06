@@ -1,8 +1,12 @@
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  loadWorkflowFromNormalizedTablesMock,
-  loadDeployedWorkflowStateMock,
   getPersonalAndWorkspaceEnvMock,
   mergeSubblockStateWithValuesMock,
   safeStartMock,
@@ -11,7 +15,6 @@ const {
   safeCompleteWithCancellationMock,
   safeCompleteWithPauseMock,
   hasCompletedMock,
-  updateWorkflowRunCountsMock,
   clearExecutionCancellationMock,
   buildTraceSpansMock,
   serializeWorkflowMock,
@@ -20,8 +23,6 @@ const {
   executorConstructorMock,
   findStartBlockMock,
 } = vi.hoisted(() => ({
-  loadWorkflowFromNormalizedTablesMock: vi.fn(),
-  loadDeployedWorkflowStateMock: vi.fn(),
   getPersonalAndWorkspaceEnvMock: vi.fn(),
   mergeSubblockStateWithValuesMock: vi.fn(),
   safeStartMock: vi.fn(),
@@ -30,7 +31,6 @@ const {
   safeCompleteWithCancellationMock: vi.fn(),
   safeCompleteWithPauseMock: vi.fn(),
   hasCompletedMock: vi.fn(),
-  updateWorkflowRunCountsMock: vi.fn(),
   clearExecutionCancellationMock: vi.fn(),
   buildTraceSpansMock: vi.fn(),
   serializeWorkflowMock: vi.fn(),
@@ -40,14 +40,10 @@ const {
   findStartBlockMock: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+const loadWorkflowFromNormalizedTablesMock =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+const loadDeployedWorkflowStateMock = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
+const updateWorkflowRunCountsMock = workflowsUtilsMockFns.mockUpdateWorkflowRunCounts
 
 vi.mock('@/lib/environment/utils', () => ({
   getPersonalAndWorkspaceEnv: getPersonalAndWorkspaceEnvMock,
@@ -61,12 +57,9 @@ vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
   buildTraceSpans: buildTraceSpansMock,
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: loadWorkflowFromNormalizedTablesMock,
-  loadDeployedWorkflowState: loadDeployedWorkflowStateMock,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
-vi.mock('@/lib/workflows/subblocks', () => ({
+vi.mock('@sim/workflow-persistence/subblocks', () => ({
   mergeSubblockStateWithValues: mergeSubblockStateWithValuesMock,
 }))
 
@@ -76,9 +69,7 @@ vi.mock('@/lib/workflows/triggers/triggers', () => ({
   },
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  updateWorkflowRunCounts: updateWorkflowRunCountsMock,
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/executor', () => ({
   Executor: vi.fn().mockImplementation((args) => {
@@ -369,6 +360,68 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       'executor:after-start',
       'safeComplete',
     ])
+  })
+
+  it('awaits fire-and-forget block callbacks before returning terminal result', async () => {
+    let releaseBlockComplete: (() => void) | undefined
+    let markCallbackStarted: (() => void) | undefined
+    const blockCompletePromise = new Promise<void>((resolve) => {
+      releaseBlockComplete = resolve
+    })
+    const callbackStartedPromise = new Promise<void>((resolve) => {
+      markCallbackStarted = resolve
+    })
+    const callOrder: string[] = []
+    let hasReturned = false
+
+    executorExecuteMock.mockImplementation(async () => {
+      const contextExtensions = executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions
+      void contextExtensions.onBlockComplete('block-1', 'Fetch', 'api', {
+        input: {},
+        output: { done: true },
+        executionTime: 10,
+        startedAt: new Date().toISOString(),
+        executionOrder: 1,
+        endedAt: new Date().toISOString(),
+      })
+      callOrder.push('executor:return')
+
+      return {
+        success: true,
+        status: 'completed',
+        output: { done: true },
+        logs: [],
+        metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+      }
+    })
+
+    const executionPromise = executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {
+        onBlockComplete: async () => {
+          callOrder.push('callback:start')
+          markCallbackStarted?.()
+          await blockCompletePromise
+          callOrder.push('callback:end')
+        },
+      },
+      loggingSession: loggingSession as any,
+    }).then((result) => {
+      hasReturned = true
+      callOrder.push('core:return')
+      return result
+    })
+
+    await callbackStartedPromise
+
+    expect(callOrder).toEqual(['executor:return', 'callback:start'])
+    expect(hasReturned).toBe(false)
+
+    releaseBlockComplete?.()
+    const result = await executionPromise
+
+    expect(result.status).toBe('completed')
+    expect(callOrder).toEqual(['executor:return', 'callback:start', 'callback:end', 'core:return'])
   })
 
   it('preserves successful execution when success finalization throws', async () => {

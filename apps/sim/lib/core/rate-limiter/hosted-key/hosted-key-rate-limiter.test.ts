@@ -1,4 +1,3 @@
-import { loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import type {
   ConsumeResult,
@@ -7,8 +6,6 @@ import type {
 } from '@/lib/core/rate-limiter/storage'
 import { HostedKeyRateLimiter } from './hosted-key-rate-limiter'
 import type { CustomRateLimit, PerRequestRateLimit } from './types'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 interface MockAdapter {
   consumeTokens: Mock

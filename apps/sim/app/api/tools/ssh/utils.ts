@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type Attributes, Client, type ConnectConfig } from 'ssh2'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 
@@ -168,7 +169,7 @@ export async function createSSHConnection(config: SSHConnectionConfig): Promise<
     try {
       client.connect(connectConfig)
     } catch (err) {
-      reject(formatSSHError(err instanceof Error ? err : new Error(String(err)), { host, port }))
+      reject(formatSSHError(toError(err), { host, port }))
     }
   })
 }

@@ -304,7 +304,7 @@ Trigger workflow on any Jira Service Management webhook event
 |   ↳ `id` | string | Changelog ID |
 | `comment` | object | comment output from the tool |
 |   ↳ `id` | string | Comment ID |
-|   ↳ `body` | string | Comment text/body |
+|   ↳ `body` | json | Comment body in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
 |   ↳ `author` | object | author output from the tool |
 |     ↳ `displayName` | string | Comment author display name |
 |     ↳ `accountId` | string | Comment author account ID |

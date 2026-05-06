@@ -5,7 +5,7 @@ export const scanTool: ToolConfig<DynamoDBScanParams, DynamoDBScanResponse> = {
   id: 'dynamodb_scan',
   name: 'DynamoDB Scan',
   description: 'Scan all items in a DynamoDB table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {
@@ -45,14 +45,14 @@ export const scanTool: ToolConfig<DynamoDBScanParams, DynamoDBScanResponse> = {
       description: 'Attributes to retrieve (e.g., "pk, sk, #name, email")',
     },
     expressionAttributeNames: {
-      type: 'object',
+      type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Attribute name mappings for reserved words (e.g., {"#name": "name", "#status": "status"})',
     },
     expressionAttributeValues: {
-      type: 'object',
+      type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description: 'Expression attribute values (e.g., {":minAge": 18, ":status": "active"})',
@@ -62,6 +62,13 @@ export const scanTool: ToolConfig<DynamoDBScanParams, DynamoDBScanResponse> = {
       required: false,
       visibility: 'user-or-llm',
       description: 'Maximum number of items to return (e.g., 10, 50, 100)',
+    },
+    exclusiveStartKey: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "Pagination token from a previous scan's lastEvaluatedKey to continue fetching results",
     },
   },
 
@@ -85,6 +92,7 @@ export const scanTool: ToolConfig<DynamoDBScanParams, DynamoDBScanResponse> = {
         expressionAttributeValues: params.expressionAttributeValues,
       }),
       ...(params.limit && { limit: params.limit }),
+      ...(params.exclusiveStartKey && { exclusiveStartKey: params.exclusiveStartKey }),
     }),
   },
 
@@ -101,6 +109,7 @@ export const scanTool: ToolConfig<DynamoDBScanParams, DynamoDBScanResponse> = {
         message: data.message || 'Scan executed successfully',
         items: data.items || [],
         count: data.count || 0,
+        ...(data.lastEvaluatedKey && { lastEvaluatedKey: data.lastEvaluatedKey }),
       },
       error: undefined,
     }
@@ -110,5 +119,11 @@ export const scanTool: ToolConfig<DynamoDBScanParams, DynamoDBScanResponse> = {
     message: { type: 'string', description: 'Operation status message' },
     items: { type: 'array', description: 'Array of items returned' },
     count: { type: 'number', description: 'Number of items returned' },
+    lastEvaluatedKey: {
+      type: 'json',
+      description:
+        'Pagination token to pass as exclusiveStartKey to fetch the next page of results',
+      optional: true,
+    },
   },
 }

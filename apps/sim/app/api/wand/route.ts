@@ -3,6 +3,8 @@ import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { wandGenerateContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getSession } from '@/lib/auth'
 import { recordUsage } from '@/lib/billing/core/usage-log'
@@ -10,7 +12,9 @@ import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enrichTableSchema } from '@/lib/table/llm/wand'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { extractResponseText, parseResponsesUsage } from '@/providers/openai/utils'
 import { getModelPricing } from '@/providers/utils'
@@ -40,16 +44,6 @@ if (!useWandAzure && !openaiApiKey) {
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
-}
-
-interface RequestBody {
-  prompt: string
-  systemPrompt?: string
-  stream?: boolean
-  history?: ChatMessage[]
-  workflowId?: string
-  generationType?: string
-  wandContext?: Record<string, unknown>
 }
 
 function safeStringify(value: unknown): string {
@@ -93,7 +87,8 @@ Use this context to calculate relative dates like "yesterday", "last week", "beg
 }
 
 async function updateUserStatsForWand(
-  userId: string,
+  billingUserId: string,
+  workspaceId: string | null,
   usage: {
     prompt_tokens?: number
     completion_tokens?: number
@@ -135,7 +130,8 @@ async function updateUserStatsForWand(
     }
 
     await recordUsage({
-      userId,
+      userId: billingUserId,
+      workspaceId: workspaceId ?? undefined,
       entries: [
         {
           category: 'model',
@@ -150,13 +146,13 @@ async function updateUserStatsForWand(
       },
     })
 
-    await checkAndBillOverageThreshold(userId)
+    await checkAndBillOverageThreshold(billingUserId)
   } catch (error) {
     logger.error(`[${requestId}] Failed to update user stats for wand usage`, error)
   }
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Received wand generation request`)
 
@@ -167,7 +163,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = (await req.json()) as RequestBody
+    const parsed = await parseRequest(wandGenerateContract, req, {})
+    if (!parsed.success) return parsed.response
+    const { body } = parsed.data
 
     const {
       prompt,
@@ -226,6 +224,21 @@ export async function POST(req: NextRequest) {
           { status: 403 }
         )
       }
+    }
+
+    let billingUserId = session.user.id
+    if (workspaceId) {
+      const workspaceBilledAccountUserId = await getWorkspaceBilledAccountUserId(workspaceId)
+      if (!workspaceBilledAccountUserId) {
+        logger.error(`[${requestId}] Unable to resolve billed account for workspace`, {
+          workspaceId,
+        })
+        return NextResponse.json(
+          { success: false, error: 'Unable to resolve billing account for this workspace' },
+          { status: 500 }
+        )
+      }
+      billingUserId = workspaceBilledAccountUserId
     }
 
     let isBYOK = false
@@ -344,7 +357,13 @@ export async function POST(req: NextRequest) {
               }
 
               usageRecorded = true
-              await updateUserStatsForWand(session.user.id, finalUsage, requestId, isBYOK)
+              await updateUserStatsForWand(
+                billingUserId,
+                workspaceId,
+                finalUsage,
+                requestId,
+                isBYOK
+              )
             }
 
             try {
@@ -561,7 +580,8 @@ export async function POST(req: NextRequest) {
     const usage = parseResponsesUsage(completion.usage)
     if (usage) {
       await updateUserStatsForWand(
-        session.user.id,
+        billingUserId,
+        workspaceId,
         {
           prompt_tokens: usage.promptTokens,
           completion_tokens: usage.completionTokens,
@@ -610,4 +630,4 @@ export async function POST(req: NextRequest) {
       { status }
     )
   }
-}
+})

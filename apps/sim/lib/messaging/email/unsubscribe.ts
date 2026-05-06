@@ -1,7 +1,8 @@
-import { createHash, randomBytes } from 'crypto'
+import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
 import { settings, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { eq } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import type { EmailType } from '@/lib/messaging/email/mailer'
@@ -20,9 +21,7 @@ export interface EmailPreferences {
  */
 export function generateUnsubscribeToken(email: string, emailType = 'marketing'): string {
   const salt = randomBytes(16).toString('hex')
-  const hash = createHash('sha256')
-    .update(`${email}:${salt}:${emailType}:${env.BETTER_AUTH_SECRET}`)
-    .digest('hex')
+  const hash = sha256Hex(`${email}:${salt}:${emailType}:${env.BETTER_AUTH_SECRET}`)
 
   return `${salt}:${hash}:${emailType}`
 }
@@ -40,9 +39,7 @@ export function verifyUnsubscribeToken(
 
     if (parts.length === 2) {
       const [salt, expectedHash] = parts
-      const hash = createHash('sha256')
-        .update(`${email}:${salt}:${env.BETTER_AUTH_SECRET}`)
-        .digest('hex')
+      const hash = sha256Hex(`${email}:${salt}:${env.BETTER_AUTH_SECRET}`)
 
       return { valid: hash === expectedHash, emailType: 'marketing' }
     }
@@ -50,9 +47,7 @@ export function verifyUnsubscribeToken(
     const [salt, expectedHash, emailType] = parts
     if (!salt || !expectedHash || !emailType) return { valid: false }
 
-    const hash = createHash('sha256')
-      .update(`${email}:${salt}:${emailType}:${env.BETTER_AUTH_SECRET}`)
-      .digest('hex')
+    const hash = sha256Hex(`${email}:${salt}:${emailType}:${env.BETTER_AUTH_SECRET}`)
 
     return { valid: hash === expectedHash, emailType }
   } catch (error) {

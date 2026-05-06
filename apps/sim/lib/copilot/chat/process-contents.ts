@@ -1,6 +1,10 @@
 import { db } from '@sim/db'
 import { document, knowledgeBase, templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  getActiveWorkflowRecord,
+} from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
   serializeFileMeta,
@@ -11,10 +15,8 @@ import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { getTableById } from '@/lib/table/service'
 import { canAccessTemplate } from '@/lib/templates/permissions'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
@@ -85,7 +87,8 @@ export async function processContextsServer(
         return await processBlockMetadata(
           ctx.blockIds[0],
           ctx.label ? `@${ctx.label}` : '@',
-          userId
+          userId,
+          currentWorkspaceId
         )
       }
       if (ctx.kind === 'templates' && ctx.templateId) {
@@ -113,8 +116,8 @@ export async function processContextsServer(
           currentWorkspaceId
         )
       }
-      if (ctx.kind === 'table' && ctx.tableId) {
-        const result = await resolveTableResource(ctx.tableId)
+      if (ctx.kind === 'table' && ctx.tableId && currentWorkspaceId) {
+        const result = await resolveTableResource(ctx.tableId, currentWorkspaceId)
         if (!result) return null
         return { type: 'table', tag: ctx.label ? `@${ctx.label}` : '@', content: result.content }
       }
@@ -342,6 +345,9 @@ async function processWorkflowFromDb(
 
 async function processPastChat(chatId: string, tagOverride?: string): Promise<AgentContext | null> {
   try {
+    // boundary-raw-fetch: GET /api/mothership/chat?chatId=... has no defineRouteContract;
+    // the route forwards to the copilot chat handler and emits a free-form chat envelope
+    // that isn't covered by mothershipChatGetQuerySchema or copilotChatGetContract.
     const resp = await fetch(`/api/mothership/chat?chatId=${encodeURIComponent(chatId)}`)
     if (!resp.ok) {
       logger.error('Failed to fetch past chat', { chatId, status: resp.status })
@@ -446,10 +452,12 @@ async function processKnowledgeFromDb(
 async function processBlockMetadata(
   blockId: string,
   tag: string,
-  userId?: string
+  userId?: string,
+  workspaceId?: string
 ): Promise<AgentContext | null> {
   try {
-    const permissionConfig = userId ? await getUserPermissionConfig(userId) : null
+    const permissionConfig =
+      userId && workspaceId ? await getUserPermissionConfig(userId, workspaceId) : null
     const allowedIntegrations =
       permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
     if (allowedIntegrations != null && !allowedIntegrations.includes(blockId.toLowerCase())) {
@@ -693,7 +701,7 @@ export async function resolveActiveResourceContext(
   resourceType: string,
   resourceId: string,
   workspaceId: string,
-  _userId: string,
+  userId: string,
   chatId?: string
 ): Promise<AgentContext | null> {
   try {
@@ -701,10 +709,10 @@ export async function resolveActiveResourceContext(
       case 'workflow': {
         const ctx = await processWorkflowFromDb(
           resourceId,
-          undefined,
+          userId,
           '@active_resource',
           'current_workflow',
-          undefined,
+          workspaceId,
           chatId
         )
         if (!ctx) return null
@@ -713,7 +721,7 @@ export async function resolveActiveResourceContext(
       case 'knowledgebase': {
         const ctx = await processKnowledgeFromDb(
           resourceId,
-          undefined,
+          userId,
           '@active_resource',
           workspaceId
         )
@@ -721,7 +729,7 @@ export async function resolveActiveResourceContext(
         return { type: 'active_resource', tag: '@active_resource', content: ctx.content }
       }
       case 'table': {
-        return await resolveTableResource(resourceId)
+        return await resolveTableResource(resourceId, workspaceId)
       }
       case 'file': {
         return await resolveFileResource(resourceId, workspaceId)
@@ -737,9 +745,13 @@ export async function resolveActiveResourceContext(
     return null
   }
 }
-async function resolveTableResource(tableId: string): Promise<AgentContext | null> {
+async function resolveTableResource(
+  tableId: string,
+  workspaceId: string
+): Promise<AgentContext | null> {
   const table = await getTableById(tableId)
   if (!table) return null
+  if (table.workspaceId !== workspaceId) return null
   return {
     type: 'active_resource',
     tag: '@active_resource',

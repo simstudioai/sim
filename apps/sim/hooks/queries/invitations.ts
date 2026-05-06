@@ -1,31 +1,33 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { workspaceKeys } from './workspace'
+import { requestJson } from '@/lib/api/client/request'
+import type { ContractBodyInput } from '@/lib/api/contracts'
+import {
+  type BatchInvitationResult as BatchInvitationResultContract,
+  batchWorkspaceInvitationsContract,
+  cancelInvitationContract,
+  listWorkspaceInvitationsContract,
+  type PendingInvitationRow,
+  removeWorkspaceMemberContract,
+  resendInvitationContract,
+} from '@/lib/api/contracts/invitations'
+import { updateWorkspacePermissionsContract } from '@/lib/api/contracts/workspaces'
+import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
+import { organizationKeys } from '@/hooks/queries/organization'
+import { workspaceKeys } from '@/hooks/queries/workspace'
 
-/**
- * Query key factory for invitation-related queries.
- * Provides hierarchical cache keys for workspace invitations.
- */
 export const invitationKeys = {
   all: ['invitations'] as const,
   lists: () => [...invitationKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...invitationKeys.lists(), workspaceId] as const,
 }
 
-/** Raw invitation data from the API. */
-export interface PendingInvitation {
-  id: string
-  workspaceId: string
-  email: string
-  permissions: 'admin' | 'write' | 'read'
-  status: string
-  createdAt: string
-}
+export type { PendingInvitationRow }
 
-/** Normalized invitation for display in the UI. */
 export interface WorkspaceInvitation {
   email: string
   permissionType: 'admin' | 'write' | 'read'
   isPendingInvitation: boolean
+  isExternal: boolean
   invitationId?: string
 }
 
@@ -33,23 +35,18 @@ async function fetchPendingInvitations(
   workspaceId: string,
   signal?: AbortSignal
 ): Promise<WorkspaceInvitation[]> {
-  const response = await fetch('/api/workspaces/invitations', { signal })
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch pending invitations')
-  }
-
-  const data = await response.json()
+  const data = await requestJson(listWorkspaceInvitationsContract, { signal })
 
   return (
     data.invitations
       ?.filter(
-        (inv: PendingInvitation) => inv.status === 'pending' && inv.workspaceId === workspaceId
+        (inv: PendingInvitationRow) => inv.status === 'pending' && inv.workspaceId === workspaceId
       )
-      .map((inv: PendingInvitation) => ({
+      .map((inv: PendingInvitationRow) => ({
         email: inv.email,
-        permissionType: inv.permissions,
+        permissionType: inv.permission,
         isPendingInvitation: true,
+        isExternal: inv.membershipIntent === 'external',
         invitationId: inv.id,
       })) || []
   )
@@ -69,18 +66,14 @@ export function usePendingInvitations(workspaceId: string | undefined) {
   })
 }
 
-interface BatchSendInvitationsParams {
-  workspaceId: string
-  invitations: Array<{ email: string; permission: 'admin' | 'write' | 'read' }>
+type BatchSendInvitationsParams = ContractBodyInput<typeof batchWorkspaceInvitationsContract> & {
+  organizationId?: string | null
 }
 
-interface BatchInvitationResult {
-  successful: string[]
-  failed: Array<{ email: string; error: string }>
-}
+type BatchInvitationResult = Pick<BatchInvitationResultContract, 'successful' | 'failed'>
 
 /**
- * Sends multiple workspace invitations in parallel.
+ * Sends workspace invitations through the server-side batch endpoint.
  * Returns results for each invitation indicating success or failure.
  */
 export function useBatchSendWorkspaceInvitations() {
@@ -91,46 +84,30 @@ export function useBatchSendWorkspaceInvitations() {
       workspaceId,
       invitations,
     }: BatchSendInvitationsParams): Promise<BatchInvitationResult> => {
-      const results = await Promise.allSettled(
-        invitations.map(async ({ email, permission }) => {
-          const response = await fetch('/api/workspaces/invitations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              workspaceId,
-              email,
-              role: 'member',
-              permission,
-            }),
-          })
-
-          if (!response.ok) {
-            const error = await response.json()
-            throw new Error(error.error || 'Failed to send invitation')
-          }
-
-          return { email, data: await response.json() }
-        })
-      )
-
-      const successful: string[] = []
-      const failed: Array<{ email: string; error: string }> = []
-
-      results.forEach((result, index) => {
-        const email = invitations[index].email
-        if (result.status === 'fulfilled') {
-          successful.push(email)
-        } else {
-          failed.push({ email, error: result.reason?.message || 'Unknown error' })
-        }
+      const result = await requestJson(batchWorkspaceInvitationsContract, {
+        body: {
+          workspaceId,
+          invitations,
+        },
       })
 
-      return { successful, failed }
+      return {
+        successful: result.successful ?? [],
+        failed: result.failed ?? [],
+      }
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: invitationKeys.list(variables.workspaceId),
       })
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.roster(variables.organizationId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.billing(variables.organizationId),
+        })
+      }
     },
   })
 }
@@ -138,6 +115,7 @@ export function useBatchSendWorkspaceInvitations() {
 interface CancelInvitationParams {
   invitationId: string
   workspaceId: string
+  organizationId?: string | null
 }
 
 /**
@@ -149,22 +127,22 @@ export function useCancelWorkspaceInvitation() {
 
   return useMutation({
     mutationFn: async ({ invitationId }: CancelInvitationParams) => {
-      const response = await fetch(`/api/workspaces/invitations/${invitationId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+      return requestJson(cancelInvitationContract, {
+        params: { id: invitationId },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to cancel invitation')
-      }
-
-      return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: invitationKeys.list(variables.workspaceId),
       })
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.roster(variables.organizationId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.billing(variables.organizationId),
+        })
+      }
     },
   })
 }
@@ -183,19 +161,11 @@ export function useResendWorkspaceInvitation() {
 
   return useMutation({
     mutationFn: async ({ invitationId }: ResendInvitationParams) => {
-      const response = await fetch(`/api/workspaces/invitations/${invitationId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      return requestJson(resendInvitationContract, {
+        params: { id: invitationId },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to resend invitation')
-      }
-
-      return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: invitationKeys.list(variables.workspaceId),
       })
@@ -203,9 +173,9 @@ export function useResendWorkspaceInvitation() {
   })
 }
 
-interface RemoveMemberParams {
+type RemoveMemberParams = ContractBodyInput<typeof removeWorkspaceMemberContract> & {
   userId: string
-  workspaceId: string
+  organizationId?: string | null
 }
 
 /**
@@ -217,30 +187,32 @@ export function useRemoveWorkspaceMember() {
 
   return useMutation({
     mutationFn: async ({ userId, workspaceId }: RemoveMemberParams) => {
-      const response = await fetch(`/api/workspaces/members/${userId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId }),
+      return requestJson(removeWorkspaceMemberContract, {
+        params: { id: userId },
+        body: { workspaceId },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to remove member')
-      }
-
-      return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.permissions(variables.workspaceId),
       })
+      queryClient.invalidateQueries({
+        queryKey: workspaceKeys.members(variables.workspaceId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: workspaceCredentialKeys.all,
+      })
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.roster(variables.organizationId),
+        })
+      }
     },
   })
 }
 
-interface LeaveWorkspaceParams {
+type LeaveWorkspaceParams = ContractBodyInput<typeof removeWorkspaceMemberContract> & {
   userId: string
-  workspaceId: string
 }
 
 /**
@@ -252,20 +224,12 @@ export function useLeaveWorkspace() {
 
   return useMutation({
     mutationFn: async ({ userId, workspaceId }: LeaveWorkspaceParams) => {
-      const response = await fetch(`/api/workspaces/members/${userId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId }),
+      return requestJson(removeWorkspaceMemberContract, {
+        params: { id: userId },
+        body: { workspaceId },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to leave workspace')
-      }
-
-      return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.permissions(variables.workspaceId),
       })
@@ -276,37 +240,30 @@ export function useLeaveWorkspace() {
   })
 }
 
-interface UpdatePermissionsParams {
+type UpdatePermissionsParams = {
   workspaceId: string
-  updates: Array<{ userId: string; permissions: 'admin' | 'write' | 'read' }>
-}
+  organizationId?: string
+} & ContractBodyInput<typeof updateWorkspacePermissionsContract>
 
-/**
- * Updates permissions for one or more workspace members.
- * Invalidates the workspace permissions cache on success.
- */
 export function useUpdateWorkspacePermissions() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async ({ workspaceId, updates }: UpdatePermissionsParams) => {
-      const response = await fetch(`/api/workspaces/${workspaceId}/permissions`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates }),
+      return requestJson(updateWorkspacePermissionsContract, {
+        params: { id: workspaceId },
+        body: { updates },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to update permissions')
-      }
-
-      return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceKeys.permissions(variables.workspaceId),
       })
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: organizationKeys.roster(variables.organizationId),
+        })
+      }
     },
   })
 }

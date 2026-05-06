@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getChildFolders, getFolderById } from '@/lib/folders/tree'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useDuplicateFolderMutation } from '@/hooks/queries/folders'

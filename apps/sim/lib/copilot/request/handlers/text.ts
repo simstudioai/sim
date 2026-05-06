@@ -22,10 +22,17 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
       const parentToolCallId = getScopedParentToolCallId(event, context)
       if (!parentToolCallId) return
       if (event.payload.channel === MothershipStreamV1TextChannel.thinking) {
+        if (
+          context.currentSubagentThinkingBlock &&
+          context.currentSubagentThinkingBlock.parentToolCallId !== parentToolCallId
+        ) {
+          flushSubagentThinkingBlock(context)
+        }
         if (!context.currentSubagentThinkingBlock) {
           context.currentSubagentThinkingBlock = {
             type: 'subagent_thinking',
             content: '',
+            parentToolCallId,
             timestamp: Date.now(),
           }
         }
@@ -40,7 +47,7 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
       }
       context.subAgentContent[parentToolCallId] =
         (context.subAgentContent[parentToolCallId] || '') + chunk
-      addContentBlock(context, { type: 'subagent_text', content: chunk })
+      addContentBlock(context, { type: 'subagent_text', content: chunk, parentToolCallId })
       return
     }
 

@@ -28,7 +28,7 @@ vi.mock('@/executor/utils/http', () => ({
   extractAPIErrorMessage: mockExtractAPIErrorMessage,
 }))
 
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/utils/id', () => ({
   generateId: mockGenerateId,
 }))
 
@@ -36,20 +36,6 @@ vi.mock('@/lib/execution/cancellation', () => ({
   isExecutionCancelled: mockIsExecutionCancelled,
   isRedisCancellationEnabled: mockIsRedisCancellationEnabled,
 }))
-
-vi.mock('@sim/logger', () => {
-  const createMockLogger = (): Record<string, any> => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    withMetadata: vi.fn(() => createMockLogger()),
-  })
-
-  return {
-    createLogger: vi.fn(() => createMockLogger()),
-  }
-})
 
 function createAbortError(): Error {
   const error = new Error('The operation was aborted')

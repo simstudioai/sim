@@ -15,7 +15,17 @@ export type HighestPrioritySubscription = Awaited<ReturnType<typeof getHighestPr
 
 /**
  * Get the highest priority paid subscription for a user.
- * Priority: Enterprise > Team > Pro > Free
+ *
+ * Selection order:
+ *   1. Plan tier: Enterprise > Team > Pro > Free
+ *   2. Within the same tier, **org-scoped subs beat personally-scoped subs**.
+ *
+ * The tie-break matters because a user can legitimately hold both scopes
+ * at once — e.g. they accepted an org invite while their own personal Pro
+ * is still in its `cancelAtPeriodEnd` grace window. In that case the org
+ * is already paying for their usage, so pooled resources should win over
+ * the runoff personal sub; otherwise usage, credits, and rate limits would
+ * leak onto the user's row until the next billing cycle.
  */
 export async function getHighestPrioritySubscription(userId: string) {
   try {
@@ -59,17 +69,19 @@ export async function getHighestPrioritySubscription(userId: string) {
       }
     }
 
-    const allSubs = [...personalSubs, ...orgSubs]
+    if (personalSubs.length === 0 && orgSubs.length === 0) return null
 
-    if (allSubs.length === 0) return null
+    // Within each tier, prefer org-scoped over personally-scoped.
+    const pickAtTier = (predicate: (sub: (typeof personalSubs)[number]) => boolean) =>
+      orgSubs.find(predicate) ?? personalSubs.find(predicate)
 
-    const enterpriseSub = allSubs.find((s) => checkEnterprisePlan(s))
+    const enterpriseSub = pickAtTier(checkEnterprisePlan)
     if (enterpriseSub) return enterpriseSub
 
-    const teamSub = allSubs.find((s) => checkTeamPlan(s))
+    const teamSub = pickAtTier(checkTeamPlan)
     if (teamSub) return teamSub
 
-    const proSub = allSubs.find((s) => checkProPlan(s))
+    const proSub = pickAtTier(checkProPlan)
     if (proSub) return proSub
 
     return null

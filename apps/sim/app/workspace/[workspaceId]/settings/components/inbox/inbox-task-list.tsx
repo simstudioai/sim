@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { formatRelativeTime } from '@sim/utils/formatting'
 import { ChevronDown, Paperclip, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -13,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
-import { formatRelativeTime } from '@/lib/core/utils/formatting'
 import { InboxTaskSkeleton } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-skeleton'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
@@ -26,6 +26,8 @@ const STATUS_OPTIONS = [
   { value: 'failed', label: 'Failed' },
   { value: 'rejected', label: 'Rejected' },
 ] as const
+
+type StatusFilter = (typeof STATUS_OPTIONS)[number]['value']
 
 const STATUS_BADGES: Record<
   string,
@@ -43,7 +45,7 @@ export function InboxTaskList() {
   const router = useRouter()
   const workspaceId = params.workspaceId as string
 
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchTerm, setSearchTerm] = useState('')
 
   const { data: config } = useInboxConfig(workspaceId)
@@ -98,7 +100,14 @@ export function InboxTaskList() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
-            <DropdownMenuRadioGroup value={statusFilter} onValueChange={setStatusFilter}>
+            <DropdownMenuRadioGroup
+              value={statusFilter}
+              onValueChange={(value) => {
+                if (STATUS_OPTIONS.some((option) => option.value === value)) {
+                  setStatusFilter(value as StatusFilter)
+                }
+              }}
+            >
               {STATUS_OPTIONS.map((opt) => (
                 <DropdownMenuRadioItem key={opt.value} value={opt.value}>
                   {opt.label}

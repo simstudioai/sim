@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { generateId, isValidUuid } from '@/lib/core/utils/uuid'
+import { generateId, isValidUuid } from '@sim/utils/id'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import {

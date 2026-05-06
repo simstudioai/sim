@@ -22,6 +22,10 @@ vi.mock('@/lib/knowledge/documents/utils', () => ({
   retryWithExponentialBackoff: (fn: any) => fn(),
 }))
 
+vi.mock('@/lib/workspaces/utils', () => ({
+  getWorkspaceBilledAccountUserId: vi.fn().mockResolvedValue('user1'),
+}))
+
 vi.mock('@/lib/knowledge/documents/document-processor', () => ({
   processDocument: vi.fn().mockResolvedValue({
     chunks: [
@@ -82,16 +86,21 @@ vi.stubGlobal(
   })
 )
 
-vi.mock('@sim/db', () => {
+vi.mock('@sim/db', async () => {
+  const { schemaMock } = (await import('@sim/testing')) as typeof import('@sim/testing')
+  const tableNameFor = (table: any) => {
+    if (table === schemaMock.knowledgeBase) return 'knowledge_base'
+    if (table === schemaMock.document) return 'document'
+    if (table === schemaMock.embedding) return 'embedding'
+    return ''
+  }
   const selectBuilder = {
     from(table: any) {
       return {
         where() {
           return {
             limit(n: number) {
-              const tableSymbols = Object.getOwnPropertySymbols(table || {})
-              const baseNameSymbol = tableSymbols.find((s) => s.toString().includes('BaseName'))
-              const tableName = baseNameSymbol ? table[baseNameSymbol] : ''
+              const tableName = tableNameFor(table)
 
               if (tableName === 'knowledge_base') {
                 return Promise.resolve(kbRows.slice(0, n))
@@ -117,9 +126,7 @@ vi.mock('@sim/db', () => {
       update: (table: any) => ({
         set: (payload: any) => ({
           where: () => {
-            const tableSymbols = Object.getOwnPropertySymbols(table || {})
-            const baseNameSymbol = tableSymbols.find((s) => s.toString().includes('BaseName'))
-            const tableName = baseNameSymbol ? table[baseNameSymbol] : ''
+            const tableName = tableNameFor(table)
             if (tableName === 'knowledge_base') {
               dbOps.order.push('updateKb')
               dbOps.updatePayloads.push(payload)
@@ -208,7 +215,8 @@ describe('Knowledge Utils', () => {
       kbRows.push({
         id: 'kb1',
         userId: 'user1',
-        workspaceId: null,
+        workspaceId: 'workspace1',
+        embeddingModel: 'text-embedding-3-small',
         chunkingConfig: { maxSize: 1024, minSize: 1, overlap: 200 },
       })
       docRows.push({ id: 'doc1', knowledgeBaseId: 'kb1' })
@@ -367,7 +375,7 @@ describe('Knowledge Utils', () => {
       Object.keys(env).forEach((key) => delete (env as any)[key])
 
       await expect(generateEmbeddings(['test text'])).rejects.toThrow(
-        'Either OPENAI_API_KEY or Azure OpenAI configuration (AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT) must be configured'
+        'OPENAI_API_KEY is not configured'
       )
     })
   })

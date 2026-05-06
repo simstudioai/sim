@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import type {
   MistralParserInput,
@@ -158,7 +159,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
               )
             }
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage = toError(error).message
             throw new Error(
               `Invalid URL format: ${errorMessage}. Please provide a valid HTTP or HTTPS URL to a PDF document (e.g., https://example.com/document.pdf)`
             )
@@ -214,9 +215,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       try {
         ocrResult = await response.json()
       } catch (jsonError) {
-        throw new Error(
-          `Failed to parse Mistral OCR response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`
-        )
+        throw new Error(`Failed to parse Mistral OCR response: ${toError(jsonError).message}`)
       }
 
       if (!ocrResult || typeof ocrResult !== 'object') {
@@ -396,9 +395,7 @@ export const mistralParserV2Tool: ToolConfig<MistralParserInput, MistralParserV2
     try {
       ocrResult = await response.json()
     } catch (jsonError) {
-      throw new Error(
-        `Failed to parse Mistral OCR response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`
-      )
+      throw new Error(`Failed to parse Mistral OCR response: ${toError(jsonError).message}`)
     }
 
     if (!ocrResult || typeof ocrResult !== 'object') {

@@ -1,9 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { googleDriveFilesSelectorContract } from '@/lib/api/contracts/selectors/google'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 export const dynamic = 'force-dynamic'
@@ -30,7 +33,7 @@ interface DriveFile {
   createdTime?: string
   modifiedTime?: string
   size?: string
-  owners?: any[]
+  owners?: unknown[]
   parents?: string[]
 }
 
@@ -70,7 +73,7 @@ async function fetchSharedDrives(accessToken: string, requestId: string): Promis
   }
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Google Drive files request received`)
 
@@ -80,27 +83,33 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-    const mimeType = searchParams.get('mimeType')
-    const query = searchParams.get('query') || ''
-    const folderId = searchParams.get('folderId') || searchParams.get('parentId') || ''
-    const workflowId = searchParams.get('workflowId') || undefined
-    const impersonateEmail = searchParams.get('impersonateEmail') || undefined
+    const parsed = await parseRequest(
+      googleDriveFilesSelectorContract,
+      request,
+      {},
+      {
+        validationErrorResponse: () => {
+          logger.warn(`[${requestId}] Missing credential ID`)
+          return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    if (!credentialId) {
-      logger.warn(`[${requestId}] Missing credential ID`)
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
-    }
+    const { credentialId, mimeType } = parsed.data.query
+    const query = parsed.data.query.query || ''
+    const folderId = parsed.data.query.folderId || parsed.data.query.parentId || ''
+    const workflowId = parsed.data.query.workflowId || undefined
+    const impersonateEmail = parsed.data.query.impersonateEmail || undefined
 
-    const authz = await authorizeCredentialUse(request, { credentialId: credentialId!, workflowId })
+    const authz = await authorizeCredentialUse(request, { credentialId, workflowId })
     if (!authz.ok || !authz.credentialOwnerUserId) {
       logger.warn(`[${requestId}] Unauthorized credential access attempt`, authz)
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
 
     const accessToken = await refreshAccessTokenIfNeeded(
-      credentialId!,
+      credentialId,
       authz.credentialOwnerUserId,
       requestId,
       getScopesForService('google-drive'),
@@ -186,4 +195,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching files from Google Drive`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

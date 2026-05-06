@@ -1,17 +1,21 @@
+import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListArchiveReasonsParams {
   apiKey: string
+  includeArchived?: boolean
+}
+
+interface AshbyArchiveReason {
+  id: string
+  text: string
+  reasonType: string
+  isArchived: boolean
 }
 
 interface AshbyListArchiveReasonsResponse extends ToolResponse {
   output: {
-    archiveReasons: Array<{
-      id: string
-      text: string
-      reasonType: string
-      isArchived: boolean
-    }>
+    archiveReasons: AshbyArchiveReason[]
   }
 }
 
@@ -31,33 +35,40 @@ export const listArchiveReasonsTool: ToolConfig<
       visibility: 'user-only',
       description: 'Ashby API Key',
     },
+    includeArchived: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to include archived archive reasons in the response (default false)',
+    },
   },
 
   request: {
     url: 'https://api.ashbyhq.com/archiveReason.list',
     method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,
-    }),
-    body: () => ({}),
+    headers: (params) => ashbyAuthHeaders(params.apiKey),
+    body: (params) => {
+      const body: Record<string, unknown> = {}
+      if (params.includeArchived !== undefined) body.includeArchived = params.includeArchived
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.errorInfo?.message || 'Failed to list archive reasons')
+      throw new Error(ashbyErrorMessage(data, 'Failed to list archive reasons'))
     }
 
     return {
       success: true,
       output: {
         archiveReasons: (data.results ?? []).map((r: Record<string, unknown>) => ({
-          id: r.id ?? null,
-          text: r.text ?? null,
-          reasonType: r.reasonType ?? null,
-          isArchived: r.isArchived ?? false,
+          id: (r.id as string) ?? '',
+          text: (r.text as string) ?? '',
+          reasonType: (r.reasonType as string) ?? '',
+          isArchived: (r.isArchived as boolean) ?? false,
         })),
       },
     }
@@ -72,7 +83,10 @@ export const listArchiveReasonsTool: ToolConfig<
         properties: {
           id: { type: 'string', description: 'Archive reason UUID' },
           text: { type: 'string', description: 'Archive reason text' },
-          reasonType: { type: 'string', description: 'Reason type' },
+          reasonType: {
+            type: 'string',
+            description: 'Reason type (RejectedByCandidate, RejectedByOrg, Other)',
+          },
           isArchived: { type: 'boolean', description: 'Whether the reason is archived' },
         },
       },

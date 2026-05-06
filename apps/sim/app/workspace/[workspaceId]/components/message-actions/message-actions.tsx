@@ -1,6 +1,8 @@
 'use client'
 
 import { memo, useEffect, useRef, useState } from 'react'
+import { GitBranch } from 'lucide-react'
+import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
   Check,
@@ -14,8 +16,12 @@ import {
   ThumbsDown,
   ThumbsUp,
   Tooltip,
+  toast,
 } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
+import { useForkTask } from '@/hooks/queries/tasks'
+import { useFolderStore } from '@/stores/folders/store'
 
 const SPECIAL_TAGS = 'thinking|options|usage_upgrade|credential|mothership-error|file'
 
@@ -48,6 +54,7 @@ interface MessageActionsProps {
   chatId?: string
   userQuery?: string
   requestId?: string
+  messageId?: string
 }
 
 export const MessageActions = memo(function MessageActions({
@@ -55,7 +62,10 @@ export const MessageActions = memo(function MessageActions({
   chatId,
   userQuery,
   requestId,
+  messageId,
 }: MessageActionsProps) {
+  const router = useRouter()
+  const params = useParams<{ workspaceId: string }>()
   const [copied, setCopied] = useState(false)
   const [copiedRequestId, setCopiedRequestId] = useState(false)
   const [pendingFeedback, setPendingFeedback] = useState<'up' | 'down' | null>(null)
@@ -63,6 +73,7 @@ export const MessageActions = memo(function MessageActions({
   const resetTimeoutRef = useRef<number | null>(null)
   const requestIdTimeoutRef = useRef<number | null>(null)
   const submitFeedback = useSubmitCopilotFeedback()
+  const forkTask = useForkTask(params.workspaceId)
 
   useEffect(() => {
     return () => {
@@ -140,35 +151,88 @@ export const MessageActions = memo(function MessageActions({
     }
   }
 
-  if (!content) return null
+  const handleFork = async () => {
+    if (!chatId || !messageId || forkTask.isPending) return
+    try {
+      const result = await forkTask.mutateAsync({ chatId, upToMessageId: messageId })
+      useFolderStore.getState().clearTaskSelection()
+      router.push(`/workspace/${params.workspaceId}/task/${result.id}`)
+    } catch {
+      toast.error('Failed to fork chat')
+    }
+  }
+
+  const hasContent = Boolean(content)
+  const canSubmitFeedback = Boolean(chatId && userQuery)
+  const canFork = false
+  if (!hasContent && !canSubmitFeedback && !canFork) return null
 
   return (
     <>
       <div className='flex items-center gap-0.5'>
-        <button
-          type='button'
-          aria-label='Copy message'
-          onClick={copyToClipboard}
-          className={BUTTON_CLASS}
-        >
-          {copied ? <Check className={ICON_CLASS} /> : <Copy className={ICON_CLASS} />}
-        </button>
-        <button
-          type='button'
-          aria-label='Like'
-          onClick={() => handleFeedbackClick('up')}
-          className={BUTTON_CLASS}
-        >
-          <ThumbsUp className={ICON_CLASS} />
-        </button>
-        <button
-          type='button'
-          aria-label='Dislike'
-          onClick={() => handleFeedbackClick('down')}
-          className={BUTTON_CLASS}
-        >
-          <ThumbsDown className={ICON_CLASS} />
-        </button>
+        {hasContent && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                type='button'
+                aria-label='Copy message'
+                onClick={copyToClipboard}
+                className={BUTTON_CLASS}
+              >
+                {copied ? <Check className={ICON_CLASS} /> : <Copy className={ICON_CLASS} />}
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              {copied ? 'Copied message' : 'Copy message'}
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
+        {canSubmitFeedback && (
+          <>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <button
+                  type='button'
+                  aria-label='Like'
+                  onClick={() => handleFeedbackClick('up')}
+                  className={BUTTON_CLASS}
+                >
+                  <ThumbsUp className={ICON_CLASS} />
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Good response</Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <button
+                  type='button'
+                  aria-label='Dislike'
+                  onClick={() => handleFeedbackClick('down')}
+                  className={BUTTON_CLASS}
+                >
+                  <ThumbsDown className={ICON_CLASS} />
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Bad response</Tooltip.Content>
+            </Tooltip.Root>
+          </>
+        )}
+        {canFork && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                type='button'
+                aria-label='Fork from here'
+                onClick={handleFork}
+                disabled={forkTask.isPending}
+                className={cn(BUTTON_CLASS, forkTask.isPending && 'cursor-not-allowed opacity-50')}
+              >
+                <GitBranch className={ICON_CLASS} />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>Fork from here</Tooltip.Content>
+          </Tooltip.Root>
+        )}
       </div>
 
       <Modal open={pendingFeedback !== null} onOpenChange={handleModalClose}>

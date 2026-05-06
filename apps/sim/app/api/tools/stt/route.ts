@@ -1,5 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
+import { sttToolContract } from '@/lib/api/contracts/tools/media/stt'
+import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { extractAudioFromVideo, isVideoFile } from '@/lib/audio/extractor'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
@@ -7,45 +11,21 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getMimeTypeFromExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
   resolveInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils.server'
-import type { UserFile } from '@/executor/types'
 import type { TranscriptSegment } from '@/tools/stt/types'
 
 const logger = createLogger('SttProxyAPI')
+const ELEVENLABS_STT_MODEL = 'scribe_v2'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes for large files
 
-interface SttRequestBody {
-  provider: 'whisper' | 'deepgram' | 'elevenlabs' | 'assemblyai' | 'gemini'
-  apiKey: string
-  model?: string
-  audioFile?: UserFile | UserFile[]
-  audioFileReference?: UserFile | UserFile[]
-  audioUrl?: string
-  language?: string
-  timestamps?: 'none' | 'sentence' | 'word'
-  diarization?: boolean
-  translateToEnglish?: boolean
-  // Whisper-specific options
-  prompt?: string
-  temperature?: number
-  // AssemblyAI-specific options
-  sentiment?: boolean
-  entityDetection?: boolean
-  piiRedaction?: boolean
-  summarization?: boolean
-  workspaceId?: string
-  workflowId?: string
-  executionId?: string
-}
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId()
   logger.info(`[${requestId}] STT transcription request started`)
 
@@ -56,7 +36,24 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = authResult.userId
-    const body: SttRequestBody = await request.json()
+
+    const parsed = await parseRequest(
+      sttToolContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid STT request:`, error.issues)
+          return validationErrorResponse(
+            error,
+            getValidationErrorMessage(error, 'Invalid request data')
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+
+    const body = parsed.data.body
     const {
       provider,
       apiKey,
@@ -70,13 +67,6 @@ export async function POST(request: NextRequest) {
       piiRedaction,
       summarization,
     } = body
-
-    if (!provider || !apiKey) {
-      return NextResponse.json(
-        { error: 'Missing required fields: provider and apiKey' },
-        { status: 400 }
-      )
-    }
 
     let audioBuffer: Buffer
     let audioFileName: string
@@ -233,13 +223,7 @@ export async function POST(request: NextRequest) {
         duration = result.duration
         confidence = result.confidence
       } else if (provider === 'elevenlabs') {
-        const result = await transcribeWithElevenLabs(
-          audioBuffer,
-          apiKey,
-          language,
-          timestamps,
-          model
-        )
+        const result = await transcribeWithElevenLabs(audioBuffer, apiKey, language, timestamps)
         transcript = result.transcript
         segments = result.segments
         detectedLanguage = result.language
@@ -305,7 +289,7 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})
 
 async function transcribeWithWhisper(
   audioBuffer: Buffer,
@@ -481,8 +465,7 @@ async function transcribeWithElevenLabs(
   audioBuffer: Buffer,
   apiKey: string,
   language?: string,
-  timestamps?: 'none' | 'sentence' | 'word',
-  model?: string
+  timestamps?: 'none' | 'sentence' | 'word'
 ): Promise<{
   transcript: string
   segments?: TranscriptSegment[]
@@ -492,7 +475,7 @@ async function transcribeWithElevenLabs(
   const formData = new FormData()
   const blob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/mpeg' })
   formData.append('file', blob, 'audio.mp3')
-  formData.append('model_id', model || 'scribe_v1')
+  formData.append('model_id', ELEVENLABS_STT_MODEL)
 
   if (language && language !== 'auto') {
     formData.append('language_code', language)
@@ -663,7 +646,7 @@ async function transcribeWithAssemblyAI(
       throw new Error(`AssemblyAI transcription failed: ${transcript.error}`)
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 5000))
+    await sleep(5000)
     attempts++
   }
 

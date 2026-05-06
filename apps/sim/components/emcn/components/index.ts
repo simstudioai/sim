@@ -18,6 +18,7 @@ export {
   buttonGroupItemVariants,
   buttonGroupVariants,
 } from './button-group/button-group'
+export { Callout, type CalloutProps, calloutVariants } from './callout/callout'
 export {
   Checkbox,
   type CheckboxProps,
@@ -124,6 +125,8 @@ export {
   SModalTabsTrigger,
   SModalTrigger,
 } from './s-modal/s-modal'
+export { SecretInput, type SecretInputProps } from './secret-input/secret-input'
+export { SecretReveal, type SecretRevealProps } from './secret-reveal/secret-reveal'
 export { Skeleton } from './skeleton/skeleton'
 export { Slider, type SliderProps } from './slider/slider'
 export { Switch } from './switch/switch'
@@ -159,3 +162,4 @@ export {
   type TourTooltipPlacement,
   type TourTooltipProps,
 } from './tour-tooltip/tour-tooltip'
+export { Wizard, type WizardProps, type WizardStepProps } from './wizard/wizard'

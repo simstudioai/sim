@@ -1,12 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger, mockGetFolderMap, mockGetWorkflows, queryClient } = vi.hoisted(() => ({
-  mockLogger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  },
+const { mockGetFolderMap, mockGetWorkflows, queryClient } = vi.hoisted(() => ({
   mockGetFolderMap: vi.fn(() => ({})),
   mockGetWorkflows: vi.fn(() => []),
   queryClient: {
@@ -27,10 +21,6 @@ let workflowList: Array<{
   folderId: string
   sortOrder: number
 }>
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => mockLogger),
-}))
 
 vi.mock('@tanstack/react-query', () => ({
   keepPreviousData: {},

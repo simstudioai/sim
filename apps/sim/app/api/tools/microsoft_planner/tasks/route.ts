@@ -1,8 +1,11 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { microsoftPlannerTasksSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { PlannerTask } from '@/tools/microsoft_planner/types'
 
@@ -10,22 +13,13 @@ const logger = createLogger('MicrosoftPlannerTasksAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const body = await request.json()
-    const { credential, workflowId, planId } = body
-
-    if (!credential) {
-      logger.error(`[${requestId}] Missing credential in request`)
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
-
-    if (!planId) {
-      logger.error(`[${requestId}] Missing planId in request`)
-      return NextResponse.json({ error: 'Plan ID is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(microsoftPlannerTasksSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, workflowId, planId } = parsed.data.body
 
     const planIdValidation = validateMicrosoftGraphId(planId, 'planId')
     if (!planIdValidation.isValid) {
@@ -33,7 +27,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: planIdValidation.error }, { status: 400 })
     }
 
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
       workflowId,
     })
@@ -100,4 +94,4 @@ export async function POST(request: Request) {
     logger.error(`[${requestId}] Error fetching Microsoft Planner tasks:`, error)
     return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 })
   }
-}
+})

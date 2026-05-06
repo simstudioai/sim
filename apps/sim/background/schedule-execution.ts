@@ -1,11 +1,12 @@
 import { db, jobExecutionLogs, workflow, workflowSchedule } from '@sim/db'
-import { createLogger } from '@sim/logger'
+import { createLogger, runWithRequestContext } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
-import { generateId } from '@/lib/core/utils/uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -270,7 +271,7 @@ async function runWorkflowExecution({
 
     await loggingSession.safeCompleteWithError({
       error: {
-        message: error instanceof Error ? error.message : String(error),
+        message: toError(error).message,
         stackTrace: error instanceof Error ? error.stack : undefined,
       },
       traceSpans,
@@ -327,71 +328,216 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
   const now = new Date(payload.now)
   const scheduledFor = payload.scheduledFor ? new Date(payload.scheduledFor) : null
 
-  logger.info(`[${requestId}] Starting schedule execution`, {
-    scheduleId: payload.scheduleId,
-    workflowId: payload.workflowId,
-    executionId,
-  })
-
-  try {
-    const [scheduleRecord] = await db
-      .select({
-        id: workflowSchedule.id,
-        workflowId: workflowSchedule.workflowId,
-        status: workflowSchedule.status,
-        archivedAt: workflowSchedule.archivedAt,
-      })
-      .from(workflowSchedule)
-      .where(eq(workflowSchedule.id, payload.scheduleId))
-      .limit(1)
-
-    if (!scheduleRecord) {
-      logger.info(`[${requestId}] Schedule no longer exists, skipping execution`, {
-        scheduleId: payload.scheduleId,
-      })
-      return
-    }
-
-    if (scheduleRecord.archivedAt || scheduleRecord.status === 'disabled') {
-      logger.info(`[${requestId}] Schedule is archived or disabled, skipping execution`, {
-        scheduleId: payload.scheduleId,
-      })
-      await releaseScheduleLock(
-        payload.scheduleId,
-        requestId,
-        now,
-        `Failed to release schedule ${payload.scheduleId} after archive/disabled check`
-      )
-      return
-    }
-
-    const loggingSession = new LoggingSession(
-      payload.workflowId,
-      executionId,
-      'schedule',
-      requestId
-    )
-
-    const preprocessResult = await preprocessExecution({
+  return runWithRequestContext({ requestId }, async () => {
+    logger.info(`[${requestId}] Starting schedule execution`, {
+      scheduleId: payload.scheduleId,
       workflowId: payload.workflowId,
-      userId: 'unknown', // Will be resolved from workflow record
-      triggerType: 'schedule',
       executionId,
-      requestId,
-      checkRateLimit: true,
-      checkDeployment: true,
-      loggingSession,
-      triggerData: { correlation },
     })
 
-    if (!preprocessResult.success) {
-      const statusCode = preprocessResult.error?.statusCode || 500
+    try {
+      const [scheduleRecord] = await db
+        .select({
+          id: workflowSchedule.id,
+          workflowId: workflowSchedule.workflowId,
+          status: workflowSchedule.status,
+          archivedAt: workflowSchedule.archivedAt,
+        })
+        .from(workflowSchedule)
+        .where(eq(workflowSchedule.id, payload.scheduleId))
+        .limit(1)
 
-      switch (statusCode) {
-        case 401: {
-          logger.warn(
-            `[${requestId}] Authentication error during preprocessing, disabling schedule`
-          )
+      if (!scheduleRecord) {
+        logger.info(`[${requestId}] Schedule no longer exists, skipping execution`, {
+          scheduleId: payload.scheduleId,
+        })
+        return
+      }
+
+      if (scheduleRecord.archivedAt || scheduleRecord.status === 'disabled') {
+        logger.info(`[${requestId}] Schedule is archived or disabled, skipping execution`, {
+          scheduleId: payload.scheduleId,
+        })
+        await releaseScheduleLock(
+          payload.scheduleId,
+          requestId,
+          now,
+          `Failed to release schedule ${payload.scheduleId} after archive/disabled check`
+        )
+        return
+      }
+
+      const loggingSession = new LoggingSession(
+        payload.workflowId,
+        executionId,
+        'schedule',
+        requestId
+      )
+
+      const preprocessResult = await preprocessExecution({
+        workflowId: payload.workflowId,
+        userId: 'unknown', // Will be resolved from workflow record
+        triggerType: 'schedule',
+        executionId,
+        requestId,
+        checkRateLimit: true,
+        checkDeployment: true,
+        loggingSession,
+        triggerData: { correlation },
+      })
+
+      if (!preprocessResult.success) {
+        const statusCode = preprocessResult.error?.statusCode || 500
+
+        switch (statusCode) {
+          case 401: {
+            logger.warn(
+              `[${requestId}] Authentication error during preprocessing, disabling schedule`
+            )
+            await applyScheduleUpdate(
+              payload.scheduleId,
+              {
+                updatedAt: now,
+                lastQueuedAt: null,
+                lastFailedAt: now,
+                status: 'disabled',
+              },
+              requestId,
+              `Failed to disable schedule ${payload.scheduleId} after authentication error`
+            )
+            return
+          }
+
+          case 403: {
+            logger.warn(
+              `[${requestId}] Authorization error during preprocessing, disabling schedule: ${preprocessResult.error?.message}`
+            )
+            await applyScheduleUpdate(
+              payload.scheduleId,
+              {
+                updatedAt: now,
+                lastQueuedAt: null,
+                lastFailedAt: now,
+                status: 'disabled',
+              },
+              requestId,
+              `Failed to disable schedule ${payload.scheduleId} after authorization error`
+            )
+            return
+          }
+
+          case 404: {
+            logger.warn(`[${requestId}] Workflow not found, disabling schedule`)
+            await applyScheduleUpdate(
+              payload.scheduleId,
+              {
+                updatedAt: now,
+                lastQueuedAt: null,
+                status: 'disabled',
+              },
+              requestId,
+              `Failed to disable schedule ${payload.scheduleId} after missing workflow`
+            )
+            return
+          }
+
+          case 429: {
+            logger.warn(`[${requestId}] Rate limit exceeded, scheduling retry`)
+            const retryDelay = 5 * 60 * 1000
+            const nextRetryAt = new Date(now.getTime() + retryDelay)
+
+            await applyScheduleUpdate(
+              payload.scheduleId,
+              {
+                updatedAt: now,
+                nextRunAt: nextRetryAt,
+                lastQueuedAt: null,
+              },
+              requestId,
+              `Error updating schedule ${payload.scheduleId} for rate limit`
+            )
+            return
+          }
+
+          case 402: {
+            logger.warn(`[${requestId}] Usage limit exceeded, scheduling next run`)
+            const nextRunAt =
+              (await calculateNextRunFromDeployment(payload, requestId)) ??
+              new Date(now.getTime() + 60 * 60 * 1000)
+            await applyScheduleUpdate(
+              payload.scheduleId,
+              {
+                updatedAt: now,
+                lastQueuedAt: null,
+                nextRunAt,
+              },
+              requestId,
+              `Error updating schedule ${payload.scheduleId} after usage limit check`
+            )
+            return
+          }
+
+          default: {
+            logger.error(`[${requestId}] Preprocessing failed: ${preprocessResult.error?.message}`)
+            const nextRunAt = await determineNextRunAfterError(payload, now, requestId)
+            const newFailedCount = (payload.failedCount || 0) + 1
+            const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES
+
+            if (shouldDisable) {
+              logger.warn(
+                `[${requestId}] Disabling schedule for workflow ${payload.workflowId} after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
+              )
+            }
+
+            await applyScheduleUpdate(
+              payload.scheduleId,
+              {
+                updatedAt: now,
+                lastQueuedAt: null,
+                nextRunAt,
+                failedCount: newFailedCount,
+                lastFailedAt: now,
+                status: shouldDisable ? 'disabled' : 'active',
+              },
+              requestId,
+              `Error updating schedule ${payload.scheduleId} after preprocessing failure`
+            )
+            return
+          }
+        }
+      }
+
+      const { actorUserId, workflowRecord } = preprocessResult
+      if (!actorUserId || !workflowRecord) {
+        logger.error(`[${requestId}] Missing required preprocessing data`)
+        await releaseScheduleLock(
+          payload.scheduleId,
+          requestId,
+          now,
+          `Failed to release schedule ${payload.scheduleId} after missing preprocessing data`
+        )
+        return
+      }
+
+      if (!workflowRecord.workspaceId) {
+        throw new Error(`Workflow ${payload.workflowId} has no associated workspace`)
+      }
+
+      logger.info(`[${requestId}] Executing scheduled workflow ${payload.workflowId}`)
+
+      try {
+        const executionResult = await runWorkflowExecution({
+          payload,
+          correlation,
+          workflowRecord,
+          actorUserId,
+          loggingSession,
+          requestId,
+          executionId,
+          asyncTimeout: preprocessResult.executionTimeout?.async,
+        })
+
+        if (executionResult.status === 'skip') {
           await applyScheduleUpdate(
             payload.scheduleId,
             {
@@ -399,48 +545,65 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
               lastQueuedAt: null,
               lastFailedAt: now,
               status: 'disabled',
+              nextRunAt: null,
             },
             requestId,
-            `Failed to disable schedule ${payload.scheduleId} after authentication error`
+            `Failed to disable schedule ${payload.scheduleId} after skip`
           )
           return
         }
 
-        case 403: {
+        if (executionResult.status === 'success') {
+          logger.info(`[${requestId}] Workflow ${payload.workflowId} executed successfully`)
+
+          const nextRunAt = calculateNextRunTime(payload, executionResult.blocks)
+
+          await applyScheduleUpdate(
+            payload.scheduleId,
+            {
+              lastRanAt: now,
+              updatedAt: now,
+              nextRunAt,
+              failedCount: 0,
+              lastQueuedAt: null,
+            },
+            requestId,
+            `Error updating schedule ${payload.scheduleId} after success`
+          )
+          return
+        }
+
+        logger.warn(`[${requestId}] Workflow ${payload.workflowId} execution failed`)
+
+        const newFailedCount = (payload.failedCount || 0) + 1
+        const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES
+        if (shouldDisable) {
           logger.warn(
-            `[${requestId}] Authorization error during preprocessing, disabling schedule: ${preprocessResult.error?.message}`
+            `[${requestId}] Disabling schedule for workflow ${payload.workflowId} after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
           )
-          await applyScheduleUpdate(
-            payload.scheduleId,
-            {
-              updatedAt: now,
-              lastQueuedAt: null,
-              lastFailedAt: now,
-              status: 'disabled',
-            },
-            requestId,
-            `Failed to disable schedule ${payload.scheduleId} after authorization error`
-          )
-          return
         }
 
-        case 404: {
-          logger.warn(`[${requestId}] Workflow not found, disabling schedule`)
-          await applyScheduleUpdate(
-            payload.scheduleId,
-            {
-              updatedAt: now,
-              lastQueuedAt: null,
-              status: 'disabled',
-            },
-            requestId,
-            `Failed to disable schedule ${payload.scheduleId} after missing workflow`
-          )
-          return
-        }
+        const nextRunAt = calculateNextRunTime(payload, executionResult.blocks)
 
-        case 429: {
-          logger.warn(`[${requestId}] Rate limit exceeded, scheduling retry`)
+        await applyScheduleUpdate(
+          payload.scheduleId,
+          {
+            updatedAt: now,
+            lastQueuedAt: null,
+            nextRunAt,
+            failedCount: newFailedCount,
+            lastFailedAt: now,
+            status: shouldDisable ? 'disabled' : 'active',
+          },
+          requestId,
+          `Error updating schedule ${payload.scheduleId} after failure`
+        )
+      } catch (error: unknown) {
+        const errorMessage = toError(error).message
+
+        if (errorMessage.includes('Service overloaded')) {
+          logger.warn(`[${requestId}] Service overloaded, retrying schedule in 5 minutes`)
+
           const retryDelay = 5 * 60 * 1000
           const nextRetryAt = new Date(now.getTime() + retryDelay)
 
@@ -448,211 +611,54 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
             payload.scheduleId,
             {
               updatedAt: now,
+              lastQueuedAt: null,
               nextRunAt: nextRetryAt,
-              lastQueuedAt: null,
             },
             requestId,
-            `Error updating schedule ${payload.scheduleId} for rate limit`
+            `Error updating schedule ${payload.scheduleId} for service overload`
           )
           return
         }
 
-        case 402: {
-          logger.warn(`[${requestId}] Usage limit exceeded, scheduling next run`)
-          const nextRunAt =
-            (await calculateNextRunFromDeployment(payload, requestId)) ??
-            new Date(now.getTime() + 60 * 60 * 1000)
-          await applyScheduleUpdate(
-            payload.scheduleId,
-            {
-              updatedAt: now,
-              lastQueuedAt: null,
-              nextRunAt,
-            },
-            requestId,
-            `Error updating schedule ${payload.scheduleId} after usage limit check`
+        logger.error(
+          `[${requestId}] Error executing scheduled workflow ${payload.workflowId}`,
+          error
+        )
+
+        const nextRunAt = await determineNextRunAfterError(payload, now, requestId)
+        const newFailedCount = (payload.failedCount || 0) + 1
+        const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES
+
+        if (shouldDisable) {
+          logger.warn(
+            `[${requestId}] Disabling schedule for workflow ${payload.workflowId} after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
           )
-          return
         }
 
-        default: {
-          logger.error(`[${requestId}] Preprocessing failed: ${preprocessResult.error?.message}`)
-          const nextRunAt = await determineNextRunAfterError(payload, now, requestId)
-          const newFailedCount = (payload.failedCount || 0) + 1
-          const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES
-
-          if (shouldDisable) {
-            logger.warn(
-              `[${requestId}] Disabling schedule for workflow ${payload.workflowId} after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
-            )
-          }
-
-          await applyScheduleUpdate(
-            payload.scheduleId,
-            {
-              updatedAt: now,
-              lastQueuedAt: null,
-              nextRunAt,
-              failedCount: newFailedCount,
-              lastFailedAt: now,
-              status: shouldDisable ? 'disabled' : 'active',
-            },
-            requestId,
-            `Error updating schedule ${payload.scheduleId} after preprocessing failure`
-          )
-          return
-        }
+        await applyScheduleUpdate(
+          payload.scheduleId,
+          {
+            updatedAt: now,
+            lastQueuedAt: null,
+            nextRunAt,
+            failedCount: newFailedCount,
+            lastFailedAt: now,
+            status: shouldDisable ? 'disabled' : 'active',
+          },
+          requestId,
+          `Error updating schedule ${payload.scheduleId} after execution error`
+        )
       }
-    }
-
-    const { actorUserId, workflowRecord } = preprocessResult
-    if (!actorUserId || !workflowRecord) {
-      logger.error(`[${requestId}] Missing required preprocessing data`)
+    } catch (error: unknown) {
+      logger.error(`[${requestId}] Error processing schedule ${payload.scheduleId}`, error)
       await releaseScheduleLock(
         payload.scheduleId,
         requestId,
         now,
-        `Failed to release schedule ${payload.scheduleId} after missing preprocessing data`
-      )
-      return
-    }
-
-    if (!workflowRecord.workspaceId) {
-      throw new Error(`Workflow ${payload.workflowId} has no associated workspace`)
-    }
-
-    logger.info(`[${requestId}] Executing scheduled workflow ${payload.workflowId}`)
-
-    try {
-      const executionResult = await runWorkflowExecution({
-        payload,
-        correlation,
-        workflowRecord,
-        actorUserId,
-        loggingSession,
-        requestId,
-        executionId,
-        asyncTimeout: preprocessResult.executionTimeout?.async,
-      })
-
-      if (executionResult.status === 'skip') {
-        await applyScheduleUpdate(
-          payload.scheduleId,
-          {
-            updatedAt: now,
-            lastQueuedAt: null,
-            lastFailedAt: now,
-            status: 'disabled',
-            nextRunAt: null,
-          },
-          requestId,
-          `Failed to disable schedule ${payload.scheduleId} after skip`
-        )
-        return
-      }
-
-      if (executionResult.status === 'success') {
-        logger.info(`[${requestId}] Workflow ${payload.workflowId} executed successfully`)
-
-        const nextRunAt = calculateNextRunTime(payload, executionResult.blocks)
-
-        await applyScheduleUpdate(
-          payload.scheduleId,
-          {
-            lastRanAt: now,
-            updatedAt: now,
-            nextRunAt,
-            failedCount: 0,
-            lastQueuedAt: null,
-          },
-          requestId,
-          `Error updating schedule ${payload.scheduleId} after success`
-        )
-        return
-      }
-
-      logger.warn(`[${requestId}] Workflow ${payload.workflowId} execution failed`)
-
-      const newFailedCount = (payload.failedCount || 0) + 1
-      const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES
-      if (shouldDisable) {
-        logger.warn(
-          `[${requestId}] Disabling schedule for workflow ${payload.workflowId} after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
-        )
-      }
-
-      const nextRunAt = calculateNextRunTime(payload, executionResult.blocks)
-
-      await applyScheduleUpdate(
-        payload.scheduleId,
-        {
-          updatedAt: now,
-          lastQueuedAt: null,
-          nextRunAt,
-          failedCount: newFailedCount,
-          lastFailedAt: now,
-          status: shouldDisable ? 'disabled' : 'active',
-        },
-        requestId,
-        `Error updating schedule ${payload.scheduleId} after failure`
-      )
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-
-      if (errorMessage.includes('Service overloaded')) {
-        logger.warn(`[${requestId}] Service overloaded, retrying schedule in 5 minutes`)
-
-        const retryDelay = 5 * 60 * 1000
-        const nextRetryAt = new Date(now.getTime() + retryDelay)
-
-        await applyScheduleUpdate(
-          payload.scheduleId,
-          {
-            updatedAt: now,
-            lastQueuedAt: null,
-            nextRunAt: nextRetryAt,
-          },
-          requestId,
-          `Error updating schedule ${payload.scheduleId} for service overload`
-        )
-        return
-      }
-
-      logger.error(`[${requestId}] Error executing scheduled workflow ${payload.workflowId}`, error)
-
-      const nextRunAt = await determineNextRunAfterError(payload, now, requestId)
-      const newFailedCount = (payload.failedCount || 0) + 1
-      const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES
-
-      if (shouldDisable) {
-        logger.warn(
-          `[${requestId}] Disabling schedule for workflow ${payload.workflowId} after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
-        )
-      }
-
-      await applyScheduleUpdate(
-        payload.scheduleId,
-        {
-          updatedAt: now,
-          lastQueuedAt: null,
-          nextRunAt,
-          failedCount: newFailedCount,
-          lastFailedAt: now,
-          status: shouldDisable ? 'disabled' : 'active',
-        },
-        requestId,
-        `Error updating schedule ${payload.scheduleId} after execution error`
+        `Failed to release schedule ${payload.scheduleId} after unhandled error`
       )
     }
-  } catch (error: unknown) {
-    logger.error(`[${requestId}] Error processing schedule ${payload.scheduleId}`, error)
-    await releaseScheduleLock(
-      payload.scheduleId,
-      requestId,
-      now,
-      `Failed to release schedule ${payload.scheduleId} after unhandled error`
-    )
-  }
+  })
 }
 
 export type JobExecutionPayload = {
@@ -833,7 +839,7 @@ async function createJobLogEntry(params: {
     })
   } catch (error) {
     logger.error('Failed to create job log entry', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
 }
@@ -1009,7 +1015,7 @@ export async function executeJobInline(payload: JobExecutionPayload) {
       `Error updating job ${payload.scheduleId} after success`
     )
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
     logger.error(`[${requestId}] Job execution failed`, {
       scheduleId: payload.scheduleId,
       error: errorMessage,

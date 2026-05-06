@@ -98,7 +98,6 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
       canonicalParamId: 'pipeline_id',
       serviceId: 'pipedrive',
       selectorKey: 'pipedrive.pipelines',
-      selectorAllowSearch: false,
       placeholder: 'Select pipeline',
       dependsOn: ['credential'],
       mode: 'basic',

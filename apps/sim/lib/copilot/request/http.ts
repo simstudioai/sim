@@ -1,11 +1,11 @@
+import { safeCompare } from '@sim/security/compare'
+import { generateId } from '@sim/utils/id'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import { env } from '@/lib/core/config/env'
-import { safeCompare } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
 
 export const NotificationStatus = {
   pending: 'pending',
@@ -22,6 +22,15 @@ export function createUnauthorizedResponse(): NextResponse {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 }
 
+/**
+ * Creates a 400 Bad Request response for non-validation errors (business rule
+ * failures, missing entities, semantic mismatches).
+ *
+ * For Zod validation failures, use `validationErrorResponse` from
+ * `@/lib/api/server` instead — it returns the canonical
+ * `{ error, details: ZodIssue[] }` shape that lets clients introspect which
+ * field failed.
+ */
 export function createBadRequestResponse(message: string): NextResponse {
   return NextResponse.json({ error: message }, { status: 400 })
 }
@@ -38,7 +47,7 @@ export function createRequestId(): string {
   return generateId()
 }
 
-export function createShortRequestId(): string {
+function createShortRequestId(): string {
   return generateRequestId()
 }
 

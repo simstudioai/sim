@@ -14,7 +14,7 @@ import {
   isTeam,
 } from '@/lib/billing/plan-helpers'
 import { parseEnterpriseSubscriptionMetadata } from '@/lib/billing/types'
-import { env } from '@/lib/core/config/env'
+import { env, envNumber } from '@/lib/core/config/env'
 
 export const ENTITLED_SUBSCRIPTION_STATUSES = ['active', 'past_due'] as const
 
@@ -52,28 +52,28 @@ export function hasUsableSubscriptionAccess(
  * Get the free tier limit from env or fallback to default
  */
 export function getFreeTierLimit(): number {
-  return env.FREE_TIER_COST_LIMIT || DEFAULT_FREE_CREDITS
+  return envNumber(env.FREE_TIER_COST_LIMIT, DEFAULT_FREE_CREDITS)
 }
 
 /**
  * Get the pro tier limit from env or fallback to default
  */
 export function getProTierLimit(): number {
-  return env.PRO_TIER_COST_LIMIT || DEFAULT_PRO_TIER_COST_LIMIT
+  return envNumber(env.PRO_TIER_COST_LIMIT, DEFAULT_PRO_TIER_COST_LIMIT)
 }
 
 /**
  * Get the team tier limit per seat from env or fallback to default
  */
 export function getTeamTierLimitPerSeat(): number {
-  return env.TEAM_TIER_COST_LIMIT || DEFAULT_TEAM_TIER_COST_LIMIT
+  return envNumber(env.TEAM_TIER_COST_LIMIT, DEFAULT_TEAM_TIER_COST_LIMIT)
 }
 
 /**
  * Get the enterprise tier limit per seat from env or fallback to default
  */
 export function getEnterpriseTierLimitPerSeat(): number {
-  return env.ENTERPRISE_TIER_COST_LIMIT || DEFAULT_ENTERPRISE_TIER_COST_LIMIT
+  return envNumber(env.ENTERPRISE_TIER_COST_LIMIT, DEFAULT_ENTERPRISE_TIER_COST_LIMIT)
 }
 
 export function checkEnterprisePlan(subscription: any): boolean {
@@ -93,7 +93,15 @@ export function getEffectiveSeats(subscription: any): number {
     return 0
   }
 
+  // Mirrors the Stripe subscription's `quantity`. For personal Pro this
+  // is null in practice, so `?? 0` returns 0. For Team, fall back to 1
+  // while the seat value has not yet been synced from Stripe so invite
+  // and seat-validation flows don't transiently read as zero seats.
   if (isTeam(subscription.plan)) {
+    return subscription.seats ?? (hasPaidSubscriptionStatus(subscription.status) ? 1 : 0)
+  }
+
+  if (isPro(subscription.plan)) {
     return subscription.seats ?? 0
   }
 
@@ -109,9 +117,27 @@ export function checkTeamPlan(subscription: any): boolean {
 }
 
 /**
- * Get the minimum usage limit for an individual user (used for validation)
- * Only applicable for plans with individual limits (Free/Pro)
- * Team and Enterprise plans use organization-level limits instead
+ * True when the subscription's `referenceId` is an org (i.e. not the
+ * caller's own `userId`). Prefer this over plan-name checks for scope
+ * decisions — a `pro_*` sub attached to an org is org-scoped even though
+ * `isTeam` / `isOrgPlan` return false.
+ */
+export function isOrgScopedSubscription(
+  subscription: { referenceId?: string | null } | null | undefined,
+  userId: string
+): boolean {
+  if (!subscription?.referenceId) return false
+  return subscription.referenceId !== userId
+}
+
+/**
+ * Get the minimum usage limit for an individual user (used for validation).
+ *
+ * Callers should only invoke this for **personally-scoped** subscriptions —
+ * any org-scoped subscription (team, enterprise, or `pro_*` attached to an
+ * organization) uses the organization-level limit instead. Callers are
+ * responsible for gating with `isOrgScopedSubscription` before calling.
+ *
  * @param subscription The subscription object
  * @returns The per-user minimum limit in dollars
  */
@@ -127,9 +153,6 @@ export function getPerUserMinimumLimit(subscription: any): number {
   }
 
   if (isOrgPlan(subscription.plan)) {
-    // Team and Enterprise don't have individual limits - they use organization limits
-    // This function should not be called for these plans
-    // Returning 0 to indicate no individual minimum
     return 0
   }
 

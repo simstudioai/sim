@@ -52,7 +52,7 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
     request: {
       url: (params: JiraRemoveWatcherParams) => {
         if (params.cloudId) {
-          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey}/watchers?accountId=${params.accountId}`
+          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/watchers?accountId=${encodeURIComponent(params.accountId?.trim() ?? '')}`
         }
         return 'https://api.atlassian.com/oauth/token/accessible-resources'
       },
@@ -68,7 +68,7 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
     transformResponse: async (response: Response, params?: JiraRemoveWatcherParams) => {
       if (!params?.cloudId) {
         const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-        const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/watchers?accountId=${params!.accountId}`
+        const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/watchers?accountId=${encodeURIComponent(params!.accountId?.trim() ?? '')}`
         const watcherResponse = await fetch(watcherUrl, {
           method: 'DELETE',
           headers: {

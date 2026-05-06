@@ -13,7 +13,7 @@ export interface IAMListUsersParams extends IAMConnectionConfig {
 }
 
 export interface IAMGetUserParams extends IAMConnectionConfig {
-  userName: string
+  userName?: string | null
 }
 
 export interface IAMCreateUserParams extends IAMConnectionConfig {
@@ -271,5 +271,56 @@ export interface IAMListGroupsResponse extends ToolResponse {
 
 export interface IAMGroupMembershipResponse extends ToolResponse {
   output: { message: string }
+  error?: string
+}
+
+export interface IAMListAttachedRolePoliciesParams extends IAMConnectionConfig {
+  roleName: string
+  pathPrefix?: string | null
+  maxItems?: number | null
+  marker?: string | null
+}
+
+export interface IAMListAttachedUserPoliciesParams extends IAMConnectionConfig {
+  userName: string
+  pathPrefix?: string | null
+  maxItems?: number | null
+  marker?: string | null
+}
+
+export interface IAMSimulatePrincipalPolicyParams extends IAMConnectionConfig {
+  policySourceArn: string
+  actionNames: string
+  resourceArns?: string | null
+  maxResults?: number | null
+  marker?: string | null
+}
+
+export interface IAMListAttachedPoliciesResponse extends ToolResponse {
+  output: {
+    attachedPolicies: Array<{
+      policyName: string
+      policyArn: string
+    }>
+    isTruncated: boolean
+    marker: string | null
+    count: number
+  }
+  error?: string
+}
+
+export interface IAMSimulatePrincipalPolicyResponse extends ToolResponse {
+  output: {
+    evaluationResults: Array<{
+      evalActionName: string
+      evalResourceName: string
+      evalDecision: string
+      matchedStatements: Array<{ sourcePolicyId: string; sourcePolicyType: string }>
+      missingContextValues: string[]
+    }>
+    isTruncated: boolean
+    marker: string | null
+    count: number
+  }
   error?: string
 }

@@ -22,6 +22,7 @@ export default function robots(): MetadataRoute.Robots {
           '/credential-account/',
           '/_next/',
           '/private/',
+          '/blog*tag=',
         ],
       },
     ],

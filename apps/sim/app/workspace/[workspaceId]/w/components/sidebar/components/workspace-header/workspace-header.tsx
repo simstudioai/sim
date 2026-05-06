@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { MoreHorizontal, Search } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import {
   Button,
   ChevronDown,
@@ -29,7 +30,7 @@ import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
-import type { Workspace } from '@/hooks/queries/workspace'
+import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -45,6 +46,8 @@ interface WorkspaceHeaderProps {
   workspaceId: string
   /** List of available workspaces */
   workspaces: Workspace[]
+  /** Server-derived workspace creation policy for the current user context */
+  workspaceCreationPolicy?: WorkspaceCreationPolicy | null
   /** Whether workspaces are loading */
   isWorkspacesLoading: boolean
   /** Whether workspace creation is in progress */
@@ -63,14 +66,6 @@ interface WorkspaceHeaderProps {
   onDeleteWorkspace: (workspaceId: string) => Promise<void>
   /** Whether workspace deletion is in progress */
   isDeletingWorkspace: boolean
-  /** Callback to duplicate the workspace */
-  onDuplicateWorkspace: (workspaceId: string, workspaceName: string) => Promise<void>
-  /** Callback to export the workspace */
-  onExportWorkspace: (workspaceId: string, workspaceName: string) => Promise<void>
-  /** Callback to import workspace */
-  onImportWorkspace: () => void
-  /** Whether workspace import is in progress */
-  isImportingWorkspace: boolean
   /** Callback to change the workspace color */
   onColorChange?: (workspaceId: string, color: string) => Promise<void>
   /** Callback to upload a workspace logo */
@@ -90,10 +85,11 @@ interface WorkspaceHeaderProps {
 /**
  * Workspace header component that displays workspace name and switcher.
  */
-export function WorkspaceHeader({
+function WorkspaceHeaderImpl({
   activeWorkspace,
   workspaceId,
   workspaces,
+  workspaceCreationPolicy,
   isWorkspacesLoading,
   isCreatingWorkspace,
   isWorkspaceMenuOpen,
@@ -103,10 +99,6 @@ export function WorkspaceHeader({
   onRenameWorkspace,
   onDeleteWorkspace,
   isDeletingWorkspace,
-  onDuplicateWorkspace,
-  onExportWorkspace,
-  onImportWorkspace,
-  isImportingWorkspace,
   onColorChange,
   onUploadLogo,
   onRemoveLogo,
@@ -115,6 +107,7 @@ export function WorkspaceHeader({
   sessionUserId,
   isCollapsed = false,
 }: WorkspaceHeaderProps) {
+  const router = useRouter()
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -168,17 +161,34 @@ export function WorkspaceHeader({
       : `${rawPlanName} Plan`
     : ''
   const isFreePlan = showPlanInfo && isFree(currentPlan)
+  const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
+  const canCreateWorkspace = workspaceCreationPolicy?.canCreate ?? true
+  const createWorkspaceDisabledReason =
+    workspaceCreationPolicy?.canCreate === false ? workspaceCreationPolicy.reason : null
+  const inviteMembersEnabled = activeWorkspaceFull?.inviteMembersEnabled ?? false
+  const inviteUpgradeRequired = activeWorkspaceFull?.inviteUpgradeRequired ?? false
+  const inviteDisabledReason = inviteMembersEnabled
+    ? null
+    : (activeWorkspaceFull?.inviteDisabledReason ?? null)
+  const inviteButtonDisabled = !inviteMembersEnabled && !inviteUpgradeRequired
 
-  // Listen for open-invite-modal event from context menu
+  const handleInviteClick = useCallback(() => {
+    if (isInvitationsDisabled) return
+    if (!inviteMembersEnabled && inviteUpgradeRequired && workspaceId) {
+      router.push(`/workspace/${workspaceId}/settings/subscription`)
+      return
+    }
+    if (!inviteMembersEnabled) return
+    setIsInviteModalOpen(true)
+  }, [isInvitationsDisabled, inviteMembersEnabled, inviteUpgradeRequired, workspaceId, router])
+
   useEffect(() => {
     const handleOpenInvite = () => {
-      if (!isInvitationsDisabled) {
-        setIsInviteModalOpen(true)
-      }
+      handleInviteClick()
     }
     window.addEventListener('open-invite-modal', handleOpenInvite)
     return () => window.removeEventListener('open-invite-modal', handleOpenInvite)
-  }, [isInvitationsDisabled])
+  }, [handleInviteClick])
 
   /**
    * Save and exit edit mode when popover closes
@@ -201,9 +211,6 @@ export function WorkspaceHeader({
     }
     setWorkspaceSearch('')
   }, [isWorkspaceMenuOpen])
-
-  const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
-
   const workspaceInitial = (() => {
     const name = activeWorkspace?.name || ''
     const stripped = name.replace(/workspace/gi, '').trim()
@@ -264,25 +271,6 @@ export function WorkspaceHeader({
     setEditingWorkspaceId(capturedWorkspaceRef.current.id)
     setEditingName(capturedWorkspaceRef.current.name)
     setIsWorkspaceMenuOpen(true)
-  }
-
-  /**
-   * Handles duplicate action from context menu
-   */
-  const handleDuplicateAction = async () => {
-    if (!capturedWorkspaceRef.current) return
-
-    await onDuplicateWorkspace(capturedWorkspaceRef.current.id, capturedWorkspaceRef.current.name)
-    setIsWorkspaceMenuOpen(false)
-  }
-
-  /**
-   * Handles export action from context menu
-   */
-  const handleExportAction = async () => {
-    if (!capturedWorkspaceRef.current) return
-
-    await onExportWorkspace(capturedWorkspaceRef.current.id, capturedWorkspaceRef.current.name)
   }
 
   /**
@@ -666,7 +654,8 @@ export function WorkspaceHeader({
                         setIsWorkspaceMenuOpen(false)
                         setIsCreateModalOpen(true)
                       }}
-                      disabled={isCreatingWorkspace}
+                      disabled={isCreatingWorkspace || !canCreateWorkspace}
+                      title={createWorkspaceDisabledReason ?? undefined}
                     >
                       <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
                       Create new workspace
@@ -678,11 +667,13 @@ export function WorkspaceHeader({
                       <DropdownMenuSeparator />
                       <button
                         type='button'
-                        className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-hover)]'
+                        className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-hover)] disabled:pointer-events-none disabled:opacity-50'
                         onClick={() => {
-                          setIsInviteModalOpen(true)
                           setIsWorkspaceMenuOpen(false)
+                          handleInviteClick()
                         }}
+                        disabled={inviteButtonDisabled}
+                        title={inviteDisabledReason ?? undefined}
                       >
                         <UserPlus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
                         Invite members
@@ -737,7 +728,6 @@ export function WorkspaceHeader({
       {/* Context Menu */}
       {(() => {
         const capturedPermissions = capturedWorkspaceRef.current?.permissions
-        const contextCanEdit = capturedPermissions === 'admin' || capturedPermissions === 'write'
         const contextCanAdmin = capturedPermissions === 'admin'
         const capturedWorkspace = workspaces.find((w) => w.id === capturedWorkspaceRef.current?.id)
         const isOwner = capturedWorkspace && sessionUserId === capturedWorkspace.ownerId
@@ -749,8 +739,6 @@ export function WorkspaceHeader({
             menuRef={contextMenuRef}
             onClose={closeContextMenu}
             onRename={handleRenameAction}
-            onDuplicate={handleDuplicateAction}
-            onExport={handleExportAction}
             onDelete={handleDeleteAction}
             onLeave={handleLeaveAction}
             onColorChange={onColorChange ? handleColorChangeAction : undefined}
@@ -758,15 +746,11 @@ export function WorkspaceHeader({
             onRemoveLogo={onRemoveLogo ? handleRemoveLogoAction : undefined}
             currentColor={capturedWorkspace?.color}
             showRename={true}
-            showDuplicate={true}
-            showExport={true}
             showColorChange={!!onColorChange}
             showUploadLogo={!!onUploadLogo}
             showRemoveLogo={!!onRemoveLogo && !!capturedWorkspace?.logoUrl}
             showLeave={!isOwner && !!onLeaveWorkspace}
             disableRename={!contextCanAdmin}
-            disableDuplicate={!contextCanEdit}
-            disableExport={!contextCanAdmin}
             disableDelete={!contextCanAdmin || workspaces.length <= 1}
             disableColorChange={!contextCanAdmin}
             disableUploadLogo={!contextCanAdmin}
@@ -791,6 +775,8 @@ export function WorkspaceHeader({
         open={isInviteModalOpen}
         onOpenChange={setIsInviteModalOpen}
         workspaceName={activeWorkspace?.name || 'Workspace'}
+        inviteDisabledReason={inviteDisabledReason}
+        organizationId={activeWorkspaceFull?.organizationId ?? null}
       />
       {/* Delete Confirmation Modal */}
       <DeleteModal
@@ -834,3 +820,5 @@ export function WorkspaceHeader({
     </div>
   )
 }
+
+export const WorkspaceHeader = memo(WorkspaceHeaderImpl)

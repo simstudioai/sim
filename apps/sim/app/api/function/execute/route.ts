@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { functionExecuteContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
   FORMAT_TO_CONTENT_TYPE,
@@ -8,6 +10,7 @@ import {
 } from '@/lib/copilot/request/tools/files'
 import { isE2bEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInE2B, executeShellInE2B } from '@/lib/execution/e2b'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
@@ -23,8 +26,6 @@ import {
 } from '@/executor/utils/reference-validation'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-
-export const MAX_DURATION = 210
 
 const logger = createLogger('FunctionExecuteAPI')
 
@@ -707,7 +708,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
   })
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const startTime = Date.now()
   let stdout = ''
@@ -721,7 +722,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
+    const parsed = await parseRequest(functionExecuteContract, req, {})
+    if (!parsed.success) return parsed.response
+    const { body } = parsed.data
 
     const { DEFAULT_EXECUTION_TIMEOUT_MS } = await import('@/lib/execution/constants')
 
@@ -1117,9 +1120,12 @@ export async function POST(req: NextRequest) {
     const executionTime = Date.now() - startTime
 
     if (isolatedResult.error) {
-      logger.error(`[${requestId}] Function execution failed in isolated-vm`, {
+      const isSystemError = isolatedResult.error.isSystemError === true
+      const logFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
+      logFn(`[${requestId}] Function execution failed in isolated-vm`, {
         error: isolatedResult.error,
         executionTime,
+        isSystemError,
       })
 
       const ivmError = isolatedResult.error
@@ -1148,7 +1154,8 @@ export async function POST(req: NextRequest) {
         resolvedCode
       )
 
-      logger.error(`[${requestId}] Enhanced error details`, {
+      const detailLogFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
+      detailLogFn(`[${requestId}] Enhanced error details`, {
         originalMessage: ivmError.message,
         enhancedMessage: userFriendlyErrorMessage,
         line: enhancedError.line,
@@ -1174,7 +1181,7 @@ export async function POST(req: NextRequest) {
             stack: enhancedError.stack,
           },
         },
-        { status: 500 }
+        { status: isSystemError ? 500 : 422 }
       )
     }
 
@@ -1231,4 +1238,4 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(errorResponse, { status: 500 })
   }
-}
+})

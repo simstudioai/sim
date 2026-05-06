@@ -24,7 +24,7 @@ export const elevenLabsSttTool: ToolConfig<SttParams, SttResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'ElevenLabs model to use (scribe_v1, scribe_v1_experimental)',
+      description: 'ElevenLabs model to use (scribe_v2)',
     },
     audioFile: {
       type: 'file',
@@ -71,7 +71,7 @@ export const elevenLabsSttTool: ToolConfig<SttParams, SttResponse> = {
     ) => ({
       provider: 'elevenlabs',
       apiKey: params.apiKey,
-      model: params.model,
+      model: 'scribe_v2',
       audioFile: params.audioFile,
       audioFileReference: params.audioFileReference,
       audioUrl: params.audioUrl,
@@ -141,7 +141,7 @@ export const elevenLabsSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
     ) => ({
       provider: 'elevenlabs',
       apiKey: params.apiKey,
-      model: params.model,
+      model: 'scribe_v2',
       audioFile: params.audioFile,
       audioFileReference: params.audioFileReference,
       language: params.language || 'auto',

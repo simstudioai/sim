@@ -91,6 +91,17 @@ export const listMetricsTool: ToolConfig<
   },
 
   outputs: {
-    metrics: { type: 'array', description: 'List of metrics with namespace, name, and dimensions' },
+    metrics: {
+      type: 'array',
+      description: 'List of metrics with namespace, name, and dimensions',
+      items: {
+        type: 'object',
+        properties: {
+          namespace: { type: 'string', description: 'Metric namespace (e.g., AWS/EC2)' },
+          metricName: { type: 'string', description: 'Metric name (e.g., CPUUtilization)' },
+          dimensions: { type: 'array', description: 'Array of name/value dimension pairs' },
+        },
+      },
+    },
   },
 }

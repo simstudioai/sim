@@ -1,4 +1,3 @@
-import { createHmac } from 'crypto'
 import { db, workflowExecutionLogs } from '@sim/db'
 import {
   account,
@@ -6,6 +5,11 @@ import {
   workspaceNotificationSubscription,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { hmacSha256Hex } from '@sim/security/hmac'
+import { toError } from '@sim/utils/errors'
+import { formatDuration } from '@sim/utils/formatting'
+import { generateId } from '@sim/utils/id'
+import { getActiveWorkflowContext } from '@sim/workflow-authz'
 import { task } from '@trigger.dev/sdk'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
 import {
@@ -19,13 +23,10 @@ import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
-import { formatDuration } from '@/lib/core/utils/formatting'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import type { AlertConfig } from '@/lib/notifications/alert-rules'
-import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('WorkspaceNotificationDelivery')
@@ -61,9 +62,7 @@ interface NotificationPayload {
 
 function generateSignature(secret: string, timestamp: number, body: string): string {
   const signatureBase = `${timestamp}.${body}`
-  const hmac = createHmac('sha256', secret)
-  hmac.update(signatureBase)
-  return hmac.digest('hex')
+  return hmacSha256Hex(signatureBase, secret)
 }
 
 async function buildPayload(
@@ -225,7 +224,7 @@ async function deliverWebhook(
     }
   } catch (error: unknown) {
     logger.warn('Webhook delivery failed', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       webhookUrl: webhookConfig.url,
     })
     return {
@@ -495,6 +494,77 @@ export type NotificationDeliveryResult =
   | { status: 'success' | 'skipped' | 'failed' }
   | { status: 'retry'; retryDelayMs: number }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function formatLogDate(value: Date | string | null | undefined, fallback = ''): string {
+  if (value instanceof Date) {
+    return value.toISOString()
+  }
+  return typeof value === 'string' ? value : fallback
+}
+
+function normalizeLogCost(value: unknown): WorkflowExecutionLog['cost'] {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const tokens = isRecord(value.tokens)
+    ? {
+        input: typeof value.tokens.input === 'number' ? value.tokens.input : undefined,
+        output: typeof value.tokens.output === 'number' ? value.tokens.output : undefined,
+        total: typeof value.tokens.total === 'number' ? value.tokens.total : undefined,
+      }
+    : undefined
+
+  return {
+    input: typeof value.input === 'number' ? value.input : undefined,
+    output: typeof value.output === 'number' ? value.output : undefined,
+    total: typeof value.total === 'number' ? value.total : undefined,
+    tokens,
+  }
+}
+
+function normalizeLogFiles(value: unknown): WorkflowExecutionLog['files'] {
+  if (!Array.isArray(value)) {
+    return undefined
+  }
+
+  return value.filter(
+    (file): file is NonNullable<WorkflowExecutionLog['files']>[number] =>
+      isRecord(file) &&
+      typeof file.id === 'string' &&
+      typeof file.name === 'string' &&
+      typeof file.size === 'number' &&
+      typeof file.type === 'string' &&
+      typeof file.url === 'string' &&
+      typeof file.key === 'string'
+  )
+}
+
+function normalizeWorkflowExecutionLog(
+  row: typeof workflowExecutionLogs.$inferSelect
+): WorkflowExecutionLog {
+  const startedAt = formatLogDate(row.startedAt)
+
+  return {
+    id: row.id,
+    workflowId: row.workflowId,
+    executionId: row.executionId,
+    stateSnapshotId: row.stateSnapshotId,
+    level: row.level === 'error' ? 'error' : 'info',
+    trigger: row.trigger,
+    startedAt,
+    endedAt: formatLogDate(row.endedAt, startedAt),
+    totalDurationMs: row.totalDurationMs ?? 0,
+    files: normalizeLogFiles(row.files),
+    executionData: isRecord(row.executionData) ? row.executionData : {},
+    cost: normalizeLogCost(row.cost),
+    createdAt: formatLogDate(row.createdAt, startedAt),
+  }
+}
+
 async function buildRetryLog(params: NotificationDeliveryParams): Promise<WorkflowExecutionLog> {
   const conditions = [eq(workflowExecutionLogs.executionId, params.log.executionId)]
   if (params.log.workflowId) {
@@ -508,7 +578,7 @@ async function buildRetryLog(params: NotificationDeliveryParams): Promise<Workfl
     .limit(1)
 
   if (storedLog) {
-    return storedLog as unknown as WorkflowExecutionLog
+    return normalizeWorkflowExecutionLog(storedLog)
   }
 
   const now = new Date().toISOString()

@@ -1,3 +1,4 @@
+import { toError } from '@sim/utils/errors'
 import { ReductoIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType, type SubBlockType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
@@ -70,7 +71,6 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
           apiKey: params.apiKey.trim(),
         }
 
-        // document is the canonical param from fileUpload (basic) or filePath (advanced)
         const documentInput = params.document
 
         if (typeof documentInput === 'object') {
@@ -98,7 +98,7 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
               pagesArray = undefined
             }
           } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage = toError(error).message
             throw new Error(`Page number format error: ${errorMessage}`)
           }
         }
@@ -134,20 +134,24 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
   },
 }
 
-// ReductoV2Block uses the same canonical param 'document' for both basic and advanced modes
-const reductoV2Inputs = ReductoBlock.inputs
+const reductoV2Inputs = {
+  file: { type: 'json' as const, description: 'PDF document (file upload or file reference)' },
+  apiKey: ReductoBlock.inputs?.apiKey,
+  pages: ReductoBlock.inputs?.pages,
+  tableOutputFormat: ReductoBlock.inputs?.tableOutputFormat,
+}
 const reductoV2SubBlocks = (ReductoBlock.subBlocks || []).flatMap((subBlock) => {
   if (subBlock.id === 'filePath') {
     return []
   }
   if (subBlock.id === 'fileUpload') {
     return [
-      subBlock,
+      { ...subBlock, canonicalParamId: 'file' },
       {
         id: 'fileReference',
         title: 'PDF Document',
         type: 'short-input' as SubBlockType,
-        canonicalParamId: 'document',
+        canonicalParamId: 'file',
         placeholder: 'File reference',
         mode: 'advanced' as const,
         required: true,
@@ -177,12 +181,11 @@ export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
           apiKey: params.apiKey.trim(),
         }
 
-        // document is the canonical param from fileUpload (basic) or fileReference (advanced)
-        const documentInput = normalizeFileInput(params.document, { single: true })
-        if (!documentInput) {
+        const fileInput = normalizeFileInput(params.file, { single: true })
+        if (!fileInput) {
           throw new Error('PDF document file is required')
         }
-        parameters.file = documentInput
+        parameters.file = fileInput
 
         let pagesArray: number[] | undefined
         if (params.pages && params.pages.trim() !== '') {
@@ -203,7 +206,7 @@ export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
               pagesArray = undefined
             }
           } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage = toError(error).message
             throw new Error(`Page number format error: ${errorMessage}`)
           }
         }

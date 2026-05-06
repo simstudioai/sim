@@ -48,7 +48,7 @@ const APIPage = createAPIPage(openapi, {
             {slots.header}
             {slots.apiPlayground}
             {slots.authSchemes && <div className='api-section-divider'>{slots.authSchemes}</div>}
-            {slots.paremeters}
+            {slots.parameters}
             {slots.body && <div className='api-section-divider'>{slots.body}</div>}
             <ResponseSection>{slots.responses}</ResponseSection>
             {slots.callbacks}

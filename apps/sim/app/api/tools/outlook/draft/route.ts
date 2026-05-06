@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { outlookDraftContract } from '@/lib/api/contracts/tools/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
@@ -11,18 +12,7 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OutlookDraftAPI')
 
-const OutlookDraftSchema = z.object({
-  accessToken: z.string().min(1, 'Access token is required'),
-  to: z.string().min(1, 'Recipient email is required'),
-  subject: z.string().min(1, 'Subject is required'),
-  body: z.string().min(1, 'Email body is required'),
-  contentType: z.enum(['text', 'html']).optional().nullable(),
-  cc: z.string().optional().nullable(),
-  bcc: z.string().optional().nullable(),
-  attachments: RawFileInputArraySchema.optional().nullable(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -43,8 +33,9 @@ export async function POST(request: NextRequest) {
       userId: authResult.userId,
     })
 
-    const body = await request.json()
-    const validatedData = OutlookDraftSchema.parse(body)
+    const parsed = await parseRequest(outlookDraftContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     logger.info(`[${requestId}] Creating Outlook draft`, {
       to: validatedData.to,
@@ -176,12 +167,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: error.errors[0]?.message ?? 'Invalid request' },
-        { status: 400 }
-      )
-    }
     logger.error(`[${requestId}] Error creating Outlook draft:`, error)
     return NextResponse.json(
       {
@@ -191,4 +176,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

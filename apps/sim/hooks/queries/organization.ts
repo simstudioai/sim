@@ -1,10 +1,93 @@
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  type UseQueryResult,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import type { ContractBodyInput, ContractQueryInput } from '@/lib/api/contracts'
+import {
+  cancelInvitationContract,
+  resendInvitationContract,
+  updateInvitationContract,
+} from '@/lib/api/contracts/invitations'
+import {
+  createOrganizationContract,
+  getOrganizationRosterContract,
+  inviteOrganizationMembersContract,
+  listOrganizationMembersContract,
+  type OrganizationMembersResponse,
+  type OrganizationRoster,
+  type RosterMember,
+  type RosterPendingInvitation,
+  type RosterWorkspaceAccess,
+  removeOrganizationMemberContract,
+  transferOwnershipContract,
+  updateOrganizationContract,
+  updateOrganizationMemberRoleContract,
+  updateOrganizationUsageLimitContract,
+  updateSeatsContract,
+} from '@/lib/api/contracts/organization'
+import {
+  getOrganizationBillingContract,
+  type OrganizationBillingApiResponse,
+} from '@/lib/api/contracts/subscription'
 import { client } from '@/lib/auth/auth-client'
-import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
+import { isEnterprise, isPaid, isTeam } from '@/lib/billing/plan-helpers'
 import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
+import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
+import { subscriptionKeys } from '@/hooks/queries/subscription'
+import { workspaceKeys } from '@/hooks/queries/workspace'
 
 const logger = createLogger('OrganizationQueries')
+const invitationListsKey = ['invitations', 'list'] as const
+
+type OrganizationSubscriptionCandidate = {
+  id: string
+  referenceId: string
+  status: string
+  plan: string
+  cancelAtPeriodEnd?: boolean
+  periodEnd?: number | Date
+  trialEnd?: number | Date
+}
+
+type OrganizationBillingQueryResult = UseQueryResult<OrganizationBillingApiResponse | null, Error>
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isOrganizationSubscriptionCandidate(
+  value: unknown
+): value is OrganizationSubscriptionCandidate {
+  if (!isRecord(value)) return false
+  return (
+    typeof value.id === 'string' &&
+    typeof value.referenceId === 'string' &&
+    typeof value.status === 'string' &&
+    typeof value.plan === 'string' &&
+    (value.cancelAtPeriodEnd === undefined || typeof value.cancelAtPeriodEnd === 'boolean') &&
+    (value.periodEnd === undefined ||
+      typeof value.periodEnd === 'number' ||
+      value.periodEnd instanceof Date) &&
+    (value.trialEnd === undefined ||
+      typeof value.trialEnd === 'number' ||
+      value.trialEnd instanceof Date)
+  )
+}
+
+function readNumber(value: unknown): number | undefined {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
 
 /**
  * Query key factories for organization-related queries
@@ -19,6 +102,39 @@ export const organizationKeys = {
   billing: (id: string) => [...organizationKeys.detail(id), 'billing'] as const,
   members: (id: string) => [...organizationKeys.detail(id), 'members'] as const,
   memberUsage: (id: string) => [...organizationKeys.detail(id), 'member-usage'] as const,
+  roster: (id: string) => [...organizationKeys.detail(id), 'roster'] as const,
+}
+
+export type { OrganizationRoster, RosterMember, RosterPendingInvitation, RosterWorkspaceAccess }
+
+async function fetchOrganizationRoster(
+  orgId: string,
+  signal?: AbortSignal
+): Promise<OrganizationRoster | null> {
+  if (!orgId) return null
+
+  try {
+    const payload = await requestJson(getOrganizationRosterContract, {
+      params: { id: orgId },
+      signal,
+    })
+    return payload.data
+  } catch (error) {
+    if (error instanceof ApiClientError && (error.status === 403 || error.status === 404)) {
+      return null
+    }
+    throw error
+  }
+}
+
+export function useOrganizationRoster(orgId: string | undefined | null) {
+  return useQuery({
+    queryKey: organizationKeys.roster(orgId ?? ''),
+    queryFn: ({ signal }) => fetchOrganizationRoster(orgId as string, signal),
+    enabled: !!orgId,
+    staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
+  })
 }
 
 /**
@@ -87,13 +203,18 @@ async function fetchOrganizationSubscription(orgId: string, _signal?: AbortSigna
     return null
   }
 
-  const teamSubscription = response.data?.find(
-    (sub: any) => hasPaidSubscriptionStatus(sub.status) && isTeam(sub.plan)
-  )
-  const enterpriseSubscription = response.data?.find(
-    (sub: any) => hasPaidSubscriptionStatus(sub.status) && isEnterprise(sub.plan)
-  )
-  const activeSubscription = enterpriseSubscription || teamSubscription
+  // Any paid subscription attached to the org counts as its active sub.
+  // Priority: Enterprise > Team > Pro (matches `getHighestPrioritySubscription`).
+  // This intentionally includes `pro_*` plans that have been transferred
+  // to the org — they are pooled org-scoped subscriptions.
+  const rawSubscriptions: unknown = response.data
+  const entitled = (Array.isArray(rawSubscriptions) ? rawSubscriptions : [])
+    .filter(isOrganizationSubscriptionCandidate)
+    .filter((sub) => hasPaidSubscriptionStatus(sub.status) && isPaid(sub.plan))
+  const enterpriseSubscription = entitled.find((sub) => isEnterprise(sub.plan))
+  const teamSubscription = entitled.find((sub) => isTeam(sub.plan))
+  const proSubscription = entitled.find((sub) => !isEnterprise(sub.plan) && !isTeam(sub.plan))
+  const activeSubscription = enterpriseSubscription || teamSubscription || proSubscription
 
   return activeSubscription || null
 }
@@ -115,27 +236,34 @@ export function useOrganizationSubscription(orgId: string) {
 /**
  * Fetch organization billing data
  */
-async function fetchOrganizationBilling(orgId: string, signal?: AbortSignal) {
-  const response = await fetch(`/api/billing?context=organization&id=${orgId}`, { signal })
-
-  if (response.status === 404) {
-    return null
+async function fetchOrganizationBilling(
+  orgId: string,
+  signal?: AbortSignal
+): Promise<OrganizationBillingApiResponse | null> {
+  try {
+    return await requestJson(getOrganizationBillingContract, {
+      query: { context: 'organization', id: orgId },
+      signal,
+    })
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) {
+      return null
+    }
+    throw error
   }
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch organization billing data')
-  }
-  return response.json()
 }
 
 /**
  * Hook to fetch organization billing data
  */
-export function useOrganizationBilling(orgId: string) {
+export function useOrganizationBilling(
+  orgId: string,
+  options?: { enabled?: boolean }
+): OrganizationBillingQueryResult {
   return useQuery({
     queryKey: organizationKeys.billing(orgId),
     queryFn: ({ signal }) => fetchOrganizationBilling(orgId, signal),
-    enabled: !!orgId,
+    enabled: !!orgId && (options?.enabled ?? true),
     retry: false,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
@@ -145,17 +273,28 @@ export function useOrganizationBilling(orgId: string) {
 /**
  * Fetch organization member usage data
  */
-async function fetchOrganizationMembers(orgId: string, signal?: AbortSignal) {
-  const response = await fetch(`/api/organizations/${orgId}/members?include=usage`, { signal })
-
-  if (response.status === 404) {
-    return { members: [] }
+async function fetchOrganizationMembers(
+  orgId: string,
+  signal?: AbortSignal
+): Promise<OrganizationMembersResponse> {
+  try {
+    return await requestJson(listOrganizationMembersContract, {
+      params: { id: orgId },
+      query: { include: 'usage' },
+      signal,
+    })
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) {
+      return {
+        success: true,
+        data: [],
+        total: 0,
+        userRole: 'member',
+        hasAdminAccess: false,
+      }
+    }
+    throw error
   }
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch organization members')
-  }
-  return response.json()
 }
 
 /**
@@ -174,28 +313,19 @@ export function useOrganizationMembers(orgId: string) {
 /**
  * Update organization usage limit mutation with optimistic updates
  */
-interface UpdateOrganizationUsageLimitParams {
-  organizationId: string
-  limit: number
-}
+type UpdateOrganizationUsageLimitParams = Pick<
+  ContractBodyInput<typeof updateOrganizationUsageLimitContract>,
+  'organizationId' | 'limit'
+>
 
 export function useUpdateOrganizationUsageLimit() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async ({ organizationId, limit }: UpdateOrganizationUsageLimitParams) => {
-      const response = await fetch('/api/usage', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context: 'organization', organizationId, limit }),
+      return requestJson(updateOrganizationUsageLimitContract, {
+        body: { context: 'organization', organizationId, limit },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || error.error || 'Failed to update usage limit')
-      }
-
-      return response.json()
     },
     onMutate: async ({ organizationId, limit }) => {
       await queryClient.cancelQueries({ queryKey: organizationKeys.billing(organizationId) })
@@ -206,25 +336,33 @@ export function useUpdateOrganizationUsageLimit() {
         organizationKeys.subscription(organizationId)
       )
 
-      queryClient.setQueryData(organizationKeys.billing(organizationId), (old: any) => {
-        if (!old) return old
-        const currentUsage = old.data?.currentUsage || old.data?.usage?.current || 0
-        const newPercentUsed = limit > 0 ? (currentUsage / limit) * 100 : 0
+      queryClient.setQueryData<unknown>(
+        organizationKeys.billing(organizationId),
+        (old: unknown) => {
+          if (!isRecord(old) || !isRecord(old.data)) return old
+          const usage = isRecord(old.data.usage) ? old.data.usage : {}
+          const currentUsage =
+            readNumber(old.data.currentUsage) ??
+            readNumber(usage.current) ??
+            readNumber(old.data.totalCurrentUsage) ??
+            0
+          const newPercentUsed = limit > 0 ? (currentUsage / limit) * 100 : 0
 
-        return {
-          ...old,
-          data: {
-            ...old.data,
-            totalUsageLimit: limit,
-            usage: {
-              ...old.data?.usage,
-              limit,
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              totalUsageLimit: limit,
+              usage: {
+                ...usage,
+                limit,
+                percentUsed: newPercentUsed,
+              },
               percentUsed: newPercentUsed,
             },
-            percentUsed: newPercentUsed,
-          },
+          }
         }
-      })
+      )
 
       return { previousBillingData, previousSubscriptionData, organizationId }
     },
@@ -256,9 +394,10 @@ export function useUpdateOrganizationUsageLimit() {
 /**
  * Invite member mutation
  */
-interface InviteMemberParams {
-  emails: string[]
-  workspaceInvitations?: Array<{ workspaceId: string; permission: 'admin' | 'write' | 'read' }>
+type InviteMemberParams = Pick<
+  ContractBodyInput<typeof inviteOrganizationMembersContract>,
+  'emails' | 'workspaceInvitations'
+> & {
   orgId: string
 }
 
@@ -267,26 +406,26 @@ export function useInviteMember() {
 
   return useMutation({
     mutationFn: async ({ emails, workspaceInvitations, orgId }: InviteMemberParams) => {
-      const response = await fetch(`/api/organizations/${orgId}/invitations?batch=true`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const result = await requestJson(inviteOrganizationMembersContract, {
+        params: { id: orgId },
+        query: { batch: true },
+        body: {
           emails,
           workspaceInvitations,
-        }),
+        },
       })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || error.message || 'Failed to invite member')
+      if (result.success === false) {
+        throw new Error(result.error || result.message || 'Failed to invite member')
       }
 
-      return response.json()
+      return result
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.memberUsage(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
     },
   })
@@ -298,7 +437,9 @@ export function useInviteMember() {
 interface RemoveMemberParams {
   memberId: string
   orgId: string
-  shouldReduceSeats?: boolean
+  shouldReduceSeats?: ContractQueryInput<
+    typeof removeOrganizationMemberContract
+  >['shouldReduceSeats']
 }
 
 export function useRemoveMember() {
@@ -306,26 +447,93 @@ export function useRemoveMember() {
 
   return useMutation({
     mutationFn: async ({ memberId, orgId, shouldReduceSeats }: RemoveMemberParams) => {
-      const response = await fetch(
-        `/api/organizations/${orgId}/members/${memberId}?shouldReduceSeats=${shouldReduceSeats}`,
-        {
-          method: 'DELETE',
-        }
-      )
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to remove member')
-      }
-
-      return response.json()
+      return requestJson(removeOrganizationMemberContract, {
+        params: { id: orgId, memberId },
+        query: { shouldReduceSeats },
+      })
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.memberUsage(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.subscription(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.all })
+      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
+      queryClient.invalidateQueries({ queryKey: invitationListsKey })
+    },
+  })
+}
+
+interface UpdateMemberRoleParams {
+  orgId: string
+  userId: string
+  role: ContractBodyInput<typeof updateOrganizationMemberRoleContract>['role']
+}
+
+export function useUpdateOrganizationMemberRole() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ orgId, userId, role }: UpdateMemberRoleParams) => {
+      return requestJson(updateOrganizationMemberRoleContract, {
+        params: { id: orgId, memberId: userId },
+        body: { role },
+      })
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
+    },
+  })
+}
+
+type TransferOwnershipParams = {
+  orgId: string
+} & ContractBodyInput<typeof transferOwnershipContract>
+
+export function useTransferOwnership() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ orgId, newOwnerUserId, alsoLeave = false }: TransferOwnershipParams) => {
+      return requestJson(transferOwnershipContract, {
+        params: { id: orgId },
+        body: { newOwnerUserId, alsoLeave },
+      })
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.subscription(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
+    },
+  })
+}
+
+type UpdateInvitationParams = {
+  orgId: string
+  invitationId: string
+} & ContractBodyInput<typeof updateInvitationContract>
+
+export function useUpdateInvitation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ invitationId, role, grants }: UpdateInvitationParams) => {
+      return requestJson(updateInvitationContract, {
+        params: { id: invitationId },
+        body: { role, grants },
+      })
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
     },
   })
 }
@@ -342,25 +550,17 @@ export function useCancelInvitation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ invitationId, orgId }: CancelInvitationParams) => {
-      const response = await fetch(
-        `/api/organizations/${orgId}/invitations?invitationId=${invitationId}`,
-        {
-          method: 'DELETE',
-        }
-      )
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to cancel invitation')
-      }
-
-      return response.json()
+    mutationFn: async ({ invitationId }: CancelInvitationParams) => {
+      return requestJson(cancelInvitationContract, {
+        params: { id: invitationId },
+      })
     },
-    onSuccess: (_data, variables) => {
-      // Invalidate related queries
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: invitationListsKey })
     },
   })
 }
@@ -377,21 +577,14 @@ export function useResendInvitation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ invitationId, orgId }: ResendInvitationParams) => {
-      const response = await fetch(`/api/organizations/${orgId}/invitations/${invitationId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+    mutationFn: async ({ invitationId }: ResendInvitationParams) => {
+      return requestJson(resendInvitationContract, {
+        params: { id: invitationId },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to resend invitation')
-      }
-
-      return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
     },
   })
 }
@@ -399,34 +592,26 @@ export function useResendInvitation() {
 /**
  * Update seats mutation (handles both add and reduce)
  */
-interface UpdateSeatsParams {
+type UpdateSeatsParams = {
   orgId: string
-  seats: number
-}
+} & ContractBodyInput<typeof updateSeatsContract>
 
 export function useUpdateSeats() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async ({ seats, orgId }: UpdateSeatsParams) => {
-      const response = await fetch(`/api/organizations/${orgId}/seats`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seats }),
+      return requestJson(updateSeatsContract, {
+        params: { id: orgId },
+        body: { seats },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to update seats')
-      }
-
-      return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.subscription(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
     },
   })
 }
@@ -434,32 +619,21 @@ export function useUpdateSeats() {
 /**
  * Update organization settings mutation
  */
-interface UpdateOrganizationParams {
+type UpdateOrganizationParams = {
   orgId: string
-  name?: string
-  slug?: string
-  logo?: string | null
-}
+} & ContractBodyInput<typeof updateOrganizationContract>
 
 export function useUpdateOrganization() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async ({ orgId, ...updates }: UpdateOrganizationParams) => {
-      const response = await fetch(`/api/organizations/${orgId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
+      return requestJson(updateOrganizationContract, {
+        params: { id: orgId },
+        body: updates,
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to update organization')
-      }
-
-      return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
     },
@@ -469,9 +643,11 @@ export function useUpdateOrganization() {
 /**
  * Create organization mutation
  */
-interface CreateOrganizationParams {
+type CreateOrganizationParams = Pick<
+  ContractBodyInput<typeof createOrganizationContract>,
+  'slug'
+> & {
   name: string
-  slug?: string
 }
 
 export function useCreateOrganization() {
@@ -479,23 +655,22 @@ export function useCreateOrganization() {
 
   return useMutation({
     mutationFn: async ({ name, slug }: CreateOrganizationParams) => {
-      const response = await client.organization.create({
-        name,
-        slug: slug || name.toLowerCase().replace(/\s+/g, '-'),
+      const data = await requestJson(createOrganizationContract, {
+        body: {
+          name,
+          slug: slug || name.toLowerCase().replace(/\s+/g, '-'),
+        },
       })
-
-      if (!response.data) {
-        throw new Error('Failed to create organization')
-      }
 
       await client.organization.setActive({
-        organizationId: response.data.id,
+        organizationId: data.organizationId,
       })
 
-      return response.data
+      return data
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
     },
   })
 }

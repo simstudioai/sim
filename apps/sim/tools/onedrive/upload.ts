@@ -114,7 +114,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
         }
       }
 
-      return (params.content || '') as unknown as Record<string, unknown>
+      return params.content || ''
     },
   },
 

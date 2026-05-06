@@ -1,4 +1,4 @@
-import { createEnvMock, loggerMock } from '@sim/testing'
+import { createEnvMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 const mockSend = vi.fn()
@@ -54,8 +54,6 @@ vi.mock('@/lib/messaging/email/utils', () => ({
   EMAIL_HEADER_CONTROL_CHARS_REGEX: /[\r\n]/,
   NO_EMAIL_HEADER_CONTROL_CHARS_REGEX: /^[^\r\n]*$/,
 }))
-
-vi.mock('@sim/logger', () => loggerMock)
 
 import { type EmailType, hasEmailService, sendBatchEmails, sendEmail } from './mailer'
 import { generateUnsubscribeToken, isUnsubscribed } from './unsubscribe'

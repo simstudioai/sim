@@ -1,8 +1,11 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { slackChannelsSelectorContract } from '@/lib/api/contracts/selectors/slack'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
@@ -17,16 +20,15 @@ interface SlackChannel {
   is_member: boolean
 }
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const requestId = generateRequestId()
-    const body = await request.json()
-    const { credential, workflowId } = body
-
-    if (!credential) {
+    const parsed = await parseRequest(slackChannelsSelectorContract, request, {})
+    if (!parsed.success) {
       logger.error('Missing credential in request')
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
+      return parsed.response
     }
+    const { credential, workflowId } = parsed.data.body
 
     let accessToken: string
     let isBotToken = false
@@ -36,9 +38,9 @@ export async function POST(request: Request) {
       isBotToken = true
       logger.info('Using direct bot token for Slack API')
     } else {
-      const authz = await authorizeCredentialUse(request as any, {
+      const authz = await authorizeCredentialUse(request, {
         credentialId: credential,
-        workflowId,
+        workflowId: workflowId ?? undefined,
       })
       if (!authz.ok || !authz.credentialOwnerUserId) {
         return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
@@ -148,7 +150,7 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})
 
 async function fetchSlackChannels(accessToken: string, includePrivate = true) {
   const url = new URL('https://slack.com/api/conversations.list')

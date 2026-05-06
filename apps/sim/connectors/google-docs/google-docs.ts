@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { GoogleDocsIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -83,14 +84,22 @@ function extractTextFromDocsBody(doc: DocsDocument): string {
     if (!paragraph?.elements) continue
 
     const prefix = headingPrefix(paragraph.paragraphStyle?.namedStyleType)
-    const text = paragraph.elements.map((el) => el.textRun?.content ?? '').join('')
+    /**
+     * Each paragraph's final `textRun.content` already ends with `\n`. Strip
+     * it before joining with `\n` so a heading followed by a body paragraph
+     * is separated by a single newline, not two.
+     */
+    const text = paragraph.elements
+      .map((el) => el.textRun?.content ?? '')
+      .join('')
+      .replace(/\n+$/, '')
 
     if (text.trim()) {
       parts.push(`${prefix}${text}`)
     }
   }
 
-  return parts.join('').trim()
+  return parts.join('\n').trim()
 }
 
 /**
@@ -283,7 +292,7 @@ export const googleDocsConnector: ConnectorConfig = {
       return { ...fileToStub(file), content, contentDeferred: false }
     } catch (error) {
       logger.warn(`Failed to extract content from document: ${file.name} (${file.id})`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }
@@ -348,8 +357,7 @@ export const googleDocsConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
-      return { valid: false, error: message }
+      return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
     }
   },
 

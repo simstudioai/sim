@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 import { ANONYMOUS_USER, ANONYMOUS_USER_ID } from './constants'
 
 const logger = createLogger('AnonymousAuth')
@@ -102,8 +102,4 @@ export function createAnonymousSession(): AnonymousSession {
       userAgent: null,
     },
   }
-}
-
-export function createAnonymousGetSessionResponse(): { data: AnonymousSession } {
-  return { data: createAnonymousSession() }
 }

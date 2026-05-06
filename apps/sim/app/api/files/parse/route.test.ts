@@ -3,7 +3,16 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import {
+  authMockFns,
+  createMockRequest,
+  hybridAuthMockFns,
+  inputValidationMock,
+  permissionsMock,
+  permissionsMockFns,
+  storageServiceMock,
+  storageServiceMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,17 +24,11 @@ const {
   mockIsSupportedFileType,
   mockParseFile,
   mockParseBuffer,
-  mockDownloadFile,
-  mockHasCloudStorage,
   mockFsAccess,
   mockFsStat,
   mockFsReadFile,
   mockFsWriteFile,
   mockJoin,
-  mockGetSession,
-  mockCheckInternalAuth,
-  mockCheckHybridAuth,
-  mockCheckSessionOrInternalAuth,
   actualPath,
 } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -44,8 +47,6 @@ const {
       content: 'parsed buffer content',
       metadata: { pageCount: 1 },
     }),
-    mockDownloadFile: vi.fn(),
-    mockHasCloudStorage: vi.fn().mockReturnValue(true),
     mockFsAccess: vi.fn().mockResolvedValue(undefined),
     mockFsStat: vi.fn().mockImplementation(() => ({ isFile: () => true })),
     mockFsReadFile: vi.fn().mockResolvedValue(Buffer.from('test file content')),
@@ -56,10 +57,6 @@ const {
       }
       return actualPath.join(...args)
     }),
-    mockGetSession: vi.fn(),
-    mockCheckInternalAuth: vi.fn(),
-    mockCheckHybridAuth: vi.fn(),
-    mockCheckSessionOrInternalAuth: vi.fn(),
     actualPath,
   }
 })
@@ -80,10 +77,7 @@ vi.mock('@/lib/file-parsers', () => ({
   parseBuffer: mockParseBuffer,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-  hasCloudStorage: mockHasCloudStorage,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('path', () => ({
   default: actualPath,
@@ -98,24 +92,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   UPLOAD_DIR_SERVER: '/test/uploads',
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-  auth: vi.fn(),
-  signIn: vi.fn(),
-  signUp: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkInternalAuth: mockCheckInternalAuth,
-  checkHybridAuth: mockCheckHybridAuth,
-  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-}))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 vi.mock('@/lib/core/utils/logging', () => ({
   sanitizeUrlForLog: vi.fn((url: string) => url),
@@ -129,9 +106,7 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
   getFileMetadataByKey: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: vi.fn().mockResolvedValue({ canView: true }),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('fs/promises', () => ({
   default: {
@@ -158,26 +133,26 @@ function setupFileApiMocks(
   const { authenticated = true, storageProvider = 's3', cloudEnabled = true } = options
 
   if (authenticated) {
-    mockGetSession.mockResolvedValue({
+    authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'test-user-id', email: 'test@example.com' },
     })
   } else {
-    mockGetSession.mockResolvedValue(null)
+    authMockFns.mockGetSession.mockResolvedValue(null)
   }
 
-  mockCheckInternalAuth.mockResolvedValue({
+  hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
     success: authenticated,
     userId: authenticated ? 'test-user-id' : undefined,
     error: authenticated ? undefined : 'Unauthorized',
   })
 
-  mockCheckHybridAuth.mockResolvedValue({
+  hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
     success: authenticated,
     userId: authenticated ? 'test-user-id' : undefined,
     error: authenticated ? undefined : 'Unauthorized',
   })
 
-  mockCheckSessionOrInternalAuth.mockResolvedValue({
+  hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
     success: authenticated,
     userId: authenticated ? 'test-user-id' : undefined,
     error: authenticated ? undefined : 'Unauthorized',
@@ -195,6 +170,8 @@ describe('File Parse API Route', () => {
       authenticated: true,
     })
 
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue({ canView: true })
+    storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
     mockIsSupportedFileType.mockReturnValue(true)
     mockParseFile.mockResolvedValue({
       content: 'parsed content',
@@ -344,8 +321,8 @@ describe('File Parse API Route', () => {
       authenticated: true,
     })
 
-    mockDownloadFile.mockRejectedValue(new Error('Access denied'))
-    mockHasCloudStorage.mockReturnValue(true)
+    storageServiceMockFns.mockDownloadFile.mockRejectedValue(new Error('Access denied'))
+    storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
 
     const req = new NextRequest('http://localhost:3000/api/files/parse', {
       method: 'POST',
@@ -389,6 +366,7 @@ describe('Files Parse API - Path Traversal Security', () => {
     setupFileApiMocks({
       authenticated: true,
     })
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue({ canView: true })
   })
 
   describe('Path Traversal Prevention', () => {

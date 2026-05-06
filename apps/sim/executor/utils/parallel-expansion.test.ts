@@ -1,8 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { DAGBuilder } from '@/executor/dag/builder'
 import { EdgeManager } from '@/executor/execution/edge-manager'
@@ -14,8 +13,6 @@ import {
   stripCloneSuffixes,
 } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 function createBlock(id: string, metadataId: string): SerializedBlock {
   return {

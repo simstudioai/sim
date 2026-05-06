@@ -1,11 +1,13 @@
 import { db, workflowDeploymentVersion, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, lt, lte, ne, not, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   executeJobInline,
   executeScheduleJob,
@@ -28,7 +30,7 @@ const dueFilter = (queuedAt: Date) =>
     )
   )
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Scheduled execution triggered at ${new Date().toISOString()}`)
 
@@ -136,7 +138,7 @@ export async function GET(request: NextRequest) {
             const output = await executeScheduleJob(payload)
             await jobQueue.completeJob(jobId, output)
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage = toError(error).message
             logger.error(
               `[${requestId}] Schedule execution failed for workflow ${schedule.workflowId}`,
               {
@@ -191,7 +193,7 @@ export async function GET(request: NextRequest) {
         await executeJobInline(payload)
       } catch (error) {
         logger.error(`[${requestId}] Job execution failed for ${job.id}`, {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         await releaseScheduleLock(
           job.id,
@@ -214,4 +216,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error in scheduled execution handler`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})

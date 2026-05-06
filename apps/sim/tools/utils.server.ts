@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { customToolSchemaSchema } from '@/lib/api/contracts/tools/custom'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -10,7 +11,12 @@ import { extractErrorMessage } from '@/tools/error-extractors'
 import { tools } from '@/tools/registry'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 import type { RequestParams } from '@/tools/utils'
-import { createCustomToolRequestBody, createParamSchema, createToolConfig } from '@/tools/utils'
+import {
+  createCustomToolRequestBody,
+  createParamSchema,
+  createToolConfig,
+  resolveToolId,
+} from '@/tools/utils'
 
 const logger = createLogger('ToolsUtils')
 
@@ -18,6 +24,29 @@ export interface GetToolAsyncContext {
   workflowId?: string
   userId?: string
   workspaceId?: string
+}
+
+type CustomToolRow = NonNullable<Awaited<ReturnType<typeof getCustomToolByIdOrTitle>>>
+
+function toCustomToolDefinition(customTool: CustomToolRow): CustomToolDefinition | null {
+  const parsedSchema = customToolSchemaSchema.safeParse(customTool.schema)
+  if (!parsedSchema.success) {
+    logger.error(`Invalid custom tool schema: ${customTool.id}`, {
+      issues: parsedSchema.error.issues,
+    })
+    return null
+  }
+
+  return {
+    id: customTool.id,
+    workspaceId: customTool.workspaceId,
+    userId: customTool.userId,
+    title: customTool.title,
+    schema: parsedSchema.data,
+    code: customTool.code,
+    createdAt: customTool.createdAt.toISOString(),
+    updatedAt: customTool.updatedAt?.toISOString(),
+  }
 }
 
 /**
@@ -92,7 +121,7 @@ export async function getToolAsync(
   toolId: string,
   context: GetToolAsyncContext = {}
 ): Promise<ToolConfig | undefined> {
-  const builtInTool = tools[toolId]
+  const builtInTool = tools[resolveToolId(toolId)]
   if (builtInTool) return builtInTool
 
   if (isCustomTool(toolId)) {
@@ -128,7 +157,12 @@ async function fetchCustomToolFromDB(
       return undefined
     }
 
-    const toolConfig = createToolConfig(customTool as unknown as CustomToolDefinition, customToolId)
+    const customToolDefinition = toCustomToolDefinition(customTool)
+    if (!customToolDefinition) {
+      return undefined
+    }
+
+    const toolConfig = createToolConfig(customToolDefinition, customToolId)
 
     return {
       ...toolConfig,

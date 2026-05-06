@@ -46,6 +46,7 @@ Assume an IAM role and receive temporary security credentials
 | `roleArn` | string | Yes | ARN of the IAM role to assume |
 | `roleSessionName` | string | Yes | Identifier for the assumed role session |
 | `durationSeconds` | number | No | Duration of the session in seconds \(900-43200, default 3600\) |
+| `policy` | string | No | JSON IAM policy to further restrict session permissions \(max 2048 chars\) |
 | `externalId` | string | No | External ID for cross-account access |
 | `serialNumber` | string | No | MFA device serial number or ARN |
 | `tokenCode` | string | No | MFA token code \(6 digits\) |
@@ -61,6 +62,7 @@ Assume an IAM role and receive temporary security credentials
 | `assumedRoleArn` | string | ARN of the assumed role |
 | `assumedRoleId` | string | Assumed role ID with session name |
 | `packedPolicySize` | number | Percentage of allowed policy size used |
+| `sourceIdentity` | string | Source identity set on the role session, if any |
 
 ### `sts_get_caller_identity`
 

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   createFilePreviewSession,
@@ -219,7 +220,7 @@ async function persistFilePreviewSession(session: FilePreviewSession): Promise<v
       streamId: session.streamId,
       toolCallId: session.toolCallId,
       previewVersion: session.previewVersion,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
 }
@@ -330,7 +331,7 @@ export async function processFilePreviewStreamEvent(input: {
         ...(edit ? { edit } : {}),
       }
 
-      if (!isDocFormat(fileName) && isContentOp && previewTargetKind) {
+      if (isContentOp && previewTargetKind) {
         let previewBaseContent: string | undefined
         if (
           execContext.workspaceId &&
@@ -444,7 +445,7 @@ export async function processFilePreviewStreamEvent(input: {
     const stateForTool = editContentState.get(toolCallId) ?? { raw: '' }
     stateForTool.raw += delta
 
-    if (context.activeFileIntent && !isDocFormat(context.activeFileIntent.target.fileName)) {
+    if (context.activeFileIntent) {
       const streamedContent = extractEditContent(stateForTool.raw)
       if (streamedContent !== (stateForTool.lastContentSnapshot ?? '')) {
         stateForTool.lastContentSnapshot = streamedContent

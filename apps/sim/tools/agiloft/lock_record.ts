@@ -81,17 +81,21 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
           }
         }
 
-        const data = await response.json()
-        const result = data.result ?? data
+        const data = (await response.json()) as Record<string, unknown>
+        const result = (data.result ?? data) as Record<string, unknown>
 
         return {
           success: data.success !== false,
           output: {
             id: String(result.id ?? params.recordId?.trim() ?? ''),
-            lockStatus: result.lock_status ?? result.lockStatus ?? 'UNKNOWN',
-            lockedBy: result.locked_by ?? result.lockedBy ?? null,
+            lockStatus:
+              (result.lock_status as string) ?? (result.lockStatus as string) ?? 'UNKNOWN',
+            lockedBy:
+              (result.locked_by as string | null) ?? (result.lockedBy as string | null) ?? null,
             lockExpiresInMinutes:
-              result.lock_expires_in_minutes ?? result.lockExpiresInMinutes ?? null,
+              (result.lock_expires_in_minutes as number | null) ??
+              (result.lockExpiresInMinutes as number | null) ??
+              null,
           },
         }
       }

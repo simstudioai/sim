@@ -4,6 +4,8 @@ import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
@@ -37,15 +39,18 @@ import {
 } from '@/lib/auth/cimd'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
-import { writeBillingInterval } from '@/lib/billing/core/subscription'
+import {
+  getOrganizationIdForSubscriptionReference,
+  syncSubscriptionPlan,
+  writeBillingInterval,
+} from '@/lib/billing/core/subscription'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
-import { isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
+import { isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
-import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -56,6 +61,7 @@ import {
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
 import {
+  handleOrganizationPlanDowngrade,
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
@@ -73,8 +79,7 @@ import {
   isSignupEmailValidationEnabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
+import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
@@ -140,6 +145,20 @@ const blockedSignupDomains = env.BLOCKED_SIGNUP_DOMAINS
   ? new Set(env.BLOCKED_SIGNUP_DOMAINS.split(',').map((d) => d.trim().toLowerCase()))
   : null
 
+const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
+  logger.warn('Ignoring invalid entry in TRUSTED_ORIGINS', { value })
+)
+
+if (env.NODE_ENV === 'production') {
+  const baseUrl = getBaseUrl()
+  if (isLocalhostUrl(baseUrl)) {
+    logger.warn(
+      'NEXT_PUBLIC_APP_URL points to localhost in production. Self-hosted deployments must set NEXT_PUBLIC_APP_URL to the public URL users access (e.g. https://sim.example.com), otherwise auth POST requests from any non-localhost origin will be rejected by trustedOrigins. Set TRUSTED_ORIGINS to allow additional public origins.',
+      { baseUrl }
+    )
+  }
+}
+
 const validStripeKey = env.STRIPE_SECRET_KEY
 
 let stripeClient = null
@@ -154,6 +173,7 @@ export const auth = betterAuth({
   trustedOrigins: [
     getBaseUrl(),
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
+    ...additionalTrustedOrigins,
     'https://claude.ai',
     'https://claude.com',
   ].filter(Boolean),
@@ -169,6 +189,30 @@ export const auth = betterAuth({
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
     freshAge: 60 * 60, // 1 hour (or set to 0 to disable completely)
+  },
+  user: {
+    deleteUser: {
+      enabled: false,
+      beforeDelete: async (deletingUser) => {
+        const { isSoleOwnerOfPaidOrganization } = await import(
+          '@/lib/billing/organizations/membership'
+        )
+        const check = await isSoleOwnerOfPaidOrganization(deletingUser.id)
+        if (check.isBlocker) {
+          throw new Error(
+            `You are the owner of ${check.organizationName ?? 'an active paid organization'}. Transfer ownership before deleting your account.`
+          )
+        }
+
+        const { reassignBilledAccountForUser } = await import('@/lib/workspaces/utils')
+        const { unresolved } = await reassignBilledAccountForUser(deletingUser.id)
+        if (unresolved.length > 0) {
+          throw new Error(
+            `Your account is the billing account for ${unresolved.length} workspace${unresolved.length === 1 ? '' : 's'} with no other admin to take it over. Add another admin to ${unresolved.length === 1 ? 'that workspace' : 'those workspaces'} or delete ${unresolved.length === 1 ? 'it' : 'them'} before deleting your account.`
+          )
+        }
+      },
+    },
   },
   databaseHooks: {
     user: {
@@ -717,7 +761,7 @@ export const auth = betterAuth({
       }
     },
     onPasswordReset: async ({ user: resetUser }) => {
-      const { AuditAction, AuditResourceType, recordAudit } = await import('@/lib/audit/log')
+      const { AuditAction, AuditResourceType, recordAudit } = await import('@sim/audit')
       recordAudit({
         actorId: resetUser.id,
         actorName: resetUser.name,
@@ -796,7 +840,7 @@ export const auth = betterAuth({
           } catch (err) {
             logger.warn('CIMD resolution failed', {
               clientId,
-              error: err instanceof Error ? err.message : String(err),
+              error: toError(err).message,
             })
           }
         }
@@ -2830,7 +2874,16 @@ export const auth = betterAuth({
       ],
     }),
     // Include SSO plugin when enabled
-    ...(env.SSO_ENABLED ? [sso()] : []),
+    ...(env.SSO_ENABLED
+      ? [
+          sso({
+            organizationProvisioning: {
+              disabled: false,
+              defaultRole: 'member',
+            },
+          }),
+        ]
+      : []),
     // Only include the Stripe plugin when billing is enabled
     ...(isBillingEnabled && stripeClient
       ? [
@@ -2903,6 +2956,9 @@ export const auth = betterAuth({
                     { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId }
                   )
                 }
+
+                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+
                 const subscriptionForOrg = {
                   ...subscription,
                   plan: planFromStripe ?? subscription.plan,
@@ -2920,7 +2976,7 @@ export const auth = betterAuth({
                       referenceId: subscription.referenceId,
                       dbPlan: subscription.plan,
                       planFromStripe,
-                      error: orgError instanceof Error ? orgError.message : String(orgError),
+                      error: toError(orgError).message,
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
                   )
@@ -2957,10 +3013,11 @@ export const auth = betterAuth({
                   )
                 }
 
+                const referenceOrganizationId = await getOrganizationIdForSubscriptionReference(
+                  subscription.referenceId
+                )
                 const isUpgradeToTeam =
-                  isTeamPlan &&
-                  !isTeam(subscription.plan) &&
-                  !subscription.referenceId.startsWith('org_')
+                  isTeamPlan && !isTeam(subscription.plan) && referenceOrganizationId == null
 
                 const effectivePlanForTeamFeatures = planFromStripe ?? subscription.plan
 
@@ -2972,6 +3029,7 @@ export const auth = betterAuth({
                   isUpgradeToTeam,
                   isAnnual,
                   referenceId: subscription.referenceId,
+                  referenceOrganizationId,
                 })
 
                 if (!planFromStripe) {
@@ -2980,6 +3038,9 @@ export const auth = betterAuth({
                     { subscriptionId: subscription.id, dbPlan: subscription.plan }
                   )
                 }
+
+                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+
                 const subscriptionForOrg = {
                   ...subscription,
                   plan: planFromStripe ?? subscription.plan,
@@ -3010,7 +3071,7 @@ export const auth = betterAuth({
                       dbPlan: subscription.plan,
                       planFromStripe,
                       isUpgradeToTeam,
-                      error: orgError instanceof Error ? orgError.message : String(orgError),
+                      error: toError(orgError).message,
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
                   )
@@ -3052,11 +3113,22 @@ export const auth = betterAuth({
                       error,
                     })
                   }
+                } else {
+                  await handleOrganizationPlanDowngrade(
+                    {
+                      id: resolvedSubscription.id,
+                      plan: effectivePlanForTeamFeatures ?? null,
+                      referenceId: resolvedSubscription.referenceId,
+                      status: resolvedSubscription.status ?? null,
+                    },
+                    event.id
+                  )
                 }
 
                 await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
               },
               onSubscriptionDeleted: async ({
+                event,
                 subscription,
               }: {
                 event: Stripe.Event
@@ -3064,18 +3136,24 @@ export const auth = betterAuth({
                 subscription: any
               }) => {
                 logger.info('[onSubscriptionDeleted] Subscription deleted', {
+                  eventId: event.id,
                   subscriptionId: subscription.id,
                   referenceId: subscription.referenceId,
                 })
 
                 try {
-                  await handleSubscriptionDeleted(subscription)
+                  await handleSubscriptionDeleted(subscription, event.id)
                 } catch (error) {
                   logger.error('[onSubscriptionDeleted] Failed to handle subscription deletion', {
+                    eventId: event.id,
                     subscriptionId: subscription.id,
                     referenceId: subscription.referenceId,
                     error,
                   })
+                  // Rethrow so the Stripe webhook retries — otherwise
+                  // the final overage invoice, usage reset, org cleanup,
+                  // and personal Pro restore can be permanently skipped.
+                  throw error
                 }
               },
             },
@@ -3142,21 +3220,8 @@ export const auth = betterAuth({
     ...(isOrganizationsEnabled
       ? [
           organization({
-            allowUserToCreateOrganization: async (user) => {
-              if (!isBillingEnabled) {
-                return true
-              }
-              const dbSubscriptions = await db
-                .select()
-                .from(schema.subscription)
-                .where(eq(schema.subscription.referenceId, user.id))
-
-              const hasTeamPlan = dbSubscriptions.some(
-                (sub) => hasPaidSubscriptionStatus(sub.status) && isOrgPlan(sub.plan)
-              )
-
-              return hasTeamPlan
-            },
+            allowUserToCreateOrganization: async () => false,
+            disableOrganizationDeletion: true,
             organizationCreation: {
               afterCreate: async ({ organization, user }) => {
                 logger.info('[organizationCreation.afterCreate] Organization created', {

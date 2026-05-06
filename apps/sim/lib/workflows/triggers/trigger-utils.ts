@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import {
   type StartBlockCandidate,
@@ -451,7 +452,7 @@ export function extractTriggerMockPayload<
     logger.error('Failed to generate mock payload from trigger outputs', {
       triggerId,
       blockId: trigger.blockId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return {}
   }

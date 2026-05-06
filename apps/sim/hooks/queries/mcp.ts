@@ -1,6 +1,23 @@
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  createMcpServerContract,
+  deleteMcpServerContract,
+  discoverMcpToolsContract,
+  getAllowedMcpDomainsContract,
+  listMcpServersContract,
+  listStoredMcpToolsContract,
+  type McpServer,
+  type McpServerTestBody,
+  type McpServerTestResult,
+  type RefreshMcpServerResult,
+  refreshMcpServerContract,
+  testMcpServerConnectionContract,
+  updateMcpServerContract,
+} from '@/lib/api/contracts/mcp'
 import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/shared'
 import type { McpServerStatusConfig, McpTool, McpTransport, StoredMcpTool } from '@/lib/mcp/types'
 import { workflowMcpServerKeys } from '@/hooks/queries/workflow-mcp-servers'
@@ -17,32 +34,14 @@ export const mcpKeys = {
   allowedDomains: () => [...mcpKeys.all, 'allowedDomains'] as const,
 }
 
-export interface McpServer {
-  id: string
-  workspaceId: string
-  name: string
-  transport: 'streamable-http' | 'stdio'
-  url?: string
-  timeout: number
-  headers?: Record<string, string>
-  enabled: boolean
-  connectionStatus?: 'connected' | 'disconnected' | 'error'
-  lastError?: string | null
-  statusConfig?: McpServerStatusConfig
-  toolCount?: number
-  lastToolsRefresh?: string
-  lastConnected?: string
-  createdAt: string
-  updatedAt: string
-  deletedAt?: string
-}
+export type { McpServer }
 
 /**
  * Input for creating/updating an MCP server (distinct from McpServerConfig in types.ts)
  */
 export interface McpServerInput {
   name: string
-  transport: 'streamable-http' | 'stdio'
+  transport: McpTransport
   url?: string
   timeout: number
   headers?: Record<string, string>
@@ -50,19 +49,18 @@ export interface McpServerInput {
 }
 
 async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promise<McpServer[]> {
-  const response = await fetch(`/api/mcp/servers?workspaceId=${workspaceId}`, { signal })
-
-  if (response.status === 404) {
-    return []
+  try {
+    const data = await requestJson(listMcpServersContract, {
+      query: { workspaceId },
+      signal,
+    })
+    return data.data.servers
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) {
+      return []
+    }
+    throw error
   }
-
-  const data = await response.json()
-
-  if (!response.ok) {
-    throw new Error(data.error || 'Failed to fetch MCP servers')
-  }
-
-  return data.data?.servers || []
 }
 
 export function useMcpServers(workspaceId: string) {
@@ -81,24 +79,18 @@ async function fetchMcpTools(
   forceRefresh = false,
   signal?: AbortSignal
 ): Promise<McpTool[]> {
-  const params = new URLSearchParams({ workspaceId })
-  if (forceRefresh) {
-    params.set('refresh', 'true')
+  try {
+    const data = await requestJson(discoverMcpToolsContract, {
+      query: { workspaceId, refresh: forceRefresh || undefined },
+      signal,
+    })
+    return data.data.tools
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status === 404) {
+      return []
+    }
+    throw error
   }
-
-  const response = await fetch(`/api/mcp/tools/discover?${params.toString()}`, { signal })
-
-  if (response.status === 404) {
-    return []
-  }
-
-  const data = await response.json()
-
-  if (!response.ok) {
-    throw new Error(data.error || 'Failed to fetch MCP tools')
-  }
-
-  return data.data?.tools || []
 }
 
 export function useMcpToolsQuery(workspaceId: string) {
@@ -139,20 +131,12 @@ export function useCreateMcpServer() {
         workspaceId,
       }
 
-      const response = await fetch('/api/mcp/servers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(serverData),
+      const data = await requestJson(createMcpServerContract, {
+        body: serverData,
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create MCP server')
-      }
-
-      const serverId = data.data?.serverId
-      const wasUpdated = data.data?.updated === true
+      const serverId = data.data.serverId
+      const wasUpdated = data.data.updated === true
 
       logger.info(
         wasUpdated
@@ -216,18 +200,9 @@ export function useDeleteMcpServer() {
 
   return useMutation({
     mutationFn: async ({ workspaceId, serverId }: DeleteMcpServerParams) => {
-      const response = await fetch(
-        `/api/mcp/servers?serverId=${serverId}&workspaceId=${workspaceId}`,
-        {
-          method: 'DELETE',
-        }
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete MCP server')
-      }
+      const data = await requestJson(deleteMcpServerContract, {
+        query: { serverId, workspaceId },
+      })
 
       logger.info(`Deleted MCP server: ${serverId} from workspace: ${workspaceId}`)
       return data
@@ -256,20 +231,14 @@ export function useUpdateMcpServer() {
         headers: updates.headers ? sanitizeHeaders(updates.headers) : updates.headers,
       }
 
-      const response = await fetch(`/api/mcp/servers/${serverId}?workspaceId=${workspaceId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sanitizedUpdates),
+      const data = await requestJson(updateMcpServerContract, {
+        params: { id: serverId },
+        query: { workspaceId },
+        body: sanitizedUpdates,
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update MCP server')
-      }
-
       logger.info(`Updated MCP server: ${serverId} in workspace: ${workspaceId}`)
-      return data.data?.server
+      return data.data.server
     },
     onMutate: async ({ workspaceId, serverId, updates }) => {
       await queryClient.cancelQueries({ queryKey: mcpKeys.servers(workspaceId) })
@@ -306,14 +275,7 @@ interface RefreshMcpServerParams {
   serverId: string
 }
 
-export interface RefreshMcpServerResult {
-  status: 'connected' | 'disconnected' | 'error'
-  toolCount: number
-  lastConnected: string | null
-  error: string | null
-  workflowsUpdated: number
-  updatedWorkflowIds: string[]
-}
+export type { RefreshMcpServerResult }
 
 export function useRefreshMcpServer() {
   const queryClient = useQueryClient()
@@ -323,18 +285,10 @@ export function useRefreshMcpServer() {
       workspaceId,
       serverId,
     }: RefreshMcpServerParams): Promise<RefreshMcpServerResult> => {
-      const response = await fetch(
-        `/api/mcp/servers/${serverId}/refresh?workspaceId=${workspaceId}`,
-        {
-          method: 'POST',
-        }
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to refresh MCP server')
-      }
+      const data = await requestJson(refreshMcpServerContract, {
+        params: { id: serverId },
+        query: { workspaceId },
+      })
 
       logger.info(`Refreshed MCP server: ${serverId}`)
       return data.data
@@ -352,15 +306,11 @@ async function fetchStoredMcpTools(
   workspaceId: string,
   signal?: AbortSignal
 ): Promise<StoredMcpTool[]> {
-  const response = await fetch(`/api/mcp/tools/stored?workspaceId=${workspaceId}`, { signal })
-
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}))
-    throw new Error(data.error || 'Failed to fetch stored MCP tools')
-  }
-
-  const data = await response.json()
-  return data.data?.tools || []
+  const data = await requestJson(listStoredMcpToolsContract, {
+    query: { workspaceId },
+    signal,
+  })
+  return data.data.tools
 }
 
 export function useStoredMcpTools(workspaceId: string) {
@@ -437,23 +387,14 @@ export function useMcpToolsEvents(workspaceId: string) {
   }, [workspaceId, queryClient])
 }
 
-export interface McpServerTestConfig {
-  name: string
-  transport: McpTransport
-  url?: string
-  headers?: Record<string, string>
-  timeout?: number
+export type McpServerTestConfig = McpServerTestBody & {
   workspaceId: string
 }
 
-export interface McpServerTestResult {
-  success: boolean
-  message: string
-  error?: string
-  negotiatedVersion?: string
-  supportedCapabilities?: string[]
-  toolCount?: number
-  warnings?: string[]
+export type { McpServerTestResult }
+
+function isMcpTestErrorBody(body: unknown): body is { data?: McpServerTestResult } {
+  return Boolean(body) && typeof body === 'object' && 'data' in (body as Record<string, unknown>)
 }
 
 async function testMcpServerConnection(
@@ -466,28 +407,26 @@ async function testMcpServerConnection(
     headers: sanitizeHeaders(config.headers) || {},
   }
 
-  const response = await fetch('/api/mcp/servers/test-connection', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(cleanConfig),
-    signal,
-  })
-
-  const result = await response.json()
-
-  if (!response.ok) {
-    if (result.data?.error || result.data?.success === false) {
-      return {
-        success: false,
-        message: result.data.error || 'Connection failed',
-        error: result.data.error,
-        warnings: result.data.warnings,
+  try {
+    const data = await requestJson(testMcpServerConnectionContract, {
+      body: cleanConfig,
+      signal,
+    })
+    return data.data
+  } catch (error) {
+    if (error instanceof ApiClientError && isMcpTestErrorBody(error.body) && error.body.data) {
+      const inner = error.body.data
+      if (inner.error || inner.success === false) {
+        return {
+          success: false,
+          message: inner.error || 'Connection failed',
+          error: inner.error,
+          warnings: inner.warnings,
+        }
       }
     }
-    throw new Error(result.error || 'Connection test failed')
+    throw error
   }
-
-  return result.data || result
 }
 
 export function useMcpServerTest() {
@@ -522,11 +461,7 @@ export function useMcpServerTest() {
  * Fetch allowed MCP domains (admin-configured allowlist)
  */
 async function fetchAllowedMcpDomains(signal?: AbortSignal): Promise<string[] | null> {
-  const response = await fetch('/api/settings/allowed-mcp-domains', { signal })
-  if (!response.ok) {
-    return null
-  }
-  const data = await response.json()
+  const data = await requestJson(getAllowedMcpDomainsContract, { signal })
   return data.allowedMcpDomains ?? null
 }
 

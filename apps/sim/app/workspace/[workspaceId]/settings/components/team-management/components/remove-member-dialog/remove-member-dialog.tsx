@@ -12,7 +12,10 @@ interface RemoveMemberDialogProps {
   open: boolean
   memberName: string
   shouldReduceSeats: boolean
+  canReduceSeats?: boolean
   isSelfRemoval?: boolean
+  isExternalRemoval?: boolean
+  isSubmitting?: boolean
   error?: Error | null
   onOpenChange: (open: boolean) => void
   onShouldReduceSeatsChange: (shouldReduce: boolean) => void
@@ -24,21 +27,37 @@ export function RemoveMemberDialog({
   open,
   memberName,
   shouldReduceSeats,
+  canReduceSeats = true,
   error,
   onOpenChange,
   onShouldReduceSeatsChange,
   onConfirmRemove,
   onCancel,
   isSelfRemoval = false,
+  isExternalRemoval = false,
+  isSubmitting = false,
 }: RemoveMemberDialogProps) {
+  const title = isSelfRemoval
+    ? 'Leave Organization'
+    : isExternalRemoval
+      ? 'Remove External Member'
+      : 'Remove Team Member'
+
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='sm'>
-        <ModalHeader>{isSelfRemoval ? 'Leave Organization' : 'Remove Team Member'}</ModalHeader>
+        <ModalHeader>{title}</ModalHeader>
         <ModalBody>
           <p className='text-[var(--text-secondary)]'>
             {isSelfRemoval ? (
               'Are you sure you want to leave this organization? You will lose access to all team resources.'
+            ) : isExternalRemoval ? (
+              <>
+                Are you sure you want to remove{' '}
+                <span className='font-medium text-[var(--text-primary)]'>{memberName}</span> from
+                all organization workspaces? Their workspace access and workspace credential access
+                will be revoked.
+              </>
             ) : (
               <>
                 Are you sure you want to remove{' '}
@@ -49,7 +68,7 @@ export function RemoveMemberDialog({
             This action cannot be undone.
           </p>
 
-          {!isSelfRemoval && (
+          {!isSelfRemoval && !isExternalRemoval && canReduceSeats && (
             <div className='mt-4'>
               <div className='flex items-center gap-2'>
                 <Checkbox
@@ -77,10 +96,16 @@ export function RemoveMemberDialog({
           )}
         </ModalBody>
         <ModalFooter>
-          <Button variant='default' onClick={onCancel}>
+          <Button variant='default' disabled={isSubmitting} onClick={onCancel}>
             Cancel
           </Button>
-          <Button variant='destructive' onClick={() => onConfirmRemove(shouldReduceSeats)}>
+          <Button
+            variant='destructive'
+            disabled={isSubmitting}
+            onClick={() =>
+              onConfirmRemove(isExternalRemoval || !canReduceSeats ? false : shouldReduceSeats)
+            }
+          >
             {isSelfRemoval ? 'Leave Organization' : 'Remove'}
           </Button>
         </ModalFooter>

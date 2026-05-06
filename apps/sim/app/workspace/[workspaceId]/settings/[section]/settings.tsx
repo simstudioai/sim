@@ -13,13 +13,13 @@ import { ApiKeysSkeleton } from '@/app/workspace/[workspaceId]/settings/componen
 import { BYOKSkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import { CopilotSkeleton } from '@/app/workspace/[workspaceId]/settings/components/copilot/copilot-skeleton'
 import { CredentialSetsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credential-sets/credential-sets-skeleton'
-import { CredentialsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credentials/credential-skeleton'
 import { CustomToolsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tool-skeleton'
 import { GeneralSkeleton } from '@/app/workspace/[workspaceId]/settings/components/general/general-skeleton'
 import { InboxSkeleton } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-skeleton'
 import { IntegrationsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/integrations/integrations-skeleton'
 import { McpSkeleton } from '@/app/workspace/[workspaceId]/settings/components/mcp/mcp-skeleton'
 import { RecentlyDeletedSkeleton } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted-skeleton'
+import { SecretsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/secrets/secrets-skeleton'
 import { SkillsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/skills/skill-skeleton'
 import { WorkflowMcpServersSkeleton } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers-skeleton'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -29,6 +29,8 @@ import {
   isCredentialSetsEnabled,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { AuditLogsSkeleton } from '@/ee/audit-logs/components/audit-logs-skeleton'
+import { DataDrainsSkeleton } from '@/ee/data-drains/components/data-drains-skeleton'
+import { DataRetentionSkeleton } from '@/ee/data-retention/components/data-retention-skeleton'
 
 /**
  * Generic skeleton fallback for sections without a dedicated skeleton.
@@ -58,12 +60,12 @@ const Integrations = dynamic(
     ),
   { loading: () => <IntegrationsSkeleton /> }
 )
-const Credentials = dynamic(
+const Secrets = dynamic(
   () =>
-    import('@/app/workspace/[workspaceId]/settings/components/credentials/credentials').then(
-      (m) => m.Credentials
+    import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then(
+      (m) => m.Secrets
     ),
-  { loading: () => <CredentialsSkeleton /> }
+  { loading: () => <SecretsSkeleton /> }
 )
 // const TemplateProfile = dynamic(
 //   () =>
@@ -169,6 +171,18 @@ const AuditLogs = dynamic(
 const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((m) => m.SSO), {
   loading: () => <SettingsSectionSkeleton />,
 })
+const DataRetentionSettings = dynamic(
+  () =>
+    import('@/ee/data-retention/components/data-retention-settings').then(
+      (m) => m.DataRetentionSettings
+    ),
+  { loading: () => <DataRetentionSkeleton /> }
+)
+const DataDrainsSettings = dynamic(
+  () =>
+    import('@/ee/data-drains/components/data-drains-settings').then((m) => m.DataDrainsSettings),
+  { loading: () => <DataDrainsSkeleton /> }
+)
 const WhitelabelingSettings = dynamic(
   () =>
     import('@/ee/whitelabeling/components/whitelabeling-settings').then(
@@ -189,7 +203,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
 
   const isAdminRole = session?.user?.role === 'admin'
   const effectiveSection =
-    !isBillingEnabled && (section === 'subscription' || section === 'team')
+    !isBillingEnabled && (section === 'subscription' || section === 'organization')
       ? 'general'
       : section === 'credential-sets' && !isCredentialSetsEnabled
         ? 'general'
@@ -208,19 +222,26 @@ export function SettingsPage({ section }: SettingsPageProps) {
   }, [effectiveSection, sessionLoading, posthog])
 
   return (
-    <div className={cn(effectiveSection === 'access-control' && 'flex h-full flex-col')}>
+    <div
+      className={cn(
+        (effectiveSection === 'access-control' || effectiveSection === 'recently-deleted') &&
+          'flex h-full flex-col'
+      )}
+    >
       <h2 className='mb-7 font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
       {effectiveSection === 'general' && <General />}
       {effectiveSection === 'integrations' && <Integrations />}
-      {effectiveSection === 'secrets' && <Credentials />}
+      {effectiveSection === 'secrets' && <Secrets />}
       {/* {effectiveSection === 'template-profile' && <TemplateProfile />} */}
       {effectiveSection === 'credential-sets' && <CredentialSets />}
       {effectiveSection === 'access-control' && <AccessControl />}
       {effectiveSection === 'audit-logs' && <AuditLogs />}
       {effectiveSection === 'apikeys' && <ApiKeys />}
       {isBillingEnabled && effectiveSection === 'subscription' && <Subscription />}
-      {isBillingEnabled && effectiveSection === 'team' && <TeamManagement />}
+      {isBillingEnabled && effectiveSection === 'organization' && <TeamManagement />}
       {effectiveSection === 'sso' && <SSO />}
+      {effectiveSection === 'data-retention' && <DataRetentionSettings />}
+      {effectiveSection === 'data-drains' && <DataDrainsSettings />}
       {effectiveSection === 'whitelabeling' && <WhitelabelingSettings />}
       {effectiveSection === 'byok' && <BYOK />}
       {effectiveSection === 'copilot' && <Copilot />}

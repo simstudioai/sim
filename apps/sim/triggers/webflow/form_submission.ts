@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { WebflowIcon } from '@/components/icons'
+import { requestJson } from '@/lib/api/client/request'
+import { webflowSitesSelectorContract } from '@/lib/api/contracts/selectors/webflow'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '../types'
 
@@ -50,22 +52,13 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
           throw new Error('No Webflow credential selected')
         }
         try {
-          const response = await fetch('/api/tools/webflow/sites', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ credential: credentialId }),
+          const data = await requestJson(webflowSitesSelectorContract, {
+            body: { credential: credentialId },
           })
-          if (!response.ok) {
-            throw new Error('Failed to fetch Webflow sites')
-          }
-          const data = await response.json()
-          if (data.sites && Array.isArray(data.sites)) {
-            return data.sites.map((site: { id: string; name: string }) => ({
-              id: site.id,
-              label: site.name,
-            }))
-          }
-          return []
+          return (data.sites ?? []).map((site) => ({
+            id: site.id,
+            label: site.name,
+          }))
         } catch (error) {
           logger.error('Error fetching Webflow sites:', error)
           throw error
@@ -77,14 +70,10 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
           | null
         if (!credentialId) return null
         try {
-          const response = await fetch('/api/tools/webflow/sites', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ credential: credentialId, siteId: optionId }),
+          const data = await requestJson(webflowSitesSelectorContract, {
+            body: { credential: credentialId, siteId: optionId },
           })
-          if (!response.ok) return null
-          const data = await response.json()
-          const site = data.sites?.find((s: { id: string }) => s.id === optionId)
+          const site = data.sites?.find((s) => s.id === optionId)
           if (site) {
             return { id: site.id, label: site.name }
           }

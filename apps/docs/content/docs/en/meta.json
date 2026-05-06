@@ -25,7 +25,7 @@
     "execution",
     "permissions",
     "self-hosting",
-    "./enterprise/index",
+    "enterprise",
     "./keyboard-shortcuts/index"
   ],
   "defaultOpen": false

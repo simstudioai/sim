@@ -48,12 +48,28 @@ export function useUserPermissions(
       }
     }
 
-    // Find current user in workspace permissions (case-insensitive)
+    /**
+     * Prefer the server-resolved `viewer.permissionType` — it already accounts for workspace
+     * owners and organization owners/admins who have no explicit `permissions` row but are
+     * effectively admins. Falls back to scanning `users` only if the server response predates
+     * the viewer field (rolling deploy).
+     */
+    const viewerPerms = workspacePermissions?.viewer?.permissionType
+    if (viewerPerms) {
+      return {
+        canRead: true,
+        canEdit: viewerPerms === 'write' || viewerPerms === 'admin',
+        canAdmin: viewerPerms === 'admin',
+        userPermissions: viewerPerms,
+        isLoading: false,
+        error: permissionsError,
+      }
+    }
+
     const currentUser = workspacePermissions?.users?.find(
       (user) => user.email.toLowerCase() === sessionEmail.toLowerCase()
     )
 
-    // If user not found in workspace, they have no permissions
     if (!currentUser) {
       logger.warn('User not found in workspace permissions', {
         userEmail: sessionEmail,
@@ -72,14 +88,11 @@ export function useUserPermissions(
     }
 
     const userPerms = currentUser.permissionType || 'read'
-
-    // Core permission checks
     const canAdmin = userPerms === 'admin'
     const canEdit = userPerms === 'write' || userPerms === 'admin'
-    const canRead = true // If user is found in workspace permissions, they have read access
 
     return {
-      canRead,
+      canRead: true,
       canEdit,
       canAdmin,
       userPermissions: userPerms,

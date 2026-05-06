@@ -1,10 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import {
+  oauthTokenGetContract,
+  oauthTokenPostContract,
+} from '@/lib/api/contracts/oauth-connections'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
+  getAtlassianServiceAccountSecret,
   getCredential,
   getOAuthToken,
   getServiceAccountToken,
@@ -18,58 +25,32 @@ const logger = createLogger('OAuthTokenAPI')
 
 const SALESFORCE_INSTANCE_URL_REGEX = /__sf_instance__:([^\s]+)/
 
-const tokenRequestSchema = z
-  .object({
-    credentialId: z.string().min(1).optional(),
-    credentialAccountUserId: z.string().min(1).optional(),
-    providerId: z.string().min(1).optional(),
-    workflowId: z.string().min(1).nullish(),
-    scopes: z.array(z.string()).optional(),
-    impersonateEmail: z.string().email().optional(),
-  })
-  .refine(
-    (data) => data.credentialId || (data.credentialAccountUserId && data.providerId),
-    'Either credentialId or (credentialAccountUserId + providerId) is required'
-  )
-
-const tokenQuerySchema = z.object({
-  credentialId: z
-    .string({
-      required_error: 'Credential ID is required',
-      invalid_type_error: 'Credential ID is required',
-    })
-    .min(1, 'Credential ID is required'),
-})
-
 /**
  * Get an access token for a specific credential
  * Supports both session-based authentication (for client-side requests)
  * and workflow-based authentication (for server-side requests)
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   logger.info(`[${requestId}] OAuth token API POST request received`)
 
   try {
-    const rawBody = await request.json()
-    const parseResult = tokenRequestSchema.safeParse(rawBody)
-
-    if (!parseResult.success) {
-      const firstError = parseResult.error.errors[0]
-      const errorMessage = firstError?.message || 'Validation failed'
-
-      logger.warn(`[${requestId}] Invalid token request`, {
-        errors: parseResult.error.errors,
-      })
-
-      return NextResponse.json(
-        {
-          error: errorMessage,
+    const parsed = await parseRequest(
+      oauthTokenPostContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid token request`, { errors: error.issues })
+          return NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Validation failed') },
+            { status: 400 }
+          )
         },
-        { status: 400 }
-      )
-    }
+      }
+    )
+    if (!parsed.success) return parsed.response
 
     const {
       credentialId,
@@ -78,7 +59,8 @@ export async function POST(request: NextRequest) {
       workflowId,
       scopes,
       impersonateEmail,
-    } = parseResult.data
+    } = parsed.data.body
+    const callerUserId = parsed.data.query.userId
 
     if (credentialAccountUserId && providerId) {
       logger.info(`[${requestId}] Fetching token by credentialAccountUserId + providerId`, {
@@ -125,8 +107,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
-    const callerUserId = new URL(request.url).searchParams.get('userId') || undefined
-
     const resolved = await resolveOAuthAccountId(credentialId)
     if (resolved?.credentialType === 'service_account' && resolved.credentialId) {
       const authz = await authorizeCredentialUse(request, {
@@ -140,6 +120,17 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+        if (resolved.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
+          const secret = await getAtlassianServiceAccountSecret(resolved.credentialId)
+          return NextResponse.json(
+            {
+              accessToken: secret.apiToken,
+              cloudId: secret.cloudId,
+              domain: secret.domain,
+            },
+            { status: 200 }
+          )
+        }
         const accessToken = await getServiceAccountToken(
           resolved.credentialId,
           scopes ?? [],
@@ -204,39 +195,32 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] Error getting access token`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 /**
  * Get the access token for a specific credential
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const { searchParams } = new URL(request.url)
-    const rawQuery = {
-      credentialId: searchParams.get('credentialId'),
-    }
-
-    const parseResult = tokenQuerySchema.safeParse(rawQuery)
-
-    if (!parseResult.success) {
-      const firstError = parseResult.error.errors[0]
-      const errorMessage = firstError?.message || 'Validation failed'
-
-      logger.warn(`[${requestId}] Invalid query parameters`, {
-        errors: parseResult.error.errors,
-      })
-
-      return NextResponse.json(
-        {
-          error: errorMessage,
+    const parsed = await parseRequest(
+      oauthTokenGetContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.warn(`[${requestId}] Invalid query parameters`, { errors: error.issues })
+          return NextResponse.json(
+            { error: getValidationErrorMessage(error, 'Validation failed') },
+            { status: 400 }
+          )
         },
-        { status: 400 }
-      )
-    }
+      }
+    )
+    if (!parsed.success) return parsed.response
 
-    const { credentialId } = parseResult.data
+    const { credentialId } = parsed.data.query
 
     const authz = await authorizeCredentialUse(request, {
       credentialId,
@@ -293,4 +277,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching access token`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

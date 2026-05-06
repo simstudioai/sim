@@ -1,5 +1,23 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  type CreateTemplateInput,
+  createTemplateContract,
+  deleteTemplateContract,
+  getTemplateContract,
+  listTemplatesContract,
+  starTemplateContract,
+  type TemplateContractData,
+  type TemplateCreator,
+  type TemplateDetailContractResponse,
+  type TemplateListFilters,
+  type TemplatesContractResponse,
+  type UpdateTemplateInput as UpdateTemplateContractInput,
+  unstarTemplateContract,
+  updateTemplateContract,
+} from '@/lib/api/contracts/templates'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('TemplateQueries')
 
@@ -13,143 +31,61 @@ export const templateKeys = {
   byWorkflow: (workflowId?: string) => [...templateKeys.byWorkflows(), workflowId ?? ''] as const,
 }
 
-export interface TemplateListFilters {
-  search?: string
-  status?: 'pending' | 'approved' | 'rejected'
-  workflowId?: string
-  limit?: number
-  offset?: number
-  includeAllStatuses?: boolean
+export type { TemplateCreator, TemplateListFilters }
+
+type TemplateApi = TemplateContractData
+
+export interface Template extends Omit<TemplateApi, 'state'> {
+  state: WorkflowState
 }
 
-export interface TemplateCreator {
-  id: string
-  name: string
-  referenceType: 'user' | 'organization'
-  referenceId: string
-  email?: string
-  website?: string
-  profileImageUrl?: string | null
-  verified?: boolean
-  details?: {
-    about?: string
-    xUrl?: string
-    linkedinUrl?: string
-    websiteUrl?: string
-    contactEmail?: string
-  } | null
-  createdAt: string
-  updatedAt: string
-}
-
-export interface Template {
-  id: string
-  workflowId: string
-  name: string
-  details?: {
-    tagline?: string
-    about?: string
-  }
-  creatorId?: string
-  creator?: TemplateCreator
-  views: number
-  stars: number
-  status: 'pending' | 'approved' | 'rejected'
-  tags: string[]
-  requiredCredentials: Record<string, any>
-  state: any
-  createdAt: string
-  updatedAt: string
-  isStarred?: boolean
-  isSuperUser?: boolean
-}
-
-export interface TemplatesResponse {
+export interface TemplateListData extends Omit<TemplatesContractResponse, 'data'> {
   data: Template[]
-  pagination: {
-    total: number
-    limit: number
-    offset: number
-    page: number
-    totalPages: number
-  }
 }
 
-export interface TemplateDetailResponse {
+export interface TemplateDetailData extends Omit<TemplateDetailContractResponse, 'data'> {
   data: Template
 }
 
-export interface CreateTemplateInput {
-  workflowId: string
-  name: string
-  details?: {
-    tagline?: string
-    about?: string
-  }
-  creatorId?: string
-  tags?: string[]
-}
-
-export interface UpdateTemplateInput {
-  name?: string
-  details?: {
-    tagline?: string
-    about?: string
-  }
-  creatorId?: string
-  tags?: string[]
-  updateState?: boolean
-}
+export type { CreateTemplateInput }
+export type UpdateTemplateInput = Omit<UpdateTemplateContractInput, 'status'>
 
 async function fetchTemplates(
   filters?: TemplateListFilters,
   signal?: AbortSignal
-): Promise<TemplatesResponse> {
-  const params = new URLSearchParams()
+): Promise<TemplateListData> {
+  const response = await requestJson(listTemplatesContract, {
+    query: {
+      search: filters?.search,
+      status: filters?.status,
+      workflowId: filters?.workflowId,
+      includeAllStatuses: filters?.includeAllStatuses,
+      limit: filters?.limit,
+      offset: filters?.offset,
+    },
+    signal,
+  })
 
-  if (filters?.search) params.set('search', filters.search)
-  if (filters?.status) params.set('status', filters.status)
-  if (filters?.workflowId) params.set('workflowId', filters.workflowId)
-  if (filters?.includeAllStatuses) params.set('includeAllStatuses', 'true')
-  params.set('limit', (filters?.limit ?? 50).toString())
-  params.set('offset', (filters?.offset ?? 0).toString())
-
-  const response = await fetch(`/api/templates?${params.toString()}`, { signal })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error || 'Failed to fetch templates')
-  }
-
-  return response.json()
+  return response as TemplateListData
 }
 
 async function fetchTemplate(
   templateId: string,
   signal?: AbortSignal
-): Promise<TemplateDetailResponse> {
-  const response = await fetch(`/api/templates/${templateId}`, { signal })
+): Promise<TemplateDetailData> {
+  const response = await requestJson(getTemplateContract, {
+    params: { id: templateId },
+    signal,
+  })
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error || 'Failed to fetch template')
-  }
-
-  return response.json()
+  return response as TemplateDetailData
 }
 
 async function fetchTemplateByWorkflow(
   workflowId: string,
   signal?: AbortSignal
 ): Promise<Template | null> {
-  const response = await fetch(`/api/templates?workflowId=${workflowId}&limit=1`, { signal })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error || 'Failed to fetch template')
-  }
-
-  const result: TemplatesResponse = await response.json()
+  const result = await fetchTemplates({ workflowId, limit: 1 }, signal)
   return result.data?.[0] || null
 }
 
@@ -202,18 +138,7 @@ export function useCreateTemplate() {
 
   return useMutation({
     mutationFn: async (data: CreateTemplateInput) => {
-      const response = await fetch('/api/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to create template')
-      }
-
-      return response.json()
+      return requestJson(createTemplateContract, { body: data })
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: templateKeys.lists() })
@@ -231,28 +156,20 @@ export function useUpdateTemplate() {
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: UpdateTemplateInput }) => {
-      const response = await fetch(`/api/templates/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+      const response = await requestJson(updateTemplateContract, {
+        params: { id },
+        body: data,
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to update template')
-      }
-
-      return response.json()
+      return response as TemplateDetailData
     },
     onMutate: async ({ id, data }) => {
       await queryClient.cancelQueries({ queryKey: templateKeys.detail(id) })
 
-      const previousTemplate = queryClient.getQueryData<TemplateDetailResponse>(
-        templateKeys.detail(id)
-      )
+      const previousTemplate = queryClient.getQueryData<TemplateDetailData>(templateKeys.detail(id))
 
       if (previousTemplate) {
-        queryClient.setQueryData<TemplateDetailResponse>(templateKeys.detail(id), {
+        queryClient.setQueryData<TemplateDetailData>(templateKeys.detail(id), {
           ...previousTemplate,
           data: {
             ...previousTemplate.data,
@@ -271,7 +188,7 @@ export function useUpdateTemplate() {
       logger.error('Failed to update template', error)
     },
     onSuccess: (result, { id }) => {
-      queryClient.setQueryData<TemplateDetailResponse>(templateKeys.detail(id), result)
+      queryClient.setQueryData<TemplateDetailData>(templateKeys.detail(id), result)
       logger.info('Template updated successfully')
     },
     onSettled: () => {
@@ -286,16 +203,7 @@ export function useDeleteTemplate() {
 
   return useMutation({
     mutationFn: async (templateId: string) => {
-      const response = await fetch(`/api/templates/${templateId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to delete template')
-      }
-
-      return response.json()
+      return requestJson(deleteTemplateContract, { params: { id: templateId } })
     },
     onSuccess: (_, templateId) => {
       queryClient.removeQueries({ queryKey: templateKeys.detail(templateId) })
@@ -325,20 +233,13 @@ export function useStarTemplate() {
       templateId: string
       action: 'add' | 'remove'
     }) => {
-      const method = action === 'add' ? 'POST' : 'DELETE'
-      const response = await fetch(`/api/templates/${templateId}/star`, { method })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to toggle star')
-      }
-
-      return response.json()
+      const contract = action === 'add' ? starTemplateContract : unstarTemplateContract
+      return requestJson(contract, { params: { id: templateId } })
     },
     onMutate: async ({ templateId, action }) => {
       await queryClient.cancelQueries({ queryKey: templateKeys.detail(templateId) })
 
-      const previousTemplate = queryClient.getQueryData<TemplateDetailResponse>(
+      const previousTemplate = queryClient.getQueryData<TemplateDetailData>(
         templateKeys.detail(templateId)
       )
 
@@ -348,7 +249,7 @@ export function useStarTemplate() {
             ? previousTemplate.data.stars + 1
             : Math.max(0, previousTemplate.data.stars - 1)
 
-        queryClient.setQueryData<TemplateDetailResponse>(templateKeys.detail(templateId), {
+        queryClient.setQueryData<TemplateDetailData>(templateKeys.detail(templateId), {
           ...previousTemplate,
           data: {
             ...previousTemplate.data,
@@ -358,13 +259,13 @@ export function useStarTemplate() {
         })
       }
 
-      const listQueries = queryClient.getQueriesData<TemplatesResponse>({
+      const listQueries = queryClient.getQueriesData<TemplateListData>({
         queryKey: templateKeys.lists(),
       })
 
       listQueries.forEach(([key, data]) => {
         if (!data) return
-        queryClient.setQueryData<TemplatesResponse>(key, {
+        queryClient.setQueryData<TemplateListData>(key, {
           ...data,
           data: data.data.map((template) => {
             if (template.id === templateId) {

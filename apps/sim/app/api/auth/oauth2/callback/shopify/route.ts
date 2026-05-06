@@ -1,15 +1,19 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { type NextRequest, NextResponse } from 'next/server'
+import {
+  shopifyCallbackQuerySchema,
+  shopifyShopDomainSchema,
+} from '@/lib/api/contracts/oauth-connections'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('ShopifyCallback')
 
 export const dynamic = 'force-dynamic'
-
-const SHOP_DOMAIN_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/
 
 /**
  * Validates the HMAC signature from Shopify to ensure the request is authentic
@@ -33,16 +37,12 @@ function validateHmac(searchParams: URLSearchParams, clientSecret: string): bool
     .map((key) => `${key}=${params[key]}`)
     .join('&')
 
-  const generatedHmac = crypto.createHmac('sha256', clientSecret).update(message).digest('hex')
+  const generatedHmac = hmacSha256Hex(message, clientSecret)
 
-  try {
-    return crypto.timingSafeEqual(Buffer.from(hmac, 'hex'), Buffer.from(generatedHmac, 'hex'))
-  } catch {
-    return false
-  }
+  return safeCompare(hmac, generatedHmac)
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const baseUrl = getBaseUrl()
 
   try {
@@ -52,9 +52,11 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = request.nextUrl
-    const code = searchParams.get('code')
-    const state = searchParams.get('state')
-    const shop = searchParams.get('shop')
+    const { code, state, shop } = shopifyCallbackQuerySchema.parse({
+      code: searchParams.get('code') || undefined,
+      state: searchParams.get('state') || undefined,
+      shop: searchParams.get('shop') || undefined,
+    })
 
     const storedState = request.cookies.get('shopify_oauth_state')?.value
     const storedShop = request.cookies.get('shopify_shop_domain')?.value
@@ -88,7 +90,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_no_shop`)
     }
 
-    if (!SHOP_DOMAIN_REGEX.test(shopDomain)) {
+    if (!shopifyShopDomainSchema.safeParse(shopDomain).success) {
       logger.error('Invalid shop domain format:', { shopDomain })
       return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_invalid_shop`)
     }
@@ -164,4 +166,4 @@ export async function GET(request: NextRequest) {
     logger.error('Error in Shopify OAuth callback:', error)
     return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_callback_error`)
   }
-}
+})

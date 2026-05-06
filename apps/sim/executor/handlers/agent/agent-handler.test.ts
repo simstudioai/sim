@@ -102,15 +102,6 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  mcpServers: {
-    id: 'id',
-    workspaceId: 'workspaceId',
-    connectionStatus: 'connectionStatus',
-    deletedAt: 'deletedAt',
-  },
-}))
-
 const mockGetCustomToolById = vi.fn()
 
 vi.mock('@/lib/workflows/custom-tools/operations', () => ({

@@ -1,9 +1,9 @@
-import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
+import { generateId } from '@sim/utils/id'
 import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 import type {
   BatchOperationResult,
   ChunkData,
@@ -11,6 +11,7 @@ import type {
   ChunkQueryResult,
   CreateChunkData,
 } from '@/lib/knowledge/chunks/types'
+import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 
@@ -111,10 +112,25 @@ export async function createChunk(
   workspaceId?: string | null
 ): Promise<ChunkData> {
   logger.info(`[${requestId}] Generating embedding for manual chunk`)
-  const { embeddings } = await generateEmbeddings([chunkData.content], undefined, workspaceId)
+  const kbRow = await db
+    .select({ embeddingModel: knowledgeBase.embeddingModel })
+    .from(knowledgeBase)
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .limit(1)
+  if (kbRow.length === 0) {
+    throw new Error('Knowledge base not found')
+  }
+  const kbEmbeddingModel = kbRow[0].embeddingModel
+  const { embeddings } = await generateEmbeddings(
+    [chunkData.content],
+    kbEmbeddingModel,
+    workspaceId
+  )
 
-  // Calculate accurate token count
-  const tokenCount = estimateTokenCount(chunkData.content, 'openai')
+  const tokenCount = estimateTokenCount(
+    chunkData.content,
+    getEmbeddingModelInfo(kbEmbeddingModel).tokenizerProvider
+  )
 
   const chunkId = generateId()
   const now = new Date()
@@ -155,12 +171,12 @@ export async function createChunk(
       knowledgeBaseId,
       documentId,
       chunkIndex: nextChunkIndex,
-      chunkHash: createHash('sha256').update(chunkData.content).digest('hex'),
+      chunkHash: sha256Hex(chunkData.content),
       content: chunkData.content,
       contentLength: chunkData.content.length,
       tokenCount: tokenCount.count,
       embedding: embeddings[0],
-      embeddingModel: 'text-embedding-3-small',
+      embeddingModel: kbEmbeddingModel,
       startOffset: 0, // Manual chunks don't have document offsets
       endOffset: chunkData.content.length,
       // Inherit text tags from parent document
@@ -360,15 +376,27 @@ export async function updateChunk(
       if (content !== currentChunk[0].content) {
         logger.info(`[${requestId}] Content changed, regenerating embedding for chunk ${chunkId}`)
 
-        const { embeddings } = await generateEmbeddings([content], undefined, workspaceId)
+        const kbRow = await tx
+          .select({ embeddingModel: knowledgeBase.embeddingModel })
+          .from(knowledgeBase)
+          .innerJoin(document, eq(document.knowledgeBaseId, knowledgeBase.id))
+          .where(eq(document.id, currentChunk[0].documentId))
+          .limit(1)
+        const chunkEmbeddingModel = kbRow[0]?.embeddingModel
+        if (!chunkEmbeddingModel) {
+          throw new Error('Knowledge base for chunk not found')
+        }
+        const { embeddings } = await generateEmbeddings([content], chunkEmbeddingModel, workspaceId)
 
-        // Calculate accurate token count
-        const tokenCount = estimateTokenCount(content, 'openai')
+        const tokenCount = estimateTokenCount(
+          content,
+          getEmbeddingModelInfo(chunkEmbeddingModel).tokenizerProvider
+        )
 
         dbUpdateData.content = content
         dbUpdateData.contentLength = newContentLength
         dbUpdateData.tokenCount = tokenCount.count
-        dbUpdateData.chunkHash = createHash('sha256').update(content).digest('hex')
+        dbUpdateData.chunkHash = sha256Hex(content)
         // Add the embedding field to the update data
         dbUpdateData.embedding = embeddings[0]
       } else {
@@ -376,7 +404,7 @@ export async function updateChunk(
         dbUpdateData.content = content
         dbUpdateData.contentLength = newContentLength
         dbUpdateData.tokenCount = oldTokenCount // Keep the same token count if content is identical
-        dbUpdateData.chunkHash = createHash('sha256').update(content).digest('hex')
+        dbUpdateData.chunkHash = sha256Hex(content)
       }
 
       if (updateData.enabled !== undefined) {

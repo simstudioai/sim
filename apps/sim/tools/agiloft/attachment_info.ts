@@ -82,18 +82,18 @@ export const agiloftAttachmentInfoTool: ToolConfig<
           }
         }
 
-        const data = await response.json()
-        const result = data.result ?? data
+        const data = (await response.json()) as Record<string, unknown>
+        const result = (data.result ?? data) as Record<string, unknown>
 
         const attachments: Array<{ position: number; name: string; size: number }> = []
 
         if (Array.isArray(result)) {
           for (let i = 0; i < result.length; i++) {
-            const item = result[i]
+            const item = result[i] as Record<string, unknown>
             attachments.push({
-              position: item.position ?? i,
-              name: item.name ?? item.filename ?? '',
-              size: item.size ?? 0,
+              position: (item.position as number) ?? i,
+              name: (item.name as string) ?? (item.filename as string) ?? '',
+              size: (item.size as number) ?? 0,
             })
           }
         }

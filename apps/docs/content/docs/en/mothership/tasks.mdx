@@ -5,15 +5,16 @@ description: Schedule recurring jobs, take immediate actions, connect integratio
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
+
+<Video src="mothership/job-create.mp4" width={700} height={450} />
 
 Mothership can act on your behalf right now — send a message, create an issue, call an API — or on a schedule, running a prompt automatically every hour, day, or week. It can also connect integrations, set environment variables, add MCP servers, and create custom tools.
 
 ## Scheduled Jobs
 
 A scheduled job is a Mothership task that runs on a cron schedule. On each run, Mothership reads the current workspace state and executes the job's prompt as if you had just sent it.
-
-{/* TODO: Screenshot of Mothership chat confirming a scheduled job was created — showing the job name, schedule, and what it will do. If there's a jobs list view in the sidebar, include that as a second screenshot here. */}
 
 ### Creating a Job
 

@@ -1,5 +1,6 @@
 import { copilotChats, db, mothershipInboxTask, permissions, user, workspace } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
@@ -13,7 +14,6 @@ import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { generateId } from '@/lib/core/utils/uuid'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
@@ -131,11 +131,14 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       })
     }
 
+    const userMessageId = generateId()
+
     if (chatId) {
       taskPubSub?.publishStatusChanged({
         workspaceId: ws.id,
         chatId,
         type: 'started',
+        streamId: userMessageId,
       })
     }
 
@@ -166,7 +169,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       await Promise.all([
         fetchAttachments(),
         generateWorkspaceContext(ws.id, userId),
-        buildIntegrationToolSchemas(userId),
+        buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
         getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
       ])
     const { attachments, fileAttachments, storedAttachments } = attachmentResult
@@ -178,7 +181,6 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     }
     const messageContent = formatEmailAsMessage(truncatedTask, attachments)
 
-    const userMessageId = generateId()
     const requestPayload: Record<string, unknown> = {
       message: messageContent,
       userId,
@@ -244,6 +246,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
         workspaceId: ws.id,
         chatId,
         type: 'completed',
+        streamId: userMessageId,
       })
     }
 

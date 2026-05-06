@@ -1,11 +1,15 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { outlookFoldersSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
@@ -19,16 +23,12 @@ interface OutlookFolder {
   unreadItemCount?: number
 }
 
-export async function GET(request: Request) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
-    const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-
-    if (!credentialId) {
-      logger.error('Missing credentialId in request')
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(outlookFoldersSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credentialId } = parsed.data.query
 
     const credentialIdValidation = validateAlphanumericId(credentialId, 'credentialId')
     if (!credentialIdValidation.isValid) {
@@ -135,7 +135,7 @@ export async function GET(request: Request) {
     } catch (innerError) {
       logger.error('Error during API requests:', innerError)
 
-      const errorMessage = innerError instanceof Error ? innerError.message : String(innerError)
+      const errorMessage = toError(innerError).message
       if (
         errorMessage.includes('auth') ||
         errorMessage.includes('token') ||
@@ -164,4 +164,4 @@ export async function GET(request: Request) {
       { status: 500 }
     )
   }
-}
+})

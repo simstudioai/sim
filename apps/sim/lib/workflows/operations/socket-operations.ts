@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { client } from '@/lib/auth/auth-client'
-import { generateId } from '@/lib/core/utils/uuid'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'

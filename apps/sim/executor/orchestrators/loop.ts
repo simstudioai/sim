@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
@@ -134,7 +135,7 @@ export class LoopOrchestrator {
         try {
           items = resolveArrayInput(ctx, loopConfig.forEachItems, this.resolver)
         } catch (error) {
-          const errorMessage = `ForEach loop resolution failed: ${error instanceof Error ? error.message : String(error)}`
+          const errorMessage = `ForEach loop resolution failed: ${toError(error).message}`
           logger.error(errorMessage, { loopId, forEachItems: loopConfig.forEachItems })
           await this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
             forEachItems: loopConfig.forEachItems,
@@ -716,10 +717,13 @@ export class LoopOrchestrator {
       })
 
       if (vmResult.error) {
-        logger.error('Failed to evaluate loop condition', {
+        const isSystemError = vmResult.error.isSystemError === true
+        const logFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
+        logFn('Failed to evaluate loop condition', {
           condition,
           evaluatedCondition,
           error: vmResult.error,
+          isSystemError,
         })
         return false
       }

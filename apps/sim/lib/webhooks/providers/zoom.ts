@@ -1,10 +1,11 @@
-import crypto from 'crypto'
 import { db, webhook, workflow } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
+import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { safeCompare } from '@/lib/core/security/encryption'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import type {
   AuthContext,
@@ -40,7 +41,7 @@ export function validateZoomSignature(
     }
 
     const message = `v0:${timestamp}:${body}`
-    const computedHash = crypto.createHmac('sha256', secretToken).update(message).digest('hex')
+    const computedHash = hmacSha256Hex(message, secretToken)
     const expectedSignature = `v0=${computedHash}`
 
     return safeCompare(expectedSignature, signature)
@@ -83,7 +84,7 @@ async function resolveZoomChallengeSecrets(
         return { secretToken }
       } catch (error) {
         logger.warn(`[${requestId}] Failed to resolve Zoom webhook secret for challenge`, {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
           path,
         })
         return { secretToken: '' }
@@ -205,10 +206,7 @@ export const zoomHandler: WebhookProviderHandler = {
         secretToken &&
         validateZoomSignature(secretToken, signature, timestamp, bodyForSignature)
       ) {
-        const hashForValidate = crypto
-          .createHmac('sha256', secretToken)
-          .update(plainToken)
-          .digest('hex')
+        const hashForValidate = hmacSha256Hex(plainToken, secretToken)
 
         return NextResponse.json({
           plainToken,

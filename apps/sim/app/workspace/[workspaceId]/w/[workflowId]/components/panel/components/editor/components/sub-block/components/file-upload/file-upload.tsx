@@ -1,11 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
 import { Progress } from '@/components/ui/progress'
+import { isApiClientError } from '@/lib/api/client/errors'
+import { requestJson } from '@/lib/api/client/request'
+import { fileDeleteContract } from '@/lib/api/contracts/storage-transfer'
 import { cn } from '@/lib/core/utils/cn'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -69,39 +72,34 @@ function SingleFileSelector({
   isDeleting,
 }: SingleFileSelectorProps) {
   const displayLabel = `${truncateMiddle(file.name, 20, 12)} (${formatFileSize(file.size)})`
-  const [localInputValue, setLocalInputValue] = useState(displayLabel)
+  const [searchQuery, setSearchQuery] = useState('')
   const [isEditing, setIsEditing] = useState(false)
-
-  // Sync display label when file changes
-  useEffect(() => {
-    if (!isEditing) {
-      setLocalInputValue(displayLabel)
-    }
-  }, [displayLabel, isEditing])
+  // When not editing, always show the file's display label. When editing, show the user's query.
+  const comboboxValue = isEditing ? searchQuery : displayLabel
 
   return (
     <div className='relative w-full'>
       <Combobox
         options={options}
-        value={localInputValue}
+        value={comboboxValue}
         selectedValue={selectedValue}
         onChange={(newValue) => {
           // Check if user selected an option
           const matched = options.find((opt) => opt.value === newValue || opt.label === newValue)
           if (matched) {
             setIsEditing(false)
-            setLocalInputValue(displayLabel)
+            setSearchQuery('')
             onInputChange(matched.value)
             return
           }
           // User is typing to search
           setIsEditing(true)
-          setLocalInputValue(newValue)
+          setSearchQuery(newValue)
         }}
         onOpenChange={(open) => {
           if (!open) {
             setIsEditing(false)
-            setLocalInputValue(displayLabel)
+            setSearchQuery('')
           }
           onOpenChange(open)
         }}
@@ -320,6 +318,7 @@ export function FileUpload({
             formData.append('workspaceId', workspaceId)
           }
 
+          // boundary-raw-fetch: multipart/form-data upload (FileUpload boundary), incompatible with requestJson which JSON-stringifies bodies
           const response = await fetch('/api/files/upload', {
             method: 'POST',
             body: formData,
@@ -328,7 +327,8 @@ export function FileUpload({
           const data = await response.json()
 
           if (!response.ok) {
-            const errorMessage = data.error || `Failed to upload file: ${response.status}`
+            const errorMessage =
+              data.message || data.error || `Failed to upload file: ${response.status}`
             uploadErrors.push(`${file.name}: ${errorMessage}`)
 
             setUploadError(errorMessage)
@@ -490,18 +490,15 @@ export function FileUpload({
         (decodedPath.includes(`/${workspaceId}/`) || decodedPath.includes(`${workspaceId}/`))
 
       if (!isWorkspaceFile) {
-        const response = await fetch('/api/files/delete', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ filePath: file.path }),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: response.statusText }))
-          const errorMessage = errorData.error || `Failed to delete file: ${response.status}`
-          throw new Error(errorMessage)
+        try {
+          await requestJson(fileDeleteContract, {
+            body: { filePath: file.path },
+          })
+        } catch (err) {
+          if (isApiClientError(err)) {
+            throw new Error(err.message || `Failed to delete file: ${err.status}`)
+          }
+          throw err
         }
       }
 

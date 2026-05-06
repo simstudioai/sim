@@ -1,12 +1,14 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { isAuthDisabled } from '@/lib/core/config/feature-flags'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SocketTokenAPI')
 
-export async function POST() {
+export const POST = withRouteHandler(async () => {
   if (isAuthDisabled) {
     return NextResponse.json({ token: 'anonymous-socket-token' })
   }
@@ -36,9 +38,9 @@ export async function POST() {
     }
 
     logger.error('Failed to generate socket token', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
     return NextResponse.json({ error: 'Failed to generate token' }, { status: 500 })
   }
-}
+})

@@ -1,11 +1,11 @@
 /**
  * @vitest-environment node
  */
+import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetSession,
   mockSelect,
   mockFrom,
   mockWhereSelect,
@@ -17,7 +17,6 @@ const {
   mockPublishStatusChanged,
   mockSql,
 } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
   mockSelect: vi.fn(),
   mockFrom: vi.fn(),
   mockWhereSelect: vi.fn(),
@@ -30,24 +29,20 @@ const {
   mockSql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
+vi.mock('@sim/db/schema', () => ({
+  copilotChats: {
+    id: 'copilotChats.id',
+    userId: 'copilotChats.userId',
+    workspaceId: 'copilotChats.workspaceId',
+    messages: 'copilotChats.messages',
+    conversationId: 'copilotChats.conversationId',
+  },
 }))
 
 vi.mock('@sim/db', () => ({
   db: {
     select: mockSelect,
     update: mockUpdate,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  copilotChats: {
-    id: 'id',
-    userId: 'userId',
-    workspaceId: 'workspaceId',
-    messages: 'messages',
-    conversationId: 'conversationId',
   },
 }))
 
@@ -77,7 +72,7 @@ describe('copilot chat stop route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
 
     mockLimit.mockResolvedValue([
       {
@@ -96,7 +91,7 @@ describe('copilot chat stop route', () => {
   })
 
   it('returns 401 when unauthenticated', async () => {
-    mockGetSession.mockResolvedValueOnce(null)
+    authMockFns.mockGetSession.mockResolvedValueOnce(null)
 
     const response = await POST(
       createRequest({
@@ -155,6 +150,7 @@ describe('copilot chat stop route', () => {
       workspaceId: 'ws-1',
       chatId: 'chat-1',
       type: 'completed',
+      streamId: 'stream-1',
     })
   })
 })

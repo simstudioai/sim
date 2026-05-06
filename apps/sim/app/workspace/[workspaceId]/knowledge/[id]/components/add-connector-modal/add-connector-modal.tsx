@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
-import { ArrowLeft, ArrowLeftRight, Loader2, Plus, Search } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ArrowLeft, ArrowLeftRight, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -12,6 +12,7 @@ import {
   type ComboboxOption,
   Input,
   Label,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
@@ -23,11 +24,11 @@ import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
 import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
-import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/components/connector-selector-field'
+import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
+import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { getDependsOnFields } from '@/blocks/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfig, ConnectorConfigField } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
@@ -57,13 +58,11 @@ export function AddConnectorModal({
 }: AddConnectorModalProps) {
   const [step, setStep] = useState<Step>(() => (initialConnectorType ? 'configure' : 'select-type'))
   const [selectedType, setSelectedType] = useState<string | null>(initialConnectorType ?? null)
-  const [sourceConfig, setSourceConfig] = useState<Record<string, string>>({})
   const [syncInterval, setSyncInterval] = useState(1440)
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
   const [disabledTagIds, setDisabledTagIds] = useState<Set<string>>(() => new Set())
   const [error, setError] = useState<string | null>(null)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
-  const [canonicalModes, setCanonicalModes] = useState<Record<string, 'basic' | 'advanced'>>({})
 
   const [apiKeyValue, setApiKeyValue] = useState('')
   const [apiKeyFocused, setApiKeyFocused] = useState(false)
@@ -100,54 +99,17 @@ export function AddConnectorModal({
   const effectiveCredentialId =
     selectedCredentialId ?? (credentials.length === 1 ? credentials[0].id : null)
 
-  const canonicalGroups = useMemo(() => {
-    if (!connectorConfig) return new Map<string, ConnectorConfigField[]>()
-    const groups = new Map<string, ConnectorConfigField[]>()
-    for (const field of connectorConfig.configFields) {
-      if (field.canonicalParamId) {
-        const existing = groups.get(field.canonicalParamId)
-        if (existing) {
-          existing.push(field)
-        } else {
-          groups.set(field.canonicalParamId, [field])
-        }
-      }
-    }
-    return groups
-  }, [connectorConfig])
-
-  const dependentFieldIds = useMemo(() => {
-    if (!connectorConfig) return new Map<string, string[]>()
-    const map = new Map<string, string[]>()
-    for (const field of connectorConfig.configFields) {
-      const deps = getDependsOnFields(field.dependsOn)
-      for (const dep of deps) {
-        const existing = map.get(dep) ?? []
-        existing.push(field.id)
-        map.set(dep, existing)
-      }
-    }
-    for (const group of canonicalGroups.values()) {
-      const allDependents = new Set<string>()
-      for (const field of group) {
-        for (const dep of map.get(field.id) ?? []) {
-          allDependents.add(dep)
-          const depField = connectorConfig.configFields.find((f) => f.id === dep)
-          if (depField?.canonicalParamId) {
-            for (const sibling of canonicalGroups.get(depField.canonicalParamId) ?? []) {
-              allDependents.add(sibling.id)
-            }
-          }
-        }
-      }
-      if (allDependents.size > 0) {
-        for (const field of group) {
-          map.set(field.id, [...allDependents])
-        }
-      }
-    }
-    return map
-  }, [connectorConfig, canonicalGroups])
+  const {
+    sourceConfig,
+    setSourceConfig,
+    canonicalModes,
+    setCanonicalModes,
+    canonicalGroups,
+    isFieldVisible,
+    handleFieldChange,
+    toggleCanonicalMode,
+    resolveSourceConfig,
+  } = useConnectorConfigFields({ connectorConfig })
 
   const handleSelectType = (type: string) => {
     setSelectedType(type)
@@ -162,64 +124,6 @@ export function AddConnectorModal({
     setStep('configure')
     onConnectorTypeChange?.(type)
   }
-
-  const handleFieldChange = useCallback(
-    (fieldId: string, value: string) => {
-      setSourceConfig((prev) => {
-        const next = { ...prev, [fieldId]: value }
-        const toClear = dependentFieldIds.get(fieldId)
-        if (toClear) {
-          for (const depId of toClear) {
-            next[depId] = ''
-          }
-        }
-        return next
-      })
-    },
-    [dependentFieldIds]
-  )
-
-  const toggleCanonicalMode = useCallback((canonicalId: string) => {
-    setCanonicalModes((prev) => ({
-      ...prev,
-      [canonicalId]: prev[canonicalId] === 'advanced' ? 'basic' : 'advanced',
-    }))
-  }, [])
-
-  const isFieldVisible = useCallback(
-    (field: ConnectorConfigField): boolean => {
-      if (!field.canonicalParamId || !field.mode) return true
-      const activeMode = canonicalModes[field.canonicalParamId] ?? 'basic'
-      return field.mode === activeMode
-    },
-    [canonicalModes]
-  )
-
-  const resolveSourceConfig = useCallback((): Record<string, string> => {
-    const resolved: Record<string, string> = {}
-    const processedCanonicals = new Set<string>()
-
-    if (!connectorConfig) return resolved
-
-    for (const field of connectorConfig.configFields) {
-      if (field.canonicalParamId) {
-        if (processedCanonicals.has(field.canonicalParamId)) continue
-        processedCanonicals.add(field.canonicalParamId)
-
-        const group = canonicalGroups.get(field.canonicalParamId)
-        if (!group) continue
-
-        const activeMode = canonicalModes[field.canonicalParamId] ?? 'basic'
-        const activeField = group.find((f) => f.mode === activeMode) ?? group[0]
-        const value = sourceConfig[activeField.id]
-        if (value) resolved[field.canonicalParamId] = value
-      } else {
-        if (sourceConfig[field.id]) resolved[field.id] = sourceConfig[field.id]
-      }
-    }
-
-    return resolved
-  }, [connectorConfig, canonicalGroups, canonicalModes, sourceConfig])
 
   const canSubmit = useMemo(() => {
     if (!connectorConfig) return false
@@ -249,11 +153,17 @@ export function AddConnectorModal({
 
     setError(null)
 
-    const resolvedConfig = resolveSourceConfig()
-    const finalSourceConfig =
-      disabledTagIds.size > 0
-        ? { ...resolvedConfig, disabledTagIds: Array.from(disabledTagIds) }
-        : resolvedConfig
+    const resolvedConfig: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(resolveSourceConfig())) {
+      if (value) resolvedConfig[key] = value
+    }
+    if (disabledTagIds.size > 0) {
+      resolvedConfig.disabledTagIds = Array.from(disabledTagIds)
+    }
+    if (Object.keys(canonicalModes).length > 0) {
+      resolvedConfig._canonicalModes = canonicalModes
+    }
+    const finalSourceConfig = resolvedConfig
 
     createConnector(
       {
@@ -273,10 +183,6 @@ export function AddConnectorModal({
       }
     )
   }
-
-  const handleConnectNewAccount = useCallback(() => {
-    setShowOAuthModal(true)
-  }, [])
 
   const filteredEntries = useMemo(() => {
     const term = searchTerm.toLowerCase().trim()
@@ -385,9 +291,7 @@ export function AddConnectorModal({
                               : `Connect ${connectorConfig.name} account`,
                           value: '__connect_new__',
                           icon: Plus,
-                          onSelect: () => {
-                            void handleConnectNewAccount()
-                          },
+                          onSelect: () => setShowOAuthModal(true),
                         },
                       ]}
                       value={effectiveCredentialId ?? undefined}
@@ -556,7 +460,7 @@ export function AddConnectorModal({
               <Button variant='primary' onClick={handleSubmit} disabled={!canSubmit || isCreating}>
                 {isCreating ? (
                   <>
-                    <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                    <Loader className='mr-1.5 h-3.5 w-3.5' animate />
                     Connecting...
                   </>
                 ) : (

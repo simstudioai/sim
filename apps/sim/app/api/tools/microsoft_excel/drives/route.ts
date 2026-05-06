@@ -1,8 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { microsoftExcelDrivesSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
+import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validatePathSegment, validateSharePointSiteId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { GRAPH_ID_PATTERN } from '@/tools/microsoft_excel/utils'
 
@@ -22,22 +25,13 @@ interface GraphDrive {
  * Used by the microsoft.excel.drives selector to let users pick
  * which drive contains their Excel file.
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const body = await request.json()
-    const { credential, workflowId, siteId, driveId } = body
-
-    if (!credential) {
-      logger.warn(`[${requestId}] Missing credential in request`)
-      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
-    }
-
-    if (!siteId) {
-      logger.warn(`[${requestId}] Missing siteId in request`)
-      return NextResponse.json({ error: 'Site ID is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(microsoftExcelDrivesSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credential, workflowId, siteId, driveId } = parsed.data.body
 
     const siteIdValidation = validateSharePointSiteId(siteId, 'siteId')
     if (!siteIdValidation.isValid) {
@@ -132,4 +126,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching drives`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

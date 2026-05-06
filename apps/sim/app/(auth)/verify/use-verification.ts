@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { client, useSession } from '@/lib/auth/auth-client'
+import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 
 const logger = createLogger('useVerification')
 
@@ -55,8 +56,11 @@ export function useVerification({
       }
 
       const storedRedirectUrl = sessionStorage.getItem('inviteRedirectUrl')
-      if (storedRedirectUrl) {
+      if (storedRedirectUrl && validateCallbackUrl(storedRedirectUrl)) {
         setRedirectUrl(storedRedirectUrl)
+      } else if (storedRedirectUrl) {
+        logger.warn('Ignoring unsafe stored invite redirect URL', { url: storedRedirectUrl })
+        sessionStorage.removeItem('inviteRedirectUrl')
       }
 
       const storedIsInviteFlow = sessionStorage.getItem('isInviteFlow')
@@ -67,7 +71,11 @@ export function useVerification({
 
     const redirectParam = searchParams.get('redirectAfter')
     if (redirectParam) {
-      setRedirectUrl(redirectParam)
+      if (validateCallbackUrl(redirectParam)) {
+        setRedirectUrl(redirectParam)
+      } else {
+        logger.warn('Ignoring unsafe redirectAfter parameter', { url: redirectParam })
+      }
     }
 
     const inviteFlowParam = searchParams.get('invite_flow')

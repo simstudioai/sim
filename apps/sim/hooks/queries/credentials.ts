@@ -2,8 +2,25 @@
 
 import type { QueryClient } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import type { ContractBodyInput, ContractQueryInput } from '@/lib/api/contracts'
+import {
+  createCredentialDraftContract,
+  createWorkspaceCredentialContract,
+  deleteWorkspaceCredentialContract,
+  getWorkspaceCredentialContract,
+  listWorkspaceCredentialMembersContract,
+  listWorkspaceCredentialsContract,
+  removeWorkspaceCredentialMemberContract,
+  updateWorkspaceCredentialContract,
+  upsertWorkspaceCredentialMemberContract,
+  type WorkspaceCredential,
+  type WorkspaceCredentialMember,
+  type WorkspaceCredentialMemberStatus,
+  type WorkspaceCredentialRole,
+  type WorkspaceCredentialType,
+} from '@/lib/api/contracts'
 import { environmentKeys } from '@/hooks/queries/environment'
-import { fetchJson } from '@/hooks/selectors/helpers'
 
 /**
  * Key prefix for OAuth credential queries.
@@ -11,51 +28,12 @@ import { fetchJson } from '@/hooks/selectors/helpers'
  */
 const OAUTH_CREDENTIALS_KEY = ['oauthCredentials'] as const
 
-export type WorkspaceCredentialType = 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
-export type WorkspaceCredentialRole = 'admin' | 'member'
-export type WorkspaceCredentialMemberStatus = 'active' | 'pending' | 'revoked'
-
-export interface WorkspaceCredential {
-  id: string
-  workspaceId: string
-  type: WorkspaceCredentialType
-  displayName: string
-  description: string | null
-  providerId: string | null
-  accountId: string | null
-  envKey: string | null
-  envOwnerUserId: string | null
-  createdBy: string
-  createdAt: string
-  updatedAt: string
-  role?: WorkspaceCredentialRole
-  status?: WorkspaceCredentialMemberStatus
-}
-
-export interface WorkspaceCredentialMember {
-  id: string
-  userId: string
-  role: WorkspaceCredentialRole
-  status: WorkspaceCredentialMemberStatus
-  joinedAt: string | null
-  invitedBy: string | null
-  createdAt: string
-  updatedAt: string
-  userName: string | null
-  userEmail: string | null
-  userImage: string | null
-}
-
-interface CredentialListResponse {
-  credentials?: WorkspaceCredential[]
-}
-
-interface CredentialResponse {
-  credential?: WorkspaceCredential | null
-}
-
-interface MembersResponse {
-  members?: WorkspaceCredentialMember[]
+export type {
+  WorkspaceCredential,
+  WorkspaceCredentialMember,
+  WorkspaceCredentialMemberStatus,
+  WorkspaceCredentialRole,
+  WorkspaceCredentialType,
 }
 
 export const workspaceCredentialKeys = {
@@ -83,8 +61,8 @@ export async function fetchWorkspaceCredentialList(
   workspaceId: string,
   signal?: AbortSignal
 ): Promise<WorkspaceCredential[]> {
-  const data = await fetchJson<CredentialListResponse>('/api/credentials', {
-    searchParams: { workspaceId },
+  const data = await requestJson(listWorkspaceCredentialsContract, {
+    query: { workspaceId },
     signal,
   })
   return data.credentials ?? []
@@ -114,8 +92,8 @@ export function useWorkspaceCredentials(params: {
     queryKey: workspaceCredentialKeys.list(workspaceId, type, providerId),
     queryFn: async ({ signal }) => {
       if (!workspaceId) return []
-      const data = await fetchJson<CredentialListResponse>('/api/credentials', {
-        searchParams: {
+      const data = await requestJson(listWorkspaceCredentialsContract, {
+        query: {
           workspaceId,
           type,
           providerId,
@@ -134,7 +112,8 @@ export function useWorkspaceCredential(credentialId?: string, enabled = true) {
     queryKey: workspaceCredentialKeys.detail(credentialId),
     queryFn: async ({ signal }) => {
       if (!credentialId) return null
-      const data = await fetchJson<CredentialResponse>(`/api/credentials/${credentialId}`, {
+      const data = await requestJson(getWorkspaceCredentialContract, {
+        params: { id: credentialId },
         signal,
       })
       return data.credential ?? null
@@ -146,22 +125,8 @@ export function useWorkspaceCredential(credentialId?: string, enabled = true) {
 
 export function useCreateCredentialDraft() {
   return useMutation({
-    mutationFn: async (payload: {
-      workspaceId: string
-      providerId: string
-      displayName: string
-      description?: string
-      credentialId?: string
-    }) => {
-      const response = await fetch('/api/credentials/draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to create credential draft')
-      }
+    mutationFn: async (payload: ContractBodyInput<typeof createCredentialDraftContract>) => {
+      await requestJson(createCredentialDraftContract, { body: payload })
     },
   })
 }
@@ -170,29 +135,8 @@ export function useCreateWorkspaceCredential() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (payload: {
-      workspaceId: string
-      type: WorkspaceCredentialType
-      displayName?: string
-      description?: string
-      providerId?: string
-      accountId?: string
-      envKey?: string
-      envOwnerUserId?: string
-      serviceAccountJson?: string
-    }) => {
-      const response = await fetch('/api/credentials', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to create credential')
-      }
-
-      return response.json()
+    mutationFn: async (payload: ContractBodyInput<typeof createWorkspaceCredentialContract>) => {
+      return requestJson(createWorkspaceCredentialContract, { body: payload })
     },
     onSettled: () => {
       queryClient.invalidateQueries({
@@ -209,28 +153,19 @@ export function useUpdateWorkspaceCredential() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (payload: {
-      credentialId: string
-      displayName?: string
-      description?: string | null
-      accountId?: string
-      serviceAccountJson?: string
-    }) => {
-      const response = await fetch(`/api/credentials/${payload.credentialId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    mutationFn: async (
+      payload: {
+        credentialId: string
+      } & ContractBodyInput<typeof updateWorkspaceCredentialContract>
+    ) => {
+      return requestJson(updateWorkspaceCredentialContract, {
+        params: { id: payload.credentialId },
+        body: {
           displayName: payload.displayName,
           description: payload.description,
-          accountId: payload.accountId,
           serviceAccountJson: payload.serviceAccountJson,
-        }),
+        },
       })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to update credential')
-      }
-      return response.json()
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({
@@ -290,14 +225,7 @@ export function useDeleteWorkspaceCredential() {
 
   return useMutation({
     mutationFn: async (credentialId: string) => {
-      const response = await fetch(`/api/credentials/${credentialId}`, {
-        method: 'DELETE',
-      })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to delete credential')
-      }
-      return response.json()
+      return requestJson(deleteWorkspaceCredentialContract, { params: { id: credentialId } })
     },
     onSettled: (_data, _error, credentialId) => {
       queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.detail(credentialId) })
@@ -313,7 +241,8 @@ export function useWorkspaceCredentialMembers(credentialId?: string) {
     queryKey: workspaceCredentialKeys.members(credentialId),
     queryFn: async ({ signal }) => {
       if (!credentialId) return []
-      const data = await fetchJson<MembersResponse>(`/api/credentials/${credentialId}/members`, {
+      const data = await requestJson(listWorkspaceCredentialMembersContract, {
+        params: { id: credentialId },
         signal,
       })
       return data.members ?? []
@@ -327,24 +256,18 @@ export function useUpsertWorkspaceCredentialMember() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (payload: {
-      credentialId: string
-      userId: string
-      role: WorkspaceCredentialRole
-    }) => {
-      const response = await fetch(`/api/credentials/${payload.credentialId}/members`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    mutationFn: async (
+      payload: {
+        credentialId: string
+      } & ContractBodyInput<typeof upsertWorkspaceCredentialMemberContract>
+    ) => {
+      return requestJson(upsertWorkspaceCredentialMemberContract, {
+        params: { id: payload.credentialId },
+        body: {
           userId: payload.userId,
           role: payload.role,
-        }),
+        },
       })
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to update credential member')
-      }
-      return response.json()
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
@@ -361,16 +284,15 @@ export function useRemoveWorkspaceCredentialMember() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (payload: { credentialId: string; userId: string }) => {
-      const response = await fetch(
-        `/api/credentials/${payload.credentialId}/members?userId=${encodeURIComponent(payload.userId)}`,
-        { method: 'DELETE' }
-      )
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to remove credential member')
-      }
-      return response.json()
+    mutationFn: async (
+      payload: {
+        credentialId: string
+      } & ContractQueryInput<typeof removeWorkspaceCredentialMemberContract>
+    ) => {
+      return requestJson(removeWorkspaceCredentialMemberContract, {
+        params: { id: payload.credentialId },
+        query: { userId: payload.userId },
+      })
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({

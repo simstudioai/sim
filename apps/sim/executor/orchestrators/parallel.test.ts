@@ -7,15 +7,6 @@ import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/t
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { ExecutionContext } from '@/executor/types'
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
-
 function createDag(): DAG {
   return {
     nodes: new Map(),

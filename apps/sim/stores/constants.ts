@@ -1,6 +1,6 @@
 export const API_ENDPOINTS = {
   ENVIRONMENT: '/api/environment',
-  SETTINGS: '/api/settings',
+  SETTINGS: '/api/users/me/settings',
   WORKFLOWS: '/api/workflows',
   WORKSPACE_PERMISSIONS: (id: string) => `/api/workspaces/${id}/permissions`,
   WORKSPACE_ENVIRONMENT: (id: string) => `/api/workspaces/${id}/environment`,

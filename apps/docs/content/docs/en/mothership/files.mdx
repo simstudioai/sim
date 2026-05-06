@@ -4,17 +4,16 @@ description: Upload, create, edit, and generate files — documents, presentatio
 ---
 
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
-Describe a document, presentation, image, or visualization and Mothership creates it — streaming the content live into the resource panel as it writes. Attach any file to your message and Mothership reads it, processes it, and saves it to your workspace.
+<Video src="mothership/files-pipeline-deals-summarizer.mp4" width={700} height={450} />
 
-{/* TODO: Screenshot of Mothership with the File Write subagent active — file content streaming into the resource panel in split or preview mode. Shows the live streaming preview experience as a document is being written. */}
+Describe a document, presentation, image, or visualization and Mothership creates it — streaming the content live into the resource panel as it writes. Attach any file to your message and Mothership reads it, processes it, and saves it to your workspace.
 
 ## Uploading Files to the Workspace
 
 Attach any file directly to your Mothership message — drag it into the input, paste it, or click the attachment icon. Mothership reads the file as context and saves it to your workspace.
-
-{/* TODO: Screenshot of the Mothership input area showing a file attached — e.g., a PDF or image thumbnail visible in the input before sending. */}
 
 Use this to:
 - Hand Mothership a document and ask it to process, summarize, or extract data from it
@@ -48,6 +47,8 @@ Open a file using `@filename` or the **+** menu, then describe the change:
 
 ## Presentations
 
+<Image src="/static/mothership/pptx-example.png" alt="Mothership resource panel showing a generated Mothership-Use-Cases.pptx file open with the title slide and first use case slide visible" width={900} height={500} />
+
 Mothership can generate `.pptx` files:
 
 - "Create a pitch deck for Q3 review — 8 slides covering growth, retention, and roadmap"
@@ -57,8 +58,6 @@ Mothership can generate `.pptx` files:
 - "Create an account plan for Acme Corp — their priorities, our solution fit, and proposed next steps"
 
 The file is saved to your workspace and can be downloaded.
-
-{/* TODO: Screenshot of the resource panel with a generated .pptx file open or a download prompt visible, showing the file name and confirming it was saved to the workspace. */}
 
 ## Images
 
@@ -73,7 +72,7 @@ Mothership can generate images using AI, and can use an existing image as a refe
 - Attach an existing image to your message, then describe what you want: "Generate a new version of this banner with a blue color scheme instead of green"
 - "Create a variation of this diagram with the boxes rearranged horizontally [attach image]"
 
-{/* TODO: Screenshot of the resource panel showing a generated image open as a file tab — ideally with the image rendered in the viewer panel. */}
+<Image src="/static/mothership/image-example.png" alt="Mothership resource panel showing a generated hero image of a Mothership-branded blimp flying over San Francisco at golden hour, alongside the chat response linking the file" width={900} height={500} />
 
 Generated images are saved as workspace files.
 
@@ -85,7 +84,7 @@ Mothership can generate charts and data visualizations from data you describe or
 - "Create a line chart of token usage over the past 30 days from this data [paste data]"
 - "Generate a pie chart showing the distribution of lead sources from the leads table"
 
-{/* TODO: Screenshot of a chart or visualization rendered in the resource panel as a file. */}
+<Image src="/static/mothership/chart-example.png" alt="Mothership resource panel showing a generated chart file with bar charts for backend 5xx errors and error rate over time" width={900} height={500} />
 
 Visualizations are saved as files and rendered in the resource panel.
 
@@ -104,7 +103,7 @@ Results come back directly in the chat. Ask Mothership to save the output as a f
 
 When a file opens in the resource panel, you can switch between three views:
 
-{/* TODO: Screenshot of the file viewer in the resource panel showing the mode selector (editor/split/preview), ideally in split mode with a markdown file showing raw content on the left and rendered preview on the right. */}
+<Video src="mothership/toggle-file-view.mp4" width={700} height={450} />
 
 | Mode | What it shows |
 |------|--------------|

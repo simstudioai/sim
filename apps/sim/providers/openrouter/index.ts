@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
@@ -9,6 +10,7 @@ import {
   createReadableStreamFromOpenAIStream,
   supportsNativeStructuredOutputs,
 } from '@/providers/openrouter/utils'
+import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   FunctionCallResponse,
   Message,
@@ -209,7 +211,7 @@ export const openRouterProvider: ProviderConfig = {
                 timeSegments: [
                   {
                     type: 'model',
-                    name: 'Streaming response',
+                    name: request.model,
                     startTime: providerStartTime,
                     endTime: Date.now(),
                     duration: Date.now() - providerStartTime,
@@ -257,7 +259,7 @@ export const openRouterProvider: ProviderConfig = {
       const timeSegments: TimeSegment[] = [
         {
           type: 'model',
-          name: 'Initial response',
+          name: request.model,
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -279,6 +281,14 @@ export const openRouterProvider: ProviderConfig = {
         }
 
         const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          currentResponse,
+          toolCallsInResponse,
+          { model: request.model, provider: 'openrouter' }
+        )
+
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
           break
         }
@@ -311,7 +321,7 @@ export const openRouterProvider: ProviderConfig = {
           } catch (error) {
             const toolCallEndTime = Date.now()
             logger.error('Error processing tool call (OpenRouter):', {
-              error: error instanceof Error ? error.message : String(error),
+              error: toError(error).message,
               toolName,
             })
 
@@ -358,6 +368,7 @@ export const openRouterProvider: ProviderConfig = {
             startTime: startTime,
             endTime: endTime,
             duration: duration,
+            toolCallId: toolCall.id,
           })
 
           let resultContent: any
@@ -423,7 +434,7 @@ export const openRouterProvider: ProviderConfig = {
         const thisModelTime = nextModelEndTime - nextModelStartTime
         timeSegments.push({
           type: 'model',
-          name: `Model response (iteration ${iterationCount + 1})`,
+          name: request.model,
           startTime: nextModelStartTime,
           endTime: nextModelEndTime,
           duration: thisModelTime,
@@ -438,6 +449,15 @@ export const openRouterProvider: ProviderConfig = {
           tokens.total += currentResponse.usage.total_tokens || 0
         }
         iterationCount++
+      }
+
+      if (iterationCount === MAX_TOOL_ITERATIONS) {
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          currentResponse,
+          currentResponse.choices[0]?.message?.tool_calls,
+          { model: request.model, provider: 'openrouter' }
+        )
       }
 
       if (request.stream) {
@@ -572,6 +592,13 @@ export const openRouterProvider: ProviderConfig = {
           tokens.output += finalResponse.usage.completion_tokens || 0
           tokens.total += finalResponse.usage.total_tokens || 0
         }
+
+        enrichLastModelSegmentFromChatCompletions(
+          timeSegments,
+          finalResponse,
+          finalResponse.choices[0]?.message?.tool_calls,
+          { model: request.model, provider: 'openrouter' }
+        )
       }
 
       const providerEndTime = Date.now()
@@ -601,7 +628,7 @@ export const openRouterProvider: ProviderConfig = {
       const totalDuration = providerEndTime - providerStartTime
 
       const errorDetails: Record<string, any> = {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         duration: totalDuration,
       }
       if (error && typeof error === 'object') {
@@ -614,7 +641,7 @@ export const openRouterProvider: ProviderConfig = {
       }
 
       logger.error('Error in OpenRouter request:', errorDetails)
-      throw new ProviderError(error instanceof Error ? error.message : String(error), {
+      throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,
@@ -622,3 +649,8 @@ export const openRouterProvider: ProviderConfig = {
     }
   },
 }
+
+/**
+ * Enriches the last model segment with per-iteration content from a Chat
+ * Completions response: assistant text, tool calls, finish reason, token usage.
+ */

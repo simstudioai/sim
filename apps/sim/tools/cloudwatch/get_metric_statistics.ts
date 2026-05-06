@@ -113,7 +113,22 @@ export const getMetricStatisticsTool: ToolConfig<
   },
 
   outputs: {
-    label: { type: 'string', description: 'Metric label' },
-    datapoints: { type: 'array', description: 'Datapoints with timestamp and statistics values' },
+    label: { type: 'string', description: 'Metric label returned by CloudWatch' },
+    datapoints: {
+      type: 'array',
+      description: 'Datapoints sorted by timestamp with statistics values',
+      items: {
+        type: 'object',
+        properties: {
+          timestamp: { type: 'number', description: 'Datapoint timestamp in epoch milliseconds' },
+          average: { type: 'number', description: 'Average statistic value' },
+          sum: { type: 'number', description: 'Sum statistic value' },
+          minimum: { type: 'number', description: 'Minimum statistic value' },
+          maximum: { type: 'number', description: 'Maximum statistic value' },
+          sampleCount: { type: 'number', description: 'Sample count statistic value' },
+          unit: { type: 'string', description: 'Unit of the metric' },
+        },
+      },
+    },
   },
 }

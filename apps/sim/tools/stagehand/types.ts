@@ -247,6 +247,8 @@ export interface StagehandAgentParams {
   variables?: Record<string, string>
   provider?: 'openai' | 'anthropic'
   apiKey: string
+  mode?: 'dom' | 'hybrid' | 'cua'
+  maxSteps?: number
   options?: {
     useTextExtract?: boolean
     selector?: string
@@ -286,6 +288,8 @@ export interface StagehandAgentResponse extends ToolResponse {
   output: {
     agentResult: StagehandAgentResult
     structuredOutput?: Record<string, any>
+    liveViewUrl?: string | null
+    sessionId?: string | null
   }
 }
 

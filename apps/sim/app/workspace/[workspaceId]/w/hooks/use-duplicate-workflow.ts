@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useDuplicateWorkflowMutation } from '@/hooks/queries/workflows'

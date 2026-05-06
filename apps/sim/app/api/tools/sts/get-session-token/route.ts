@@ -1,34 +1,29 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { awsStsGetSessionTokenContract } from '@/lib/api/contracts/tools/aws/sts-get-session-token'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createSTSClient, getSessionToken } from '../utils'
 
 const logger = createLogger('STSGetSessionTokenAPI')
 
-const GetSessionTokenSchema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  durationSeconds: z.number().int().min(900).max(129600).nullish(),
-  serialNumber: z.string().nullish(),
-  tokenCode: z.string().nullish(),
-})
-
-export async function POST(request: NextRequest) {
-  const requestId = generateId().slice(0, 8)
-
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const body = await request.json()
-    const params = GetSessionTokenSchema.parse(body)
+    const parsed = await parseToolRequest(awsStsGetSessionTokenContract, request, {
+      errorFormat: 'details',
+      logger,
+    })
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
 
-    logger.info(`[${requestId}] Getting session token`)
+    logger.info('Getting session token')
 
     const client = createSTSClient({
       region: params.region,
@@ -44,27 +39,18 @@ export async function POST(request: NextRequest) {
         params.tokenCode
       )
 
-      logger.info(`[${requestId}] Session token retrieved successfully`)
+      logger.info('Session token retrieved successfully')
 
       return NextResponse.json(result)
     } finally {
       client.destroy()
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-    logger.error(`[${requestId}] Failed to get session token:`, error)
+    logger.error('Failed to get session token', { error: toError(error).message })
 
     return NextResponse.json(
-      { error: `Failed to get session token: ${errorMessage}` },
+      { error: `Failed to get session token: ${toError(error).message}` },
       { status: 500 }
     )
   }
-}
+})

@@ -3,28 +3,13 @@ import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { updateUserProfileContract } from '@/lib/api/contracts'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UpdateUserProfileAPI')
-
-const UpdateProfileSchema = z
-  .object({
-    name: z.string().min(1, 'Name is required').optional(),
-    image: z
-      .string()
-      .refine(
-        (val) => {
-          return val.startsWith('http://') || val.startsWith('https://') || val.startsWith('/api/')
-        },
-        { message: 'Invalid image URL' }
-      )
-      .optional(),
-  })
-  .refine((data) => data.name !== undefined || data.image !== undefined, {
-    message: 'At least one field (name or image) must be provided',
-  })
 
 interface UpdateData {
   updatedAt: Date
@@ -34,7 +19,7 @@ interface UpdateData {
 
 export const dynamic = 'force-dynamic'
 
-export async function PATCH(request: NextRequest) {
+export const PATCH = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -46,9 +31,10 @@ export async function PATCH(request: NextRequest) {
     }
 
     const userId = session.user.id
-    const body = await request.json()
 
-    const validatedData = UpdateProfileSchema.parse(body)
+    const parsed = await parseRequest(updateUserProfileContract, request, {})
+    if (!parsed.success) return parsed.response
+    const validatedData = parsed.data.body
 
     const updateData: UpdateData = { updatedAt: new Date() }
     if (validatedData.name !== undefined) updateData.name = validatedData.name
@@ -79,23 +65,13 @@ export async function PATCH(request: NextRequest) {
       },
     })
   } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid profile data`, {
-        errors: error.errors,
-      })
-      return NextResponse.json(
-        { error: 'Invalid profile data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     logger.error(`[${requestId}] Profile update error`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 // GET endpoint to fetch current user profile
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   const requestId = generateRequestId()
 
   try {
@@ -131,4 +107,4 @@ export async function GET() {
     logger.error(`[${requestId}] Profile fetch error`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

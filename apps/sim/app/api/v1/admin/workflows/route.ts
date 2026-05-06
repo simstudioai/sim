@@ -14,36 +14,38 @@ import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count } from 'drizzle-orm'
+import { adminV1ListWorkflowsContract } from '@/lib/api/contracts/v1/admin'
+import { parseRequest } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import { internalErrorResponse, listResponse } from '@/app/api/v1/admin/responses'
-import {
-  type AdminWorkflow,
-  createPaginationMeta,
-  parsePaginationParams,
-  toAdminWorkflow,
-} from '@/app/api/v1/admin/types'
+import { type AdminWorkflow, createPaginationMeta, toAdminWorkflow } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkflowsAPI')
 
-export const GET = withAdminAuth(async (request) => {
-  const url = new URL(request.url)
-  const { limit, offset } = parsePaginationParams(url)
+export const GET = withRouteHandler(
+  withAdminAuth(async (request) => {
+    const parsed = await parseRequest(adminV1ListWorkflowsContract, request, {})
+    if (!parsed.success) return parsed.response
 
-  try {
-    const [countResult, workflows] = await Promise.all([
-      db.select({ total: count() }).from(workflow),
-      db.select().from(workflow).orderBy(workflow.name).limit(limit).offset(offset),
-    ])
+    const { limit, offset } = parsed.data.query
 
-    const total = countResult[0].total
-    const data: AdminWorkflow[] = workflows.map(toAdminWorkflow)
-    const pagination = createPaginationMeta(total, limit, offset)
+    try {
+      const [countResult, workflows] = await Promise.all([
+        db.select({ total: count() }).from(workflow),
+        db.select().from(workflow).orderBy(workflow.name).limit(limit).offset(offset),
+      ])
 
-    logger.info(`Admin API: Listed ${data.length} workflows (total: ${total})`)
+      const total = countResult[0].total
+      const data: AdminWorkflow[] = workflows.map(toAdminWorkflow)
+      const pagination = createPaginationMeta(total, limit, offset)
 
-    return listResponse(data, pagination)
-  } catch (error) {
-    logger.error('Admin API: Failed to list workflows', { error })
-    return internalErrorResponse('Failed to list workflows')
-  }
-})
+      logger.info(`Admin API: Listed ${data.length} workflows (total: ${total})`)
+
+      return listResponse(data, pagination)
+    } catch (error) {
+      logger.error('Admin API: Failed to list workflows', { error })
+      return internalErrorResponse('Failed to list workflows')
+    }
+  })
+)

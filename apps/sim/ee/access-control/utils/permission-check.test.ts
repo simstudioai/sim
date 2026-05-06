@@ -1,14 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { databaseMock, drizzleOrmMock, loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   mockGetAllowedIntegrationsFromEnv,
-  mockIsOrganizationOnEnterprisePlan,
+  mockIsWorkspaceOnEnterprisePlan,
   mockGetProviderFromModel,
+  mockDbGroupMembership,
 } = vi.hoisted(() => ({
   DEFAULT_PERMISSION_GROUP_CONFIG: {
     allowedIntegrations: null,
@@ -21,12 +21,10 @@ const {
     hideSecretsTab: false,
     hideApiKeysTab: false,
     hideInboxTab: false,
-    hideEnvironmentTab: false,
     hideFilesTab: false,
     disableMcpTools: false,
     disableCustomTools: false,
     disableSkills: false,
-    hideTemplates: false,
     disableInvitations: false,
     disablePublicApi: false,
     hideDeployApi: false,
@@ -36,22 +34,48 @@ const {
     hideDeployTemplate: false,
   },
   mockGetAllowedIntegrationsFromEnv: vi.fn<() => string[] | null>(),
-  mockIsOrganizationOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
+  mockIsWorkspaceOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
   mockGetProviderFromModel: vi.fn<(model: string) => string>(),
+  mockDbGroupMembership: { value: [] as Array<{ config: Record<string, unknown> }> },
 }))
 
-vi.mock('@sim/db', () => databaseMock)
-vi.mock('@sim/db/schema', () => ({}))
-vi.mock('@sim/logger', () => loggerMock)
-vi.mock('drizzle-orm', () => drizzleOrmMock)
-vi.mock('@/lib/billing', () => ({
-  isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
+vi.mock('@sim/db', () => ({
+  db: {
+    select: vi.fn().mockImplementation(() => {
+      const chain: Record<string, unknown> = {}
+      chain.from = vi.fn().mockReturnValue(chain)
+      chain.innerJoin = vi.fn().mockReturnValue(chain)
+      chain.where = vi.fn().mockReturnValue(chain)
+      chain.orderBy = vi.fn().mockReturnValue(chain)
+      chain.limit = vi.fn().mockImplementation(() => Promise.resolve(mockDbGroupMembership.value))
+      return chain
+    }),
+  },
 }))
+
+vi.mock('@sim/db/schema', () => ({
+  permissionGroup: {},
+  permissionGroupMember: {},
+}))
+
+vi.mock('drizzle-orm', () => ({
+  and: vi.fn(),
+  eq: vi.fn(),
+  asc: vi.fn(),
+}))
+
+vi.mock('@/lib/billing', () => ({
+  isWorkspaceOnEnterprisePlan: mockIsWorkspaceOnEnterprisePlan,
+}))
+
 vi.mock('@/lib/core/config/feature-flags', () => ({
   getAllowedIntegrationsFromEnv: mockGetAllowedIntegrationsFromEnv,
-  isAccessControlEnabled: false,
-  isHosted: false,
+  isAccessControlEnabled: true,
+  isHosted: true,
+  isInvitationsDisabled: false,
+  isPublicApiDisabled: false,
 }))
+
 vi.mock('@/lib/permission-groups/types', () => ({
   DEFAULT_PERMISSION_GROUP_CONFIG,
   parsePermissionGroupConfig: (config: unknown) => {
@@ -59,14 +83,22 @@ vi.mock('@/lib/permission-groups/types', () => ({
     return { ...DEFAULT_PERMISSION_GROUP_CONFIG, ...config }
   },
 }))
+
 vi.mock('@/providers/utils', () => ({
   getProviderFromModel: mockGetProviderFromModel,
 }))
 
 import {
+  assertPermissionsAllowed,
+  CustomToolsNotAllowedError,
   getUserPermissionConfig,
   IntegrationNotAllowedError,
+  McpToolsNotAllowedError,
+  ProviderNotAllowedError,
+  SkillsNotAllowedError,
   validateBlockType,
+  validateMcpToolsAllowed,
+  validateModelProvider,
 } from './permission-check'
 
 describe('IntegrationNotAllowedError', () => {
@@ -88,88 +120,32 @@ describe('IntegrationNotAllowedError', () => {
 describe('getUserPermissionConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockDbGroupMembership.value = []
   })
 
-  it('returns null when no env allowlist is configured', async () => {
-    mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
-
-    const config = await getUserPermissionConfig('user-123')
-
-    expect(config).toBeNull()
-  })
-
-  it('returns config with env allowlist when configured', async () => {
-    mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack', 'gmail'])
-
-    const config = await getUserPermissionConfig('user-123')
-
-    expect(config).not.toBeNull()
-    expect(config!.allowedIntegrations).toEqual(['slack', 'gmail'])
-  })
-
-  it('preserves default values for non-allowlist fields', async () => {
+  it('returns env allowlist config when access control is disabled locally', async () => {
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack'])
 
-    const config = await getUserPermissionConfig('user-123')
-
-    expect(config!.disableMcpTools).toBe(false)
-    expect(config!.allowedModelProviders).toBeNull()
-  })
-})
-
-describe('env allowlist fallback when userId is absent', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('returns null allowlist when no userId and no env allowlist', async () => {
-    mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
-
-    const userId: string | undefined = undefined
-    const permissionConfig = userId ? await getUserPermissionConfig(userId) : null
-    const allowedIntegrations =
-      permissionConfig?.allowedIntegrations ?? mockGetAllowedIntegrationsFromEnv()
-
-    expect(allowedIntegrations).toBeNull()
-  })
-
-  it('falls back to env allowlist when no userId is provided', async () => {
-    mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack', 'gmail'])
-
-    const userId: string | undefined = undefined
-    const permissionConfig = userId ? await getUserPermissionConfig(userId) : null
-    const allowedIntegrations =
-      permissionConfig?.allowedIntegrations ?? mockGetAllowedIntegrationsFromEnv()
-
-    expect(allowedIntegrations).toEqual(['slack', 'gmail'])
-  })
-
-  it('env allowlist filters block types when userId is absent', async () => {
-    mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack', 'gmail'])
-
-    const userId: string | undefined = undefined
-    const permissionConfig = userId ? await getUserPermissionConfig(userId) : null
-    const allowedIntegrations =
-      permissionConfig?.allowedIntegrations ?? mockGetAllowedIntegrationsFromEnv()
-
-    expect(allowedIntegrations).not.toBeNull()
-    expect(allowedIntegrations!.includes('slack')).toBe(true)
-    expect(allowedIntegrations!.includes('discord')).toBe(false)
-  })
-
-  it('uses permission config when userId is present, ignoring env fallback', async () => {
-    mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack', 'gmail'])
-
-    const config = await getUserPermissionConfig('user-123')
+    const config = await getUserPermissionConfig('user-123', 'workspace-1')
 
     expect(config).not.toBeNull()
-    expect(config!.allowedIntegrations).toEqual(['slack', 'gmail'])
+    expect(config!.allowedIntegrations).toEqual(['slack'])
+  })
+
+  it('returns env allowlist config when workspace is not on enterprise plan', async () => {
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
+    mockIsWorkspaceOnEnterprisePlan.mockResolvedValue(false)
+
+    const config = await getUserPermissionConfig('user-123', 'workspace-1')
+
+    expect(config).toBeNull()
   })
 })
 
 describe('validateBlockType', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockDbGroupMembership.value = []
   })
 
   describe('when no env allowlist is configured', () => {
@@ -178,15 +154,15 @@ describe('validateBlockType', () => {
     })
 
     it('allows any block type', async () => {
-      await validateBlockType(undefined, 'google_drive')
+      await validateBlockType(undefined, undefined, 'google_drive')
     })
 
     it('allows multi-word block types', async () => {
-      await validateBlockType(undefined, 'microsoft_excel')
+      await validateBlockType(undefined, undefined, 'microsoft_excel')
     })
 
     it('always allows start_trigger', async () => {
-      await validateBlockType(undefined, 'start_trigger')
+      await validateBlockType(undefined, undefined, 'start_trigger')
     })
   })
 
@@ -200,71 +176,156 @@ describe('validateBlockType', () => {
     })
 
     it('allows block types on the allowlist', async () => {
-      await validateBlockType(undefined, 'slack')
-      await validateBlockType(undefined, 'google_drive')
-      await validateBlockType(undefined, 'microsoft_excel')
+      await validateBlockType(undefined, undefined, 'slack')
+      await validateBlockType(undefined, undefined, 'google_drive')
+      await validateBlockType(undefined, undefined, 'microsoft_excel')
     })
 
     it('rejects block types not on the allowlist', async () => {
-      await expect(validateBlockType(undefined, 'discord')).rejects.toThrow(
+      await expect(validateBlockType(undefined, undefined, 'discord')).rejects.toThrow(
         IntegrationNotAllowedError
       )
     })
 
     it('always allows start_trigger regardless of allowlist', async () => {
-      await validateBlockType(undefined, 'start_trigger')
+      await validateBlockType(undefined, undefined, 'start_trigger')
     })
 
     it('matches case-insensitively', async () => {
-      await validateBlockType(undefined, 'Slack')
-      await validateBlockType(undefined, 'GOOGLE_DRIVE')
+      await validateBlockType(undefined, undefined, 'Slack')
+      await validateBlockType(undefined, undefined, 'GOOGLE_DRIVE')
     })
 
     it('includes env reason in error when env allowlist is the source', async () => {
-      await expect(validateBlockType(undefined, 'discord')).rejects.toThrow(/ALLOWED_INTEGRATIONS/)
+      await expect(validateBlockType(undefined, undefined, 'discord')).rejects.toThrow(
+        /ALLOWED_INTEGRATIONS/
+      )
     })
 
-    it('includes env reason even when userId is present if env is the source', async () => {
-      await expect(validateBlockType('user-123', 'discord')).rejects.toThrow(/ALLOWED_INTEGRATIONS/)
+    it('includes env reason even when a workspace is in context', async () => {
+      await expect(validateBlockType('user-123', 'workspace-1', 'discord')).rejects.toThrow(
+        /ALLOWED_INTEGRATIONS/
+      )
     })
   })
 })
 
-describe('service ID to block type normalization', () => {
-  it.concurrent('hyphenated service IDs match underscore block types after normalization', () => {
-    const allowedBlockTypes = [
-      'google_drive',
-      'microsoft_excel',
-      'microsoft_teams',
-      'google_sheets',
-      'google_docs',
-      'google_calendar',
-      'google_forms',
-      'microsoft_planner',
-    ]
-    const serviceIds = [
-      'google-drive',
-      'microsoft-excel',
-      'microsoft-teams',
-      'google-sheets',
-      'google-docs',
-      'google-calendar',
-      'google-forms',
-      'microsoft-planner',
-    ]
-
-    for (const serviceId of serviceIds) {
-      const normalized = serviceId.replace(/-/g, '_')
-      expect(allowedBlockTypes).toContain(normalized)
-    }
+describe('validateModelProvider', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
+    mockIsWorkspaceOnEnterprisePlan.mockResolvedValue(true)
   })
 
-  it.concurrent('single-word service IDs are unaffected by normalization', () => {
-    const serviceIds = ['slack', 'gmail', 'notion', 'discord', 'jira', 'trello']
+  it('no-ops when user or workspace is missing', async () => {
+    await validateModelProvider(undefined, 'workspace-1', 'gpt-4')
+    await validateModelProvider('user-123', undefined, 'gpt-4')
+  })
 
-    for (const serviceId of serviceIds) {
-      const normalized = serviceId.replace(/-/g, '_')
-      expect(normalized).toBe(serviceId)
-    }
+  it('throws ProviderNotAllowedError when provider is not in allowlist', async () => {
+    mockDbGroupMembership.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
+    mockGetProviderFromModel.mockReturnValue('openai')
+
+    await expect(validateModelProvider('user-123', 'workspace-1', 'gpt-4')).rejects.toBeInstanceOf(
+      ProviderNotAllowedError
+    )
+  })
+
+  it('allows when provider is on the allowlist', async () => {
+    mockDbGroupMembership.value = [{ config: { allowedModelProviders: ['anthropic', 'openai'] } }]
+    mockGetProviderFromModel.mockReturnValue('openai')
+
+    await validateModelProvider('user-123', 'workspace-1', 'gpt-4')
+  })
+})
+
+describe('validateMcpToolsAllowed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
+    mockIsWorkspaceOnEnterprisePlan.mockResolvedValue(true)
+  })
+
+  it('throws McpToolsNotAllowedError when disableMcpTools is set', async () => {
+    mockDbGroupMembership.value = [{ config: { disableMcpTools: true } }]
+
+    await expect(validateMcpToolsAllowed('user-123', 'workspace-1')).rejects.toBeInstanceOf(
+      McpToolsNotAllowedError
+    )
+  })
+
+  it('no-ops when disableMcpTools is false', async () => {
+    mockDbGroupMembership.value = [{ config: {} }]
+
+    await validateMcpToolsAllowed('user-123', 'workspace-1')
+  })
+})
+
+describe('assertPermissionsAllowed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
+    mockIsWorkspaceOnEnterprisePlan.mockResolvedValue(true)
+  })
+
+  it('throws ProviderNotAllowedError when model provider is blocked', async () => {
+    mockDbGroupMembership.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
+    mockGetProviderFromModel.mockReturnValue('openai')
+
+    await expect(
+      assertPermissionsAllowed({
+        userId: 'user-123',
+        workspaceId: 'workspace-1',
+        model: 'gpt-4',
+      })
+    ).rejects.toBeInstanceOf(ProviderNotAllowedError)
+  })
+
+  it('throws IntegrationNotAllowedError when block type is blocked', async () => {
+    mockDbGroupMembership.value = [{ config: { allowedIntegrations: ['slack'] } }]
+
+    await expect(
+      assertPermissionsAllowed({
+        userId: 'user-123',
+        workspaceId: 'workspace-1',
+        blockType: 'discord',
+      })
+    ).rejects.toBeInstanceOf(IntegrationNotAllowedError)
+  })
+
+  it('throws CustomToolsNotAllowedError when custom tools are disabled', async () => {
+    mockDbGroupMembership.value = [{ config: { disableCustomTools: true } }]
+
+    await expect(
+      assertPermissionsAllowed({
+        userId: 'user-123',
+        workspaceId: 'workspace-1',
+        toolKind: 'custom',
+      })
+    ).rejects.toBeInstanceOf(CustomToolsNotAllowedError)
+  })
+
+  it('throws SkillsNotAllowedError when skills are disabled', async () => {
+    mockDbGroupMembership.value = [{ config: { disableSkills: true } }]
+
+    await expect(
+      assertPermissionsAllowed({
+        userId: 'user-123',
+        workspaceId: 'workspace-1',
+        toolKind: 'skill',
+      })
+    ).rejects.toBeInstanceOf(SkillsNotAllowedError)
+  })
+
+  it('passes when the workspace has no blocking config', async () => {
+    mockDbGroupMembership.value = []
+
+    await assertPermissionsAllowed({
+      userId: 'user-123',
+      workspaceId: 'workspace-1',
+      model: 'gpt-4',
+      blockType: 'slack',
+      toolKind: 'mcp',
+    })
   })
 })

@@ -4,17 +4,12 @@
  * @vitest-environment node
  */
 
-import { databaseMock, loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => databaseMock)
 
 vi.mock('@/lib/oauth/oauth', () => ({
   refreshOAuthToken: vi.fn(),
   OAUTH_PROVIDERS: {},
 }))
-
-vi.mock('@sim/logger', () => loggerMock)
 
 import { db } from '@sim/db'
 import { refreshOAuthToken } from '@/lib/oauth'

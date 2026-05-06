@@ -78,26 +78,6 @@ function handleInvitationRedirects(
 }
 
 /**
- * Handles workspace invitation API endpoint access
- */
-function handleWorkspaceInvitationAPI(
-  request: NextRequest,
-  hasActiveSession: boolean
-): NextResponse | null {
-  if (!request.nextUrl.pathname.startsWith('/api/workspaces/invitations')) {
-    return null
-  }
-
-  if (request.nextUrl.pathname.includes('/accept') && !hasActiveSession) {
-    const token = request.nextUrl.searchParams.get('token')
-    if (token) {
-      return NextResponse.redirect(new URL(`/invite/${token}?token=${token}`, request.url))
-    }
-  }
-  return NextResponse.next()
-}
-
-/**
  * Handles security filtering for suspicious user agents
  */
 function handleSecurityFiltering(request: NextRequest): NextResponse | null {
@@ -187,9 +167,6 @@ export async function proxy(request: NextRequest) {
 
   const invitationRedirect = handleInvitationRedirects(request, hasActiveSession)
   if (invitationRedirect) return track(request, invitationRedirect)
-
-  const workspaceInvitationRedirect = handleWorkspaceInvitationAPI(request, hasActiveSession)
-  if (workspaceInvitationRedirect) return track(request, workspaceInvitationRedirect)
 
   const securityBlock = handleSecurityFiltering(request)
   if (securityBlock) return track(request, securityBlock)

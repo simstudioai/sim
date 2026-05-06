@@ -525,7 +525,6 @@ export interface ConfluenceUpdateParams {
   pageId: string
   title?: string
   content?: string
-  version?: number
   cloudId?: string
 }
 

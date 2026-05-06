@@ -3,9 +3,12 @@ import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { gmailLabelsSelectorContract } from '@/lib/api/contracts/selectors/google'
+import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getScopesForService } from '@/lib/oauth/utils'
 import {
   getServiceAccountToken,
@@ -25,7 +28,7 @@ interface GmailLabel {
   messagesUnread?: number
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -36,15 +39,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-    const query = searchParams.get('query')
-    const impersonateEmail = searchParams.get('impersonateEmail') || undefined
-
-    if (!credentialId) {
-      logger.warn(`[${requestId}] Missing credentialId parameter`)
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
-    }
+    const parsed = await parseRequest(gmailLabelsSelectorContract, request, {})
+    if (!parsed.success) return parsed.response
+    const { credentialId, query } = parsed.data.query
+    const impersonateEmail = parsed.data.query.impersonateEmail || undefined
 
     const credentialIdValidation = validateAlphanumericId(credentialId, 'credentialId', 255)
     if (!credentialIdValidation.isValid) {
@@ -163,4 +161,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching Gmail labels:`, error)
     return NextResponse.json({ error: 'Failed to fetch Gmail labels' }, { status: 500 })
   }
-}
+})

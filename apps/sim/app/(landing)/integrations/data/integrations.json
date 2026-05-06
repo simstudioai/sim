@@ -209,6 +209,113 @@
     "tags": ["messaging"]
   },
   {
+    "type": "agentphone",
+    "slug": "agentphone",
+    "name": "AgentPhone",
+    "description": "Provision numbers, send SMS and iMessage, and place voice calls with AgentPhone",
+    "longDescription": "Give your workflow a phone. Provision SMS- and voice-enabled numbers, send messages and tapback reactions, place outbound voice calls, manage conversations and contacts, and track usage — all through a single AgentPhone API key.",
+    "bgColor": "linear-gradient(135deg, #1a1a1a 0%, #0a2a14 100%)",
+    "iconName": "AgentPhoneIcon",
+    "docsUrl": "https://docs.sim.ai/tools/agentphone",
+    "operations": [
+      {
+        "name": "Create Number",
+        "description": "Provision a new SMS- and voice-enabled phone number"
+      },
+      {
+        "name": "List Numbers",
+        "description": "List all phone numbers provisioned for this AgentPhone account"
+      },
+      {
+        "name": "Release Number",
+        "description": "Release (delete) a phone number. This action is irreversible."
+      },
+      {
+        "name": "Get Number Messages",
+        "description": "Fetch messages received on a specific phone number"
+      },
+      {
+        "name": "Create Call",
+        "description": "Initiate an outbound voice call from an AgentPhone agent"
+      },
+      {
+        "name": "List Calls",
+        "description": "List voice calls for this AgentPhone account"
+      },
+      {
+        "name": "Get Call",
+        "description": "Fetch a call and its full transcript"
+      },
+      {
+        "name": "Get Call Transcript",
+        "description": "Get the full ordered transcript for a call"
+      },
+      {
+        "name": "List Conversations",
+        "description": "List conversations (message threads) for this AgentPhone account"
+      },
+      {
+        "name": "Get Conversation",
+        "description": "Get a conversation along with its recent messages"
+      },
+      {
+        "name": "Update Conversation",
+        "description": "Update conversation metadata (stored state). Pass null to clear existing metadata."
+      },
+      {
+        "name": "Get Conversation Messages",
+        "description": "Get paginated messages for a conversation"
+      },
+      {
+        "name": "Send Message",
+        "description": "Send an outbound SMS or iMessage from an AgentPhone agent"
+      },
+      {
+        "name": "React to Message",
+        "description": "Send an iMessage tapback reaction to a message (iMessage only)"
+      },
+      {
+        "name": "Create Contact",
+        "description": "Create a new contact in AgentPhone"
+      },
+      {
+        "name": "List Contacts",
+        "description": "List contacts for this AgentPhone account"
+      },
+      {
+        "name": "Get Contact",
+        "description": "Fetch a single contact by ID"
+      },
+      {
+        "name": "Update Contact",
+        "description": "Update a contact"
+      },
+      {
+        "name": "Delete Contact",
+        "description": "Delete a contact by ID"
+      },
+      {
+        "name": "Get Usage",
+        "description": "Retrieve current usage statistics for the AgentPhone account"
+      },
+      {
+        "name": "Get Daily Usage",
+        "description": "Get a daily breakdown of usage (messages, calls, webhooks) for the last N days"
+      },
+      {
+        "name": "Get Monthly Usage",
+        "description": "Get monthly usage aggregation (messages, calls, webhooks) for the last N months"
+      }
+    ],
+    "operationCount": 22,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["communication", "developer-tools"],
+    "tags": ["messaging", "automation"]
+  },
+  {
     "type": "agiloft",
     "slug": "agiloft",
     "name": "Agiloft",
@@ -484,7 +591,7 @@
     "type": "dynamodb",
     "slug": "amazon-dynamodb",
     "name": "Amazon DynamoDB",
-    "description": "Connect to Amazon DynamoDB",
+    "description": "Get, put, query, scan, update, and delete items in Amazon DynamoDB tables",
     "longDescription": "Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.",
     "bgColor": "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)",
     "iconName": "DynamoDBIcon",
@@ -924,7 +1031,7 @@
       },
       {
         "name": "List Applications",
-        "description": "Lists all applications in an Ashby organization with pagination and optional filters for status, job, candidate, and creation date."
+        "description": "Lists all applications in an Ashby organization with pagination and optional filters for status, job, and creation date."
       },
       {
         "name": "Get Application",
@@ -944,11 +1051,11 @@
       },
       {
         "name": "Add Candidate Tag",
-        "description": "Adds a tag to a candidate in Ashby."
+        "description": "Adds a tag to a candidate in Ashby and returns the updated candidate."
       },
       {
         "name": "Remove Candidate Tag",
-        "description": "Removes a tag from a candidate in Ashby."
+        "description": "Removes a tag from a candidate in Ashby and returns the updated candidate."
       },
       {
         "name": "Get Offer",
@@ -1464,14 +1571,93 @@
       {
         "name": "Remove User from Group",
         "description": "Remove an IAM user from a group"
+      },
+      {
+        "name": "List Attached Role Policies",
+        "description": "List all managed policies attached to an IAM role"
+      },
+      {
+        "name": "List Attached User Policies",
+        "description": "List all managed policies attached to an IAM user"
+      },
+      {
+        "name": "Simulate Principal Policy",
+        "description": "Simulate whether a user, role, or group is allowed to perform specific AWS actions — useful for pre-flight access checks"
       }
     ],
-    "operationCount": 18,
+    "operationCount": 21,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
     "integrationTypes": ["developer-tools", "security"],
+    "tags": ["cloud", "identity"]
+  },
+  {
+    "type": "identity_center",
+    "slug": "aws-identity-center",
+    "name": "AWS Identity Center",
+    "description": "Manage temporary elevated access in AWS IAM Identity Center",
+    "longDescription": "Provision and revoke temporary access to AWS accounts via IAM Identity Center (SSO). Assign permission sets to users or groups, look up users by email, and list accounts and permission sets for access request workflows.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "IdentityCenterIcon",
+    "docsUrl": "https://docs.sim.ai/tools/identity-center",
+    "operations": [
+      {
+        "name": "List Instances",
+        "description": "List all AWS IAM Identity Center instances in your account"
+      },
+      {
+        "name": "List Accounts",
+        "description": "List all AWS accounts in your organization"
+      },
+      {
+        "name": "Describe Account",
+        "description": "Retrieve details about a specific AWS account by its ID"
+      },
+      {
+        "name": "List Permission Sets",
+        "description": "List all permission sets defined in an IAM Identity Center instance"
+      },
+      {
+        "name": "Get User",
+        "description": "Look up a user in the Identity Store by email address"
+      },
+      {
+        "name": "Get Group",
+        "description": "Look up a group in the Identity Store by display name"
+      },
+      {
+        "name": "List Groups",
+        "description": "List all groups in the Identity Store"
+      },
+      {
+        "name": "Create Account Assignment",
+        "description": "Grant a user or group access to an AWS account via a permission set (temporary elevated access)"
+      },
+      {
+        "name": "Delete Account Assignment",
+        "description": "Revoke a user or group access to an AWS account by removing a permission set assignment"
+      },
+      {
+        "name": "Check Assignment Status",
+        "description": "Check the provisioning status of an account assignment creation request"
+      },
+      {
+        "name": "Check Assignment Deletion Status",
+        "description": "Check the deprovisioning status of an account assignment deletion request"
+      },
+      {
+        "name": "List Account Assignments",
+        "description": "List all account assignments for a specific user or group across all accounts"
+      }
+    ],
+    "operationCount": 12,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["security", "developer-tools"],
     "tags": ["cloud", "identity"]
   },
   {
@@ -1512,6 +1698,61 @@
     "category": "tools",
     "integrationTypes": ["developer-tools", "security"],
     "tags": ["cloud", "secrets-management"]
+  },
+  {
+    "type": "ses",
+    "slug": "aws-ses",
+    "name": "AWS SES",
+    "description": "Send emails and manage templates with AWS Simple Email Service",
+    "longDescription": "Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates and retrieve account sending quota and verified identity information.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "SESIcon",
+    "docsUrl": "https://docs.sim.ai/tools/ses",
+    "operations": [
+      {
+        "name": "Send Email",
+        "description": "Send an email via AWS SES using simple or HTML content"
+      },
+      {
+        "name": "Send Templated Email",
+        "description": "Send an email using an SES email template with dynamic template data"
+      },
+      {
+        "name": "Send Bulk Email",
+        "description": "Send emails to multiple recipients using an SES template with per-recipient data"
+      },
+      {
+        "name": "List Identities",
+        "description": "List all verified email identities (email addresses and domains) in your SES account"
+      },
+      {
+        "name": "Get Account",
+        "description": "Get SES account sending quota and status information"
+      },
+      {
+        "name": "Create Template",
+        "description": "Create a new SES email template for use with templated email sending"
+      },
+      {
+        "name": "Get Template",
+        "description": "Retrieve the content and details of an SES email template"
+      },
+      {
+        "name": "List Templates",
+        "description": "List all SES email templates in your account"
+      },
+      {
+        "name": "Delete Template",
+        "description": "Delete an existing SES email template"
+      }
+    ],
+    "operationCount": 9,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["email", "analytics", "developer-tools"],
+    "tags": ["cloud", "marketing"]
   },
   {
     "type": "sts",
@@ -3779,9 +4020,13 @@
       {
         "name": "Agent",
         "description": "Autonomous web data extraction agent. Searches and gathers information based on natural language prompts without requiring specific URLs."
+      },
+      {
+        "name": "Parse Document",
+        "description": "Parse uploaded documents (PDF, DOCX, HTML, etc.) into clean markdown using Firecrawl. Supports .html, .htm, .pdf, .docx, .doc, .odt, .rtf, .xlsx, .xls."
       }
     ],
-    "operationCount": 6,
+    "operationCount": 7,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -4418,6 +4663,10 @@
         "description": "Draft emails using Gmail"
       },
       {
+        "name": "Edit Draft",
+        "description": "Update an existing Gmail draft in place without deleting and recreating it."
+      },
+      {
         "name": "Search Email",
         "description": "Search emails in Gmail"
       },
@@ -4454,7 +4703,7 @@
         "description": "Remove label(s) from a Gmail message"
       }
     ],
-    "operationCount": 12,
+    "operationCount": 13,
     "triggers": [
       {
         "id": "gmail_poller",
@@ -4833,8 +5082,16 @@
         "description": "List Google Drive files"
       },
       {
+        "name": "Search Files",
+        "description": "Search for files in Google Drive using advanced query syntax (e.g., fullText contains, mimeType, modifiedTime, etc.)"
+      },
+      {
         "name": "Get File Info",
         "description": "Get metadata for a specific file in Google Drive by its ID"
+      },
+      {
+        "name": "Get File Content",
+        "description": "Get content from a file in Google Drive with complete metadata (exports Google Workspace files automatically)"
       },
       {
         "name": "Create Folder",
@@ -4857,12 +5114,20 @@
         "description": "Create a copy of a file in Google Drive"
       },
       {
+        "name": "Move File",
+        "description": "Move a file or folder to a different folder in Google Drive"
+      },
+      {
         "name": "Update File",
         "description": "Update file metadata in Google Drive (rename, move, star, add description)"
       },
       {
         "name": "Move to Trash",
         "description": "Move a file to the trash in Google Drive (can be restored later)"
+      },
+      {
+        "name": "Restore from Trash",
+        "description": "Restore a file from the trash in Google Drive"
       },
       {
         "name": "Delete Permanently",
@@ -4885,7 +5150,7 @@
         "description": "Get information about the user and their Google Drive (storage quota, capabilities)"
       }
     ],
-    "operationCount": 14,
+    "operationCount": 18,
     "triggers": [
       {
         "id": "google_drive_poller",
@@ -6231,7 +6496,7 @@
     "slug": "image-generator",
     "name": "Image Generator",
     "description": "Generate images",
-    "longDescription": "Integrate Image Generator into the workflow. Can generate images using DALL-E 3 or GPT Image.",
+    "longDescription": "Integrate Image Generator into the workflow. Can generate images using DALL-E 3, GPT Image 1, or GPT Image 2.",
     "bgColor": "#4D5FFF",
     "iconName": "ImageIcon",
     "docsUrl": "https://docs.sim.ai/tools/image_generator",
@@ -6718,6 +6983,10 @@
         "description": "Retrieve detailed information about a specific Jira issue"
       },
       {
+        "name": "Read Bulk Issues",
+        "description": "Retrieve multiple Jira issues from a project in bulk"
+      },
+      {
         "name": "Update Issue",
         "description": "Update a Jira issue"
       },
@@ -6810,7 +7079,7 @@
         "description": "Search for Jira users by email address or display name. Returns matching users with their accountId, displayName, and emailAddress."
       }
     ],
-    "operationCount": 24,
+    "operationCount": 25,
     "triggers": [
       {
         "id": "jira_issue_created",
@@ -7271,7 +7540,7 @@
     "operationCount": 14,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "blocks"
   },
   {
@@ -11139,6 +11408,177 @@
     "tags": ["sales-engagement", "customer-support"]
   },
   {
+    "type": "sap_s4hana",
+    "slug": "sap-s4hana",
+    "name": "SAP S4HANA",
+    "description": "Read and write SAP S4HANA Cloud business data via OData",
+    "longDescription": "Connect SAP S4HANA Cloud Public Edition with per-tenant OAuth 2.0 client credentials configured in your Communication Arrangements. Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices, or run arbitrary OData v2 queries against any whitelisted Communication Scenario.",
+    "bgColor": "#FFFFFF",
+    "iconName": "SapS4HanaIcon",
+    "docsUrl": "https://docs.sim.ai/tools/sap_s4hana",
+    "operations": [
+      {
+        "name": "List Business Partners",
+        "description": "List business partners from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Business Partner",
+        "description": "Retrieve a single business partner by BusinessPartner key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner)."
+      },
+      {
+        "name": "Create Business Partner",
+        "description": "Create a business partner in SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_BusinessPartner). For Person category 1 provide FirstName and LastName. For Organization category 2 provide OrganizationBPName1."
+      },
+      {
+        "name": "Update Business Partner",
+        "description": "Update fields on an A_BusinessPartner entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+      },
+      {
+        "name": "List Customers",
+        "description": "List customers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Customer) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Customer",
+        "description": "Retrieve a single customer by Customer key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Customer)."
+      },
+      {
+        "name": "Update Customer",
+        "description": "Update fields on an A_Customer entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. A_Customer PATCH is limited to modifiable fields such as OrderIsBlockedForCustomer, DeliveryIsBlock, BillingIsBlockedForCustomer, PostingIsBlocked, and DeletionIndicator. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+      },
+      {
+        "name": "List Suppliers",
+        "description": "List suppliers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Supplier) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Supplier",
+        "description": "Retrieve a single supplier by Supplier key from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Supplier)."
+      },
+      {
+        "name": "Update Supplier",
+        "description": "Update fields on an A_Supplier entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. A_Supplier PATCH is limited to modifiable fields such as PostingIsBlocked, PurchasingIsBlocked, PaymentIsBlockedForSupplier, DeletionIndicator, and SupplierAccountGroup. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+      },
+      {
+        "name": "List Sales Orders",
+        "description": "List sales orders from SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Sales Order",
+        "description": "Retrieve a single sales order by SalesOrder key from SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder)."
+      },
+      {
+        "name": "Create Sales Order",
+        "description": "Create a sales order in SAP S/4HANA Cloud (API_SALES_ORDER_SRV, A_SalesOrder) with deep insert of sales order items via to_Item."
+      },
+      {
+        "name": "Update Sales Order",
+        "description": "Update fields on an A_SalesOrder entity in SAP S/4HANA Cloud (API_SALES_ORDER_SRV). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+      },
+      {
+        "name": "Delete Sales Order",
+        "description": "Delete an A_SalesOrder entity in SAP S/4HANA Cloud (API_SALES_ORDER_SRV). Only orders without subsequent documents (deliveries, invoices) can be deleted; otherwise reject items via update instead."
+      },
+      {
+        "name": "List Outbound Deliveries",
+        "description": "List outbound deliveries from SAP S/4HANA Cloud (API_OUTBOUND_DELIVERY_SRV;v=0002, A_OutbDeliveryHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Outbound Delivery",
+        "description": "Retrieve a single outbound delivery by DeliveryDocument key from SAP S/4HANA Cloud (API_OUTBOUND_DELIVERY_SRV;v=0002, A_OutbDeliveryHeader)."
+      },
+      {
+        "name": "List Inbound Deliveries",
+        "description": "List inbound deliveries from SAP S/4HANA Cloud (API_INBOUND_DELIVERY_SRV;v=0002, A_InbDeliveryHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Inbound Delivery",
+        "description": "Retrieve a single inbound delivery by DeliveryDocument key from SAP S/4HANA Cloud (API_INBOUND_DELIVERY_SRV;v=0002, A_InbDeliveryHeader)."
+      },
+      {
+        "name": "List Billing Documents",
+        "description": "List billing documents (customer invoices) from SAP S/4HANA Cloud (API_BILLING_DOCUMENT_SRV, A_BillingDocument) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Billing Document",
+        "description": "Retrieve a single billing document (customer invoice) by BillingDocument key from SAP S/4HANA Cloud (API_BILLING_DOCUMENT_SRV, A_BillingDocument)."
+      },
+      {
+        "name": "List Products",
+        "description": "List products (materials) from SAP S/4HANA Cloud (API_PRODUCT_SRV, A_Product) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Product",
+        "description": "Retrieve a single product (material) by Product key from SAP S/4HANA Cloud (API_PRODUCT_SRV, A_Product)."
+      },
+      {
+        "name": "Update Product",
+        "description": "Update fields on an A_Product entity in SAP S/4HANA Cloud (API_PRODUCT_SRV). PATCH only sends the fields you provide; existing values are preserved. Flat scalar header fields only — deep/multi-entity updates across navigation properties are not supported by API_PRODUCT_SRV PATCH/PUT (see SAP KBA 2833338); update child entities (plant, valuation, sales data, etc.) via their own endpoints. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET."
+      },
+      {
+        "name": "List Material Stock",
+        "description": "List material stock quantities from SAP S/4HANA Cloud (API_MATERIAL_STOCK_SRV, A_MatlStkInAcctMod). The entity uses an 11-field composite key (Material, Plant, StorageLocation, Batch, Supplier, Customer, WBSElementInternalID, SDDocument, SDDocumentItem, InventorySpecialStockType, InventoryStockType) — query with $filter on these fields instead of a direct key lookup."
+      },
+      {
+        "name": "List Material Documents",
+        "description": "List material document headers (goods movements) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Material Document",
+        "description": "Retrieve a single material document header by composite key (MaterialDocument + MaterialDocumentYear) from SAP S/4HANA Cloud (API_MATERIAL_DOCUMENT_SRV, A_MaterialDocumentHeader)."
+      },
+      {
+        "name": "List Purchase Requisitions",
+        "description": "List purchase requisitions from SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, A_PurchaseRequisitionHeader) with optional OData $filter, $top, $skip, $orderby, $select, $expand. Note: API_PURCHASEREQ_PROCESS_SRV is deprecated since S/4HANA Cloud Public Edition 2402; the successor is API_PURCHASEREQUISITION_2 (OData v4). This tool still works against tenants where the legacy service is enabled."
+      },
+      {
+        "name": "Get Purchase Requisition",
+        "description": "Retrieve a single purchase requisition by PurchaseRequisition key from SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, A_PurchaseRequisitionHeader). Note: API_PURCHASEREQ_PROCESS_SRV is deprecated since S/4HANA Cloud Public Edition 2402; the successor is API_PURCHASEREQUISITION_2 (OData v4). This tool still works against tenants where the legacy service is enabled."
+      },
+      {
+        "name": "Create Purchase Requisition",
+        "description": "Create a purchase requisition in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV, A_PurchaseRequisitionHeader). PurchaseRequisition is auto-assigned by SAP from the document number range; provide line items via the to_PurchaseReqnItem deep-insert array. Note: API_PURCHASEREQ_PROCESS_SRV is deprecated since S/4HANA Cloud Public Edition 2402; the successor is API_PURCHASEREQUISITION_2 (OData v4). This tool still works against tenants where the legacy service is enabled."
+      },
+      {
+        "name": "Update Purchase Requisition",
+        "description": "Update fields on an A_PurchaseRequisitionHeader entity in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV; deprecated since S/4HANA 2402, successor is API_PURCHASEREQUISITION_2 OData v4). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+      },
+      {
+        "name": "List Purchase Orders",
+        "description": "List purchase orders from SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Purchase Order",
+        "description": "Retrieve a single purchase order by PurchaseOrder key from SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder)."
+      },
+      {
+        "name": "Create Purchase Order",
+        "description": "Create a purchase order in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV, A_PurchaseOrder). PurchaseOrder is auto-assigned by SAP from the document number range; provide line items via the body parameter."
+      },
+      {
+        "name": "Update Purchase Order",
+        "description": "Update fields on an A_PurchaseOrder entity in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+      },
+      {
+        "name": "List Supplier Invoices",
+        "description": "List supplier invoices from SAP S/4HANA Cloud (API_SUPPLIERINVOICE_PROCESS_SRV, A_SupplierInvoice) with optional OData $filter, $top, $skip, $orderby, $select, $expand."
+      },
+      {
+        "name": "Get Supplier Invoice",
+        "description": "Retrieve a single supplier invoice by composite key (SupplierInvoice + FiscalYear) from SAP S/4HANA Cloud (API_SUPPLIERINVOICE_PROCESS_SRV, A_SupplierInvoice)."
+      },
+      {
+        "name": "OData Query (advanced)",
+        "description": "Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The proxy handles auth, CSRF, and OData unwrapping."
+      }
+    ],
+    "operationCount": 38,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["other", "developer-tools"],
+    "tags": ["automation"]
+  },
+  {
     "type": "search",
     "slug": "search",
     "name": "Search",
@@ -11743,6 +12183,22 @@
         "description": "Create a canvas pinned to a Slack channel as its resource hub"
       },
       {
+        "name": "Get Canvas Info",
+        "description": "Get Slack canvas file metadata by canvas ID"
+      },
+      {
+        "name": "List Canvases",
+        "description": "List Slack canvases available to the authenticated user or bot"
+      },
+      {
+        "name": "Lookup Canvas Sections",
+        "description": "Find Slack canvas section IDs matching criteria for later edits"
+      },
+      {
+        "name": "Delete Canvas",
+        "description": "Delete a Slack canvas by its canvas ID"
+      },
+      {
         "name": "Create Conversation",
         "description": "Create a new public or private channel in a Slack workspace."
       },
@@ -11767,7 +12223,7 @@
         "description": "Publish a static view to a user"
       }
     ],
-    "operationCount": 25,
+    "operationCount": 29,
     "triggers": [
       {
         "id": "slack_webhook",

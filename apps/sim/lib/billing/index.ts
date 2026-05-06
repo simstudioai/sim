@@ -9,7 +9,6 @@ export * from '@/lib/billing/core/organization'
 export * from '@/lib/billing/core/subscription'
 export {
   getHighestPrioritySubscription as getActiveSubscription,
-  hasAccessControlAccess,
   hasCredentialSetsAccess,
   hasPaidSubscription,
   hasSSOAccess,
@@ -20,6 +19,7 @@ export {
   isProPlan as hasProPlan,
   isTeamOrgAdminOrOwner,
   isTeamPlan as hasTeamPlan,
+  isWorkspaceOnEnterprisePlan,
   sendPlanWelcomeEmail,
 } from '@/lib/billing/core/subscription'
 export * from '@/lib/billing/core/usage'

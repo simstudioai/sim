@@ -2,6 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { Check, X } from 'lucide-react'
 import { Badge, Button } from '@/components/emcn'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
@@ -140,7 +141,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       } catch (err) {
         logger.error('Failed to update usage limit', { error: err })
 
-        const message = err instanceof Error ? err.message : String(err)
+        const message = toError(err).message
         if (message.includes('below current usage')) {
           setErrorType('belowUsage')
         } else {

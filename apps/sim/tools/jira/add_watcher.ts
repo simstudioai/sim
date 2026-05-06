@@ -51,7 +51,7 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
   request: {
     url: (params: JiraAddWatcherParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey}/watchers`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/watchers`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -65,14 +65,20 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
     },
     body: (params: JiraAddWatcherParams) => {
       if (!params.cloudId) return undefined as any
+      if (!params.accountId) {
+        throw new Error('accountId is required to add a Jira watcher')
+      }
       return params.accountId as any
     },
   },
 
   transformResponse: async (response: Response, params?: JiraAddWatcherParams) => {
+    if (!params?.accountId) {
+      throw new Error('accountId is required to add a Jira watcher')
+    }
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey}/watchers`
+      const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/watchers`
       const watcherResponse = await fetch(watcherUrl, {
         method: 'POST',
         headers: {

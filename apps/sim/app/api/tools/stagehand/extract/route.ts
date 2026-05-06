@@ -1,29 +1,20 @@
+import type { Stagehand as StagehandType } from '@browserbasehq/stagehand'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { stagehandExtractContract } from '@/lib/api/contracts/tools/stagehand'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ensureZodObject, normalizeUrl } from '@/app/api/tools/stagehand/utils'
 
 const logger = createLogger('StagehandExtractAPI')
 
-type StagehandType = import('@browserbasehq/stagehand').Stagehand
-
 const BROWSERBASE_API_KEY = env.BROWSERBASE_API_KEY
 const BROWSERBASE_PROJECT_ID = env.BROWSERBASE_PROJECT_ID
 
-const requestSchema = z.object({
-  instruction: z.string(),
-  schema: z.record(z.any()),
-  useTextExtract: z.boolean().optional().default(false),
-  selector: z.string().nullable().optional(),
-  provider: z.enum(['openai', 'anthropic']).optional().default('openai'),
-  apiKey: z.string(),
-  url: z.string().url(),
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
@@ -32,25 +23,33 @@ export async function POST(request: NextRequest) {
   let stagehand: StagehandType | null = null
 
   try {
-    const body = await request.json()
+    const parsed = await parseRequest(
+      stagehandExtractContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) => {
+          logger.error('Invalid request body', { errors: error.issues })
+          return NextResponse.json(
+            {
+              error: getValidationErrorMessage(error, 'Invalid request parameters'),
+              details: error.issues,
+            },
+            { status: 400 }
+          )
+        },
+      }
+    )
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
+
     logger.info('Received extraction request', {
-      url: body.url,
-      hasInstruction: !!body.instruction,
-      schema: body.schema ? typeof body.schema : 'none',
+      url: params.url,
+      hasInstruction: !!params.instruction,
+      schema: params.schema ? typeof params.schema : 'none',
     })
 
-    const validationResult = requestSchema.safeParse(body)
-
-    if (!validationResult.success) {
-      logger.error('Invalid request body', { errors: validationResult.error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request parameters', details: validationResult.error.errors },
-        { status: 400 }
-      )
-    }
-
-    const params = validationResult.data
-    const { url: rawUrl, instruction, selector, provider, apiKey, schema } = params
+    const { url: rawUrl, instruction, provider, apiKey, schema } = params
     const url = normalizeUrl(rawUrl)
     const urlValidation = await validateUrlWithDNS(url, 'url')
     if (!urlValidation.isValid) {
@@ -100,8 +99,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const modelName =
-        provider === 'anthropic' ? 'anthropic/claude-sonnet-4-5-20250929' : 'openai/gpt-5'
+      const modelName = provider === 'anthropic' ? 'anthropic/claude-sonnet-4-6' : 'openai/gpt-5'
 
       logger.info('Initializing Stagehand with Browserbase (v3)', { provider, modelName })
 
@@ -161,14 +159,11 @@ export async function POST(request: NextRequest) {
         logger.info('Calling stagehand.extract with options', {
           hasInstruction: !!instruction,
           hasSchema: !!zodSchema,
-          hasSelector: !!selector,
         })
 
         let extractedData
         if (zodSchema) {
-          extractedData = await stagehand.extract(instruction, zodSchema, {
-            selector: selector || undefined,
-          })
+          extractedData = await stagehand.extract(instruction, zodSchema)
         } else {
           extractedData = await stagehand.extract(instruction)
         }
@@ -251,4 +246,4 @@ export async function POST(request: NextRequest) {
       }
     }
   }
-}
+})

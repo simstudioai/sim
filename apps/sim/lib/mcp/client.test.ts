@@ -1,10 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 /**
  * Capture the notification handler registered via `client.setNotificationHandler()`.

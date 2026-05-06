@@ -2,13 +2,15 @@
  * @vitest-environment node
  */
 
+import { auditMock, workflowsOrchestrationMock, workflowsOrchestrationMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 
-const { ensureWorkflowAccessMock, performRevertToVersionMock } = vi.hoisted(() => ({
+const { ensureWorkflowAccessMock } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
-  performRevertToVersionMock: vi.fn(),
 }))
+
+const performRevertToVersionMock = workflowsOrchestrationMockFns.mockPerformRevertToVersion
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -24,11 +26,7 @@ vi.mock('@sim/db', () => ({
   workflowMcpTool: {},
 }))
 
-vi.mock('@/lib/audit/log', () => ({
-  AuditAction: {},
-  AuditResourceType: {},
-  recordAudit: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/mcp/pubsub', () => ({
   mcpPubSub: {
@@ -53,9 +51,7 @@ vi.mock('../access', () => ({
   ensureWorkspaceAccess: vi.fn(),
 }))
 
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performRevertToVersion: performRevertToVersionMock,
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
 import { executeRevertToVersion } from './manage'
 

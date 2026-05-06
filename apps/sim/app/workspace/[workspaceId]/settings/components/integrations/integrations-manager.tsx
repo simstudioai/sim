@@ -33,9 +33,12 @@ import {
   writeOAuthReturnContext,
 } from '@/lib/credentials/client-state'
 import { getCanonicalScopesForProvider, getServiceConfigByProviderId } from '@/lib/oauth'
+import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import { getScopeDescription } from '@/lib/oauth/utils'
 import { getUserColor } from '@/lib/workspaces/colors'
-import { CredentialSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credentials/credential-skeleton'
+import { AtlassianServiceAccountForm } from '@/app/workspace/[workspaceId]/settings/components/integrations/atlassian-service-account-form'
+import { CredentialSkeleton } from '@/app/workspace/[workspaceId]/settings/components/integrations/credential-skeleton'
+import { ServiceAccountForm } from '@/app/workspace/[workspaceId]/settings/components/integrations/service-account-form'
 import {
   useCreateCredentialDraft,
   useCreateWorkspaceCredential,
@@ -59,12 +62,15 @@ import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const logger = createLogger('IntegrationsManager')
 
-const roleOptions = [
+const ROLE_OPTIONS = [
   { value: 'member', label: 'Member' },
   { value: 'admin', label: 'Admin' },
 ] as const
 
-const roleComboOptions = roleOptions.map((option) => ({ value: option.value, label: option.label }))
+const roleComboOptions = ROLE_OPTIONS.map((option) => ({
+  value: option.value,
+  label: option.label,
+}))
 
 export function IntegrationsManager() {
   const params = useParams()
@@ -105,12 +111,6 @@ export function IntegrationsManager() {
     | { type: 'kb-connectors'; knowledgeBaseId: string }
     | undefined
   >(undefined)
-  const [saJsonInput, setSaJsonInput] = useState('')
-  const [saDisplayName, setSaDisplayName] = useState('')
-  const [saDescription, setSaDescription] = useState('')
-  const [saError, setSaError] = useState<string | null>(null)
-  const [saIsSubmitting, setSaIsSubmitting] = useState(false)
-  const [saDragActive, setSaDragActive] = useState(false)
 
   const { data: session } = useSession()
   const currentUserId = session?.user?.id || ''
@@ -201,10 +201,7 @@ export function IntegrationsManager() {
     () => members.filter((member) => member.status === 'active'),
     [members]
   )
-  const adminMemberCount = useMemo(
-    () => activeMembers.filter((member) => member.role === 'admin').length,
-    [activeMembers]
-  )
+  const adminMemberCount = activeMembers.filter((member) => member.role === 'admin').length
 
   const workspaceUserOptions = useMemo(() => {
     const activeMemberUserIds = new Set(activeMembers.map((member) => member.userId))
@@ -246,15 +243,12 @@ export function IntegrationsManager() {
     )
   }, [credentials, createDisplayName])
 
-  const isDescriptionDirty = useMemo(() => {
-    if (!selectedCredential) return false
-    return selectedDescriptionDraft !== (selectedCredential.description || '')
-  }, [selectedCredential, selectedDescriptionDraft])
-
-  const isDisplayNameDirty = useMemo(() => {
-    if (!selectedCredential) return false
-    return selectedDisplayNameDraft !== selectedCredential.displayName
-  }, [selectedCredential, selectedDisplayNameDraft])
+  const isDescriptionDirty = selectedCredential
+    ? selectedDescriptionDraft !== (selectedCredential.description || '')
+    : false
+  const isDisplayNameDirty = selectedCredential
+    ? selectedDisplayNameDraft !== selectedCredential.displayName
+    : false
 
   const isDetailsDirty = isDescriptionDirty || isDisplayNameDirty
 
@@ -387,10 +381,6 @@ export function IntegrationsManager() {
     setCreateError(null)
     setCreateStep(1)
     setServiceSearch('')
-    setSaJsonInput('')
-    setSaDisplayName('')
-    setSaDescription('')
-    setSaError(null)
     pendingReturnOriginRef.current = undefined
   }
 
@@ -520,7 +510,7 @@ export function IntegrationsManager() {
     }
   }
 
-  const [isShareingWithWorkspace, setIsSharingWithWorkspace] = useState(false)
+  const [isSharingWithWorkspace, setIsSharingWithWorkspace] = useState(false)
 
   const handleShareWithWorkspace = async () => {
     if (!selectedCredential || !isSelectedAdmin) return
@@ -654,117 +644,6 @@ export function IntegrationsManager() {
     setShowCreateModal(true)
   }, [])
 
-  const validateServiceAccountJson = (raw: string): { valid: boolean; error?: string } => {
-    let parsed: Record<string, unknown>
-    try {
-      parsed = JSON.parse(raw)
-    } catch {
-      return { valid: false, error: 'Invalid JSON. Paste the full service account key file.' }
-    }
-    if (parsed.type !== 'service_account') {
-      return { valid: false, error: 'JSON key must have "type": "service_account".' }
-    }
-    if (!parsed.client_email || typeof parsed.client_email !== 'string') {
-      return { valid: false, error: 'Missing "client_email" field.' }
-    }
-    if (!parsed.private_key || typeof parsed.private_key !== 'string') {
-      return { valid: false, error: 'Missing "private_key" field.' }
-    }
-    if (!parsed.project_id || typeof parsed.project_id !== 'string') {
-      return { valid: false, error: 'Missing "project_id" field.' }
-    }
-    return { valid: true }
-  }
-
-  const handleCreateServiceAccount = async () => {
-    setSaError(null)
-    const trimmed = saJsonInput.trim()
-    if (!trimmed) {
-      setSaError('Paste the service account JSON key.')
-      return
-    }
-    const validation = validateServiceAccountJson(trimmed)
-    if (!validation.valid) {
-      setSaError(validation.error ?? 'Invalid JSON')
-      return
-    }
-    setSaIsSubmitting(true)
-    try {
-      await createCredential.mutateAsync({
-        workspaceId,
-        type: 'service_account',
-        displayName: saDisplayName.trim() || undefined,
-        description: saDescription.trim() || undefined,
-        serviceAccountJson: trimmed,
-      })
-      setShowCreateModal(false)
-      resetCreateForm()
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to add service account'
-      setSaError(message)
-      logger.error('Failed to create service account credential', error)
-    } finally {
-      setSaIsSubmitting(false)
-    }
-  }
-
-  const readSaJsonFile = useCallback(
-    (file: File) => {
-      if (!file.name.endsWith('.json')) {
-        setSaError('Only .json files are supported')
-        return
-      }
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const text = e.target?.result
-        if (typeof text === 'string') {
-          setSaJsonInput(text)
-          setSaError(null)
-          try {
-            const parsed = JSON.parse(text)
-            if (parsed.client_email && !saDisplayName.trim()) {
-              setSaDisplayName(parsed.client_email)
-            }
-          } catch {
-            // validation will catch this on submit
-          }
-        }
-      }
-      reader.readAsText(file)
-    },
-    [saDisplayName]
-  )
-
-  const handleSaFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    readSaJsonFile(file)
-    event.target.value = ''
-  }
-
-  const handleSaDragOver = useCallback((event: React.DragEvent) => {
-    event.preventDefault()
-    event.stopPropagation()
-    setSaDragActive(true)
-  }, [])
-
-  const handleSaDragLeave = useCallback((event: React.DragEvent) => {
-    event.preventDefault()
-    event.stopPropagation()
-    setSaDragActive(false)
-  }, [])
-
-  const handleSaDrop = useCallback(
-    (event: React.DragEvent) => {
-      event.preventDefault()
-      event.stopPropagation()
-      setSaDragActive(false)
-      const file = event.dataTransfer.files[0]
-      if (file) readSaJsonFile(file)
-    },
-    [readSaJsonFile]
-  )
-
   const filteredServices = useMemo(() => {
     if (!serviceSearch.trim()) return oauthServiceOptions
     const q = serviceSearch.toLowerCase()
@@ -801,15 +680,16 @@ export function IntegrationsManager() {
                   {filteredServices.map((service) => {
                     const config = getServiceConfigByProviderId(service.value)
                     return (
-                      <button
+                      <Button
                         key={service.value}
                         type='button'
+                        variant='ghost'
                         onClick={() => {
                           setCreateOAuthProviderId(service.value)
                           setCreateStep(2)
                           setServiceSearch('')
                         }}
-                        className='flex items-center gap-2.5 rounded-[6px] px-2 py-2 text-left hover:bg-[var(--surface-5)]'
+                        className='h-auto w-full justify-start gap-2.5 rounded-[6px] px-2 py-2 text-left hover-hover:bg-[var(--surface-5)]'
                       >
                         <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
                           {config ? (
@@ -823,7 +703,7 @@ export function IntegrationsManager() {
                         <span className='font-medium text-[15px] text-[var(--text-primary)]'>
                           {service.label}
                         </span>
-                      </button>
+                      </Button>
                     )
                   })}
                   {filteredServices.length === 0 && (
@@ -844,17 +724,18 @@ export function IntegrationsManager() {
           <>
             <ModalHeader>
               <div className='flex items-center gap-2.5'>
-                <button
+                <Button
                   type='button'
+                  variant='ghost'
                   onClick={() => {
                     setCreateStep(1)
                     setCreateError(null)
                   }}
-                  className='flex h-6 w-6 items-center justify-center rounded-[4px] text-[var(--text-muted)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                  className='h-6 w-6 rounded-[4px] p-0 text-[var(--text-muted)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
                   aria-label='Back'
                 >
                   ←
-                </button>
+                </Button>
                 <span>
                   Connect{' '}
                   {selectedOAuthService?.name || resolveProviderLabel(createOAuthProviderId)}
@@ -966,159 +847,31 @@ export function IntegrationsManager() {
               </Button>
             </ModalFooter>
           </>
+        ) : selectedOAuthService?.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID ? (
+          <AtlassianServiceAccountForm
+            service={selectedOAuthService}
+            serviceLabel={selectedOAuthService.name || resolveProviderLabel(createOAuthProviderId)}
+            workspaceId={workspaceId}
+            onBack={() => setCreateStep(1)}
+            onCreate={(input) => createCredential.mutateAsync(input)}
+            onCreated={() => {
+              setShowCreateModal(false)
+              resetCreateForm()
+            }}
+          />
         ) : (
-          <>
-            <ModalHeader>
-              <div className='flex items-center gap-2.5'>
-                <button
-                  type='button'
-                  onClick={() => {
-                    setCreateStep(1)
-                    setSaError(null)
-                  }}
-                  className='flex h-6 w-6 items-center justify-center rounded-[4px] text-[var(--text-muted)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
-                  aria-label='Back'
-                >
-                  ←
-                </button>
-                <span>
-                  Add {selectedOAuthService?.name || resolveProviderLabel(createOAuthProviderId)}
-                </span>
-              </div>
-            </ModalHeader>
-            <ModalBody>
-              {saError && (
-                <div className='mb-3'>
-                  <Badge variant='red' size='lg' dot className='max-w-full'>
-                    {saError}
-                  </Badge>
-                </div>
-              )}
-              <div className='flex flex-col gap-4'>
-                <div className='flex items-center gap-3'>
-                  <div className='flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[var(--surface-5)]'>
-                    {selectedOAuthService &&
-                      createElement(selectedOAuthService.icon, { className: 'h-[18px] w-[18px]' })}
-                  </div>
-                  <div>
-                    <p className='font-medium text-[13px] text-[var(--text-primary)]'>
-                      Add {selectedOAuthService?.name || 'service account'}
-                    </p>
-                    <p className='text-[12px] text-[var(--text-tertiary)]'>
-                      {selectedOAuthService?.description || 'Paste or upload the JSON key file'}
-                    </p>
-                    <a
-                      href='https://docs.sim.ai/credentials/google-service-account'
-                      target='_blank'
-                      rel='noopener noreferrer'
-                      className='text-[12px] text-[var(--accent)] hover:underline'
-                    >
-                      View setup guide
-                    </a>
-                  </div>
-                </div>
-
-                <div>
-                  <Label>
-                    JSON Key<span className='ml-1'>*</span>
-                  </Label>
-                  <div
-                    onDragOver={handleSaDragOver}
-                    onDragLeave={handleSaDragLeave}
-                    onDrop={handleSaDrop}
-                    className={cn(
-                      'relative mt-1.5 rounded-md border-2 border-dashed transition-colors',
-                      saDragActive
-                        ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                        : 'border-transparent'
-                    )}
-                  >
-                    {saDragActive && (
-                      <div className='pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md bg-[var(--accent)]/5'>
-                        <p className='font-medium text-[13px] text-[var(--accent)]'>
-                          Drop JSON key file here
-                        </p>
-                      </div>
-                    )}
-                    <Textarea
-                      value={saJsonInput}
-                      onChange={(event) => {
-                        setSaJsonInput(event.target.value)
-                        setSaError(null)
-                        if (!saDisplayName.trim()) {
-                          try {
-                            const parsed = JSON.parse(event.target.value)
-                            if (parsed.client_email) setSaDisplayName(parsed.client_email)
-                          } catch {
-                            // not valid yet
-                          }
-                        }
-                      }}
-                      placeholder='Paste your service account JSON key here or drag & drop a .json file...'
-                      autoComplete='off'
-                      data-lpignore='true'
-                      className={cn(
-                        'min-h-[120px] resize-none border-0 font-mono text-[12px]',
-                        saDragActive && 'opacity-30'
-                      )}
-                    />
-                  </div>
-                  <div className='mt-1.5'>
-                    <label className='inline-flex cursor-pointer items-center gap-1.5 text-[12px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'>
-                      <input
-                        type='file'
-                        accept='.json'
-                        onChange={handleSaFileUpload}
-                        className='hidden'
-                      />
-                      Or upload a .json file
-                    </label>
-                  </div>
-                </div>
-                <div>
-                  <Label>Display name</Label>
-                  <Input
-                    value={saDisplayName}
-                    onChange={(event) => setSaDisplayName(event.target.value)}
-                    placeholder='Auto-populated from client_email'
-                    autoComplete='off'
-                    data-lpignore='true'
-                    className='mt-1.5'
-                  />
-                </div>
-                <div>
-                  <Label>Description</Label>
-                  <Textarea
-                    value={saDescription}
-                    onChange={(event) => setSaDescription(event.target.value)}
-                    placeholder='Optional description'
-                    maxLength={500}
-                    autoComplete='off'
-                    data-lpignore='true'
-                    className='mt-1.5 min-h-[80px] resize-none'
-                  />
-                </div>
-              </div>
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                variant='default'
-                onClick={() => {
-                  setCreateStep(1)
-                  setSaError(null)
-                }}
-              >
-                Back
-              </Button>
-              <Button
-                variant='primary'
-                onClick={handleCreateServiceAccount}
-                disabled={!saJsonInput.trim() || saIsSubmitting}
-              >
-                {saIsSubmitting ? 'Adding...' : 'Add Service Account'}
-              </Button>
-            </ModalFooter>
-          </>
+          <ServiceAccountForm
+            service={selectedOAuthService}
+            serviceLabel={selectedOAuthService?.name || resolveProviderLabel(createOAuthProviderId)}
+            workspaceId={workspaceId}
+            setupGuideHref='https://docs.sim.ai/integrations/google-service-account'
+            onBack={() => setCreateStep(1)}
+            onCreate={(input) => createCredential.mutateAsync(input)}
+            onCreated={() => {
+              setShowCreateModal(false)
+              resetCreateForm()
+            }}
+          />
         )}
       </ModalContent>
     </Modal>
@@ -1146,10 +899,10 @@ export function IntegrationsManager() {
             ? This action cannot be undone.
           </p>
           {deleteError && (
-            <div className='mt-3 rounded-lg border border-red-500/50 bg-red-50 p-3 dark:bg-red-950/30'>
+            <div className='mt-3 rounded-lg border border-[color-mix(in_srgb,var(--text-error)_40%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] p-3'>
               <div className='flex items-start gap-2.5'>
-                <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
-                <p className='text-red-700 text-small dark:text-red-300'>{deleteError}</p>
+                <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-[var(--text-error)]' />
+                <p className='text-[var(--text-error)] text-small'>{deleteError}</p>
               </div>
             </div>
           )}
@@ -1240,9 +993,10 @@ export function IntegrationsManager() {
                   Display Name
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
-                      <button
+                      <Button
                         type='button'
-                        className='-my-1 flex h-5 w-5 items-center justify-center'
+                        variant='ghost'
+                        className='-my-1 h-5 w-5 p-0'
                         onClick={() => {
                           navigator.clipboard.writeText(selectedCredential.id)
                           setCopyIdSuccess(true)
@@ -1251,11 +1005,11 @@ export function IntegrationsManager() {
                         aria-label='Copy value'
                       >
                         {copyIdSuccess ? (
-                          <Check className='h-3 w-3 text-green-500' />
+                          <Check className='h-3 w-3 text-[var(--text-success)]' />
                         ) : (
                           <Clipboard className='h-3 w-3 text-[var(--text-icon)]' />
                         )}
-                      </button>
+                      </Button>
                     </Tooltip.Trigger>
                     <Tooltip.Content>
                       {copyIdSuccess ? 'Copied!' : 'Copy credential ID'}
@@ -1288,7 +1042,7 @@ export function IntegrationsManager() {
               </div>
 
               {detailsError && (
-                <div className='rounded-lg border border-[color-mix(in_srgb,var(--status-red)_40%,transparent)] bg-[color-mix(in_srgb,var(--status-red)_10%,transparent)] px-2.5 py-2 text-[var(--status-red)] text-small'>
+                <div className='rounded-lg border border-[color-mix(in_srgb,var(--text-error)_40%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] px-2.5 py-2 text-[var(--text-error)] text-small'>
                   {detailsError}
                 </div>
               )}
@@ -1306,7 +1060,10 @@ export function IntegrationsManager() {
                     {activeMembers.map((member) => (
                       <div
                         key={member.id}
-                        className='grid grid-cols-[1fr_120px_72px] items-center gap-2'
+                        className={cn(
+                          'grid items-center gap-2',
+                          isSelectedAdmin ? 'grid-cols-[1fr_120px_72px]' : 'grid-cols-[1fr_200px]'
+                        )}
                       >
                         <div className='flex min-w-0 items-center gap-2.5'>
                           <Avatar className='h-8 w-8 flex-shrink-0'>
@@ -1320,7 +1077,7 @@ export function IntegrationsManager() {
                             </AvatarFallback>
                           </Avatar>
                           <div className='min-w-0'>
-                            <p className='truncate font-medium text-[var(--text-primary)] text-sm'>
+                            <p className='truncate font-medium text-[var(--text-primary)] text-small'>
                               {member.userName || member.userEmail || member.userId}
                             </p>
                             <p className='truncate text-[var(--text-tertiary)] text-caption'>
@@ -1332,7 +1089,7 @@ export function IntegrationsManager() {
                         <Combobox
                           options={roleComboOptions}
                           value={
-                            roleOptions.find((option) => option.value === member.role)?.label || ''
+                            ROLE_OPTIONS.find((option) => option.value === member.role)?.label || ''
                           }
                           selectedValue={member.role}
                           onChange={(value) =>
@@ -1344,7 +1101,7 @@ export function IntegrationsManager() {
                           }
                           size='sm'
                         />
-                        {isSelectedAdmin ? (
+                        {isSelectedAdmin && (
                           <Button
                             variant='ghost'
                             onClick={() => handleRemoveMember(member.userId)}
@@ -1353,8 +1110,6 @@ export function IntegrationsManager() {
                           >
                             Remove
                           </Button>
-                        ) : (
-                          <div />
                         )}
                       </div>
                     ))}
@@ -1376,7 +1131,7 @@ export function IntegrationsManager() {
                         <Combobox
                           options={roleComboOptions}
                           value={
-                            roleOptions.find((option) => option.value === memberRole)?.label || ''
+                            ROLE_OPTIONS.find((option) => option.value === memberRole)?.label || ''
                           }
                           selectedValue={memberRole}
                           onChange={(value) => setMemberRole(value as WorkspaceCredentialRole)}
@@ -1414,14 +1169,14 @@ export function IntegrationsManager() {
                       }`}
                     </Button>
                   )}
-                  {(workspaceUserOptions.length > 0 || isShareingWithWorkspace) && (
+                  {(workspaceUserOptions.length > 0 || isSharingWithWorkspace) && (
                     <Button
                       variant='default'
                       onClick={handleShareWithWorkspace}
-                      disabled={isShareingWithWorkspace || workspaceUserOptions.length === 0}
+                      disabled={isSharingWithWorkspace || workspaceUserOptions.length === 0}
                     >
                       <Share2 className='mr-1.5 h-[13px] w-[13px]' />
-                      {isShareingWithWorkspace ? 'Sharing...' : 'Share'}
+                      {isSharingWithWorkspace ? 'Sharing...' : 'Share with workspace'}
                     </Button>
                   )}
                   <Button
@@ -1516,9 +1271,6 @@ export function IntegrationsManager() {
                       </div>
                     </div>
                     <div className='flex flex-shrink-0 items-center gap-1'>
-                      <Button variant='default' onClick={() => handleSelectCredential(credential)}>
-                        Details
-                      </Button>
                       {credential.role === 'admin' && (
                         <Button
                           variant='ghost'
@@ -1532,6 +1284,9 @@ export function IntegrationsManager() {
                           Disconnect
                         </Button>
                       )}
+                      <Button variant='default' onClick={() => handleSelectCredential(credential)}>
+                        Details
+                      </Button>
                     </div>
                   </div>
                 )
@@ -1545,7 +1300,10 @@ export function IntegrationsManager() {
 
               {filteredAvailableIntegrations.length > 0 && (
                 <div
-                  className={`flex flex-col gap-2${hasCredentials || showNoResults ? ' mt-2 border-[var(--border)] border-t pt-4' : ''}`}
+                  className={cn(
+                    'flex flex-col gap-2',
+                    (hasCredentials || showNoResults) && 'mt-2 border-[var(--border)] border-t pt-4'
+                  )}
                 >
                   <p className='mb-1 font-medium text-[12px] text-[var(--text-muted)]'>
                     Available integrations

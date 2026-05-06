@@ -1,11 +1,8 @@
-import { loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   StreamingResponseFormatProcessor,
   streamingResponseFormatProcessor,
 } from '@/executor/utils'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 describe('StreamingResponseFormatProcessor', () => {
   let processor: StreamingResponseFormatProcessor

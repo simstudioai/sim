@@ -1,44 +1,26 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  type ConnectorData,
+  type ConnectorDetailData,
+  type ConnectorDocumentData,
+  type ConnectorDocumentsData,
+  createKnowledgeConnectorContract,
+  deleteKnowledgeConnectorContract,
+  getKnowledgeConnectorContract,
+  listKnowledgeConnectorDocumentsContract,
+  listKnowledgeConnectorsContract,
+  patchKnowledgeConnectorDocumentsContract,
+  type SyncLogData,
+  triggerKnowledgeConnectorSyncContract,
+  updateKnowledgeConnectorContract,
+} from '@/lib/api/contracts/knowledge'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('KnowledgeConnectorQueries')
 
-export interface ConnectorData {
-  id: string
-  knowledgeBaseId: string
-  connectorType: string
-  credentialId: string | null
-  sourceConfig: Record<string, unknown>
-  syncMode: string
-  syncIntervalMinutes: number
-  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
-  lastSyncAt: string | null
-  lastSyncError: string | null
-  lastSyncDocCount: number | null
-  nextSyncAt: string | null
-  consecutiveFailures: number
-  createdAt: string
-  updatedAt: string
-}
-
-export interface SyncLogData {
-  id: string
-  connectorId: string
-  status: string
-  startedAt: string
-  completedAt: string | null
-  docsAdded: number
-  docsUpdated: number
-  docsDeleted: number
-  docsUnchanged: number
-  docsFailed: number
-  errorMessage: string | null
-}
-
-export interface ConnectorDetailData extends ConnectorData {
-  syncLogs: SyncLogData[]
-}
+export type { ConnectorData, ConnectorDetailData, SyncLogData }
 
 export const connectorKeys = {
   all: (knowledgeBaseId: string) =>
@@ -53,18 +35,12 @@ async function fetchConnectors(
   knowledgeBaseId: string,
   signal?: AbortSignal
 ): Promise<ConnectorData[]> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/connectors`, { signal })
+  const result = await requestJson(listKnowledgeConnectorsContract, {
+    params: { id: knowledgeBaseId },
+    signal,
+  })
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch connectors: ${response.status}`)
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to fetch connectors')
-  }
-
-  return Array.isArray(result.data) ? result.data : []
+  return result.data
 }
 
 async function fetchConnectorDetail(
@@ -72,18 +48,10 @@ async function fetchConnectorDetail(
   connectorId: string,
   signal?: AbortSignal
 ): Promise<ConnectorDetailData> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/connectors/${connectorId}`, {
+  const result = await requestJson(getKnowledgeConnectorContract, {
+    params: { id: knowledgeBaseId, connectorId },
     signal,
   })
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch connector: ${response.status}`)
-  }
-
-  const result = await response.json()
-  if (!result?.success || !result?.data) {
-    throw new Error(result?.error || 'Failed to fetch connector')
-  }
 
   return result.data
 }
@@ -142,21 +110,10 @@ async function createConnector({
   knowledgeBaseId,
   ...body
 }: CreateConnectorParams): Promise<ConnectorData> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/connectors`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+  const result = await requestJson(createKnowledgeConnectorContract, {
+    params: { id: knowledgeBaseId },
+    body,
   })
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to create connector')
-  }
-
-  const result = await response.json()
-  if (!result?.success || !result?.data) {
-    throw new Error(result?.error || 'Failed to create connector')
-  }
 
   return result.data
 }
@@ -166,7 +123,7 @@ export function useCreateConnector() {
 
   return useMutation({
     mutationFn: createConnector,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -189,21 +146,10 @@ async function updateConnector({
   connectorId,
   updates,
 }: UpdateConnectorParams): Promise<ConnectorData> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/connectors/${connectorId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
+  const result = await requestJson(updateKnowledgeConnectorContract, {
+    params: { id: knowledgeBaseId, connectorId },
+    body: updates,
   })
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to update connector')
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to update connector')
-  }
 
   return result.data
 }
@@ -213,7 +159,7 @@ export function useUpdateConnector() {
 
   return useMutation({
     mutationFn: updateConnector,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: connectorKeys.all(knowledgeBaseId),
       })
@@ -232,20 +178,10 @@ async function deleteConnector({
   connectorId,
   deleteDocuments,
 }: DeleteConnectorParams): Promise<void> {
-  const base = `/api/knowledge/${knowledgeBaseId}/connectors/${connectorId}`
-  const response = await fetch(deleteDocuments ? `${base}?deleteDocuments=true` : base, {
-    method: 'DELETE',
+  await requestJson(deleteKnowledgeConnectorContract, {
+    params: { id: knowledgeBaseId, connectorId },
+    query: { deleteDocuments },
   })
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to delete connector')
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to delete connector')
-  }
 }
 
 export function useDeleteConnector() {
@@ -253,7 +189,7 @@ export function useDeleteConnector() {
 
   return useMutation({
     mutationFn: deleteConnector,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -267,14 +203,9 @@ export interface TriggerSyncParams {
 }
 
 async function triggerSync({ knowledgeBaseId, connectorId }: TriggerSyncParams): Promise<void> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/connectors/${connectorId}/sync`, {
-    method: 'POST',
+  await requestJson(triggerKnowledgeConnectorSyncContract, {
+    params: { id: knowledgeBaseId, connectorId },
   })
-
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to trigger sync')
-  }
 }
 
 export function useTriggerSync() {
@@ -282,7 +213,7 @@ export function useTriggerSync() {
 
   return useMutation({
     mutationFn: triggerSync,
-    onSuccess: (_, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
@@ -290,22 +221,7 @@ export function useTriggerSync() {
   })
 }
 
-export interface ConnectorDocumentData {
-  id: string
-  filename: string
-  externalId: string | null
-  sourceUrl: string | null
-  enabled: boolean
-  deletedAt: string | null
-  userExcluded: boolean
-  uploadedAt: string
-  processingStatus: string
-}
-
-export interface ConnectorDocumentsResponse {
-  documents: ConnectorDocumentData[]
-  counts: { active: number; excluded: number }
-}
+export type { ConnectorDocumentData }
 
 export const connectorDocumentKeys = {
   list: (knowledgeBaseId?: string, connectorId?: string) =>
@@ -317,21 +233,12 @@ async function fetchConnectorDocuments(
   connectorId: string,
   includeExcluded: boolean,
   signal?: AbortSignal
-): Promise<ConnectorDocumentsResponse> {
-  const params = includeExcluded ? '?includeExcluded=true' : ''
-  const response = await fetch(
-    `/api/knowledge/${knowledgeBaseId}/connectors/${connectorId}/documents${params}`,
-    { signal }
-  )
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch connector documents: ${response.status}`)
-  }
-
-  const result = await response.json()
-  if (!result?.success) {
-    throw new Error(result?.error || 'Failed to fetch connector documents')
-  }
+): Promise<ConnectorDocumentsData> {
+  const result = await requestJson(listKnowledgeConnectorDocumentsContract, {
+    params: { id: knowledgeBaseId, connectorId },
+    query: { includeExcluded },
+    signal,
+  })
 
   return result.data
 }
@@ -370,22 +277,12 @@ async function excludeConnectorDocuments({
   connectorId,
   documentIds,
 }: ConnectorDocumentMutationParams): Promise<{ excludedCount: number }> {
-  const response = await fetch(
-    `/api/knowledge/${knowledgeBaseId}/connectors/${connectorId}/documents`,
-    {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ operation: 'exclude', documentIds }),
-    }
-  )
+  const result = await requestJson(patchKnowledgeConnectorDocumentsContract, {
+    params: { id: knowledgeBaseId, connectorId },
+    body: { operation: 'exclude', documentIds },
+  })
 
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to exclude documents')
-  }
-
-  const result = await response.json()
-  return result.data
+  return { excludedCount: result.data.excludedCount ?? 0 }
 }
 
 export function useExcludeConnectorDocument() {
@@ -393,7 +290,7 @@ export function useExcludeConnectorDocument() {
 
   return useMutation({
     mutationFn: excludeConnectorDocuments,
-    onSuccess: (_, { knowledgeBaseId, connectorId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, connectorId }) => {
       queryClient.invalidateQueries({
         queryKey: connectorDocumentKeys.list(knowledgeBaseId, connectorId),
       })
@@ -409,22 +306,12 @@ async function restoreConnectorDocuments({
   connectorId,
   documentIds,
 }: ConnectorDocumentMutationParams): Promise<{ restoredCount: number }> {
-  const response = await fetch(
-    `/api/knowledge/${knowledgeBaseId}/connectors/${connectorId}/documents`,
-    {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ operation: 'restore', documentIds }),
-    }
-  )
+  const result = await requestJson(patchKnowledgeConnectorDocumentsContract, {
+    params: { id: knowledgeBaseId, connectorId },
+    body: { operation: 'restore', documentIds },
+  })
 
-  if (!response.ok) {
-    const result = await response.json()
-    throw new Error(result.error || 'Failed to restore documents')
-  }
-
-  const result = await response.json()
-  return result.data
+  return { restoredCount: result.data.restoredCount ?? 0 }
 }
 
 export function useRestoreConnectorDocument() {
@@ -432,7 +319,7 @@ export function useRestoreConnectorDocument() {
 
   return useMutation({
     mutationFn: restoreConnectorDocuments,
-    onSuccess: (_, { knowledgeBaseId, connectorId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, connectorId }) => {
       queryClient.invalidateQueries({
         queryKey: connectorDocumentKeys.list(knowledgeBaseId, connectorId),
       })

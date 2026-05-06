@@ -70,8 +70,8 @@ export const slackUpdateMessageTool: ToolConfig<
     }),
     body: (params: SlackUpdateMessageParams) => ({
       accessToken: params.accessToken || params.botToken,
-      channel: params.channel,
-      timestamp: params.timestamp,
+      channel: params.channel?.trim(),
+      timestamp: params.timestamp?.trim(),
       text: params.text,
       blocks:
         typeof params.blocks === 'string' ? JSON.parse(params.blocks) : params.blocks || undefined,

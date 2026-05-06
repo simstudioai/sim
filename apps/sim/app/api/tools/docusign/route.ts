@@ -1,6 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { docusignToolContract } from '@/lib/api/contracts/tools/docusign'
+import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -49,22 +52,27 @@ async function resolveAccount(accessToken: string): Promise<DocuSignAccountInfo>
   }
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!authResult.success) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json()
-  const { accessToken, operation, ...params } = body
+  const parsed = await parseRequest(
+    docusignToolContract,
+    request,
+    {},
+    {
+      validationErrorResponse: (error) =>
+        NextResponse.json(
+          { success: false, error: getValidationErrorMessage(error, 'Invalid request data') },
+          { status: 400 }
+        ),
+    }
+  )
+  if (!parsed.success) return parsed.response
 
-  if (!accessToken) {
-    return NextResponse.json({ success: false, error: 'Access token is required' }, { status: 400 })
-  }
-
-  if (!operation) {
-    return NextResponse.json({ success: false, error: 'Operation is required' }, { status: 400 })
-  }
+  const { accessToken, operation, ...params } = parsed.data.body
 
   try {
     const account = await resolveAccount(accessToken)
@@ -102,7 +110,7 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Internal server error'
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
-}
+})
 
 async function handleSendEnvelope(
   apiBase: string,

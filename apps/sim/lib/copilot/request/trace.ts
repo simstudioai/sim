@@ -1,3 +1,4 @@
+import type { Context } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import {
@@ -9,6 +10,7 @@ import {
   RequestTraceV1SpanStatus,
   type RequestTraceV1UsageSummary,
 } from '@/lib/copilot/generated/request-trace-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('RequestTrace')
@@ -71,6 +73,13 @@ export class TraceCollector {
     chatId?: string
     runId?: string
     executionId?: string
+    // Original user prompt, surfaced on the `request_traces.message`
+    // column at row-insert time so it's queryable from the DB without
+    // going through Tempo. Sim already has this at chat-POST time; it's
+    // threaded through here to the trace report so the row is complete
+    // the moment it's first written instead of waiting on the late
+    // analytics UPDATE.
+    userMessage?: string
     usage?: { prompt: number; completion: number }
     cost?: { input: number; output: number; total: number }
   }): RequestTraceV1SimReport {
@@ -96,6 +105,7 @@ export class TraceCollector {
       chatId: params.chatId,
       runId: params.runId,
       executionId: params.executionId,
+      ...(params.userMessage ? { userMessage: params.userMessage } : {}),
       startMs: this.startMs,
       endMs,
       durationMs: endMs - this.startMs,
@@ -107,14 +117,27 @@ export class TraceCollector {
   }
 }
 
-export async function reportTrace(trace: RequestTraceV1SimReport): Promise<void> {
-  const response = await fetch(`${SIM_AGENT_API_URL}/api/traces`, {
+export async function reportTrace(
+  trace: RequestTraceV1SimReport,
+  otelContext?: Context
+): Promise<void> {
+  const { fetchGo } = await import('@/lib/copilot/request/go/fetch')
+  const body = JSON.stringify(trace)
+  const response = await fetchGo(`${SIM_AGENT_API_URL}/api/traces`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
     },
-    body: JSON.stringify(trace),
+    body,
+    otelContext,
+    spanName: 'sim → go /api/traces',
+    operation: 'report_trace',
+    attributes: {
+      [TraceAttr.RequestId]: trace.simRequestId ?? '',
+      [TraceAttr.HttpRequestContentLength]: body.length,
+      [TraceAttr.CopilotTraceSpanCount]: trace.spans?.length ?? 0,
+    },
   })
 
   if (!response.ok) {

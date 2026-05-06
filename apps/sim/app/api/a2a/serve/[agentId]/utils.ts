@@ -1,7 +1,7 @@
 import type { Artifact, Message, PushNotificationConfig, Task, TaskState } from '@a2a-js/sdk'
+import { generateId } from '@sim/utils/id'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 
 /** A2A v0.3 JSON-RPC method names */
 export const A2A_METHODS = {
