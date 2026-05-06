@@ -41,60 +41,6 @@ const LINK_PREVIEW_DISALLOWED_PATHS = [
 ]
 
 /**
- * Search engines and AI/answer-engine crawlers explicitly allow-listed for
- * SEO/AEO/GEO. Explicit Allow rules ensure these bots are not accidentally
- * suppressed by downstream filters and signal intent to operators that
- * publish allow-list audits (Profound, Scrunch, Otterly, etc.).
- */
-const SEARCH_AND_AI_BOTS = [
-  // Western search engines
-  'Googlebot',
-  'Bingbot',
-  'DuckDuckBot',
-  'Kagibot',
-  'Bravebot',
-  // Regional search engines
-  'YandexBot',
-  'Baiduspider',
-  'Sogou web spider',
-  'Yeti',
-  'SeznamBot',
-  'PetalBot',
-  // OpenAI
-  'GPTBot',
-  'OAI-SearchBot',
-  'ChatGPT-User',
-  // Anthropic
-  'ClaudeBot',
-  'Claude-SearchBot',
-  'Claude-User',
-  // Google AI
-  'Google-Extended',
-  // Perplexity
-  'PerplexityBot',
-  'Perplexity-User',
-  // Apple
-  'Applebot',
-  'Applebot-Extended',
-  // Meta
-  'Meta-ExternalAgent',
-  'Meta-ExternalFetcher',
-  'FacebookBot',
-  // Other major AI / answer engines
-  'Amazonbot',
-  'CCBot',
-  'cohere-ai',
-  'cohere-training-data-crawler',
-  'MistralAI-User',
-  'DeepSeekBot',
-  'YouBot',
-  'Diffbot',
-  'AI2Bot',
-  'Timpibot',
-  'ImagesiftBot',
-]
-
-/**
  * Social and messaging platforms that fetch URLs to render link previews
  * (Open Graph / Twitter Card images). These need access to publicly-shared
  * surfaces like /chat/ and /form/ that are otherwise blocked.
@@ -118,7 +64,6 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       { userAgent: '*', allow: '/', disallow: DISALLOWED_PATHS },
-      { userAgent: SEARCH_AND_AI_BOTS, allow: '/', disallow: DISALLOWED_PATHS },
       {
         userAgent: LINK_PREVIEW_BOTS,
         allow: '/',
