@@ -144,6 +144,7 @@ export function Table({
   const [selectionAnchor, setSelectionAnchor] = useState<CellCoord | null>(null)
   const [selectionFocus, setSelectionFocus] = useState<CellCoord | null>(null)
   const [checkedRows, setCheckedRows] = useState(EMPTY_CHECKED_ROWS)
+  const [allRowsSelected, setAllRowsSelected] = useState(false)
   const [isColumnSelection, setIsColumnSelection] = useState(false)
   const lastCheckboxRowRef = useRef<string | null>(null)
   const isColumnSelectionRef = useRef(false)
@@ -380,21 +381,14 @@ export function Table({
   }, [dropTargetColumnName, dragColumnName, dropSide, displayColumns, columnWidths])
 
   const isAllRowsSelected = useMemo(() => {
-    if (checkedRows.size > 0 && rows.length > 0 && checkedRows.size >= rows.length) {
-      for (const row of rows) {
-        if (!checkedRows.has(row.id)) return false
-      }
-      return true
+    if (rows.length === 0) return false
+    if (allRowsSelected) return true
+    if (checkedRows.size < rows.length) return false
+    for (let i = 0; i < rows.length; i++) {
+      if (!checkedRows.has(rows[i].id)) return false
     }
-    return (
-      normalizedSelection !== null &&
-      rows.length > 0 &&
-      normalizedSelection.startRow === 0 &&
-      normalizedSelection.endRow === rows.length - 1 &&
-      normalizedSelection.startCol === 0 &&
-      normalizedSelection.endCol === displayColumns.length - 1
-    )
-  }, [checkedRows, normalizedSelection, displayColumns.length, rows])
+    return true
+  }, [allRowsSelected, checkedRows, rows])
 
   const isAllRowsSelectedRef = useRef(isAllRowsSelected)
   isAllRowsSelectedRef.current = isAllRowsSelected
@@ -410,6 +404,9 @@ export function Table({
 
   const checkedRowsRef = useRef(checkedRows)
   checkedRowsRef.current = checkedRows
+
+  const allRowsSelectedRef = useRef(allRowsSelected)
+  allRowsSelectedRef.current = allRowsSelected
 
   columnsRef.current = displayColumns
   schemaColumnsRef.current = columns
@@ -499,10 +496,13 @@ export function Table({
     }
 
     const checked = checkedRowsRef.current
+    const allChecked = allRowsSelectedRef.current
     const currentRows = rowsRef.current
     let snapshots: DeletedRowSnapshot[] = []
 
-    if (checked.size > 0 && checked.has(contextRow.id)) {
+    if (allChecked) {
+      snapshots = collectRowSnapshots(currentRows)
+    } else if (checked.size > 0 && checked.has(contextRow.id)) {
       snapshots = collectRowSnapshots(currentRows.filter((r) => checked.has(r.id)))
     } else {
       const sel = computeNormalizedSelection(selectionAnchorRef.current, selectionFocusRef.current)
@@ -678,6 +678,7 @@ export function Table({
   const handleCellMouseDown = useCallback(
     (rowIndex: number, colIndex: number, shiftKey: boolean) => {
       setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+      setAllRowsSelected(false)
       setIsColumnSelection(false)
       lastCheckboxRowRef.current = null
       if (shiftKey && selectionAnchorRef.current) {
@@ -713,11 +714,17 @@ export function Table({
         ? currentRows.findIndex((r) => r.id === lastCheckboxRowRef.current)
         : -1
 
+    const wasAllSelected = allRowsSelectedRef.current
+    if (wasAllSelected) {
+      allRowsSelectedRef.current = false
+      setAllRowsSelected(false)
+    }
+
     if (lastIdx !== -1) {
       const from = Math.min(lastIdx, rowIndex)
       const to = Math.max(lastIdx, rowIndex)
       setCheckedRows((prev) => {
-        const next = new Set(prev)
+        const next = wasAllSelected ? new Set(currentRows.map((r) => r.id)) : new Set(prev)
         for (let i = from; i <= to; i++) {
           const r = currentRows[i]
           if (r) next.add(r.id)
@@ -726,7 +733,7 @@ export function Table({
       })
     } else {
       setCheckedRows((prev) => {
-        const next = new Set(prev)
+        const next = wasAllSelected ? new Set(currentRows.map((r) => r.id)) : new Set(prev)
         if (next.has(targetId)) next.delete(targetId)
         else next.add(targetId)
         return next
@@ -740,6 +747,7 @@ export function Table({
     setSelectionAnchor(null)
     setSelectionFocus(null)
     setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    setAllRowsSelected(false)
     setIsColumnSelection(false)
     lastCheckboxRowRef.current = null
   }, [])
@@ -750,6 +758,7 @@ export function Table({
 
     setEditingCell(null)
     setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    setAllRowsSelected(false)
     lastCheckboxRowRef.current = null
 
     if (shiftKey && isColumnSelectionRef.current && selectionAnchorRef.current) {
@@ -769,6 +778,7 @@ export function Table({
 
     setEditingCell(null)
     setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    setAllRowsSelected(false)
     lastCheckboxRowRef.current = null
 
     setSelectionAnchor({ rowIndex: 0, colIndex: startColIndex })
@@ -784,6 +794,7 @@ export function Table({
     if (rws.length === 0 || currentCols.length === 0) return
     setEditingCell(null)
     setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    setAllRowsSelected(true)
     lastCheckboxRowRef.current = null
     suppressFocusScrollRef.current = true
     setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
@@ -876,6 +887,7 @@ export function Table({
     setSelectionAnchor(null)
     setSelectionFocus(null)
     setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    setAllRowsSelected(false)
     setIsColumnSelection(false)
   }, [])
 
@@ -1340,6 +1352,7 @@ export function Table({
         setSelectionAnchor(null)
         setSelectionFocus(null)
         setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        setAllRowsSelected(false)
         setIsColumnSelection(false)
         lastCheckboxRowRef.current = null
         return
@@ -1353,6 +1366,7 @@ export function Table({
           suppressFocusScrollRef.current = true
           setEditingCell(null)
           setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+          setAllRowsSelected(false)
           lastCheckboxRowRef.current = null
           setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
           setSelectionFocus({
@@ -1371,6 +1385,7 @@ export function Table({
         if (lastRow < 0) return
         e.preventDefault()
         setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        setAllRowsSelected(false)
         lastCheckboxRowRef.current = null
         setSelectionAnchor({ rowIndex: 0, colIndex: a.colIndex })
         setSelectionFocus({ rowIndex: lastRow, colIndex: a.colIndex })
@@ -1385,6 +1400,7 @@ export function Table({
         if (currentCols.length === 0) return
         e.preventDefault()
         setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        setAllRowsSelected(false)
         lastCheckboxRowRef.current = null
         setIsColumnSelection(false)
         setSelectionAnchor({ rowIndex: a.rowIndex, colIndex: 0 })
@@ -1392,17 +1408,21 @@ export function Table({
         return
       }
 
-      if ((e.key === 'Delete' || e.key === 'Backspace') && checkedRowsRef.current.size > 0) {
+      if (
+        (e.key === 'Delete' || e.key === 'Backspace') &&
+        (checkedRowsRef.current.size > 0 || allRowsSelectedRef.current)
+      ) {
         if (editingCellRef.current) return
         if (!canEditRef.current) return
         e.preventDefault()
         const checked = checkedRowsRef.current
+        const allChecked = allRowsSelectedRef.current
         const currentRows = rowsRef.current
         const currentCols = columnsRef.current
         const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
         const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
         for (const row of currentRows) {
-          if (!checked.has(row.id)) continue
+          if (!allChecked && !checked.has(row.id)) continue
           const updates: Record<string, unknown> = {}
           const previousData: Record<string, unknown> = {}
           for (const col of currentCols) {
@@ -1482,6 +1502,7 @@ export function Table({
       if (e.key === 'Tab') {
         e.preventDefault()
         setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        setAllRowsSelected(false)
         setIsColumnSelection(false)
         lastCheckboxRowRef.current = null
         setSelectionAnchor(moveCell(anchor, cols.length, totalRows, e.shiftKey ? -1 : 1))
@@ -1492,6 +1513,7 @@ export function Table({
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault()
         setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        setAllRowsSelected(false)
         setIsColumnSelection(false)
         lastCheckboxRowRef.current = null
         const focus = selectionFocusRef.current ?? anchor
@@ -1670,14 +1692,15 @@ export function Table({
       if (editingCellRef.current) return
 
       const checked = checkedRowsRef.current
+      const allChecked = allRowsSelectedRef.current
       const cols = columnsRef.current
       const currentRows = rowsRef.current
 
-      if (checked.size > 0) {
+      if (allChecked || checked.size > 0) {
         e.preventDefault()
         const lines: string[] = []
         for (const row of currentRows) {
-          if (!checked.has(row.id)) continue
+          if (!allChecked && !checked.has(row.id)) continue
           const cells: string[] = cols.map((col) => {
             const value: unknown = row.data[col.name]
             if (value === null || value === undefined) return ''
@@ -1721,16 +1744,17 @@ export function Table({
       if (!canEditRef.current) return
 
       const checked = checkedRowsRef.current
+      const allChecked = allRowsSelectedRef.current
       const cols = columnsRef.current
       const currentRows = rowsRef.current
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
 
-      if (checked.size > 0) {
+      if (allChecked || checked.size > 0) {
         e.preventDefault()
         const lines: string[] = []
         for (const row of currentRows) {
-          if (!checked.has(row.id)) continue
+          if (!allChecked && !checked.has(row.id)) continue
           const cells: string[] = cols.map((col) => {
             const value: unknown = row.data[col.name]
             if (value === null || value === undefined) return ''
@@ -2425,6 +2449,8 @@ export function Table({
     const contextRow = contextMenu.isOpen ? contextMenu.row : null
     if (!contextRow) return 1
 
+    if (allRowsSelected) return Math.max(rows.length, 1)
+
     if (checkedRows.size > 0 && checkedRows.has(contextRow.id)) {
       let count = 0
       for (const row of rows) {
@@ -2442,7 +2468,7 @@ export function Table({
     const start = Math.max(0, sel.startRow)
     const end = Math.min(rows.length - 1, sel.endRow)
     return Math.max(end - start + 1, 1)
-  }, [contextMenu.isOpen, contextMenu.row, checkedRows, normalizedSelection, rows])
+  }, [contextMenu.isOpen, contextMenu.row, allRowsSelected, checkedRows, normalizedSelection, rows])
 
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
@@ -2756,7 +2782,7 @@ export function Table({
                         onContextMenu={handleRowContextMenu}
                         onCellMouseDown={handleCellMouseDown}
                         onCellMouseEnter={handleCellMouseEnter}
-                        isRowChecked={checkedRows.has(row.id)}
+                        isRowChecked={allRowsSelected || checkedRows.has(row.id)}
                         onRowToggle={handleRowToggle}
                         runningCount={runningByRowId.get(row.id) ?? 0}
                         hasWorkflowColumns={hasWorkflowColumns}
@@ -3109,13 +3135,7 @@ const DataRow = React.memo(function DataRow({
 }: DataRowProps) {
   const sel = normalizedSelection
   const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
-  const isRowSelectedByRange =
-    sel !== null &&
-    rowIndex >= sel.startRow &&
-    rowIndex <= sel.endRow &&
-    sel.startCol === 0 &&
-    sel.endCol === columns.length - 1
-  const isRowSelected = isRowChecked || isRowSelectedByRange
+  const isRowSelected = isRowChecked
 
   return (
     <tr onContextMenu={(e) => onContextMenu(e, row)}>
