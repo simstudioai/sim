@@ -24,11 +24,14 @@ const DISALLOWED_PATHS = [
 /**
  * Tighter disallow list for link-preview bots. They fetch single URLs to
  * render Open Graph cards rather than crawl, so publicly-shareable surfaces
- * like /chat/, /form/, and /w/ must be reachable for previews to render.
+ * like /chat/ and /form/ must be reachable for previews to render. Other
+ * authenticated routes (/workspace/, /w/, /playground/) stay blocked.
  */
 const LINK_PREVIEW_DISALLOWED_PATHS = [
   '/api/',
   '/workspace/',
+  '/w/',
+  '/playground/',
   '/resume/',
   '/invite/',
   '/unsubscribe/',
@@ -49,7 +52,6 @@ const SEARCH_AND_AI_BOTS = [
   'Bingbot',
   'DuckDuckBot',
   'Kagibot',
-  'Bravebot',
   // Regional search engines
   'YandexBot',
   'Baiduspider',
@@ -82,7 +84,9 @@ const SEARCH_AND_AI_BOTS = [
   'CCBot',
   'cohere-ai',
   'cohere-training-data-crawler',
-  'Grok-web-crawl',
+  'GrokBot',
+  'xAI-Grok',
+  'Grok-DeepSearch',
   'MistralAI-User',
   'DeepSeek-AI',
   'YouBot',
