@@ -1,10 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
-/**
- * Default disallow list applied to crawlers and the wildcard rule. Blocks
- * authenticated surfaces, internal endpoints, and one-time-use links.
- */
 const DISALLOWED_PATHS = [
   '/api/',
   '/workspace/',
@@ -21,12 +17,7 @@ const DISALLOWED_PATHS = [
   '/blog*tag=',
 ]
 
-/**
- * Tighter disallow list for link-preview bots. They fetch single URLs to
- * render Open Graph cards rather than crawl, so publicly-shareable surfaces
- * like /chat/ and /form/ must be reachable for previews to render. Other
- * authenticated routes (/workspace/, /w/, /playground/) stay blocked.
- */
+/** Looser disallow than the wildcard so OG previews can fetch /chat/ and /form/. */
 const LINK_PREVIEW_DISALLOWED_PATHS = [
   '/api/',
   '/workspace/',
@@ -40,11 +31,6 @@ const LINK_PREVIEW_DISALLOWED_PATHS = [
   '/private/',
 ]
 
-/**
- * Social and messaging platforms that fetch URLs to render link previews
- * (Open Graph / Twitter Card images). These need access to publicly-shared
- * surfaces like /chat/ and /form/ that are otherwise blocked.
- */
 const LINK_PREVIEW_BOTS = [
   'Twitterbot',
   'LinkedInBot',
