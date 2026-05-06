@@ -185,6 +185,53 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     extract: (errorInfo) => errorInfo?.data?.error_description,
   },
   {
+    id: 'microsoft-graph-errors',
+    description:
+      'Microsoft Graph error format with nested innerError chain and details[] (Excel, OneDrive, SharePoint, Outlook). See https://learn.microsoft.com/en-us/graph/errors',
+    examples: ['Microsoft Excel', 'Microsoft OneDrive', 'Microsoft SharePoint'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object') return undefined
+
+      const root = (data as { error?: any }).error
+      if (root && typeof root === 'object') {
+        const messages: string[] = []
+        if (typeof root.message === 'string' && root.message.trim()) {
+          messages.push(root.message.trim())
+        }
+
+        // Walk nested innerError chain. Spec uses `innererror` (lowercase),
+        // Graph commonly returns `innerError` — accept both. Cap depth.
+        let inner: any = root.innererror ?? root.innerError
+        let depth = 0
+        while (inner && depth < 5) {
+          if (typeof inner.message === 'string' && inner.message.trim()) {
+            const msg = inner.message.trim()
+            if (!messages.includes(msg)) messages.push(msg)
+          }
+          inner = inner.innererror ?? inner.innerError
+          depth++
+        }
+
+        if (Array.isArray(root.details)) {
+          for (const detail of root.details) {
+            if (detail && typeof detail.message === 'string' && detail.message.trim()) {
+              const msg = detail.message.trim()
+              if (!messages.includes(msg)) messages.push(msg)
+            }
+          }
+        }
+
+        if (messages.length > 0) return messages.join(' — ')
+        if (typeof root.code === 'string' && root.code.trim()) return root.code.trim()
+      }
+
+      const topMessage = (data as { message?: unknown }).message
+      if (typeof topMessage === 'string' && topMessage.trim()) return topMessage.trim()
+      return undefined
+    },
+  },
+  {
     id: 'nested-error-object',
     description: 'Error field containing nested object or string',
     examples: ['Airtable', 'Google APIs'],
@@ -260,6 +307,7 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
 
 export const ErrorExtractorId = {
   ATLASSIAN_ERRORS: 'atlassian-errors',
+  MICROSOFT_GRAPH_ERRORS: 'microsoft-graph-errors',
   GRAPHQL_ERRORS: 'graphql-errors',
   TWITTER_ERRORS: 'twitter-errors',
   DETAILS_ARRAY: 'details-array',

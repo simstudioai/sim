@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftExcelToolParams,
   MicrosoftExcelV2ToolParams,
@@ -7,11 +8,25 @@ import type {
 import { getItemBasePath, getSpreadsheetWebUrl } from '@/tools/microsoft_excel/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Range writes (PATCH /workbook/.../range) are semantically idempotent —
+ * the same payload produces the same result — so we permit retries on
+ * transient 429/5xx even though PATCH is not in the default idempotent set.
+ */
+const EXCEL_RETRY_CONFIG = {
+  enabled: true,
+  maxRetries: 3,
+  initialDelayMs: 500,
+  maxDelayMs: 30000,
+  retryIdempotentOnly: false,
+} as const
+
 export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWriteResponse> = {
   id: 'microsoft_excel_write',
   name: 'Write to Microsoft Excel',
   description: 'Write data to a Microsoft Excel spreadsheet',
   version: '1.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -140,6 +155,7 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
 
       return body
     },
+    retry: EXCEL_RETRY_CONFIG,
   },
 
   transformResponse: async (response: Response, params?: MicrosoftExcelToolParams) => {
@@ -190,6 +206,7 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
   name: 'Write to Microsoft Excel V2',
   description: 'Write data to a specific sheet in a Microsoft Excel spreadsheet',
   version: '2.0.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -326,6 +343,7 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
 
       return body
     },
+    retry: EXCEL_RETRY_CONFIG,
   },
 
   transformResponse: async (response: Response, params?: MicrosoftExcelV2ToolParams) => {
