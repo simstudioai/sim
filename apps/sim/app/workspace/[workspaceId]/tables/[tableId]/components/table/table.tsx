@@ -43,10 +43,8 @@ import type {
 import { getUnmetGroupDeps } from '@/lib/table/deps'
 import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
-import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
-import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
   downloadTableExport,
   useAddTableColumn,
@@ -66,23 +64,18 @@ import {
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
-import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import { useContextMenu, useRowExecution, useTable } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import { cleanCellValue, storageToDisplay } from '../../utils'
-import {
-  type ColumnConfig,
-  ColumnConfigSidebar,
-  COLUMN_TYPE_OPTIONS,
-} from '../column-config-sidebar'
+import { type ColumnConfig, COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
 import { RowModal } from '../row-modal'
 import { TableActionBar } from '../table-action-bar'
 import { TableFilter } from '../table-filter'
-import { type WorkflowConfig, WorkflowSidebar } from '../workflow-sidebar'
+import type { WorkflowConfig } from '../workflow-sidebar'
 import { CellContent, ExpandedCellPopover } from './cells'
-import { COL_WIDTH, COLUMN_SIDEBAR_WIDTH, SELECTION_TINT_BG } from './constants'
+import { COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { COLUMN_TYPE_ICONS, ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
 import type { DisplayColumn } from './types'
 import {
@@ -141,13 +134,41 @@ interface TableProps {
   workspaceId?: string
   tableId?: string
   embedded?: boolean
+  /**
+   * Pixel width to reserve on the right of the table's scroll content for the
+   * currently-open slideout panel (column config, workflow config, or log
+   * details). Computed by the wrapper so it can subscribe to whichever panel
+   * width source is relevant. `0` when no panel is open.
+   */
+  sidebarReservedPx: number
+  /**
+   * Open requests fired by the grid (column header click, "+ New column"
+   * dropdown, context-menu items). The wrapper owns the actual panel state
+   * and enforces mutual-exclusion (only one slideout open at a time).
+   */
+  onOpenColumnConfig: (cfg: ColumnConfig) => void
+  onOpenWorkflowConfig: (cfg: WorkflowConfig) => void
+  onOpenExecutionDetails: (executionId: string) => void
+  /**
+   * Ref the grid populates with its `handleColumnRename` so the wrapper's
+   * sidebars can fire a column rename back into the grid (rewrites local
+   * `columnWidths` / `columnOrder` keys). The wrapper just forwards the call.
+   */
+  columnRenameSinkRef: React.MutableRefObject<
+    ((oldName: string, newName: string) => void) | null
+  >
 }
 
 export function Table({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   embedded,
-}: TableProps = {}) {
+  sidebarReservedPx,
+  onOpenColumnConfig,
+  onOpenWorkflowConfig,
+  onOpenExecutionDetails,
+  columnRenameSinkRef,
+}: TableProps) {
   const params = useParams()
   const router = useRouter()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
@@ -304,6 +325,9 @@ export function Table({
       ...(updatedOrder ? { columnOrder: updatedOrder } : {}),
     })
   }
+  // Populate the wrapper's sink so its sidebars can fire renames back into
+  // the grid. Reads through refs, so identity stability isn't required.
+  columnRenameSinkRef.current = handleColumnRename
 
   function getColumnWidths() {
     return columnWidthsRef.current
@@ -643,11 +667,9 @@ export function Table({
 
   const handleViewExecution = useCallback(() => {
     if (!contextMenuExecutionId) return
-    setColumnConfig(null)
-    setWorkflowConfig(null)
-    setExecutionDetailsId(contextMenuExecutionId)
+    onOpenExecutionDetails(contextMenuExecutionId)
     closeContextMenu()
-  }, [contextMenuExecutionId, closeContextMenu])
+  }, [contextMenuExecutionId, onOpenExecutionDetails, closeContextMenu])
 
   const handleDuplicateRow = useCallback(() => {
     const contextRow = contextMenu.row
@@ -2245,73 +2267,39 @@ export function Table({
   )
 
   /**
-   * Config state for the side panel:
-   * - `null` → closed.
-   * - `{ mode: 'edit' }` → configuring an existing column (any type).
-   * - `{ mode: 'new' }` → user changed an existing column to workflow; not persisted until Save.
-   * - `{ mode: 'create' }` → user picked a workflow from "Add column"; column doesn't exist yet,
-   *   created on Save in a single POST.
-   */
-  const [columnConfig, setColumnConfig] = useState<ColumnConfig | null>(null)
-  const [workflowConfig, setWorkflowConfig] = useState<WorkflowConfig | null>(null)
-  /** Execution id whose run details are open in the slideout. */
-  const [executionDetailsId, setExecutionDetailsId] = useState<string | null>(null)
-  /**
-   * Right padding added to the table's scroll content while a slideout panel
-   * is open, equal to the panel's width. The three panels (column config,
-   * workflow config, log details) are mutually exclusive — opening any one
-   * closes the others.
-   */
-  const logPanelWidth = useLogDetailsUIStore((state) => state.panelWidth)
-  const sidebarReservedPx =
-    columnConfig || workflowConfig ? COLUMN_SIDEBAR_WIDTH : executionDetailsId ? logPanelWidth : 0
-
-  /** Open one of the two sidebars. The helpers enforce the "only one open" invariant. */
-  const openColumnConfig = useCallback((cfg: ColumnConfig) => {
-    setExecutionDetailsId(null)
-    setWorkflowConfig(null)
-    setColumnConfig(cfg)
-  }, [])
-  const openWorkflowConfig = useCallback((cfg: WorkflowConfig) => {
-    setExecutionDetailsId(null)
-    setColumnConfig(null)
-    setWorkflowConfig(cfg)
-  }, [])
-
-  /**
    * Open the column-config sidebar pre-seeded with the chosen scalar type.
    * Nothing is persisted until the user fills in the name and hits Save.
    */
   const handleAddColumnOfType = useCallback(
     (type: ColumnDefinition['type']) => {
-      openColumnConfig({ mode: 'create', proposedName: generateColumnName(), type })
+      onOpenColumnConfig({ mode: 'create', proposedName: generateColumnName(), type })
     },
-    [generateColumnName, openColumnConfig]
+    [generateColumnName, onOpenColumnConfig]
   )
 
   /** Open the workflow-config sidebar to spawn a brand-new workflow group. */
   const handleAddWorkflowColumn = useCallback(() => {
-    openWorkflowConfig({ mode: 'create', proposedName: generateColumnName() })
-  }, [generateColumnName, openWorkflowConfig])
+    onOpenWorkflowConfig({ mode: 'create', proposedName: generateColumnName() })
+  }, [generateColumnName, onOpenWorkflowConfig])
 
   const handleConfigureColumn = useCallback(
     (columnName: string) => {
       const column = columnsRef.current.find((c) => c.name === columnName)
       if (column?.workflowGroupId) {
         // Workflow-output column header → single-output sub-mode.
-        openWorkflowConfig({ mode: 'edit-output', columnName })
+        onOpenWorkflowConfig({ mode: 'edit-output', columnName })
       } else {
-        openColumnConfig({ mode: 'edit', columnName })
+        onOpenColumnConfig({ mode: 'edit', columnName })
       }
     },
-    [openColumnConfig, openWorkflowConfig]
+    [onOpenColumnConfig, onOpenWorkflowConfig]
   )
 
   const handleConfigureWorkflowGroup = useCallback(
     (groupId: string) => {
-      openWorkflowConfig({ mode: 'edit-group', groupId })
+      onOpenWorkflowConfig({ mode: 'edit-group', groupId })
     },
-    [openWorkflowConfig]
+    [onOpenWorkflowConfig]
   )
 
   const handleDeleteWorkflowGroup = useCallback(
@@ -3138,29 +3126,6 @@ export function Table({
           )}
         </div>
 
-        <ColumnConfigSidebar
-          config={columnConfig}
-          onClose={() => setColumnConfig(null)}
-          existingColumn={
-            columnConfig?.mode === 'edit'
-              ? (columns.find((c) => c.name === columnConfig.columnName) ?? null)
-              : null
-          }
-          workspaceId={workspaceId}
-          tableId={tableId}
-          onColumnRename={handleColumnRename}
-        />
-        <WorkflowSidebar
-          config={workflowConfig}
-          onClose={() => setWorkflowConfig(null)}
-          allColumns={columns}
-          workflowGroups={tableWorkflowGroups}
-          workflows={workflows}
-          workspaceId={workspaceId}
-          tableId={tableId}
-          onColumnRename={handleColumnRename}
-        />
-
         {userPermissions.canEdit && (
           <TableActionBar
             selectedCount={actionBarRowIds.length}
@@ -3171,12 +3136,6 @@ export function Table({
             onStopWorkflows={handleStopWorkflowsFromActionBar}
           />
         )}
-
-        <ExecutionDetailsSidebar
-          workspaceId={workspaceId}
-          executionId={executionDetailsId}
-          onClose={() => setExecutionDetailsId(null)}
-        />
       </div>
 
       {editingRow && tableData && (
@@ -3830,20 +3789,3 @@ const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: ()
   )
 })
 
-/**
- * Reuses the logs page's `LogDetails` slideout inside the tables view so a user
- * can inspect a workflow run for a cell without leaving the table. The query is
- * keyed on `executionId` because that's what's stored on the cell.
- */
-function ExecutionDetailsSidebar({
-  workspaceId,
-  executionId,
-  onClose,
-}: {
-  workspaceId: string
-  executionId: string | null
-  onClose: () => void
-}) {
-  const { data: log } = useLogByExecutionId(workspaceId, executionId)
-  return <LogDetails log={log ?? null} isOpen={Boolean(executionId)} onClose={onClose} />
-}

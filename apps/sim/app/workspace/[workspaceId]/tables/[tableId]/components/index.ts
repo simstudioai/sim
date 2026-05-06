@@ -1,5 +1,6 @@
 export * from './column-config-sidebar'
 export * from './context-menu'
+export * from './execution-details-sidebar'
 export * from './row-modal'
 export * from './table'
 export * from './table-action-bar'

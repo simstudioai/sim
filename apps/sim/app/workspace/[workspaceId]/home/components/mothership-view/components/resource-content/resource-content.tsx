@@ -42,7 +42,7 @@ import {
   useUserPermissionsContext,
   useWorkspacePermissionsContext,
 } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
+import { TablesDetail } from '@/app/workspace/[workspaceId]/tables/[tableId]/tables-detail'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
@@ -147,7 +147,14 @@ export const ResourceContent = memo(function ResourceContent({
 
   switch (resource.type) {
     case 'table':
-      return <Table key={resource.id} workspaceId={workspaceId} tableId={resource.id} embedded />
+      return (
+        <TablesDetail
+          key={resource.id}
+          workspaceId={workspaceId}
+          tableId={resource.id}
+          embedded
+        />
+      )
 
     case 'file':
       return (
