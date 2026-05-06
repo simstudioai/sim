@@ -6,11 +6,19 @@ import {
   StartBlockPath,
 } from '@/lib/workflows/triggers/triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
-import type { NormalizedBlockOutput, UserFile } from '@/executor/types'
+import {
+  EXECUTION_CONTROL_OUTPUT_FIELD_NAMES,
+  type NormalizedBlockOutput,
+  type UserFile,
+} from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { safeAssign } from '@/tools/safe-assign'
 
 type ExecutionKind = 'chat' | 'manual' | 'api' | 'external'
+
+const EXECUTION_CONTROL_OUTPUT_FIELD_NAME_SET = new Set<string>(
+  EXECUTION_CONTROL_OUTPUT_FIELD_NAMES
+)
 
 export interface ExecutorStartResolution {
   blockId: string
@@ -133,6 +141,66 @@ function extractInputFormat(block: SerializedBlock): InputFormatField[] {
     .map((field) => field)
 }
 
+function readInputFormatFieldName(field: InputFormatField): string | undefined {
+  return typeof field.name === 'string' ? field.name.trim() : undefined
+}
+
+function collectExecutionControlFieldNames(fieldNames: Iterable<string | undefined>): string[] {
+  const reservedFieldNames: string[] = []
+
+  for (const fieldName of fieldNames) {
+    if (!fieldName || !EXECUTION_CONTROL_OUTPUT_FIELD_NAME_SET.has(fieldName)) {
+      continue
+    }
+
+    if (!reservedFieldNames.includes(fieldName)) {
+      reservedFieldNames.push(fieldName)
+    }
+  }
+
+  return reservedFieldNames
+}
+
+function throwReservedStartOutputFieldsError(
+  block: SerializedBlock,
+  reservedFieldNames: string[],
+  source: 'input format' | 'runtime input'
+): never {
+  const blockName = block.metadata?.name ?? block.id
+
+  throw new Error(
+    `Start block "${blockName}" cannot use reserved ${source} field name(s): ${reservedFieldNames.join(', ')}. These names control workflow execution and cannot be used as Start outputs. Rename these fields before running the workflow. Reserved names are: ${EXECUTION_CONTROL_OUTPUT_FIELD_NAMES.join(', ')}.`
+  )
+}
+
+function assertNoReservedInputFormatFields(
+  inputFormat: InputFormatField[],
+  block: SerializedBlock
+): void {
+  const reservedFieldNames = collectExecutionControlFieldNames(
+    inputFormat.map(readInputFormatFieldName)
+  )
+
+  if (reservedFieldNames.length === 0) {
+    return
+  }
+
+  throwReservedStartOutputFieldsError(block, reservedFieldNames, 'input format')
+}
+
+function assertNoReservedStartOutputFields(
+  output: NormalizedBlockOutput,
+  block: SerializedBlock
+): void {
+  const reservedFieldNames = collectExecutionControlFieldNames(Object.keys(output))
+
+  if (reservedFieldNames.length === 0) {
+    return
+  }
+
+  throwReservedStartOutputFieldsError(block, reservedFieldNames, 'runtime input')
+}
+
 export function coerceValue(type: string | null | undefined, value: unknown): unknown {
   if (value === undefined || value === null) {
     return value
@@ -190,7 +258,7 @@ function deriveInputFromFormat(
   }
 
   for (const field of inputFormat) {
-    const fieldName = field.name?.trim()
+    const fieldName = readInputFormatFieldName(field)
     if (!fieldName) continue
 
     let fieldValue: unknown
@@ -436,35 +504,48 @@ export interface StartBlockOutputOptions {
 export function buildStartBlockOutput(options: StartBlockOutputOptions): NormalizedBlockOutput {
   const { resolution, workflowInput } = options
   const inputFormat = extractInputFormat(resolution.block)
+  assertNoReservedInputFormatFields(inputFormat, resolution.block)
   const { finalInput, structuredInput, hasStructured } = deriveInputFromFormat(
     inputFormat,
     workflowInput
   )
 
+  let output: NormalizedBlockOutput
+
   switch (resolution.path) {
     case StartBlockPath.UNIFIED:
-      return buildUnifiedStartOutput(workflowInput, structuredInput, hasStructured)
+      output = buildUnifiedStartOutput(workflowInput, structuredInput, hasStructured)
+      break
 
     case StartBlockPath.SPLIT_API:
     case StartBlockPath.SPLIT_INPUT:
-      return buildApiOrInputOutput(finalInput, workflowInput)
+      output = buildApiOrInputOutput(finalInput, workflowInput)
+      break
 
     case StartBlockPath.SPLIT_CHAT:
-      return buildChatOutput(workflowInput)
+      output = buildChatOutput(workflowInput)
+      break
 
     case StartBlockPath.SPLIT_MANUAL:
-      return buildManualTriggerOutput(finalInput, workflowInput)
+      output = buildManualTriggerOutput(finalInput, workflowInput)
+      break
 
     case StartBlockPath.EXTERNAL_TRIGGER:
-      return buildIntegrationTriggerOutput(workflowInput, structuredInput, hasStructured)
+      output = buildIntegrationTriggerOutput(workflowInput, structuredInput, hasStructured)
+      break
 
     case StartBlockPath.LEGACY_STARTER:
-      return buildLegacyStarterOutput(
+      output = buildLegacyStarterOutput(
         finalInput,
         workflowInput,
         getLegacyStarterMode({ subBlocks: extractSubBlocks(resolution.block) })
       )
+      break
+
     default:
-      return buildManualTriggerOutput(finalInput, workflowInput)
+      output = buildManualTriggerOutput(finalInput, workflowInput)
   }
+
+  assertNoReservedStartOutputFields(output, resolution.block)
+  return output
 }
