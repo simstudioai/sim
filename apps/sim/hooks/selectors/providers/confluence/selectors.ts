@@ -4,6 +4,11 @@ import { fetchOAuthToken } from '@/hooks/selectors/helpers'
 import { ensureCredential, ensureDomain, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
+function formatConfluenceSpaceLabel(space: { name: string; key: string; status?: string }): string {
+  const base = `${space.name} (${space.key})`
+  return space.status === 'archived' ? `${base} — archived` : base
+}
+
 export const confluenceSelectors = {
   'confluence.spaces': {
     key: 'confluence.spaces',
@@ -29,7 +34,7 @@ export const confluenceSelectors = {
       })
       return (data.spaces || []).map((space) => ({
         id: space.id,
-        label: `${space.name} (${space.key})`,
+        label: formatConfluenceSpaceLabel(space),
       }))
     },
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
@@ -46,7 +51,7 @@ export const confluenceSelectors = {
       })
       const space = (data.spaces || []).find((s) => s.id === detailId) ?? null
       if (!space) return null
-      return { id: space.id, label: `${space.name} (${space.key})` }
+      return { id: space.id, label: formatConfluenceSpaceLabel(space) }
     },
   },
   'confluence.pages': {

@@ -86,59 +86,79 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const baseUrl = `https://api.atlassian.com/ex/confluence/${cloudIdValidation.sanitized}/wiki/api/v2/spaces`
     const PAGE_LIMIT = 250
     const MAX_PAGES = 20
-    const spaces: { id: string; name: string; key: string }[] = []
-    let cursor: string | undefined
-    let pageCount = 0
 
-    while (pageCount < MAX_PAGES) {
-      const params = new URLSearchParams({ limit: String(PAGE_LIMIT) })
-      if (cursor) params.set('cursor', cursor)
-      const url = `${baseUrl}?${params.toString()}`
+    /**
+     * Confluence v2 `/spaces` defaults to `status=current` and treats `status`
+     * as a single-value enum, so archived spaces never surface from one call.
+     * Listing both surfaces archived spaces in the dropdown — they would
+     * otherwise only be reachable by typing the space key manually, even
+     * though sync works against archived spaces just fine.
+     */
+    async function fetchAllPages(status: 'current' | 'archived'): Promise<{
+      spaces: { id: string; name: string; key: string; status: string }[]
+      capped: boolean
+    }> {
+      const collected: { id: string; name: string; key: string; status: string }[] = []
+      let cursor: string | undefined
+      let pageCount = 0
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
+      while (pageCount < MAX_PAGES) {
+        const params = new URLSearchParams({ limit: String(PAGE_LIMIT), status })
+        if (cursor) params.set('cursor', cursor)
+        const url = `${baseUrl}?${params.toString()}`
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        logger.error('Confluence API error response:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText,
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
         })
-        return NextResponse.json(
-          { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
-          { status: response.status }
-        )
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(
+            parseAtlassianErrorMessage(response.status, response.statusText, errorText)
+          )
+        }
+
+        const data = await response.json()
+        for (const space of data.results || []) {
+          collected.push({ id: space.id, name: space.name, key: space.key, status })
+        }
+
+        const nextLink = data._links?.next as string | undefined
+        if (!nextLink) return { spaces: collected, capped: false }
+        try {
+          cursor = new URL(nextLink, 'https://placeholder').searchParams.get('cursor') || undefined
+        } catch {
+          cursor = undefined
+        }
+        if (!cursor) return { spaces: collected, capped: false }
+        pageCount += 1
       }
 
-      const data = await response.json()
-      for (const space of data.results || []) {
-        spaces.push({ id: space.id, name: space.name, key: space.key })
-      }
-
-      const nextLink = data._links?.next as string | undefined
-      if (!nextLink) break
-      try {
-        cursor = new URL(nextLink, 'https://placeholder').searchParams.get('cursor') || undefined
-      } catch {
-        cursor = undefined
-      }
-      if (!cursor) break
-      pageCount += 1
+      return { spaces: collected, capped: true }
     }
 
-    if (pageCount >= MAX_PAGES) {
+    let currentResult: Awaited<ReturnType<typeof fetchAllPages>>
+    let archivedResult: Awaited<ReturnType<typeof fetchAllPages>>
+    try {
+      ;[currentResult, archivedResult] = await Promise.all([
+        fetchAllPages('current'),
+        fetchAllPages('archived'),
+      ])
+    } catch (error) {
+      logger.error('Confluence API error response', { error: (error as Error).message })
+      return NextResponse.json({ error: (error as Error).message }, { status: 502 })
+    }
+
+    if (currentResult.capped || archivedResult.capped) {
       logger.warn('Confluence space listing hit pagination cap', {
         cap: MAX_PAGES * PAGE_LIMIT,
-        returned: spaces.length,
+        currentCount: currentResult.spaces.length,
+        archivedCount: archivedResult.spaces.length,
       })
     }
 
+    const spaces = [...currentResult.spaces, ...archivedResult.spaces]
     return NextResponse.json({ spaces })
   } catch (error) {
     logger.error('Error listing Confluence spaces:', error)

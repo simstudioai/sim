@@ -10,7 +10,12 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 
 const confluenceSpaceSchema = z
-  .object({ id: z.string(), name: z.string(), key: z.string() })
+  .object({
+    id: z.string(),
+    name: z.string(),
+    key: z.string(),
+    status: z.string().optional(),
+  })
   .passthrough()
 
 export const confluencePagesBodySchema = z.object({
