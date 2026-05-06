@@ -3,6 +3,10 @@ import Link from 'next/link'
 import { getEnv } from '@/lib/core/config/env'
 import { ExternalRedirect, LegalLayout } from '@/app/(landing)/components'
 
+/** Opt out of static prerendering so `NEXT_PUBLIC_TERMS_URL` is read from
+ * the live runtime environment (e.g. Docker-injected) rather than baked at build. */
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Terms of Service',
   description:
