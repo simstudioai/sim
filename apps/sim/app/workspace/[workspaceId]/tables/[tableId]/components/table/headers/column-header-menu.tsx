@@ -35,6 +35,8 @@ interface ColumnHeaderMenuProps {
   onDragLeave?: () => void
   workflows?: WorkflowMetadata[]
   workflowGroups?: WorkflowGroup[]
+  /** Source-info entry for workflow-output columns; supplies the producing
+   *  block's icon component. The block's color is intentionally not used. */
   sourceInfo?: ColumnSourceInfo
   onOpenConfig: (columnName: string) => void
   /** Opens a popup preview of the column's underlying workflow. Surfaced in
@@ -94,10 +96,6 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       ? 'Hide column'
       : 'Delete workflow'
     : undefined
-  const workflowColor = configuredWorkflow?.color
-  const blockIconInfo = sourceInfo?.blockIconInfo
-  const blockName = sourceInfo?.blockName
-
   useEffect(() => {
     if (isRenaming && renameInputRef.current) {
       renameInputRef.current.focus()
@@ -190,6 +188,11 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       const th = e.currentTarget as HTMLElement
       const related = e.relatedTarget as Node | null
       if (related && th.contains(related)) return
+      // Don't clear when the cursor is moving to another column header — the
+      // next dragover will set the right target. Clearing here causes the
+      // drop indicator to flicker between sibling columns of a workflow
+      // group (and any adjacent column hop in general).
+      if (related && related instanceof Element && related.closest('th')) return
       onDragLeave?.()
     },
     [onDragLeave]
@@ -247,8 +250,8 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
-            workflowColor={workflowColor}
-            blockIconInfo={blockIconInfo}
+            isWorkflowColumn={!!column.workflowGroupId}
+            blockIconInfo={sourceInfo?.blockIconInfo}
           />
           <input
             ref={renameInputRef}
@@ -267,25 +270,12 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
-            workflowColor={workflowColor}
-            blockIconInfo={blockIconInfo}
+            isWorkflowColumn={!!column.workflowGroupId}
+            blockIconInfo={sourceInfo?.blockIconInfo}
           />
-          {column.workflowGroupId ? (
-            <div className='ml-1.5 flex min-w-0 flex-1 flex-col text-left'>
-              {blockName && (
-                <span className='block w-full min-w-0 truncate text-[var(--text-tertiary)] text-caption leading-tight'>
-                  {blockName}
-                </span>
-              )}
-              <span className='block w-full min-w-0 truncate font-medium text-[13px] text-[var(--text-primary)] leading-tight'>
-                {column.headerLabel}
-              </span>
-            </div>
-          ) : (
-            <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
-              {column.name}
-            </span>
-          )}
+          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
+            {column.workflowGroupId ? column.headerLabel : column.name}
+          </span>
         </div>
       ) : (
         <div className='flex h-full w-full min-w-0 items-center'>
@@ -296,26 +286,13 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             draggable={false}
           >
             <ColumnTypeIcon
-              type={column.type}
-              workflowColor={workflowColor}
-              blockIconInfo={blockIconInfo}
-            />
-            {column.workflowGroupId ? (
-              <div className='ml-1.5 flex min-w-0 flex-1 flex-col items-start text-left'>
-                {blockName && (
-                  <span className='block w-full min-w-0 truncate text-[10px] text-[var(--text-tertiary)] leading-tight'>
-                    {blockName}
-                  </span>
-                )}
-                <span className='block w-full min-w-0 truncate font-medium text-[var(--text-primary)] text-small leading-tight'>
-                  {column.headerLabel}
-                </span>
-              </div>
-            ) : (
-              <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
-                {column.name}
-              </span>
-            )}
+            type={column.type}
+            isWorkflowColumn={!!column.workflowGroupId}
+            blockIconInfo={sourceInfo?.blockIconInfo}
+          />
+            <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
+              {column.workflowGroupId ? column.headerLabel : column.name}
+            </span>
           </button>
           <button
             type='button'

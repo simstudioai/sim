@@ -78,6 +78,7 @@ import {
 import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar/column-types'
 import { ContextMenu } from '../context-menu'
 import { RowModal } from '../row-modal'
+import { TableActionBar } from '../table-action-bar/table-action-bar'
 import { TableFilter } from '../table-filter'
 import { type WorkflowConfig, WorkflowSidebar } from '../workflow-sidebar/workflow-sidebar'
 import { CellContent } from './cells/cell-content'
@@ -967,19 +968,29 @@ export function Table({
   }, [])
 
   const handleColumnDragOver = useCallback((columnName: string, side: 'left' | 'right') => {
+    const dragged = dragColumnNameRef.current
+    const cols = schemaColumnsRef.current
+    const targetCol = cols.find((c) => c.name === columnName)
+    const targetGid = targetCol?.workflowGroupId
+
     // Suppress drop targeting while hovering siblings of the dragged column's
     // own group: reordering inside a group is meaningless (the group renders
     // as a unit) and the chasing indicator just flickers.
-    const dragged = dragColumnNameRef.current
     if (dragged) {
-      const cols = schemaColumnsRef.current
       const draggedGid = cols.find((c) => c.name === dragged)?.workflowGroupId
-      const targetGid = cols.find((c) => c.name === columnName)?.workflowGroupId
       if (draggedGid && draggedGid === targetGid) {
         if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
         return
       }
     }
+
+    // Workflow groups: skip per-`<th>` writes and let `handleScrollDragOver`
+    // do the bookkeeping. The scroll handler computes side from the group's
+    // full bounds, so it stays stable across sibling cursor moves; the per-th
+    // events would otherwise oscillate name + side as the cursor crosses each
+    // sibling's midpoint.
+    if (targetGid) return
+
     if (columnName === dropTargetColumnNameRef.current && side === dropSideRef.current) return
     setDropTargetColumnName(columnName)
     setDropSide(side)
@@ -998,7 +1009,15 @@ export function Table({
     const side = dropSideRef.current
     if (target && dragged !== target) {
       const schemaCols = schemaColumnsRef.current
-      const currentOrder = columnOrderRef.current ?? schemaCols.map((c) => c.name)
+      // `columnOrder` is the user-edited persisted order. Tables created
+      // before the server kept it in sync with `addColumn` may have entries
+      // missing — append any unknown schema names so the dragged column is
+      // always indexable. The next reorder write persists the reconciled
+      // list, healing the table going forward.
+      const persisted = columnOrderRef.current ?? schemaCols.map((c) => c.name)
+      const known = new Set(persisted)
+      const missing = schemaCols.map((c) => c.name).filter((n) => !known.has(n))
+      const currentOrder = missing.length > 0 ? [...persisted, ...missing] : persisted
 
       // Group-aware reorder: a workflow group's outputs must stay contiguous in
       // the persisted column order (`workflow-columns.ts` validates this on
@@ -2657,38 +2676,82 @@ export function Table({
     [cancelRunsMutate]
   )
 
-  // Plain function: only consumer is `<ContextMenu>` which isn't `React.memo`'d,
-  // so reference stability isn't observed.
-  const handleRunWorkflowsOnSelection = () => {
+  // Generic over which row-id list (context-menu selection vs checkbox-row
+  // selection). Both surfaces — right-click menu and bottom action bar — call
+  // through these. `runMode: 'incomplete'` skips rows whose group has already
+  // completed; matches the meta-cell's "Run empty rows" item.
+  const runWorkflowsOnRows = (rowIds: string[], runMode: 'all' | 'incomplete' = 'all') => {
     if (tableWorkflowGroups.length === 0) return
-    if (contextMenuRowIds.length === 0) return
+    if (rowIds.length === 0) return
     for (const group of tableWorkflowGroups) {
       runGroupMutation.mutate({
         groupId: group.id,
         workflowId: group.workflowId,
-        runMode: 'all',
-        rowIds: contextMenuRowIds,
+        runMode,
+        rowIds,
       })
     }
+  }
+  const stopWorkflowsOnRows = (rowIds: string[]) => {
+    if (rowIds.length === 0) return
+    for (const rowId of rowIds) {
+      if ((runningByRowId.get(rowId) ?? 0) === 0) continue
+      cancelRunsMutate({ scope: 'row', rowId })
+    }
+  }
+
+  // Context-menu wrappers: act on `contextMenuRowIds`, then close the menu.
+  const handleRunWorkflowsOnSelection = () => {
+    runWorkflowsOnRows(contextMenuRowIds)
+    closeContextMenu()
+  }
+  const handleStopWorkflowsOnSelection = () => {
+    stopWorkflowsOnRows(contextMenuRowIds)
     closeContextMenu()
   }
 
   // Total running/queued cells across the rows the context menu is acting on;
-  // drives the "Stop N running workflows" item, shown only when > 0. The reduce
-  // is cheap (selection size is small) and a memo wouldn't pay for itself.
+  // drives the "Stop N running workflows" item, shown only when > 0.
   const runningInContextSelection = contextMenuRowIds.reduce(
     (total, rowId) => total + (runningByRowId.get(rowId) ?? 0),
     0
   )
 
-  const handleStopWorkflowsOnSelection = () => {
-    if (contextMenuRowIds.length === 0) return
-    for (const rowId of contextMenuRowIds) {
-      if ((runningByRowId.get(rowId) ?? 0) === 0) continue
-      cancelRunsMutate({ scope: 'row', rowId })
+  // Action-bar selection covers both checkbox-row selection AND multi-row
+  // range selection (clicking + dragging across rows), matching how the
+  // right-click context menu treats them. Single-row range doesn't trigger
+  // the bar — only multi-row, since the per-row gutter button already covers
+  // that case. Checkbox selection wins when both exist.
+  const actionBarRowIds = useMemo<string[]>(() => {
+    if (checkedRows.size > 0) {
+      const ids: string[] = []
+      for (const pos of checkedRows) {
+        const row = positionMap.get(pos)
+        if (row) ids.push(row.id)
+      }
+      return ids
     }
-    closeContextMenu()
-  }
+    const sel = normalizedSelection
+    if (sel && sel.endRow > sel.startRow) {
+      const ids: string[] = []
+      for (let r = sel.startRow; r <= sel.endRow; r++) {
+        const row = positionMap.get(r)
+        if (row) ids.push(row.id)
+      }
+      return ids
+    }
+    return []
+  }, [checkedRows, normalizedSelection, positionMap])
+  const runningInActionBarSelection = actionBarRowIds.reduce(
+    (total, rowId) => total + (runningByRowId.get(rowId) ?? 0),
+    0
+  )
+  // Default Play: smart run — `runMode: 'incomplete'` skips already-completed
+  // cells and runs everything else (empty, errored, cancelled).
+  const handleRunFromActionBar = () => runWorkflowsOnRows(actionBarRowIds, 'incomplete')
+  // Refresh: forceful re-run on every selected row, including completed ones.
+  const handleRerunFromActionBar = () => runWorkflowsOnRows(actionBarRowIds, 'all')
+  const handleStopWorkflowsFromActionBar = () => stopWorkflowsOnRows(actionBarRowIds)
 
   const handleRunRow = useCallback(
     (rowId: string) => {
@@ -3067,6 +3130,17 @@ export function Table({
           tableId={tableId}
           onColumnRename={handleColumnRename}
         />
+
+        {userPermissions.canEdit && (
+          <TableActionBar
+            selectedCount={actionBarRowIds.length}
+            runningCount={runningInActionBarSelection}
+            hasWorkflowColumns={hasWorkflowColumns}
+            onRun={handleRunFromActionBar}
+            onRerun={handleRerunFromActionBar}
+            onStopWorkflows={handleStopWorkflowsFromActionBar}
+          />
+        )}
 
         <ExecutionDetailsSidebar
           workspaceId={workspaceId}

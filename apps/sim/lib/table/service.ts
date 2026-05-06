@@ -525,13 +525,36 @@ export async function addTableColumn(
   }
 
   const updatedSchema: TableSchema = { ...schema, columns }
-  assertValidSchema(updatedSchema, table.metadata?.columnOrder)
+
+  // Keep `metadata.columnOrder` in sync: when present, it must list every
+  // column in `schema.columns`. Splicing the new name in at the same index
+  // we used in `columns` keeps display ordering aligned with the user's
+  // intent for `position`-based inserts.
+  const existingOrder = table.metadata?.columnOrder
+  let updatedMetadata = table.metadata
+  if (existingOrder && existingOrder.length > 0 && !existingOrder.includes(column.name)) {
+    let insertIdx = existingOrder.length
+    if (column.position !== undefined && column.position >= 0) {
+      // Anchor on the column previously at `position` — that column shifted
+      // right by one in `columns`, so the new name slots in at its old spot.
+      const anchor = schema.columns[column.position]?.name
+      if (anchor) {
+        const anchorIdx = existingOrder.indexOf(anchor)
+        if (anchorIdx !== -1) insertIdx = anchorIdx
+      }
+    }
+    const nextOrder = [...existingOrder]
+    nextOrder.splice(insertIdx, 0, column.name)
+    updatedMetadata = { ...table.metadata, columnOrder: nextOrder }
+  }
+
+  assertValidSchema(updatedSchema, updatedMetadata?.columnOrder)
 
   const now = new Date()
 
   await db
     .update(userTableDefinitions)
-    .set({ schema: updatedSchema, updatedAt: now })
+    .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
     .where(eq(userTableDefinitions.id, tableId))
 
   logger.info(`[${requestId}] Added column "${column.name}" to table ${tableId}`)
@@ -539,6 +562,7 @@ export async function addTableColumn(
   return {
     ...table,
     schema: updatedSchema,
+    metadata: updatedMetadata,
     updatedAt: now,
   }
 }
@@ -2719,19 +2743,38 @@ export async function addWorkflowGroup(
     columns: [...schema.columns, ...data.outputColumns],
     workflowGroups: [...groups, data.group],
   }
-  assertValidSchema(updatedSchema, table.metadata?.columnOrder)
+
+  // Keep `metadata.columnOrder` in sync — see `addTableColumn` for the
+  // invariant. New output columns get appended in the order the caller
+  // supplied (matches their position in `schema.columns`).
+  const existingOrder = table.metadata?.columnOrder
+  let updatedMetadata = table.metadata
+  if (existingOrder && existingOrder.length > 0) {
+    const known = new Set(existingOrder)
+    const append = data.outputColumns.map((c) => c.name).filter((n) => !known.has(n))
+    if (append.length > 0) {
+      updatedMetadata = { ...table.metadata, columnOrder: [...existingOrder, ...append] }
+    }
+  }
+
+  assertValidSchema(updatedSchema, updatedMetadata?.columnOrder)
 
   const now = new Date()
   await db
     .update(userTableDefinitions)
-    .set({ schema: updatedSchema, updatedAt: now })
+    .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
     .where(eq(userTableDefinitions.id, data.tableId))
 
   logger.info(
     `[${requestId}] Added workflow group "${data.group.id}" with ${data.outputColumns.length} output column(s) to table ${data.tableId}`
   )
 
-  const updatedTable: TableDefinition = { ...table, schema: updatedSchema, updatedAt: now }
+  const updatedTable: TableDefinition = {
+    ...table,
+    schema: updatedSchema,
+    metadata: updatedMetadata,
+    updatedAt: now,
+  }
 
   // Schedule existing rows so already-filled deps trigger immediately. Skipped
   // when the caller opted out (Mothership stages groups silently — `autoRun:
