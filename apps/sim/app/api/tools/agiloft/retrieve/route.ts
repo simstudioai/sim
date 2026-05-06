@@ -4,8 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { agiloftRetrieveContract } from '@/lib/api/contracts/tools/agiloft'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { validateAgiloftInstanceUrl } from '@/lib/core/security/input-validation'
-import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { agiloftLogin, agiloftLogout, buildRetrieveAttachmentUrl } from '@/tools/agiloft/utils'
@@ -49,18 +48,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const data = parsed.data.body
 
-    const surfaceCheck = validateAgiloftInstanceUrl(data.instanceUrl)
-    if (!surfaceCheck.isValid) {
+    const urlValidation = await validateUrlWithDNS(data.instanceUrl, 'instanceUrl')
+    if (!urlValidation.isValid) {
       logger.warn(`[${requestId}] SSRF attempt blocked for Agiloft instance URL`, {
         instanceUrl: data.instanceUrl,
       })
       return NextResponse.json(
-        { success: false, error: surfaceCheck.error || 'Invalid instance URL' },
+        { success: false, error: urlValidation.error || 'Invalid instance URL' },
         { status: 400 }
       )
     }
 
-    const { token, resolvedIP } = await agiloftLogin(data)
+    const token = await agiloftLogin(data)
     const base = data.instanceUrl.replace(/\/$/, '')
 
     try {
@@ -72,7 +71,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         position: data.position,
       })
 
-      const agiloftResponse = await secureFetchWithPinnedIP(url, resolvedIP, {
+      const agiloftResponse = await fetch(url, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -124,7 +123,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         },
       })
     } finally {
-      await agiloftLogout(data.instanceUrl, data.knowledgeBase, token, resolvedIP)
+      await agiloftLogout(data.instanceUrl, data.knowledgeBase, token)
     }
   } catch (error) {
     logger.error(`[${requestId}] Error retrieving Agiloft attachment:`, error)
