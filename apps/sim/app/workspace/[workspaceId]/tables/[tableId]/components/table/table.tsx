@@ -521,7 +521,9 @@ export function Table({
     const currentRows = rowsRef.current
     let snapshots: DeletedRowSnapshot[] = []
 
-    if (rowSel.kind === 'all') {
+    const contextRowInRows = currentRows.some((r) => r.id === contextRow.id)
+
+    if (rowSel.kind === 'all' && contextRowInRows) {
       snapshots = collectRowSnapshots(currentRows)
     } else if (rowSel.kind === 'some' && rowSel.ids.has(contextRow.id)) {
       snapshots = collectRowSnapshots(currentRows.filter((r) => rowSel.ids.has(r.id)))
@@ -542,9 +544,6 @@ export function Table({
 
     if (snapshots.length > 0) {
       setDeletingRows(snapshots)
-      if (rowSel.kind !== 'none') {
-        setRowSelection(ROW_SELECTION_NONE)
-      }
     }
 
     closeContextMenu()
