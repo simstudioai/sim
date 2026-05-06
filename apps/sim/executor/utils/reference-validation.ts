@@ -143,14 +143,14 @@ export function createCombinedPattern(): RegExp {
  */
 export function replaceValidReferences(
   template: string,
-  replacer: (match: string) => string
+  replacer: (match: string, index: number, template: string) => string
 ): string {
   const pattern = createReferencePattern()
 
-  return template.replace(pattern, (match) => {
+  return template.replace(pattern, (match, _content, index) => {
     if (!isLikelyReferenceSegment(match)) {
       return match
     }
-    return replacer(match)
+    return replacer(match, index, template)
   })
 }

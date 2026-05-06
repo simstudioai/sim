@@ -593,8 +593,8 @@ function cleanStdout(stdout: string): string {
  * representation instead of `[object Object]`. `null`/`undefined` become an empty
  * string to match POSIX env semantics.
  */
-function serializeForShellEnv(value: unknown): string {
-  if (value === null || value === undefined) return ''
+function serializeForShellEnv(value: unknown, nullValue = ''): string {
+  if (value === null || value === undefined) return nullValue
   if (typeof value === 'string') return value
   if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
     return String(value)
@@ -811,7 +811,7 @@ export async function POST(req: NextRequest) {
         shellEnvs[k] = serializeForShellEnv(v)
       }
       for (const [k, v] of Object.entries(contextVariables)) {
-        shellEnvs[k] = serializeForShellEnv(v)
+        shellEnvs[k] = serializeForShellEnv(v, 'null')
       }
 
       logger.info(`[${requestId}] E2B shell execution`, {
@@ -918,7 +918,9 @@ export async function POST(req: NextRequest) {
         prologue += `const environmentVariables = JSON.parse(${JSON.stringify(JSON.stringify(envVars))});\n`
         prologueLineCount++
         for (const [k, v] of Object.entries(contextVariables)) {
-          prologue += `const ${k} = ${formatLiteralForCode(v, 'javascript')};\n`
+          prologue += `globalThis[${JSON.stringify(k)}] = ${formatLiteralForCode(v, 'javascript')};\n`
+          prologue += `const ${k} = globalThis[${JSON.stringify(k)}];\n`
+          prologueLineCount++
           prologueLineCount++
         }
 

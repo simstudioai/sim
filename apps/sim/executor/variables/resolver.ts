@@ -20,6 +20,8 @@ export const FUNCTION_BLOCK_CONTEXT_VARS_KEY = '_runtimeContextVars'
 
 const logger = createLogger('VariableResolver')
 
+type ShellQuoteContext = 'single' | 'double' | null
+
 export class VariableResolver {
   private resolvers: Resolver[]
   private blockResolver: BlockResolver
@@ -51,11 +53,15 @@ export class VariableResolver {
   resolveInputsForFunctionBlock(
     ctx: ExecutionContext,
     currentNodeId: string,
-    params: Record<string, any>,
+    params: Record<string, any> | null | undefined,
     block: SerializedBlock
   ): { resolvedInputs: Record<string, any>; contextVariables: Record<string, unknown> } {
     const contextVariables: Record<string, unknown> = {}
     const resolved: Record<string, any> = {}
+
+    if (!params) {
+      return { resolvedInputs: resolved, contextVariables }
+    }
 
     for (const [key, value] of Object.entries(params)) {
       if (key === 'code') {
@@ -237,32 +243,27 @@ export class VariableResolver {
 
     let replacementError: Error | null = null
 
-    const isShell = language === 'shell'
-    const blockRefByMatch = new Map<string, string>()
-
-    let result = replaceValidReferences(template, (match) => {
+    let result = replaceValidReferences(template, (match, index) => {
       if (replacementError) return match
 
       try {
         if (this.blockResolver.canResolve(match)) {
-          // Deduplicate: identical references in the same template share a single
-          // accumulator slot so we do not duplicate large payloads.
-          const existing = blockRefByMatch.get(match)
-          if (existing !== undefined) return existing
-
           const resolved = this.resolveReference(match, resolutionContext)
           if (resolved === undefined) return match
 
           const effectiveValue = resolved === RESOLVED_EMPTY ? null : resolved
 
-          // Block output: store in contextVarAccumulator, replace with variable name.
-          // For shell, emit `$__blockRef_N` so the script dereferences the env var
-          // injected by the function-execute route; other languages receive the bare
-          // identifier and read it as a global injected into the VM.
+          // Block output: store in contextVarAccumulator and replace the reference
+          // with language-specific runtime access to that stored value.
           const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
           contextVarAccumulator[varName] = effectiveValue
-          const replacement = isShell ? `$${varName}` : varName
-          blockRefByMatch.set(match, replacement)
+          const replacement = this.formatContextVariableReference(
+            varName,
+            language,
+            template,
+            index,
+            effectiveValue
+          )
           return replacement
         }
 
@@ -289,6 +290,75 @@ export class VariableResolver {
     })
 
     return result
+  }
+
+  private formatContextVariableReference(
+    varName: string,
+    language: string | undefined,
+    template: string,
+    matchIndex: number,
+    value: unknown
+  ): string {
+    if (language === 'python') {
+      return `globals()[${JSON.stringify(varName)}]`
+    }
+
+    if (language === 'shell') {
+      return this.formatShellContextVariableReference(varName, template, matchIndex, value)
+    }
+
+    return `globalThis[${JSON.stringify(varName)}]`
+  }
+
+  private formatShellContextVariableReference(
+    varName: string,
+    template: string,
+    matchIndex: number,
+    value: unknown
+  ): string {
+    const expansion = `\${${varName}}`
+    const quoteContext = this.getShellQuoteContext(template, matchIndex)
+    if (quoteContext === 'double') {
+      return expansion
+    }
+
+    const shouldQuote =
+      quoteContext === 'single' ||
+      typeof value === 'string' ||
+      (typeof value === 'object' && value !== null) ||
+      Array.isArray(value)
+
+    if (!shouldQuote) {
+      return expansion
+    }
+
+    const quotedExpansion = `"${expansion}"`
+    if (quoteContext === 'single') {
+      return `'${quotedExpansion}'`
+    }
+
+    return quotedExpansion
+  }
+
+  private getShellQuoteContext(template: string, index: number): ShellQuoteContext {
+    let quoteContext: ShellQuoteContext = null
+
+    for (let i = 0; i < index; i++) {
+      const char = template[i]
+
+      if (char === '\\' && quoteContext !== 'single') {
+        i++
+        continue
+      }
+
+      if (char === "'" && quoteContext !== 'double') {
+        quoteContext = quoteContext === 'single' ? null : 'single'
+      } else if (char === '"' && quoteContext !== 'single') {
+        quoteContext = quoteContext === 'double' ? null : 'double'
+      }
+    }
+
+    return quoteContext
   }
 
   private resolveTemplate(
