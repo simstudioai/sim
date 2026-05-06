@@ -83,35 +83,61 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudIdValidation.sanitized}/wiki/api/v2/spaces?limit=250`
+    const baseUrl = `https://api.atlassian.com/ex/confluence/${cloudIdValidation.sanitized}/wiki/api/v2/spaces`
+    const PAGE_LIMIT = 250
+    const MAX_PAGES = 20
+    const spaces: { id: string; name: string; key: string }[] = []
+    let cursor: string | undefined
+    let pageCount = 0
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-    })
+    while (pageCount < MAX_PAGES) {
+      const params = new URLSearchParams({ limit: String(PAGE_LIMIT) })
+      if (cursor) params.set('cursor', cursor)
+      const url = `${baseUrl}?${params.toString()}`
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error('Confluence API error response:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText,
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
       })
-      return NextResponse.json(
-        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
-        { status: response.status }
-      )
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        logger.error('Confluence API error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+        })
+        return NextResponse.json(
+          { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+          { status: response.status }
+        )
+      }
+
+      const data = await response.json()
+      for (const space of data.results || []) {
+        spaces.push({ id: space.id, name: space.name, key: space.key })
+      }
+
+      const nextLink = data._links?.next as string | undefined
+      if (!nextLink) break
+      try {
+        cursor = new URL(nextLink, 'https://placeholder').searchParams.get('cursor') || undefined
+      } catch {
+        cursor = undefined
+      }
+      if (!cursor) break
+      pageCount += 1
     }
 
-    const data = await response.json()
-    const spaces = (data.results || []).map((space: { id: string; name: string; key: string }) => ({
-      id: space.id,
-      name: space.name,
-      key: space.key,
-    }))
+    if (pageCount >= MAX_PAGES) {
+      logger.warn('Confluence space listing hit pagination cap', {
+        cap: MAX_PAGES * PAGE_LIMIT,
+        returned: spaces.length,
+      })
+    }
 
     return NextResponse.json({ spaces })
   } catch (error) {
