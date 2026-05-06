@@ -10,17 +10,20 @@ import {
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
-import { useDeleteTable } from '@/hooks/queries/tables'
+import { useCancelTableRuns, useDeleteTable, useRunGroup } from '@/hooks/queries/tables'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import type { TableRow as TableRowType } from '@/lib/table'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
   ExecutionDetailsSidebar,
   RowModal,
+  type SelectionSnapshot,
   Table,
+  TableActionBar,
   type WorkflowConfig,
   WorkflowSidebar,
 } from './components'
@@ -94,6 +97,13 @@ export function TablesDetail({
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
   const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
   const [deletingColumns, setDeletingColumns] = useState<string[] | null>(null)
+  const [selection, setSelection] = useState<SelectionSnapshot>({
+    actionBarRowIds: [],
+    runningInActionBarSelection: 0,
+    hasWorkflowColumns: false,
+  })
+
+  const userPermissions = useUserPermissionsContext()
 
   /**
    * Sink populated by the grid: invoked from sidebar `onColumnRename` so the
@@ -127,6 +137,66 @@ export function TablesDetail({
     tableId,
     queryOptions: { filter: null, sort: null },
   })
+  const tableWorkflowGroupsRef = useRef(tableWorkflowGroups)
+  tableWorkflowGroupsRef.current = tableWorkflowGroups
+
+  const runGroupMutation = useRunGroup({ workspaceId, tableId })
+  const cancelRunsMutation = useCancelTableRuns({ workspaceId, tableId })
+  const runGroupMutate = runGroupMutation.mutate
+  const cancelRunsMutate = cancelRunsMutation.mutate
+
+  const onRunGroup = useCallback(
+    (
+      groupId: string,
+      workflowId: string,
+      runMode: 'all' | 'incomplete',
+      rowIds?: string[]
+    ) => {
+      runGroupMutate({ groupId, workflowId, runMode, rowIds })
+    },
+    [runGroupMutate]
+  )
+
+  const onRunRows = useCallback(
+    (rowIds: string[], runMode: 'all' | 'incomplete') => {
+      const groups = tableWorkflowGroupsRef.current
+      if (groups.length === 0 || rowIds.length === 0) return
+      for (const group of groups) {
+        runGroupMutate({
+          groupId: group.id,
+          workflowId: group.workflowId,
+          runMode,
+          rowIds,
+        })
+      }
+    },
+    [runGroupMutate]
+  )
+
+  const onStopRow = useCallback(
+    (rowId: string) => {
+      cancelRunsMutate({ scope: 'row', rowId })
+    },
+    [cancelRunsMutate]
+  )
+
+  const onStopRows = useCallback(
+    (rowIds: string[]) => {
+      if (rowIds.length === 0) return
+      for (const rowId of rowIds) {
+        cancelRunsMutate({ scope: 'row', rowId })
+      }
+    },
+    [cancelRunsMutate]
+  )
+
+  const onStopAll = useCallback(() => {
+    cancelRunsMutate({ scope: 'all' })
+  }, [cancelRunsMutate])
+
+  const onSelectionChange = useCallback((next: SelectionSnapshot) => {
+    setSelection(next)
+  }, [])
 
   const logPanelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const sidebarReservedPx =
@@ -189,10 +259,27 @@ export function TablesDetail({
         onOpenRowModal={onOpenRowModal}
         onRequestDeleteRows={onRequestDeleteRows}
         onRequestDeleteColumns={onRequestDeleteColumns}
+        onRunGroup={onRunGroup}
+        onRunRows={onRunRows}
+        onStopRows={onStopRows}
+        onStopRow={onStopRow}
+        onStopAll={onStopAll}
+        cancelRunsPending={cancelRunsMutation.isPending}
+        onSelectionChange={onSelectionChange}
         columnRenameSinkRef={columnRenameSinkRef}
         afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}
         confirmDeleteColumnsSinkRef={confirmDeleteColumnsSinkRef}
       />
+      {userPermissions.canEdit && (
+        <TableActionBar
+          selectedCount={selection.actionBarRowIds.length}
+          runningCount={selection.runningInActionBarSelection}
+          hasWorkflowColumns={selection.hasWorkflowColumns}
+          onRun={() => onRunRows(selection.actionBarRowIds, 'incomplete')}
+          onRerun={() => onRunRows(selection.actionBarRowIds, 'all')}
+          onStopWorkflows={() => onStopRows(selection.actionBarRowIds)}
+        />
+      )}
       <ColumnConfigSidebar
         config={columnConfig}
         onClose={onCloseSlideout}

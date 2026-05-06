@@ -1,1 +1,1 @@
-export { Table } from './table'
+export { type SelectionSnapshot, Table } from './table'

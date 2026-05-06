@@ -44,12 +44,10 @@ import {
   useAddTableColumn,
   useBatchCreateTableRows,
   useBatchUpdateTableRows,
-  useCancelTableRuns,
   useCreateTableRow,
   useDeleteColumn,
   useDeleteWorkflowGroup,
   useRenameTable,
-  useRunGroup,
   useUpdateColumn,
   useUpdateTableMetadata,
   useUpdateTableRow,
@@ -63,7 +61,6 @@ import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import { cleanCellValue, storageToDisplay } from '../../utils'
 import { type ColumnConfig, COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
-import { TableActionBar } from '../table-action-bar'
 import { TableFilter } from '../table-filter'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { CellContent, ExpandedCellPopover } from './cells'
@@ -122,6 +119,19 @@ const CELL_CONTENT =
 const SELECTION_OVERLAY =
   'pointer-events-none absolute -top-px -right-px -bottom-px -left-px z-[5] border-[2px] border-[var(--selection)]'
 
+/**
+ * Snapshot of grid selection state the wrapper needs to render `<TableActionBar>`.
+ * Fired from a `useEffect` so the callback identity doesn't drive re-renders.
+ */
+export interface SelectionSnapshot {
+  /** Row ids in the action-bar selection (checkbox-row union with multi-row range). */
+  actionBarRowIds: string[]
+  /** Total running/queued workflow runs across `actionBarRowIds`. */
+  runningInActionBarSelection: number
+  /** Whether the table has any workflow-output columns (drives the Run/Stop visibility). */
+  hasWorkflowColumns: boolean
+}
+
 interface TableProps {
   workspaceId?: string
   tableId?: string
@@ -154,6 +164,28 @@ interface TableProps {
   onRequestDeleteRows: (snapshots: DeletedRowSnapshot[]) => void
   /** Open the delete-columns confirmation modal for `names`. Wrapper renders the modal. */
   onRequestDeleteColumns: (names: string[]) => void
+  /** Fire `runGroup` for a specific group (meta-cell Run menu). */
+  onRunGroup: (
+    groupId: string,
+    workflowId: string,
+    runMode: 'all' | 'incomplete',
+    rowIds?: string[]
+  ) => void
+  /** Fan out a run across every workflow group on `rowIds`. Used by context menu. */
+  onRunRows: (rowIds: string[], runMode: 'all' | 'incomplete') => void
+  /** Stop running workflows on `rowIds`. Per-row gutter Stop also funnels through here. */
+  onStopRows: (rowIds: string[]) => void
+  /** Single-row stop for the per-row gutter button. */
+  onStopRow: (rowId: string) => void
+  /** Wholesale cancel — page-header "Stop all". */
+  onStopAll: () => void
+  /** Whether `useCancelTableRuns` is currently in flight. */
+  cancelRunsPending: boolean
+  /**
+   * Fired whenever the action-bar selection or running-count derivations
+   * change. Wrapper uses this to render <TableActionBar>.
+   */
+  onSelectionChange: (state: SelectionSnapshot) => void
   /**
    * Ref the grid populates with its `handleColumnRename` so the wrapper's
    * sidebars can fire a column rename back into the grid (rewrites local
@@ -191,6 +223,13 @@ export function Table({
   onOpenRowModal,
   onRequestDeleteRows,
   onRequestDeleteColumns,
+  onRunGroup,
+  onRunRows,
+  onStopRows,
+  onStopRow,
+  onStopAll,
+  cancelRunsPending,
+  onSelectionChange,
   columnRenameSinkRef,
   afterDeleteRowsSinkRef,
   confirmDeleteColumnsSinkRef,
@@ -290,8 +329,6 @@ export function Table({
   const updateColumnMutation = useUpdateColumn({ workspaceId, tableId })
   const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
-  const cancelRunsMutation = useCancelTableRuns({ workspaceId, tableId })
-  const runGroupMutation = useRunGroup({ workspaceId, tableId })
   const deleteWorkflowGroupMutation = useDeleteWorkflowGroup({ workspaceId, tableId })
   const updateWorkflowGroupMutation = useUpdateWorkflowGroup({ workspaceId, tableId })
 
@@ -302,11 +339,9 @@ export function Table({
       runMode: 'all' | 'incomplete' = 'all',
       rowIds?: string[]
     ) => {
-      runGroupMutation.mutate({ groupId, workflowId, runMode, rowIds })
+      onRunGroup(groupId, workflowId, runMode, rowIds)
     },
-    // mutate is stable; intentionally excluded from deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [onRunGroup]
   )
 
   const handleViewWorkflow = useCallback(
@@ -2719,51 +2754,13 @@ export function Table({
     return { runningByRowId: byRow, totalRunning: total }
   }, [rows])
 
-  const cancelRunsMutate = cancelRunsMutation.mutate
-
-  const handleStopAll = useCallback(() => {
-    if (totalRunning === 0) return
-    cancelRunsMutate({ scope: 'all' })
-  }, [totalRunning, cancelRunsMutate])
-
-  const handleStopRow = useCallback(
-    (rowId: string) => {
-      cancelRunsMutate({ scope: 'row', rowId })
-    },
-    [cancelRunsMutate]
-  )
-
-  // Generic over which row-id list (context-menu selection vs checkbox-row
-  // selection). Both surfaces — right-click menu and bottom action bar — call
-  // through these. `runMode: 'incomplete'` skips rows whose group has already
-  // completed; matches the meta-cell's "Run empty rows" item.
-  const runWorkflowsOnRows = (rowIds: string[], runMode: 'all' | 'incomplete' = 'all') => {
-    if (tableWorkflowGroups.length === 0) return
-    if (rowIds.length === 0) return
-    for (const group of tableWorkflowGroups) {
-      runGroupMutation.mutate({
-        groupId: group.id,
-        workflowId: group.workflowId,
-        runMode,
-        rowIds,
-      })
-    }
-  }
-  const stopWorkflowsOnRows = (rowIds: string[]) => {
-    if (rowIds.length === 0) return
-    for (const rowId of rowIds) {
-      if ((runningByRowId.get(rowId) ?? 0) === 0) continue
-      cancelRunsMutate({ scope: 'row', rowId })
-    }
-  }
-
   // Context-menu wrappers: act on `contextMenuRowIds`, then close the menu.
   const handleRunWorkflowsOnSelection = () => {
-    runWorkflowsOnRows(contextMenuRowIds)
+    onRunRows(contextMenuRowIds, 'all')
     closeContextMenu()
   }
   const handleStopWorkflowsOnSelection = () => {
-    stopWorkflowsOnRows(contextMenuRowIds)
+    onStopRows(contextMenuRowIds)
     closeContextMenu()
   }
 
@@ -2804,12 +2801,18 @@ export function Table({
     (total, rowId) => total + (runningByRowId.get(rowId) ?? 0),
     0
   )
-  // Default Play: smart run — `runMode: 'incomplete'` skips already-completed
-  // cells and runs everything else (empty, errored, cancelled).
-  const handleRunFromActionBar = () => runWorkflowsOnRows(actionBarRowIds, 'incomplete')
-  // Refresh: forceful re-run on every selected row, including completed ones.
-  const handleRerunFromActionBar = () => runWorkflowsOnRows(actionBarRowIds, 'all')
-  const handleStopWorkflowsFromActionBar = () => stopWorkflowsOnRows(actionBarRowIds)
+
+  // Emit selection snapshots so the wrapper can render <TableActionBar>.
+  // Object identity is fine — the wrapper memoizes downstream renders.
+  const onSelectionChangeRef = useRef(onSelectionChange)
+  onSelectionChangeRef.current = onSelectionChange
+  useEffect(() => {
+    onSelectionChangeRef.current({
+      actionBarRowIds,
+      runningInActionBarSelection,
+      hasWorkflowColumns,
+    })
+  }, [actionBarRowIds, runningInActionBarSelection, hasWorkflowColumns])
 
   const handleRunRow = useCallback(
     (rowId: string) => {
@@ -2862,8 +2865,8 @@ export function Table({
               totalRunning > 0 ? (
                 <RunStatusControl
                   running={totalRunning}
-                  onStopAll={handleStopAll}
-                  isStopping={cancelRunsMutation.isPending}
+                  onStopAll={onStopAll}
+                  isStopping={cancelRunsPending}
                 />
               ) : null
             }
@@ -2889,8 +2892,8 @@ export function Table({
         <div className='flex shrink-0 items-center justify-end border-[var(--border)] border-b px-3 py-1.5'>
           <RunStatusControl
             running={totalRunning}
-            onStopAll={handleStopAll}
-            isStopping={cancelRunsMutation.isPending}
+            onStopAll={onStopAll}
+            isStopping={cancelRunsPending}
           />
         </div>
       )}
@@ -3109,7 +3112,7 @@ export function Table({
                         runningCount={runningByRowId.get(row.id) ?? 0}
                         hasWorkflowColumns={hasWorkflowColumns}
                         isLargeRowCountTable={isLargeRowCountTable}
-                        onStopRow={handleStopRow}
+                        onStopRow={onStopRow}
                         onRunRow={handleRunRow}
                         workflowNameById={workflowNameById}
                         workflowGroups={tableWorkflowGroups}
@@ -3146,16 +3149,6 @@ export function Table({
           )}
         </div>
 
-        {userPermissions.canEdit && (
-          <TableActionBar
-            selectedCount={actionBarRowIds.length}
-            runningCount={runningInActionBarSelection}
-            hasWorkflowColumns={hasWorkflowColumns}
-            onRun={handleRunFromActionBar}
-            onRerun={handleRerunFromActionBar}
-            onStopWorkflows={handleStopWorkflowsFromActionBar}
-          />
-        )}
       </div>
 
       <ContextMenu
