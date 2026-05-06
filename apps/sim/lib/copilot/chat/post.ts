@@ -506,14 +506,12 @@ async function resolveBranch(params: {
     }
 
     const resolvedWorkflowId = resolved.workflowId
-    let resolvedWorkspaceId = requestedWorkspaceId
-    if (!resolvedWorkspaceId) {
-      try {
-        const workflow = await getWorkflowById(resolvedWorkflowId)
-        resolvedWorkspaceId = workflow?.workspaceId ?? undefined
-      } catch {
-        // best effort; downstream calls can still proceed
-      }
+    let resolvedWorkspaceId: string | undefined
+    try {
+      const workflow = await getWorkflowById(resolvedWorkflowId)
+      resolvedWorkspaceId = workflow?.workspaceId ?? requestedWorkspaceId
+    } catch {
+      resolvedWorkspaceId = requestedWorkspaceId
     }
 
     const selectedModel = model || DEFAULT_MODEL
