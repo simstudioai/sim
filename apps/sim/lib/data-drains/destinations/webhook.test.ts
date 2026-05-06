@@ -148,4 +148,29 @@ describe('webhookDestination openSession', () => {
     expect(calls[0][1]).toBe('93.184.216.34')
     expect(calls[1][1]).toBe('93.184.216.34')
   })
+
+  it('rejects every header buildHeaders writes when reused as signatureHeader (drift guard)', async () => {
+    mockPinnedFetchOnce({ ok: true, status: 200 })
+    const session = webhookDestination.openSession({ config, credentials })
+    await session.deliver({
+      body: Buffer.from('x'),
+      contentType: 'application/x-ndjson',
+      metadata,
+      signal: new AbortController().signal,
+    })
+
+    const init = inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.calls[0][2]
+    const writtenHeaders = Object.keys(init.headers as Record<string, string>)
+
+    for (const name of writtenHeaders) {
+      const result = webhookDestination.configSchema.safeParse({
+        url: 'https://example.com/hook',
+        signatureHeader: name,
+      })
+      expect(
+        result.success,
+        `expected signatureHeader="${name}" to be rejected (it is written by buildHeaders)`
+      ).toBe(false)
+    }
+  })
 })
