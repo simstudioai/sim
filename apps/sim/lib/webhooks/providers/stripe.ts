@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
+import { env } from '@/lib/core/config/env'
 import type {
   AuthContext,
   EventFilterContext,
@@ -14,9 +15,11 @@ const logger = createLogger('WebhookProvider:Stripe')
 
 /**
  * Stripe SDK instance used solely for `webhooks.constructEvent`. The API key is
- * irrelevant for signature verification, but the constructor requires a value.
+ * not used by signature verification (purely local HMAC), but the SDK constructor
+ * requires a value — pass the configured secret key when present to avoid leaving
+ * a recognisable placeholder in heap dumps or error serialisations.
  */
-const stripeClient = new Stripe('sk_webhook_verification_only', {
+const stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2025-08-27.basil',
 })
 
