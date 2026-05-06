@@ -1,7 +1,7 @@
 import type { EmailBisonCreateTagParams, EmailBisonTagResponse } from '@/tools/emailbison/types'
 import {
-  emailBisonData,
   emailBisonHeaders,
+  emailBisonRecordData,
   emailBisonUrl,
   jsonBody,
   mapTag,
@@ -35,7 +35,7 @@ export const createTagTool: ToolConfig<EmailBisonCreateTagParams, EmailBisonTagR
     body: (params) => jsonBody({ name: params.name }),
   },
   transformResponse: async (response) => {
-    const data = await emailBisonData<unknown>(response)
+    const data = await emailBisonRecordData(response, 'tag')
 
     return {
       success: true,

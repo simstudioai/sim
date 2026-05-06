@@ -54,15 +54,31 @@ export async function emailBisonData<T>(response: Response): Promise<T | null> {
   return payload.data ?? null
 }
 
+export async function emailBisonArrayData(response: Response, label: string): Promise<unknown[]> {
+  const data = await emailBisonData<unknown[]>(response)
+  if (!Array.isArray(data)) {
+    throw new Error(`Email Bison response did not include a valid ${label} array`)
+  }
+  return data
+}
+
+export async function emailBisonRecordData(response: Response, label: string): Promise<unknown> {
+  const data = await emailBisonData<unknown>(response)
+  if (!isRecord(data)) {
+    throw new Error(`Email Bison response did not include a valid ${label} object`)
+  }
+  return data
+}
+
 export function mapLead(value: unknown): EmailBisonLead {
   const record = toRecord(value)
   const stats = toRecord(record.overall_stats)
 
   return {
-    id: toNumber(record.id),
-    first_name: toStringValue(record.first_name),
-    last_name: toStringValue(record.last_name),
-    email: toStringValue(record.email),
+    id: toNullableNumber(record.id),
+    first_name: toStringOrNull(record.first_name),
+    last_name: toStringOrNull(record.last_name),
+    email: toStringOrNull(record.email),
     title: toStringOrNull(record.title),
     company: toStringOrNull(record.company),
     notes: toStringOrNull(record.notes),
@@ -70,7 +86,7 @@ export function mapLead(value: unknown): EmailBisonLead {
     custom_variables: toArray(record.custom_variables).map((item) => {
       const variable = toRecord(item)
       return {
-        name: toStringValue(variable.name),
+        name: toStringOrNull(variable.name),
         value: toStringOrNull(variable.value),
       }
     }),
@@ -85,24 +101,21 @@ export function mapCampaign(value: unknown): EmailBisonCampaign {
   const record = toRecord(value)
 
   return {
-    id: toNumber(record.id),
+    id: toNullableNumber(record.id),
     uuid: toStringOrNull(record.uuid),
-    name: toStringValue(record.name),
+    name: toStringOrNull(record.name),
     type: toStringOrNull(record.type),
     status: toStringOrNull(record.status),
-    emails_sent: toNumber(record.emails_sent),
-    opened: toNumber(record.opened),
-    unique_opens: toNumber(record.unique_opens),
-    replied: toNumber(record.replied),
-    unique_replies: toNumber(record.unique_replies),
-    bounced: toNumber(record.bounced),
-    unsubscribed: toNumber(record.unsubscribed),
-    interested: toNumber(record.interested),
-    total_leads_contacted: toNumber(record.total_leads_contacted),
-    total_leads: toNumber(record.total_leads),
-    ...(record.completion_percentage !== undefined && {
-      completion_percentage: toNullableNumber(record.completion_percentage),
-    }),
+    emails_sent: toNullableNumber(record.emails_sent),
+    opened: toNullableNumber(record.opened),
+    unique_opens: toNullableNumber(record.unique_opens),
+    replied: toNullableNumber(record.replied),
+    unique_replies: toNullableNumber(record.unique_replies),
+    bounced: toNullableNumber(record.bounced),
+    unsubscribed: toNullableNumber(record.unsubscribed),
+    interested: toNullableNumber(record.interested),
+    total_leads_contacted: toNullableNumber(record.total_leads_contacted),
+    total_leads: toNullableNumber(record.total_leads),
     max_emails_per_day: toNullableNumber(record.max_emails_per_day),
     max_new_leads_per_day: toNullableNumber(record.max_new_leads_per_day),
     plain_text: toNullableBoolean(record.plain_text),
@@ -122,9 +135,9 @@ function mapCampaignTag(value: unknown): EmailBisonCampaignTag {
   const record = toRecord(value)
 
   return {
-    id: toNumber(record.id),
-    name: toStringValue(record.name),
-    default: toBoolean(record.default),
+    id: toNullableNumber(record.id),
+    name: toStringOrNull(record.name),
+    default: toNullableBoolean(record.default),
   }
 }
 
@@ -132,9 +145,9 @@ export function mapTag(value: unknown): EmailBisonTag {
   const record = toRecord(value)
 
   return {
-    id: toNumber(record.id),
-    name: toStringValue(record.name),
-    default: toBoolean(record.default),
+    id: toNullableNumber(record.id),
+    name: toStringOrNull(record.name),
+    default: toNullableBoolean(record.default),
     created_at: toStringOrNull(record.created_at),
     updated_at: toStringOrNull(record.updated_at),
   }
@@ -144,20 +157,20 @@ export function mapReply(value: unknown): EmailBisonReply {
   const record = toRecord(value)
 
   return {
-    id: toNumber(record.id),
+    id: toNullableNumber(record.id),
     uuid: toStringOrNull(record.uuid),
     folder: toStringOrNull(record.folder),
     subject: toStringOrNull(record.subject),
-    read: toBoolean(record.read),
-    interested: toBoolean(record.interested),
-    automated_reply: toBoolean(record.automated_reply),
+    read: toNullableBoolean(record.read),
+    interested: toNullableBoolean(record.interested),
+    automated_reply: toNullableBoolean(record.automated_reply),
     html_body: toStringOrNull(record.html_body),
     text_body: toStringOrNull(record.text_body),
     raw_body: toStringOrNull(record.raw_body),
     headers: toStringOrNull(record.headers),
     date_received: toStringOrNull(record.date_received),
     type: toStringOrNull(record.type),
-    tracked_reply: toBoolean(record.tracked_reply),
+    tracked_reply: toNullableBoolean(record.tracked_reply),
     scheduled_email_id: toStringNumberOrNull(record.scheduled_email_id),
     campaign_id: toStringNumberOrNull(record.campaign_id),
     lead_id: toNullableNumber(record.lead_id),
@@ -180,7 +193,7 @@ export function actionOutput(value: unknown): { success: boolean; message: strin
   const record = toRecord(value)
 
   return {
-    success: toBoolean(record.success),
+    success: record.success === true,
     message: toStringOrNull(record.message),
   }
 }
@@ -266,11 +279,6 @@ export const campaignOutputs = {
   interested: { type: 'number', description: 'Interested replies' },
   total_leads_contacted: { type: 'number', description: 'Total leads contacted' },
   total_leads: { type: 'number', description: 'Total leads' },
-  completion_percentage: {
-    type: 'number',
-    description: 'Campaign completion percentage',
-    optional: true,
-  },
   max_emails_per_day: { type: 'number', description: 'Maximum emails per day', optional: true },
   max_new_leads_per_day: {
     type: 'number',
@@ -366,11 +374,11 @@ export const listTagsOutputs = {
 
 function mapLeadStats(record: Record<string, unknown>): EmailBisonLeadStats {
   return {
-    emails_sent: toNumber(record.emails_sent),
-    opens: toNumber(record.opens),
-    replies: toNumber(record.replies),
-    unique_replies: toNumber(record.unique_replies),
-    unique_opens: toNumber(record.unique_opens),
+    emails_sent: toNullableNumber(record.emails_sent),
+    opens: toNullableNumber(record.opens),
+    replies: toNullableNumber(record.replies),
+    unique_replies: toNullableNumber(record.unique_replies),
+    unique_opens: toNullableNumber(record.unique_opens),
   }
 }
 
@@ -379,7 +387,7 @@ function mapReplyAddress(value: unknown): EmailBisonReplyAddress {
 
   return {
     name: toStringOrNull(record.name),
-    address: toStringValue(record.address),
+    address: toStringOrNull(record.address),
   }
 }
 
@@ -387,7 +395,7 @@ function mapReplyAttachment(value: unknown): EmailBisonReplyAttachment {
   const record = toRecord(value)
 
   return {
-    id: toNumber(record.id),
+    id: toNullableNumber(record.id),
     uuid: toStringOrNull(record.uuid),
     reply_id: toNullableNumber(record.reply_id),
     file_name: toStringOrNull(record.file_name),
@@ -406,11 +414,6 @@ function toArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
 
-function toStringValue(value: unknown): string {
-  if (value === undefined || value === null) return ''
-  return String(value)
-}
-
 function toStringOrNull(value: unknown): string | null {
   if (value === undefined || value === null) return null
   return String(value)
@@ -421,13 +424,13 @@ function toStringNumberOrNull(value: unknown): number | string | null {
   return null
 }
 
-function toNumber(value: unknown): number {
+function toNumber(value: unknown): number | null {
   if (typeof value === 'number') return value
   if (typeof value === 'string') {
     const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : 0
+    return Number.isFinite(parsed) ? parsed : null
   }
-  return 0
+  return null
 }
 
 function toNullableNumber(value: unknown): number | null {
@@ -435,11 +438,7 @@ function toNullableNumber(value: unknown): number | null {
   return toNumber(value)
 }
 
-function toBoolean(value: unknown): boolean {
-  return typeof value === 'boolean' ? value : false
-}
-
 function toNullableBoolean(value: unknown): boolean | null {
   if (value === undefined || value === null) return null
-  return toBoolean(value)
+  return typeof value === 'boolean' ? value : null
 }

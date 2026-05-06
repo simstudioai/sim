@@ -4,8 +4,8 @@ import type {
 } from '@/tools/emailbison/types'
 import {
   campaignOutputs,
-  emailBisonData,
   emailBisonHeaders,
+  emailBisonRecordData,
   emailBisonUrl,
   jsonBody,
   mapCampaign,
@@ -51,7 +51,7 @@ export const createCampaignTool: ToolConfig<
       }),
   },
   transformResponse: async (response) => {
-    const data = await emailBisonData<unknown>(response)
+    const data = await emailBisonRecordData(response, 'campaign')
 
     return {
       success: true,

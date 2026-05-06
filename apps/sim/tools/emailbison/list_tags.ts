@@ -1,6 +1,6 @@
 import type { EmailBisonBaseParams, EmailBisonListTagsResponse } from '@/tools/emailbison/types'
 import {
-  emailBisonData,
+  emailBisonArrayData,
   emailBisonHeaders,
   emailBisonUrl,
   listTagsOutputs,
@@ -27,8 +27,8 @@ export const listTagsTool: ToolConfig<EmailBisonBaseParams, EmailBisonListTagsRe
     headers: emailBisonHeaders,
   },
   transformResponse: async (response) => {
-    const data = (await emailBisonData<unknown[]>(response)) ?? []
-    const tags = Array.isArray(data) ? data.map(mapTag) : []
+    const data = await emailBisonArrayData(response, 'tags')
+    const tags = data.map(mapTag)
 
     return {
       success: true,

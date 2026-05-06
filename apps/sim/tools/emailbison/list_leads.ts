@@ -3,7 +3,7 @@ import type {
   EmailBisonListLeadsResponse,
 } from '@/tools/emailbison/types'
 import {
-  emailBisonData,
+  emailBisonArrayData,
   emailBisonHeaders,
   emailBisonUrl,
   listLeadsOutputs,
@@ -70,8 +70,8 @@ export const listLeadsTool: ToolConfig<EmailBisonListLeadsParams, EmailBisonList
     headers: emailBisonHeaders,
   },
   transformResponse: async (response) => {
-    const data = (await emailBisonData<unknown[]>(response)) ?? []
-    const leads = Array.isArray(data) ? data.map(mapLead) : []
+    const data = await emailBisonArrayData(response, 'leads')
+    const leads = data.map(mapLead)
 
     return {
       success: true,

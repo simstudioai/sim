@@ -5,23 +5,23 @@ export interface EmailBisonBaseParams {
 }
 
 export interface EmailBisonCustomVariable {
-  name: string
+  name: string | null
   value: string | null
 }
 
 export interface EmailBisonLeadStats {
-  emails_sent: number
-  opens: number
-  replies: number
-  unique_replies: number
-  unique_opens: number
+  emails_sent: number | null
+  opens: number | null
+  replies: number | null
+  unique_replies: number | null
+  unique_opens: number | null
 }
 
 export interface EmailBisonLead {
-  id: number
-  first_name: string
-  last_name: string
-  email: string
+  id: number | null
+  first_name: string | null
+  last_name: string | null
+  email: string | null
   title: string | null
   company: string | null
   notes: string | null
@@ -34,36 +34,35 @@ export interface EmailBisonLead {
 }
 
 export interface EmailBisonTag {
-  id: number
-  name: string
-  default: boolean
+  id: number | null
+  name: string | null
+  default: boolean | null
   created_at?: string | null
   updated_at?: string | null
 }
 
 export interface EmailBisonCampaignTag {
-  id: number
-  name: string
-  default: boolean
+  id: number | null
+  name: string | null
+  default: boolean | null
 }
 
 export interface EmailBisonCampaign {
-  id: number
+  id: number | null
   uuid: string | null
-  name: string
+  name: string | null
   type: string | null
   status: string | null
-  emails_sent: number
-  opened: number
-  unique_opens: number
-  replied: number
-  unique_replies: number
-  bounced: number
-  unsubscribed: number
-  interested: number
-  total_leads_contacted: number
-  total_leads: number
-  completion_percentage?: number | null
+  emails_sent: number | null
+  opened: number | null
+  unique_opens: number | null
+  replied: number | null
+  unique_replies: number | null
+  bounced: number | null
+  unsubscribed: number | null
+  interested: number | null
+  total_leads_contacted: number | null
+  total_leads: number | null
   max_emails_per_day: number | null
   max_new_leads_per_day: number | null
   plain_text: boolean | null
@@ -78,11 +77,11 @@ export interface EmailBisonCampaign {
 
 export interface EmailBisonReplyAddress {
   name: string | null
-  address: string
+  address: string | null
 }
 
 export interface EmailBisonReplyAttachment {
-  id: number
+  id: number | null
   uuid: string | null
   reply_id: number | null
   file_name: string | null
@@ -92,20 +91,20 @@ export interface EmailBisonReplyAttachment {
 }
 
 export interface EmailBisonReply {
-  id: number
+  id: number | null
   uuid: string | null
   folder: string | null
   subject: string | null
-  read: boolean
-  interested: boolean
-  automated_reply: boolean
+  read: boolean | null
+  interested: boolean | null
+  automated_reply: boolean | null
   html_body: string | null
   text_body: string | null
   raw_body: string | null
   headers: string | null
   date_received: string | null
   type: string | null
-  tracked_reply: boolean
+  tracked_reply: boolean | null
   scheduled_email_id: number | string | null
   campaign_id: number | string | null
   lead_id: number | null

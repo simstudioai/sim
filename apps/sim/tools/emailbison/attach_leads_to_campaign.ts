@@ -5,8 +5,8 @@ import type {
 import {
   actionOutput,
   actionOutputs,
-  emailBisonData,
   emailBisonHeaders,
+  emailBisonRecordData,
   emailBisonUrl,
   jsonBody,
 } from '@/tools/emailbison/utils'
@@ -58,7 +58,7 @@ export const attachLeadsToCampaignTool: ToolConfig<
       }),
   },
   transformResponse: async (response) => {
-    const data = await emailBisonData<unknown>(response)
+    const data = await emailBisonRecordData(response, 'campaign lead attachment result')
 
     return {
       success: true,

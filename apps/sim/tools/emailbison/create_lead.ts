@@ -1,7 +1,7 @@
 import type { EmailBisonLeadMutationParams, EmailBisonLeadResponse } from '@/tools/emailbison/types'
 import {
-  emailBisonData,
   emailBisonHeaders,
+  emailBisonRecordData,
   emailBisonUrl,
   jsonBody,
   leadOutputs,
@@ -87,7 +87,7 @@ export const createLeadTool: ToolConfig<EmailBisonLeadMutationParams, EmailBison
       }),
   },
   transformResponse: async (response) => {
-    const data = await emailBisonData<unknown>(response)
+    const data = await emailBisonRecordData(response, 'lead')
 
     return {
       success: true,
