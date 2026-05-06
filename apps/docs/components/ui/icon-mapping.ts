@@ -382,6 +382,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   ses: SESIcon,
   sftp: SftpIcon,
   sharepoint: MicrosoftSharepointIcon,
+  sharepoint_v2: MicrosoftSharepointIcon,
   shopify: ShopifyIcon,
   similarweb: SimilarwebIcon,
   sixtyfour: SixtyfourIcon,

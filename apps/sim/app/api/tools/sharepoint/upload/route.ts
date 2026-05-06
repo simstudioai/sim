@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sharepointUploadContract } from '@/lib/api/contracts/tools/microsoft'
 import { parseRequest } from '@/lib/api/server'
@@ -72,42 +73,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    let effectiveDriveId = validatedData.driveId
-    if (!effectiveDriveId) {
-      logger.info(`[${requestId}] No driveId provided, fetching default drive for site`)
-      const driveUrl = `https://graph.microsoft.com/v1.0/sites/${validatedData.siteId}/drive`
-      const driveResponse = await secureFetchWithValidation(
-        driveUrl,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${validatedData.accessToken}`,
-            Accept: 'application/json',
-          },
-        },
-        'driveUrl'
-      )
-
-      if (!driveResponse.ok) {
-        const errorData = (await driveResponse.json().catch(() => ({}))) as {
-          error?: { message?: string }
-        }
-        logger.error(`[${requestId}] Failed to get default drive:`, errorData)
-        return NextResponse.json(
-          {
-            success: false,
-            error: errorData.error?.message || 'Failed to get default document library',
-          },
-          { status: driveResponse.status }
-        )
-      }
-
-      const driveData = (await driveResponse.json()) as { id: string }
-      effectiveDriveId = driveData.id
-      logger.info(`[${requestId}] Using default drive: ${effectiveDriveId}`)
-    }
-
-    const uploadedFiles: any[] = []
+    const siteId = validatedData.siteId.trim() || 'root'
+    const driveId = validatedData.driveId?.trim() || null
+    const uploadedFiles: MicrosoftGraphDriveItem[] = []
 
     for (const userFile of userFiles) {
       logger.info(`[${requestId}] Uploading file: ${userFile.name}`)
@@ -142,7 +110,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         .map((segment) => (segment ? encodeURIComponent(segment) : ''))
         .join('/')
 
-      const uploadUrl = `https://graph.microsoft.com/v1.0/sites/${validatedData.siteId}/drives/${effectiveDriveId}/root:${encodedPath}:/content`
+      const uploadUrl = driveId
+        ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${encodedPath}:/content`
+        : `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:${encodedPath}:/content`
 
       logger.info(`[${requestId}] Uploading to: ${uploadUrl}`)
 
@@ -263,7 +233,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: toError(error).message,
       },
       { status: 500 }
     )

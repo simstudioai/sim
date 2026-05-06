@@ -1,12 +1,12 @@
 ---
-title: Sharepoint
+title: SharePoint
 description: Work with pages and lists
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="sharepoint"
+  type="sharepoint_v2"
   color="#E0E0E0"
 />
 
@@ -73,6 +73,7 @@ Read a specific page from a SharePoint site
 | `pageId` | string | No | The ID of the page to read. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
 | `pageName` | string | No | The name of the page to read \(alternative to pageId\). Example: Home.aspx or About-Us.aspx |
 | `maxPages` | number | No | Maximum number of pages to return when listing all pages \(default: 10, max: 50\) |
+| `nextPageUrl` | string | No | Full @odata.nextLink URL from a previous Microsoft Graph page response |
 
 #### Output
 
@@ -84,6 +85,7 @@ Read a specific page from a SharePoint site
 |   ↳ `title` | string | The title of the page |
 |   ↳ `webUrl` | string | The URL to access the page |
 |   ↳ `pageLayout` | string | The layout type of the page |
+|   ↳ `description` | string | The description of the page |
 |   ↳ `createdDateTime` | string | When the page was created |
 |   ↳ `lastModifiedDateTime` | string | When the page was last modified |
 | `pages` | array | List of SharePoint pages |
@@ -93,6 +95,7 @@ Read a specific page from a SharePoint site
 |     ↳ `title` | string | The title of the page |
 |     ↳ `webUrl` | string | The URL to access the page |
 |     ↳ `pageLayout` | string | The layout type of the page |
+|     ↳ `description` | string | The description of the page |
 |     ↳ `createdDateTime` | string | When the page was created |
 |     ↳ `lastModifiedDateTime` | string | When the page was last modified |
 |   ↳ `content` | object | content output from the tool |
@@ -102,6 +105,7 @@ Read a specific page from a SharePoint site
 |   ↳ `content` | string | Extracted text content from the page |
 |   ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
 | `totalPages` | number | Total number of pages found |
+| `nextPageUrl` | string | Full Microsoft Graph @odata.nextLink URL for the next page of results |
 
 ### `sharepoint_list_sites`
 
@@ -112,7 +116,9 @@ List details of all SharePoint sites
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `siteSelector` | string | No | Select the SharePoint site |
+| `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `groupId` | string | No | The group ID for accessing a group team site. Example: a GUID like 12345678-1234-1234-1234-123456789012 |
+| `nextPageUrl` | string | No | Full @odata.nextLink URL from a previous Microsoft Graph page response |
 
 #### Output
 
@@ -139,6 +145,7 @@ List details of all SharePoint sites
 |   ↳ `description` | string | The description of the site |
 |   ↳ `createdDateTime` | string | When the site was created |
 |   ↳ `lastModifiedDateTime` | string | When the site was last modified |
+| `nextPageUrl` | string | Full Microsoft Graph @odata.nextLink URL for the next page of results |
 
 ### `sharepoint_create_list`
 
@@ -153,7 +160,7 @@ Create a new list in a SharePoint site
 | `listDisplayName` | string | Yes | Display name of the list to create. Example: Project Tasks or Customer Contacts |
 | `listDescription` | string | No | Description of the list |
 | `listTemplate` | string | No | List template name \(e.g., 'genericList'\) |
-| `pageContent` | string | No | Optional JSON of columns. Either a top-level array of column definitions or an object with \{ columns: \[...\] \}. |
+| `pageContent` | json | No | Optional JSON of columns. Either a top-level array of column definitions or an object with \{ columns: \[...\] \}. |
 
 #### Output
 
@@ -179,6 +186,9 @@ Get metadata (and optionally columns/items) for a SharePoint list
 | `siteSelector` | string | No | Select the SharePoint site |
 | `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `listId` | string | No | The ID of the list to retrieve. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
+| `includeColumns` | boolean | No | Whether to include column definitions when retrieving a specific list |
+| `includeItems` | boolean | No | Whether to include list items when retrieving a specific list |
+| `nextPageUrl` | string | No | Full @odata.nextLink URL from a previous Microsoft Graph page response |
 
 #### Output
 
@@ -194,6 +204,10 @@ Get metadata (and optionally columns/items) for a SharePoint list
 |   ↳ `list` | object | List properties \(e.g., template\) |
 |   ↳ `columns` | array | List column definitions |
 | `lists` | array | All lists in the site when no listId/title provided |
+| `items` | array | List items with expanded fields when reading list items |
+|   ↳ `id` | string | Item ID |
+|   ↳ `fields` | object | Field values for the item |
+| `nextPageUrl` | string | Full Microsoft Graph @odata.nextLink URL for the next page of results |
 
 ### `sharepoint_update_list`
 
@@ -205,9 +219,9 @@ Update the properties (fields) on a SharePoint list item
 | --------- | ---- | -------- | ----------- |
 | `siteSelector` | string | No | Select the SharePoint site |
 | `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
-| `listId` | string | No | The ID of the list containing the item. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
+| `listId` | string | Yes | The ID of the list containing the item. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
 | `itemId` | string | Yes | The ID of the list item to update. Example: 1, 42, or 123 |
-| `listItemFields` | object | Yes | Field values to update on the list item |
+| `listItemFields` | json | Yes | Field values to update on the list item |
 
 #### Output
 
@@ -228,7 +242,7 @@ Add a new item to a SharePoint list
 | `siteSelector` | string | No | Select the SharePoint site |
 | `siteId` | string | No | The ID of the SharePoint site \(internal use\) |
 | `listId` | string | Yes | The ID of the list to add the item to. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012 |
-| `listItemFields` | object | Yes | Field values for the new list item |
+| `listItemFields` | json | Yes | Field values for the new list item |
 
 #### Output
 
@@ -250,7 +264,7 @@ Upload files to a SharePoint document library
 | `driveId` | string | No | The ID of the document library \(drive\). If not provided, uses default drive. Example: b!abc123def456 |
 | `folderPath` | string | No | Optional folder path within the document library. Example: /Documents/Subfolder or /Shared Documents/Reports |
 | `fileName` | string | No | Optional: override the uploaded file name. Example: report-2024.pdf |
-| `files` | file[] | No | Files to upload to SharePoint |
+| `files` | file[] | Yes | Files to upload to SharePoint |
 
 #### Output
 

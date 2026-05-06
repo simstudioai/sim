@@ -4,6 +4,7 @@ import type {
 } from '@/tools/emailbison/types'
 import {
   campaignOutputs,
+  emailBisonBaseParamFields,
   emailBisonHeaders,
   emailBisonRecordData,
   emailBisonUrl,
@@ -21,12 +22,7 @@ export const updateCampaignTool: ToolConfig<
   description: 'Updates Email Bison campaign settings.',
   version: '1.0.0',
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Email Bison API token',
-    },
+    ...emailBisonBaseParamFields,
     campaignId: {
       type: 'number',
       required: true,
@@ -89,7 +85,8 @@ export const updateCampaignTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => emailBisonUrl(`/api/campaigns/${params.campaignId}/update`),
+    url: (params) =>
+      emailBisonUrl(`/api/campaigns/${params.campaignId}/update`, {}, params.apiBaseUrl),
     method: 'PATCH',
     headers: emailBisonHeaders,
     body: (params) =>

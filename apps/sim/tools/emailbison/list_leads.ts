@@ -4,6 +4,7 @@ import type {
 } from '@/tools/emailbison/types'
 import {
   emailBisonArrayData,
+  emailBisonBaseParamFields,
   emailBisonHeaders,
   emailBisonUrl,
   listLeadsOutputs,
@@ -17,12 +18,7 @@ export const listLeadsTool: ToolConfig<EmailBisonListLeadsParams, EmailBisonList
   description: 'Retrieves leads from Email Bison with optional search and tag filters.',
   version: '1.0.0',
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Email Bison API token',
-    },
+    ...emailBisonBaseParamFields,
     search: {
       type: 'string',
       required: false,
@@ -59,13 +55,17 @@ export const listLeadsTool: ToolConfig<EmailBisonListLeadsParams, EmailBisonList
   },
   request: {
     url: (params) =>
-      emailBisonUrl('/api/leads', {
-        search: params.search,
-        'filters.lead_campaign_status': params.campaignStatus,
-        'filters.tag_ids': params.tagIds,
-        'filters.excluded_tag_ids': params.excludedTagIds,
-        'filters.without_tags': params.withoutTags,
-      }),
+      emailBisonUrl(
+        '/api/leads',
+        {
+          search: params.search,
+          'filters.lead_campaign_status': params.campaignStatus,
+          'filters.tag_ids': params.tagIds,
+          'filters.excluded_tag_ids': params.excludedTagIds,
+          'filters.without_tags': params.withoutTags,
+        },
+        params.apiBaseUrl
+      ),
     method: 'GET',
     headers: emailBisonHeaders,
   },

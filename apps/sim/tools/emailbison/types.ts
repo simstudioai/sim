@@ -2,6 +2,7 @@ import type { ToolResponse } from '@/tools/types'
 
 export interface EmailBisonBaseParams {
   apiKey: string
+  apiBaseUrl: string
 }
 
 export interface EmailBisonCustomVariable {

@@ -11940,9 +11940,9 @@
     "tags": ["cloud", "automation"]
   },
   {
-    "type": "sharepoint",
+    "type": "sharepoint_v2",
     "slug": "sharepoint",
-    "name": "Sharepoint",
+    "name": "SharePoint",
     "description": "Work with pages and lists",
     "longDescription": "Integrate SharePoint into the workflow. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.",
     "bgColor": "#E0E0E0",
@@ -11970,11 +11970,11 @@
         "description": "Get metadata (and optionally columns/items) for a SharePoint list"
       },
       {
-        "name": "Update List",
+        "name": "Update List Item",
         "description": "Update the properties (fields) on a SharePoint list item"
       },
       {
-        "name": "Add List Items",
+        "name": "Add List Item",
         "description": "Add a new item to a SharePoint list"
       },
       {

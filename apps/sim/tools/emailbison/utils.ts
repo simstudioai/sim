@@ -11,8 +11,6 @@ import type {
 } from '@/tools/emailbison/types'
 import type { OutputProperty, ToolConfig } from '@/tools/types'
 
-const EMAILBISON_API_BASE_URL = 'https://dedi.emailbison.com'
-
 type QueryValue = string | number | boolean | Array<string | number> | undefined | null
 
 interface EmailBisonEnvelope<T> {
@@ -21,13 +19,32 @@ interface EmailBisonEnvelope<T> {
 
 export function emailBisonHeaders(params: EmailBisonBaseParams): Record<string, string> {
   return {
-    Authorization: `Bearer ${params.apiKey}`,
+    Authorization: `Bearer ${params.apiKey.trim()}`,
     'Content-Type': 'application/json',
   }
 }
 
-export function emailBisonUrl(path: string, query: Record<string, QueryValue> = {}): string {
-  const url = new URL(path, EMAILBISON_API_BASE_URL)
+export const emailBisonBaseParamFields = {
+  apiKey: {
+    type: 'string',
+    required: true,
+    visibility: 'user-only',
+    description: 'Email Bison API token',
+  },
+  apiBaseUrl: {
+    type: 'string',
+    required: true,
+    visibility: 'user-only',
+    description: 'Email Bison instance URL that issued the token',
+  },
+} satisfies ToolConfig['params']
+
+export function emailBisonUrl(
+  path: string,
+  query: Record<string, QueryValue>,
+  baseUrl: string
+): string {
+  const url = new URL(path, normalizeEmailBisonBaseUrl(baseUrl))
 
   Object.entries(query).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return
@@ -43,6 +60,24 @@ export function emailBisonUrl(path: string, query: Record<string, QueryValue> = 
   })
 
   return url.toString()
+}
+
+function normalizeEmailBisonBaseUrl(baseUrl: string): string {
+  const trimmedBaseUrl = baseUrl.trim()
+  if (!trimmedBaseUrl) {
+    throw new Error('Email Bison Instance URL is required')
+  }
+
+  const rawBaseUrl = /^https?:\/\//i.test(trimmedBaseUrl)
+    ? trimmedBaseUrl
+    : `https://${trimmedBaseUrl}`
+  const parsed = new URL(rawBaseUrl)
+
+  if (parsed.protocol !== 'https:') {
+    throw new Error('Email Bison Instance URL must use HTTPS')
+  }
+
+  return parsed.origin
 }
 
 export function jsonBody(fields: Record<string, unknown>): Record<string, unknown> {

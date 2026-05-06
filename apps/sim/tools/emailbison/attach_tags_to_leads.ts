@@ -5,6 +5,7 @@ import type {
 import {
   actionOutput,
   actionOutputs,
+  emailBisonBaseParamFields,
   emailBisonHeaders,
   emailBisonRecordData,
   emailBisonUrl,
@@ -21,12 +22,7 @@ export const attachTagsToLeadsTool: ToolConfig<
   description: 'Attaches Email Bison tags to one or more leads.',
   version: '1.0.0',
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Email Bison API token',
-    },
+    ...emailBisonBaseParamFields,
     tagIds: {
       type: 'array',
       required: true,
@@ -49,7 +45,7 @@ export const attachTagsToLeadsTool: ToolConfig<
     },
   },
   request: {
-    url: () => emailBisonUrl('/api/tags/attach-to-leads'),
+    url: (params) => emailBisonUrl('/api/tags/attach-to-leads', {}, params.apiBaseUrl),
     method: 'POST',
     headers: emailBisonHeaders,
     body: (params) =>

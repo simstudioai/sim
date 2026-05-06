@@ -4,6 +4,7 @@ import type {
 } from '@/tools/emailbison/types'
 import {
   emailBisonArrayData,
+  emailBisonBaseParamFields,
   emailBisonHeaders,
   emailBisonUrl,
   listRepliesOutputs,
@@ -21,12 +22,7 @@ export const listRepliesTool: ToolConfig<
     'Retrieves Email Bison replies with optional status, folder, campaign, sender, lead, and tag filters.',
   version: '1.0.0',
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Email Bison API token',
-    },
+    ...emailBisonBaseParamFields,
     search: {
       type: 'string',
       required: false,
@@ -79,16 +75,20 @@ export const listRepliesTool: ToolConfig<
   },
   request: {
     url: (params) =>
-      emailBisonUrl('/api/replies', {
-        search: params.search,
-        status: params.status,
-        folder: params.folder,
-        read: params.read,
-        campaign_id: params.campaignId,
-        sender_email_id: params.senderEmailId,
-        lead_id: params.leadId,
-        tag_ids: params.tagIds,
-      }),
+      emailBisonUrl(
+        '/api/replies',
+        {
+          search: params.search,
+          status: params.status,
+          folder: params.folder,
+          read: params.read,
+          campaign_id: params.campaignId,
+          sender_email_id: params.senderEmailId,
+          lead_id: params.leadId,
+          tag_ids: params.tagIds,
+        },
+        params.apiBaseUrl
+      ),
     method: 'GET',
     headers: emailBisonHeaders,
   },

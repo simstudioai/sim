@@ -5,6 +5,7 @@ import type {
 import {
   actionOutput,
   actionOutputs,
+  emailBisonBaseParamFields,
   emailBisonHeaders,
   emailBisonRecordData,
   emailBisonUrl,
@@ -21,12 +22,7 @@ export const attachLeadsToCampaignTool: ToolConfig<
   description: 'Adds existing Email Bison leads to a campaign.',
   version: '1.0.0',
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Email Bison API token',
-    },
+    ...emailBisonBaseParamFields,
     campaignId: {
       type: 'number',
       required: true,
@@ -48,7 +44,12 @@ export const attachLeadsToCampaignTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => emailBisonUrl(`/api/campaigns/${params.campaignId}/leads/attach-leads`),
+    url: (params) =>
+      emailBisonUrl(
+        `/api/campaigns/${params.campaignId}/leads/attach-leads`,
+        {},
+        params.apiBaseUrl
+      ),
     method: 'POST',
     headers: emailBisonHeaders,
     body: (params) =>

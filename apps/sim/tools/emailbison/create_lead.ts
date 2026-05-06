@@ -1,5 +1,6 @@
 import type { EmailBisonLeadMutationParams, EmailBisonLeadResponse } from '@/tools/emailbison/types'
 import {
+  emailBisonBaseParamFields,
   emailBisonHeaders,
   emailBisonRecordData,
   emailBisonUrl,
@@ -15,12 +16,7 @@ export const createLeadTool: ToolConfig<EmailBisonLeadMutationParams, EmailBison
   description: 'Creates a single lead in Email Bison.',
   version: '1.0.0',
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Email Bison API token',
-    },
+    ...emailBisonBaseParamFields,
     firstName: {
       type: 'string',
       required: true,
@@ -72,7 +68,7 @@ export const createLeadTool: ToolConfig<EmailBisonLeadMutationParams, EmailBison
     },
   },
   request: {
-    url: () => emailBisonUrl('/api/leads'),
+    url: (params) => emailBisonUrl('/api/leads', {}, params.apiBaseUrl),
     method: 'POST',
     headers: emailBisonHeaders,
     body: (params) =>

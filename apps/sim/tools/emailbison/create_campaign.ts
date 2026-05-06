@@ -4,6 +4,7 @@ import type {
 } from '@/tools/emailbison/types'
 import {
   campaignOutputs,
+  emailBisonBaseParamFields,
   emailBisonHeaders,
   emailBisonRecordData,
   emailBisonUrl,
@@ -21,12 +22,7 @@ export const createCampaignTool: ToolConfig<
   description: 'Creates a new Email Bison campaign.',
   version: '1.0.0',
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Email Bison API token',
-    },
+    ...emailBisonBaseParamFields,
     name: {
       type: 'string',
       required: true,
@@ -41,7 +37,7 @@ export const createCampaignTool: ToolConfig<
     },
   },
   request: {
-    url: () => emailBisonUrl('/api/campaigns'),
+    url: (params) => emailBisonUrl('/api/campaigns', {}, params.apiBaseUrl),
     method: 'POST',
     headers: emailBisonHeaders,
     body: (params) =>

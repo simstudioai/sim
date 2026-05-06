@@ -1,11 +1,12 @@
 import type { SharepointToolParams, SharepointUploadFileResponse } from '@/tools/sharepoint/types'
+import { optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const uploadFileTool: ToolConfig<SharepointToolParams, SharepointUploadFileResponse> = {
   id: 'sharepoint_upload_file',
   name: 'Upload File to SharePoint',
   description: 'Upload files to a SharePoint document library',
-  version: '1.0',
+  version: '1.0.0',
 
   oauth: {
     required: true,
@@ -47,7 +48,7 @@ export const uploadFileTool: ToolConfig<SharepointToolParams, SharepointUploadFi
     },
     files: {
       type: 'file[]',
-      required: false,
+      required: true,
       visibility: 'user-only',
       description: 'Files to upload to SharePoint',
     },
@@ -62,10 +63,10 @@ export const uploadFileTool: ToolConfig<SharepointToolParams, SharepointUploadFi
     body: (params: SharepointToolParams) => {
       return {
         accessToken: params.accessToken,
-        siteId: params.siteId || 'root',
-        driveId: params.driveId || null,
-        folderPath: params.folderPath || null,
-        fileName: params.fileName || null,
+        siteId: optionalTrim(params.siteId) || 'root',
+        driveId: optionalTrim(params.driveId) || null,
+        folderPath: optionalTrim(params.folderPath) || null,
+        fileName: optionalTrim(params.fileName) || null,
         files: params.files || null,
       }
     },

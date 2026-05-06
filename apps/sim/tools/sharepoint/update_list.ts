@@ -3,6 +3,7 @@ import type {
   SharepointToolParams,
   SharepointUpdateListItemResponse,
 } from '@/tools/sharepoint/types'
+import { optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointUpdateListItem')
@@ -14,7 +15,7 @@ export const updateListItemTool: ToolConfig<
   id: 'sharepoint_update_list',
   name: 'Update SharePoint List Item',
   description: 'Update the properties (fields) on a SharePoint list item',
-  version: '1.0',
+  version: '1.0.0',
 
   oauth: {
     required: true,
@@ -42,7 +43,7 @@ export const updateListItemTool: ToolConfig<
     },
     listId: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description:
         'The ID of the list containing the item. Example: b!abc123def456 or a GUID like 12345678-1234-1234-1234-123456789012',
@@ -54,7 +55,7 @@ export const updateListItemTool: ToolConfig<
       description: 'The ID of the list item to update. Example: 1, 42, or 123',
     },
     listItemFields: {
-      type: 'object',
+      type: 'json',
       required: true,
       visibility: 'user-only',
       description: 'Field values to update on the list item',
@@ -63,13 +64,15 @@ export const updateListItemTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const siteId = params.siteId || params.siteSelector || 'root'
-      if (!params.itemId) throw new Error('itemId is required')
-      if (!params.listId) {
+      const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
+      const itemId = optionalTrim(params.itemId)
+      const listId = optionalTrim(params.listId)
+      if (!itemId) throw new Error('itemId is required')
+      if (!listId) {
         throw new Error('listId must be provided')
       }
-      const listSegment = params.listId
-      return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listSegment}/items/${params.itemId}/fields`
+      const listSegment = encodeURIComponent(listId)
+      return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listSegment}/items/${encodeURIComponent(itemId)}/fields`
     },
     method: 'PATCH',
     headers: (params) => ({

@@ -1,5 +1,6 @@
 import type { EmailBisonCreateTagParams, EmailBisonTagResponse } from '@/tools/emailbison/types'
 import {
+  emailBisonBaseParamFields,
   emailBisonHeaders,
   emailBisonRecordData,
   emailBisonUrl,
@@ -15,12 +16,7 @@ export const createTagTool: ToolConfig<EmailBisonCreateTagParams, EmailBisonTagR
   description: 'Creates a new Email Bison tag.',
   version: '1.0.0',
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Email Bison API token',
-    },
+    ...emailBisonBaseParamFields,
     name: {
       type: 'string',
       required: true,
@@ -29,7 +25,7 @@ export const createTagTool: ToolConfig<EmailBisonCreateTagParams, EmailBisonTagR
     },
   },
   request: {
-    url: () => emailBisonUrl('/api/tags'),
+    url: (params) => emailBisonUrl('/api/tags', {}, params.apiBaseUrl),
     method: 'POST',
     headers: emailBisonHeaders,
     body: (params) => jsonBody({ name: params.name }),

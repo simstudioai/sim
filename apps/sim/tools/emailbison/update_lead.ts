@@ -1,5 +1,6 @@
 import type { EmailBisonLeadMutationParams, EmailBisonLeadResponse } from '@/tools/emailbison/types'
 import {
+  emailBisonBaseParamFields,
   emailBisonHeaders,
   emailBisonRecordData,
   emailBisonUrl,
@@ -16,12 +17,7 @@ export const updateLeadTool: ToolConfig<EmailBisonLeadMutationParams, EmailBison
     'Updates an existing Email Bison lead. Fields omitted from a PUT update may be cleared by Email Bison.',
   version: '1.0.0',
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Email Bison API token',
-    },
+    ...emailBisonBaseParamFields,
     leadId: {
       type: 'string',
       required: true,
@@ -79,7 +75,12 @@ export const updateLeadTool: ToolConfig<EmailBisonLeadMutationParams, EmailBison
     },
   },
   request: {
-    url: (params) => emailBisonUrl(`/api/leads/${encodeURIComponent(params.leadId?.trim() ?? '')}`),
+    url: (params) =>
+      emailBisonUrl(
+        `/api/leads/${encodeURIComponent(params.leadId?.trim() ?? '')}`,
+        {},
+        params.apiBaseUrl
+      ),
     method: 'PUT',
     headers: emailBisonHeaders,
     body: (params) =>

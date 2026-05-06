@@ -1,5 +1,6 @@
 import type { EmailBisonGetLeadParams, EmailBisonLeadResponse } from '@/tools/emailbison/types'
 import {
+  emailBisonBaseParamFields,
   emailBisonHeaders,
   emailBisonRecordData,
   emailBisonUrl,
@@ -14,12 +15,7 @@ export const getLeadTool: ToolConfig<EmailBisonGetLeadParams, EmailBisonLeadResp
   description: 'Retrieves a lead by Email Bison lead ID or email address.',
   version: '1.0.0',
   params: {
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Email Bison API token',
-    },
+    ...emailBisonBaseParamFields,
     leadId: {
       type: 'string',
       required: true,
@@ -28,7 +24,12 @@ export const getLeadTool: ToolConfig<EmailBisonGetLeadParams, EmailBisonLeadResp
     },
   },
   request: {
-    url: (params) => emailBisonUrl(`/api/leads/${encodeURIComponent(params.leadId.trim())}`),
+    url: (params) =>
+      emailBisonUrl(
+        `/api/leads/${encodeURIComponent(params.leadId.trim())}`,
+        {},
+        params.apiBaseUrl
+      ),
     method: 'GET',
     headers: emailBisonHeaders,
   },

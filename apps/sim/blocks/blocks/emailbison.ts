@@ -2,6 +2,7 @@ import { EmailBisonIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { EmailBisonResponse } from '@/tools/emailbison/types'
+import { getTrigger } from '@/triggers'
 
 const LEAD_MUTATION_OPERATIONS = ['create_lead', 'update_lead'] as const
 const LEAD_LIST_OPERATIONS = ['list_leads'] as const
@@ -12,6 +13,25 @@ const CAMPAIGN_ID_OPERATIONS = [
 ] as const
 const REPLY_FILTER_OPERATIONS = ['list_replies'] as const
 const TAG_FILTER_OPERATIONS = ['list_leads', 'list_replies'] as const
+const EMAILBISON_TRIGGER_IDS = [
+  'emailbison_email_sent',
+  'emailbison_lead_first_contacted',
+  'emailbison_lead_replied',
+  'emailbison_lead_interested',
+  'emailbison_lead_unsubscribed',
+  'emailbison_untracked_reply_received',
+  'emailbison_email_opened',
+  'emailbison_email_bounced',
+  'emailbison_email_account_added',
+  'emailbison_email_account_removed',
+  'emailbison_email_account_disconnected',
+  'emailbison_email_account_reconnected',
+  'emailbison_manual_email_sent',
+  'emailbison_tag_attached',
+  'emailbison_tag_removed',
+  'emailbison_warmup_disabled_receiving_bounces',
+  'emailbison_warmup_disabled_causing_bounces',
+] as const
 
 export const EmailBisonBlock: BlockConfig<EmailBisonResponse> = {
   type: 'emailbison',
@@ -26,6 +46,10 @@ export const EmailBisonBlock: BlockConfig<EmailBisonResponse> = {
   bgColor: '#FB7A22',
   icon: EmailBisonIcon,
   authMode: AuthMode.ApiKey,
+  triggers: {
+    enabled: true,
+    available: [...EMAILBISON_TRIGGER_IDS],
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -54,6 +78,13 @@ export const EmailBisonBlock: BlockConfig<EmailBisonResponse> = {
       type: 'short-input',
       password: true,
       placeholder: 'Enter your Email Bison API token',
+      required: true,
+    },
+    {
+      id: 'apiBaseUrl',
+      title: 'Instance URL',
+      type: 'short-input',
+      placeholder: 'https://your-emailbison-workspace.com',
       required: true,
     },
     {
@@ -428,6 +459,7 @@ export const EmailBisonBlock: BlockConfig<EmailBisonResponse> = {
       condition: { field: 'operation', value: 'attach_tags_to_leads' },
       mode: 'advanced',
     },
+    ...EMAILBISON_TRIGGER_IDS.flatMap((triggerId) => getTrigger(triggerId).subBlocks),
   ],
   tools: {
     access: [
@@ -448,6 +480,7 @@ export const EmailBisonBlock: BlockConfig<EmailBisonResponse> = {
     config: {
       tool: (params) => `emailbison_${params.operation}`,
       params: (params) => ({
+        apiBaseUrl: params.apiBaseUrl,
         leadId:
           params.operation === 'list_replies' ? toNumberParam(params.replyLeadId) : params.leadId,
         leadIds: parseNumberList(params.leadIds),
@@ -487,6 +520,7 @@ export const EmailBisonBlock: BlockConfig<EmailBisonResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Email Bison API token' },
+    apiBaseUrl: { type: 'string', description: 'Email Bison instance URL' },
     leadId: { type: 'string', description: 'Lead ID or email address' },
     search: { type: 'string', description: 'Search term' },
     campaignStatus: { type: 'string', description: 'Lead campaign status filter' },

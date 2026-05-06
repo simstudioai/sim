@@ -26,7 +26,6 @@ Retrieves leads from Email Bison with optional search and tag filters.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Email Bison API token |
 | `search` | string | No | Search term for filtering leads |
 | `campaignStatus` | string | No | Lead campaign status filter: in_sequence, sequence_finished, sequence_stopped, never_contacted, or replied |
 | `tagIds` | array | No | Tag IDs to include |
@@ -62,7 +61,6 @@ Retrieves a lead by Email Bison lead ID or email address.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Email Bison API token |
 | `leadId` | string | Yes | Lead ID or email address |
 
 #### Output
@@ -92,7 +90,6 @@ Creates a single lead in Email Bison.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Email Bison API token |
 | `firstName` | string | Yes | Lead first name |
 | `lastName` | string | Yes | Lead last name |
 | `email` | string | Yes | Lead email address |
@@ -132,7 +129,6 @@ Updates an existing Email Bison lead. Fields omitted from a PUT update may be cl
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Email Bison API token |
 | `leadId` | string | Yes | Lead ID or email address |
 | `firstName` | string | Yes | Lead first name |
 | `lastName` | string | Yes | Lead last name |
@@ -173,7 +169,6 @@ Retrieves Email Bison campaigns.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Email Bison API token |
 
 #### Output
 
@@ -202,7 +197,6 @@ Creates a new Email Bison campaign.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Email Bison API token |
 | `name` | string | Yes | Campaign name |
 | `campaignType` | string | No | Campaign type: outbound or reply_followup |
 
@@ -233,7 +227,6 @@ Updates Email Bison campaign settings.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Email Bison API token |
 | `campaignId` | number | Yes | Campaign ID |
 | `name` | string | No | Campaign name |
 | `maxEmailsPerDay` | number | No | Maximum emails per day |
@@ -272,7 +265,6 @@ Pauses, resumes, or archives an Email Bison campaign.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Email Bison API token |
 | `campaignId` | number | Yes | Campaign ID |
 | `action` | string | Yes | Status action: pause, resume, or archive |
 
@@ -303,7 +295,6 @@ Adds existing Email Bison leads to a campaign.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Email Bison API token |
 | `campaignId` | number | Yes | Campaign ID |
 | `leadIds` | array | Yes | Lead IDs to add to the campaign |
 | `items` | number | No | No description |
@@ -336,7 +327,6 @@ Retrieves Email Bison replies with optional status, folder, campaign, sender, le
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Email Bison API token |
 | `search` | string | No | Search term for replies |
 | `status` | string | No | Reply status: interested, automated_reply, or not_automated_reply |
 | `folder` | string | No | Reply folder: inbox, sent, spam, bounced, or all |
@@ -374,7 +364,6 @@ Retrieves all Email Bison tags for the authenticated workspace.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Email Bison API token |
 
 #### Output
 
@@ -403,7 +392,6 @@ Creates a new Email Bison tag.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Email Bison API token |
 | `name` | string | Yes | Tag name |
 
 #### Output
@@ -433,7 +421,6 @@ Attaches Email Bison tags to one or more leads.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Email Bison API token |
 | `tagIds` | array | Yes | Tag IDs to attach |
 | `items` | number | No | No description |
 | `leadIds` | array | Yes | Lead IDs to tag |
