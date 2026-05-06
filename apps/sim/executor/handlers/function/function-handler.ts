@@ -1,3 +1,8 @@
+import {
+  normalizeRecord,
+  normalizeStringRecord,
+  normalizeWorkflowVariables,
+} from '@/lib/core/utils/records'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import { BlockType } from '@/executor/constants'
@@ -26,8 +31,7 @@ export class FunctionBlockHandler implements BlockHandler {
 
     const { blockData, blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
 
-    const contextVariables =
-      (inputs[FUNCTION_BLOCK_CONTEXT_VARS_KEY] as Record<string, unknown> | undefined) ?? {}
+    const contextVariables = normalizeRecord(inputs[FUNCTION_BLOCK_CONTEXT_VARS_KEY])
 
     const result = await executeTool(
       'function_execute',
@@ -35,8 +39,8 @@ export class FunctionBlockHandler implements BlockHandler {
         code: codeContent,
         language: inputs.language || DEFAULT_CODE_LANGUAGE,
         timeout: inputs.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
-        envVars: ctx.environmentVariables || {},
-        workflowVariables: ctx.workflowVariables || {},
+        envVars: normalizeStringRecord(ctx.environmentVariables),
+        workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
         blockData,
         blockNameMapping,
         blockOutputSchemas,
