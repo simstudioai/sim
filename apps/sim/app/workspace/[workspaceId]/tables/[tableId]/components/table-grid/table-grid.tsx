@@ -124,7 +124,7 @@ export interface SelectionSnapshot {
   hasWorkflowColumns: boolean
 }
 
-interface TableProps {
+interface TableGridProps {
   workspaceId?: string
   tableId?: string
   embedded?: boolean
@@ -205,7 +205,7 @@ interface TableProps {
   >
 }
 
-export function Table({
+export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   embedded,
@@ -228,7 +228,7 @@ export function Table({
   afterDeleteRowsSinkRef,
   confirmDeleteColumnsSinkRef,
   pushTableRenameUndoSinkRef,
-}: TableProps) {
+}: TableGridProps) {
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)

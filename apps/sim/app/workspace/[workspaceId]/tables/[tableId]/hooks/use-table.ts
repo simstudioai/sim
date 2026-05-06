@@ -18,7 +18,7 @@ import { tableKeys, useInfiniteTableRows, useTable as useTableQuery } from '@/ho
 import { useWorkflowStates, useWorkflows } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import type { BlockIconInfo, ColumnSourceInfo } from '../components/table/types'
+import type { BlockIconInfo, ColumnSourceInfo } from '../components/table-grid/types'
 import type { QueryOptions } from '../types'
 
 const EMPTY_COLUMNS: ColumnDefinition[] = []

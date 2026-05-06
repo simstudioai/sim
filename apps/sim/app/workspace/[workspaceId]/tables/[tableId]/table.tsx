@@ -41,27 +41,28 @@ import {
 } from '@/app/workspace/[workspaceId]/components'
 import type { QueryOptions } from './types'
 import { generateColumnName } from './utils'
+import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
+import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
-  ExecutionDetailsSidebar,
   NewColumnDropdown,
   RowModal,
   RunStatusControl,
   type SelectionSnapshot,
-  Table,
   TableActionBar,
   TableFilter,
+  TableGrid,
   type WorkflowConfig,
   WorkflowSidebar,
 } from './components'
-import { COLUMN_SIDEBAR_WIDTH } from './components/table/constants'
-import { COLUMN_TYPE_ICONS } from './components/table/headers'
+import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
+import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
 import { useTable } from './hooks'
 
-const logger = createLogger('TablesDetail')
+const logger = createLogger('Table')
 
-interface TablesDetailProps {
+interface TableProps {
   /** When set, the table renders without its page header / breadcrumbs / page-level
    *  options bar. Used by the mothership chat panel to embed a table inline. */
   embedded?: boolean
@@ -103,7 +104,7 @@ function slideoutReducer(_state: SlideoutState, action: SlideoutAction): Slideou
 
 /**
  * Page-level wrapper for the table detail view. Mirrors the shape of
- * `logs/logs.tsx`: a thin orchestrator that composes the data grid (`<Table>`)
+ * `logs/logs.tsx`: a thin orchestrator that composes the data grid (`<TableGrid>`)
  * and the page-level surface (sidebars, modals, action bar, breadcrumbs).
  *
  * Owns the at-most-one-open invariant for the three slideout panels (column
@@ -112,11 +113,11 @@ function slideoutReducer(_state: SlideoutState, action: SlideoutAction): Slideou
  *
  * Embedded mode skips the page header but otherwise renders the same surface.
  */
-export function TablesDetail({
+export function Table({
   embedded,
   workspaceId: propWorkspaceId,
   tableId: propTableId,
-}: TablesDetailProps = {}) {
+}: TableProps = {}) {
   const params = useParams()
   const router = useRouter()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
@@ -424,6 +425,10 @@ export function TablesDetail({
   const columnConfig = slideout.kind === 'column' ? slideout.config : null
   const workflowConfig = slideout.kind === 'workflow' ? slideout.config : null
   const executionId = slideout.kind === 'execution' ? slideout.executionId : null
+  // Fetch the workflow log when the execution-details slideout is open. Reuses
+  // the logs page's <LogDetails> directly — no intermediate wrapper needed for
+  // a one-line query forward.
+  const { data: executionLog } = useLogByExecutionId(workspaceId, executionId)
 
   return (
     <div className='flex h-full flex-col overflow-hidden'>
@@ -459,7 +464,7 @@ export function TablesDetail({
           )}
         </>
       )}
-      <Table
+      <TableGrid
         workspaceId={workspaceId}
         tableId={tableId}
         embedded={embedded}
@@ -515,9 +520,9 @@ export function TablesDetail({
         tableId={tableId}
         onColumnRename={onColumnRename}
       />
-      <ExecutionDetailsSidebar
-        workspaceId={workspaceId}
-        executionId={executionId}
+      <LogDetails
+        log={executionLog ?? null}
+        isOpen={Boolean(executionId)}
         onClose={onCloseSlideout}
       />
       {tableData && (
