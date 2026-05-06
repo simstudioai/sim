@@ -16,11 +16,6 @@ export const metadata: Metadata = {
   },
 }
 
-/** Opt the landing segment out of static prerendering so client components like
- * Navbar render with the live runtime env (e.g. Docker-injected `NEXT_PUBLIC_BRAND_*`)
- * during SSR, avoiding hydration mismatches against `window.__ENV`. */
-export const dynamic = 'force-dynamic'
-
 /**
  * Landing page route-group layout.
  *
