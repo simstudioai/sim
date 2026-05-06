@@ -645,6 +645,15 @@ describe('isPrivateOrReservedIP', () => {
     ])('allows IPv4-compatible IPv6 with embedded public IPv4 %s — %s', (ip) => {
       expect(isPrivateOrReservedIP(ip)).toBe(false)
     })
+
+    it.concurrent.each([
+      ['::ffff:1', 'embedded 255.255.0.1 (Class E reserved) via parts[6]=0xffff'],
+      ['::ffff:0', 'embedded 255.255.0.0 (Class E reserved)'],
+      ['::ffff:abcd', 'embedded 255.255.171.205 (Class E reserved)'],
+      ['::f000:1', 'embedded 240.0.0.1 (Class E reserved)'],
+    ])('blocks IPv4-compatible IPv6 with Class E embedded IPv4 %s — %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
   })
 
   describe('non-IPv4-compat unicast IPv6 (must not over-block)', () => {

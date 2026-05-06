@@ -44,7 +44,7 @@ export function isPrivateOrReservedIP(ip: string): boolean {
       const v6 = addr as ipaddr.IPv6
       const parts = v6.parts
       const firstSixZero = parts.slice(0, 6).every((p) => p === 0)
-      if (firstSixZero && parts[6] !== 0xffff) {
+      if (firstSixZero) {
         const embedded = ipaddr.fromByteArray([
           (parts[6] >> 8) & 0xff,
           parts[6] & 0xff,
