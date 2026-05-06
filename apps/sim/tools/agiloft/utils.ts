@@ -249,7 +249,7 @@ export function buildGetChoiceLineIdUrl(
   params: AgiloftGetChoiceLineIdParams
 ): string {
   const field = encodeURIComponent(params.fieldName.trim())
-  const value = encodeURIComponent(params.value)
+  const value = encodeURIComponent(params.value.trim())
   return `${base}/ewws/EWGetChoiceLineId/.json?${buildEwBaseQuery(params)}&field=${field}&value=${value}`
 }
 

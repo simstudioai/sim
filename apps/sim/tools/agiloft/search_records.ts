@@ -100,10 +100,6 @@ export const agiloftSearchRecordsTool: ToolConfig<
           for (const item of result as Record<string, unknown>[]) {
             records.push(item)
           }
-        } else if (Array.isArray(data)) {
-          for (const item of data as Record<string, unknown>[]) {
-            records.push(item)
-          }
         } else {
           const lengthRaw = result.EWREST_length ?? data.EWREST_length
           const count = typeof lengthRaw === 'string' ? Number(lengthRaw) : (lengthRaw as number)

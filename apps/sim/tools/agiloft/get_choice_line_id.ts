@@ -104,8 +104,16 @@ export const agiloftGetChoiceLineIdTool: ToolConfig<
           }
         }
 
+        if (choiceLineId === null) {
+          return {
+            success: false,
+            output: { choiceLineId: null },
+            error: `No choice line ID found for value "${params.value}" in field "${params.fieldName}"`,
+          }
+        }
+
         return {
-          success: data.success !== false && choiceLineId !== null,
+          success: data.success !== false,
           output: { choiceLineId },
         }
       }
