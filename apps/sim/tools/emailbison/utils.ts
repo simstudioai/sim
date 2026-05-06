@@ -405,9 +405,12 @@ function mapReplyAttachment(value: unknown): EmailBisonReplyAttachment {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
 function toRecord(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-  return value as Record<string, unknown>
+  return isRecord(value) ? value : {}
 }
 
 function toArray(value: unknown): unknown[] {
