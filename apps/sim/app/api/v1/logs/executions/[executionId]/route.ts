@@ -47,7 +47,9 @@ export const GET = withRouteHandler(
       const workflowLog = rows[0]
 
       const accessError = await validateWorkspaceAccess(rateLimit, userId, workflowLog.workspaceId)
-      if (accessError) return accessError
+      if (accessError) {
+        return NextResponse.json({ error: 'Workflow execution not found' }, { status: 404 })
+      }
 
       const [snapshot] = await db
         .select()

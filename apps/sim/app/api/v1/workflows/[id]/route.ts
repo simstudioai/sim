@@ -51,7 +51,9 @@ export const GET = withRouteHandler(
         userId,
         workflowData.workspaceId!
       )
-      if (accessError) return accessError
+      if (accessError) {
+        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      }
 
       const blockRows = await db
         .select({

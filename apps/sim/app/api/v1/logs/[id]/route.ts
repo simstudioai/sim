@@ -73,7 +73,9 @@ export const GET = withRouteHandler(
       }
 
       const accessError = await validateWorkspaceAccess(rateLimit, userId, log.workspaceId)
-      if (accessError) return accessError
+      if (accessError) {
+        return NextResponse.json({ error: 'Log not found' }, { status: 404 })
+      }
 
       const workflowSummary = {
         id: log.workflowId,
