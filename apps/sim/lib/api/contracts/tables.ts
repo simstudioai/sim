@@ -68,6 +68,10 @@ export const tableRowParamsSchema = tableIdParamsSchema.extend({
   rowId: z.string().min(1),
 })
 
+export const tableCellParamsSchema = tableRowParamsSchema.extend({
+  groupId: z.string().min(1),
+})
+
 export const listTablesQuerySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   scope: tableScopeSchema.default('active'),
@@ -710,7 +714,7 @@ export const deleteTableRowsContract = defineRouteContract({
 
 // ============================================================================
 // Workflow group contracts (`/api/table/[tableId]/groups`, `/cancel-runs`,
-// `/groups/[groupId]/run`, `/rows/[rowId]/run-workflow-group`)
+// `/columns/run`, `/rows/run`, `/rows/[rowId]/cells/[groupId]/run`)
 // ============================================================================
 
 const workflowGroupOutputSchema = z.object({
@@ -721,7 +725,6 @@ const workflowGroupOutputSchema = z.object({
 
 const workflowGroupDependenciesSchema = z.object({
   columns: z.array(z.string()).optional(),
-  workflowGroups: z.array(z.string()).optional(),
 })
 
 const workflowGroupOutputColumnSchema = z.object({
@@ -868,7 +871,7 @@ export const cancelTableRunsContract = defineRouteContract({
 })
 
 /**
- * Run modes for `POST /api/table/[tableId]/groups/[groupId]/run`:
+ * Run modes for `POST /api/table/[tableId]/columns/run`:
  *  - `all`        — every dep-satisfied row not already running/pending
  *  - `incomplete` — same, but additionally restricted to rows whose group has
  *    never run, or whose last run ended in `failed`/`aborted`
@@ -876,37 +879,63 @@ export const cancelTableRunsContract = defineRouteContract({
  * Field is named `runMode` (not `mode`) to disambiguate from the table-import
  * `mode` arg (`append` / `replace`) which lives on a different op.
  */
-export const runWorkflowGroupBodySchema = z.object({
+/**
+ * Run one workflow cell — a single (group, row) pair. Smallest unit; not
+ * batched. Used by the action bar single-cell Run button and the AI's
+ * `run_cell` tool op.
+ */
+export const runCellBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  runMode: z.enum(['all', 'incomplete']).default('all'),
-  /** Optional row scope. When provided, only these rows are candidates — the
-   *  same eligibility predicate (deps satisfied, not in-flight, runMode filter)
-   *  still applies, so a passed-in row that's mid-run or has unmet deps is
-   *  silently skipped. Omit to run across the entire table. */
-  rowIds: z.array(z.string().min(1)).min(1).optional(),
 })
 
-export const runWorkflowGroupContract = defineRouteContract({
+export const runCellContract = defineRouteContract({
   method: 'POST',
-  path: '/api/table/[tableId]/groups/[groupId]/run',
-  params: groupIdParamsSchema,
-  body: runWorkflowGroupBodySchema,
+  path: '/api/table/[tableId]/rows/[rowId]/cells/[groupId]/run',
+  params: tableCellParamsSchema,
+  body: runCellBodySchema,
   response: {
     mode: 'json',
     schema: successResponseSchema(z.object({ triggered: z.number() })),
   },
 })
 
-export const runRowWorkflowGroupBodySchema = z.object({
+/**
+ * Run every runnable workflow group on the given rows. Used by the per-row
+ * Play button and the AI's `run_row` tool op.
+ */
+export const runRowBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  groupId: z.string().min(1, 'Group ID is required'),
+  rowIds: z.array(z.string().min(1)).min(1),
 })
 
-export const runRowWorkflowGroupContract = defineRouteContract({
+export const runRowContract = defineRouteContract({
   method: 'POST',
-  path: '/api/table/[tableId]/rows/[rowId]/run-workflow-group',
-  params: tableRowParamsSchema,
-  body: runRowWorkflowGroupBodySchema,
+  path: '/api/table/[tableId]/rows/run',
+  params: tableIdParamsSchema,
+  body: runRowBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ triggered: z.number() })),
+  },
+})
+
+/**
+ * Run a set of workflow groups across the table (or a row subset). Used by
+ * the meta-cell "Run all" / "Run empty" / "Run N selected" actions and the
+ * AI's `run_column` tool op.
+ */
+export const runColumnBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  groupIds: z.array(z.string().min(1)).min(1),
+  runMode: z.enum(['all', 'incomplete']).default('all'),
+  rowIds: z.array(z.string().min(1)).min(1).optional(),
+})
+
+export const runColumnContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/columns/run',
+  params: tableIdParamsSchema,
+  body: runColumnBodySchema,
   response: {
     mode: 'json',
     schema: successResponseSchema(z.object({ triggered: z.number() })),
@@ -917,5 +946,6 @@ export type AddWorkflowGroupBodyInput = z.input<typeof addWorkflowGroupBodySchem
 export type UpdateWorkflowGroupBodyInput = z.input<typeof updateWorkflowGroupBodySchema>
 export type DeleteWorkflowGroupBodyInput = z.input<typeof deleteWorkflowGroupBodySchema>
 export type CancelTableRunsBodyInput = z.input<typeof cancelTableRunsBodySchema>
-export type RunWorkflowGroupBodyInput = z.input<typeof runWorkflowGroupBodySchema>
-export type RunRowWorkflowGroupBodyInput = z.input<typeof runRowWorkflowGroupBodySchema>
+export type RunCellBodyInput = z.input<typeof runCellBodySchema>
+export type RunRowBodyInput = z.input<typeof runRowBodySchema>
+export type RunColumnBodyInput = z.input<typeof runColumnBodySchema>

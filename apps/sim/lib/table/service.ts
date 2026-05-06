@@ -63,7 +63,7 @@ import {
   validateTableName,
   validateTableSchema,
 } from './validation'
-import { assertValidSchema, scheduleWorkflowGroupRuns } from './workflow-columns'
+import { assertValidSchema, scheduleRunsForRows, scheduleRunsForTable } from './workflow-columns'
 
 const logger = createLogger('TableService')
 
@@ -980,7 +980,7 @@ export async function insertRow(
     requestId
   )
   notifyTableRowUpdated(data.tableId, insertedRow)
-  void scheduleWorkflowGroupRuns(table, [insertedRow])
+  void scheduleRunsForRows(table, [insertedRow])
 
   return insertedRow
 }
@@ -1099,7 +1099,7 @@ export async function batchInsertRowsWithTx(
 
   void fireTableTrigger(data.tableId, table.name, 'insert', result, null, table.schema, requestId)
   for (const row of result) notifyTableRowUpdated(data.tableId, row)
-  void scheduleWorkflowGroupRuns(table, result)
+  void scheduleRunsForRows(table, result)
 
   return result
 }
@@ -1441,7 +1441,7 @@ export async function upsertRow(
     )
   }
   notifyTableRowUpdated(data.tableId, result.row)
-  void scheduleWorkflowGroupRuns(table, [result.row])
+  void scheduleRunsForRows(table, [result.row])
 
   return result
 }
@@ -1710,7 +1710,7 @@ export async function updateRow(
   notifyTableRowUpdated(data.tableId, updatedRow)
   // Awaited (not `void`) so cell tasks dispatch their cascade before the
   // trigger.dev worker tears down on `run()` resolve.
-  await scheduleWorkflowGroupRuns(table, [updatedRow])
+  await scheduleRunsForRows(table, [updatedRow])
 
   return updatedRow
 }
@@ -1874,7 +1874,7 @@ export async function updateRowsByFilter(
     requestId
   )
   for (const row of updatedRows) notifyTableRowUpdated(data.tableId, row)
-  void scheduleWorkflowGroupRuns(table, updatedRows)
+  void scheduleRunsForRows(table, updatedRows)
 
   return {
     affectedCount: matchingRows.length,
@@ -2006,7 +2006,7 @@ export async function batchUpdateRows(
   // so the scheduler's later per-write notifications (pending/running) land
   // last and stick in the client cache.
   for (const row of updatedRowsForTrigger) notifyTableRowUpdated(data.tableId, row)
-  void scheduleWorkflowGroupRuns(table, updatedRowsForTrigger)
+  void scheduleRunsForRows(table, updatedRowsForTrigger)
 
   return {
     affectedCount: mergedUpdates.length,
@@ -2243,16 +2243,11 @@ export async function renameColumn(
     const renamedDeps = group.dependencies?.columns?.map((d) =>
       d === actualOldName ? data.newName : d
     )
-    const renamedGroupDeps = group.dependencies?.workflowGroups
-    const next = {
+    return {
       ...group,
       outputs: renamedOutputs,
-      dependencies: {
-        ...(renamedDeps ? { columns: renamedDeps } : {}),
-        ...(renamedGroupDeps ? { workflowGroups: renamedGroupDeps } : {}),
-      },
+      ...(renamedDeps ? { dependencies: { columns: renamedDeps } } : {}),
     }
-    return next
   })
   const updatedSchema: TableSchema = {
     ...schema,
@@ -2340,48 +2335,30 @@ export async function deleteColumn(
 
   // Drop this column's reference from every group's outputs and `columns`
   // dependency. If the column is the last output of its parent group, the
-  // group itself is also removed (a group with zero outputs is invalid),
-  // and any OTHER group depending on this group has the dep cleared too.
+  // group itself is also removed (a group with zero outputs is invalid).
   let groupRemovedId: string | null = null
-  let updatedGroups = (schema.workflowGroups ?? []).map((group) => {
-    let next = group
-    if (ownerGroupId && group.id === ownerGroupId) {
-      const remaining = group.outputs.filter((o) => o.columnName !== actualName)
-      if (remaining.length === 0) {
-        groupRemovedId = group.id
+  const updatedGroups = (schema.workflowGroups ?? [])
+    .map((group) => {
+      let next = group
+      if (ownerGroupId && group.id === ownerGroupId) {
+        const remaining = group.outputs.filter((o) => o.columnName !== actualName)
+        if (remaining.length === 0) {
+          groupRemovedId = group.id
+        }
+        next = { ...next, outputs: remaining }
       }
-      next = { ...next, outputs: remaining }
-    }
-    const filtered = next.dependencies?.columns?.filter((d) => d !== actualName)
-    if (filtered && filtered.length !== (next.dependencies?.columns?.length ?? 0)) {
-      next = {
-        ...next,
-        dependencies: {
-          ...(filtered.length > 0 ? { columns: filtered } : {}),
-          ...(next.dependencies?.workflowGroups
-            ? { workflowGroups: next.dependencies.workflowGroups }
-            : {}),
-        },
+      const filtered = next.dependencies?.columns?.filter((d) => d !== actualName)
+      if (filtered && filtered.length !== (next.dependencies?.columns?.length ?? 0)) {
+        next = {
+          ...next,
+          ...(filtered.length > 0
+            ? { dependencies: { columns: filtered } }
+            : { dependencies: undefined }),
+        }
       }
-    }
-    return next
-  })
-  if (groupRemovedId) {
-    const removed = groupRemovedId
-    updatedGroups = updatedGroups
-      .filter((g) => g.id !== removed)
-      .map((g) =>
-        g.dependencies?.workflowGroups
-          ? {
-              ...g,
-              dependencies: {
-                ...(g.dependencies.columns ? { columns: g.dependencies.columns } : {}),
-                workflowGroups: g.dependencies.workflowGroups.filter((id) => id !== removed),
-              },
-            }
-          : g
-      )
-  }
+      return next
+    })
+    .filter((g) => g.id !== groupRemovedId)
 
   const updatedSchema: TableSchema = {
     ...schema,
@@ -2473,17 +2450,13 @@ export async function deleteColumns(
     .filter((g) => !removedGroupIds.has(g.id))
     .map((group) => {
       const depCols = group.dependencies?.columns?.filter((d) => !namesToDelete.has(d))
-      const depGroups = group.dependencies?.workflowGroups?.filter((id) => !removedGroupIds.has(id))
       const colsChanged = depCols && depCols.length !== (group.dependencies?.columns?.length ?? 0)
-      const groupsChanged =
-        depGroups && depGroups.length !== (group.dependencies?.workflowGroups?.length ?? 0)
-      if (!colsChanged && !groupsChanged) return group
+      if (!colsChanged) return group
       return {
         ...group,
-        dependencies: {
-          ...(depCols && depCols.length > 0 ? { columns: depCols } : {}),
-          ...(depGroups && depGroups.length > 0 ? { workflowGroups: depGroups } : {}),
-        },
+        ...(depCols && depCols.length > 0
+          ? { dependencies: { columns: depCols } }
+          : { dependencies: undefined }),
       }
     })
   const updatedSchema: TableSchema = {
@@ -2774,26 +2747,9 @@ export async function addWorkflowGroup(
   // when the caller opted out (Mothership stages groups silently — `autoRun:
   // false` — so the AI can compose multiple changes without firing rows mid-edit).
   if (data.autoRun !== false) {
-    void (async () => {
-      try {
-        const rowRecords = await db
-          .select()
-          .from(userTableRows)
-          .where(eq(userTableRows.tableId, data.tableId))
-        if (rowRecords.length === 0) return
-        const rows: TableRow[] = rowRecords.map((r) => ({
-          id: r.id,
-          data: r.data as RowData,
-          executions: (r.executions as RowExecutions) ?? {},
-          position: r.position,
-          createdAt: r.createdAt,
-          updatedAt: r.updatedAt,
-        }))
-        await scheduleWorkflowGroupRuns(updatedTable, rows)
-      } catch (err) {
-        logger.error(`[${requestId}] Failed to schedule runs after group add:`, err)
-      }
-    })()
+    void scheduleRunsForTable(updatedTable).catch((err) => {
+      logger.error(`[${requestId}] Failed to schedule runs after group add:`, err)
+    })
   }
 
   return updatedTable
@@ -3073,6 +3029,15 @@ export async function updateWorkflowGroup(
         err
       )
     }
+  }
+
+  // autoRun toggled false → true: fire deps-satisfied rows now. Mirrors the
+  // post-add scheduling path so re-enabling auto-fire doesn't require manual
+  // run clicks for rows that are already eligible.
+  if (group.autoRun === false && data.autoRun === true) {
+    void scheduleRunsForTable(updatedTable, { groupId: data.groupId }).catch((err) => {
+      logger.error(`[${requestId}] Failed to schedule runs after autoRun toggled on:`, err)
+    })
   }
 
   return updatedTable
@@ -3378,17 +3343,20 @@ export async function deleteWorkflowGroup(
   }
 
   const removedColumnNames = new Set(group.outputs.map((o) => o.columnName))
+  // Removed group's output columns may be referenced as deps by sibling groups.
+  // Strip those refs so we don't leave dangling-column deps behind.
   const nextGroups = groups
     .filter((g) => g.id !== data.groupId)
-    .map((g) => ({
-      ...g,
-      dependencies: g.dependencies?.workflowGroups
-        ? {
-            ...(g.dependencies.columns ? { columns: g.dependencies.columns } : {}),
-            workflowGroups: g.dependencies.workflowGroups.filter((id) => id !== data.groupId),
-          }
-        : g.dependencies,
-    }))
+    .map((g) => {
+      const filtered = g.dependencies?.columns?.filter((d) => !removedColumnNames.has(d))
+      if (!filtered || filtered.length === (g.dependencies?.columns?.length ?? 0)) return g
+      return {
+        ...g,
+        ...(filtered.length > 0
+          ? { dependencies: { columns: filtered } }
+          : { dependencies: undefined }),
+      }
+    })
   const updatedSchema: TableSchema = {
     ...schema,
     columns: schema.columns.filter((c) => !removedColumnNames.has(c.name)),

@@ -7,48 +7,36 @@
 import type { RowData, RowExecutionMetadata, RowExecutions, TableRow, WorkflowGroup } from './types'
 
 /**
- * Returns true when every dependency this group needs is filled. Plain
- * columns are filled when their value is non-empty; upstream groups are
- * filled when `executions[gid].status === 'completed'`. Used both by the
- * scheduler's eligibility check and by the manual "Run group" route, which
- * needs the same gate WITHOUT the in-flight / terminal-state check.
+ * Returns true when every column this group depends on is non-empty on this
+ * row. Workflow output columns count the same as plain columns — the model
+ * is uniform.
  */
 export function areGroupDepsSatisfied(group: WorkflowGroup, row: TableRow): boolean {
-  const deps = group.dependencies ?? {}
-  for (const colName of deps.columns ?? []) {
+  const cols = group.dependencies?.columns ?? []
+  for (const colName of cols) {
     const value = row.data[colName]
     if (value === null || value === undefined || value === '') return false
-  }
-  for (const gid of deps.workflowGroups ?? []) {
-    if (row.executions?.[gid]?.status !== 'completed') return false
   }
   return true
 }
 
 export interface UnmetDeps {
-  /** Plain column names whose value on this row is empty. */
+  /** Column names whose value on this row is empty. */
   columns: string[]
-  /** Upstream workflow group ids that haven't reached `completed` on this row. */
-  workflowGroups: string[]
 }
 
 /**
- * Like `areGroupDepsSatisfied` but returns *which* deps are unmet, so the UI
- * can render "Waiting on column_a, column_b". Returns empty arrays when
- * everything is filled.
+ * Like `areGroupDepsSatisfied` but returns *which* columns are unmet, so the
+ * UI can render "Waiting on column_a, column_b".
  */
 export function getUnmetGroupDeps(group: WorkflowGroup, row: TableRow): UnmetDeps {
-  const deps = group.dependencies ?? {}
+  const cols = group.dependencies?.columns ?? []
   const columns: string[] = []
-  for (const colName of deps.columns ?? []) {
+  for (const colName of cols) {
     const value = row.data[colName]
     if (value === null || value === undefined || value === '') columns.push(colName)
   }
-  const workflowGroups: string[] = []
-  for (const gid of deps.workflowGroups ?? []) {
-    if (row.executions?.[gid]?.status !== 'completed') workflowGroups.push(gid)
-  }
-  return { columns, workflowGroups }
+  return { columns }
 }
 
 /**
@@ -77,16 +65,25 @@ export function optimisticallyScheduleNewlyEligibleGroups(
   for (const group of groups) {
     // autoRun=false groups don't auto-fire on dep-fill — leave them empty.
     if (group.autoRun === false) continue
-    const wasSatisfied = areGroupDepsSatisfied(group, beforeRow)
-    if (wasSatisfied) continue
     if (!areGroupDepsSatisfied(group, afterRow)) continue
 
     const exec = beforeRow.executions?.[group.id]
-    // Don't overwrite an in-flight or terminal state — only "no exec" or a
-    // prior `cancelled` / `error` is a candidate to retry on dep-fill.
-    if (exec && exec.status !== 'cancelled' && exec.status !== 'error') {
-      continue
-    }
+    // Don't overwrite an in-flight state.
+    if (exec?.status === 'queued' || exec?.status === 'running') continue
+    if (exec?.status === 'pending' && exec.jobId) continue
+
+    // "completed" with all outputs filled = genuinely done; don't re-fire.
+    // "completed" with any output cleared = stale; treat as never-run.
+    const isStaleCompleted = exec?.status === 'completed' && !areOutputsFilled(group, afterRow)
+
+    // Whether this group could fire is the union of:
+    //   - dep-fill: deps were unmet before, now met (the classic cascade)
+    //   - output-cleared: user wiped a previously-completed output
+    //   - retry: prior run ended in error / cancelled
+    const wasSatisfied = areGroupDepsSatisfied(group, beforeRow)
+    const becameSatisfied = !wasSatisfied
+    const isRetryable = exec?.status === 'cancelled' || exec?.status === 'error'
+    if (!becameSatisfied && !isStaleCompleted && !isRetryable && exec) continue
 
     if (next === null) next = { ...(beforeRow.executions ?? {}) }
     const pending: RowExecutionMetadata = {
@@ -99,4 +96,13 @@ export function optimisticallyScheduleNewlyEligibleGroups(
     next[group.id] = pending
   }
   return next
+}
+
+function areOutputsFilled(group: WorkflowGroup, row: TableRow): boolean {
+  if (group.outputs.length === 0) return true
+  for (const o of group.outputs) {
+    const v = row.data[o.columnName]
+    if (v === null || v === undefined || v === '') return false
+  }
+  return true
 }

@@ -258,52 +258,13 @@ function WorkflowSidebarBody({
     return allColumns.slice(0, idx)
   })()
 
-  const scalarDepColumns = otherColumns.filter((c) => !c.workflowGroupId)
-  const groupDepOptions: WorkflowGroup[] = (() => {
-    const seen = new Set<string>()
-    const result: WorkflowGroup[] = []
-    for (const c of otherColumns) {
-      if (!c.workflowGroupId) continue
-      if (seen.has(c.workflowGroupId)) continue
-      if (existingGroup && c.workflowGroupId === existingGroup.id) continue
-      const g = workflowGroups.find((gg) => gg.id === c.workflowGroupId)
-      if (!g) continue
-      seen.add(c.workflowGroupId)
-      result.push(g)
-    }
-    return result
-  })()
+  // Every left-of-current column is a valid dep — workflow output columns
+  // included. Exclude this group's own outputs (you can't depend on yourself).
+  const ownOutputNames = new Set(existingGroup?.outputs.map((o) => o.columnName) ?? [])
+  const depOptions = otherColumns.filter((c) => !ownOutputNames.has(c.name))
 
-  // Default deps when there's no persisted group: tick every left-of-current
-  // scalar column + every left-of-current producing group.
-  const defaultScalarDeps = otherColumns.filter((c) => !c.workflowGroupId).map((c) => c.name)
-  const defaultGroupDeps = (() => {
-    const seen = new Set<string>()
-    for (const c of otherColumns) {
-      if (c.workflowGroupId) seen.add(c.workflowGroupId)
-    }
-    return Array.from(seen)
-  })()
-
-  // Sanitize legacy persisted deps: any workflow-output column names that
-  // sneaked into `dependencies.columns` (writes from before the schema
-  // validator forbade them) are lifted into `workflowGroups` here so the
-  // sidebar surfaces a re-saveable state.
-  const seededDepsFromGroup = (group: WorkflowGroup): { cols: string[]; groups: string[] } => {
-    const persistedCols = group.dependencies?.columns
-    const persistedGroups = group.dependencies?.workflowGroups
-    if (persistedCols === undefined && persistedGroups === undefined) {
-      return { cols: defaultScalarDeps, groups: defaultGroupDeps }
-    }
-    const liftedGroupIds = new Set(persistedGroups ?? [])
-    const cleanCols: string[] = []
-    for (const colName of persistedCols ?? []) {
-      const c = allColumns.find((cc) => cc.name === colName)
-      if (c?.workflowGroupId) liftedGroupIds.add(c.workflowGroupId)
-      else cleanCols.push(colName)
-    }
-    return { cols: cleanCols, groups: Array.from(liftedGroupIds) }
-  }
+  // Default deps for a brand-new group: tick every left-of-current column.
+  const defaultDeps = depOptions.map((c) => c.name)
 
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>(
     () => existingGroup?.workflowId ?? ''
@@ -315,11 +276,8 @@ function WorkflowSidebarBody({
   const [autoRun, setAutoRun] = useState<boolean>(() =>
     existingGroup ? existingGroup.autoRun !== false : false
   )
-  const [deps, setDeps] = useState<string[]>(() =>
-    existingGroup ? seededDepsFromGroup(existingGroup).cols : defaultScalarDeps
-  )
-  const [groupDeps, setGroupDeps] = useState<string[]>(() =>
-    existingGroup ? seededDepsFromGroup(existingGroup).groups : defaultGroupDeps
+  const [deps, setDeps] = useState<string[]>(
+    () => existingGroup?.dependencies?.columns ?? defaultDeps
   )
   // `selectedOutputs` is encoded `${blockId}::${path}`. Seeded once `blockOutputGroups`
   // resolves (we may not have the workflow blocks loaded at first render); see the
@@ -591,10 +549,7 @@ function WorkflowSidebarBody({
 
     try {
       const orderedOutputs = buildOrderedPickedOutputs()
-      const dependencies: WorkflowGroupDependencies = {
-        columns: deps,
-        ...(groupDeps.length > 0 ? { workflowGroups: groupDeps } : {}),
-      }
+      const dependencies: WorkflowGroupDependencies = { columns: deps }
 
       if (existingGroup) {
         // edit-output: swap one column's source mapping (and optionally rename
@@ -920,15 +875,7 @@ function WorkflowSidebarBody({
             {autoRun && (
               <>
                 <FieldDivider />
-                <RunSettingsSection
-                  scalarDepColumns={scalarDepColumns}
-                  groupDepOptions={groupDepOptions}
-                  deps={deps}
-                  groupDeps={groupDeps}
-                  workflows={workflows}
-                  onChangeDeps={setDeps}
-                  onChangeGroupDeps={setGroupDeps}
-                />
+                <RunSettingsSection depOptions={depOptions} deps={deps} onChangeDeps={setDeps} />
               </>
             )}
           </>

@@ -44,15 +44,13 @@ export interface WorkflowGroupOutput {
 }
 
 export interface WorkflowGroupDependencies {
-  /** Plain columns that must be non-empty before this group runs. */
-  columns?: string[]
   /**
-   * Other workflow groups that must reach `status: completed` before this
-   * group runs. The dep graph is a first-class concept — you depend on a
-   * producing group, never on a sibling output value (which can legitimately
-   * be null on success).
+   * Columns that must be non-empty before this group runs. Workflow output
+   * columns count too — once an upstream group fills its output column, any
+   * downstream group depending on that column becomes eligible. The user
+   * model is uniform: deps are columns, not group-completion edges.
    */
-  workflowGroups?: string[]
+  columns?: string[]
 }
 
 export interface WorkflowGroup {

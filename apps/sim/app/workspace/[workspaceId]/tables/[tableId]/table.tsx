@@ -29,7 +29,9 @@ import {
   useCancelTableRuns,
   useDeleteTable,
   useRenameTable,
-  useRunGroup,
+  useRunCell,
+  useRunColumn,
+  useRunRow,
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
@@ -199,29 +201,38 @@ export function Table({
     queryOptions,
   })
 
-  const runGroupMutation = useRunGroup({ workspaceId, tableId })
+  const runCellMutation = useRunCell({ workspaceId, tableId })
+  const runRowMutation = useRunRow({ workspaceId, tableId })
+  const runColumnMutation = useRunColumn({ workspaceId, tableId })
   const cancelRunsMutation = useCancelTableRuns({ workspaceId, tableId })
-  const runGroupMutate = runGroupMutation.mutate
+  const runCellMutate = runCellMutation.mutate
+  const runRowMutate = runRowMutation.mutate
+  const runColumnMutate = runColumnMutation.mutate
   const cancelRunsMutate = cancelRunsMutation.mutate
 
-  const onRunGroup = useCallback(
-    (groupId: string, workflowId: string, runMode: 'all' | 'incomplete', rowIds?: string[]) => {
-      runGroupMutate({ groupId, workflowId, runMode, rowIds })
+  const onRunColumn = useCallback(
+    (groupId: string, runMode: 'all' | 'incomplete', rowIds?: string[]) => {
+      runColumnMutate({ groupIds: [groupId], runMode, rowIds })
     },
-    [runGroupMutate]
+    [runColumnMutate]
   )
 
-  const onRunRows = (rowIds: string[], runMode: 'all' | 'incomplete') => {
-    if (tableWorkflowGroups.length === 0 || rowIds.length === 0) return
-    for (const group of tableWorkflowGroups) {
-      runGroupMutate({
-        groupId: group.id,
-        workflowId: group.workflowId,
-        runMode,
-        rowIds,
-      })
-    }
-  }
+  const onRunRows = useCallback(
+    (rowIds: string[], runMode: 'all' | 'incomplete') => {
+      if (tableWorkflowGroups.length === 0 || rowIds.length === 0) return
+      const groupIds = tableWorkflowGroups.map((g) => g.id)
+      runColumnMutate({ groupIds, runMode, rowIds })
+    },
+    [runColumnMutate, tableWorkflowGroups]
+  )
+
+  const onRunRow = useCallback(
+    (rowId: string) => {
+      if (tableWorkflowGroups.length === 0) return
+      runRowMutate({ rowIds: [rowId] })
+    },
+    [runRowMutate, tableWorkflowGroups.length]
+  )
 
   // useCallback because <DataRow> is React.memo-wrapped — identity stability
   // matters for per-row gutter Stop button.
@@ -464,7 +475,8 @@ export function Table({
         onOpenRowModal={onOpenRowModal}
         onRequestDeleteRows={onRequestDeleteRows}
         onRequestDeleteColumns={onRequestDeleteColumns}
-        onRunGroup={onRunGroup}
+        onRunColumn={onRunColumn}
+        onRunRow={onRunRow}
         onRunRows={onRunRows}
         onStopRows={onStopRows}
         onStopRow={onStopRow}
@@ -500,7 +512,11 @@ export function Table({
                     if (!cell) return
                     const group = tableWorkflowGroups.find((g) => g.id === cell.groupId)
                     if (!group) return
-                    onRunGroup(group.id, group.workflowId, 'all', [cell.rowId])
+                    runCellMutate({
+                      rowId: cell.rowId,
+                      groupId: group.id,
+                      workflowId: group.workflowId,
+                    })
                   },
                   onStopCell: () => {
                     if (selection.singleWorkflowCell?.rowId) {

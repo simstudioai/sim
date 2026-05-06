@@ -42,7 +42,9 @@ import {
   listTablesContract,
   renameTableContract,
   restoreTableContract,
-  runWorkflowGroupContract,
+  runCellContract,
+  runColumnContract,
+  runRowContract,
   type TableIdParamsInput,
   type TableRowParamsInput,
   type TableRowsQueryInput,
@@ -1131,20 +1133,23 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
   })
 }
 
-interface RunGroupVariables {
+interface RunCellVariables {
+  rowId: string
   groupId: string
-  /** Workflow id sourced from the group's config — used as a fallback for the
-   *  optimistic execution `workflowId` field when the row hasn't run before. */
+  /** Optimistic exec `workflowId` fallback when the cell has never run. */
   workflowId: string
-  /**
-   * `all` — fire every dep-satisfied row (default).
-   * `incomplete` — only rows that have never run or whose last run ended in
-   * `failed`/`aborted`. Mirrored by the server-side filter.
-   */
+}
+
+interface RunRowVariables {
+  rowIds: string[]
+}
+
+interface RunColumnVariables {
+  groupIds: string[]
+  /** `all` (default) fires every dep-satisfied row; `incomplete` skips rows
+   *  whose last run completed successfully. */
   runMode?: 'all' | 'incomplete'
-  /** When set, restricts the run to these row ids. Server still applies the
-   *  same eligibility predicate; passed-in rows mid-run / unmet-deps are
-   *  silently skipped. Omit to run across the whole table. */
+  /** Restrict to these rows. Server applies the same eligibility predicate. */
   rowIds?: string[]
 }
 
@@ -1229,46 +1234,133 @@ export function restoreCachedWorkflowCells(
 }
 
 /**
- * Trigger a workflow-group run for every eligible row in the table. The server
- * filters by deps; this hook optimistically flips each matching row's
- * `executions[groupId]` to `pending` immediately so the UI doesn't lag the
- * network round-trip.
+ * Optimistic exec patch — flips every targeted (group, row) execution to
+ * `pending` so the UI doesn't lag the round-trip. Server eligibility may skip
+ * some; refetch on settle reconciles.
  */
-export function useRunGroup({ workspaceId, tableId }: RowMutationContext) {
+function buildPendingExec(
+  prev: RowExecutionMetadata | undefined,
+  workflowIdFallback?: string
+): RowExecutionMetadata {
+  return {
+    status: 'pending',
+    executionId: prev?.executionId ?? null,
+    jobId: null,
+    workflowId: prev?.workflowId ?? workflowIdFallback ?? '',
+    error: null,
+  }
+}
+
+function isInFlight(exec: RowExecutionMetadata | undefined): boolean {
+  return exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending'
+}
+
+/** Run a single (row, group) cell. */
+export function useRunCell({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ groupId, runMode = 'all', rowIds }: RunGroupVariables) => {
-      return requestJson(runWorkflowGroupContract, {
-        params: { tableId, groupId },
+    mutationFn: async ({ rowId, groupId }: RunCellVariables) => {
+      return requestJson(runCellContract, {
+        params: { tableId, rowId, groupId },
+        body: { workspaceId },
+      })
+    },
+    onMutate: async ({ rowId, groupId, workflowId }) => {
+      const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
+        if (r.id !== rowId) return null
+        const exec = r.executions?.[groupId] as RowExecutionMetadata | undefined
+        if (isInFlight(exec)) return null
+        return {
+          ...r,
+          executions: {
+            ...(r.executions ?? {}),
+            [groupId]: buildPendingExec(exec, workflowId),
+          },
+        }
+      })
+      return { snapshots }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    },
+  })
+}
+
+/** Run every workflow group on the given rows. Server filters by eligibility. */
+export function useRunRow({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ rowIds }: RunRowVariables) => {
+      return requestJson(runRowContract, {
+        params: { tableId },
+        body: { workspaceId, rowIds },
+      })
+    },
+    onMutate: async ({ rowIds }) => {
+      const targetIds = new Set(rowIds)
+      const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
+        if (!targetIds.has(r.id)) return null
+        const executions = r.executions ?? {}
+        let changed = false
+        const next: RowExecutions = { ...executions }
+        for (const groupId in executions) {
+          const exec = executions[groupId] as RowExecutionMetadata | undefined
+          if (isInFlight(exec)) continue
+          next[groupId] = buildPendingExec(exec)
+          changed = true
+        }
+        if (!changed) return null
+        return { ...r, executions: next }
+      })
+      return { snapshots }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    },
+  })
+}
+
+/** Run one or more workflow columns across the table or a row subset. */
+export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ groupIds, runMode = 'all', rowIds }: RunColumnVariables) => {
+      return requestJson(runColumnContract, {
+        params: { tableId },
         body: {
           workspaceId,
+          groupIds,
           runMode,
           ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
         },
       })
     },
-    onMutate: async ({ groupId, workflowId, runMode = 'all', rowIds }) => {
-      const targetIds = rowIds && rowIds.length > 0 ? new Set(rowIds) : null
+    onMutate: async ({ groupIds, runMode = 'all', rowIds }) => {
+      const targetRowIds = rowIds && rowIds.length > 0 ? new Set(rowIds) : null
+      const targetGroupIds = new Set(groupIds)
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
-        if (targetIds && !targetIds.has(r.id)) return null
-        const exec = r.executions?.[groupId] as RowExecutionMetadata | undefined
-        if (exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending')
-          return null
-        // Mirror the server-side `incomplete` filter so the optimistic update
-        // doesn't flash `pending` on rows the server is going to skip.
-        if (runMode === 'incomplete' && exec?.status === 'completed') return null
-        const pending: RowExecutionMetadata = {
-          status: 'pending',
-          executionId: exec?.executionId ?? null,
-          jobId: null,
-          workflowId: exec?.workflowId ?? workflowId,
-          error: null,
+        if (targetRowIds && !targetRowIds.has(r.id)) return null
+        const executions = r.executions ?? {}
+        let changed = false
+        const next: RowExecutions = { ...executions }
+        for (const groupId of targetGroupIds) {
+          const exec = executions[groupId] as RowExecutionMetadata | undefined
+          if (isInFlight(exec)) continue
+          if (runMode === 'incomplete' && exec?.status === 'completed') continue
+          next[groupId] = buildPendingExec(exec)
+          changed = true
         }
-        return {
-          ...r,
-          executions: { ...(r.executions ?? {}), [groupId]: pending },
-        }
+        if (!changed) return null
+        return { ...r, executions: next }
       })
       return { snapshots }
     },

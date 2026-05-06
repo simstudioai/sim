@@ -123,26 +123,6 @@ export function readExecution(
   return row?.executions?.[groupId]
 }
 
-/**
- * Client-side mirror of the scheduler's deps predicate. Used to filter the
- * row-run button so we don't fire downstream groups whose upstream isn't
- * `completed` yet — the cascade handles those once the upstream finishes.
- */
-export function areRowDepsSatisfied(
-  group: WorkflowGroup,
-  row: { data: Record<string, unknown>; executions?: RowExecutions }
-): boolean {
-  const deps = group.dependencies ?? {}
-  for (const colName of deps.columns ?? []) {
-    const value = row.data[colName]
-    if (value === null || value === undefined || value === '') return false
-  }
-  for (const gid of deps.workflowGroups ?? []) {
-    if (row.executions?.[gid]?.status !== 'completed') return false
-  }
-  return true
-}
-
 export function moveCell(
   anchor: CellCoord,
   colCount: number,

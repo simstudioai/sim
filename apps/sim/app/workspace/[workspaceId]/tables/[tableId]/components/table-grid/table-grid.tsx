@@ -26,7 +26,7 @@ import {
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
-import { useContextMenu, useRowExecution, useTable } from '../../hooks'
+import { useContextMenu, useTable } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import {
   cleanCellValue,
@@ -43,7 +43,6 @@ import { COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
 import type { DisplayColumn } from './types'
 import {
-  areRowDepsSatisfied,
   buildHeaderGroups,
   type CellCoord,
   collectRowSnapshots,
@@ -153,13 +152,10 @@ interface TableGridProps {
   onRequestDeleteRows: (snapshots: DeletedRowSnapshot[]) => void
   /** Open the delete-columns confirmation modal for `names`. Wrapper renders the modal. */
   onRequestDeleteColumns: (names: string[]) => void
-  /** Fire `runGroup` for a specific group (meta-cell Run menu). */
-  onRunGroup: (
-    groupId: string,
-    workflowId: string,
-    runMode: 'all' | 'incomplete',
-    rowIds?: string[]
-  ) => void
+  /** Fire run for a single column (meta-cell Run menu). */
+  onRunColumn: (groupId: string, runMode: 'all' | 'incomplete', rowIds?: string[]) => void
+  /** Fire every runnable column on a single row (per-row gutter Play). */
+  onRunRow: (rowId: string) => void
   /** Fan out a run across every workflow group on `rowIds`. Used by context menu. */
   onRunRows: (rowIds: string[], runMode: 'all' | 'incomplete') => void
   /** Stop running workflows on `rowIds`. Per-row gutter Stop also funnels through here. */
@@ -216,7 +212,8 @@ export function TableGrid({
   onOpenRowModal,
   onRequestDeleteRows,
   onRequestDeleteColumns,
-  onRunGroup,
+  onRunColumn,
+  onRunRow,
   onRunRows,
   onStopRows,
   onStopRow,
@@ -307,7 +304,6 @@ export function TableGrid({
     closeContextMenu,
   } = useContextMenu()
 
-  const { runWorkflowGroup } = useRowExecution()
   const workflowsRef = useRef(workflows)
   workflowsRef.current = workflows
 
@@ -322,16 +318,11 @@ export function TableGrid({
   const deleteWorkflowGroupMutation = useDeleteWorkflowGroup({ workspaceId, tableId })
   const updateWorkflowGroupMutation = useUpdateWorkflowGroup({ workspaceId, tableId })
 
-  const handleRunGroup = useCallback(
-    (
-      groupId: string,
-      workflowId: string,
-      runMode: 'all' | 'incomplete' = 'all',
-      rowIds?: string[]
-    ) => {
-      onRunGroup(groupId, workflowId, runMode, rowIds)
+  const handleRunColumn = useCallback(
+    (groupId: string, runMode: 'all' | 'incomplete' = 'all', rowIds?: string[]) => {
+      onRunColumn(groupId, runMode, rowIds)
     },
-    [onRunGroup]
+    [onRunColumn]
   )
 
   const handleViewWorkflow = useCallback(
@@ -2579,8 +2570,11 @@ export function TableGrid({
   }, [rows])
 
   // Context-menu wrappers: act on `contextMenuRowIds`, then close the menu.
+  // `'incomplete'` mirrors the per-row gutter Play button — both gestures mean
+  // "fill in what's missing." Use the action bar's explicit Rerun button when
+  // re-running already-completed cells is wanted.
   const handleRunWorkflowsOnSelection = () => {
-    onRunRows(contextMenuRowIds, 'all')
+    onRunRows(contextMenuRowIds, 'incomplete')
     closeContextMenu()
   }
   const handleStopWorkflowsOnSelection = () => {
@@ -2709,26 +2703,9 @@ export function TableGrid({
 
   const handleRunRow = useCallback(
     (rowId: string) => {
-      if (tableWorkflowGroups.length === 0) return
-      const target = rowsRef.current.find((r) => r.id === rowId)
-      if (!target) return
-      // Fire each group that's runnable on this row. autoRun=false groups
-      // run regardless of deps (user model: no autoRun = no deps).
-      // autoRun=true groups only fire when deps are satisfied — others stay
-      // as "Waiting" and the cascade picks them up after upstream finishes.
-      for (const group of tableWorkflowGroups) {
-        if (group.autoRun !== false && !areRowDepsSatisfied(group, target)) continue
-        void runWorkflowGroup({
-          tableId,
-          rowId,
-          workspaceId,
-          groupId: group.id,
-          workflowId: group.workflowId,
-          outputColumnNames: group.outputs.map((o) => o.columnName),
-        })
-      }
+      onRunRow(rowId)
     },
-    [runWorkflowGroup, tableId, workspaceId, tableWorkflowGroups]
+    [onRunRow]
   )
 
   if (!isLoadingTable && !tableData) {
@@ -2842,7 +2819,7 @@ export function TableGrid({
                               groupId={g.groupId}
                               onSelectGroup={handleGroupSelect}
                               onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
-                              onRunGroup={userPermissions.canEdit ? handleRunGroup : undefined}
+                              onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
                               selectedRowIds={selectedRowIds}
                               onInsertLeft={
                                 userPermissions.canEdit ? handleInsertColumnLeft : undefined
@@ -3217,11 +3194,8 @@ const DataRow = React.memo(function DataRow({
       // to wait on. The cell stays empty until the user clicks Run manually.
       if (group.autoRun === false) continue
       const unmet = getUnmetGroupDeps(group, row)
-      if (unmet.columns.length === 0 && unmet.workflowGroups.length === 0) continue
-      const upstreamLabels = unmet.workflowGroups
-        .map((gid) => workflowGroups.find((g) => g.id === gid)?.name ?? gid)
-        .filter(Boolean)
-      map.set(group.id, [...unmet.columns, ...upstreamLabels])
+      if (unmet.columns.length === 0) continue
+      map.set(group.id, unmet.columns)
     }
     return map
   }, [workflowGroups, row])
