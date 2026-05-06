@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, type WorkspaceMode, workspace } from '@sim/db/schema'
+import { member, user, type WorkspaceMode, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, isNull } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
@@ -276,6 +276,19 @@ export async function getWorkspaceCreationPolicy({
     }
   }
 
+  if (await isPlatformAdmin(userId)) {
+    return {
+      canCreate: true,
+      workspaceMode: WORKSPACE_MODE.PERSONAL,
+      organizationId: null,
+      billedAccountUserId: userId,
+      maxWorkspaces: null,
+      currentWorkspaceCount: await countNonOrganizationOwnedWorkspaces(userId),
+      reason: null,
+      status: 200,
+    }
+  }
+
   const highestPrioritySubscription = await getHighestPrioritySubscription(userId)
   const plan = highestPrioritySubscription?.plan
   const maxWorkspaces = isMax(plan) ? 10 : isPro(plan) ? 3 : 1
@@ -329,6 +342,12 @@ export async function getOrganizationOwnerId(organizationId: string): Promise<st
     .limit(1)
 
   return ownerMembership?.userId ?? null
+}
+
+async function isPlatformAdmin(userId: string): Promise<boolean> {
+  const [row] = await db.select({ role: user.role }).from(user).where(eq(user.id, userId)).limit(1)
+
+  return row?.role === 'admin'
 }
 
 /**

@@ -82,7 +82,7 @@ describe('getWorkspaceCreationPolicy', () => {
   })
 
   it('blocks free users once they already own one non-organization workspace', async () => {
-    mockDbResults.value = [[{ value: 1 }]]
+    mockDbResults.value = [[], [{ value: 1 }]]
 
     const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
 
@@ -98,7 +98,7 @@ describe('getWorkspaceCreationPolicy', () => {
       plan: 'pro_6000',
       status: 'active',
     })
-    mockDbResults.value = [[{ value: 2 }]]
+    mockDbResults.value = [[], [{ value: 2 }]]
 
     const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
 
@@ -114,7 +114,7 @@ describe('getWorkspaceCreationPolicy', () => {
       plan: 'pro_25000',
       status: 'active',
     })
-    mockDbResults.value = [[{ value: 5 }]]
+    mockDbResults.value = [[], [{ value: 5 }]]
 
     const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
 
@@ -130,7 +130,7 @@ describe('getWorkspaceCreationPolicy', () => {
       plan: 'pro_25000',
       status: 'active',
     })
-    mockDbResults.value = [[{ value: 10 }]]
+    mockDbResults.value = [[], [{ value: 10 }]]
 
     const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
 
@@ -218,6 +218,28 @@ describe('getWorkspaceCreationPolicy', () => {
     expect(result.canCreate).toBe(false)
     expect(result.workspaceMode).toBe(WORKSPACE_MODE.ORGANIZATION)
     expect(result.reason).toContain('owners and admins')
+  })
+
+  it('grants platform admins unlimited personal workspaces regardless of plan', async () => {
+    mockDbResults.value = [[{ role: 'admin' }], [{ value: 25 }]]
+
+    const result = await getWorkspaceCreationPolicy({ userId: 'admin-user' })
+
+    expect(result.canCreate).toBe(true)
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.PERSONAL)
+    expect(result.maxWorkspaces).toBeNull()
+    expect(result.currentWorkspaceCount).toBe(25)
+    expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
+  })
+
+  it('still enforces plan limits for non-admin users', async () => {
+    mockDbResults.value = [[{ role: 'user' }], [{ value: 1 }]]
+
+    const result = await getWorkspaceCreationPolicy({ userId: 'regular-user' })
+
+    expect(result.canCreate).toBe(false)
+    expect(result.maxWorkspaces).toBe(1)
+    expect(result.currentWorkspaceCount).toBe(1)
   })
 
   it('blocks users without org membership from creating workspaces in the active org context', async () => {
