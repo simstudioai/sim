@@ -1541,6 +1541,34 @@ export function validateServiceNowInstanceUrl(
   return { isValid: true, sanitized: url as string }
 }
 
+/**
+ * Validates an Agiloft instance URL to prevent SSRF attacks.
+ *
+ * Agiloft is offered both as a hosted SaaS (instances on `*.agiloft.com`,
+ * including regional subdomains) and as a self-hosted on-premise / private
+ * cloud deployment. Customers in the self-hosted tier point Sim at their own
+ * domain, so a fixed hostname allowlist is not viable. This validator therefore
+ * enforces only the surface-level guarantees (HTTPS, public hostname, no
+ * blocked ports), matching `validateExternalUrl`.
+ *
+ * IMPORTANT: This synchronous check does NOT resolve DNS, so it cannot stop a
+ * hostname that resolves to a private/loopback address or a DNS-rebinding
+ * attacker. Server-side callers that subsequently issue an HTTP request to the
+ * instance MUST also call `validateUrlWithDNS` and use `secureFetchWithPinnedIP`
+ * (or `secureFetchWithValidation`) from `input-validation.server.ts` so the
+ * fetch is pinned to the validated IP.
+ *
+ * @param url - The Agiloft instance URL to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ */
+export function validateAgiloftInstanceUrl(
+  url: string | null | undefined,
+  paramName = 'instanceUrl'
+): ValidationResult {
+  return validateExternalUrl(url, paramName)
+}
+
 const WORKDAY_ALLOWED_HOST_SUFFIXES = ['.workday.com', '.myworkday.com'] as const
 
 /**

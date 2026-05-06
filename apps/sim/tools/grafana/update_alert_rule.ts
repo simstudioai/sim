@@ -1,3 +1,4 @@
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import type { GrafanaUpdateAlertRuleParams } from '@/tools/grafana/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -188,13 +189,14 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       headers['X-Grafana-Org-Id'] = params.organizationId
     }
 
-    const updateResponse = await fetch(
+    const updateResponse = await secureFetchWithValidation(
       `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`,
       {
         method: 'PUT',
         headers,
         body: JSON.stringify(updatedRule),
-      }
+      },
+      'baseUrl'
     )
 
     if (!updateResponse.ok) {

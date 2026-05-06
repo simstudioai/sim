@@ -16,6 +16,14 @@ const logger = createLogger('TrelloStore')
 
 export const dynamic = 'force-dynamic'
 
+const TRELLO_STATE_COOKIE = 'trello_oauth_state'
+const TRELLO_STATE_COOKIE_PATH = '/api/auth/trello'
+
+function clearStateCookie(response: NextResponse) {
+  response.cookies.delete({ name: TRELLO_STATE_COOKIE, path: TRELLO_STATE_COOKIE_PATH })
+  return response
+}
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
@@ -26,7 +34,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const parsed = await parseRequest(storeTrelloTokenContract, request, {})
     if (!parsed.success) return parsed.response
-    const { token } = parsed.data.body
+    const { token, state } = parsed.data.body
+
+    const cookieState = request.cookies.get(TRELLO_STATE_COOKIE)?.value
+    if (!cookieState || cookieState !== state) {
+      logger.warn('Trello store rejected: state mismatch', {
+        hasCookieState: Boolean(cookieState),
+        userId: session.user.id,
+      })
+      return clearStateCookie(
+        NextResponse.json(
+          { success: false, error: 'Invalid or expired authorization state' },
+          { status: 400 }
+        )
+      )
+    }
 
     const apiKey = env.TRELLO_API_KEY
     if (!apiKey) {
@@ -123,7 +145,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    return NextResponse.json({ success: true })
+    return clearStateCookie(NextResponse.json({ success: true }))
   } catch (error) {
     logger.error('Error storing Trello token:', error)
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })

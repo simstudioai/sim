@@ -7,9 +7,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListWorkflowsContract } from '@/lib/api/contracts/v1/workflows'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  createRateLimitResponse,
+  validateWorkspaceAccess,
+} from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1WorkflowsAPI')
 
@@ -71,10 +74,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       },
     })
 
-    const permission = await getUserEntityPermissions(userId, 'workspace', params.workspaceId)
-    if (!permission) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
+    const accessError = await validateWorkspaceAccess(rateLimit, userId, params.workspaceId)
+    if (accessError) return accessError
 
     const conditions = [eq(workflow.workspaceId, params.workspaceId), isNull(workflow.archivedAt)]
 

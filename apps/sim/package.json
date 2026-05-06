@@ -206,7 +206,7 @@
     "twilio": "5.9.0",
     "unpdf": "1.4.0",
     "uuid": "^11.1.0",
-    "xlsx": "0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "4.3.6",
     "zustand": "^4.5.7"
   },

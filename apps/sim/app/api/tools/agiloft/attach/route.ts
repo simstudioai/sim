@@ -4,7 +4,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { agiloftAttachContract } from '@/lib/api/contracts/tools/agiloft'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { validateAgiloftInstanceUrl } from '@/lib/core/security/input-validation'
+import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
@@ -69,18 +70,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
     const resolvedFileName = data.fileName || userFile.name || 'attachment'
 
-    const urlValidation = await validateUrlWithDNS(data.instanceUrl, 'instanceUrl')
-    if (!urlValidation.isValid) {
+    const surfaceCheck = validateAgiloftInstanceUrl(data.instanceUrl)
+    if (!surfaceCheck.isValid) {
       logger.warn(`[${requestId}] SSRF attempt blocked for Agiloft instance URL`, {
         instanceUrl: data.instanceUrl,
       })
       return NextResponse.json(
-        { success: false, error: urlValidation.error || 'Invalid instance URL' },
+        { success: false, error: surfaceCheck.error || 'Invalid instance URL' },
         { status: 400 }
       )
     }
 
-    const token = await agiloftLogin(data)
+    const { token, resolvedIP } = await agiloftLogin(data)
     const base = data.instanceUrl.replace(/\/$/, '')
 
     try {
@@ -88,7 +89,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       logger.info(`[${requestId}] Uploading file to Agiloft: ${resolvedFileName}`)
 
-      const agiloftResponse = await fetch(url, {
+      const agiloftResponse = await secureFetchWithPinnedIP(url, resolvedIP, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/octet-stream',
@@ -132,7 +133,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         },
       })
     } finally {
-      await agiloftLogout(data.instanceUrl, data.knowledgeBase, token)
+      await agiloftLogout(data.instanceUrl, data.knowledgeBase, token, resolvedIP)
     }
   } catch (error) {
     logger.error(`[${requestId}] Error attaching file to Agiloft:`, error)

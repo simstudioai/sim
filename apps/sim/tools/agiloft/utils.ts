@@ -1,5 +1,11 @@
 import { createLogger } from '@sim/logger'
-import { validateExternalUrl } from '@/lib/core/security/input-validation'
+import { toError } from '@sim/utils/errors'
+import { validateAgiloftInstanceUrl } from '@/lib/core/security/input-validation'
+import {
+  type SecureFetchResponse,
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import type {
   AgiloftAttachmentInfoParams,
   AgiloftBaseParams,
@@ -21,40 +27,69 @@ interface AgiloftRequestConfig {
   url: string
   method: HttpMethod
   headers?: Record<string, string>
-  body?: BodyInit
+  body?: string | Buffer | Uint8Array
+}
+
+/**
+ * Result of a successful Agiloft authentication. The `resolvedIP` is the
+ * DNS-resolved address of the instance and MUST be reused (via
+ * `secureFetchWithPinnedIP`) for every follow-up request to defeat DNS
+ * rebinding between the validation step and the actual call.
+ */
+export interface AgiloftSession {
+  token: string
+  resolvedIP: string
+}
+
+/**
+ * Validates the user-supplied Agiloft instance URL with DNS resolution so
+ * SSRF protections cannot be bypassed by hostnames that resolve to internal
+ * addresses (or that flip after a sync-only check).
+ */
+async function validateInstanceUrl(instanceUrl: string): Promise<string> {
+  const surfaceCheck = validateAgiloftInstanceUrl(instanceUrl)
+  if (!surfaceCheck.isValid) {
+    throw new Error(`Invalid Agiloft instance URL: ${surfaceCheck.error}`)
+  }
+
+  const dnsCheck = await validateUrlWithDNS(instanceUrl, 'instanceUrl')
+  if (!dnsCheck.isValid || !dnsCheck.resolvedIP) {
+    throw new Error(`Invalid Agiloft instance URL: ${dnsCheck.error ?? 'unresolved hostname'}`)
+  }
+
+  return dnsCheck.resolvedIP
 }
 
 /**
  * Exchanges login/password for a short-lived Bearer token via EWLogin.
+ *
+ * Returns the token alongside the DNS-resolved IP of the instance so callers
+ * can pin every subsequent request to the same address.
  */
-async function agiloftLogin(params: AgiloftBaseParams): Promise<string> {
+async function agiloftLogin(params: AgiloftBaseParams): Promise<AgiloftSession> {
+  const resolvedIP = await validateInstanceUrl(params.instanceUrl)
   const base = params.instanceUrl.replace(/\/$/, '')
-
-  const urlValidation = validateExternalUrl(params.instanceUrl, 'instanceUrl')
-  if (!urlValidation.isValid) {
-    throw new Error(`Invalid Agiloft instance URL: ${urlValidation.error}`)
-  }
 
   const kb = encodeURIComponent(params.knowledgeBase)
   const login = encodeURIComponent(params.login)
   const password = encodeURIComponent(params.password)
 
   const url = `${base}/ewws/EWLogin?$KB=${kb}&$login=${login}&$password=${password}`
-  const response = await fetch(url, { method: 'POST' })
+  const response = await secureFetchWithPinnedIP(url, resolvedIP, { method: 'POST' })
 
   if (!response.ok) {
     const errorText = await response.text()
     throw new Error(`Agiloft login failed: ${response.status} - ${errorText}`)
   }
 
-  const data = await response.json()
+  const data = (await response.json()) as { access_token?: string }
   const token = data.access_token
 
   if (!token) {
     throw new Error('Agiloft login did not return an access token')
   }
 
-  return token
+  return { token, resolvedIP }
 }
 
 /**
@@ -63,41 +98,41 @@ async function agiloftLogin(params: AgiloftBaseParams): Promise<string> {
 async function agiloftLogout(
   instanceUrl: string,
   knowledgeBase: string,
-  token: string
+  token: string,
+  resolvedIP: string
 ): Promise<void> {
   try {
     const base = instanceUrl.replace(/\/$/, '')
     const kb = encodeURIComponent(knowledgeBase)
-    await fetch(`${base}/ewws/EWLogout?$KB=${kb}`, {
+    await secureFetchWithPinnedIP(`${base}/ewws/EWLogout?$KB=${kb}`, resolvedIP, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     })
   } catch (error) {
-    logger.warn('Agiloft logout failed (best-effort)', { error })
+    logger.warn('Agiloft logout failed (best-effort)', { error: toError(error).message })
   }
 }
 
 /**
  * Shared wrapper that handles the full auth lifecycle:
- * 1. Login to get Bearer token
- * 2. Execute the request with the token
- * 3. Logout to clean up the session
+ * 1. Validate the instance URL (with DNS resolution) and login to get a Bearer token
+ * 2. Execute the request against the pinned IP with the token
+ * 3. Logout to clean up the session (also pinned)
  *
- * The `buildRequest` callback receives the token and base URL, and returns
- * the request config. The `transformResponse` callback converts the raw
- * Response into the tool's output format.
+ * Every fetch is performed via `secureFetchWithPinnedIP`, so DNS rebinding
+ * between validation and the subsequent calls is not possible.
  */
 export async function executeAgiloftRequest<R extends ToolResponse>(
   params: AgiloftBaseParams,
   buildRequest: (base: string) => AgiloftRequestConfig,
-  transformResponse: (response: Response) => Promise<R>
+  transformResponse: (response: SecureFetchResponse) => Promise<R>
 ): Promise<R> {
-  const token = await agiloftLogin(params)
+  const { token, resolvedIP } = await agiloftLogin(params)
   const base = params.instanceUrl.replace(/\/$/, '')
 
   try {
     const req = buildRequest(base)
-    const response = await fetch(req.url, {
+    const response = await secureFetchWithPinnedIP(req.url, resolvedIP, {
       method: req.method,
       headers: {
         ...req.headers,
@@ -107,12 +142,14 @@ export async function executeAgiloftRequest<R extends ToolResponse>(
     })
     return await transformResponse(response)
   } finally {
-    await agiloftLogout(params.instanceUrl, params.knowledgeBase, token)
+    await agiloftLogout(params.instanceUrl, params.knowledgeBase, token, resolvedIP)
   }
 }
 
 /**
- * Login helper exported for use in the attach file API route.
+ * Login helper exported for use in the attach/retrieve API routes. The route
+ * is responsible for using the returned `resolvedIP` with
+ * `secureFetchWithPinnedIP` (or `agiloftLogout`) on every follow-up request.
  */
 export { agiloftLogin, agiloftLogout }
 
