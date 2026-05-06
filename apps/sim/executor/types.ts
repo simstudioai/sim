@@ -261,6 +261,7 @@ export interface ExecutionMetadata {
   triggerBlockId?: string
   useDraftState?: boolean
   resumeFromSnapshot?: boolean
+  resumeTerminalNoop?: boolean
 }
 
 export interface BlockState {
@@ -380,7 +381,7 @@ export interface ExecutionContext {
     iterationContext?: IterationContext,
     executionOrder?: number,
     childWorkflowContext?: ChildWorkflowContext
-  ) => void
+  ) => Promise<void>
 
   /**
    * AbortSignal for cancellation support.

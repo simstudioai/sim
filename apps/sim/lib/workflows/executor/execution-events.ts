@@ -68,6 +68,8 @@ export interface ExecutionPausedEvent extends BaseExecutionEvent {
     duration: number
     startTime: string
     endTime: string
+    /** Authoritative per-block terminal states from the server's blockLogs. */
+    finalBlockLogs?: BlockLog[]
   }
 }
 
@@ -436,14 +438,14 @@ export function createExecutionCallbacks(options: {
     }
   }
 
-  const onChildWorkflowInstanceReady = (
+  const onChildWorkflowInstanceReady = async (
     blockId: string,
     childWorkflowInstanceId: string,
     iterationContext?: IterationContext,
     executionOrder?: number,
     childWorkflowContext?: ChildWorkflowContext
   ) => {
-    void sendBufferedEvent({
+    await sendBufferedEvent({
       type: 'block:childWorkflowStarted',
       timestamp: new Date().toISOString(),
       executionId,

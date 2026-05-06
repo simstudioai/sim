@@ -76,5 +76,6 @@ export interface ConsoleStore {
   toggleConsole: () => void
   updateConsole: (blockId: string, update: string | ConsoleUpdate, executionId?: string) => void
   cancelRunningEntries: (workflowId: string, executionId?: string) => void
+  finishRunningEntries: (workflowId: string, executionId?: string) => void
   _hasHydrated: boolean
 }

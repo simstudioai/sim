@@ -169,4 +169,26 @@ describe('terminal console store', () => {
       })
     })
   })
+
+  describe('finishRunningEntries', () => {
+    it('settles running entries without marking them canceled', () => {
+      useTerminalConsoleStore.getState().addConsole({
+        workflowId: 'wf-1',
+        blockId: 'block-1',
+        blockName: 'Function',
+        blockType: 'function',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        isRunning: true,
+        startedAt: new Date(Date.now() - 1000).toISOString(),
+      })
+
+      useTerminalConsoleStore.getState().finishRunningEntries('wf-1', 'exec-1')
+
+      const [entry] = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
+      expect(entry.isCanceled).toBe(false)
+      expect(entry.isRunning).toBe(false)
+      expect(entry.endedAt).toBeDefined()
+    })
+  })
 })

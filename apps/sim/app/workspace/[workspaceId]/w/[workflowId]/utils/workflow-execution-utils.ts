@@ -10,13 +10,18 @@ import type {
 } from '@/lib/workflows/executor/execution-events'
 import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
-import { processSSEStream } from '@/hooks/use-execution-stream'
+import {
+  processSSEStream,
+  SSEEventHandlerError,
+  SSEStreamInterruptedError,
+} from '@/hooks/use-execution-stream'
 
 const logger = createLogger('workflow-execution-utils')
 
 import { useExecutionStore } from '@/stores/execution'
 import type { ConsoleEntry, ConsoleUpdate } from '@/stores/terminal'
 import {
+  clearExecutionPointer,
   consolePersistence,
   saveExecutionPointer,
   useTerminalConsoleStore,
@@ -811,6 +816,7 @@ export interface WorkflowExecutionOptions {
   useDraftState?: boolean
   stopAfterBlockId?: string
   abortSignal?: AbortSignal
+  preserveExecutionOnTerminal?: boolean
   /** For run_from_block / run_block: start from a specific block using cached state */
   runFromBlock?: {
     startBlockId: string
@@ -833,7 +839,9 @@ export async function executeWorkflowWithFullLogging(
   }
 
   const executionId = options.executionId || generateId()
-  const { addConsole, updateConsole, cancelRunningEntries } = useTerminalConsoleStore.getState()
+  const { addConsole, updateConsole, cancelRunningEntries, finishRunningEntries } =
+    useTerminalConsoleStore.getState()
+  const clearOnTerminal = options.preserveExecutionOnTerminal !== true
   const { setActiveBlocks, setBlockRunStatus, setEdgeRunStatus, setCurrentExecutionId } =
     useExecutionStore.getState()
   const wfId = targetWorkflowId
@@ -843,6 +851,17 @@ export async function executeWorkflowWithFullLogging(
   const activeBlockRefCounts = new Map<string, number>()
   const executionIdRef = { current: executionId }
   const accumulatedBlockLogs: BlockLog[] = []
+  const isCurrentExecution = () => {
+    return useExecutionStore.getState().getCurrentExecutionId(wfId) === executionIdRef.current
+  }
+  const clearExecutionState = () => {
+    if (!isCurrentExecution()) return
+    setCurrentExecutionId(wfId, null)
+    clearExecutionPointer(wfId)
+    consolePersistence.executionEnded()
+    useExecutionStore.getState().setIsExecuting(wfId, false)
+    setActiveBlocks(wfId, new Set())
+  }
 
   const blockHandlers = createBlockEventHandlers(
     {
@@ -916,14 +935,24 @@ export async function executeWorkflowWithFullLogging(
     output: {},
     logs: [],
   }
+  let executionFinished = false
+  let preserveExecutionForRecovery = false
 
   try {
     await processSSEStream(
       response.body.getReader(),
       {
         onEventId: (eventId) => {
-          if (eventId % 5 === 0) {
-            consolePersistence.persist()
+          if (executionFinished) return
+          if (wfId && executionIdRef.current && eventId % 5 === 0) {
+            const executionId = executionIdRef.current
+            return consolePersistence.persist().then(() =>
+              saveExecutionPointer({
+                workflowId: wfId,
+                executionId,
+                lastEventId: eventId,
+              })
+            )
           }
         },
 
@@ -937,9 +966,10 @@ export async function executeWorkflowWithFullLogging(
         onBlockChildWorkflowStarted: blockHandlers.onBlockChildWorkflowStarted,
 
         onExecutionCompleted: (data) => {
-          setCurrentExecutionId(wfId, null)
+          if (!isCurrentExecution()) return
+          executionFinished = true
           reconcileFinalBlockLogs(updateConsole, wfId, executionIdRef.current, data.finalBlockLogs)
-          cancelRunningEntries(wfId, executionIdRef.current)
+          finishRunningEntries(wfId, executionIdRef.current)
           executionResult = {
             success: data.success,
             output: data.output,
@@ -950,10 +980,34 @@ export async function executeWorkflowWithFullLogging(
               endTime: data.endTime,
             },
           }
+          if (clearOnTerminal) {
+            clearExecutionState()
+          }
+        },
+
+        onExecutionPaused: (data) => {
+          if (!isCurrentExecution()) return
+          executionFinished = true
+          reconcileFinalBlockLogs(updateConsole, wfId, executionIdRef.current, data.finalBlockLogs)
+          finishRunningEntries(wfId, executionIdRef.current)
+          executionResult = {
+            success: true,
+            output: data.output,
+            logs: accumulatedBlockLogs,
+            metadata: {
+              duration: data.duration,
+              startTime: data.startTime,
+              endTime: data.endTime,
+            },
+          }
+          if (clearOnTerminal) {
+            clearExecutionState()
+          }
         },
 
         onExecutionCancelled: (data) => {
-          setCurrentExecutionId(wfId, null)
+          if (!isCurrentExecution()) return
+          executionFinished = true
           executionResult = {
             success: false,
             output: {},
@@ -970,10 +1024,14 @@ export async function executeWorkflowWithFullLogging(
               finalBlockLogs: data?.finalBlockLogs,
             }
           )
+          if (clearOnTerminal) {
+            clearExecutionState()
+          }
         },
 
         onExecutionError: (data) => {
-          setCurrentExecutionId(wfId, null)
+          if (!isCurrentExecution()) return
+          executionFinished = true
           const errorMessage = data.error || 'Run failed'
           executionResult = {
             success: false,
@@ -995,13 +1053,22 @@ export async function executeWorkflowWithFullLogging(
               finalBlockLogs: data.finalBlockLogs,
             }
           )
+          if (clearOnTerminal) {
+            clearExecutionState()
+          }
         },
       },
       'CopilotExecution'
     )
+  } catch (error) {
+    if (error instanceof SSEEventHandlerError || error instanceof SSEStreamInterruptedError) {
+      preserveExecutionForRecovery = true
+    }
+    throw error
   } finally {
-    setCurrentExecutionId(wfId, null)
-    setActiveBlocks(wfId, new Set())
+    if (!preserveExecutionForRecovery && clearOnTerminal) {
+      clearExecutionState()
+    }
   }
 
   return executionResult

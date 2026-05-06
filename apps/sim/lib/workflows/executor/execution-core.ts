@@ -374,14 +374,22 @@ export async function executeWorkflowCore(
     // Check if this is a resume execution before trigger resolution
     const resumeFromSnapshot = metadata.resumeFromSnapshot === true
     const resumePendingQueue = snapshot.state?.pendingQueue
+    const resumeRemainingEdges = snapshot.state?.remainingEdges
+    const resumeTerminalNoop = metadata.resumeTerminalNoop === true
 
     let resolvedTriggerBlockId = triggerBlockId
 
-    // For resume executions, skip trigger resolution since we have a pending queue
-    if (resumeFromSnapshot && resumePendingQueue?.length) {
+    // Resume executions derive their queue from the snapshot. Even an empty
+    // queue is meaningful: a terminal pause block has no downstream work.
+    if (
+      resumeFromSnapshot &&
+      (resumePendingQueue !== undefined || resumeRemainingEdges !== undefined || resumeTerminalNoop)
+    ) {
       resolvedTriggerBlockId = undefined
       logger.info(`[${requestId}] Skipping trigger resolution for resume execution`, {
-        pendingQueueLength: resumePendingQueue.length,
+        pendingQueueLength: resumePendingQueue?.length ?? 0,
+        remainingEdgeCount: resumeRemainingEdges?.length ?? 0,
+        resumeTerminalNoop,
       })
     } else if (!triggerBlockId) {
       const executionKind =

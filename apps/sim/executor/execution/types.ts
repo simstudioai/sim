@@ -26,6 +26,7 @@ export interface ExecutionMetadata {
   enforceCredentialAccess?: boolean
   pendingBlocks?: string[]
   resumeFromSnapshot?: boolean
+  resumeTerminalNoop?: boolean
   credentialAccountUserId?: string
   workflowStateOverride?: {
     blocks: Record<string, any>
@@ -54,6 +55,7 @@ export interface SerializableExecutionState {
   activeExecutionPath: string[]
   pendingQueue?: string[]
   remainingEdges?: Edge[]
+  resumeTerminalNoop?: boolean
   dagIncomingEdges?: Record<string, string[]>
   completedPauseContexts?: string[]
 }
@@ -135,7 +137,7 @@ export interface ExecutionCallbacks {
     iterationContext?: IterationContext,
     executionOrder?: number,
     childWorkflowContext?: ChildWorkflowContext
-  ) => void
+  ) => Promise<void>
 }
 
 export interface ContextExtensions {
@@ -203,7 +205,7 @@ export interface ContextExtensions {
     iterationContext?: IterationContext,
     executionOrder?: number,
     childWorkflowContext?: ChildWorkflowContext
-  ) => void
+  ) => Promise<void>
 
   /**
    * Run-from-block configuration. When provided, executor runs in partial
