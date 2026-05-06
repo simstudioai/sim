@@ -33,6 +33,8 @@ export interface LoopPauseScope {
   iteration: number
 }
 
+export type PauseKind = 'human' | 'time'
+
 export interface PauseMetadata {
   contextId: string
   blockId: string
@@ -47,6 +49,9 @@ export interface PauseMetadata {
     executionId: string
     workflowId: string
   }
+  pauseKind: PauseKind
+  /** ISO timestamp at which a `pauseKind: 'time'` pause becomes due for automatic resume. */
+  resumeAt?: string
 }
 
 export type ResumeStatus = 'paused' | 'resumed' | 'failed' | 'queued' | 'resuming'
@@ -67,6 +72,8 @@ export interface PausePoint {
     executionId: string
     workflowId: string
   }
+  pauseKind: PauseKind
+  resumeAt?: string
 }
 
 export interface SerializedSnapshot {
@@ -261,6 +268,7 @@ export interface ExecutionMetadata {
   triggerBlockId?: string
   useDraftState?: boolean
   resumeFromSnapshot?: boolean
+  resumeTerminalNoop?: boolean
 }
 
 export interface BlockState {
@@ -378,8 +386,9 @@ export interface ExecutionContext {
     blockId: string,
     childWorkflowInstanceId: string,
     iterationContext?: IterationContext,
-    executionOrder?: number
-  ) => void
+    executionOrder?: number,
+    childWorkflowContext?: ChildWorkflowContext
+  ) => Promise<void>
 
   /**
    * AbortSignal for cancellation support.

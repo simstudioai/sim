@@ -1,11 +1,15 @@
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 
-function normalizeDomain(domain: string): string {
-  return `https://${domain
+/**
+ * Strips protocol and trailing slashes from a Confluence domain to produce
+ * a bare host (e.g. `yoursite.atlassian.net`).
+ */
+export function normalizeConfluenceDomainHost(domain: string): string {
+  return domain
     .trim()
     .replace(/^https?:\/\//i, '')
-    .replace(/\/+$/, '')}`.toLowerCase()
+    .replace(/\/+$/, '')
 }
 
 export async function getConfluenceCloudId(
@@ -31,7 +35,7 @@ export async function getConfluenceCloudId(
     throw new Error('No Confluence resources found')
   }
 
-  const normalized = normalizeDomain(domain)
+  const normalized = `https://${normalizeConfluenceDomainHost(domain)}`.toLowerCase()
   const match = resources.find(
     (r: { url: string }) => r.url.toLowerCase().replace(/\/+$/, '') === normalized
   )

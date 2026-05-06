@@ -158,6 +158,27 @@ describe('ExecutionEngine', () => {
       expect(result.status).toBeUndefined()
     })
 
+    it('should not fall back to starter blocks for terminal resume snapshots', async () => {
+      const startNode = createMockNode('start', 'starter')
+      const dag = createMockDAG([startNode])
+      const context = createMockContext({
+        metadata: {
+          executionId: 'test-execution',
+          startTime: new Date().toISOString(),
+          pendingBlocks: [],
+          resumeFromSnapshot: true,
+        },
+      })
+      const edgeManager = createMockEdgeManager()
+      const nodeOrchestrator = createMockNodeOrchestrator()
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const result = await engine.run()
+
+      expect(result.success).toBe(true)
+      expect(nodeOrchestrator.executionCount).toBe(0)
+    })
+
     it('should execute all nodes in a multi-node workflow', async () => {
       const nodes = [
         createMockNode('start', 'starter'),

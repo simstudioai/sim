@@ -136,6 +136,12 @@ export const isAuditLogsEnabled = isTruthy(env.AUDIT_LOGS_ENABLED)
 export const isDataRetentionEnabled = isTruthy(env.DATA_RETENTION_ENABLED)
 
 /**
+ * Is data drains enabled via env var override
+ * This bypasses hosted requirements for self-hosted deployments
+ */
+export const isDataDrainsEnabled = isTruthy(env.DATA_DRAINS_ENABLED)
+
+/**
  * Is E2B enabled for remote code execution
  */
 export const isE2bEnabled = isTruthy(env.E2B_ENABLED)

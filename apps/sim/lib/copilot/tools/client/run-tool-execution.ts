@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import type { AsyncCompletionData } from '@/lib/copilot/async-runs/lifecycle'
+import {
+  ASYNC_TOOL_CONFIRMATION_STATUS,
+  type AsyncCompletionData,
+  type AsyncConfirmationStatus,
+} from '@/lib/copilot/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
@@ -11,14 +16,13 @@ import {
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { traceparentHeader } from '@/lib/copilot/tools/client/trace-context'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
+import { SSEEventHandlerError, SSEStreamInterruptedError } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import {
   clearExecutionPointer,
   consolePersistence,
-  type ExecutionPointer,
   loadExecutionPointer,
   saveExecutionPointer,
-  useTerminalConsoleStore,
 } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -26,6 +30,20 @@ const logger = createLogger('CopilotRunToolExecution')
 const activeRunToolByWorkflowId = new Map<string, string>()
 const activeRunAbortByWorkflowId = new Map<string, AbortController>()
 const manuallyStoppedToolCallIds = new Set<string>()
+const PENDING_COMPLETION_STORAGE_PREFIX = 'sim:copilot:run-tool-completion:'
+
+interface PendingCompletionReport {
+  status: AsyncConfirmationStatus
+  message?: string
+  data?: AsyncCompletionData
+}
+
+class CompletionReportError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CompletionReportError'
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -47,55 +65,62 @@ function resolveTriggerBlockId(params: Record<string, unknown>): string | undefi
     : undefined
 }
 
-function getRunningExecutionPointer(workflowId: string): ExecutionPointer | null {
-  const runningEntries = useTerminalConsoleStore
-    .getState()
-    .getWorkflowEntries(workflowId)
-    .filter((entry) => entry.isRunning && entry.executionId)
+function pendingCompletionStorageKey(toolCallId: string): string {
+  return `${PENDING_COMPLETION_STORAGE_PREFIX}${toolCallId}`
+}
 
-  if (runningEntries.length === 0) {
-    return null
-  }
-
-  const latestEntry = [...runningEntries].sort((a, b) => {
-    const aStartedAt = a.startedAt ? new Date(a.startedAt).getTime() : 0
-    const bStartedAt = b.startedAt ? new Date(b.startedAt).getTime() : 0
-    return bStartedAt - aStartedAt
-  })[0]
-
-  const executionId = latestEntry?.executionId
-  if (!executionId) {
-    return null
-  }
-
-  return {
-    workflowId,
-    executionId,
-    lastEventId: 0,
+function savePendingCompletionReport(toolCallId: string, report: PendingCompletionReport): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(pendingCompletionStorageKey(toolCallId), JSON.stringify(report))
+  } catch (error) {
+    logger.warn('[RunTool] Failed to persist pending completion report', {
+      toolCallId,
+      error: toError(error).message,
+    })
   }
 }
 
-async function findRecoverableExecutionPointer(
-  workflowId: string
-): Promise<ExecutionPointer | null> {
-  const pointer = await loadExecutionPointer(workflowId)
-  if (pointer?.executionId) {
-    return pointer
+function loadPendingCompletionReport(toolCallId: string): PendingCompletionReport | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.sessionStorage.getItem(pendingCompletionStorageKey(toolCallId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as PendingCompletionReport
+    return parsed?.status ? parsed : null
+  } catch (error) {
+    logger.warn('[RunTool] Failed to load pending completion report', {
+      toolCallId,
+      error: toError(error).message,
+    })
+    return null
   }
+}
 
-  return getRunningExecutionPointer(workflowId)
+function clearPendingCompletionReport(toolCallId: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.removeItem(pendingCompletionStorageKey(toolCallId))
+  } catch (error) {
+    logger.warn('[RunTool] Failed to clear pending completion report', {
+      toolCallId,
+      error: toError(error).message,
+    })
+  }
 }
 
 export async function bindRunToolToExecution(
   toolCallId: string,
   workflowId: string
 ): Promise<boolean> {
-  const executionPointer = await findRecoverableExecutionPointer(workflowId)
-  if (!executionPointer) {
-    return false
-  }
-
   const existingToolCallId = activeRunToolByWorkflowId.get(workflowId)
+  if (existingToolCallId === toolCallId) {
+    logger.info('[RunTool] Recovery skipped: run tool is already active in this tab', {
+      workflowId,
+      toolCallId,
+    })
+    return true
+  }
   if (existingToolCallId && existingToolCallId !== toolCallId) {
     logger.warn('[RunTool] Recovery skipped: another run tool is already active', {
       workflowId,
@@ -105,20 +130,60 @@ export async function bindRunToolToExecution(
     return false
   }
 
-  useWorkflowRegistry.getState().setActiveWorkflow(workflowId)
-  activeRunToolByWorkflowId.set(workflowId, toolCallId)
+  const pointer = await loadExecutionPointer(workflowId).catch(() => null)
+  if (!pointer?.executionId) {
+    logger.info('[RunTool] Recovery skipped: no tab-local execution pointer', {
+      workflowId,
+      toolCallId,
+    })
+    return false
+  }
 
-  const { setCurrentExecutionId, setIsExecuting } = useExecutionStore.getState()
-  setIsExecuting(workflowId, true)
-  setCurrentExecutionId(workflowId, executionPointer.executionId)
-  saveExecutionPointer(executionPointer)
-
-  logger.info('[RunTool] Reattached tool call to existing workflow execution', {
+  logger.info('[RunTool] Recovery moved to background for existing execution pointer', {
     workflowId,
     toolCallId,
-    executionId: executionPointer.executionId,
-    lastEventId: executionPointer.lastEventId,
+    executionId: pointer.executionId,
   })
+  const pendingCompletion = loadPendingCompletionReport(toolCallId)
+  if (pendingCompletion) {
+    try {
+      await reportCompletion(
+        toolCallId,
+        pendingCompletion.status,
+        pendingCompletion.message,
+        pendingCompletion.data
+      )
+      clearPendingCompletionReport(toolCallId)
+    } catch (error) {
+      logger.warn('[RunTool] Failed to report recovered terminal completion', {
+        workflowId,
+        toolCallId,
+        executionId: pointer.executionId,
+        error: toError(error).message,
+      })
+    }
+    return true
+  }
+
+  try {
+    await reportCompletion(
+      toolCallId,
+      ASYNC_TOOL_CONFIRMATION_STATUS.background,
+      'Client recovered an existing workflow execution; continuing in background.',
+      {
+        workflowId,
+        executionId: pointer.executionId,
+        lastEventId: pointer.lastEventId,
+      }
+    )
+  } catch (error) {
+    logger.warn('[RunTool] Failed to report recovered execution as background', {
+      workflowId,
+      toolCallId,
+      executionId: pointer.executionId,
+      error: toError(error).message,
+    })
+  }
 
   return true
 }
@@ -292,6 +357,15 @@ async function doExecuteRunTool(
   setCurrentExecutionId(targetWorkflowId, executionId)
   saveExecutionPointer({ workflowId: targetWorkflowId, executionId, lastEventId: 0 })
   const executionStartTime = new Date().toISOString()
+  const releaseVisibleExecutionForBackground = () => {
+    const { setCurrentExecutionId: clearExecId, setActiveBlocks } = useExecutionStore.getState()
+    if (activeRunToolByWorkflowId.get(targetWorkflowId) === toolCallId) {
+      clearExecId(targetWorkflowId, null)
+      consolePersistence.executionEnded()
+      setIsExecuting(targetWorkflowId, false)
+      setActiveBlocks(targetWorkflowId, new Set())
+    }
+  }
 
   const onPageHide = () => {
     if (manuallyStoppedToolCallIds.has(toolCallId)) return
@@ -325,6 +399,8 @@ async function doExecuteRunTool(
     runFromBlock: runFromBlock ? { startBlockId: runFromBlock.startBlockId } : undefined,
   })
 
+  let leaveExecutionRecoverable = false
+
   try {
     const result = await executeWorkflowWithFullLogging({
       workflowId: targetWorkflowId,
@@ -336,6 +412,7 @@ async function doExecuteRunTool(
       stopAfterBlockId,
       runFromBlock,
       abortSignal: abortController.signal,
+      preserveExecutionOnTerminal: true,
     })
 
     // Determine success (same logic as staging's RunWorkflowClientTool)
@@ -368,21 +445,35 @@ async function doExecuteRunTool(
       })
     } else if (succeeded) {
       logger.info('[RunTool] Workflow execution succeeded', { toolCallId, toolName })
+      const pendingCompletion = {
+        status: MothershipStreamV1ToolOutcome.success,
+        message: `Workflow execution completed. Started at: ${executionStartTime}`,
+        data: buildResultData(result),
+      }
+      savePendingCompletionReport(toolCallId, pendingCompletion)
       await reportCompletion(
         toolCallId,
-        MothershipStreamV1ToolOutcome.success,
-        `Workflow execution completed. Started at: ${executionStartTime}`,
-        buildResultData(result)
+        pendingCompletion.status,
+        pendingCompletion.message,
+        pendingCompletion.data
       )
+      clearPendingCompletionReport(toolCallId)
     } else {
       const msg = errorMessage || 'Workflow execution failed'
       logger.error('[RunTool] Workflow execution failed', { toolCallId, toolName, error: msg })
+      const pendingCompletion = {
+        status: MothershipStreamV1ToolOutcome.error,
+        message: msg,
+        data: buildResultData(result),
+      }
+      savePendingCompletionReport(toolCallId, pendingCompletion)
       await reportCompletion(
         toolCallId,
-        MothershipStreamV1ToolOutcome.error,
-        msg,
-        buildResultData(result)
+        pendingCompletion.status,
+        pendingCompletion.message,
+        pendingCompletion.data
       )
+      clearPendingCompletionReport(toolCallId)
     }
   } catch (err) {
     if (manuallyStoppedToolCallIds.has(toolCallId)) {
@@ -392,6 +483,35 @@ async function doExecuteRunTool(
       })
     } else {
       const msg = toError(err).message
+      if (err instanceof SSEEventHandlerError || err instanceof SSEStreamInterruptedError) {
+        leaveExecutionRecoverable = true
+        logger.warn(
+          '[RunTool] Execution stream interrupted; leaving workflow execution in background',
+          {
+            toolCallId,
+            toolName,
+            executionId: err.executionId,
+            error: msg,
+          }
+        )
+        releaseVisibleExecutionForBackground()
+        await reportCompletion(
+          toolCallId,
+          ASYNC_TOOL_CONFIRMATION_STATUS.background,
+          'Client lost local stream processing; workflow execution may still be continuing server-side.'
+        )
+        return
+      }
+      if (err instanceof CompletionReportError) {
+        leaveExecutionRecoverable = true
+        logger.warn('[RunTool] Completion report failed; leaving workflow execution recoverable', {
+          toolCallId,
+          toolName,
+          error: msg,
+        })
+        releaseVisibleExecutionForBackground()
+        return
+      }
       logger.error('[RunTool] Workflow execution threw', { toolCallId, toolName, error: msg })
       await reportCompletion(toolCallId, MothershipStreamV1ToolOutcome.error, msg)
     }
@@ -408,11 +528,14 @@ async function doExecuteRunTool(
     if (activeAbortController === abortController) {
       activeRunAbortByWorkflowId.delete(targetWorkflowId)
     }
-    const { setCurrentExecutionId: clearExecId } = useExecutionStore.getState()
-    clearExecId(targetWorkflowId, null)
-    clearExecutionPointer(targetWorkflowId)
-    consolePersistence.executionEnded()
-    setIsExecuting(targetWorkflowId, false)
+    const { setCurrentExecutionId: clearExecId, setActiveBlocks } = useExecutionStore.getState()
+    if (!leaveExecutionRecoverable && activeToolCallId === toolCallId) {
+      clearExecId(targetWorkflowId, null)
+      clearExecutionPointer(targetWorkflowId)
+      consolePersistence.executionEnded()
+      setIsExecuting(targetWorkflowId, false)
+      setActiveBlocks(targetWorkflowId, new Set())
+    }
   }
 }
 
@@ -454,54 +577,65 @@ function buildResultData(result: unknown): Record<string, unknown> | undefined {
  */
 async function reportCompletion(
   toolCallId: string,
-  status: MothershipStreamV1ToolOutcome,
+  status: AsyncConfirmationStatus,
   message?: string,
   data?: AsyncCompletionData
 ): Promise<void> {
-  try {
-    const body = JSON.stringify({
-      toolCallId,
-      status,
-      message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
-      ...(data !== undefined ? { data } : {}),
-    })
-    const res = await fetch(COPILOT_CONFIRM_API_PATH, {
+  const basePayload = {
+    toolCallId,
+    status,
+    message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
+    ...(data !== undefined ? { data } : {}),
+  }
+  const send = async (body: string) =>
+    fetch(COPILOT_CONFIRM_API_PATH, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...traceparentHeader() },
       body,
     })
-    const LARGE_PAYLOAD_THRESHOLD = 10 * 1024 * 1024
-    const bodySize = new Blob([body]).size
-    if (!res.ok && isRecord(data) && bodySize > LARGE_PAYLOAD_THRESHOLD) {
-      const { logs: _logs, ...dataWithoutLogs } = data
-      logger.warn('[RunTool] reportCompletion failed with large payload, retrying without logs', {
-        toolCallId,
-        status: res.status,
-        bodySize,
-      })
-      const retryRes = await fetch(COPILOT_CONFIRM_API_PATH, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...traceparentHeader() },
-        body: JSON.stringify({
+
+  const body = JSON.stringify(basePayload)
+  const LARGE_PAYLOAD_THRESHOLD = 10 * 1024 * 1024
+  const bodySize = new Blob([body]).size
+  let lastError: Error | null = null
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await send(body)
+      if (res.ok) return
+
+      if (isRecord(data) && bodySize > LARGE_PAYLOAD_THRESHOLD) {
+        const { logs: _logs, ...dataWithoutLogs } = data
+        logger.warn('[RunTool] reportCompletion failed with large payload, retrying without logs', {
           toolCallId,
-          status,
-          message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
-          data: dataWithoutLogs,
-        }),
-      })
-      if (!retryRes.ok) {
-        logger.warn('[RunTool] reportCompletion retry also failed', {
-          toolCallId,
-          status: retryRes.status,
+          status: res.status,
+          bodySize,
         })
+        const retryRes = await send(
+          JSON.stringify({
+            toolCallId,
+            status,
+            message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
+            data: dataWithoutLogs,
+          })
+        )
+        if (retryRes.ok) return
+        lastError = new Error(`reportCompletion retry failed with status ${retryRes.status}`)
+      } else {
+        lastError = new Error(`reportCompletion failed with status ${res.status}`)
       }
-    } else if (!res.ok) {
-      logger.warn('[RunTool] reportCompletion failed', { toolCallId, status: res.status })
+    } catch (err) {
+      lastError = toError(err)
     }
-  } catch (err) {
-    logger.error('[RunTool] reportCompletion error', {
-      toolCallId,
-      error: toError(err).message,
-    })
+
+    if (attempt < 2) {
+      await sleep(250)
+    }
   }
+
+  logger.error('[RunTool] reportCompletion failed after retries', {
+    toolCallId,
+    error: lastError?.message,
+  })
+  throw new CompletionReportError(lastError?.message ?? 'Failed to report tool completion')
 }

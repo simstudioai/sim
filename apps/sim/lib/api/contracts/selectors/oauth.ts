@@ -8,6 +8,8 @@ const oauthTokenResponseSchema = z
     accessToken: z.string().optional(),
     idToken: z.string().optional(),
     instanceUrl: z.string().optional(),
+    cloudId: z.string().optional(),
+    domain: z.string().optional(),
   })
   .passthrough()
 

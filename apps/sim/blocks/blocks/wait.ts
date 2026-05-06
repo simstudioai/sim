@@ -8,13 +8,14 @@ const WaitIcon = (props: SVGProps<SVGSVGElement>) => createElement(PauseCircle, 
 export const WaitBlock: BlockConfig = {
   type: 'wait',
   name: 'Wait',
-  description: 'Pause workflow execution for a specified time delay',
+  description: 'Pause workflow execution for up to 30 days',
   longDescription:
-    'Pauses workflow execution for a specified time interval. The wait executes a simple sleep for the configured duration.',
+    'Pauses workflow execution for a specified time interval. Waits up to five minutes are held in-process; longer waits suspend the workflow and resume automatically once the configured duration elapses.',
   bestPractices: `
-  - Use for simple time delays (max 10 minutes)
-  - Configure the wait amount and unit (seconds or minutes)
-  - Time-based waits are interruptible via workflow cancellation
+  - Configure the wait amount and unit (seconds, minutes, hours, or days)
+  - Maximum wait duration is 30 days
+  - Waits up to 5 minutes execute in-process and are interruptible via workflow cancellation
+  - Longer waits suspend the workflow; the execution resumes automatically when the timer fires
   - Enter a positive number for the wait amount
   `,
   category: 'blocks',
@@ -26,7 +27,7 @@ export const WaitBlock: BlockConfig = {
       id: 'timeValue',
       title: 'Wait Amount',
       type: 'short-input',
-      description: 'Max: 600 seconds or 10 minutes',
+      description: 'Max: 30 days',
       placeholder: '10',
       value: () => '10',
       required: true,
@@ -38,6 +39,8 @@ export const WaitBlock: BlockConfig = {
       options: [
         { label: 'Seconds', id: 'seconds' },
         { label: 'Minutes', id: 'minutes' },
+        { label: 'Hours', id: 'hours' },
+        { label: 'Days', id: 'days' },
       ],
       value: () => 'seconds',
       required: true,
@@ -53,7 +56,7 @@ export const WaitBlock: BlockConfig = {
     },
     timeUnit: {
       type: 'string',
-      description: 'Wait duration unit (seconds or minutes)',
+      description: 'Wait duration unit (seconds, minutes, hours, or days)',
     },
   },
   outputs: {
@@ -64,6 +67,10 @@ export const WaitBlock: BlockConfig = {
     status: {
       type: 'string',
       description: 'Status of the wait block (waiting, completed, cancelled)',
+    },
+    resumeAt: {
+      type: 'string',
+      description: 'ISO timestamp at which a suspended wait will resume (long waits only)',
     },
   },
 }

@@ -157,10 +157,13 @@ export function AddConnectorModal({
     for (const [key, value] of Object.entries(resolveSourceConfig())) {
       if (value) resolvedConfig[key] = value
     }
-    const finalSourceConfig =
-      disabledTagIds.size > 0
-        ? { ...resolvedConfig, disabledTagIds: Array.from(disabledTagIds) }
-        : resolvedConfig
+    if (disabledTagIds.size > 0) {
+      resolvedConfig.disabledTagIds = Array.from(disabledTagIds)
+    }
+    if (Object.keys(canonicalModes).length > 0) {
+      resolvedConfig._canonicalModes = canonicalModes
+    }
+    const finalSourceConfig = resolvedConfig
 
     createConnector(
       {

@@ -42,6 +42,7 @@ export function AgentGroup({
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
   const hasItems = items.length > 0
+  const isSubagent = agentName !== 'mothership'
   const toolItems = items.filter(
     (item): item is Extract<AgentGroupItem, { type: 'tool' }> => item.type === 'tool'
   )
@@ -112,7 +113,7 @@ export function AgentGroup({
         <Expandable expanded={expanded}>
           <ExpandableContent>
             <BoundedViewport isStreaming={isStreaming}>
-              <div className='flex flex-col gap-1.5 py-0.5'>
+              <div className={cn('flex flex-col gap-1.5 py-0.5', isSubagent && 'opacity-60')}>
                 {items.map((item, idx) => {
                   if (item.type === 'tool') {
                     return (
@@ -128,7 +129,7 @@ export function AgentGroup({
                   return (
                     <span
                       key={`text-${idx}`}
-                      className='pl-6 font-base text-[13px] text-[var(--text-secondary)] leading-[18px] opacity-60'
+                      className='pl-6 font-base text-[13px] text-[var(--text-secondary)] leading-[18px]'
                     >
                       {item.content.trim()}
                     </span>

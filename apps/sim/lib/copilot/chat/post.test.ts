@@ -93,10 +93,18 @@ vi.mock('@sim/db', () => ({
         })),
       })),
     })),
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn().mockResolvedValue([{ permissionType: 'write' }]),
+        })),
+      })),
+    })),
   },
 }))
 
 vi.mock('drizzle-orm', () => ({
+  and: vi.fn(() => ({})),
   eq: vi.fn(() => ({})),
   sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
 }))

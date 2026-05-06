@@ -104,8 +104,10 @@ import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/co
 import {
   buildCompletedPreviewSessions,
   type FilePreviewSessionsState,
+  hasRenderableFilePreviewContent,
   INITIAL_FILE_PREVIEW_SESSIONS_STATE,
   reduceFilePreviewSessions,
+  shouldReplaceSession,
   useFilePreviewSessions,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-file-preview-sessions'
 import { deploymentKeys } from '@/hooks/queries/deployments'
@@ -1385,6 +1387,52 @@ export function useChat(
 
   const activeResourceIdRef = useRef(effectiveActiveResourceId)
   activeResourceIdRef.current = effectiveActiveResourceId
+  const previewActivationOwnerRef = useRef<Map<string, string | null>>(new Map())
+  const completedPreviewResourceHandoffRef = useRef<
+    Map<string, { sessionId: string; suppressActivation: boolean }>
+  >(new Map())
+
+  const rememberPreviewActivationOwner = useCallback((session: FilePreviewSession) => {
+    if (!session.fileId || previewActivationOwnerRef.current.has(session.id)) {
+      return
+    }
+    previewActivationOwnerRef.current.set(session.id, activeResourceIdRef.current)
+  }, [])
+
+  const shouldAutoActivatePreviewSession = useCallback((session: FilePreviewSession) => {
+    if (!session.fileId) {
+      return false
+    }
+    const currentActiveResourceId = activeResourceIdRef.current
+    const activationOwnerId = previewActivationOwnerRef.current.get(session.id)
+    return (
+      currentActiveResourceId === null ||
+      currentActiveResourceId === session.fileId ||
+      currentActiveResourceId === 'streaming-file' ||
+      currentActiveResourceId === activationOwnerId
+    )
+  }, [])
+
+  const seedCompletedPreviewContentCache = useCallback(
+    (fileId: string, previewText: string) => {
+      queryClient.setQueriesData<string>(
+        { queryKey: workspaceFilesKeys.content(workspaceId, fileId, 'text') },
+        previewText
+      )
+
+      const activeFiles = queryClient.getQueryData<Array<{ id: string; key: string }>>(
+        workspaceFilesKeys.list(workspaceId, 'active')
+      )
+      const fileKey = activeFiles?.find((file) => file.id === fileId)?.key
+      if (fileKey) {
+        queryClient.setQueryData(
+          [...workspaceFilesKeys.content(workspaceId, fileId, 'text'), fileKey],
+          previewText
+        )
+      }
+    },
+    [queryClient, workspaceId]
+  )
 
   const upsertTaskChatHistory = useCallback(
     (chatId: string, updater: (current: TaskChatHistory) => TaskChatHistory) => {
@@ -1541,6 +1589,8 @@ export function useChat(
 
   const resetEphemeralPreviewState = useCallback(
     (options?: { removeStreamingResource?: boolean }) => {
+      previewActivationOwnerRef.current.clear()
+      completedPreviewResourceHandoffRef.current.clear()
       syncPreviewSessionRefs(INITIAL_FILE_PREVIEW_SESSIONS_STATE)
       resetPreviewSessions()
       if (options?.removeStreamingResource) {
@@ -1550,35 +1600,40 @@ export function useChat(
     [resetPreviewSessions, syncPreviewSessionRefs]
   )
 
-  const syncPreviewResourceChrome = useCallback((session: FilePreviewSession) => {
-    if (session.targetKind === 'new_file') {
-      setResources((current) => {
-        const existing = current.find((resource) => resource.id === 'streaming-file')
-        if (existing) {
-          return current.map((resource) =>
-            resource.id === 'streaming-file'
-              ? { ...resource, title: session.fileName || 'Writing file...' }
-              : resource
-          )
-        }
-        return [
-          ...current,
-          {
-            type: 'file',
-            id: 'streaming-file',
-            title: session.fileName || 'Writing file...',
-          },
-        ]
-      })
-      setActiveResourceId('streaming-file')
-      return
-    }
+  const syncPreviewResourceChrome = useCallback(
+    (session: FilePreviewSession, options?: { activate?: boolean }) => {
+      if (session.targetKind === 'new_file') {
+        setResources((current) => {
+          const existing = current.find((resource) => resource.id === 'streaming-file')
+          if (existing) {
+            return current.map((resource) =>
+              resource.id === 'streaming-file'
+                ? { ...resource, title: session.fileName || 'Writing file...' }
+                : resource
+            )
+          }
+          return [
+            ...current,
+            {
+              type: 'file',
+              id: 'streaming-file',
+              title: session.fileName || 'Writing file...',
+            },
+          ]
+        })
+        setActiveResourceId('streaming-file')
+        return
+      }
 
-    if (session.fileId) {
-      setResources((current) => current.filter((resource) => resource.id !== 'streaming-file'))
-      setActiveResourceId(session.fileId)
-    }
-  }, [])
+      if (session.fileId && hasRenderableFilePreviewContent(session)) {
+        setResources((current) => current.filter((resource) => resource.id !== 'streaming-file'))
+        if (options?.activate !== false) {
+          setActiveResourceId(session.fileId)
+        }
+      }
+    },
+    []
+  )
 
   const seedPreviewSessions = useCallback(
     (sessions: FilePreviewSession[]) => {
@@ -1597,10 +1652,17 @@ export function useChat(
           ? (nextState.sessions[nextState.activeSessionId] ?? null)
           : null
       if (active) {
-        syncPreviewResourceChrome(active)
+        syncPreviewResourceChrome(active, {
+          activate: active.targetKind === 'new_file' || shouldAutoActivatePreviewSession(active),
+        })
       }
     },
-    [hydratePreviewSessions, syncPreviewResourceChrome, syncPreviewSessionRefs]
+    [
+      hydratePreviewSessions,
+      shouldAutoActivatePreviewSession,
+      syncPreviewResourceChrome,
+      syncPreviewSessionRefs,
+    ]
   )
 
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -1965,7 +2027,8 @@ export function useChat(
 
     void recoverPendingClientWorkflowTools(mappedMessages)
 
-    if (chatHistory.resources.some((r) => r.id === 'streaming-file')) {
+    const hasPersistedStreamingFile = chatHistory.resources.some((r) => r.id === 'streaming-file')
+    if (hasPersistedStreamingFile) {
       // boundary-raw-fetch: fire-and-forget cleanup during chat-history hydration; failures are silently swallowed to keep hydration non-blocking
       fetch('/api/mothership/chat/resources', {
         method: 'DELETE',
@@ -1980,18 +2043,21 @@ export function useChat(
 
     const persistedResources = chatHistory.resources.filter((r) => r.id !== 'streaming-file')
     if (persistedResources.length > 0) {
-      setResources(persistedResources)
-      setActiveResourceId((prev) =>
-        prev && persistedResources.some((r) => r.id === prev)
-          ? prev
+      const hydratedActiveResourceId =
+        activeResourceIdRef.current &&
+        persistedResources.some((resource) => resource.id === activeResourceIdRef.current)
+          ? activeResourceIdRef.current
           : persistedResources[persistedResources.length - 1].id
-      )
+      activeResourceIdRef.current = hydratedActiveResourceId
+      setResources(persistedResources)
+      setActiveResourceId(hydratedActiveResourceId)
 
       for (const resource of persistedResources) {
         if (resource.type !== 'workflow') continue
         ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
       }
-    } else if (chatHistory.resources.some((r) => r.id === 'streaming-file')) {
+    } else if (hasPersistedStreamingFile) {
+      activeResourceIdRef.current = null
       setResources([])
       setActiveResourceId(null)
     }
@@ -2558,9 +2624,6 @@ export function useChat(
                     status: 'pending',
                     updatedAt: new Date().toISOString(),
                   }
-                  if (nextSession.fileId) {
-                    setActiveResourceId(nextSession.fileId)
-                  }
                   applyPreviewSessionUpdate(nextSession)
                   break
                 }
@@ -2570,13 +2633,18 @@ export function useChat(
                     ...baseSession,
                     updatedAt: new Date().toISOString(),
                   }
+                  rememberPreviewActivationOwner(nextSession)
                   const nextState = applyPreviewSessionUpdate(nextSession)
                   const activePreview =
                     nextState.activeSessionId !== null
                       ? (nextState.sessions[nextState.activeSessionId] ?? null)
                       : null
                   if (activePreview?.id === nextSession.id) {
-                    syncPreviewResourceChrome(activePreview)
+                    syncPreviewResourceChrome(activePreview, {
+                      activate:
+                        activePreview.targetKind === 'new_file' ||
+                        shouldAutoActivatePreviewSession(activePreview),
+                    })
                   }
                   break
                 }
@@ -2604,6 +2672,13 @@ export function useChat(
                     updatedAt: new Date().toISOString(),
                   }
                   applyPreviewSessionUpdate(nextSession)
+                  if (!prevSession || !hasRenderableFilePreviewContent(prevSession)) {
+                    syncPreviewResourceChrome(nextSession, {
+                      activate:
+                        nextSession.targetKind === 'new_file' ||
+                        shouldAutoActivatePreviewSession(nextSession),
+                    })
+                  }
                   const previewToolIdx = toolMap.get(id)
                   if (previewToolIdx !== undefined && blocks[previewToolIdx].toolCall) {
                     blocks[previewToolIdx].toolCall!.status = 'executing'
@@ -2613,7 +2688,10 @@ export function useChat(
 
                 if (payload.previewPhase === 'file_preview_complete') {
                   const resultData = asPayloadRecord(payload.output)
+                  const outputData = asPayloadRecord(resultData?.data) ?? resultData
                   const completedAt = new Date().toISOString()
+                  const wasRenderableBeforeComplete =
+                    prevSession !== undefined && hasRenderableFilePreviewContent(prevSession)
                   const nextSession: FilePreviewSession = {
                     ...baseSession,
                     status: 'complete',
@@ -2623,8 +2701,8 @@ export function useChat(
                   }
                   const nextState = applyCompletedPreviewSession(nextSession)
 
-                  if (fileId && resultData?.id) {
-                    const fileName = (resultData.name as string) ?? nextSession.fileName ?? 'File'
+                  if (fileId && resultData?.success === true && outputData?.id === fileId) {
+                    const fileName = (outputData.name as string) ?? nextSession.fileName ?? 'File'
                     const fileResource = { type: 'file' as const, id: fileId, title: fileName }
                     setResources((rs) => {
                       const without = rs.filter((r) => r.id !== 'streaming-file')
@@ -2633,12 +2711,19 @@ export function useChat(
                       }
                       return [...without, fileResource]
                     })
-                    setActiveResourceId(fileId)
-                    if (nextSession.previewText) {
-                      queryClient.setQueryData(
-                        workspaceFilesKeys.content(workspaceId, fileId, 'text'),
-                        nextSession.previewText
-                      )
+                    const shouldActivateOnComplete =
+                      !wasRenderableBeforeComplete &&
+                      hasRenderableFilePreviewContent(nextSession) &&
+                      shouldAutoActivatePreviewSession(nextSession)
+                    if (shouldActivateOnComplete) {
+                      setActiveResourceId(fileId)
+                    }
+                    completedPreviewResourceHandoffRef.current.set(fileId, {
+                      sessionId: nextSession.id,
+                      suppressActivation: !shouldActivateOnComplete,
+                    })
+                    if (hasRenderableFilePreviewContent(nextSession)) {
+                      seedCompletedPreviewContentCache(fileId, nextSession.previewText)
                     }
                     invalidateResourceQueries(queryClient, workspaceId, 'file', fileId)
                   } else {
@@ -2647,7 +2732,11 @@ export function useChat(
                         ? (nextState.sessions[nextState.activeSessionId] ?? null)
                         : null
                     if (activePreview) {
-                      syncPreviewResourceChrome(activePreview)
+                      syncPreviewResourceChrome(activePreview, {
+                        activate:
+                          activePreview.targetKind === 'new_file' ||
+                          shouldAutoActivatePreviewSession(activePreview),
+                      })
                     }
                   }
                   break
@@ -2893,7 +2982,59 @@ export function useChat(
                 id: resource.id,
                 title: typeof resource.title === 'string' ? resource.title : resource.id,
               }
-              const wasAdded = addResource(nextResource)
+              const completedPreviewHandoff =
+                nextResource.type === 'file'
+                  ? completedPreviewResourceHandoffRef.current.get(nextResource.id)
+                  : undefined
+              const matchingPreviewSessions =
+                nextResource.type === 'file'
+                  ? Object.values(previewSessionsRef.current).filter(
+                      (session) => session.fileId === nextResource.id
+                    )
+                  : []
+              const latestPreviewForResource = (
+                sessions: FilePreviewSession[]
+              ): FilePreviewSession | undefined =>
+                sessions.reduce<FilePreviewSession | undefined>(
+                  (latest, session) => (shouldReplaceSession(latest, session) ? session : latest),
+                  undefined
+                )
+              const latestActivePreviewForResource = latestPreviewForResource(
+                matchingPreviewSessions.filter((session) => session.status !== 'complete')
+              )
+              const previewForResource =
+                latestActivePreviewForResource ?? latestPreviewForResource(matchingPreviewSessions)
+              const isCompletedPreviewHandoffCurrent =
+                completedPreviewHandoff !== undefined &&
+                (!latestActivePreviewForResource ||
+                  latestActivePreviewForResource.id === completedPreviewHandoff.sessionId)
+              if (completedPreviewHandoff && !isCompletedPreviewHandoffCurrent) {
+                completedPreviewResourceHandoffRef.current.delete(nextResource.id)
+                previewActivationOwnerRef.current.delete(completedPreviewHandoff.sessionId)
+              }
+              const shouldSuppressFileResourceActivation =
+                (isCompletedPreviewHandoffCurrent &&
+                  completedPreviewHandoff?.suppressActivation === true) ||
+                (previewForResource !== undefined &&
+                  previewForResource.status !== 'complete' &&
+                  (!hasRenderableFilePreviewContent(previewForResource) ||
+                    !shouldAutoActivatePreviewSession(previewForResource)))
+              const wasAdded = shouldSuppressFileResourceActivation
+                ? !resourcesRef.current.some(
+                    (r) => r.type === nextResource.type && r.id === nextResource.id
+                  )
+                : addResource(nextResource)
+              if (shouldSuppressFileResourceActivation && wasAdded) {
+                setResources((current) =>
+                  current.some((r) => r.type === nextResource.type && r.id === nextResource.id)
+                    ? current
+                    : [...current, nextResource]
+                )
+              }
+              if (completedPreviewHandoff && isCompletedPreviewHandoffCurrent) {
+                completedPreviewResourceHandoffRef.current.delete(nextResource.id)
+                previewActivationOwnerRef.current.delete(completedPreviewHandoff.sessionId)
+              }
               invalidateResourceQueries(
                 queryClient,
                 workspaceId,
@@ -2901,7 +3042,11 @@ export function useChat(
                 nextResource.id
               )
 
-              if (!wasAdded && activeResourceIdRef.current !== nextResource.id) {
+              if (
+                !shouldSuppressFileResourceActivation &&
+                !wasAdded &&
+                activeResourceIdRef.current !== nextResource.id
+              ) {
                 setActiveResourceId(nextResource.id)
               }
               onResourceEventRef.current?.()
@@ -4596,7 +4741,7 @@ export function useChat(
         }).catch(() => {})
       }
 
-      consoleStore.cancelRunningEntries(workflowId)
+      consoleStore.cancelRunningEntries(workflowId, executionId ?? undefined)
       const now = new Date()
       consoleStore.addConsole({
         input: {},

@@ -9,10 +9,12 @@ import { getSession } from '@/lib/auth'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  type ExecutionEventEntry,
   type ExecutionStreamStatus,
-  getExecutionMeta,
-  readExecutionEvents,
+  readExecutionEventsState,
+  readExecutionMetaState,
 } from '@/lib/execution/event-buffer'
+import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 import { formatSSEEvent } from '@/lib/workflows/executor/execution-events'
 
 const logger = createLogger('ExecutionStreamReconnectAPI')
@@ -22,6 +24,15 @@ const MAX_POLL_DURATION_MS = 55 * 60 * 1000 // 55 minutes (just under Redis 1hr 
 
 function isTerminalStatus(status: ExecutionStreamStatus): boolean {
   return status === 'complete' || status === 'error' || status === 'cancelled'
+}
+
+function isTerminalEvent(event: ExecutionEvent): boolean {
+  return (
+    event.type === 'execution:completed' ||
+    event.type === 'execution:error' ||
+    event.type === 'execution:cancelled' ||
+    event.type === 'execution:paused'
+  )
 }
 
 export const runtime = 'nodejs'
@@ -52,10 +63,14 @@ export const GET = withRouteHandler(
         )
       }
 
-      const meta = await getExecutionMeta(executionId)
-      if (!meta) {
+      const metaResult = await readExecutionMetaState(executionId)
+      if (metaResult.status === 'unavailable') {
+        return NextResponse.json({ error: 'Run buffer temporarily unavailable' }, { status: 503 })
+      }
+      if (metaResult.status === 'missing') {
         return NextResponse.json({ error: 'Run buffer not found or expired' }, { status: 404 })
       }
+      const { meta } = metaResult
 
       if (meta.workflowId && meta.workflowId !== workflowId) {
         return NextResponse.json({ error: 'Run does not belong to this workflow' }, { status: 403 })
@@ -86,19 +101,68 @@ export const GET = withRouteHandler(
             }
           }
 
-          try {
-            const events = await readExecutionEvents(executionId, lastEventId)
+          const readEventsOrThrow = async (
+            afterEventId: number
+          ): Promise<ExecutionEventEntry[]> => {
+            const result = await readExecutionEventsState(executionId, afterEventId)
+            if (result.status === 'unavailable') {
+              throw new Error(`Execution events unavailable: ${result.error}`)
+            }
+            if (result.status === 'pruned') {
+              throw new Error(
+                `Execution events pruned before requested event id: earliest retained event is ${result.earliestEventId}`
+              )
+            }
+            let previousEventId = afterEventId
+            for (const entry of result.events) {
+              if (entry.eventId <= previousEventId) {
+                throw new Error(
+                  `Execution event replay order violation: previous ${previousEventId}, received ${entry.eventId}`
+                )
+              }
+              previousEventId = entry.eventId
+            }
+            return result.events
+          }
+
+          const enqueueEvents = (events: ExecutionEventEntry[]) => {
+            let sawTerminalEvent = false
             for (const entry of events) {
-              if (closed) return
+              if (closed) break
               entry.event.eventId = entry.eventId
               enqueue(formatSSEEvent(entry.event))
               lastEventId = entry.eventId
+              sawTerminalEvent ||= isTerminalEvent(entry.event)
+            }
+            return sawTerminalEvent
+          }
+
+          const closeWithDone = () => {
+            enqueue('data: [DONE]\n\n')
+            if (!closed) controller.close()
+          }
+
+          const closeAfterTerminalEvent = (events: ExecutionEventEntry[]) => {
+            if (!enqueueEvents(events)) {
+              throw new Error('Execution reached terminal metadata without a terminal event')
+            }
+            closeWithDone()
+          }
+
+          try {
+            const events = await readEventsOrThrow(lastEventId)
+            if (enqueueEvents(events)) {
+              closeWithDone()
+              return
             }
 
-            const currentMeta = await getExecutionMeta(executionId)
-            if (!currentMeta || isTerminalStatus(currentMeta.status)) {
-              enqueue('data: [DONE]\n\n')
-              if (!closed) controller.close()
+            const currentMeta = await readExecutionMetaState(executionId)
+            if (currentMeta.status === 'unavailable') {
+              throw new Error(`Execution metadata unavailable: ${currentMeta.error}`)
+            }
+            if (currentMeta.status === 'missing' || isTerminalStatus(currentMeta.meta.status)) {
+              const finalEvents = await readEventsOrThrow(lastEventId)
+              closeAfterTerminalEvent(finalEvents)
               return
             }
 
@@ -106,33 +170,26 @@ export const GET = withRouteHandler(
               await sleep(POLL_INTERVAL_MS)
               if (closed) return
 
-              const newEvents = await readExecutionEvents(executionId, lastEventId)
-              for (const entry of newEvents) {
-                if (closed) return
-                entry.event.eventId = entry.eventId
-                enqueue(formatSSEEvent(entry.event))
-                lastEventId = entry.eventId
+              const newEvents = await readEventsOrThrow(lastEventId)
+              if (enqueueEvents(newEvents)) {
+                closeWithDone()
+                return
               }
 
-              const polledMeta = await getExecutionMeta(executionId)
-              if (!polledMeta || isTerminalStatus(polledMeta.status)) {
-                const finalEvents = await readExecutionEvents(executionId, lastEventId)
-                for (const entry of finalEvents) {
-                  if (closed) return
-                  entry.event.eventId = entry.eventId
-                  enqueue(formatSSEEvent(entry.event))
-                  lastEventId = entry.eventId
-                }
-                enqueue('data: [DONE]\n\n')
-                if (!closed) controller.close()
+              const polledMeta = await readExecutionMetaState(executionId)
+              if (polledMeta.status === 'unavailable') {
+                throw new Error(`Execution metadata unavailable: ${polledMeta.error}`)
+              }
+              if (polledMeta.status === 'missing' || isTerminalStatus(polledMeta.meta.status)) {
+                const finalEvents = await readEventsOrThrow(lastEventId)
+                closeAfterTerminalEvent(finalEvents)
                 return
               }
             }
 
             if (!closed) {
               logger.warn('Reconnection stream poll deadline reached', { executionId })
-              enqueue('data: [DONE]\n\n')
-              controller.close()
+              throw new Error('Execution stream ended before a terminal event was available')
             }
           } catch (error) {
             logger.error('Error in reconnection stream', {
@@ -141,7 +198,7 @@ export const GET = withRouteHandler(
             })
             if (!closed) {
               try {
-                controller.close()
+                controller.error(error)
               } catch {}
             }
           }
