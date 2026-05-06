@@ -15,7 +15,7 @@ export default async function ChatPage({
 }) {
   const { identifier } = await params
   const { embed } = await searchParams
-  const isOfficeEmbed = embed === 'office'
+  const isOfficeEmbed = embed === 'office' || (Array.isArray(embed) && embed.includes('office'))
 
   return (
     <>
