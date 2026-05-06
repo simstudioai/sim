@@ -34,6 +34,59 @@ const TAG_PATTERN = createReferencePattern()
 const E2B_JS_WRAPPER_LINES = 3
 const E2B_PYTHON_WRAPPER_LINES = 1
 
+/** Matches valid JS identifier names (letters, digits, underscore; no leading digit). */
+const SAFE_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/
+
+/** ES2023 reserved words — using these as `const` variable names produces a SyntaxError. */
+const JS_RESERVED_WORDS = new Set([
+  'break',
+  'case',
+  'catch',
+  'class',
+  'const',
+  'continue',
+  'debugger',
+  'default',
+  'delete',
+  'do',
+  'else',
+  'export',
+  'extends',
+  'false',
+  'finally',
+  'for',
+  'function',
+  'if',
+  'import',
+  'in',
+  'instanceof',
+  'let',
+  'new',
+  'null',
+  'return',
+  'static',
+  'super',
+  'switch',
+  'this',
+  'throw',
+  'true',
+  'try',
+  'typeof',
+  'var',
+  'void',
+  'while',
+  'with',
+  'yield',
+  'enum',
+  'await',
+  'implements',
+  'interface',
+  'package',
+  'private',
+  'protected',
+  'public',
+])
+
 type TypeScriptModule = typeof import('typescript')
 
 let typescriptModulePromise: Promise<TypeScriptModule> | null = null
@@ -1089,10 +1142,16 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const executionMethod = 'isolated-vm'
 
+    const isSafeParamKey = (key: string) => SAFE_IDENTIFIER.test(key) && !JS_RESERVED_WORDS.has(key)
+
     const wrapperLines = ['(async () => {', '  try {']
     if (isCustomTool) {
       Object.keys(executionParams).forEach((key) => {
-        wrapperLines.push(`    const ${key} = params.${key};`)
+        if (isSafeParamKey(key)) {
+          wrapperLines.push(`    const ${key} = params.${key};`)
+        } else {
+          logger.warn('Skipping param key — not a safe JS identifier', { key, requestId })
+        }
       })
     }
     userCodeStartLine = wrapperLines.length + 1
@@ -1100,7 +1159,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     let codeToExecute = resolvedCode
     let prependedLineCount = 0
     if (isCustomTool) {
-      const paramKeys = Object.keys(executionParams)
+      const paramKeys = Object.keys(executionParams).filter(isSafeParamKey)
       const paramDestructuring = paramKeys.map((key) => `const ${key} = params.${key};`).join('\n')
       codeToExecute = `${paramDestructuring}\n${resolvedCode}`
       prependedLineCount = paramKeys.length
