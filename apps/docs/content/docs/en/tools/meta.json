@@ -46,6 +46,7 @@
     "dynamodb",
     "elasticsearch",
     "elevenlabs",
+    "emailbison",
     "enrich",
     "evernote",
     "exa",

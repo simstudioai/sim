@@ -14,6 +14,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
   name: 'Sharepoint',
   description: 'Work with pages and lists',
   authMode: AuthMode.OAuth,
+  hideFromToolbar: true,
   longDescription:
     'Integrate SharePoint into the workflow. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.',
   docsLink: 'https://docs.sim.ai/tools/sharepoint',
@@ -565,5 +566,487 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       type: 'string',
       description: 'Error message',
     },
+  },
+}
+
+const SHAREPOINT_V2_TOOL_IDS = [
+  'sharepoint_create_page',
+  'sharepoint_read_page',
+  'sharepoint_list_sites',
+  'sharepoint_create_list',
+  'sharepoint_get_list',
+  'sharepoint_update_list',
+  'sharepoint_add_list_items',
+  'sharepoint_upload_file',
+] as const
+
+const SHAREPOINT_V2_SITE_OPERATIONS = Array.from(SHAREPOINT_V2_TOOL_IDS)
+
+const SHAREPOINT_V2_LIST_ITEM_OPERATIONS = [
+  'sharepoint_update_list',
+  'sharepoint_add_list_items',
+] as const
+
+export const SharepointV2Block: BlockConfig<SharepointResponse> = {
+  ...SharepointBlock,
+  type: 'sharepoint_v2',
+  name: 'SharePoint',
+  hideFromToolbar: false,
+  subBlocks: [
+    {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      options: [
+        { label: 'Create Page', id: 'sharepoint_create_page' },
+        { label: 'Read Page', id: 'sharepoint_read_page' },
+        { label: 'List Sites', id: 'sharepoint_list_sites' },
+        { label: 'Create List', id: 'sharepoint_create_list' },
+        { label: 'Read List', id: 'sharepoint_get_list' },
+        { label: 'Update List Item', id: 'sharepoint_update_list' },
+        { label: 'Add List Item', id: 'sharepoint_add_list_items' },
+        { label: 'Upload File', id: 'sharepoint_upload_file' },
+      ],
+      value: () => 'sharepoint_create_page',
+    },
+    {
+      id: 'credential',
+      title: 'Microsoft Account',
+      type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+      serviceId: 'sharepoint',
+      requiredScopes: getScopesForService('sharepoint'),
+      placeholder: 'Select Microsoft account',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Microsoft Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      required: true,
+    },
+    {
+      id: 'siteSelector',
+      title: 'Select Site',
+      type: 'file-selector',
+      canonicalParamId: 'siteId',
+      serviceId: 'sharepoint',
+      selectorKey: 'sharepoint.sites',
+      requiredScopes: getScopesForService('sharepoint'),
+      mimeType: 'application/vnd.microsoft.graph.site',
+      placeholder: 'Select a site',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: SHAREPOINT_V2_SITE_OPERATIONS },
+    },
+    {
+      id: 'manualSiteId',
+      title: 'Site ID',
+      type: 'short-input',
+      canonicalParamId: 'siteId',
+      placeholder: 'Enter site ID (leave empty for root site)',
+      dependsOn: ['credential'],
+      mode: 'advanced',
+      condition: { field: 'operation', value: SHAREPOINT_V2_SITE_OPERATIONS },
+    },
+    {
+      id: 'pageName',
+      title: 'Page Name',
+      type: 'short-input',
+      placeholder: 'Name of the page',
+      condition: { field: 'operation', value: ['sharepoint_create_page', 'sharepoint_read_page'] },
+      required: { field: 'operation', value: 'sharepoint_create_page' },
+    },
+    {
+      id: 'pageId',
+      title: 'Page ID',
+      type: 'short-input',
+      placeholder: 'Page ID (alternative to page name)',
+      condition: { field: 'operation', value: 'sharepoint_read_page' },
+      mode: 'advanced',
+    },
+    {
+      id: 'pageTitle',
+      title: 'Page Title',
+      type: 'short-input',
+      placeholder: 'Optional title (defaults to page name)',
+      condition: { field: 'operation', value: 'sharepoint_create_page' },
+      mode: 'advanced',
+    },
+    {
+      id: 'pageContent',
+      title: 'Page Content',
+      type: 'long-input',
+      placeholder: 'Optional text content for the page',
+      condition: { field: 'operation', value: 'sharepoint_create_page' },
+      mode: 'advanced',
+    },
+    {
+      id: 'maxPages',
+      title: 'Max Pages',
+      type: 'short-input',
+      placeholder: 'Default 10, maximum 50',
+      condition: { field: 'operation', value: 'sharepoint_read_page' },
+      mode: 'advanced',
+    },
+    {
+      id: 'groupId',
+      title: 'Group ID',
+      type: 'short-input',
+      placeholder: 'Optional Microsoft 365 group ID',
+      condition: { field: 'operation', value: 'sharepoint_list_sites' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listSelector',
+      title: 'List',
+      type: 'file-selector',
+      canonicalParamId: 'listId',
+      serviceId: 'sharepoint',
+      selectorKey: 'sharepoint.lists',
+      placeholder: 'Select a list',
+      dependsOn: ['credential', 'siteSelector'],
+      mode: 'basic',
+      condition: {
+        field: 'operation',
+        value: ['sharepoint_get_list', ...SHAREPOINT_V2_LIST_ITEM_OPERATIONS],
+      },
+      required: { field: 'operation', value: [...SHAREPOINT_V2_LIST_ITEM_OPERATIONS] },
+    },
+    {
+      id: 'manualListId',
+      title: 'List ID',
+      type: 'short-input',
+      canonicalParamId: 'listId',
+      placeholder: 'Enter list ID (GUID). Required for list item operations.',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['sharepoint_get_list', ...SHAREPOINT_V2_LIST_ITEM_OPERATIONS],
+      },
+      required: { field: 'operation', value: [...SHAREPOINT_V2_LIST_ITEM_OPERATIONS] },
+    },
+    {
+      id: 'includeColumns',
+      title: 'Include Columns',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'sharepoint_get_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'includeItems',
+      title: 'Include Items',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
+      condition: { field: 'operation', value: 'sharepoint_get_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listDisplayName',
+      title: 'List Display Name',
+      type: 'short-input',
+      placeholder: 'Name of the list',
+      condition: { field: 'operation', value: 'sharepoint_create_list' },
+      required: { field: 'operation', value: 'sharepoint_create_list' },
+    },
+    {
+      id: 'listTemplate',
+      title: 'List Template',
+      type: 'short-input',
+      placeholder: "Template (e.g., 'genericList')",
+      condition: { field: 'operation', value: 'sharepoint_create_list' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a SharePoint list template name based on the user's description.
+
+### AVAILABLE TEMPLATES
+- genericList - Standard list for general data (default)
+- documentLibrary - For storing and managing documents
+- survey - For creating surveys and polls
+- links - For storing hyperlinks
+- announcements - For news and announcements
+- contacts - For contact information (name, email, phone)
+- events - For calendar events and scheduling
+- tasks - For task tracking and project management
+- discussionBoard - For team discussions and forums
+- pictureLibrary - For storing images and photos
+- issue - For issue/bug tracking
+
+Return ONLY the template name - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe what kind of list you need...',
+      },
+    },
+    {
+      id: 'columnDefinitions',
+      title: 'Column Definitions',
+      type: 'long-input',
+      placeholder: 'Optional: Define custom columns as JSON array',
+      condition: { field: 'operation', value: 'sharepoint_create_list' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of SharePoint list column definitions based on the user's description.
+
+Each column needs at minimum a "name" and column type properties, for example:
+[{"name": "Status", "choice": {"choices": ["Active", "Completed"]}}, {"name": "DueDate", "dateTime": {"format": "dateOnly"}}]
+
+Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the columns you want to add...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'listDescription',
+      title: 'List Description',
+      type: 'long-input',
+      placeholder: 'Optional description',
+      condition: { field: 'operation', value: 'sharepoint_create_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'itemId',
+      title: 'Item ID',
+      type: 'short-input',
+      placeholder: 'Enter item ID',
+      condition: { field: 'operation', value: 'sharepoint_update_list' },
+      required: { field: 'operation', value: 'sharepoint_update_list' },
+    },
+    {
+      id: 'listItemFields',
+      title: 'List Item Fields',
+      type: 'long-input',
+      placeholder:
+        'Enter list item fields as JSON (e.g., {"Title": "My Item", "Status": "Active"})',
+      condition: { field: 'operation', value: [...SHAREPOINT_V2_LIST_ITEM_OPERATIONS] },
+      required: { field: 'operation', value: [...SHAREPOINT_V2_LIST_ITEM_OPERATIONS] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for SharePoint list item fields based on the user's description.
+
+Use column internal names as keys and valid field values as values.
+
+Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the fields and values you want to set...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'driveId',
+      title: 'Document Library ID',
+      type: 'short-input',
+      placeholder: 'Enter document library (drive) ID',
+      condition: { field: 'operation', value: 'sharepoint_upload_file' },
+      mode: 'advanced',
+    },
+    {
+      id: 'folderPath',
+      title: 'Folder Path',
+      type: 'short-input',
+      placeholder: 'Optional folder path (e.g., /Documents/Subfolder)',
+      condition: { field: 'operation', value: 'sharepoint_upload_file' },
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'fileName',
+      title: 'File Name',
+      type: 'short-input',
+      placeholder: 'Optional: override uploaded file name',
+      condition: { field: 'operation', value: 'sharepoint_upload_file' },
+      mode: 'advanced',
+      required: false,
+    },
+    {
+      id: 'uploadFiles',
+      title: 'Files',
+      type: 'file-upload',
+      canonicalParamId: 'files',
+      placeholder: 'Upload files to SharePoint',
+      condition: { field: 'operation', value: 'sharepoint_upload_file' },
+      mode: 'basic',
+      multiple: true,
+      required: true,
+    },
+    {
+      id: 'fileRefs',
+      title: 'Files',
+      type: 'short-input',
+      canonicalParamId: 'files',
+      placeholder: 'Reference files from previous blocks',
+      condition: { field: 'operation', value: 'sharepoint_upload_file' },
+      mode: 'advanced',
+      required: true,
+    },
+    {
+      id: 'nextPageUrl',
+      title: 'Next Page URL',
+      type: 'short-input',
+      placeholder: 'Paste the @odata.nextLink URL from a previous result',
+      condition: {
+        field: 'operation',
+        value: ['sharepoint_read_page', 'sharepoint_list_sites', 'sharepoint_get_list'],
+      },
+      mode: 'advanced',
+    },
+  ],
+  tools: {
+    access: [...SHAREPOINT_V2_TOOL_IDS],
+    config: {
+      tool: (params) => params.operation || 'sharepoint_create_page',
+      params: (params) => {
+        const {
+          oauthCredential,
+          siteId,
+          listId,
+          itemId,
+          includeColumns,
+          includeItems,
+          columnDefinitions,
+          listItemFields,
+          files,
+          maxPages,
+          driveId,
+          ...rest
+        } = params
+
+        const cleanString = (value: unknown) =>
+          value === undefined || value === null ? undefined : String(value).trim() || undefined
+        const coerceBoolean = (value: unknown) => {
+          if (typeof value === 'boolean') return value
+          if (typeof value === 'string') return value.toLowerCase() === 'true'
+          return undefined
+        }
+        const parseJsonObject = (value: unknown) => {
+          if (typeof value !== 'string') return value
+          if (!value.trim()) return undefined
+          try {
+            return JSON.parse(value)
+          } catch (error) {
+            logger.error('Failed to parse SharePoint JSON input', {
+              error: toError(error).message,
+            })
+            return undefined
+          }
+        }
+
+        const normalizedFiles = normalizeFileInput(files)
+        const result: Record<string, any> = {
+          ...rest,
+          oauthCredential,
+          siteId: cleanString(siteId),
+          listId: cleanString(listId),
+          itemId: cleanString(itemId),
+          driveId: cleanString(driveId),
+          includeColumns: coerceBoolean(includeColumns),
+          includeItems: coerceBoolean(includeItems),
+          listItemFields: parseJsonObject(listItemFields),
+          maxPages: maxPages ? Number.parseInt(String(maxPages), 10) : undefined,
+        }
+
+        if (columnDefinitions) {
+          result.pageContent = columnDefinitions
+        }
+        if (normalizedFiles) {
+          result.files = normalizedFiles
+        }
+
+        return result
+      },
+    },
+  },
+  inputs: {
+    operation: { type: 'string', description: 'Operation to perform' },
+    oauthCredential: { type: 'string', description: 'Microsoft account credential' },
+    siteId: { type: 'string', description: 'SharePoint site ID' },
+    pageName: { type: 'string', description: 'Page name' },
+    pageTitle: { type: 'string', description: 'Page title' },
+    pageContent: { type: 'string', description: 'Page text content' },
+    pageId: { type: 'string', description: 'Page ID' },
+    maxPages: { type: 'number', description: 'Maximum pages to return' },
+    nextPageUrl: { type: 'string', description: 'Microsoft Graph @odata.nextLink URL' },
+    groupId: { type: 'string', description: 'Microsoft 365 group ID' },
+    listId: { type: 'string', description: 'List ID' },
+    includeColumns: { type: 'boolean', description: 'Include columns in response' },
+    includeItems: { type: 'boolean', description: 'Include items in response' },
+    listDisplayName: { type: 'string', description: 'List display name' },
+    listDescription: { type: 'string', description: 'List description' },
+    listTemplate: { type: 'string', description: 'List template' },
+    columnDefinitions: {
+      type: 'json',
+      description: 'Column definitions for list creation (JSON array)',
+    },
+    itemId: { type: 'string', description: 'List item ID' },
+    listItemFields: { type: 'json', description: 'List item fields' },
+    driveId: { type: 'string', description: 'Document library (drive) ID' },
+    folderPath: { type: 'string', description: 'Folder path for file upload' },
+    fileName: { type: 'string', description: 'File name override' },
+    files: { type: 'json', description: 'Files to upload' },
+  },
+  outputs: {
+    site: {
+      type: 'json',
+      description: 'SharePoint site object (id, name, displayName, webUrl, description)',
+    },
+    sites: {
+      type: 'json',
+      description: 'Array of SharePoint site objects (id, name, displayName, webUrl)',
+    },
+    page: {
+      type: 'json',
+      description: 'SharePoint page object (id, name, title, webUrl, pageLayout, description)',
+    },
+    pages: {
+      type: 'json',
+      description: 'Array of SharePoint pages with page metadata and extracted content',
+    },
+    content: {
+      type: 'json',
+      description: 'SharePoint page content (content, canvasLayout)',
+    },
+    totalPages: { type: 'number', description: 'Number of pages returned' },
+    list: {
+      type: 'json',
+      description: 'SharePoint list object (id, displayName, name, webUrl, columns, items)',
+    },
+    lists: {
+      type: 'json',
+      description: 'Array of SharePoint lists (id, displayName, name, webUrl, list)',
+    },
+    item: { type: 'json', description: 'SharePoint list item with fields' },
+    items: { type: 'json', description: 'Array of SharePoint list items with fields' },
+    uploadedFiles: {
+      type: 'json',
+      description: 'Array of uploaded file objects with id, name, webUrl, size',
+    },
+    fileCount: { type: 'number', description: 'Number of files uploaded' },
+    skippedFiles: {
+      type: 'json',
+      description: 'Array of skipped upload files (name, size, limit, reason)',
+    },
+    skippedCount: { type: 'number', description: 'Number of files skipped' },
+    errors: {
+      type: 'json',
+      description: 'Array of per-file upload errors (name, error, status)',
+    },
+    nextPageUrl: {
+      type: 'string',
+      description: 'Microsoft Graph @odata.nextLink URL for the next page of results',
+    },
+    success: { type: 'boolean', description: 'Success status' },
+    error: { type: 'string', description: 'Error message' },
   },
 }

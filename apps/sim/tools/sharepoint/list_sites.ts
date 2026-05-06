@@ -3,13 +3,14 @@ import type {
   SharepointSite,
   SharepointToolParams,
 } from '@/tools/sharepoint/types'
+import { assertGraphNextPageUrl, getGraphNextPageUrl, optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteResponse> = {
   id: 'sharepoint_list_sites',
   name: 'List SharePoint Sites',
   description: 'List details of all SharePoint sites',
-  version: '1.0',
+  version: '1.0.0',
 
   oauth: {
     required: true,
@@ -29,6 +30,12 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
       visibility: 'user-only',
       description: 'Select the SharePoint site',
     },
+    siteId: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'The ID of the SharePoint site (internal use)',
+    },
     groupId: {
       type: 'string',
       required: false,
@@ -36,27 +43,34 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
       description:
         'The group ID for accessing a group team site. Example: a GUID like 12345678-1234-1234-1234-123456789012',
     },
+    nextPageUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Full @odata.nextLink URL from a previous Microsoft Graph page response',
+    },
   },
 
   request: {
     url: (params) => {
-      let baseUrl: string
+      if (params.nextPageUrl) {
+        return assertGraphNextPageUrl(params.nextPageUrl)
+      }
 
-      if (params.groupId) {
-        // Access group team site
-        baseUrl = `https://graph.microsoft.com/v1.0/groups/${params.groupId}/sites/root`
-      } else if (params.siteId || params.siteSelector) {
-        // Access specific site by ID
-        const siteId = params.siteId || params.siteSelector
+      let baseUrl: string
+      const groupId = optionalTrim(params.groupId)
+      const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector)
+
+      if (groupId) {
+        baseUrl = `https://graph.microsoft.com/v1.0/groups/${groupId}/sites/root`
+      } else if (siteId) {
         baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}`
       } else {
-        // get all sites
         baseUrl = 'https://graph.microsoft.com/v1.0/sites?search=*'
       }
 
       const url = new URL(baseUrl)
 
-      // Use Microsoft Graph $select parameter to get site details
       url.searchParams.append(
         '$select',
         'id,name,displayName,webUrl,description,createdDateTime,lastModifiedDateTime,isPersonalSite,root,siteCollection'
@@ -71,12 +85,10 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
     }),
   },
 
-  transformResponse: async (response: Response, params) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    // Check if this is a search result (multiple sites) or single site
     if (data.value && Array.isArray(data.value)) {
-      // Multiple sites from search
       return {
         success: true,
         output: {
@@ -89,10 +101,11 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
             createdDateTime: site.createdDateTime,
             lastModifiedDateTime: site.lastModifiedDateTime,
           })),
+          nextPageUrl: getGraphNextPageUrl(data as Record<string, unknown>),
         },
       }
     }
-    // Single site response
+
     return {
       success: true,
       output: {
@@ -154,6 +167,11 @@ export const listSitesTool: ToolConfig<SharepointToolParams, SharepointReadSiteR
           lastModifiedDateTime: { type: 'string', description: 'When the site was last modified' },
         },
       },
+    },
+    nextPageUrl: {
+      type: 'string',
+      description: 'Full Microsoft Graph @odata.nextLink URL for the next page of results',
+      optional: true,
     },
   },
 }

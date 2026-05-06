@@ -48,6 +48,7 @@ import { DuckDuckGoBlock } from '@/blocks/blocks/duckduckgo'
 import { DynamoDBBlock } from '@/blocks/blocks/dynamodb'
 import { ElasticsearchBlock } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock } from '@/blocks/blocks/elevenlabs'
+import { EmailBisonBlock } from '@/blocks/blocks/emailbison'
 import { EnrichBlock } from '@/blocks/blocks/enrich'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { EvernoteBlock } from '@/blocks/blocks/evernote'
@@ -180,7 +181,7 @@ import { SerperBlock } from '@/blocks/blocks/serper'
 import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
 import { SESBlock } from '@/blocks/blocks/ses'
 import { SftpBlock } from '@/blocks/blocks/sftp'
-import { SharepointBlock } from '@/blocks/blocks/sharepoint'
+import { SharepointBlock, SharepointV2Block } from '@/blocks/blocks/sharepoint'
 import { ShopifyBlock } from '@/blocks/blocks/shopify'
 import { SimilarwebBlock } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock } from '@/blocks/blocks/sixtyfour'
@@ -283,6 +284,7 @@ export const registry: Record<string, BlockConfig> = {
   dub: DubBlock,
   duckduckgo: DuckDuckGoBlock,
   dynamodb: DynamoDBBlock,
+  emailbison: EmailBisonBlock,
   elasticsearch: ElasticsearchBlock,
   elevenlabs: ElevenLabsBlock,
   fathom: FathomBlock,
@@ -431,6 +433,7 @@ export const registry: Record<string, BlockConfig> = {
   servicenow: ServiceNowBlock,
   sftp: SftpBlock,
   sharepoint: SharepointBlock,
+  sharepoint_v2: SharepointV2Block,
   shopify: ShopifyBlock,
   similarweb: SimilarwebBlock,
   sixtyfour: SixtyfourBlock,

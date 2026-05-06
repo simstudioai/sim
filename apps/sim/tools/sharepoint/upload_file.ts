@@ -1,11 +1,12 @@
 import type { SharepointToolParams, SharepointUploadFileResponse } from '@/tools/sharepoint/types'
+import { optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const uploadFileTool: ToolConfig<SharepointToolParams, SharepointUploadFileResponse> = {
   id: 'sharepoint_upload_file',
   name: 'Upload File to SharePoint',
   description: 'Upload files to a SharePoint document library',
-  version: '1.0',
+  version: '1.0.0',
 
   oauth: {
     required: true,
@@ -47,7 +48,7 @@ export const uploadFileTool: ToolConfig<SharepointToolParams, SharepointUploadFi
     },
     files: {
       type: 'file[]',
-      required: false,
+      required: true,
       visibility: 'user-only',
       description: 'Files to upload to SharePoint',
     },
@@ -62,10 +63,10 @@ export const uploadFileTool: ToolConfig<SharepointToolParams, SharepointUploadFi
     body: (params: SharepointToolParams) => {
       return {
         accessToken: params.accessToken,
-        siteId: params.siteId || 'root',
-        driveId: params.driveId || null,
-        folderPath: params.folderPath || null,
-        fileName: params.fileName || null,
+        siteId: optionalTrim(params.siteId) || 'root',
+        driveId: optionalTrim(params.driveId) || null,
+        folderPath: optionalTrim(params.folderPath) || null,
+        fileName: optionalTrim(params.fileName) || null,
         files: params.files || null,
       }
     },
@@ -73,15 +74,17 @@ export const uploadFileTool: ToolConfig<SharepointToolParams, SharepointUploadFi
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    if (!data.success) {
-      throw new Error(data.error || 'Failed to upload files to SharePoint')
-    }
+    const output = data.output ?? {}
     return {
-      success: true,
+      success: Boolean(data.success),
       output: {
-        uploadedFiles: data.output.uploadedFiles,
-        fileCount: data.output.fileCount,
+        uploadedFiles: output.uploadedFiles ?? [],
+        fileCount: output.fileCount ?? 0,
+        skippedFiles: output.skippedFiles ?? [],
+        skippedCount: output.skippedCount ?? 0,
+        errors: output.errors ?? [],
       },
+      error: data.success ? undefined : data.error || 'Failed to upload files to SharePoint',
     }
   },
 
@@ -104,6 +107,39 @@ export const uploadFileTool: ToolConfig<SharepointToolParams, SharepointUploadFi
     fileCount: {
       type: 'number',
       description: 'Number of files uploaded',
+    },
+    skippedFiles: {
+      type: 'array',
+      description: 'Files that were skipped before upload',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'File name' },
+          size: { type: 'number', description: 'File size in bytes' },
+          limit: { type: 'number', description: 'Upload size limit in bytes' },
+          reason: { type: 'string', description: 'Reason the file was skipped' },
+        },
+      },
+    },
+    skippedCount: {
+      type: 'number',
+      description: 'Number of files skipped',
+    },
+    errors: {
+      type: 'array',
+      description: 'Per-file upload errors',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'File name' },
+          error: { type: 'string', description: 'Error message' },
+          status: {
+            type: 'number',
+            description: 'HTTP status from Microsoft Graph',
+            optional: true,
+          },
+        },
+      },
     },
   },
 }
