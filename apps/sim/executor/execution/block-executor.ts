@@ -427,7 +427,11 @@ export class BlockExecutor {
     const result: Record<string, any> = {}
 
     for (const [key, value] of Object.entries(inputs)) {
-      if (SYSTEM_SUBBLOCK_IDS.includes(key) || key === 'triggerMode' || key === FUNCTION_BLOCK_CONTEXT_VARS_KEY) {
+      if (
+        SYSTEM_SUBBLOCK_IDS.includes(key) ||
+        key === 'triggerMode' ||
+        key === FUNCTION_BLOCK_CONTEXT_VARS_KEY
+      ) {
         continue
       }
 

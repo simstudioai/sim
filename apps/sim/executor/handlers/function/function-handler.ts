@@ -26,9 +26,8 @@ export class FunctionBlockHandler implements BlockHandler {
 
     const { blockData, blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
 
-    const contextVariables = (inputs[FUNCTION_BLOCK_CONTEXT_VARS_KEY] as
-      | Record<string, unknown>
-      | undefined) ?? {}
+    const contextVariables =
+      (inputs[FUNCTION_BLOCK_CONTEXT_VARS_KEY] as Record<string, unknown> | undefined) ?? {}
 
     const result = await executeTool(
       'function_execute',
