@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
 import {
-  Blimp,
   Database,
   Folder as FolderIcon,
   Library,
   Table as TableIcon,
+  Task,
 } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -71,7 +71,7 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
   },
   past_chat: {
     label: 'Past chat',
-    renderIcon: ({ className }) => <Blimp className={className} />,
+    renderIcon: ({ className }) => <Task className={className} />,
   },
   logs: {
     label: 'Logs',

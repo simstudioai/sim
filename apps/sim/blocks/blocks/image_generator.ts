@@ -10,7 +10,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
   longDescription:
     'Integrate Image Generator into the workflow. Can generate images using DALL-E 3, GPT Image 1, or GPT Image 2.',
   docsLink: 'https://docs.sim.ai/tools/image_generator',
-  category: 'tools',
+  category: 'blocks',
   integrationType: IntegrationType.AI,
   tags: ['image-generation', 'llm'],
   bgColor: '#4D5FFF',

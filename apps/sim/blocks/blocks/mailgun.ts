@@ -13,7 +13,7 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
   category: 'tools',
   integrationType: IntegrationType.Email,
   tags: ['messaging', 'email-marketing'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MailgunIcon,
 
   subBlocks: [

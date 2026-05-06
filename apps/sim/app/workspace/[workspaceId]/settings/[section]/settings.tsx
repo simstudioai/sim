@@ -34,10 +34,8 @@ const CredentialSets = dynamic(() =>
     (m) => m.CredentialSets
   )
 )
-const Credentials = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/credentials/credentials').then(
-    (m) => m.Credentials
-  )
+const Secrets = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then((m) => m.Secrets)
 )
 const CustomTools = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tools').then(
@@ -137,7 +135,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
     >
       <h2 className='mb-7 font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
       {effectiveSection === 'general' && <General />}
-      {effectiveSection === 'secrets' && <Credentials />}
+      {effectiveSection === 'secrets' && <Secrets />}
       {effectiveSection === 'credential-sets' && <CredentialSets />}
       {effectiveSection === 'access-control' && <AccessControl />}
       {effectiveSection === 'audit-logs' && <AuditLogs />}

@@ -17,7 +17,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   tags: ['calendar', 'scheduling', 'google-workspace'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleCalendarIcon,
   hideFromToolbar: true,
   subBlocks: [

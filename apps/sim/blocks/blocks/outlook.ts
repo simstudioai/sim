@@ -18,7 +18,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
   integrationType: IntegrationType.Email,
   tags: ['microsoft-365', 'messaging', 'automation'],
   triggerAllowed: true,
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: OutlookIcon,
   subBlocks: [
     {

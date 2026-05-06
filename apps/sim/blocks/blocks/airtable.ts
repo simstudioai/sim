@@ -16,7 +16,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Databases,
   tags: ['spreadsheet', 'automation'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: AirtableIcon,
   subBlocks: [
     {

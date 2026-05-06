@@ -13,7 +13,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Search,
   tags: ['document-processing', 'knowledge-base'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: ArxivIcon,
   subBlocks: [
     {

@@ -14,10 +14,10 @@ export const WebflowBlock: BlockConfig<WebflowResponse> = {
     'Integrates Webflow CMS into the workflow. Can create, get, list, update, or delete items in Webflow CMS collections. Manage your Webflow content programmatically. Can be used in trigger mode to trigger workflows when collection items change or forms are submitted.',
   docsLink: 'https://docs.sim.ai/tools/webflow',
   category: 'tools',
-  integrationType: IntegrationType.Design,
+  integrationType: IntegrationType.Marketing,
   tags: ['content-management', 'seo'],
   triggerAllowed: true,
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: WebflowIcon,
   subBlocks: [
     {

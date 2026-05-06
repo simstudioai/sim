@@ -18,7 +18,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   tags: ['project-management', 'ticketing'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: JiraIcon,
   subBlocks: [
     {

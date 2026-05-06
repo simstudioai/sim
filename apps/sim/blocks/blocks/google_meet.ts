@@ -15,7 +15,7 @@ export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Communication,
   tags: ['meeting', 'google-workspace', 'scheduling'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleMeetIcon,
   authMode: AuthMode.OAuth,
   subBlocks: [

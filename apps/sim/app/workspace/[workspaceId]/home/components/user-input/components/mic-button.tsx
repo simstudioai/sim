@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Mic } from 'lucide-react'
+import { Mic } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
 interface MicButtonProps {
@@ -22,7 +22,7 @@ export const MicButton = React.memo(function MicButton({ isListening, onToggle }
       )}
       title={isListening ? 'Stop listening' : 'Voice input'}
     >
-      <Mic className='h-[16px] w-[16px]' strokeWidth={2} />
+      <Mic className='h-[16px] w-[16px]' />
     </button>
   )
 })

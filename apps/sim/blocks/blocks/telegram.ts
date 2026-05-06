@@ -16,7 +16,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Communication,
   tags: ['messaging', 'webhooks', 'automation'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: TelegramIcon,
   triggerAllowed: true,
   subBlocks: [

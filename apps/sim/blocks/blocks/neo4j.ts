@@ -10,7 +10,7 @@ export const Neo4jBlock: BlockConfig<Neo4jResponse | Neo4jIntrospectResponse> = 
   longDescription:
     'Integrate Neo4j graph database into the workflow. Can query, create, merge, update, and delete nodes and relationships.',
   docsLink: 'https://docs.sim.ai/tools/neo4j',
-  category: 'tools',
+  category: 'blocks',
   integrationType: IntegrationType.Databases,
   tags: ['data-warehouse', 'data-analytics'],
   bgColor: '#FFFFFF',

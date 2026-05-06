@@ -15,7 +15,7 @@ export const GoogleFormsBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Documents,
   tags: ['google-workspace', 'forms', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleFormsIcon,
   subBlocks: [
     {

@@ -18,7 +18,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   integrationType: IntegrationType.Communication,
   tags: ['messaging', 'microsoft-365'],
   triggerAllowed: true,
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MicrosoftTeamsIcon,
   subBlocks: [
     {

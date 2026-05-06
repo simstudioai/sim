@@ -20,7 +20,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Documents,
   tags: ['spreadsheet', 'microsoft-365'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MicrosoftExcelIcon,
   subBlocks: [
     {
@@ -359,7 +359,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
   category: 'tools',
   integrationType: IntegrationType.Documents,
   tags: ['spreadsheet', 'microsoft-365'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MicrosoftExcelIcon,
   subBlocks: [
     // Operation selector

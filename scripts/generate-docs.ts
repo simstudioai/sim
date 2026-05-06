@@ -181,7 +181,7 @@ interface IntegrationEntry {
   triggerCount: number
   authType: 'oauth' | 'api-key' | 'none'
   category: string
-  integrationTypes?: string[]
+  integrationType: string
   tags?: string[]
 }
 
@@ -255,30 +255,10 @@ async function generateIconMapping(): Promise<Record<string, string>> {
             continue
           }
 
-          // Skip trigger/webhook/rss blocks
-          if (
-            blockType.includes('_trigger') ||
-            blockType.includes('_webhook') ||
-            blockType.includes('rss')
-          ) {
-            continue
-          }
-
-          // Get category for additional filtering
+          // Canonical integrations filter (icon map mirrors the integrations dataset).
+          // Hidden tools still get icons so legacy nodes render correctly.
           const category = extractStringPropertyFromContent(blockContent, 'category') || 'misc'
-
-          if (
-            (category === 'blocks' && blockType !== 'memory' && blockType !== 'knowledge') ||
-            blockType === 'evaluator' ||
-            blockType === 'number' ||
-            blockType === 'webhook' ||
-            blockType === 'schedule' ||
-            blockType === 'mcp' ||
-            blockType === 'generic_webhook' ||
-            blockType === 'rss'
-          ) {
-            continue
-          }
+          if (category !== 'tools') continue
 
           // Only add non-hidden blocks to icon mapping (docs won't be generated for hidden)
           if (!hideFromToolbar) {
@@ -675,21 +655,10 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
       for (const config of configs) {
         const blockType = config.type
 
-        // Apply the same filters as docs/icon-mapping generation
-        if (
-          blockType.includes('_trigger') ||
-          blockType.includes('_webhook') ||
-          blockType.includes('rss') ||
-          (config.category === 'blocks' && blockType !== 'memory' && blockType !== 'knowledge') ||
-          blockType === 'evaluator' ||
-          blockType === 'number' ||
-          blockType === 'webhook' ||
-          blockType === 'schedule' ||
-          blockType === 'mcp' ||
-          blockType === 'generic_webhook'
-        ) {
-          continue
-        }
+        // Canonical integrations filter: only third-party tool blocks visible in the toolbar.
+        // The block registry's `category: 'tools'` is now the single source of truth for "is integration".
+        if (config.category !== 'tools') continue
+        if ((config as any).hideFromToolbar) continue
 
         // Deduplicate by stripped base type
         const baseType = stripVersionSuffix(blockType)
@@ -767,14 +736,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
           triggerCount: triggers.length,
           authType,
           category: config.category,
-          ...(config.integrationType || config.tags
-            ? {
-                integrationTypes: deriveIntegrationTypes(
-                  config.integrationType || null,
-                  config.tags || []
-                ),
-              }
-            : {}),
+          integrationType: config.integrationType ?? '',
           ...(config.tags ? { tags: config.tags } : {}),
         })
       }
@@ -1029,113 +991,31 @@ function extractStringPropertyFromContent(
 }
 
 /**
- * Tag-to-category mapping used by deriveIntegrationTypes to expand a block's
- * primary integrationType into a full set of categories for the landing page.
- */
-const TAG_TO_CATEGORIES: Record<string, string[]> = {
-  llm: ['ai'],
-  agentic: ['ai'],
-  'image-generation': ['ai', 'design'],
-  'video-generation': ['ai', 'design'],
-  'text-to-speech': ['ai'],
-  'speech-to-text': ['ai'],
-  ocr: ['ai', 'documents'],
-  'vector-search': ['ai', 'search'],
-  'document-processing': ['documents'],
-  'content-management': ['documents'],
-  'e-signatures': ['documents'],
-  'note-taking': ['productivity', 'documents'],
-  'knowledge-base': ['documents', 'search'],
-  'data-analytics': ['analytics'],
-  seo: ['analytics', 'search'],
-  monitoring: ['developer-tools', 'analytics'],
-  'error-tracking': ['developer-tools'],
-  'incident-management': ['developer-tools'],
-  'version-control': ['developer-tools'],
-  'ci-cd': ['developer-tools'],
-  'feature-flags': ['developer-tools'],
-  messaging: ['communication'],
-  meeting: ['communication', 'productivity'],
-  calendar: ['productivity'],
-  scheduling: ['productivity'],
-  'project-management': ['productivity'],
-  ticketing: ['productivity', 'customer-support'],
-  forms: ['productivity'],
-  spreadsheet: ['productivity', 'databases'],
-  'data-warehouse': ['databases'],
-  cloud: ['developer-tools'],
-  'web-scraping': ['search'],
-  'sales-engagement': ['sales'],
-  enrichment: ['sales'],
-  'email-marketing': ['email'],
-  marketing: ['analytics'],
-  payments: ['ecommerce'],
-  subscriptions: ['ecommerce'],
-  hiring: ['hr'],
-  identity: ['security'],
-  'secrets-management': ['security'],
-  'customer-support': ['customer-support'],
-  webhooks: ['developer-tools'],
-  automation: ['developer-tools'],
-}
-
-/**
- * Derive the full list of integration type categories from a block's primary
- * integrationType and its tags. The primary type is always first; additional
- * categories are inferred from tags via TAG_TO_CATEGORIES.
- */
-function deriveIntegrationTypes(primaryType: string | null, tags: string[]): string[] {
-  const types = new Set<string>()
-  if (primaryType) {
-    types.add(primaryType)
-  }
-  for (const tag of tags) {
-    const mapped = TAG_TO_CATEGORIES[tag]
-    if (mapped) {
-      for (const t of mapped) {
-        types.add(t)
-      }
-    }
-  }
-  // Return primary first, then the rest sorted for deterministic output
-  const result: string[] = []
-  if (primaryType && types.has(primaryType)) {
-    result.push(primaryType)
-    types.delete(primaryType)
-  }
-  result.push(...Array.from(types).sort())
-  return result
-}
-
-/**
- * Extract an enum property value from block content.
- * Matches patterns like `integrationType: IntegrationType.DeveloperTools`
- * and returns the string value (e.g., 'developer-tools').
+ * Extract an enum property value from block content. Maps an `IntegrationType`
+ * enum key (e.g. `Communication`) to its slug value (e.g. `'communication'`).
+ * Mirrors `apps/sim/blocks/types.ts → IntegrationType` — keep in sync.
  */
 function extractEnumPropertyFromContent(content: string, propName: string): string | null {
   const match = content.match(new RegExp(`${propName}\\s*:\\s*IntegrationType\\.(\\w+)`))
   if (!match) return null
   const enumKey = match[1]
-  // Convert enum key to kebab-case value (e.g., DeveloperTools -> developer-tools)
   const ENUM_MAP: Record<string, string> = {
     AI: 'ai',
     Analytics: 'analytics',
+    Commerce: 'commerce',
     Communication: 'communication',
-    CRM: 'crm',
-    CustomerSupport: 'customer-support',
     Databases: 'databases',
-    Design: 'design',
-    DeveloperTools: 'developer-tools',
+    DevOps: 'devops',
     Documents: 'documents',
-    Ecommerce: 'ecommerce',
     Email: 'email',
-    FileStorage: 'file-storage',
     HR: 'hr',
-    Other: 'other',
+    Marketing: 'marketing',
+    Observability: 'observability',
     Productivity: 'productivity',
     Sales: 'sales',
     Search: 'search',
     Security: 'security',
+    Support: 'support',
   }
   return ENUM_MAP[enumKey] || enumKey.toLowerCase()
 }
@@ -2566,29 +2446,10 @@ async function generateBlockDoc(blockPath: string) {
         continue
       }
 
-      if (
-        blockConfig.type.includes('_trigger') ||
-        blockConfig.type.includes('_webhook') ||
-        blockConfig.type.includes('rss')
-      ) {
-        console.log(`Skipping ${blockConfig.type} - contains '_trigger'`)
-        continue
-      }
-
-      if (
-        (blockConfig.category === 'blocks' &&
-          blockConfig.type !== 'memory' &&
-          blockConfig.type !== 'knowledge') ||
-        blockConfig.type === 'evaluator' ||
-        blockConfig.type === 'number' ||
-        blockConfig.type === 'webhook' ||
-        blockConfig.type === 'schedule' ||
-        blockConfig.type === 'mcp' ||
-        blockConfig.type === 'generic_webhook' ||
-        blockConfig.type === 'rss'
-      ) {
-        continue
-      }
+      // Canonical integrations filter: docs are written only for third-party tool blocks
+      // visible in the toolbar. Source of truth: BlockConfig.category === 'tools'.
+      if (blockConfig.category !== 'tools') continue
+      if ((blockConfig as any).hideFromToolbar) continue
 
       // Use stripped type for file name (removes _v2, _v3 suffixes for cleaner URLs)
       const displayType = stripVersionSuffix(blockConfig.type)

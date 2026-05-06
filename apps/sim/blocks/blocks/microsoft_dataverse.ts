@@ -16,7 +16,7 @@ export const MicrosoftDataverseBlock: BlockConfig<DataverseResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Databases,
   tags: ['microsoft-365', 'data-warehouse', 'cloud'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MicrosoftDataverseIcon,
   subBlocks: [
     {

@@ -63,8 +63,8 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
     'Send messages, query task status, cancel tasks, or discover agent capabilities. ' +
     'Compatible with any A2A-compliant agent including LangGraph, Google ADK, and other Sim workflows.',
   docsLink: 'https://docs.sim.ai/blocks/a2a',
-  category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
+  category: 'blocks',
+  integrationType: IntegrationType.DevOps,
   tags: ['agentic', 'automation'],
   bgColor: '#4151B5',
   icon: A2AIcon,

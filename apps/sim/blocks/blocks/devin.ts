@@ -17,7 +17,7 @@ export const DevinBlock: BlockConfig = {
   `,
   docsLink: 'https://docs.sim.ai/tools/devin',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
+  integrationType: IntegrationType.DevOps,
   tags: ['agentic', 'automation'],
   bgColor: '#12141A',
   icon: DevinIcon,

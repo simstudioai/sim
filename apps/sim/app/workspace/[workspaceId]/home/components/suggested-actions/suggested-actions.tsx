@@ -152,6 +152,8 @@ const INTEGRATION_PROMPTS: readonly PromptOption[] = [
 const EMPTY_CREDENTIALS: ReturnType<typeof useWorkspaceCredentials>['data'] = []
 const EMPTY_SERVICES: ReturnType<typeof useOAuthConnections>['data'] = []
 
+type ServiceInfo = NonNullable<ReturnType<typeof useOAuthConnections>['data']>[number]
+
 /** Returns up to `n` random items from the array (Fisher–Yates). */
 function sample<T>(arr: readonly T[], n: number): T[] {
   const out = arr.slice()
@@ -161,6 +163,38 @@ function sample<T>(arr: readonly T[], n: number): T[] {
   }
   return out.slice(0, n)
 }
+
+function toPromptAction(option: PromptOption): Action {
+  return {
+    kind: 'prompt',
+    id: option.id,
+    label: option.label,
+    prompt: option.prompt,
+    icon: option.icon,
+  }
+}
+
+function toIntegrationAction(service: ServiceInfo): Action {
+  return {
+    kind: 'integration',
+    id: `integrate-${service.providerId}`,
+    label: `Integrate with ${service.name}`,
+    icon: service.icon,
+  }
+}
+
+/**
+ * Initial actions rendered on first paint, before OAuth/credentials queries resolve.
+ * For users with no connections this is also the final result, so the section never
+ * flashes. Users with existing connections briefly see this before the effect below
+ * replaces it with personalized integrations.
+ */
+const INITIAL_ACTIONS: Action[] = [
+  { kind: 'integration', id: 'integrate-slack', label: 'Integrate with Slack', icon: SlackIcon },
+  { kind: 'integration', id: 'integrate-gmail', label: 'Integrate with Gmail', icon: GmailIcon },
+  toPromptAction(TABLE_PROMPTS.find((p) => p.id === 'crm')!),
+  toPromptAction(INTEGRATION_PROMPTS.find((p) => p.id === 'github-pr-review')!),
+]
 
 interface SuggestedActionsProps {
   onSelectPrompt: (prompt: string) => void
@@ -188,37 +222,18 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
     [credentials]
   )
 
-  const [actions, setActions] = useState<Action[]>([])
+  const [actions, setActions] = useState<Action[]>(INITIAL_ACTIONS)
 
   useEffect(() => {
-    const toIntegrationAction = (s: (typeof services)[number]): Action => ({
-      kind: 'integration',
-      id: `integrate-${s.providerId}`,
-      label: `Integrate with ${s.name}`,
-      icon: s.icon,
-    })
+    if (services.length === 0 || connectedProviders.size === 0) return
 
     const availableServices = services.filter((s) => !connectedProviders.has(s.providerId))
-    const integrations: Action[] =
-      connectedProviders.size === 0
-        ? ['slack', 'google-email']
-            .map((id) => availableServices.find((s) => s.providerId === id))
-            .filter((s): s is (typeof services)[number] => Boolean(s))
-            .map(toIntegrationAction)
-        : sample(availableServices, 2).map(toIntegrationAction)
+    const integrations = sample(availableServices, 2).map(toIntegrationAction)
 
-    const toPromptAction = (option: PromptOption): Action => ({
-      kind: 'prompt',
-      id: option.id,
-      label: option.label,
-      prompt: option.prompt,
-      icon: option.icon,
-    })
-
-    const [tablePick] = sample(TABLE_PROMPTS, 1)
     const integrationPool = INTEGRATION_PROMPTS.filter(
       (p) => !p.providerId || !connectedProviders.has(p.providerId)
     )
+    const [tablePick] = sample(TABLE_PROMPTS, 1)
     const [integrationPick] = sample(
       integrationPool.length > 0 ? integrationPool : INTEGRATION_PROMPTS,
       1
@@ -226,8 +241,6 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
 
     setActions([...integrations, toPromptAction(tablePick), toPromptAction(integrationPick)])
   }, [connectedProviders, services])
-
-  if (actions.length === 0) return null
 
   const handleSelect = (action: Action) => {
     if (action.kind === 'prompt') {
@@ -238,7 +251,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
   }
 
   return (
-    <div className='mx-auto mt-6 w-full max-w-[44rem]'>
+    <div className='mx-auto mt-7 w-full max-w-[48rem]'>
       <button
         type='button'
         onClick={() => setExpanded((prev) => !prev)}

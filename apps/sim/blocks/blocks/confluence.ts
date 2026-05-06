@@ -18,7 +18,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Documents,
   tags: ['knowledge-base', 'content-management', 'note-taking'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: ConfluenceIcon,
   subBlocks: [
     {

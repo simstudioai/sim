@@ -4,28 +4,8 @@ import { useMemo, useState } from 'react'
 import { Input } from '@/components/emcn'
 import { blockTypeToIconMap } from '@/app/(landing)/integrations/data/icon-mapping'
 import type { Integration } from '@/app/(landing)/integrations/data/types'
+import { formatIntegrationType } from '@/blocks/types'
 import { IntegrationRow } from './integration-card'
-
-const CATEGORY_LABELS: Record<string, string> = {
-  ai: 'AI',
-  analytics: 'Analytics',
-  communication: 'Communication',
-  crm: 'CRM',
-  'customer-support': 'Customer Support',
-  databases: 'Databases',
-  design: 'Design',
-  'developer-tools': 'Developer Tools',
-  documents: 'Documents',
-  ecommerce: 'E-commerce',
-  email: 'Email',
-  'file-storage': 'File Storage',
-  hr: 'HR',
-  productivity: 'Productivity',
-  sales: 'Sales',
-  search: 'Search',
-  security: 'Security',
-  other: 'Other',
-} as const
 
 interface IntegrationGridProps {
   integrations: Integration[]
@@ -38,10 +18,8 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
   const availableCategories = useMemo(() => {
     const counts = new Map<string, number>()
     for (const i of integrations) {
-      if (i.integrationTypes) {
-        for (const t of i.integrationTypes) {
-          counts.set(t, (counts.get(t) || 0) + 1)
-        }
+      if (i.integrationType) {
+        counts.set(i.integrationType, (counts.get(i.integrationType) || 0) + 1)
       }
     }
     return Array.from(counts.entries())
@@ -53,7 +31,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
     let results = integrations
 
     if (activeCategory) {
-      results = results.filter((i) => i.integrationTypes?.includes(activeCategory))
+      results = results.filter((i) => i.integrationType === activeCategory)
     }
 
     const q = query.trim().toLowerCase()
@@ -121,7 +99,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
                 : 'border-[var(--landing-border-strong)] text-[var(--landing-text)] hover:bg-[var(--landing-bg-elevated)]'
             }`}
           >
-            {CATEGORY_LABELS[cat] || cat}
+            {formatIntegrationType(cat)}
           </button>
         ))}
       </div>
@@ -132,7 +110,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
         <p className='py-12 text-center text-[15px] text-[var(--landing-text-subtle)]'>
           No integrations found
           {query ? <> for &ldquo;{query}&rdquo;</> : null}
-          {activeCategory ? <> in {CATEGORY_LABELS[activeCategory] || activeCategory}</> : null}
+          {activeCategory ? <> in {formatIntegrationType(activeCategory)}</> : null}
         </p>
       ) : (
         <div>

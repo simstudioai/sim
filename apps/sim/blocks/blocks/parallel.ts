@@ -13,7 +13,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Search,
   tags: ['web-scraping', 'llm', 'agentic'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: ParallelIcon,
   subBlocks: [
     {

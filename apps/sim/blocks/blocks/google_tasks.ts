@@ -15,7 +15,7 @@ export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   tags: ['google-workspace', 'project-management', 'scheduling'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleTasksIcon,
   authMode: AuthMode.OAuth,
 

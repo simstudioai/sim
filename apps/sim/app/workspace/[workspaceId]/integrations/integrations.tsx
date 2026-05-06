@@ -1,15 +1,30 @@
 'use client'
 
-import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ComponentType,
+  createElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertTriangle, Check, Clipboard, Plus, Search, Share2 } from 'lucide-react'
+import { AlertTriangle, Check, Clipboard, Search, Share2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
+  ArrowRight,
   Avatar,
   AvatarFallback,
   Badge,
   Button,
+  ChevronDown,
   Combobox,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   focusFirstTextInputIn,
   Input,
   Label,
@@ -34,6 +49,11 @@ import {
 import { getCanonicalScopesForProvider, getServiceConfigByProviderId } from '@/lib/oauth'
 import { getScopeDescription } from '@/lib/oauth/utils'
 import { getUserColor } from '@/lib/workspaces/colors'
+import { blockTypeToIconMap } from '@/app/(landing)/integrations/data/icon-mapping'
+import integrationsData from '@/app/(landing)/integrations/data/integrations.json'
+import type { Integration } from '@/app/(landing)/integrations/data/types'
+import { getBlock } from '@/blocks'
+import { formatIntegrationType } from '@/blocks/types'
 import {
   useCreateCredentialDraft,
   useCreateWorkspaceCredential,
@@ -66,6 +86,138 @@ const roleComboOptions = ROLE_OPTIONS.map((option) => ({
   label: option.label,
 }))
 
+const SHOWCASE_MASK_SVG = encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 144"><path d="M0 0L192 0L192 48C192 80 160 96 128 96L64 96C32 96 32 144 0 144Z" fill="white"/></svg>'
+)
+const SHOWCASE_MASK_IMAGE = `linear-gradient(white, white), url("data:image/svg+xml,${SHOWCASE_MASK_SVG}")`
+
+const SHOWCASE_TILES = [
+  { id: 'slack', col: 2, row: 1 },
+  { id: 'outlook', col: 5, row: 1 },
+  { id: 'notion', col: 8, row: 1 },
+  { id: 'linear', col: 10, row: 1 },
+  { id: 'jira', col: 13, row: 1 },
+  { id: 'google_calendar', col: 15, row: 1 },
+  { id: 'airtable', col: 3, row: 2 },
+  { id: 'hubspot', col: 7, row: 2 },
+  { id: 'salesforce', col: 11, row: 2 },
+  { id: 'microsoft_teams', col: 14, row: 2 },
+  { id: 'google_sheets', col: 4, row: 3 },
+  { id: 'asana', col: 6, row: 3 },
+  { id: 'confluence', col: 8, row: 3 },
+  { id: 'dropbox', col: 12, row: 3 },
+  { id: 'google_drive', col: 15, row: 3 },
+] as const
+
+function resolveBrandTileBg(blockType: string): string | null {
+  return getBlock(blockType)?.bgColor || null
+}
+
+const ALL_CATEGORY = 'All'
+const UNCATEGORIZED = 'Other'
+
+interface IntegrationTileProps {
+  blockType: string
+  icon: ComponentType<{ className?: string }>
+}
+
+function IntegrationTile({ blockType, icon: Icon }: IntegrationTileProps) {
+  const brandBg = resolveBrandTileBg(blockType)
+  return (
+    <div className='h-11 w-11 flex-shrink-0 rounded-lg border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-sm dark:bg-[var(--surface-5)]'>
+      <div
+        className='flex h-full w-full items-center justify-center rounded-[5px] border border-[var(--border-1)] bg-[var(--bg)]'
+        style={brandBg ? { background: brandBg } : undefined}
+      >
+        <Icon className='h-6 w-6 text-white' />
+      </div>
+    </div>
+  )
+}
+
+interface IntegrationItemProps {
+  blockType: string
+  name: string
+  description?: string | null
+  icon: ComponentType<{ className?: string }>
+}
+
+function IntegrationItem({ blockType, name, description, icon: Icon }: IntegrationItemProps) {
+  return (
+    <button
+      type='button'
+      className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
+    >
+      <IntegrationTile blockType={blockType} icon={Icon} />
+      <div className='flex min-w-0 flex-1 flex-col'>
+        <span className='truncate font-base text-[14px] text-[var(--text-body)]'>{name}</span>
+        {description && (
+          <span className='truncate font-base text-[12px] text-[var(--text-muted)]'>
+            {description}
+          </span>
+        )}
+      </div>
+      <ArrowRight className='h-4 w-4 flex-shrink-0 text-[var(--text-icon)]' />
+    </button>
+  )
+}
+
+interface IntegrationSectionProps {
+  label: string
+  children: ReactNode
+}
+
+function IntegrationSection({ label, children }: IntegrationSectionProps) {
+  return (
+    <section className='flex flex-col'>
+      <div className='px-2 pb-2'>
+        <span className='font-base text-[var(--text-muted)] text-small'>{label}</span>
+      </div>
+      <div className='grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-x-2 gap-y-0.5'>
+        {children}
+      </div>
+    </section>
+  )
+}
+
+function IntegrationsShowcase() {
+  return (
+    <div
+      aria-hidden
+      className='relative h-[144px] w-full overflow-hidden rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] bg-origin-border shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]'
+      style={{
+        backgroundImage:
+          'linear-gradient(to right, var(--border-1) 1px, transparent 1px), linear-gradient(to bottom, var(--border-1) 1px, transparent 1px)',
+        backgroundSize: '48px 48px',
+        WebkitMaskImage: SHOWCASE_MASK_IMAGE,
+        maskImage: SHOWCASE_MASK_IMAGE,
+        WebkitMaskRepeat: 'no-repeat',
+        maskRepeat: 'no-repeat',
+        WebkitMaskSize: 'calc(100% - 192px) 100%, 192px 144px',
+        maskSize: 'calc(100% - 192px) 100%, 192px 144px',
+        WebkitMaskPosition: 'top left, top right',
+        maskPosition: 'top left, top right',
+      }}
+    >
+      <div className='-inset-px absolute grid grid-cols-[repeat(auto-fill,48px)] grid-rows-[repeat(auto-fill,48px)]'>
+        {SHOWCASE_TILES.map((tile) => {
+          const block = getBlock(tile.id)
+          if (!block) return null
+          return (
+            <div
+              key={tile.id}
+              style={{ gridColumnStart: tile.col, gridRowStart: tile.row }}
+              className='m-0.5'
+            >
+              <IntegrationTile blockType={tile.id} icon={block.icon} />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function Integrations() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -73,6 +225,7 @@ export function Integrations() {
   useOAuthReturnRouter()
 
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORY)
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
   const [memberRole, setMemberRole] = useState<WorkspaceCredentialRole>('admin')
   const [memberUserId, setMemberUserId] = useState('')
@@ -180,12 +333,6 @@ export function Integrations() {
       return aProvider.localeCompare(bProvider)
     })
   }, [filteredCredentials])
-
-  const filteredAvailableIntegrations = useMemo(() => {
-    if (!searchTerm.trim()) return oauthConnections
-    const normalized = searchTerm.toLowerCase()
-    return oauthConnections.filter((service) => service.name.toLowerCase().includes(normalized))
-  }, [oauthConnections, searchTerm])
 
   const oauthServiceOptions = useMemo(
     () =>
@@ -618,26 +765,59 @@ export function Integrations() {
     }
   }
 
-  const hasCredentials = oauthCredentials && oauthCredentials.length > 0
+  const allIntegrations = useMemo(() => integrationsData as Integration[], [])
 
-  const connectedProviderIds = useMemo(
-    () => new Set(oauthCredentials.map((c) => c.providerId).filter(Boolean) as string[]),
-    [oauthCredentials]
+  const allCategorySections = useMemo(() => {
+    const grouped = new Map<string, Integration[]>()
+    for (const integration of allIntegrations) {
+      const label = integration.integrationType || UNCATEGORIZED
+      const bucket = grouped.get(label)
+      if (bucket) bucket.push(integration)
+      else grouped.set(label, [integration])
+    }
+    return Array.from(grouped, ([label, items]) => ({
+      label,
+      integrations: [...items].sort((a, b) => a.name.localeCompare(b.name)),
+    })).sort((a, b) => {
+      if (a.label === UNCATEGORIZED) return 1
+      if (b.label === UNCATEGORIZED) return -1
+      return a.label.localeCompare(b.label)
+    })
+  }, [allIntegrations])
+
+  const categoryOptions = useMemo(
+    () => [ALL_CATEGORY, ...allCategorySections.map((section) => section.label)],
+    [allCategorySections]
   )
 
-  const showNoResults =
-    searchTerm.trim() &&
-    sortedCredentials.length === 0 &&
-    filteredAvailableIntegrations.length === 0
+  const isAllCategorySelected = selectedCategory === ALL_CATEGORY
 
-  const handleAddForProvider = useCallback((providerId: string) => {
-    setCreateOAuthProviderId(providerId)
-    setCreateStep(2)
-    setCreateDisplayName('')
-    setCreateDescription('')
-    setCreateError(null)
-    setShowCreateModal(true)
-  }, [])
+  const filteredCategorySections = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase()
+    const matchesSearch = (integration: Integration) =>
+      !normalizedSearch ||
+      integration.name.toLowerCase().includes(normalizedSearch) ||
+      integration.description.toLowerCase().includes(normalizedSearch)
+
+    if (isAllCategorySelected) {
+      return allCategorySections
+        .map((section) => ({
+          label: section.label,
+          integrations: section.integrations.filter(matchesSearch),
+        }))
+        .filter((section) => section.integrations.length > 0)
+    }
+
+    const integrations = allIntegrations
+      .filter((integration) => integration.integrationType === selectedCategory)
+      .filter(matchesSearch)
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    return integrations.length > 0 ? [{ label: selectedCategory, integrations }] : []
+  }, [allCategorySections, allIntegrations, isAllCategorySelected, searchTerm, selectedCategory])
+
+  const showNoResults =
+    Boolean(searchTerm.trim() || !isAllCategorySelected) && filteredCategorySections.length === 0
 
   const validateServiceAccountJson = (raw: string): { valid: boolean; error?: string } => {
     let parsed: Record<string, unknown>
@@ -1183,9 +1363,8 @@ export function Integrations() {
 
   if (selectedCredential) {
     return (
-      <div className='h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable_both-edges]'>
-        <div className='mx-auto flex min-h-full max-w-[44rem] flex-col px-6 pt-9 pb-[52px]'>
-          <h2 className='mb-7 font-medium text-[22px] text-[var(--text-primary)]'>Integrations</h2>
+      <div className='h-full overflow-y-auto bg-[var(--bg)] px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex min-h-full max-w-[48rem] flex-col'>
           <div className='flex h-full flex-col gap-4.5'>
             <div className='min-h-0 flex-1 overflow-y-auto'>
               <div className='flex flex-col gap-4.5'>
@@ -1454,134 +1633,90 @@ export function Integrations() {
   }
 
   return (
-    <div className='h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable_both-edges]'>
-      <div className='mx-auto flex min-h-full max-w-[44rem] flex-col px-6 pt-9 pb-[52px]'>
-        <h2 className='mb-7 font-medium text-[22px] text-[var(--text-primary)]'>Integrations</h2>
-        <div className='flex h-full flex-col gap-4.5'>
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='flex flex-shrink-0 items-center bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+        <button
+          type='button'
+          className='group mx-0.5 inline-flex h-[30px] items-center gap-1.5 rounded-lg bg-[var(--surface-active)] px-2 transition-colors'
+        >
+          <span className='font-base text-[var(--text-body)] text-sm'>Integrations</span>
+        </button>
+        <button
+          type='button'
+          className='group mx-0.5 inline-flex h-[30px] items-center gap-1.5 rounded-lg px-2 transition-colors hover-hover:bg-[var(--surface-active)]'
+        >
+          <span className='font-base text-[var(--text-body)] text-sm'>Skills</span>
+        </button>
+      </div>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
+          <IntegrationsShowcase />
           <div className='flex items-center gap-2'>
-            <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-              <Search
-                className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-                strokeWidth={2}
-              />
-              <UiInput
+            <div className='flex h-[30px] flex-1 items-center gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
+              <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-muted)]' />
+              <input
                 placeholder='Search integrations...'
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 disabled={credentialsLoading}
-                className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                className='h-full w-full bg-transparent font-base text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
               />
             </div>
-            <Button
-              onClick={() => setShowCreateModal(true)}
-              disabled={credentialsLoading}
-              variant='primary'
-            >
-              <Plus className='mr-1.5 h-[13px] w-[13px]' />
-              Connect
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type='button'
+                  className='inline-flex h-[30px] items-center gap-1.5 rounded-lg bg-[var(--surface-active)] px-2 transition-colors hover-hover:bg-[var(--surface-6)]'
+                >
+                  <span className='font-base text-[var(--text-body)] text-sm'>
+                    {selectedCategory === ALL_CATEGORY
+                      ? selectedCategory
+                      : formatIntegrationType(selectedCategory)}
+                  </span>
+                  <ChevronDown className='h-[7px] w-[9px] text-[var(--text-icon)]' />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end' className='min-w-[160px]'>
+                {categoryOptions.map((category) => (
+                  <DropdownMenuItem key={category} onSelect={() => setSelectedCategory(category)}>
+                    {category === ALL_CATEGORY ? category : formatIntegrationType(category)}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
-          <div className='min-h-0 flex-1 overflow-y-auto'>
-            {credentialsLoading ? null : (
-              <div className='flex flex-col gap-2'>
-                {sortedCredentials.map((credential) => {
-                  const serviceConfig = credential.providerId
-                    ? getServiceConfigByProviderId(credential.providerId)
-                    : null
+          <div className='flex flex-col gap-7'>
+            {filteredCategorySections.map((section) => (
+              <IntegrationSection key={section.label} label={formatIntegrationType(section.label)}>
+                {section.integrations.map((integration) => {
+                  const Icon = blockTypeToIconMap[integration.type]
+                  if (!Icon) return null
                   return (
-                    <div key={credential.id} className='flex items-center justify-between gap-3'>
-                      <div className='flex min-w-0 items-center gap-2.5'>
-                        {serviceConfig && (
-                          <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-5)]'>
-                            {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}
-                          </div>
-                        )}
-                        <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                          <span className='truncate font-medium text-base'>
-                            {credential.displayName}
-                          </span>
-                          <p className='truncate text-[var(--text-muted)] text-sm'>
-                            {credential.description || resolveProviderLabel(credential.providerId)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className='flex flex-shrink-0 items-center gap-1'>
-                        <Button
-                          variant='default'
-                          onClick={() => handleSelectCredential(credential)}
-                        >
-                          Details
-                        </Button>
-                        {credential.role === 'admin' && (
-                          <Button
-                            variant='ghost'
-                            onClick={() => handleDeleteClick(credential)}
-                            disabled={
-                              credential.type === 'service_account'
-                                ? deleteCredential.isPending
-                                : disconnectOAuthService.isPending
-                            }
-                          >
-                            Disconnect
-                          </Button>
-                        )}
-                      </div>
-                    </div>
+                    <IntegrationItem
+                      key={integration.type}
+                      blockType={integration.type}
+                      name={integration.name}
+                      description={integration.description}
+                      icon={Icon}
+                    />
                   )
                 })}
+              </IntegrationSection>
+            ))}
 
-                {showNoResults && (
-                  <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                    No integrations found matching &ldquo;{searchTerm}&rdquo;
-                  </div>
-                )}
-
-                {filteredAvailableIntegrations.length > 0 && (
-                  <div
-                    className={cn(
-                      'flex flex-col gap-2',
-                      (hasCredentials || showNoResults) &&
-                        'mt-2 border-[var(--border)] border-t pt-4'
-                    )}
-                  >
-                    <p className='mb-1 font-medium text-[12px] text-[var(--text-muted)]'>
-                      Available integrations
-                    </p>
-                    {filteredAvailableIntegrations.map((service) => {
-                      const serviceConfig = getServiceConfigByProviderId(service.providerId)
-                      const isConnected = connectedProviderIds.has(service.providerId)
-                      return (
-                        <div
-                          key={service.providerId}
-                          className='flex items-center justify-between gap-3'
-                        >
-                          <div className='flex min-w-0 items-center gap-2.5'>
-                            {serviceConfig && (
-                              <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
-                                {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}
-                              </div>
-                            )}
-                            <span className='truncate font-medium text-[15px]'>{service.name}</span>
-                          </div>
-                          <Button
-                            variant='default'
-                            onClick={() => handleAddForProvider(service.providerId)}
-                          >
-                            {isConnected ? 'Add account' : 'Connect'}
-                          </Button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+            {showNoResults && (
+              <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                {searchTerm.trim()
+                  ? `No integrations found matching “${searchTerm}”`
+                  : 'No integrations in this category'}
               </div>
             )}
           </div>
-        </div>
 
-        {createModalJsx}
-        {deleteConfirmDialogJsx}
+          {createModalJsx}
+          {deleteConfirmDialogJsx}
+        </div>
       </div>
     </div>
   )

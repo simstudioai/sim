@@ -11,7 +11,7 @@ export const OnePasswordBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Security,
   tags: ['secrets-management', 'identity'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: OnePasswordIcon,
   authMode: AuthMode.ApiKey,
 

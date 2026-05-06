@@ -12,7 +12,7 @@ export const GooglePagespeedBlock: BlockConfig<GooglePagespeedAnalyzeResponse> =
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   tags: ['google-workspace', 'seo', 'monitoring'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GooglePagespeedIcon,
   authMode: AuthMode.ApiKey,
 

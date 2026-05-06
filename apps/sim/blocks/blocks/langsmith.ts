@@ -11,7 +11,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
     'Send run data to LangSmith to trace executions, attach metadata, and monitor workflow performance.',
   docsLink: 'https://docs.sim.ai/tools/langsmith',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
+  integrationType: IntegrationType.Observability,
   tags: ['monitoring', 'llm', 'data-analytics'],
   bgColor: '#181C1E',
   icon: LangsmithIcon,

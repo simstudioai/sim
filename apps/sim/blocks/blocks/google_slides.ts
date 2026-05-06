@@ -18,7 +18,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Documents,
   tags: ['google-workspace', 'document-processing', 'content-management'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleSlidesIcon,
   subBlocks: [
     // Operation selector

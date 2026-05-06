@@ -13,7 +13,7 @@ export const GoogleBooksBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Search,
   tags: ['google-workspace', 'knowledge-base', 'content-management'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleBooksIcon,
 
   subBlocks: [

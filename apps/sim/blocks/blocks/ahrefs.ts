@@ -14,7 +14,7 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   tags: ['seo', 'marketing', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: AhrefsIcon,
   subBlocks: [
     {

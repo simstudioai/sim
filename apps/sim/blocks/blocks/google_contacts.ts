@@ -16,7 +16,7 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   tags: ['google-workspace', 'customer-support', 'enrichment'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleContactsIcon,
   subBlocks: [
     {

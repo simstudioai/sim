@@ -13,7 +13,7 @@ export const ApifyBlock: BlockConfig<RunActorResult> = {
   category: 'tools',
   integrationType: IntegrationType.Search,
   tags: ['web-scraping', 'automation', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: ApifyIcon,
 
   subBlocks: [

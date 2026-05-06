@@ -54,7 +54,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Email,
   tags: ['google-workspace', 'messaging'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GmailIcon,
   hideFromToolbar: true,
   triggerAllowed: true,

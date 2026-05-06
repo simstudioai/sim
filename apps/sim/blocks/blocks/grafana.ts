@@ -12,9 +12,9 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
     'Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data sources, folders, and monitor health status.',
   docsLink: 'https://docs.sim.ai/tools/grafana',
   category: 'tools',
-  integrationType: IntegrationType.Analytics,
+  integrationType: IntegrationType.Observability,
   tags: ['monitoring', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GrafanaIcon,
   subBlocks: [
     // Operation dropdown

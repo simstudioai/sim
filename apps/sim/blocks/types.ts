@@ -19,22 +19,49 @@ export type BlockCategory = 'blocks' | 'tools' | 'triggers'
 export enum IntegrationType {
   AI = 'ai',
   Analytics = 'analytics',
+  Commerce = 'commerce',
   Communication = 'communication',
-  CRM = 'crm',
-  CustomerSupport = 'customer-support',
   Databases = 'databases',
-  Design = 'design',
-  DeveloperTools = 'developer-tools',
+  DevOps = 'devops',
   Documents = 'documents',
-  Ecommerce = 'ecommerce',
   Email = 'email',
-  FileStorage = 'file-storage',
   HR = 'hr',
-  Other = 'other',
+  Marketing = 'marketing',
+  Observability = 'observability',
   Productivity = 'productivity',
   Sales = 'sales',
   Search = 'search',
   Security = 'security',
+  Support = 'support',
+}
+
+/**
+ * Human-readable label for each canonical integration category. Used by every
+ * UI surface that renders a category name — landing /integrations grid,
+ * workspace integrations page, dropdowns, etc.
+ */
+export const INTEGRATION_TYPE_LABELS: Record<IntegrationType, string> = {
+  [IntegrationType.AI]: 'AI',
+  [IntegrationType.Analytics]: 'Analytics',
+  [IntegrationType.Commerce]: 'Commerce',
+  [IntegrationType.Communication]: 'Communication',
+  [IntegrationType.Databases]: 'Databases',
+  [IntegrationType.DevOps]: 'DevOps',
+  [IntegrationType.Documents]: 'Documents',
+  [IntegrationType.Email]: 'Email',
+  [IntegrationType.HR]: 'HR',
+  [IntegrationType.Marketing]: 'Marketing',
+  [IntegrationType.Observability]: 'Observability',
+  [IntegrationType.Productivity]: 'Productivity',
+  [IntegrationType.Sales]: 'Sales',
+  [IntegrationType.Search]: 'Search',
+  [IntegrationType.Security]: 'Security',
+  [IntegrationType.Support]: 'Support',
+}
+
+/** Format any category slug for display. Falls back to the slug if unknown. */
+export function formatIntegrationType(slug: string): string {
+  return INTEGRATION_TYPE_LABELS[slug as IntegrationType] ?? slug
 }
 
 export type IntegrationTag =

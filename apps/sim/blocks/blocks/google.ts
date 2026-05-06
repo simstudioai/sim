@@ -13,7 +13,7 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Search,
   tags: ['google-workspace', 'web-scraping', 'seo'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleIcon,
 
   subBlocks: [

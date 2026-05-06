@@ -12,7 +12,7 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
     'Integrate Datadog monitoring into workflows. Submit metrics, manage monitors, query logs, create events, handle downtimes, and more.',
   docsLink: 'https://docs.sim.ai/tools/datadog',
   category: 'tools',
-  integrationType: IntegrationType.Analytics,
+  integrationType: IntegrationType.Observability,
   tags: ['monitoring', 'incident-management', 'error-tracking'],
   bgColor: '#632CA6',
   icon: DatadogIcon,

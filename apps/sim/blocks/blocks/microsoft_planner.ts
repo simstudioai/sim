@@ -37,7 +37,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   tags: ['project-management', 'microsoft-365', 'ticketing'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MicrosoftPlannerIcon,
   subBlocks: [
     {

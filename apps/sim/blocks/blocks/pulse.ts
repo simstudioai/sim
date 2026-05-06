@@ -15,7 +15,7 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
   category: 'tools',
   integrationType: IntegrationType.AI,
   tags: ['document-processing', 'ocr'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: PulseIcon,
   subBlocks: [
     {

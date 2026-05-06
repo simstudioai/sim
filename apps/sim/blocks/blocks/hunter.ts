@@ -13,7 +13,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Sales,
   tags: ['enrichment', 'sales-engagement'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: HunterIOIcon,
   subBlocks: [
     {

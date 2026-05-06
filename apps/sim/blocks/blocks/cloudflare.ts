@@ -11,7 +11,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
     'Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging via the Cloudflare API.',
   docsLink: 'https://docs.sim.ai/tools/cloudflare',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
+  integrationType: IntegrationType.DevOps,
   tags: ['cloud', 'monitoring'],
   bgColor: '#F5F6FA',
   icon: CloudflareIcon,

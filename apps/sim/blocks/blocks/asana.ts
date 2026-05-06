@@ -14,7 +14,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   tags: ['project-management', 'ticketing', 'automation'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: AsanaIcon,
   subBlocks: [
     {

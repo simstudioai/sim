@@ -12,7 +12,7 @@ export const EvernoteBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Documents,
   tags: ['note-taking', 'knowledge-base'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: EvernoteIcon,
   authMode: AuthMode.ApiKey,
 

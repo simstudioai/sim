@@ -12,7 +12,7 @@ export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Sales,
   tags: ['enrichment', 'sales-engagement', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: ClayIcon,
   subBlocks: [
     {

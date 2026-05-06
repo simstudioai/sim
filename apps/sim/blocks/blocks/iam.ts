@@ -11,7 +11,7 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
     'Integrate AWS Identity and Access Management into your workflow. Create and manage users, roles, policies, groups, and access keys.',
   docsLink: 'https://docs.sim.ai/tools/iam',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
+  integrationType: IntegrationType.Security,
   tags: ['cloud', 'identity'],
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
   icon: IAMIcon,

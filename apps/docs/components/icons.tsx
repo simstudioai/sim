@@ -1886,9 +1886,7 @@ export function ConfluenceIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      width='24'
-      height='24'
-      viewBox='0 3 21 24'
+      viewBox='-0.5 4.25 24 24'
       focusable='false'
       fill='none'
       aria-hidden='true'
@@ -2265,9 +2263,7 @@ export function JiraIcon(props: SVGProps<SVGSVGElement>) {
     <svg
       {...props}
       xmlns='http://www.w3.org/2000/svg'
-      viewBox='0 0 30 30'
-      width='24'
-      height='24'
+      viewBox='3.5 4.5 25 25'
       focusable='false'
       aria-hidden='true'
     >
@@ -4070,7 +4066,7 @@ export function PipedriveIcon(props: SVGProps<SVGSVGElement>) {
         fillRule='evenodd'
       >
         <g transform='translate(67.000000, 44.000000)'>
-          <use fill='#FFFFFF' xlinkHref={`#${pathId}`} />
+          <use fill='currentColor' xlinkHref={`#${pathId}`} />
         </g>
       </g>
     </svg>

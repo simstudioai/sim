@@ -12,9 +12,8 @@ import {
   useState,
 } from 'react'
 import { createLogger } from '@sim/logger'
-import { Paperclip } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Tooltip } from '@/components/emcn'
+import { Button, Paperclip, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
@@ -867,18 +866,12 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         <ContextMentionIcon
           context={matchingCtx}
           workflowColor={wfId ? (workflowsById[wfId]?.color ?? null) : null}
-          className='absolute inset-0 m-auto h-[12px] w-[12px] text-[var(--text-icon)]'
+          className='absolute inset-0 m-auto h-[12px] w-[12px] translate-y-[1.25px] text-[var(--text-icon)]'
         />
       ) : null
 
       elements.push(
-        <span
-          key={`mention-${i}-${range.start}-${range.end}`}
-          className='rounded-[5px] bg-[var(--surface-5)] py-0.5'
-          style={{
-            boxShadow: '-2px 0 0 var(--surface-5), 2px 0 0 var(--surface-5)',
-          }}
-        >
+        <span key={`mention-${i}-${range.start}-${range.end}`}>
           <span className='relative'>
             <span className='invisible'>{range.token.charAt(0)}</span>
             {mentionIconNode}
@@ -902,7 +895,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     <div
       onClick={handleContainerClick}
       className={cn(
-        'relative z-10 mx-auto w-full max-w-[44rem] cursor-text rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
+        'relative z-10 mx-auto w-full max-w-[48rem] cursor-text rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
         isInitialView && 'shadow-sm'
       )}
       onDragEnter={handleDragEnter}
@@ -938,14 +931,14 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
           onSelect={handleSelectAdjust}
           onMouseUp={handleSelectAdjust}
           onScroll={handleScroll}
-          placeholder=''
+          placeholder='Ask Sim to '
           rows={1}
           className={cn(TEXTAREA_BASE_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}
         />
       </div>
 
       <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-1.5'>
+        <div className='flex items-center gap-1'>
           <PlusMenuDropdown
             ref={plusMenuRef}
             availableResources={availableResources}
@@ -964,7 +957,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
                 aria-label='Attach file'
                 className='h-[28px] w-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
               >
-                <Paperclip className='h-[14px] w-[14px] text-[var(--text-icon)]' strokeWidth={2} />
+                <Paperclip className='h-[16px] w-[16px] text-[var(--text-icon)]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Attach file</Tooltip.Content>

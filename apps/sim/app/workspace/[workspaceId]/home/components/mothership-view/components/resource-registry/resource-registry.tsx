@@ -4,12 +4,12 @@ import { type ElementType, type ReactNode, useMemo } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import {
-  Blimp,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
   Library,
   Table as TableIcon,
+  Task,
   TerminalWindow,
 } from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
@@ -183,11 +183,11 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
   task: {
     type: 'task',
     label: 'Tasks',
-    icon: Blimp,
+    icon: Task,
     renderTabIcon: (_resource, className) => (
-      <Blimp className={cn(className, 'text-[var(--text-icon)]')} />
+      <Task className={cn(className, 'text-[var(--text-icon)]')} />
     ),
-    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Blimp} />,
+    renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
   },
   log: {
     type: 'log',

@@ -4,6 +4,7 @@ import { devtools } from 'zustand/middleware'
 import { getToolOperationsIndex } from '@/lib/search/tool-operations'
 import { getTriggersForSidebar } from '@/lib/workflows/triggers/trigger-utils'
 import { getAllBlocks } from '@/blocks'
+import { isCoreBlockType } from '@/blocks/core'
 import type {
   SearchBlockItem,
   SearchData,
@@ -58,9 +59,12 @@ export const useSearchModalStore = create<SearchModalState>()(
             type: block.type,
           }
 
-          if (block.category === 'blocks' && block.type !== 'starter') {
+          if (block.category === 'blocks' && isCoreBlockType(block.type)) {
             regularBlocks.push(searchItem)
-          } else if (block.category === 'tools') {
+          } else if (
+            block.category === 'tools' ||
+            (block.category === 'blocks' && !isCoreBlockType(block.type))
+          ) {
             tools.push(searchItem)
           }
 

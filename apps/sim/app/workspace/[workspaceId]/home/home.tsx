@@ -288,7 +288,7 @@ export function Home({ chatId }: HomeProps = {}) {
           <CreditsChip />
         </div>
         <div className='flex min-h-full flex-col items-center justify-center px-6 pb-[2vh]'>
-          <h1 className='mb-6 max-w-[44rem] text-balance font-[430] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'>
+          <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
             What should we get done
             {session?.user?.name ? `, ${session.user.name.split(' ')[0]}` : ''}?
           </h1>

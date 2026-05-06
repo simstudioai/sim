@@ -13,7 +13,7 @@ export const GoogleBigQueryBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Databases,
   tags: ['data-warehouse', 'google-workspace', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleBigQueryIcon,
   authMode: AuthMode.OAuth,
   subBlocks: [

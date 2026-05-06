@@ -14,7 +14,7 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Databases,
   tags: ['vector-search', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: ElasticsearchIcon,
   subBlocks: [
     // Operation selector

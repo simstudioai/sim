@@ -269,7 +269,7 @@ export const PlusMenuDropdown = React.memo(
                 onKeyDown={handleSearchKeyDown}
               />
             )}
-            <div className='min-h-0 flex-1 overflow-y-auto'>
+            <div className='min-h-0 flex-1 overflow-y-auto overscroll-none'>
               {/* Always-mounted; swapping this subtree with filtered results makes Radix's
                   menu FocusScope steal focus from the search input back to the content root. */}
               <div hidden={filteredItems !== null}>
@@ -357,7 +357,7 @@ export const PlusMenuDropdown = React.memo(
           ref={buttonRef}
           type='button'
           onClick={() => doOpen()}
-          className='flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-full border border-[var(--border-1)] transition-colors hover:bg-[var(--surface-hover)]'
+          className='flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-[var(--surface-hover)]'
           title='Add attachments or resources'
         >
           <Plus className='h-[16px] w-[16px] text-[var(--text-icon)]' />

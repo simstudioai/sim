@@ -28,6 +28,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/hooks'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
+import { isCoreBlockType } from '@/blocks/core'
 import type { BlockConfig } from '@/blocks/types'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSandboxBlockConstraints } from '@/hooks/use-sandbox-block-constraints'
@@ -196,9 +197,16 @@ function getBlocks() {
   if (cachedBlocks === null) {
     const allBlocks = getBlocksForSidebar()
 
-    // Separate blocks by category
-    const regularBlockConfigs = allBlocks.filter((block) => block.category === 'blocks')
-    const toolConfigs = allBlocks.filter((block) => block.category === 'tools')
+    // Core blocks: curated first-party set defined in `@/blocks/core`.
+    // Tools: every third-party integration (`category === 'tools'`) plus any
+    // non-core `category === 'blocks'` entries (e.g. data primitives) blended in.
+    const regularBlockConfigs = allBlocks.filter(
+      (block) => block.category === 'blocks' && isCoreBlockType(block.type)
+    )
+    const toolConfigs = allBlocks.filter(
+      (block) =>
+        block.category === 'tools' || (block.category === 'blocks' && !isCoreBlockType(block.type))
+    )
 
     // Create regular block items
     const regularBlockItems: BlockItem[] = regularBlockConfigs.map((block) => ({

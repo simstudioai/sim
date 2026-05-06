@@ -14,9 +14,9 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
     'Integrate with Jira Service Management for IT service management. Create and manage service requests, handle customers and organizations, track SLAs, and manage queues.',
   docsLink: 'https://docs.sim.ai/tools/jira-service-management',
   category: 'tools',
-  integrationType: IntegrationType.CustomerSupport,
+  integrationType: IntegrationType.Support,
   tags: ['customer-support', 'ticketing', 'incident-management'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: JiraServiceManagementIcon,
   subBlocks: [
     {

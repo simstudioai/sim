@@ -12,7 +12,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
     'Integrate Rootly incident management into workflows. Create and manage incidents, alerts, services, severities, and retrospectives.',
   docsLink: 'https://docs.sim.ai/tools/rootly',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
+  integrationType: IntegrationType.Observability,
   tags: ['incident-management', 'monitoring'],
   bgColor: '#6C72C8',
   icon: RootlyIcon,

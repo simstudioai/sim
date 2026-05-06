@@ -10,7 +10,7 @@ export const LaunchDarklyBlock: BlockConfig = {
     'Integrate LaunchDarkly into your workflow. List, create, update, toggle, and delete feature flags. Manage projects, environments, segments, members, and audit logs. Requires API Key.',
   docsLink: 'https://docs.sim.ai/tools/launchdarkly',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
+  integrationType: IntegrationType.Observability,
   tags: ['feature-flags', 'ci-cd'],
   bgColor: '#191919',
   icon: LaunchDarklyIcon,

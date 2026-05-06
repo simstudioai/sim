@@ -10,7 +10,7 @@ export const GammaBlock: BlockConfig<GammaResponse> = {
     'Integrate Gamma into the workflow. Can generate presentations, documents, webpages, and social posts from text, create from templates, check generation status, and browse themes and folders.',
   docsLink: 'https://docs.sim.ai/tools/gamma',
   category: 'tools',
-  integrationType: IntegrationType.Design,
+  integrationType: IntegrationType.Marketing,
   tags: ['document-processing', 'content-management'],
   bgColor: '#002253',
   icon: GammaIcon,

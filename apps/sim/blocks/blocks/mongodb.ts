@@ -13,7 +13,7 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectRespon
   category: 'tools',
   integrationType: IntegrationType.Databases,
   tags: ['data-warehouse', 'cloud'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MongoDBIcon,
   subBlocks: [
     {

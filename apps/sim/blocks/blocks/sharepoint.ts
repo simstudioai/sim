@@ -20,7 +20,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Documents,
   tags: ['microsoft-365', 'content-management', 'document-processing'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: MicrosoftSharepointIcon,
   subBlocks: [
     {

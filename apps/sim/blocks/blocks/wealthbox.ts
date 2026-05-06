@@ -13,9 +13,9 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
     'Integrate Wealthbox into the workflow. Can read and write notes, read and write contacts, and read and write tasks.',
   docsLink: 'https://docs.sim.ai/tools/wealthbox',
   category: 'tools',
-  integrationType: IntegrationType.CRM,
+  integrationType: IntegrationType.Sales,
   tags: ['sales-engagement', 'customer-support'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: WealthboxIcon,
   subBlocks: [
     {

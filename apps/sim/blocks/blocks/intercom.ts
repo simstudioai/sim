@@ -14,9 +14,9 @@ export const IntercomBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/intercom',
   authMode: AuthMode.ApiKey,
   category: 'tools',
-  integrationType: IntegrationType.CustomerSupport,
+  integrationType: IntegrationType.Support,
   tags: ['customer-support', 'messaging'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: IntercomIcon,
   subBlocks: [
     {
@@ -1407,7 +1407,7 @@ export const IntercomV2Block: BlockConfig = {
   ...IntercomBlock,
   type: 'intercom_v2',
   name: 'Intercom',
-  integrationType: IntegrationType.CustomerSupport,
+  integrationType: IntegrationType.Support,
   tags: ['customer-support', 'messaging'],
   hideFromToolbar: false,
   subBlocks: [

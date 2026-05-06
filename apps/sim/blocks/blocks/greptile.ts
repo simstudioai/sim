@@ -12,9 +12,9 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
     'Query and search codebases using natural language with Greptile. Get AI-generated answers about your code, find relevant files, and understand complex codebases.',
   docsLink: 'https://docs.sim.ai/tools/greptile',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
+  integrationType: IntegrationType.DevOps,
   tags: ['version-control', 'knowledge-base'],
-  bgColor: '#e5e5e5',
+  bgColor: '#FFFFFF',
   icon: GreptileIcon,
   subBlocks: [
     {

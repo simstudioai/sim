@@ -13,7 +13,7 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
     'Integrates Stripe into the workflow. Manage payment intents, customers, subscriptions, invoices, charges, products, prices, and events. Can be used in trigger mode to trigger a workflow when a Stripe event occurs.',
   docsLink: 'https://docs.sim.ai/tools/stripe',
   category: 'tools',
-  integrationType: IntegrationType.Ecommerce,
+  integrationType: IntegrationType.Commerce,
   tags: ['payments', 'subscriptions', 'webhooks'],
   bgColor: '#635BFF',
   icon: StripeIcon,

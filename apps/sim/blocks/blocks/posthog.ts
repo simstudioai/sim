@@ -14,7 +14,7 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   tags: ['data-analytics', 'monitoring'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: PosthogIcon,
   subBlocks: [
     {

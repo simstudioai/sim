@@ -12,7 +12,7 @@ export const DubBlock: BlockConfig<DubResponse> = {
     'Create, manage, and track short links with Dub. Supports custom domains, UTM parameters, link analytics, and more.',
   docsLink: 'https://docs.sim.ai/tools/dub',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
+  integrationType: IntegrationType.DevOps,
   tags: ['link-management', 'marketing', 'data-analytics'],
   bgColor: '#181C1E',
   icon: DubIcon,

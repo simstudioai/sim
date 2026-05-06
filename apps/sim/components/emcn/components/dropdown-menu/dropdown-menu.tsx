@@ -28,6 +28,9 @@ import { cn } from '@/lib/core/utils/cn'
 const ANIMATION_CLASSES =
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
 
+const CONTENT_BASE_CLASSES =
+  'z-[var(--z-dropdown)] max-h-[240px] min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden overscroll-none border border-[var(--border)] bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
+
 const DropdownMenu = DropdownMenuPrimitive.Root
 
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
@@ -88,41 +91,22 @@ const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.Portal>
     <DropdownMenuPrimitive.SubContent
       ref={ref}
-      className={cn(
-        ANIMATION_CLASSES,
-        'z-[var(--z-dropdown)] max-h-[240px] min-w-[8rem] max-w-[280px] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm',
-        className
-      )}
+      className={cn(ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[280px] rounded-lg', className)}
       {...props}
     />
   </DropdownMenuPrimitive.Portal>
 ))
 DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName
 
-type DropdownMenuContentProps = React.ComponentPropsWithoutRef<
-  typeof DropdownMenuPrimitive.Content
-> & {
-  /**
-   * Forwarded to Radix's internal FocusScope. The Radix primitive supports this prop at
-   * runtime but does not expose it in its public TypeScript types — surface it here so
-   * callers can opt out of the default focus-into-menu behavior on open.
-   */
-  onOpenAutoFocus?: (event: Event) => void
-}
-
 const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,
-  DropdownMenuContentProps
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
 >(({ className, sideOffset = 6, ...props }, ref) => (
   <DropdownMenuPrimitive.Portal>
     <DropdownMenuPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
-      className={cn(
-        ANIMATION_CLASSES,
-        'z-[var(--z-dropdown)] max-h-[240px] min-w-[8rem] max-w-[220px] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm',
-        className
-      )}
+      className={cn(ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[220px] rounded-xl', className)}
       {...props}
     />
   </DropdownMenuPrimitive.Portal>
@@ -272,13 +256,11 @@ const DropdownMenuSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Separator
     ref={ref}
-    className={cn('-mx-1.5 my-1.5 h-px bg-[var(--border-1)]', className)}
+    className={cn('my-1.5 h-px bg-[var(--border-1)]', className)}
     {...props}
   />
 ))
 DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName
-
-const stopPropagation = (e: React.KeyboardEvent) => e.stopPropagation()
 
 const DropdownMenuSearchInput = React.forwardRef<
   HTMLInputElement,
@@ -300,16 +282,16 @@ const DropdownMenuSearchInput = React.forwardRef<
   )
 
   return (
-    <div className='mx-0.5 mt-0.5 mb-0.5 flex shrink-0 items-center gap-2 rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
+    <div className='mx-0.5 mt-0.5 mb-0.5 flex h-[30px] shrink-0 items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
       <Search className='h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
       <input
         ref={setRefs}
         onKeyDown={(e) => {
-          stopPropagation(e)
+          e.stopPropagation()
           onKeyDown?.(e)
         }}
         className={cn(
-          'w-full bg-transparent py-1 font-medium text-[var(--text-primary)] text-caption outline-none placeholder:text-[var(--text-muted)] focus:outline-none',
+          'h-full w-full bg-transparent font-base text-[var(--text-body)] text-small outline-none placeholder:text-[var(--text-muted)] focus:outline-none',
           className
         )}
         {...props}

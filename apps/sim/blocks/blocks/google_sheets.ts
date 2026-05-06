@@ -19,7 +19,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Documents,
   tags: ['spreadsheet', 'google-workspace', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleSheetsIcon,
   subBlocks: [
     // Operation selector
@@ -308,7 +308,7 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
   category: 'tools',
   integrationType: IntegrationType.Documents,
   tags: ['spreadsheet', 'google-workspace', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleSheetsIcon,
   subBlocks: [
     // Operation selector

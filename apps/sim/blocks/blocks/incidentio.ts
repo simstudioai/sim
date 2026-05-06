@@ -12,9 +12,9 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
     'Integrate incident.io into the workflow. Manage incidents, actions, follow-ups, workflows, schedules, escalations, custom fields, and more.',
   docsLink: 'https://docs.sim.ai/tools/incidentio',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
+  integrationType: IntegrationType.Observability,
   tags: ['incident-management', 'monitoring'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: IncidentioIcon,
   subBlocks: [
     {

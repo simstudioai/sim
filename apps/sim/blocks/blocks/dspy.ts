@@ -11,7 +11,7 @@ export const DSPyBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.AI,
   tags: ['llm', 'agentic', 'automation'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: DsPyIcon,
 
   subBlocks: [

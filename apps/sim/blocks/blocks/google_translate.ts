@@ -147,7 +147,7 @@ export const GoogleTranslateBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.AI,
   tags: ['google-workspace', 'content-management', 'automation'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleTranslateIcon,
   authMode: AuthMode.ApiKey,
   subBlocks: [

@@ -11,9 +11,9 @@ export const ZendeskBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/zendesk',
   authMode: AuthMode.ApiKey,
   category: 'tools',
-  integrationType: IntegrationType.CustomerSupport,
+  integrationType: IntegrationType.Support,
   tags: ['customer-support', 'ticketing'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: ZendeskIcon,
   subBlocks: [
     {

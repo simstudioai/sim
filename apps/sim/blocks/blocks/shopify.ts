@@ -28,7 +28,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
     'Integrate Shopify into your workflow. Manage products, orders, customers, and inventory. Create, read, update, and delete products. List and manage orders. Handle customer data and adjust inventory levels.',
   docsLink: 'https://docs.sim.ai/tools/shopify',
   category: 'tools',
-  integrationType: IntegrationType.Ecommerce,
+  integrationType: IntegrationType.Commerce,
   tags: ['payments', 'subscriptions'],
   icon: ShopifyIcon,
   bgColor: '#FFFFFF',

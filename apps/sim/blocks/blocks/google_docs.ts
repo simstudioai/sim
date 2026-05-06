@@ -16,7 +16,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Documents,
   tags: ['google-workspace', 'document-processing', 'content-management'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: GoogleDocsIcon,
   subBlocks: [
     // Operation selector

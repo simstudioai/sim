@@ -14,9 +14,9 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
     'Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks with powerful automation capabilities.',
   docsLink: 'https://docs.sim.ai/tools/salesforce',
   category: 'tools',
-  integrationType: IntegrationType.CRM,
+  integrationType: IntegrationType.Sales,
   tags: ['sales-engagement', 'customer-support'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: SalesforceIcon,
   triggers: {
     enabled: true,

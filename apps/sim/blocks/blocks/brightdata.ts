@@ -14,7 +14,7 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Search,
   tags: ['web-scraping', 'automation'],
-  bgColor: '#FFFFFF',
+  bgColor: '#0F4C81',
   icon: BrightDataIcon,
   subBlocks: [
     {
