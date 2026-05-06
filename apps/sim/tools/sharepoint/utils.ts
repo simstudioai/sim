@@ -13,8 +13,8 @@ export function escapeODataString(value: string): string {
   return value.replace(/'/g, "''")
 }
 
-export function getGraphNextPageUrl(data: Record<string, unknown>): string | undefined {
-  const nextLink = data['@odata.nextLink']
+export function getGraphNextPageUrl(data: object): string | undefined {
+  const nextLink = (data as Record<string, unknown>)['@odata.nextLink']
   return typeof nextLink === 'string' ? nextLink : undefined
 }
 

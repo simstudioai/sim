@@ -12,6 +12,8 @@ import {
 } from '@/tools/emailbison/utils'
 import type { ToolConfig } from '@/tools/types'
 
+const CAMPAIGN_STATUS_ACTIONS = new Set(['pause', 'resume', 'archive'])
+
 export const updateCampaignStatusTool: ToolConfig<
   EmailBisonCampaignStatusParams,
   EmailBisonCampaignResponse
@@ -36,8 +38,17 @@ export const updateCampaignStatusTool: ToolConfig<
     },
   },
   request: {
-    url: (params) =>
-      emailBisonUrl(`/api/campaigns/${params.campaignId}/${params.action}`, {}, params.apiBaseUrl),
+    url: (params) => {
+      if (!CAMPAIGN_STATUS_ACTIONS.has(params.action)) {
+        throw new Error('Email Bison campaign status action must be pause, resume, or archive')
+      }
+
+      return emailBisonUrl(
+        `/api/campaigns/${params.campaignId}/${params.action}`,
+        {},
+        params.apiBaseUrl
+      )
+    },
     method: 'PATCH',
     headers: emailBisonHeaders,
   },

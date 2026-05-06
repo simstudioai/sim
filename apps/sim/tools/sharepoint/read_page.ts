@@ -255,7 +255,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
 
     const siteId = params?.siteId || params?.siteSelector || 'root'
     const pagesWithContent = []
-    const nextPageUrl = getGraphNextPageUrl(data as unknown as Record<string, unknown>)
+    const nextPageUrl = getGraphNextPageUrl(data)
 
     logger.info('Fetching content for all pages', {
       totalPages: data.value.length,
