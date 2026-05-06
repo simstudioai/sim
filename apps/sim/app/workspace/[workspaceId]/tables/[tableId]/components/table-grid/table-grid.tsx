@@ -2712,12 +2712,12 @@ export function TableGrid({
       if (tableWorkflowGroups.length === 0) return
       const target = rowsRef.current.find((r) => r.id === rowId)
       if (!target) return
-      // Only fire groups whose deps are already satisfied for THIS row. The
-      // cascade picks up downstream groups: when an upstream group completes,
-      // `scheduleWorkflowGroupRuns` evaluates eligibility and enqueues the
-      // newly-ready successors automatically.
+      // Fire each group that's runnable on this row. autoRun=false groups
+      // run regardless of deps (user model: no autoRun = no deps).
+      // autoRun=true groups only fire when deps are satisfied — others stay
+      // as "Waiting" and the cascade picks them up after upstream finishes.
       for (const group of tableWorkflowGroups) {
-        if (!areRowDepsSatisfied(group, target)) continue
+        if (group.autoRun !== false && !areRowDepsSatisfied(group, target)) continue
         void runWorkflowGroup({
           tableId,
           rowId,
