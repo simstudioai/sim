@@ -541,6 +541,9 @@ export function Table({
 
     if (snapshots.length > 0) {
       setDeletingRows(snapshots)
+      if (rowSel.kind !== 'none') {
+        setRowSelection(ROW_SELECTION_NONE)
+      }
     }
 
     closeContextMenu()
