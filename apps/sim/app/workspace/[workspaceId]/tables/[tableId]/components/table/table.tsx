@@ -186,6 +186,9 @@ interface TableProps {
    * change. Wrapper uses this to render <TableActionBar>.
    */
   onSelectionChange: (state: SelectionSnapshot) => void
+  /** Filter + sort. Lifted to wrapper so a single `useTable` call serves both. */
+  queryOptions: QueryOptions
+  onQueryOptionsChange: (next: QueryOptions | ((prev: QueryOptions) => QueryOptions)) => void
   /**
    * Ref the grid populates with its `handleColumnRename` so the wrapper's
    * sidebars can fire a column rename back into the grid (rewrites local
@@ -230,6 +233,8 @@ export function Table({
   onStopAll,
   cancelRunsPending,
   onSelectionChange,
+  queryOptions,
+  onQueryOptionsChange,
   columnRenameSinkRef,
   afterDeleteRowsSinkRef,
   confirmDeleteColumnsSinkRef,
@@ -245,10 +250,6 @@ export function Table({
     captureEvent(posthog, 'table_opened', { table_id: tableId, workspace_id: workspaceId })
   }, [tableId, workspaceId, posthog])
 
-  const [queryOptions, setQueryOptions] = useState<QueryOptions>({
-    filter: null,
-    sort: null,
-  })
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null)
   const [initialCharacter, setInitialCharacter] = useState<string | null>(null)
   const [expandedCell, setExpandedCell] = useState<EditingCell | null>(null)
@@ -2535,17 +2536,23 @@ export function Table({
     deleteNext(0)
   }
 
-  const handleSortChange = useCallback((column: string, direction: SortDirection) => {
-    setQueryOptions((prev) => ({ ...prev, sort: { [column]: direction } }))
-  }, [])
+  const handleSortChange = useCallback(
+    (column: string, direction: SortDirection) => {
+      onQueryOptionsChange((prev) => ({ ...prev, sort: { [column]: direction } }))
+    },
+    [onQueryOptionsChange]
+  )
 
   const handleSortClear = useCallback(() => {
-    setQueryOptions((prev) => ({ ...prev, sort: null }))
-  }, [])
+    onQueryOptionsChange((prev) => ({ ...prev, sort: null }))
+  }, [onQueryOptionsChange])
 
-  const handleFilterApply = useCallback((filter: Filter | null) => {
-    setQueryOptions((prev) => ({ ...prev, filter }))
-  }, [])
+  const handleFilterApply = useCallback(
+    (filter: Filter | null) => {
+      onQueryOptionsChange((prev) => ({ ...prev, filter }))
+    },
+    [onQueryOptionsChange]
+  )
 
   const [filterOpen, setFilterOpen] = useState(false)
 

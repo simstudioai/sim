@@ -16,6 +16,7 @@ import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import type { TableRow as TableRowType } from '@/lib/table'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import type { QueryOptions } from './types'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
@@ -102,6 +103,7 @@ export function TablesDetail({
     runningInActionBarSelection: 0,
     hasWorkflowColumns: false,
   })
+  const [queryOptions, setQueryOptions] = useState<QueryOptions>({ filter: null, sort: null })
 
   const userPermissions = useUserPermissionsContext()
 
@@ -129,13 +131,12 @@ export function TablesDetail({
    */
   const confirmDeleteColumnsSinkRef = useRef<((names: string[]) => void) | null>(null)
 
-  // Query data needed for the slideouts and modal copy. The grid also calls
-  // `useTable`; React Query dedupes the request so this is one network call.
-  // A future phase lifts the call entirely to the wrapper.
+  // Single source of truth for `useTable` — drives both the grid render and
+  // the wrapper's slideouts/modals. The grid receives the bundle as props.
   const { tableData, columns, tableWorkflowGroups, workflows } = useTable({
     workspaceId,
     tableId,
-    queryOptions: { filter: null, sort: null },
+    queryOptions,
   })
   const tableWorkflowGroupsRef = useRef(tableWorkflowGroups)
   tableWorkflowGroupsRef.current = tableWorkflowGroups
@@ -197,6 +198,13 @@ export function TablesDetail({
   const onSelectionChange = useCallback((next: SelectionSnapshot) => {
     setSelection(next)
   }, [])
+
+  const onQueryOptionsChange = useCallback(
+    (next: QueryOptions | ((prev: QueryOptions) => QueryOptions)) => {
+      setQueryOptions(next)
+    },
+    []
+  )
 
   const logPanelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const sidebarReservedPx =
@@ -266,6 +274,8 @@ export function TablesDetail({
         onStopAll={onStopAll}
         cancelRunsPending={cancelRunsMutation.isPending}
         onSelectionChange={onSelectionChange}
+        queryOptions={queryOptions}
+        onQueryOptionsChange={onQueryOptionsChange}
         columnRenameSinkRef={columnRenameSinkRef}
         afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}
         confirmDeleteColumnsSinkRef={confirmDeleteColumnsSinkRef}
