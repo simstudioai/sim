@@ -6,7 +6,12 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+import {
+  getAtlassianServiceAccountSecret,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/app/api/auth/oauth/utils'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
@@ -39,23 +44,39 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
 
-    const accessToken = await refreshAccessTokenIfNeeded(
-      credential,
-      authz.credentialOwnerUserId,
-      requestId
-    )
-    if (!accessToken) {
-      logger.error('Failed to get access token', {
-        credentialId: credential,
-        userId: authz.credentialOwnerUserId,
-      })
-      return NextResponse.json(
-        { error: 'Could not retrieve access token', authRequired: true },
-        { status: 401 }
-      )
-    }
+    // Resolve once so we know whether this is an Atlassian SA credential before
+    // doing any token / cloudId work. Atlassian SAs short-circuit the entire path:
+    // the API token IS the access token, and cloudId lives in the encrypted secret —
+    // so we skip refreshAccessTokenIfNeeded (avoids a redundant resolve+decrypt) and
+    // skip getConfluenceCloudId (which 401s for scoped SA tokens).
+    const resolved = await resolveOAuthAccountId(credential)
+    const isAtlassianServiceAccount =
+      resolved?.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID && !!resolved.credentialId
 
-    const cloudId = await getConfluenceCloudId(domain, accessToken)
+    let accessToken: string | null
+    let cloudId: string
+    if (isAtlassianServiceAccount) {
+      const secret = await getAtlassianServiceAccountSecret(resolved.credentialId!)
+      accessToken = secret.apiToken
+      cloudId = secret.cloudId
+    } else {
+      accessToken = await refreshAccessTokenIfNeeded(
+        credential,
+        authz.credentialOwnerUserId,
+        requestId
+      )
+      if (!accessToken) {
+        logger.error('Failed to get access token', {
+          credentialId: credential,
+          userId: authz.credentialOwnerUserId,
+        })
+        return NextResponse.json(
+          { error: 'Could not retrieve access token', authRequired: true },
+          { status: 401 }
+        )
+      }
+      cloudId = await getConfluenceCloudId(domain, accessToken)
+    }
 
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {

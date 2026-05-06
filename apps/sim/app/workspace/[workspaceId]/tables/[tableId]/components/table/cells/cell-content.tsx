@@ -119,7 +119,9 @@ export function CellContent({
       <div
         className={cn('flex min-h-[20px] items-center justify-center', isEditing && 'invisible')}
       >
-        <Checkbox size='sm' checked={Boolean(value)} className='pointer-events-none' />
+        <span data-boolean-cell-toggle className='inline-flex'>
+          <Checkbox size='sm' checked={Boolean(value)} className='pointer-events-none' />
+        </span>
       </div>
     )
   } else if (!isNull && column.type === 'json') {

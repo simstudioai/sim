@@ -33,9 +33,12 @@ import {
   writeOAuthReturnContext,
 } from '@/lib/credentials/client-state'
 import { getCanonicalScopesForProvider, getServiceConfigByProviderId } from '@/lib/oauth'
+import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import { getScopeDescription } from '@/lib/oauth/utils'
 import { getUserColor } from '@/lib/workspaces/colors'
+import { AtlassianServiceAccountForm } from '@/app/workspace/[workspaceId]/settings/components/integrations/atlassian-service-account-form'
 import { CredentialSkeleton } from '@/app/workspace/[workspaceId]/settings/components/integrations/credential-skeleton'
+import { ServiceAccountForm } from '@/app/workspace/[workspaceId]/settings/components/integrations/service-account-form'
 import {
   useCreateCredentialDraft,
   useCreateWorkspaceCredential,
@@ -108,12 +111,6 @@ export function IntegrationsManager() {
     | { type: 'kb-connectors'; knowledgeBaseId: string }
     | undefined
   >(undefined)
-  const [saJsonInput, setSaJsonInput] = useState('')
-  const [saDisplayName, setSaDisplayName] = useState('')
-  const [saDescription, setSaDescription] = useState('')
-  const [saError, setSaError] = useState<string | null>(null)
-  const [saIsSubmitting, setSaIsSubmitting] = useState(false)
-  const [saDragActive, setSaDragActive] = useState(false)
 
   const { data: session } = useSession()
   const currentUserId = session?.user?.id || ''
@@ -384,10 +381,6 @@ export function IntegrationsManager() {
     setCreateError(null)
     setCreateStep(1)
     setServiceSearch('')
-    setSaJsonInput('')
-    setSaDisplayName('')
-    setSaDescription('')
-    setSaError(null)
     pendingReturnOriginRef.current = undefined
   }
 
@@ -651,117 +644,6 @@ export function IntegrationsManager() {
     setShowCreateModal(true)
   }, [])
 
-  const validateServiceAccountJson = (raw: string): { valid: boolean; error?: string } => {
-    let parsed: Record<string, unknown>
-    try {
-      parsed = JSON.parse(raw)
-    } catch {
-      return { valid: false, error: 'Invalid JSON. Paste the full service account key file.' }
-    }
-    if (parsed.type !== 'service_account') {
-      return { valid: false, error: 'JSON key must have "type": "service_account".' }
-    }
-    if (!parsed.client_email || typeof parsed.client_email !== 'string') {
-      return { valid: false, error: 'Missing "client_email" field.' }
-    }
-    if (!parsed.private_key || typeof parsed.private_key !== 'string') {
-      return { valid: false, error: 'Missing "private_key" field.' }
-    }
-    if (!parsed.project_id || typeof parsed.project_id !== 'string') {
-      return { valid: false, error: 'Missing "project_id" field.' }
-    }
-    return { valid: true }
-  }
-
-  const handleCreateServiceAccount = async () => {
-    setSaError(null)
-    const trimmed = saJsonInput.trim()
-    if (!trimmed) {
-      setSaError('Paste the service account JSON key.')
-      return
-    }
-    const validation = validateServiceAccountJson(trimmed)
-    if (!validation.valid) {
-      setSaError(validation.error ?? 'Invalid JSON')
-      return
-    }
-    setSaIsSubmitting(true)
-    try {
-      await createCredential.mutateAsync({
-        workspaceId,
-        type: 'service_account',
-        displayName: saDisplayName.trim() || undefined,
-        description: saDescription.trim() || undefined,
-        serviceAccountJson: trimmed,
-      })
-      setShowCreateModal(false)
-      resetCreateForm()
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to add service account'
-      setSaError(message)
-      logger.error('Failed to create service account credential', error)
-    } finally {
-      setSaIsSubmitting(false)
-    }
-  }
-
-  const readSaJsonFile = useCallback(
-    (file: File) => {
-      if (!file.name.endsWith('.json')) {
-        setSaError('Only .json files are supported')
-        return
-      }
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const text = e.target?.result
-        if (typeof text === 'string') {
-          setSaJsonInput(text)
-          setSaError(null)
-          try {
-            const parsed = JSON.parse(text)
-            if (parsed.client_email && !saDisplayName.trim()) {
-              setSaDisplayName(parsed.client_email)
-            }
-          } catch {
-            // validation will catch this on submit
-          }
-        }
-      }
-      reader.readAsText(file)
-    },
-    [saDisplayName]
-  )
-
-  const handleSaFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    readSaJsonFile(file)
-    event.target.value = ''
-  }
-
-  const handleSaDragOver = useCallback((event: React.DragEvent) => {
-    event.preventDefault()
-    event.stopPropagation()
-    setSaDragActive(true)
-  }, [])
-
-  const handleSaDragLeave = useCallback((event: React.DragEvent) => {
-    event.preventDefault()
-    event.stopPropagation()
-    setSaDragActive(false)
-  }, [])
-
-  const handleSaDrop = useCallback(
-    (event: React.DragEvent) => {
-      event.preventDefault()
-      event.stopPropagation()
-      setSaDragActive(false)
-      const file = event.dataTransfer.files[0]
-      if (file) readSaJsonFile(file)
-    },
-    [readSaJsonFile]
-  )
-
   const filteredServices = useMemo(() => {
     if (!serviceSearch.trim()) return oauthServiceOptions
     const q = serviceSearch.toLowerCase()
@@ -965,160 +847,31 @@ export function IntegrationsManager() {
               </Button>
             </ModalFooter>
           </>
+        ) : selectedOAuthService?.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID ? (
+          <AtlassianServiceAccountForm
+            service={selectedOAuthService}
+            serviceLabel={selectedOAuthService.name || resolveProviderLabel(createOAuthProviderId)}
+            workspaceId={workspaceId}
+            onBack={() => setCreateStep(1)}
+            onCreate={(input) => createCredential.mutateAsync(input)}
+            onCreated={() => {
+              setShowCreateModal(false)
+              resetCreateForm()
+            }}
+          />
         ) : (
-          <>
-            <ModalHeader>
-              <div className='flex items-center gap-2.5'>
-                <Button
-                  type='button'
-                  variant='ghost'
-                  onClick={() => {
-                    setCreateStep(1)
-                    setSaError(null)
-                  }}
-                  className='h-6 w-6 rounded-[4px] p-0 text-[var(--text-muted)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
-                  aria-label='Back'
-                >
-                  ←
-                </Button>
-                <span>
-                  Add {selectedOAuthService?.name || resolveProviderLabel(createOAuthProviderId)}
-                </span>
-              </div>
-            </ModalHeader>
-            <ModalBody>
-              {saError && (
-                <div className='mb-3'>
-                  <Badge variant='red' size='lg' dot className='max-w-full'>
-                    {saError}
-                  </Badge>
-                </div>
-              )}
-              <div className='flex flex-col gap-4'>
-                <div className='flex items-center gap-3'>
-                  <div className='flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[var(--surface-5)]'>
-                    {selectedOAuthService &&
-                      createElement(selectedOAuthService.icon, { className: 'h-[18px] w-[18px]' })}
-                  </div>
-                  <div>
-                    <p className='font-medium text-[13px] text-[var(--text-primary)]'>
-                      Add {selectedOAuthService?.name || 'service account'}
-                    </p>
-                    <p className='text-[12px] text-[var(--text-tertiary)]'>
-                      {selectedOAuthService?.description || 'Paste or upload the JSON key file'}
-                    </p>
-                    <a
-                      href='https://docs.sim.ai/credentials/google-service-account'
-                      target='_blank'
-                      rel='noopener noreferrer'
-                      className='text-[12px] text-[var(--accent)] hover:underline'
-                    >
-                      View setup guide
-                    </a>
-                  </div>
-                </div>
-
-                <div>
-                  <Label>
-                    JSON Key<span className='ml-1'>*</span>
-                  </Label>
-                  <div
-                    onDragOver={handleSaDragOver}
-                    onDragLeave={handleSaDragLeave}
-                    onDrop={handleSaDrop}
-                    className={cn(
-                      'relative mt-1.5 rounded-md border-2 border-dashed transition-colors',
-                      saDragActive
-                        ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                        : 'border-transparent'
-                    )}
-                  >
-                    {saDragActive && (
-                      <div className='pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md bg-[var(--accent)]/5'>
-                        <p className='font-medium text-[13px] text-[var(--accent)]'>
-                          Drop JSON key file here
-                        </p>
-                      </div>
-                    )}
-                    <Textarea
-                      value={saJsonInput}
-                      onChange={(event) => {
-                        setSaJsonInput(event.target.value)
-                        setSaError(null)
-                        if (!saDisplayName.trim()) {
-                          try {
-                            const parsed = JSON.parse(event.target.value)
-                            if (parsed.client_email) setSaDisplayName(parsed.client_email)
-                          } catch {
-                            // not valid yet
-                          }
-                        }
-                      }}
-                      placeholder='Paste your service account JSON key here or drag & drop a .json file...'
-                      autoComplete='off'
-                      data-lpignore='true'
-                      className={cn(
-                        'min-h-[120px] resize-none border-0 font-mono text-[12px]',
-                        saDragActive && 'opacity-30'
-                      )}
-                    />
-                  </div>
-                  <div className='mt-1.5'>
-                    <label className='inline-flex cursor-pointer items-center gap-1.5 text-[12px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'>
-                      <input
-                        type='file'
-                        accept='.json'
-                        onChange={handleSaFileUpload}
-                        className='hidden'
-                      />
-                      Or upload a .json file
-                    </label>
-                  </div>
-                </div>
-                <div>
-                  <Label>Display name</Label>
-                  <Input
-                    value={saDisplayName}
-                    onChange={(event) => setSaDisplayName(event.target.value)}
-                    placeholder='Auto-populated from client_email'
-                    autoComplete='off'
-                    data-lpignore='true'
-                    className='mt-1.5'
-                  />
-                </div>
-                <div>
-                  <Label>Description</Label>
-                  <Textarea
-                    value={saDescription}
-                    onChange={(event) => setSaDescription(event.target.value)}
-                    placeholder='Optional description'
-                    maxLength={500}
-                    autoComplete='off'
-                    data-lpignore='true'
-                    className='mt-1.5 min-h-[80px] resize-none'
-                  />
-                </div>
-              </div>
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                variant='default'
-                onClick={() => {
-                  setCreateStep(1)
-                  setSaError(null)
-                }}
-              >
-                Back
-              </Button>
-              <Button
-                variant='primary'
-                onClick={handleCreateServiceAccount}
-                disabled={!saJsonInput.trim() || saIsSubmitting}
-              >
-                {saIsSubmitting ? 'Adding...' : 'Add Service Account'}
-              </Button>
-            </ModalFooter>
-          </>
+          <ServiceAccountForm
+            service={selectedOAuthService}
+            serviceLabel={selectedOAuthService?.name || resolveProviderLabel(createOAuthProviderId)}
+            workspaceId={workspaceId}
+            setupGuideHref='https://docs.sim.ai/integrations/google-service-account'
+            onBack={() => setCreateStep(1)}
+            onCreate={(input) => createCredential.mutateAsync(input)}
+            onCreated={() => {
+              setShowCreateModal(false)
+              resetCreateForm()
+            }}
+          />
         )}
       </ModalContent>
     </Modal>

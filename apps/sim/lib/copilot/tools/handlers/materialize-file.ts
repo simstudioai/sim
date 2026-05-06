@@ -21,7 +21,7 @@ function toFileRecord(row: typeof workspaceFiles.$inferSelect) {
   return {
     id: row.id,
     workspaceId: row.workspaceId || '',
-    name: row.originalName,
+    name: row.displayName ?? row.originalName,
     key: row.key,
     path: `${pathPrefix}${encodeURIComponent(row.key)}?context=mothership`,
     size: row.size,
@@ -45,7 +45,7 @@ async function executeSave(fileName: string, chatId: string): Promise<ToolCallRe
 
   const [updated] = await db
     .update(workspaceFiles)
-    .set({ context: 'workspace', chatId: null })
+    .set({ context: 'workspace', chatId: null, originalName: row.displayName ?? row.originalName })
     .where(and(eq(workspaceFiles.id, row.id), isNull(workspaceFiles.deletedAt)))
     .returning({ id: workspaceFiles.id, originalName: workspaceFiles.originalName })
 

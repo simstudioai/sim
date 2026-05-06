@@ -26,6 +26,7 @@ import type {
 } from '@/executor/execution/types'
 import type {
   ExecutionResult,
+  PauseKind,
   PausePoint,
   SerializedSnapshot,
   StreamingExecution,
@@ -107,6 +108,8 @@ interface EnqueueResumeArgs {
   contextId: string
   resumeInput: unknown
   userId: string
+  /** Restrict which `pauseKind`s are eligible to resume. Defaults to allowing any. */
+  allowedPauseKinds?: PauseKind[]
 }
 
 type EnqueueResumeResult =
@@ -138,6 +141,27 @@ interface StartResumeExecutionArgs {
   abortSignal?: AbortSignal
 }
 
+/**
+ * Returns the earliest `resumeAt` across `pauseKind: 'time'` pause points whose
+ * `resumeAt` is a valid date and (when `after` is provided) strictly later than it.
+ * Returns `null` when no candidate exists.
+ */
+export function computeEarliestResumeAt(
+  points: Iterable<Pick<PausePoint, 'pauseKind' | 'resumeAt'>>,
+  options: { after?: Date } = {}
+): Date | null {
+  const { after } = options
+  let earliest: Date | null = null
+  for (const point of points) {
+    if (point.pauseKind !== 'time' || !point.resumeAt) continue
+    const candidate = new Date(point.resumeAt)
+    if (Number.isNaN(candidate.getTime())) continue
+    if (after && candidate <= after) continue
+    if (!earliest || candidate < earliest) earliest = candidate
+  }
+  return earliest
+}
+
 export class PauseResumeManager {
   static async persistPauseResult(args: PersistPauseResultArgs): Promise<void> {
     const { workflowId, executionId, pausePoints, snapshotSeed, executorUserId } = args
@@ -153,9 +177,13 @@ export class PauseResumeManager {
         parallelScope: point.parallelScope,
         loopScope: point.loopScope,
         resumeLinks: point.resumeLinks,
+        pauseKind: point.pauseKind,
+        resumeAt: point.resumeAt,
       }
       return acc
     }, {})
+
+    const nextResumeAt = computeEarliestResumeAt(pausePoints)
 
     const now = new Date()
     const metadata = {
@@ -186,6 +214,7 @@ export class PauseResumeManager {
           metadata,
           pausedAt: now,
           updatedAt: now,
+          nextResumeAt,
         })
         return
       }
@@ -207,6 +236,7 @@ export class PauseResumeManager {
       const mergedPoints = Object.values(mergedPausePoints)
       const resumedCount = mergedPoints.filter((point) => point?.resumeStatus === 'resumed').length
       const totalPauseCount = mergedPoints.length
+      const mergedNextResumeAt = computeEarliestResumeAt(mergedPoints as PausePoint[])
       const nextStatus =
         existing.status === 'cancelling'
           ? 'cancelling'
@@ -227,6 +257,7 @@ export class PauseResumeManager {
           status: nextStatus,
           metadata,
           updatedAt: now,
+          nextResumeAt: mergedNextResumeAt,
         })
         .where(eq(pausedExecutions.id, existing.id))
     })
@@ -235,7 +266,7 @@ export class PauseResumeManager {
   }
 
   static async enqueueOrStartResume(args: EnqueueResumeArgs): Promise<EnqueueResumeResult> {
-    const { executionId, contextId, resumeInput, userId } = args
+    const { executionId, contextId, resumeInput, userId, allowedPauseKinds } = args
 
     return await db.transaction(async (tx) => {
       const pausedExecution = await tx
@@ -264,6 +295,13 @@ export class PauseResumeManager {
       }
       if (!pausePoint.snapshotReady) {
         throw new Error('Snapshot not ready; execution still finalizing pause')
+      }
+
+      const pauseKind: PauseKind = pausePoint.pauseKind ?? 'human'
+      if (allowedPauseKinds && !allowedPauseKinds.includes(pauseKind)) {
+        throw new Error(
+          `Pause kind '${pauseKind}' is not allowed for this resume endpoint (allowed: ${allowedPauseKinds.join(', ')})`
+        )
       }
 
       const activeResume = await tx
@@ -679,6 +717,10 @@ export class PauseResumeManager {
         _resumed: true,
         _resumedFrom: pausedExecution.executionId,
         _pauseDurationMs: pauseDurationMs,
+      }
+
+      if (pausePoint.pauseKind === 'time') {
+        mergedOutput.status = 'completed'
       }
 
       mergedOutput.resume = mergedOutput.resume ?? mergedResponse.resume
@@ -1650,6 +1692,23 @@ export class PauseResumeManager {
     return null
   }
 
+  /**
+   * Updates `next_resume_at` only when the row is still `status='paused'`.
+   * Guard prevents the cron poller from clobbering a freshly-written value when a
+   * concurrent manual resume has already advanced the row's state.
+   */
+  static async setNextResumeAt(args: {
+    pausedExecutionId: string
+    nextResumeAt: Date | null
+  }): Promise<void> {
+    await db
+      .update(pausedExecutions)
+      .set({ nextResumeAt: args.nextResumeAt })
+      .where(
+        and(eq(pausedExecutions.id, args.pausedExecutionId), eq(pausedExecutions.status, 'paused'))
+      )
+  }
+
   static async listPausedExecutions(options: {
     workflowId: string
     status?: string | string[]
@@ -1677,12 +1736,13 @@ export class PauseResumeManager {
       .where(whereClause)
       .orderBy(desc(pausedExecutions.pausedAt))
 
-    return rows.map((row) =>
-      PauseResumeManager.normalizePausedExecution(
-        row,
-        PauseResumeManager.mapPausePoints(row.pausePoints)
+    return rows.flatMap((row) => {
+      const humanPoints = PauseResumeManager.mapPausePoints(row.pausePoints).filter(
+        (point) => point.pauseKind !== 'time'
       )
-    )
+      if (humanPoints.length === 0) return []
+      return [PauseResumeManager.normalizePausedExecution(row, humanPoints)]
+    })
   }
 
   static async getPausedExecutionById(
@@ -1734,7 +1794,11 @@ export class PauseResumeManager {
       row.pausePoints,
       queuePositions,
       latestEntries
-    )
+    ).filter((point) => point.pauseKind !== 'time')
+
+    if (pausePoints.length === 0) {
+      return null
+    }
 
     const executionSummary = PauseResumeManager.normalizePausedExecution(row, pausePoints)
 
@@ -1919,8 +1983,8 @@ export class PauseResumeManager {
       workflowId: row.workflowId,
       executionId: row.executionId,
       status: row.status,
-      totalPauseCount: row.totalPauseCount,
-      resumedCount: row.resumedCount,
+      totalPauseCount: pausePoints.length,
+      resumedCount: pausePoints.filter((point) => point.resumeStatus === 'resumed').length,
       pausedAt: row.pausedAt ? row.pausedAt.toISOString() : null,
       updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
       expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
@@ -1966,6 +2030,8 @@ export class PauseResumeManager {
         parallelScope: point.parallelScope,
         loopScope: point.loopScope,
         resumeLinks,
+        pauseKind: point.pauseKind ?? 'human',
+        resumeAt: point.resumeAt,
         queuePosition,
         latestResumeEntry: latestEntry ?? null,
       }

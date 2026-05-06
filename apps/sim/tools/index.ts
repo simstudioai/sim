@@ -904,6 +904,12 @@ export async function executeTool(
         if (data.instanceUrl) {
           contextParams.instanceUrl = data.instanceUrl
         }
+        if (data.cloudId && !contextParams.cloudId) {
+          contextParams.cloudId = data.cloudId
+        }
+        if (data.domain && !contextParams.domain) {
+          contextParams.domain = data.domain
+        }
 
         logger.info(`[${requestId}] Successfully got access token for ${toolId}`)
 

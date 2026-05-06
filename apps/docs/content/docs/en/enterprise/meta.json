@@ -1,5 +1,13 @@
 {
   "title": "Enterprise",
-  "pages": ["index", "sso", "access-control", "whitelabeling", "audit-logs", "data-retention"],
+  "pages": [
+    "index",
+    "sso",
+    "access-control",
+    "whitelabeling",
+    "audit-logs",
+    "data-retention",
+    "data-drains"
+  ],
   "defaultOpen": false
 }

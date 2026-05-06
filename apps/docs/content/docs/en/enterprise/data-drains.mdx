@@ -1,0 +1,185 @@
+---
+title: Data Drains
+description: Continuously export workflow logs, audit logs, and Mothership data to your own S3 bucket or HTTPS endpoint on a schedule
+---
+
+import { FAQ } from '@/components/ui/faq'
+
+Data Drains let organization owners and admins on Enterprise plans continuously export Sim data to a destination they control — a customer-owned S3 bucket or an HTTPS webhook. A drain runs on a schedule, picks up only new rows since its last successful run, and writes them as NDJSON to the destination. Viewing drain configuration and run history is restricted to owners and admins as well, since destinations expose internal bucket names and webhook URLs.
+
+Drains are independent of [Data Retention](/enterprise/data-retention) but designed to compose with it — see [Pairing with Data Retention](#pairing-with-data-retention) below.
+
+---
+
+## Setup
+
+Go to **Settings → Enterprise → Data Drains** in your workspace, then click **New drain**.
+
+Each drain has four pieces:
+
+1. A **source** — the category of data to export
+2. A **destination** — where the data goes
+3. A **schedule** — how often it runs
+4. A **name** — unique within your organization
+
+---
+
+## Sources
+
+A drain exports exactly one source. To export multiple sources, create multiple drains.
+
+| Source | Description |
+|---|---|
+| **Workflow logs** | Workflow execution records (one row per execution, only after the run reaches a terminal state). |
+| **Job logs** | Background job records (deployed APIs, schedules, webhooks). Only terminal-state rows are exported. |
+| **Audit logs** | Organization- and workspace-scoped audit events — logins, permission changes, resource creation/deletion, drain configuration changes. |
+| **Copilot chats** | Mothership chat history. |
+| **Copilot runs** | Mothership run records (terminal state only). |
+
+Each row is delivered as a single line of NDJSON. The shape of each row is part of the public schema and stable across versions; every row carries an `id` field that downstream consumers can use to dedupe.
+
+Drains export each row exactly once based on its creation cursor. Mutable fields on **Copilot chats** (messages, title, `lastSeenAt`) are a point-in-time snapshot and won't be re-emitted if the chat is later updated. Treat the export as append-only and reconstitute current state from your own system of record if you need it.
+
+---
+
+## Destinations
+
+### Amazon S3 (or any S3-compatible store)
+
+Writes one NDJSON object per delivered chunk to your bucket.
+
+- **Bucket** — the bucket name. Must already exist; Sim does not create buckets.
+- **Region** — AWS region (e.g. `us-east-1`).
+- **Prefix** *(optional)* — folder path inside the bucket. Trailing slash optional.
+- **Access key ID / Secret access key** — IAM credentials with `s3:PutObject` on the bucket. The "Test connection" button performs a real write probe to verify, then deletes it.
+- **Endpoint** *(optional)* — for non-AWS stores like MinIO, Cloudflare R2, or GCS S3-interop. Leave blank for AWS S3.
+- **Force path-style** *(optional)* — required for MinIO/Ceph, must be off for AWS S3 and R2.
+
+Object keys are deterministic:
+
+```
+{prefix}/{source}/{drainId}/{yyyy}/{mm}/{dd}/{runId}-{seq}.ndjson
+```
+
+Objects are written with `AES256` server-side encryption.
+
+### HTTPS Webhook
+
+POSTs each chunk as NDJSON to your endpoint.
+
+- **URL** — must be HTTPS. Sim resolves the hostname and refuses to deliver to private, loopback, or cloud-metadata IPs. The resolved IP is pinned for the duration of a run to prevent DNS rebinding.
+- **Signing secret** — shared secret used for HMAC-SHA256 signing.
+- **Bearer token** *(optional)* — sent as `Authorization: Bearer <token>`.
+- **Signature header name** *(optional)* — defaults to `X-Sim-Signature`.
+
+Each request includes:
+
+```
+Content-Type: application/x-ndjson
+User-Agent: Sim-DataDrain/1.0
+X-Sim-Timestamp: <unix-seconds>
+X-Sim-Signature-Version: v1
+X-Sim-Signature: t=<unix-seconds>,v1=<hex(hmac-sha256)>
+X-Sim-Drain-Id: <drain id>
+X-Sim-Run-Id: <run id>
+X-Sim-Source: <source name>
+X-Sim-Sequence: <chunk index>
+X-Sim-Row-Count: <rows in this chunk>
+Idempotency-Key: <runId>-<sequence>
+```
+
+The signature is computed as `HMAC-SHA256(secret, "${timestamp}.${body}")` and serialized as `t=<timestamp>,v1=<hex>`. Verify by recomputing over the same string and rejecting timestamps older than ~5 minutes — this defends against captured-request replay attacks.
+
+Failed deliveries retry up to 3 times with exponential backoff (500ms, 1s, 2s with ±20% jitter), respecting `Retry-After` on 429/503. Non-retryable 4xx responses fail the run immediately.
+
+---
+
+## Schedule
+
+| Cadence | Drain runs |
+|---|---|
+| **Hourly** | Once per hour. |
+| **Daily** | Once per day. |
+
+You can also disable a drain with the **Enabled** toggle (it stops running but is preserved), or trigger an out-of-schedule run with **Run now** on any drain row.
+
+---
+
+## Delivery semantics
+
+Drains use an **opaque cursor** that advances only on full success. If a delivery fails partway through a run, the cursor is unchanged and the next run replays from the last successful position.
+
+This is **at-least-once delivery**. Combined with the `id` field on every row and the `Idempotency-Key` header on every webhook chunk, downstream systems can dedupe deterministically.
+
+The **last 10 runs** for each drain are visible by expanding its row in the settings page, with status, row count, bytes written, destination locator (`s3://...` or webhook URL), and the error message if it failed.
+
+---
+
+## Security
+
+- Destination credentials are encrypted at rest using the same key-rotation–aware encryption that protects OAuth tokens.
+- Credentials are **never** returned by the Sim API after creation. Updates accept new credentials; omitting them leaves the existing encrypted blob in place.
+- Webhook URLs are SSRF-validated: HTTPS-only, no private/loopback/metadata IPs, with the resolved IP pinned to defeat DNS rebinding.
+- Every create, update, delete, manual run, and test-connection call is recorded in the [Audit Log](/enterprise/audit-logs).
+
+---
+
+## Pairing with Data Retention
+
+Drains and [Data Retention](/enterprise/data-retention) are independent modules. Sim does **not** gate retention on drain progress — if a drain is failing, retention will still purge data on its own schedule. This matches the model used by Datadog Archives and AWS CloudWatch + S3 Export: keep the two configurations orthogonal and let the customer pair them deliberately.
+
+To safely use both together, set the drain cadence shorter than the retention period for the same data category:
+
+| Drain source | Pairs with retention setting |
+|---|---|
+| Workflow logs, Job logs | **Log retention** |
+| Copilot chats, Copilot runs | **Task cleanup** |
+| Audit logs | *(no retention setting today — audit logs are kept indefinitely)* |
+
+For example, with **Log retention** set to 30 days, set the workflow-logs drain to **Hourly** or **Daily** so every row is exported well before retention purges it from Sim. Monitor recent drain runs in the settings page; if a drain has been failing for longer than your retention window, you may lose rows that retention purges before they are exported.
+
+After data lands in your bucket or webhook system, archive lifecycle (transitions to Glacier, expiration, GDPR right-to-erasure propagation) is governed by your own infrastructure — Sim has no further visibility into that data once delivery succeeds.
+
+---
+
+<FAQ items={[
+  {
+    question: "Who can configure data drains?",
+    answer: "Only organization owners and admins can view, create, edit, run, or delete drains. On Sim Cloud, the organization must be on an Enterprise plan."
+  },
+  {
+    question: "Will drained data be duplicated if a run fails?",
+    answer: "The drain cursor only advances on overall success, so a failure replays the same chunks on the next run. Every row has a stable `id` field and every webhook chunk has an `Idempotency-Key` header so receivers can dedupe."
+  },
+  {
+    question: "Can I export multiple sources to the same destination?",
+    answer: "Yes — create one drain per source, all pointing at the same bucket or endpoint. S3 destinations namespace by source automatically; webhook receivers can branch on the `X-Sim-Source` header."
+  },
+  {
+    question: "Does deleting a drain delete the data already exported?",
+    answer: "No. Deletion only removes the drain's configuration and its run history from Sim. Data already written to your bucket or sent to your webhook is yours and is unaffected."
+  },
+  {
+    question: "What happens if my credentials stop working mid-run?",
+    answer: "The run fails, the drain cursor does not advance, and the failed run is recorded with the error. Once you fix the credentials with an Update or by re-creating the drain, the next run replays from where the last successful run left off."
+  },
+  {
+    question: "What format is the data in?",
+    answer: "NDJSON — newline-delimited JSON, one row per line. Each chunk is a single S3 object or a single POST body."
+  }
+]} />
+
+---
+
+## Self-hosted setup
+
+### Environment variables
+
+```bash
+DATA_DRAINS_ENABLED=true
+NEXT_PUBLIC_DATA_DRAINS_ENABLED=true
+```
+
+`NEXT_PUBLIC_DATA_DRAINS_ENABLED` shows the **Settings → Enterprise → Data Drains** page in the UI. `DATA_DRAINS_ENABLED` gates the server-side mutating endpoints and the cron dispatcher — when unset on a self-hosted deployment, drain create/update/delete/run requests return `404` and the dispatcher is a no-op. Both should be set to `true` together.
+
+Data Drains otherwise rely on the standard Trigger.dev background job infrastructure used elsewhere in Sim — no additional setup is required. The cron dispatcher runs hourly and fans out due drains as background jobs.

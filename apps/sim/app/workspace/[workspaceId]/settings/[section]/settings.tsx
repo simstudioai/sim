@@ -29,6 +29,7 @@ import {
   isCredentialSetsEnabled,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { AuditLogsSkeleton } from '@/ee/audit-logs/components/audit-logs-skeleton'
+import { DataDrainsSkeleton } from '@/ee/data-drains/components/data-drains-skeleton'
 import { DataRetentionSkeleton } from '@/ee/data-retention/components/data-retention-skeleton'
 
 /**
@@ -177,6 +178,11 @@ const DataRetentionSettings = dynamic(
     ),
   { loading: () => <DataRetentionSkeleton /> }
 )
+const DataDrainsSettings = dynamic(
+  () =>
+    import('@/ee/data-drains/components/data-drains-settings').then((m) => m.DataDrainsSettings),
+  { loading: () => <DataDrainsSkeleton /> }
+)
 const WhitelabelingSettings = dynamic(
   () =>
     import('@/ee/whitelabeling/components/whitelabeling-settings').then(
@@ -235,6 +241,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {isBillingEnabled && effectiveSection === 'organization' && <TeamManagement />}
       {effectiveSection === 'sso' && <SSO />}
       {effectiveSection === 'data-retention' && <DataRetentionSettings />}
+      {effectiveSection === 'data-drains' && <DataDrainsSettings />}
       {effectiveSection === 'whitelabeling' && <WhitelabelingSettings />}
       {effectiveSection === 'byok' && <BYOK />}
       {effectiveSection === 'copilot' && <Copilot />}

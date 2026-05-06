@@ -354,6 +354,11 @@ export const workflowExecutionLogs = pgTable(
       table.workspaceId,
       table.startedAt
     ),
+    workspaceEndedAtIdIdx: index('workflow_execution_logs_workspace_ended_at_id_idx').on(
+      table.workspaceId,
+      sql`date_trunc('milliseconds', ${table.endedAt})`,
+      table.id
+    ),
     runningStartedAtIdx: index('workflow_execution_logs_running_started_at_idx')
       .on(table.startedAt)
       .where(sql`status = 'running'`),
@@ -377,11 +382,16 @@ export const pausedExecutions = pgTable(
     pausedAt: timestamp('paused_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     expiresAt: timestamp('expires_at'),
+    /** Earliest `resumeAt` across this row's time-based pause points. NULL for human-only pauses. */
+    nextResumeAt: timestamp('next_resume_at'),
   },
   (table) => ({
     workflowIdx: index('paused_executions_workflow_id_idx').on(table.workflowId),
     statusIdx: index('paused_executions_status_idx').on(table.status),
     executionUnique: uniqueIndex('paused_executions_execution_id_unique').on(table.executionId),
+    nextResumeAtIdx: index('paused_executions_next_resume_at_idx')
+      .on(table.nextResumeAt)
+      .where(sql`status = 'paused' AND next_resume_at IS NOT NULL`),
   })
 )
 
@@ -582,6 +592,11 @@ export const jobExecutionLogs = pgTable(
     workspaceStartedAtIdx: index('job_execution_logs_workspace_started_at_idx').on(
       table.workspaceId,
       table.startedAt
+    ),
+    workspaceEndedAtIdIdx: index('job_execution_logs_workspace_ended_at_id_idx').on(
+      table.workspaceId,
+      sql`date_trunc('milliseconds', ${table.endedAt})`,
+      table.id
     ),
     executionIdUnique: uniqueIndex('job_execution_logs_execution_id_unique').on(table.executionId),
     triggerIdx: index('job_execution_logs_trigger_idx').on(table.trigger),
@@ -1146,6 +1161,16 @@ export const workspaceFiles = pgTable(
     context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
     originalName: text('original_name').notNull(),
+    /**
+     * Collision-disambiguated name exposed to the copilot VFS as `uploads/<displayName>`.
+     * For mothership chat uploads, identical originalNames within a chat get suffixed
+     * `(2)`, `(3)`, ... in upload order so the VFS path is unique per chat.
+     * NULL on legacy rows that predate this column — readers must coalesce to originalName.
+     * Stable for the row's lifetime; the partial unique index below enforces uniqueness
+     * for new (non-NULL) rows. NULLs are treated as distinct in PG unique indexes, so
+     * legacy collisions remain (acceptable: those uploads have already happened).
+     */
+    displayName: text('display_name'),
     contentType: text('content_type').notNull(),
     size: integer('size').notNull(),
     deletedAt: timestamp('deleted_at'),
@@ -1162,6 +1187,17 @@ export const workspaceFiles = pgTable(
       .where(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
       ),
+    /**
+     * One display name per chat for mothership chat uploads, enforced across the row's
+     * entire lifetime (including soft-deleted rows). VFS paths must remain stable for the
+     * LLM's session — soft-deleting a sibling cannot free a name slot that the model has
+     * already been told about, since that would cause `read("uploads/<name>")` to silently
+     * resolve to a different file. NULLs are distinct in PG, so legacy rows (display_name
+     * IS NULL) don't block index creation or new inserts.
+     */
+    chatDisplayNameUnique: uniqueIndex('workspace_files_chat_display_name_unique')
+      .on(table.chatId, table.displayName)
+      .where(sql`${table.context} = 'mothership' AND ${table.chatId} IS NOT NULL`),
     keyIdx: index('workspace_files_key_idx').on(table.key),
     userIdIdx: index('workspace_files_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workspace_files_workspace_id_idx').on(table.workspaceId),
@@ -1687,6 +1723,11 @@ export const copilotChats = pgTable(
     // Ordering indexes
     createdAtIdx: index('copilot_chats_created_at_idx').on(table.createdAt),
     updatedAtIdx: index('copilot_chats_updated_at_idx').on(table.updatedAt),
+    workspaceCreatedAtIdIdx: index('copilot_chats_workspace_created_at_id_idx').on(
+      table.workspaceId,
+      sql`date_trunc('milliseconds', ${table.createdAt})`,
+      table.id
+    ),
   })
 )
 
@@ -1817,6 +1858,11 @@ export const copilotRuns = pgTable(
     executionStartedAtIdx: index('copilot_runs_execution_started_at_idx').on(
       table.executionId,
       table.startedAt
+    ),
+    workspaceCompletedAtIdIdx: index('copilot_runs_workspace_completed_at_id_idx').on(
+      table.workspaceId,
+      sql`date_trunc('milliseconds', ${table.completedAt})`,
+      table.id
     ),
     streamIdUnique: uniqueIndex('copilot_runs_stream_id_unique').on(table.streamId),
   })
@@ -2395,6 +2441,11 @@ export const auditLog = pgTable(
     workspaceCreatedIdx: index('audit_log_workspace_created_idx').on(
       table.workspaceId,
       table.createdAt
+    ),
+    workspaceCreatedIdIdx: index('audit_log_workspace_created_at_id_idx').on(
+      table.workspaceId,
+      sql`date_trunc('milliseconds', ${table.createdAt})`,
+      table.id
     ),
     actorCreatedIdx: index('audit_log_actor_created_idx').on(table.actorId, table.createdAt),
     resourceIdx: index('audit_log_resource_idx').on(table.resourceType, table.resourceId),
@@ -3066,5 +3117,92 @@ export const academyCertificate = pgTable(
     ),
     certNumberIdx: index('academy_certificate_number_idx').on(table.certificateNumber),
     statusIdx: index('academy_certificate_status_idx').on(table.status),
+  })
+)
+
+export const dataDrainSourceEnum = pgEnum('data_drain_source', [
+  'workflow_logs',
+  'job_logs',
+  'audit_logs',
+  'copilot_chats',
+  'copilot_runs',
+])
+
+export type DataDrainSource = (typeof dataDrainSourceEnum.enumValues)[number]
+
+export const dataDrainDestinationEnum = pgEnum('data_drain_destination', ['s3', 'webhook'])
+
+export type DataDrainDestination = (typeof dataDrainDestinationEnum.enumValues)[number]
+
+export const dataDrainCadenceEnum = pgEnum('data_drain_cadence', ['hourly', 'daily'])
+
+export type DataDrainCadence = (typeof dataDrainCadenceEnum.enumValues)[number]
+
+export const dataDrainRunStatusEnum = pgEnum('data_drain_run_status', [
+  'running',
+  'success',
+  'failed',
+])
+
+export type DataDrainRunStatus = (typeof dataDrainRunStatusEnum.enumValues)[number]
+
+export const dataDrainRunTriggerEnum = pgEnum('data_drain_run_trigger', ['cron', 'manual'])
+
+export type DataDrainRunTrigger = (typeof dataDrainRunTriggerEnum.enumValues)[number]
+
+export const dataDrains = pgTable(
+  'data_drains',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    source: dataDrainSourceEnum('source').notNull(),
+    destinationType: dataDrainDestinationEnum('destination_type').notNull(),
+    /** Non-secret destination config (bucket, region, prefix, url, ...). Validated by destination registry. */
+    destinationConfig: jsonb('destination_config').$type<Record<string, unknown>>().notNull(),
+    /** Encrypted JSON blob containing destination credentials. Never returned to clients. */
+    destinationCredentials: text('destination_credentials').notNull(),
+    scheduleCadence: dataDrainCadenceEnum('schedule_cadence').notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    /** Opaque cursor — JSON-encoded, source-defined. Advances only on overall run success. */
+    cursor: text('cursor'),
+    lastRunAt: timestamp('last_run_at'),
+    lastSuccessAt: timestamp('last_success_at'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    orgIdx: index('data_drains_org_idx').on(table.organizationId),
+    dueIdx: index('data_drains_due_idx').on(table.enabled, table.lastRunAt),
+    orgNameUnique: uniqueIndex('data_drains_org_name_unique').on(table.organizationId, table.name),
+  })
+)
+
+export const dataDrainRuns = pgTable(
+  'data_drain_runs',
+  {
+    id: text('id').primaryKey(),
+    drainId: text('drain_id')
+      .notNull()
+      .references(() => dataDrains.id, { onDelete: 'cascade' }),
+    status: dataDrainRunStatusEnum('status').notNull(),
+    trigger: dataDrainRunTriggerEnum('trigger').notNull(),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    finishedAt: timestamp('finished_at'),
+    rowsExported: integer('rows_exported').notNull().default(0),
+    bytesWritten: bigint('bytes_written', { mode: 'number' }).notNull().default(0),
+    cursorBefore: text('cursor_before'),
+    cursorAfter: text('cursor_after'),
+    error: text('error'),
+    /** Destination-specific delivery locators for this run (e.g. S3 keys, webhook response ids). */
+    locators: jsonb('locators').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  },
+  (table) => ({
+    drainStartedIdx: index('data_drain_runs_drain_started_idx').on(table.drainId, table.startedAt),
   })
 )

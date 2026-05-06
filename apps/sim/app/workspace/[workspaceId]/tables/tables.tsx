@@ -450,7 +450,7 @@ export function Tables() {
       ? `${uploadProgress.completed}/${uploadProgress.total}`
       : uploading
         ? 'Uploading...'
-        : 'Upload CSV'
+        : 'Import CSV'
 
   const handleCreateTable = useCallback(async () => {
     const existingNames = tables.map((t) => t.name)

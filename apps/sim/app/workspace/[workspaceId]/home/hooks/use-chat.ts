@@ -167,6 +167,7 @@ export interface UseChatReturn {
   editQueuedMessage: (id: string) => QueuedMessage | undefined
   previewSession: FilePreviewSession | null
   genericResourceData: GenericResourceData | null
+  getCurrentRequestId: () => string | undefined
 }
 
 const DEPLOY_TOOL_NAMES: Set<string> = new Set([
@@ -1278,6 +1279,8 @@ export interface UseChatOptions {
   onTitleUpdate?: () => void
   onStreamEnd?: (chatId: string, messages: ChatMessage[]) => void
   initialActiveResourceId?: string | null
+  /** Fired when the server's `traceparent` response header arrives, before any stream content. */
+  onRequestStarted?: (info: { requestId: string; userMessageId: string }) => void
 }
 
 interface ActiveStreamRecovery {
@@ -1293,7 +1296,10 @@ interface StopGenerationOptions {
 }
 
 export function getMothershipUseChatOptions(
-  options: Pick<UseChatOptions, 'onResourceEvent' | 'onStreamEnd' | 'initialActiveResourceId'> = {}
+  options: Pick<
+    UseChatOptions,
+    'onResourceEvent' | 'onStreamEnd' | 'initialActiveResourceId' | 'onRequestStarted'
+  > = {}
 ): UseChatOptions {
   return {
     apiPath: MOTHERSHIP_CHAT_API_PATH,
@@ -1305,7 +1311,7 @@ export function getMothershipUseChatOptions(
 export function getWorkflowCopilotUseChatOptions(
   options: Pick<
     UseChatOptions,
-    'workflowId' | 'onToolResult' | 'onTitleUpdate' | 'onStreamEnd'
+    'workflowId' | 'onToolResult' | 'onTitleUpdate' | 'onStreamEnd' | 'onRequestStarted'
   > = {}
 ): UseChatOptions {
   return {
@@ -1351,6 +1357,13 @@ export function useChat(
   onTitleUpdateRef.current = options?.onTitleUpdate
   const onStreamEndRef = useRef(options?.onStreamEnd)
   onStreamEndRef.current = options?.onStreamEnd
+  const onRequestStartedRef = useRef(options?.onRequestStarted)
+  onRequestStartedRef.current = options?.onRequestStarted
+
+  const getCurrentRequestId = useCallback(() => {
+    const traceId = streamTraceparentRef.current?.split('-')[1] ?? ''
+    return /^[0-9a-f]{32}$/.test(traceId) ? traceId : undefined
+  }, [])
 
   const clearQueueDispatchState = useCallback(() => {
     queueDispatchEpochRef.current++
@@ -4209,6 +4222,14 @@ export function useChat(
         if (traceparent) {
           streamTraceparentRef.current = traceparent
           setCurrentChatTraceparent(traceparent)
+          const traceId = traceparent.split('-')[1] ?? ''
+          if (/^[0-9a-f]{32}$/.test(traceId)) {
+            try {
+              onRequestStartedRef.current?.({ requestId: traceId, userMessageId })
+            } catch (callbackError) {
+              logger.warn('onRequestStarted callback threw', { error: callbackError })
+            }
+          }
         }
 
         if (!response.ok) {
@@ -5103,5 +5124,6 @@ export function useChat(
     editQueuedMessage,
     previewSession,
     genericResourceData,
+    getCurrentRequestId,
   }
 }

@@ -1,7 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogQueryParams {
-  personalApiKey: string
+  apiKey: string
   region?: 'us' | 'eu'
   projectId: string
   query: string
@@ -27,7 +27,7 @@ export const queryTool: ToolConfig<PostHogQueryParams, PostHogQueryResponse> = {
   version: '1.0.0',
 
   params: {
-    personalApiKey: {
+    apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
@@ -69,7 +69,7 @@ export const queryTool: ToolConfig<PostHogQueryParams, PostHogQueryResponse> = {
     },
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.personalApiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
