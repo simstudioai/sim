@@ -1,7 +1,6 @@
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
   classifyStartBlockType,
-  getLegacyStarterMode,
   resolveStartCandidates,
   StartBlockPath,
 } from '@/lib/workflows/triggers/triggers'
@@ -141,24 +140,36 @@ function extractInputFormat(block: SerializedBlock): InputFormatField[] {
     .map((field) => field)
 }
 
+function normalizeLegacyStarterMode(modeValue: unknown): 'manual' | 'api' | 'chat' | null {
+  if (modeValue === 'chat') return 'chat'
+  if (modeValue === 'api' || modeValue === 'run') return 'api'
+  if (modeValue === undefined || modeValue === 'manual') return 'manual'
+  return null
+}
+
+function getSerializedLegacyStarterMode(block: SerializedBlock): 'manual' | 'api' | 'chat' | null {
+  const fromMetadata = readMetadataSubBlockValue(block, 'startWorkflow')
+  if (fromMetadata !== undefined) {
+    return normalizeLegacyStarterMode(fromMetadata)
+  }
+
+  return normalizeLegacyStarterMode(block.config?.params?.startWorkflow)
+}
+
 function readInputFormatFieldName(field: InputFormatField): string | undefined {
   return typeof field.name === 'string' ? field.name.trim() : undefined
 }
 
 function collectExecutionControlFieldNames(fieldNames: Iterable<string | undefined>): string[] {
-  const reservedFieldNames: string[] = []
+  const reservedFieldNames = new Set<string>()
 
   for (const fieldName of fieldNames) {
-    if (!fieldName || !EXECUTION_CONTROL_OUTPUT_FIELD_NAME_SET.has(fieldName)) {
-      continue
-    }
-
-    if (!reservedFieldNames.includes(fieldName)) {
-      reservedFieldNames.push(fieldName)
+    if (fieldName && EXECUTION_CONTROL_OUTPUT_FIELD_NAME_SET.has(fieldName)) {
+      reservedFieldNames.add(fieldName)
     }
   }
 
-  return reservedFieldNames
+  return Array.from(reservedFieldNames)
 }
 
 function throwReservedStartOutputFieldsError(
@@ -199,6 +210,20 @@ function assertNoReservedStartOutputFields(
   }
 
   throwReservedStartOutputFieldsError(block, reservedFieldNames, 'runtime input')
+}
+
+function pathConsumesInputFormat(
+  path: StartBlockPath,
+  legacyStarterMode: 'manual' | 'api' | 'chat' | null
+): boolean {
+  switch (path) {
+    case StartBlockPath.SPLIT_CHAT:
+      return false
+    case StartBlockPath.LEGACY_STARTER:
+      return legacyStarterMode !== 'chat'
+    default:
+      return true
+  }
 }
 
 export function coerceValue(type: string | null | undefined, value: unknown): unknown {
@@ -504,7 +529,15 @@ export interface StartBlockOutputOptions {
 export function buildStartBlockOutput(options: StartBlockOutputOptions): NormalizedBlockOutput {
   const { resolution, workflowInput } = options
   const inputFormat = extractInputFormat(resolution.block)
-  assertNoReservedInputFormatFields(inputFormat, resolution.block)
+  const legacyStarterMode =
+    resolution.path === StartBlockPath.LEGACY_STARTER
+      ? getSerializedLegacyStarterMode(resolution.block)
+      : null
+
+  if (pathConsumesInputFormat(resolution.path, legacyStarterMode)) {
+    assertNoReservedInputFormatFields(inputFormat, resolution.block)
+  }
+
   const { finalInput, structuredInput, hasStructured } = deriveInputFromFormat(
     inputFormat,
     workflowInput
@@ -535,11 +568,7 @@ export function buildStartBlockOutput(options: StartBlockOutputOptions): Normali
       break
 
     case StartBlockPath.LEGACY_STARTER:
-      output = buildLegacyStarterOutput(
-        finalInput,
-        workflowInput,
-        getLegacyStarterMode({ subBlocks: extractSubBlocks(resolution.block) })
-      )
+      output = buildLegacyStarterOutput(finalInput, workflowInput, legacyStarterMode)
       break
 
     default:

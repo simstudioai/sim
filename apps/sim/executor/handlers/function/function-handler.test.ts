@@ -196,6 +196,25 @@ describe('FunctionBlockHandler', () => {
     )
   })
 
+  it('should pass original function code for error display after reference resolution', async () => {
+    mockBlock.config.params = { code: 'retur <start.reqerror>' }
+
+    await handler.execute(mockContext, mockBlock, {
+      code: 'retur globalThis["__blockRef_0"]',
+      [FUNCTION_BLOCK_CONTEXT_VARS_KEY]: { __blockRef_0: 'value' },
+    })
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({
+        code: 'retur globalThis["__blockRef_0"]',
+        sourceCode: 'retur <start.reqerror>',
+      }),
+      false,
+      mockContext
+    )
+  })
+
   it('should normalize malformed execution context records before calling function_execute', async () => {
     const legacyVariable = { id: 'var-1', name: 'brand', type: 'plain', value: 'myfitness' }
     mockContext.workflowVariables = [legacyVariable] as unknown as Record<string, any>

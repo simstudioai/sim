@@ -122,6 +122,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
 
       const body: Record<string, unknown> = {
         code: codeContent,
+        sourceCode: params.sourceCode,
         language: params.language || DEFAULT_CODE_LANGUAGE,
         timeout: params.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
         outputPath: params.outputPath,

@@ -86,6 +86,7 @@ export const functionExecuteContract = defineRouteContract({
   path: '/api/function/execute',
   body: z.object({
     code: z.string().min(1, 'Code is required'),
+    sourceCode: z.string().optional(),
     params: unknownRecordSchema.optional().default({}),
     timeout: z.coerce.number().int().positive().optional(),
     language: z.string().optional().default(DEFAULT_CODE_LANGUAGE),

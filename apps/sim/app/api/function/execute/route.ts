@@ -410,6 +410,30 @@ function createUserFriendlyErrorMessage(
   return errorMessage
 }
 
+function getErrorDisplayCode(sourceCode: string | undefined, resolvedCode: string): string {
+  return sourceCode && sourceCode.length > 0 ? sourceCode : resolvedCode
+}
+
+function getLineContent(code: string, line: number | undefined): string | undefined {
+  if (line === undefined || line < 1) {
+    return undefined
+  }
+
+  return code.split('\n')[line - 1]?.trim()
+}
+
+function getErrorDisplayMessage(
+  message: string,
+  sourceCode: string | undefined,
+  resolvedCode: string
+): string {
+  if (!sourceCode || sourceCode === resolvedCode || !resolvedCode.includes('__blockRef_')) {
+    return message
+  }
+
+  return message.replace(/\s+["']globalThis["']/g, '')
+}
+
 function resolveWorkflowVariables(
   code: string,
   workflowVariables: Record<string, any>,
@@ -767,6 +791,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   let stdout = ''
   let userCodeStartLine = 3 // Default value for error reporting
   let resolvedCode = '' // Store resolved code for error reporting
+  let sourceCodeForErrors: string | undefined
 
   try {
     const auth = await checkInternalAuth(req)
@@ -783,6 +808,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const {
       code,
+      sourceCode,
       params = {},
       timeout = DEFAULT_EXECUTION_TIMEOUT_MS,
       language = DEFAULT_CODE_LANGUAGE,
@@ -801,6 +827,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       isCustomTool = false,
       _sandboxFiles,
     } = body
+    sourceCodeForErrors = sourceCode
 
     const executionParams = { ...params }
     executionParams._context = undefined
@@ -1019,11 +1046,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         })
 
         if (e2bError) {
+          const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
           const { formattedError, cleanedOutput } = formatE2BError(
-            e2bError,
+            getErrorDisplayMessage(e2bError, sourceCodeForErrors, resolvedCode),
             e2bStdout,
             lang,
-            resolvedCode,
+            errorDisplayCode,
             prologueLineCount + importLineCount
           )
           return NextResponse.json(
@@ -1101,11 +1129,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       })
 
       if (e2bError) {
+        const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
         const { formattedError, cleanedOutput } = formatE2BError(
-          e2bError,
+          getErrorDisplayMessage(e2bError, sourceCodeForErrors, resolvedCode),
           e2bStdout,
           lang,
-          resolvedCode,
+          errorDisplayCode,
           prologueLineCount
         )
         return NextResponse.json(
@@ -1192,13 +1221,16 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       let adjustedLineContent = ivmError.lineContent
       if (prependedLineCount > 0 && ivmError.line !== undefined) {
         adjustedLine = Math.max(1, ivmError.line - prependedLineCount)
-        const codeLines = resolvedCode.split('\n')
-        if (adjustedLine <= codeLines.length) {
-          adjustedLineContent = codeLines[adjustedLine - 1]?.trim()
-        }
       }
+      const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
+      const displayMessage = getErrorDisplayMessage(
+        ivmError.message,
+        sourceCodeForErrors,
+        resolvedCode
+      )
+      adjustedLineContent = getLineContent(errorDisplayCode, adjustedLine) ?? adjustedLineContent
       const enhancedError: EnhancedError = {
-        message: ivmError.message,
+        message: displayMessage,
         name: ivmError.name,
         stack: ivmError.stack,
         originalError: ivmError,
@@ -1210,7 +1242,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       const userFriendlyErrorMessage = createUserFriendlyErrorMessage(
         enhancedError,
         requestId,
-        resolvedCode
+        errorDisplayCode
       )
 
       const detailLogFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
@@ -1261,11 +1293,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       executionTime,
     })
 
-    const enhancedError = extractEnhancedError(error, userCodeStartLine, resolvedCode)
+    const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
+    const enhancedError = extractEnhancedError(error, userCodeStartLine, errorDisplayCode)
     const userFriendlyErrorMessage = createUserFriendlyErrorMessage(
       enhancedError,
       requestId,
-      resolvedCode
+      errorDisplayCode
     )
 
     logger.error(`[${requestId}] Enhanced error details`, {

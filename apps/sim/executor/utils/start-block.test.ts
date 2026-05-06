@@ -189,6 +189,71 @@ describe('start-block utilities', () => {
     )
   })
 
+  it.concurrent('allows reserved inputFormat field names on split chat trigger output', () => {
+    const block = createBlock('chat_trigger', 'chat', {
+      subBlocks: {
+        inputFormat: {
+          value: [{ name: 'error', type: 'string' }],
+        },
+      },
+    })
+    const resolution = {
+      blockId: 'chat',
+      block,
+      path: StartBlockPath.SPLIT_CHAT,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workflowInput: { input: 'hello', conversationId: 'conversation-1' },
+    })
+
+    expect(output).toEqual({ input: 'hello', conversationId: 'conversation-1' })
+  })
+
+  it.concurrent('allows reserved inputFormat field names on legacy chat starter output', () => {
+    const block = createBlock('starter', 'starter', {
+      subBlocks: {
+        startWorkflow: { value: 'chat' },
+        inputFormat: {
+          value: [{ name: 'error', type: 'string' }],
+        },
+      },
+    })
+    const resolution = {
+      blockId: 'starter',
+      block,
+      path: StartBlockPath.LEGACY_STARTER,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workflowInput: { input: 'hello' },
+    })
+
+    expect(output).toEqual({ input: 'hello' })
+  })
+
+  it.concurrent('allows reserved inputFormat field names on serialized legacy chat starter', () => {
+    const block = createBlock('starter', 'starter')
+    block.config.params = {
+      startWorkflow: 'chat',
+      inputFormat: [{ name: 'error', type: 'string' }],
+    }
+    const resolution = {
+      blockId: 'starter',
+      block,
+      path: StartBlockPath.LEGACY_STARTER,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workflowInput: { input: 'hello' },
+    })
+
+    expect(output).toEqual({ input: 'hello' })
+  })
+
   it.concurrent('ignores malformed non-string inputFormat field names', () => {
     const block = createBlock('start_trigger', 'start', {
       subBlocks: {
