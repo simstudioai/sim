@@ -1303,16 +1303,12 @@ export async function upsertRow(
     throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
   }
 
-  // Validate column name before raw interpolation (defense-in-depth)
-  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(targetColumnName)) {
-    throw new Error(`Invalid column name: ${targetColumnName}`)
-  }
-
-  // Build the single-column match filter
+  // `data->` and `data->>` accept the JSON key as a parameterized text value;
+  // no need for `sql.raw` interpolation.
   const matchFilter =
     typeof targetValue === 'string'
-      ? sql`${userTableRows.data}->>${sql.raw(`'${targetColumnName}'`)} = ${String(targetValue)}`
-      : sql`(${userTableRows.data}->${sql.raw(`'${targetColumnName}'`)})::jsonb = ${JSON.stringify(targetValue)}::jsonb`
+      ? sql`${userTableRows.data}->>${targetColumnName}::text = ${String(targetValue)}`
+      : sql`(${userTableRows.data}->${targetColumnName}::text)::jsonb = ${JSON.stringify(targetValue)}::jsonb`
 
   // Capacity enforcement for the insert path lives in the `increment_user_table_row_count`
   // trigger (migration 0198). The update path doesn't change row_count, so no check needed.
@@ -2295,8 +2291,10 @@ export async function renameColumn(
       .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
       .where(eq(userTableDefinitions.id, data.tableId))
 
+    // All bindings parameterized — `data->` accepts a text parameter for the
+    // key, no need to drop into `sql.raw` with hand-rolled quote escaping.
     await trx.execute(
-      sql`UPDATE user_table_rows SET data = data - ${actualOldName}::text || jsonb_build_object(${data.newName}::text, data->${sql.raw(`'${actualOldName.replace(/'/g, "''")}'`)}) WHERE table_id = ${data.tableId} AND data ? ${actualOldName}::text`
+      sql`UPDATE user_table_rows SET data = data - ${actualOldName}::text || jsonb_build_object(${data.newName}::text, data->${actualOldName}::text) WHERE table_id = ${data.tableId} AND data ? ${actualOldName}::text`
     )
   })
 
@@ -2566,8 +2564,6 @@ export async function updateColumnType(
     return table
   }
 
-  const escapedName = column.name.replace(/'/g, "''")
-
   // Validate existing data is compatible with the new type
   const rows = await db
     .select({ id: userTableRows.id, data: userTableRows.data })
@@ -2576,7 +2572,7 @@ export async function updateColumnType(
       and(
         eq(userTableRows.tableId, data.tableId),
         sql`${userTableRows.data} ? ${column.name}`,
-        sql`${userTableRows.data}->>${sql.raw(`'${escapedName}'`)} IS NOT NULL`
+        sql`${userTableRows.data}->>${column.name}::text IS NOT NULL`
       )
     )
 
@@ -2646,8 +2642,6 @@ export async function updateColumnConstraints(
       `Cannot change constraints on workflow-output column "${column.name}". Constraints aren't applicable to columns whose values come from workflow execution.`
     )
   }
-  const escapedName = column.name.replace(/'/g, "''")
-
   if (data.required === true && !column.required) {
     const [result] = await db
       .select({ count: count() })
@@ -2655,7 +2649,7 @@ export async function updateColumnConstraints(
       .where(
         and(
           eq(userTableRows.tableId, data.tableId),
-          sql`(NOT (${userTableRows.data} ? ${column.name}) OR ${userTableRows.data}->>${sql.raw(`'${escapedName}'`)} IS NULL)`
+          sql`(NOT (${userTableRows.data} ? ${column.name}) OR ${userTableRows.data}->>${column.name}::text IS NULL)`
         )
       )
 
@@ -2668,7 +2662,7 @@ export async function updateColumnConstraints(
 
   if (data.unique === true && !column.unique) {
     const duplicates = (await db.execute(
-      sql`SELECT ${userTableRows.data}->>${sql.raw(`'${escapedName}'`)} AS val, count(*) AS cnt FROM ${userTableRows} WHERE table_id = ${data.tableId} AND ${userTableRows.data} ? ${column.name} AND ${userTableRows.data}->>${sql.raw(`'${escapedName}'`)} IS NOT NULL GROUP BY val HAVING count(*) > 1 LIMIT 1`
+      sql`SELECT ${userTableRows.data}->>${column.name}::text AS val, count(*) AS cnt FROM ${userTableRows} WHERE table_id = ${data.tableId} AND ${userTableRows.data} ? ${column.name} AND ${userTableRows.data}->>${column.name}::text IS NOT NULL GROUP BY val HAVING count(*) > 1 LIMIT 1`
     )) as { val: string; cnt: number }[]
 
     if (duplicates.length > 0) {
