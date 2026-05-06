@@ -51,7 +51,11 @@ export function cleanCellValue(value: unknown, column: ColumnDefinition): unknow
 }
 
 /**
- * Format a stored value for display in an input field.
+ * Format a stored value for display in an input field. Defensive against
+ * shape drift: a column whose declared type lags its actual data (e.g. a
+ * workflow column mid-remap, where the schema cache hasn't refetched but
+ * row data already has the new mapping's value) would otherwise render
+ * `[object Object]` via `String(value)`.
  */
 export function formatValueForInput(value: unknown, type: string): string {
   if (value === null || value === undefined) return ''
@@ -69,6 +73,7 @@ export function formatValueForInput(value: unknown, type: string): string {
       return str
     }
   }
+  if (typeof value === 'object') return JSON.stringify(value)
   return String(value)
 }
 

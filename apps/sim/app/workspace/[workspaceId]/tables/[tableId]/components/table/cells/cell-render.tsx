@@ -99,7 +99,7 @@ export function resolveCellRender({
   if (isNull) return { kind: 'empty' }
   if (column.type === 'json') return { kind: 'json', text: JSON.stringify(value) }
   if (column.type === 'date') return { kind: 'date', text: String(value) }
-  return { kind: 'text', text: String(value) }
+  return { kind: 'text', text: stringifyValue(value) }
 }
 
 function stringifyValue(value: unknown): string {
