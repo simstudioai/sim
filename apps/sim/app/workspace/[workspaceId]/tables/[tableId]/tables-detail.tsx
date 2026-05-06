@@ -148,10 +148,14 @@ export function TablesDetail({
   const onOpenExecutionDetails = useCallback((executionId: string) => {
     dispatch({ type: 'OPEN_EXECUTION', executionId })
   }, [])
-  const onCloseSlideout = useCallback(() => dispatch({ type: 'CLOSE' }), [])
+  const onCloseSlideout = () => dispatch({ type: 'CLOSE' })
+  const onOpenRowModal = (row: TableRowType) => setEditingRow(row)
+  // useCallback because <ResourceHeader> is memo-wrapped — these flow into
+  // the breadcrumbs / headerActions memos, whose identity drives that re-render.
   const onRequestDeleteTable = useCallback(() => setShowDeleteTableConfirm(true), [])
   const onRequestImportCsv = useCallback(() => setIsImportCsvOpen(true), [])
-  const onOpenRowModal = useCallback((row: TableRowType) => setEditingRow(row), [])
+  // Used inside grid's `useCallback` deps — identity stability prevents the
+  // grid's `useCallback` from re-creating on every wrapper re-render.
   const onRequestDeleteRows = useCallback((snapshots: DeletedRowSnapshot[]) => {
     setDeletingRows(snapshots)
   }, [])
@@ -165,9 +169,9 @@ export function TablesDetail({
    * rename. The grid's render assigns to `current`; the wrapper forwards calls.
    */
   const columnRenameSinkRef = useRef<((oldName: string, newName: string) => void) | null>(null)
-  const onColumnRename = useCallback((oldName: string, newName: string) => {
+  const onColumnRename = (oldName: string, newName: string) => {
     columnRenameSinkRef.current?.(oldName, newName)
-  }, [])
+  }
 
   /**
    * Sink the grid populates with its post-row-delete cleanup (push undo,
@@ -199,8 +203,6 @@ export function TablesDetail({
     tableId,
     queryOptions,
   })
-  const tableWorkflowGroupsRef = useRef(tableWorkflowGroups)
-  tableWorkflowGroupsRef.current = tableWorkflowGroups
 
   const runGroupMutation = useRunGroup({ workspaceId, tableId })
   const cancelRunsMutation = useCancelTableRuns({ workspaceId, tableId })
@@ -219,22 +221,20 @@ export function TablesDetail({
     [runGroupMutate]
   )
 
-  const onRunRows = useCallback(
-    (rowIds: string[], runMode: 'all' | 'incomplete') => {
-      const groups = tableWorkflowGroupsRef.current
-      if (groups.length === 0 || rowIds.length === 0) return
-      for (const group of groups) {
-        runGroupMutate({
-          groupId: group.id,
-          workflowId: group.workflowId,
-          runMode,
-          rowIds,
-        })
-      }
-    },
-    [runGroupMutate]
-  )
+  const onRunRows = (rowIds: string[], runMode: 'all' | 'incomplete') => {
+    if (tableWorkflowGroups.length === 0 || rowIds.length === 0) return
+    for (const group of tableWorkflowGroups) {
+      runGroupMutate({
+        groupId: group.id,
+        workflowId: group.workflowId,
+        runMode,
+        rowIds,
+      })
+    }
+  }
 
+  // useCallback because <DataRow> is React.memo-wrapped — identity stability
+  // matters for per-row gutter Stop button.
   const onStopRow = useCallback(
     (rowId: string) => {
       cancelRunsMutate({ scope: 'row', rowId })
@@ -242,30 +242,21 @@ export function TablesDetail({
     [cancelRunsMutate]
   )
 
-  const onStopRows = useCallback(
-    (rowIds: string[]) => {
-      if (rowIds.length === 0) return
-      for (const rowId of rowIds) {
-        cancelRunsMutate({ scope: 'row', rowId })
-      }
-    },
-    [cancelRunsMutate]
-  )
+  const onStopRows = (rowIds: string[]) => {
+    if (rowIds.length === 0) return
+    for (const rowId of rowIds) {
+      cancelRunsMutate({ scope: 'row', rowId })
+    }
+  }
 
+  // useCallback because <RunStatusControl> is memo-wrapped.
   const onStopAll = useCallback(() => {
     cancelRunsMutate({ scope: 'all' })
   }, [cancelRunsMutate])
 
-  const onSelectionChange = useCallback((next: SelectionSnapshot) => {
+  const onSelectionChange = (next: SelectionSnapshot) => {
     setSelection(next)
-  }, [])
-
-  const onQueryOptionsChange = useCallback(
-    (next: QueryOptions | ((prev: QueryOptions) => QueryOptions)) => {
-      setQueryOptions(next)
-    },
-    []
-  )
+  }
 
   const renameTableMutation = useRenameTable(workspaceId)
   const tableDataRef = useRef(tableData)
@@ -287,16 +278,13 @@ export function TablesDetail({
     if (data) tableHeaderRename.startRename(tableId, data.name)
   }, [tableHeaderRename.startRename, tableId])
 
-  const handleAddColumnOfType = useCallback(
-    (type: ColumnDefinition['type']) => {
-      onOpenColumnConfig({ mode: 'create', proposedName: generateColumnName(columns), type })
-    },
-    [columns, onOpenColumnConfig]
-  )
+  const handleAddColumnOfType = (type: ColumnDefinition['type']) => {
+    onOpenColumnConfig({ mode: 'create', proposedName: generateColumnName(columns), type })
+  }
 
-  const handleAddWorkflowColumn = useCallback(() => {
+  const handleAddWorkflowColumn = () => {
     onOpenWorkflowConfig({ mode: 'create', proposedName: generateColumnName(columns) })
-  }, [columns, onOpenWorkflowConfig])
+  }
 
   const handleExportCsv = useCallback(async () => {
     if (!tableData) return
@@ -319,28 +307,27 @@ export function TablesDetail({
     [columns]
   )
 
-  const activeSortState = useMemo(() => {
-    if (!queryOptions.sort) return null
-    const entries = Object.entries(queryOptions.sort)
-    if (entries.length === 0) return null
-    const [column, direction] = entries[0]
-    return { column, direction }
-  }, [queryOptions.sort])
-
-  const sortConfig = useMemo<SortConfig>(
-    () => ({
+  const sortConfig = useMemo<SortConfig>(() => {
+    let active: SortConfig['active'] = null
+    if (queryOptions.sort) {
+      const entries = Object.entries(queryOptions.sort)
+      if (entries.length > 0) {
+        const [column, direction] = entries[0]
+        active = { column, direction }
+      }
+    }
+    return {
       options: columnOptions,
-      active: activeSortState,
+      active,
       onSort: (column, direction) =>
         setQueryOptions((prev) => ({ ...prev, sort: { [column]: direction } })),
       onClear: () => setQueryOptions((prev) => ({ ...prev, sort: null })),
-    }),
-    [columnOptions, activeSortState]
-  )
+    }
+  }, [columnOptions, queryOptions.sort])
 
-  const handleFilterApply = useCallback((filter: Filter | null) => {
+  const handleFilterApply = (filter: Filter | null) => {
     setQueryOptions((prev) => ({ ...prev, filter }))
-  }, [])
+  }
 
   const breadcrumbs = useMemo(
     () => [
@@ -424,7 +411,7 @@ export function TablesDetail({
         : 0
 
   const deleteTableMutation = useDeleteTable(workspaceId)
-  const handleDeleteTable = useCallback(async () => {
+  const handleDeleteTable = async () => {
     try {
       await deleteTableMutation.mutateAsync(tableId)
       setShowDeleteTableConfirm(false)
@@ -432,9 +419,7 @@ export function TablesDetail({
     } catch {
       setShowDeleteTableConfirm(false)
     }
-    // mutateAsync identity is stable in TanStack v5
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableId, router, workspaceId])
+  }
 
   const columnConfig = slideout.kind === 'column' ? slideout.config : null
   const workflowConfig = slideout.kind === 'workflow' ? slideout.config : null
@@ -482,8 +467,6 @@ export function TablesDetail({
         onOpenColumnConfig={onOpenColumnConfig}
         onOpenWorkflowConfig={onOpenWorkflowConfig}
         onOpenExecutionDetails={onOpenExecutionDetails}
-        onRequestDeleteTable={onRequestDeleteTable}
-        onRequestImportCsv={onRequestImportCsv}
         onOpenRowModal={onOpenRowModal}
         onRequestDeleteRows={onRequestDeleteRows}
         onRequestDeleteColumns={onRequestDeleteColumns}
@@ -495,7 +478,6 @@ export function TablesDetail({
         cancelRunsPending={cancelRunsMutation.isPending}
         onSelectionChange={onSelectionChange}
         queryOptions={queryOptions}
-        onQueryOptionsChange={onQueryOptionsChange}
         columnRenameSinkRef={columnRenameSinkRef}
         afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}
         confirmDeleteColumnsSinkRef={confirmDeleteColumnsSinkRef}

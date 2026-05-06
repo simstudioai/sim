@@ -143,13 +143,6 @@ interface TableProps {
   onOpenColumnConfig: (cfg: ColumnConfig) => void
   onOpenWorkflowConfig: (cfg: WorkflowConfig) => void
   onOpenExecutionDetails: (executionId: string) => void
-  /**
-   * Fired by the page-header "Delete" action. The wrapper owns the
-   * confirmation modal + the `useDeleteTable` mutation.
-   */
-  onRequestDeleteTable: () => void
-  /** Fired by the page-header "Import CSV" action. The wrapper renders the dialog. */
-  onRequestImportCsv: () => void
   /** Open the row-edit modal for `row`. Wrapper renders the modal. */
   onOpenRowModal: (row: TableRowType) => void
   /** Open the row-delete modal for `snapshots`. Wrapper renders the modal. */
@@ -180,7 +173,6 @@ interface TableProps {
   onSelectionChange: (state: SelectionSnapshot) => void
   /** Filter + sort. Lifted to wrapper so a single `useTable` call serves both. */
   queryOptions: QueryOptions
-  onQueryOptionsChange: (next: QueryOptions | ((prev: QueryOptions) => QueryOptions)) => void
   /**
    * Ref the grid populates with its `handleColumnRename` so the wrapper's
    * sidebars can fire a column rename back into the grid (rewrites local
@@ -221,8 +213,6 @@ export function Table({
   onOpenColumnConfig,
   onOpenWorkflowConfig,
   onOpenExecutionDetails,
-  onRequestDeleteTable,
-  onRequestImportCsv,
   onOpenRowModal,
   onRequestDeleteRows,
   onRequestDeleteColumns,
@@ -234,7 +224,6 @@ export function Table({
   cancelRunsPending,
   onSelectionChange,
   queryOptions,
-  onQueryOptionsChange,
   columnRenameSinkRef,
   afterDeleteRowsSinkRef,
   confirmDeleteColumnsSinkRef,
@@ -2635,16 +2624,33 @@ export function Table({
   )
 
   // Emit selection snapshots so the wrapper can render <TableActionBar>.
-  // Object identity is fine — the wrapper memoizes downstream renders.
+  // The grid can't fold this into individual event handlers (running counts
+  // come from React Query refetches, not user events) so it's intentionally
+  // an effect — but we content-compare against the last sent snapshot so a
+  // re-render where nothing actually changed doesn't churn the wrapper.
   const onSelectionChangeRef = useRef(onSelectionChange)
   onSelectionChangeRef.current = onSelectionChange
+  const lastSelectionSnapshotRef = useRef<SelectionSnapshot | null>(null)
   useEffect(() => {
-    onSelectionChangeRef.current({
+    const prev = lastSelectionSnapshotRef.current
+    if (
+      prev &&
+      prev.runningInActionBarSelection === runningInActionBarSelection &&
+      prev.totalRunning === totalRunning &&
+      prev.hasWorkflowColumns === hasWorkflowColumns &&
+      prev.actionBarRowIds.length === actionBarRowIds.length &&
+      prev.actionBarRowIds.every((id, i) => id === actionBarRowIds[i])
+    ) {
+      return
+    }
+    const next: SelectionSnapshot = {
       actionBarRowIds,
       runningInActionBarSelection,
       totalRunning,
       hasWorkflowColumns,
-    })
+    }
+    lastSelectionSnapshotRef.current = next
+    onSelectionChangeRef.current(next)
   }, [actionBarRowIds, runningInActionBarSelection, totalRunning, hasWorkflowColumns])
 
   const handleRunRow = useCallback(

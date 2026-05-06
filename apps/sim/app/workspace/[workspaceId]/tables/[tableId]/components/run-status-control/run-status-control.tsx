@@ -23,7 +23,7 @@ export const RunStatusControl = memo(function RunStatusControl({
   return (
     <div className='flex items-center gap-1.5'>
       <div className='flex items-center gap-1.5 px-1 text-[var(--text-tertiary)] text-caption'>
-        <Loader animate className='h-3.5 w-3.5 shrink-0' />
+        <Loader animate className='h-[14px] w-[14px] shrink-0' />
         <span className='tabular-nums'>{running}</span>
         <span>running</span>
       </div>
