@@ -33,6 +33,7 @@ const RESERVED_SIGNATURE_HEADER_NAMES = new Set([
   'x-sim-sequence',
   'x-sim-row-count',
   'x-sim-probe',
+  'x-sim-signature',
 ])
 
 /**

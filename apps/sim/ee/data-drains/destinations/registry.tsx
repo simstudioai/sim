@@ -102,7 +102,7 @@ const s3FormSpec: DestinationFormSpec<S3State> = {
       region: s.region,
       prefix: s.prefix || undefined,
       endpoint: s.endpoint || undefined,
-      forcePathStyle: s.forcePathStyle || undefined,
+      forcePathStyle: s.forcePathStyle,
     },
     destinationCredentials: {
       accessKeyId: s.accessKeyId,
