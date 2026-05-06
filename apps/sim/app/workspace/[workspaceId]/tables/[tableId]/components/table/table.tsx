@@ -1241,7 +1241,7 @@ export function Table({
   }, [tableData?.id])
 
   useEffect(() => {
-    if (!tableData?.metadata || metadataSeededRef.current) return
+    if (!tableData?.metadata) return
     if (!tableData.metadata.columnWidths && !tableData.metadata.columnOrder) return
     // First load: seed both from the server and remember we've seeded.
     if (!metadataSeededRef.current) {
