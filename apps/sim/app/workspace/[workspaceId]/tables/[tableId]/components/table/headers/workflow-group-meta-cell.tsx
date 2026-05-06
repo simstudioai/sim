@@ -350,7 +350,7 @@ export function WorkflowGroupMetaCell({
       onDragEnd={isDraggable ? handleDragEnd : undefined}
       onDragLeave={isDraggable ? handleDragLeave : undefined}
       onDrop={isDraggable ? handleDrop : undefined}
-      className='group relative -ml-px cursor-pointer border-[var(--border)] border-r border-b border-l bg-[var(--bg)] px-2 py-[5px] text-left align-middle'
+      className='group relative cursor-pointer border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[5px] text-left align-middle before:pointer-events-none before:absolute before:top-0 before:bottom-0 before:left-[-1px] before:w-px before:bg-[var(--border)] before:content-[""]'
     >
       <div
         className='pointer-events-none absolute inset-0'
