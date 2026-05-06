@@ -1825,7 +1825,7 @@ export const auth = betterAuth({
                 return null
               }
               return {
-                id: `quickbooks-${realmId}`,
+                id: `quickbooks-${realmId}-${generateId()}`,
                 name: `QuickBooks Company ${realmId}`,
                 email: `quickbooks-${realmId}@quickbooks.local`,
                 emailVerified: true,
