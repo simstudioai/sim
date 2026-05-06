@@ -3160,6 +3160,9 @@ const DataRow = React.memo(function DataRow({
     if (workflowGroups.length === 0) return null
     const map = new Map<string, string[]>()
     for (const group of workflowGroups) {
+      // autoRun=false groups never fire from the scheduler — there's nothing
+      // to wait on. The cell stays empty until the user clicks Run manually.
+      if (group.autoRun === false) continue
       const unmet = getUnmetGroupDeps(group, row)
       if (unmet.columns.length === 0 && unmet.workflowGroups.length === 0) continue
       const upstreamLabels = unmet.workflowGroups
