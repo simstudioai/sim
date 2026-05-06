@@ -1,5 +1,5 @@
 import type { NextConfig } from 'next'
-import { env, getEnv, isTruthy } from './lib/core/config/env'
+import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/feature-flags'
 import {
   getChatEmbedCSPPolicy,
@@ -40,13 +40,13 @@ const nextConfig: NextConfig = {
         hostname: 'lh3.googleusercontent.com',
       },
       // Brand logo domain if configured
-      ...(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL')
+      ...(process.env.NEXT_PUBLIC_BRAND_LOGO_URL
         ? (() => {
             try {
               return [
                 {
                   protocol: 'https' as const,
-                  hostname: new URL(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL')!).hostname,
+                  hostname: new URL(process.env.NEXT_PUBLIC_BRAND_LOGO_URL!).hostname,
                 },
               ]
             } catch {
@@ -55,13 +55,13 @@ const nextConfig: NextConfig = {
           })()
         : []),
       // Brand favicon domain if configured
-      ...(getEnv('NEXT_PUBLIC_BRAND_FAVICON_URL')
+      ...(process.env.NEXT_PUBLIC_BRAND_FAVICON_URL
         ? (() => {
             try {
               return [
                 {
                   protocol: 'https' as const,
-                  hostname: new URL(getEnv('NEXT_PUBLIC_BRAND_FAVICON_URL')!).hostname,
+                  hostname: new URL(process.env.NEXT_PUBLIC_BRAND_FAVICON_URL!).hostname,
                 },
               ]
             } catch {
