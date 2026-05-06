@@ -1283,6 +1283,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               dependencies: args.dependencies as WorkflowGroupDependencies | undefined,
               outputs: updateOutputs,
               newOutputColumns: args.newOutputColumns as ColumnDefinition[] | undefined,
+              mappingUpdates: args.mappingUpdates as
+                | Array<{ columnName: string; blockId: string; path: string }>
+                | undefined,
+              autoRun: typeof args.autoRun === 'boolean' ? args.autoRun : undefined,
             },
             requestId
           )
