@@ -84,16 +84,13 @@ const SEARCH_AND_AI_BOTS = [
   'CCBot',
   'cohere-ai',
   'cohere-training-data-crawler',
-  'GrokBot',
-  'xAI-Grok',
-  'Grok-DeepSearch',
   'MistralAI-User',
-  'DeepSeek-AI',
+  'DeepSeekBot',
   'YouBot',
   'Diffbot',
   'AI2Bot',
   'Timpibot',
-  'ImageSiftBot',
+  'ImagesiftBot',
 ]
 
 /**
