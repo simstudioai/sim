@@ -2,17 +2,10 @@ import { createEnv } from '@t3-oss/env-nextjs'
 import { z } from 'zod'
 
 /**
- * Universal environment variable getter that works in both client and server contexts.
- * - Client-side: reads from `window.__ENV`, which `<PublicEnvScript>` from
- *   next-runtime-env populates before hydration (declared globally by that
- *   package). Supports Docker runtime injection of `NEXT_PUBLIC_*` vars
- *   without rebuilding.
- * - Server-side: reads `process.env` directly.
- *
- * We deliberately do not import next-runtime-env's `env()` helper. It calls
- * `unstable_noStore()` from `next/cache`, which Next 16.2+ rejects when
- * invoked outside a request scope (e.g. during `next.config.ts` compilation
- * or top-level module evaluation).
+ * Reads NEXT_PUBLIC_* env vars in both client and server contexts.
+ * Client reads `window.__ENV` (populated by `<PublicEnvScript>`); server reads `process.env`.
+ * We do not use next-runtime-env's `env()` helper because it calls `unstable_noStore()`,
+ * which Next 16.2+ rejects outside a request scope.
  */
 const getEnv = (variable: string): string | undefined => {
   if (typeof window === 'undefined') return process.env[variable]
