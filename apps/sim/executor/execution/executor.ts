@@ -1,4 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
+import { normalizeStringArray } from '@/lib/core/utils/arrays'
+import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import type { DAG } from '@/executor/dag/builder'
 import { DAGBuilder } from '@/executor/dag/builder'
@@ -56,9 +58,9 @@ export class DAGExecutor {
 
   constructor(options: DAGExecutorOptions) {
     this.workflow = options.workflow
-    this.environmentVariables = options.envVarValues ?? {}
+    this.environmentVariables = normalizeStringRecord(options.envVarValues)
     this.workflowInput = options.workflowInput ?? {}
-    this.workflowVariables = options.workflowVariables ?? {}
+    this.workflowVariables = normalizeWorkflowVariables(options.workflowVariables)
     this.contextExtensions = options.contextExtensions ?? {}
     this.dagBuilder = new DAGBuilder()
     this.execLogger = logger.withMetadata({
@@ -325,7 +327,7 @@ export class DAGExecutor {
         : new Set(),
       workflow: this.workflow,
       stream: this.contextExtensions.stream ?? false,
-      selectedOutputs: this.contextExtensions.selectedOutputs ?? [],
+      selectedOutputs: normalizeStringArray(this.contextExtensions.selectedOutputs),
       edges: this.contextExtensions.edges ?? [],
       onStream: this.contextExtensions.onStream,
       onBlockStart: this.contextExtensions.onBlockStart,

@@ -1,6 +1,7 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { redactApiKeys } from '@/lib/core/security/redaction'
+import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   containsUserFileWithMetadata,
@@ -164,7 +165,7 @@ export class BlockExecutor {
             block,
             streamingExec,
             resolvedInputs,
-            ctx.selectedOutputs ?? []
+            normalizeStringArray(ctx.selectedOutputs)
           )
         }
 

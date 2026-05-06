@@ -196,6 +196,28 @@ describe('FunctionBlockHandler', () => {
     )
   })
 
+  it('should normalize malformed execution context records before calling function_execute', async () => {
+    const legacyVariable = { id: 'var-1', name: 'brand', type: 'plain', value: 'myfitness' }
+    mockContext.workflowVariables = [legacyVariable] as unknown as Record<string, any>
+    mockContext.environmentVariables = ['invalid-env'] as unknown as Record<string, string>
+
+    await handler.execute(mockContext, mockBlock, {
+      code: 'return "myfitness"',
+      [FUNCTION_BLOCK_CONTEXT_VARS_KEY]: ['invalid-context'],
+    })
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({
+        envVars: {},
+        workflowVariables: { 'var-1': legacyVariable },
+        contextVariables: {},
+      }),
+      false,
+      mockContext
+    )
+  })
+
   it('should handle tool error with no specific message', async () => {
     const inputs = { code: 'some code' }
     const errorResult = { success: false }

@@ -7,6 +7,7 @@ import { createLogger } from '@sim/logger'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
+import { isPlainRecord } from '@/lib/core/utils/records'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -581,6 +582,16 @@ export async function executeWorkflowCore(
       callChain: metadata.callChain,
     }
 
+    for (const variable of Object.values(workflowVariables)) {
+      if (
+        isPlainRecord(variable) &&
+        variable.value !== undefined &&
+        typeof variable.type === 'string'
+      ) {
+        variable.value = parseVariableValueByType(variable.value, variable.type)
+      }
+    }
+
     const executorInstance = new Executor({
       workflow: serializedWorkflow,
       envVarValues: decryptedEnvVars,
@@ -588,16 +599,6 @@ export async function executeWorkflowCore(
       workflowVariables,
       contextExtensions,
     })
-
-    // Convert initial workflow variables to their native types
-    if (workflowVariables) {
-      for (const [varId, variable] of Object.entries(workflowVariables)) {
-        const v = variable as { value?: unknown; type?: string }
-        if (v.value !== undefined && v.type) {
-          v.value = parseVariableValueByType(v.value, v.type)
-        }
-      }
-    }
 
     const result = runFromBlock
       ? ((await executorInstance.executeFromBlock(
