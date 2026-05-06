@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
-import { Table } from './components'
+import { TablesDetail } from './tables-detail'
 
 export const metadata: Metadata = {
   title: 'Table',
 }
 
 export default function TablePage() {
-  return <Table />
+  return <TablesDetail />
 }
