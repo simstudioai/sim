@@ -10,7 +10,12 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 
 const confluenceSpaceSchema = z
-  .object({ id: z.string(), name: z.string(), key: z.string() })
+  .object({
+    id: z.string(),
+    name: z.string(),
+    key: z.string(),
+    status: z.string().optional(),
+  })
   .passthrough()
 
 export const confluencePagesBodySchema = z.object({
@@ -354,10 +359,17 @@ const defineConfluenceGetContract = <TQuery extends z.ZodType>(path: string, que
     },
   })
 
+export const confluenceSpacesSelectorBodySchema = credentialWorkflowDomainBodySchema.extend({
+  cursor: optionalString,
+})
+
 export const confluenceSpacesSelectorContract = definePostSelector(
   '/api/tools/confluence/selector-spaces',
-  credentialWorkflowDomainBodySchema,
-  z.object({ spaces: z.array(confluenceSpaceSchema) })
+  confluenceSpacesSelectorBodySchema,
+  z.object({
+    spaces: z.array(confluenceSpaceSchema),
+    nextCursor: optionalString,
+  })
 )
 
 export const confluencePagesSelectorContract = definePostSelector(

@@ -19,13 +19,33 @@ const logger = createLogger('ConfluenceSelectorSpacesAPI')
 
 export const dynamic = 'force-dynamic'
 
+const PAGE_LIMIT = 250
+
+type SpaceStatus = 'current' | 'archived'
+
+/**
+ * Cursor format: `<status>:<innerCursor>`. Empty inner cursor means "first page
+ * of that status". When current is exhausted we hand back `archived:` so the
+ * client transparently flips to the archived stream — listing both surfaces
+ * archived spaces in the dropdown, which would otherwise only be reachable by
+ * typing the space key manually even though sync works against archived spaces.
+ */
+function parseCursor(raw: string | undefined): { status: SpaceStatus; inner?: string } {
+  if (!raw) return { status: 'current' }
+  const idx = raw.indexOf(':')
+  if (idx === -1) return { status: 'current' }
+  const status = raw.slice(0, idx) === 'archived' ? 'archived' : 'current'
+  const inner = raw.slice(idx + 1)
+  return { status, inner: inner || undefined }
+}
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   try {
     const parsed = await parseRequest(confluenceSpacesSelectorContract, request, {})
     if (!parsed.success) return parsed.response
 
-    const { credential, workflowId, domain } = parsed.data.body
+    const { credential, workflowId, domain, cursor } = parsed.data.body
 
     if (!credential) {
       logger.error('Missing credential in request')
@@ -44,11 +64,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
 
-    // Resolve once so we know whether this is an Atlassian SA credential before
-    // doing any token / cloudId work. Atlassian SAs short-circuit the entire path:
-    // the API token IS the access token, and cloudId lives in the encrypted secret —
-    // so we skip refreshAccessTokenIfNeeded (avoids a redundant resolve+decrypt) and
-    // skip getConfluenceCloudId (which 401s for scoped SA tokens).
     const resolved = await resolveOAuthAccountId(credential)
     const isAtlassianServiceAccount =
       resolved?.providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID && !!resolved.credentialId
@@ -83,27 +98,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
     }
 
-    const url = `https://api.atlassian.com/ex/confluence/${cloudIdValidation.sanitized}/wiki/api/v2/spaces?limit=250`
+    const baseUrl = `https://api.atlassian.com/ex/confluence/${cloudIdValidation.sanitized}/wiki/api/v2/spaces`
+    const { status, inner } = parseCursor(cursor)
+
+    const params = new URLSearchParams({ limit: String(PAGE_LIMIT), status })
+    if (inner) params.set('cursor', inner)
+    const url = `${baseUrl}?${params.toString()}`
 
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
+      headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
     })
 
     if (!response.ok) {
       const errorText = await response.text()
-      logger.error('Confluence API error response:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText,
-      })
-      return NextResponse.json(
-        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
-        { status: response.status }
-      )
+      const message = parseAtlassianErrorMessage(response.status, response.statusText, errorText)
+      logger.error('Confluence API error response', { error: message, status: response.status })
+      return NextResponse.json({ error: message }, { status: 502 })
     }
 
     const data = await response.json()
@@ -111,9 +122,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       id: space.id,
       name: space.name,
       key: space.key,
+      status,
     }))
 
-    return NextResponse.json({ spaces })
+    let nextInner: string | undefined
+    const nextLink = data._links?.next as string | undefined
+    if (nextLink) {
+      try {
+        nextInner = new URL(nextLink, 'https://placeholder').searchParams.get('cursor') || undefined
+      } catch {
+        nextInner = undefined
+      }
+    }
+
+    let nextCursor: string | undefined
+    if (nextInner) {
+      nextCursor = `${status}:${nextInner}`
+    } else if (status === 'current') {
+      nextCursor = 'archived:'
+    }
+
+    return NextResponse.json({ spaces, nextCursor })
   } catch (error) {
     logger.error('Error listing Confluence spaces:', error)
     return NextResponse.json(
