@@ -1,7 +1,16 @@
 'use client'
 
-import { useCallback, useReducer, useRef } from 'react'
-import { useParams } from 'next/navigation'
+import { useCallback, useReducer, useRef, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import {
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn'
+import { useDeleteTable } from '@/hooks/queries/tables'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import {
   type ColumnConfig,
@@ -71,27 +80,27 @@ export function TablesDetail({
   tableId: propTableId,
 }: TablesDetailProps = {}) {
   const params = useParams()
+  const router = useRouter()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
 
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
+  const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
 
   /**
    * Sink populated by the grid: invoked from sidebar `onColumnRename` so the
    * grid can rewrite its local `columnWidths` / `columnOrder` keys after a
-   * rename. The grid's effect sets `current` once on mount; the wrapper just
-   * forwards calls.
+   * rename. The grid's render assigns to `current`; the wrapper forwards calls.
    */
   const columnRenameSinkRef = useRef<((oldName: string, newName: string) => void) | null>(null)
   const onColumnRename = useCallback((oldName: string, newName: string) => {
     columnRenameSinkRef.current?.(oldName, newName)
   }, [])
 
-  // Query data needed for the slideouts. The grid also calls `useTable`; React
-  // Query dedupes the request so this is one network call. A future phase
-  // lifts the call entirely to the wrapper and passes the bundle down as
-  // props.
-  const { columns, tableWorkflowGroups, workflows } = useTable({
+  // Query data needed for the slideouts and modal copy. The grid also calls
+  // `useTable`; React Query dedupes the request so this is one network call.
+  // A future phase lifts the call entirely to the wrapper.
+  const { tableData, columns, tableWorkflowGroups, workflows } = useTable({
     workspaceId,
     tableId,
     queryOptions: { filter: null, sort: null },
@@ -114,7 +123,22 @@ export function TablesDetail({
   const onOpenExecutionDetails = useCallback((executionId: string) => {
     dispatch({ type: 'OPEN_EXECUTION', executionId })
   }, [])
-  const onClose = useCallback(() => dispatch({ type: 'CLOSE' }), [])
+  const onCloseSlideout = useCallback(() => dispatch({ type: 'CLOSE' }), [])
+
+  const onRequestDeleteTable = useCallback(() => setShowDeleteTableConfirm(true), [])
+
+  const deleteTableMutation = useDeleteTable(workspaceId)
+  const handleDeleteTable = useCallback(async () => {
+    try {
+      await deleteTableMutation.mutateAsync(tableId)
+      setShowDeleteTableConfirm(false)
+      router.push(`/workspace/${workspaceId}/tables`)
+    } catch {
+      setShowDeleteTableConfirm(false)
+    }
+    // mutateAsync identity is stable in TanStack v5
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableId, router, workspaceId])
 
   const columnConfig = slideout.kind === 'column' ? slideout.config : null
   const workflowConfig = slideout.kind === 'workflow' ? slideout.config : null
@@ -130,11 +154,12 @@ export function TablesDetail({
         onOpenColumnConfig={onOpenColumnConfig}
         onOpenWorkflowConfig={onOpenWorkflowConfig}
         onOpenExecutionDetails={onOpenExecutionDetails}
+        onRequestDeleteTable={onRequestDeleteTable}
         columnRenameSinkRef={columnRenameSinkRef}
       />
       <ColumnConfigSidebar
         config={columnConfig}
-        onClose={onClose}
+        onClose={onCloseSlideout}
         existingColumn={
           columnConfig?.mode === 'edit'
             ? (columns.find((c) => c.name === columnConfig.columnName) ?? null)
@@ -146,7 +171,7 @@ export function TablesDetail({
       />
       <WorkflowSidebar
         config={workflowConfig}
-        onClose={onClose}
+        onClose={onCloseSlideout}
         allColumns={columns}
         workflowGroups={tableWorkflowGroups}
         workflows={workflows}
@@ -157,8 +182,41 @@ export function TablesDetail({
       <ExecutionDetailsSidebar
         workspaceId={workspaceId}
         executionId={executionId}
-        onClose={onClose}
+        onClose={onCloseSlideout}
       />
+      {!embedded && (
+        <Modal open={showDeleteTableConfirm} onOpenChange={setShowDeleteTableConfirm}>
+          <ModalContent size='sm'>
+            <ModalHeader>Delete Table</ModalHeader>
+            <ModalBody>
+              <p className='text-[var(--text-secondary)]'>
+                Are you sure you want to delete{' '}
+                <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
+                <span className='text-[var(--text-error)]'>
+                  All {tableData?.rowCount ?? 0} rows will be removed.
+                </span>{' '}
+                You can restore it from Recently Deleted in Settings.
+              </p>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                variant='default'
+                onClick={() => setShowDeleteTableConfirm(false)}
+                disabled={deleteTableMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant='destructive'
+                onClick={handleDeleteTable}
+                disabled={deleteTableMutation.isPending}
+              >
+                {deleteTableMutation.isPending ? 'Deleting...' : 'Delete'}
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      )}
     </>
   )
 }

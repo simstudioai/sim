@@ -53,7 +53,6 @@ import {
   useCancelTableRuns,
   useCreateTableRow,
   useDeleteColumn,
-  useDeleteTable,
   useDeleteWorkflowGroup,
   useRenameTable,
   useRunGroup,
@@ -150,6 +149,11 @@ interface TableProps {
   onOpenWorkflowConfig: (cfg: WorkflowConfig) => void
   onOpenExecutionDetails: (executionId: string) => void
   /**
+   * Fired by the page-header "Delete" action. The wrapper owns the
+   * confirmation modal + the `useDeleteTable` mutation.
+   */
+  onRequestDeleteTable: () => void
+  /**
    * Ref the grid populates with its `handleColumnRename` so the wrapper's
    * sidebars can fire a column rename back into the grid (rewrites local
    * `columnWidths` / `columnOrder` keys). The wrapper just forwards the call.
@@ -167,6 +171,7 @@ export function Table({
   onOpenColumnConfig,
   onOpenWorkflowConfig,
   onOpenExecutionDetails,
+  onRequestDeleteTable,
   columnRenameSinkRef,
 }: TableProps) {
   const params = useParams()
@@ -195,7 +200,6 @@ export function Table({
   const [isColumnSelection, setIsColumnSelection] = useState(false)
   const lastCheckboxRowRef = useRef<string | null>(null)
   const isColumnSelectionRef = useRef(false)
-  const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
   const [deletingColumns, setDeletingColumns] = useState<string[] | null>(null)
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
 
@@ -507,7 +511,6 @@ export function Table({
   selectionFocusRef.current = selectionFocus
   isColumnSelectionRef.current = isColumnSelection
 
-  const deleteTableMutation = useDeleteTable(workspaceId)
   const renameTableMutation = useRenameTable(workspaceId)
 
   const tableHeaderRename = useInlineRename({
@@ -535,17 +538,6 @@ export function Table({
   const handleNavigateBack = useCallback(() => {
     router.push(`/workspace/${workspaceId}/tables`)
   }, [router, workspaceId])
-
-  const handleDeleteTable = useCallback(async () => {
-    try {
-      await deleteTableMutation.mutateAsync(tableId)
-      setShowDeleteTableConfirm(false)
-      router.push(`/workspace/${workspaceId}/tables`)
-    } catch {
-      setShowDeleteTableConfirm(false)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableId, router, workspaceId])
 
   const toggleBooleanCell = useCallback(
     (rowId: string, columnName: string, currentValue: unknown) => {
@@ -2522,8 +2514,8 @@ export function Table({
   }, [tableHeaderRename.startRename, tableId])
 
   const handleShowDeleteTableConfirm = useCallback(() => {
-    setShowDeleteTableConfirm(true)
-  }, [])
+    onRequestDeleteTable()
+  }, [onRequestDeleteTable])
 
   const hasTableData = !!tableData
 
@@ -3198,40 +3190,6 @@ export function Table({
         canEdit={userPermissions.canEdit}
         scrollContainer={scrollRef.current}
       />
-
-      {!embedded && (
-        <Modal open={showDeleteTableConfirm} onOpenChange={setShowDeleteTableConfirm}>
-          <ModalContent size='sm'>
-            <ModalHeader>Delete Table</ModalHeader>
-            <ModalBody>
-              <p className='text-[var(--text-secondary)]'>
-                Are you sure you want to delete{' '}
-                <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
-                <span className='text-[var(--text-error)]'>
-                  All {tableData?.rowCount ?? 0} rows will be removed.
-                </span>{' '}
-                You can restore it from Recently Deleted in Settings.
-              </p>
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                variant='default'
-                onClick={() => setShowDeleteTableConfirm(false)}
-                disabled={deleteTableMutation.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant='destructive'
-                onClick={handleDeleteTable}
-                disabled={deleteTableMutation.isPending}
-              >
-                {deleteTableMutation.isPending ? 'Deleting...' : 'Delete'}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-      )}
 
       {tableData && (
         <ImportCsvDialog
