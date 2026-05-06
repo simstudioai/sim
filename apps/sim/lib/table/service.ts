@@ -2960,10 +2960,10 @@ export async function updateWorkflowGroup(
         sql`UPDATE user_table_rows SET data = data - ${name}::text WHERE table_id = ${data.tableId} AND data ? ${name}::text`
       )
     }
-    // Remapped columns keep their identity but read from a new source — clear
-    // their existing values so the user sees Empty/Waiting until the next run
-    // repopulates from the new `(blockId, path)`. Skipped columns that were
-    // also in `removedColumnNames` (the diff dropped them outright).
+    // Remapped columns: clear stale values in-tx so rows the backfill can't
+    // repopulate (no log, no matching span output) end up empty rather than
+    // retaining the previous mapping's value. The backfill below then writes
+    // the new mapping's value into rows where it can find one.
     for (const name of remappedColumnNames) {
       if (removedColumnNames.has(name)) continue
       await trx.execute(
@@ -2983,23 +2983,44 @@ export async function updateWorkflowGroup(
     updatedAt: now,
   }
 
-  // Backfill the new outputs from execution logs so already-completed group
-  // runs surface the just-added columns without re-running the workflow.
-  // Awaited so the response only returns once row data is consistent — the
-  // client then refetches and sees the backfilled values immediately. A failed
-  // backfill is logged but doesn't fail the whole request, since the schema
+  // Backfill from saved execution logs so already-completed group runs surface
+  // the schema changes without re-running the workflow. Two passes:
+  //   - added outputs (new columns): never overwrite hand-edited values.
+  //   - remapped outputs (existing column re-pointed): overwrite, since the
+  //     new mapping is the source of truth and the user expects the cell to
+  //     refresh to the new output's value.
+  // Awaited so the response only returns once row data is consistent. A
+  // failed backfill is logged but doesn't fail the request — the schema
   // change has already committed.
   if (added.length > 0) {
     try {
-      await backfillAddedGroupOutputs({
+      await backfillGroupOutputsFromLogs({
         table: updatedTable,
         groupId: data.groupId,
-        addedOutputs: added,
+        outputs: added,
+        overwrite: false,
         requestId,
       })
     } catch (err) {
       logger.warn(
         `[${requestId}] Backfill from execution logs failed for ${data.tableId} group ${data.groupId}:`,
+        err
+      )
+    }
+  }
+  if (remappedColumnNames.size > 0) {
+    const remappedOutputs = newOutputs.filter((o) => remappedColumnNames.has(o.columnName))
+    try {
+      await backfillGroupOutputsFromLogs({
+        table: updatedTable,
+        groupId: data.groupId,
+        outputs: remappedOutputs,
+        overwrite: true,
+        requestId,
+      })
+    } catch (err) {
+      logger.warn(
+        `[${requestId}] Remap backfill from execution logs failed for ${data.tableId} group ${data.groupId}:`,
         err
       )
     }
@@ -3379,14 +3400,28 @@ function findSpanByBlockId(
   return undefined
 }
 
-async function backfillAddedGroupOutputs(opts: {
+/**
+ * Walks completed group executions and pulls each target output's value out of
+ * the workflow's saved trace spans, writing it back into row data. Used in two
+ * spots:
+ *
+ *   - **added** outputs (new columns added to an existing group): `overwrite`
+ *     is false, so rows with a hand-edited value already in the column are
+ *     left alone.
+ *   - **remapped** outputs (existing column re-pointed at a different
+ *     `(blockId, path)`): `overwrite` is true — the new mapping is the source
+ *     of truth, and the user expects the column to refresh to the new
+ *     output's value rather than retain the stale old one.
+ */
+async function backfillGroupOutputsFromLogs(opts: {
   table: TableDefinition
   groupId: string
-  addedOutputs: WorkflowGroupOutput[]
+  outputs: WorkflowGroupOutput[]
+  overwrite: boolean
   requestId: string
 }): Promise<void> {
-  const { table, groupId, addedOutputs, requestId } = opts
-  if (addedOutputs.length === 0) return
+  const { table, groupId, outputs, overwrite, requestId } = opts
+  if (outputs.length === 0) return
 
   const { pluckByPath } = await import('./pluck')
 
@@ -3430,8 +3465,8 @@ async function backfillAddedGroupOutputs(opts: {
 
     const dataPatch: RowData = {}
     let mutated = false
-    for (const out of addedOutputs) {
-      if ((r.data as RowData)[out.columnName] !== undefined) continue
+    for (const out of outputs) {
+      if (!overwrite && (r.data as RowData)[out.columnName] !== undefined) continue
       const span = findSpanByBlockId(log.traceSpans, out.blockId)
       if (!span?.output) continue
       const picked = pluckByPath(span.output, out.path)
@@ -3456,7 +3491,7 @@ async function backfillAddedGroupOutputs(opts: {
   )
 
   logger.info(
-    `[${requestId}] Backfilled ${updates.length} row(s) for group "${groupId}" in table ${table.id}`
+    `[${requestId}] Backfilled ${updates.length} row(s) for group "${groupId}" in table ${table.id} (${overwrite ? 'remapped' : 'added'})`
   )
 }
 

@@ -762,8 +762,9 @@ export const addWorkflowGroupBodySchema = z.object({
  * user changes which `(blockId, path)` flows into a column they already have,
  * without restructuring the rest of the group's outputs. Distinct from the
  * `outputs` add/remove diff: the column keeps its identity, type, deps, and
- * row position; only its source mapping changes (and its row data is
- * cleared, since the new output may produce a different shape).
+ * row position; only its source mapping changes. Existing row values for the
+ * column are backfilled from saved execution logs at the new `(blockId, path)`
+ * — rows whose log has no value for the new mapping end up empty.
  */
 const workflowGroupMappingUpdateSchema = z.object({
   columnName: z.string().min(1),
