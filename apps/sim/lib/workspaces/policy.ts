@@ -277,6 +277,19 @@ export async function getWorkspaceCreationPolicy({
   }
 
   if (await isPlatformAdmin(userId)) {
+    if (organizationId && orgRole && ['owner', 'admin'].includes(orgRole)) {
+      return {
+        canCreate: true,
+        workspaceMode: WORKSPACE_MODE.ORGANIZATION,
+        organizationId,
+        billedAccountUserId: await requireOrganizationOwnerId(organizationId),
+        maxWorkspaces: null,
+        currentWorkspaceCount: 0,
+        reason: null,
+        status: 200,
+      }
+    }
+
     return {
       canCreate: true,
       workspaceMode: WORKSPACE_MODE.PERSONAL,

@@ -232,6 +232,46 @@ describe('getWorkspaceCreationPolicy', () => {
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
   })
 
+  it('keeps platform admins in org context when the org lacks a team plan', async () => {
+    mockGetUserOrganization.mockResolvedValueOnce({
+      organizationId: 'org-1',
+      role: 'admin',
+      memberId: 'member-1',
+    })
+    mockGetOrganizationSubscription.mockResolvedValueOnce(null)
+    mockDbResults.value = [[{ role: 'admin' }], [{ userId: 'owner-1' }]]
+
+    const result = await getWorkspaceCreationPolicy({
+      userId: 'admin-user',
+      activeOrganizationId: 'org-1',
+    })
+
+    expect(result.canCreate).toBe(true)
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.ORGANIZATION)
+    expect(result.organizationId).toBe('org-1')
+    expect(result.billedAccountUserId).toBe('owner-1')
+    expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
+  })
+
+  it('blocks platform admins who are only org members from creating org workspaces', async () => {
+    mockGetUserOrganization.mockResolvedValueOnce({
+      organizationId: 'org-1',
+      role: 'member',
+      memberId: 'member-1',
+    })
+    mockGetOrganizationSubscription.mockResolvedValueOnce(null)
+    mockDbResults.value = [[{ role: 'admin' }], [{ value: 0 }]]
+
+    const result = await getWorkspaceCreationPolicy({
+      userId: 'admin-user',
+      activeOrganizationId: 'org-1',
+    })
+
+    expect(result.canCreate).toBe(true)
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.PERSONAL)
+    expect(result.organizationId).toBeNull()
+  })
+
   it('still enforces plan limits for non-admin users', async () => {
     mockDbResults.value = [[{ role: 'user' }], [{ value: 1 }]]
 
