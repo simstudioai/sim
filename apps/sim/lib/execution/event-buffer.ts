@@ -211,10 +211,9 @@ function createMemoryExecutionEventWriter(executionId: string): ExecutionEventWr
   }
 }
 
-export async function finalizeExecutionStream(
+export async function flushExecutionStreamReplayBuffer(
   executionId: string,
-  writer: ExecutionEventWriter,
-  status: TerminalExecutionStreamStatus
+  writer: ExecutionEventWriter
 ): Promise<boolean> {
   let writerClosed = false
   for (let attempt = 1; attempt <= FINALIZE_FLUSH_ATTEMPTS; attempt++) {
@@ -227,7 +226,6 @@ export async function finalizeExecutionStream(
     } catch (error) {
       logger.warn('Failed to flush execution stream replay buffer during finalization', {
         executionId,
-        status,
         attempt,
         error: toError(error).message,
       })

@@ -8,7 +8,7 @@ import type { Edge } from 'reactflow'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import {
   createExecutionEventWriter,
-  finalizeExecutionStream,
+  flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
   resetExecutionStreamBuffer,
   type TerminalExecutionStreamStatus,
@@ -1282,15 +1282,14 @@ export class PauseResumeManager {
     } finally {
       timeoutController?.cleanup()
       if (!terminalEventPublished) {
-        const terminalPublished = await finalizeExecutionStream(
+        const replayBufferFlushed = await flushExecutionStreamReplayBuffer(
           resumeExecutionId,
-          eventWriter,
-          finalMetaStatus
+          eventWriter
         )
         logger.warn('Failed to publish resume terminal event durably', {
           resumeExecutionId,
           status: finalMetaStatus,
-          replayBufferFlushed: terminalPublished,
+          replayBufferFlushed,
         })
         if (!executionError) {
           executionError = new Error(TERMINAL_PUBLISH_ERROR)

@@ -27,7 +27,7 @@ vi.mock('@/lib/core/config/redis', () => ({
 
 import {
   createExecutionEventWriter,
-  finalizeExecutionStream,
+  flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
   readExecutionEventsState,
 } from '@/lib/execution/event-buffer'
@@ -215,7 +215,7 @@ describe('execution event buffer', () => {
     await expect(writer.write(makeEvent('lost'))).rejects.toThrow('redis reservation failed')
     await writer.write(makeEvent('terminal'))
 
-    await expect(finalizeExecutionStream('exec-1', writer, 'complete')).resolves.toBe(true)
+    await expect(flushExecutionStreamReplayBuffer('exec-1', writer)).resolves.toBe(true)
     expect(persistedEntries.map((entry) => entry.eventId)).toEqual([101])
     expect(mockRedis.hset).not.toHaveBeenCalledWith(
       expect.any(String),
@@ -230,7 +230,7 @@ describe('execution event buffer', () => {
     const writer = createExecutionEventWriter('exec-1')
     await writer.write(makeEvent('terminal'))
 
-    await expect(finalizeExecutionStream('exec-1', writer, 'complete')).resolves.toBe(false)
+    await expect(flushExecutionStreamReplayBuffer('exec-1', writer)).resolves.toBe(false)
     expect(mockRedis.hset).not.toHaveBeenCalled()
   })
 
@@ -269,7 +269,7 @@ describe('execution event buffer', () => {
     const writer = createExecutionEventWriter('exec-1')
     await writer.write(makeEvent('terminal'))
 
-    await expect(finalizeExecutionStream('exec-1', writer, 'complete')).resolves.toBe(true)
+    await expect(flushExecutionStreamReplayBuffer('exec-1', writer)).resolves.toBe(true)
     expect(persistedEntries.map((entry) => entry.eventId)).toEqual([1])
     expect(mockRedis.hset).not.toHaveBeenCalledWith(
       expect.any(String),

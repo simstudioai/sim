@@ -110,6 +110,14 @@ const matchesEntryForUpdate = (
     return false
   }
 
+  if (
+    update.childWorkflowInstanceId !== undefined &&
+    entry.childWorkflowInstanceId !== undefined &&
+    entry.childWorkflowInstanceId !== update.childWorkflowInstanceId
+  ) {
+    return false
+  }
+
   return true
 }
 

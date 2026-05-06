@@ -512,6 +512,7 @@ export function reconcileFinalBlockLogs(
       reconcileChildTraceSpans(
         updateConsole,
         workflowId,
+        log.blockId,
         childWorkflowInstanceId,
         executionId,
         log.childTraceSpans
@@ -523,20 +524,21 @@ export function reconcileFinalBlockLogs(
 function reconcileChildTraceSpans(
   updateConsole: UpdateConsoleFn,
   workflowId: string,
+  childWorkflowBlockId: string,
   childWorkflowInstanceId: string,
   executionId: string,
   spans: TraceSpan[]
 ): void {
   for (const span of spans) {
     const matchingEntry = span.blockId
-      ? findConsoleEntryForSpan(workflowId, executionId, childWorkflowInstanceId, span)
+      ? findConsoleEntryForSpan(workflowId, executionId, childWorkflowBlockId, span)
       : undefined
     if (span.blockId) {
       const errorMessage = normalizeSpanError(span.output?.error)
       updateConsole(
         span.blockId,
         {
-          ...spanConsoleIdentity(span, childWorkflowInstanceId),
+          ...spanConsoleIdentity(span, childWorkflowBlockId),
           replaceOutput: (span.output ?? {}) as Record<string, unknown>,
           success: span.status !== 'error',
           ...(errorMessage !== undefined ? { error: errorMessage } : {}),
@@ -553,6 +555,7 @@ function reconcileChildTraceSpans(
       reconcileChildTraceSpans(
         updateConsole,
         workflowId,
+        matchingEntry?.blockId ?? childWorkflowBlockId,
         matchingEntry?.childWorkflowInstanceId ?? childWorkflowInstanceId,
         executionId,
         span.children
@@ -561,7 +564,7 @@ function reconcileChildTraceSpans(
   }
 }
 
-function spanConsoleIdentity(span: TraceSpan, childWorkflowInstanceId: string): ConsoleUpdate {
+function spanConsoleIdentity(span: TraceSpan, childWorkflowBlockId: string): ConsoleUpdate {
   const iterationContainerId = span.loopId ?? span.parallelId
   const iterationType = span.loopId ? 'loop' : span.parallelId ? 'parallel' : undefined
   return {
@@ -570,18 +573,18 @@ function spanConsoleIdentity(span: TraceSpan, childWorkflowInstanceId: string): 
     ...(iterationType !== undefined && { iterationType }),
     ...(iterationContainerId !== undefined && { iterationContainerId }),
     ...(span.parentIterations !== undefined && { parentIterations: span.parentIterations }),
-    childWorkflowBlockId: childWorkflowInstanceId,
+    childWorkflowBlockId,
   }
 }
 
 function findConsoleEntryForSpan(
   workflowId: string,
   executionId: string,
-  childWorkflowInstanceId: string,
+  childWorkflowBlockId: string,
   span: TraceSpan
 ): ConsoleEntry | undefined {
   if (!span.blockId) return undefined
-  const identity = spanConsoleIdentity(span, childWorkflowInstanceId)
+  const identity = spanConsoleIdentity(span, childWorkflowBlockId)
   return useTerminalConsoleStore
     .getState()
     .getWorkflowEntries(workflowId)
@@ -612,6 +615,13 @@ function matchesConsoleIdentity(entry: ConsoleEntry, identity: ConsoleUpdate): b
   if (
     identity.childWorkflowBlockId !== undefined &&
     entry.childWorkflowBlockId !== identity.childWorkflowBlockId
+  ) {
+    return false
+  }
+  if (
+    identity.childWorkflowInstanceId !== undefined &&
+    entry.childWorkflowInstanceId !== undefined &&
+    entry.childWorkflowInstanceId !== identity.childWorkflowInstanceId
   ) {
     return false
   }

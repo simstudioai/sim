@@ -27,7 +27,7 @@ import {
 } from '@/lib/execution/call-chain'
 import {
   createExecutionEventWriter,
-  finalizeExecutionStream,
+  flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
@@ -1296,15 +1296,14 @@ async function handleExecutePost(
             isManualAbortRegistered = false
           }
           if (finalMetaStatus && !terminalEventPublished) {
-            const terminalPublished = await finalizeExecutionStream(
+            const replayBufferFlushed = await flushExecutionStreamReplayBuffer(
               executionId,
-              eventWriter,
-              finalMetaStatus
+              eventWriter
             )
             reqLogger.error('Failed to publish terminal execution event durably', {
               executionId,
               status: finalMetaStatus,
-              replayBufferFlushed: terminalPublished,
+              replayBufferFlushed,
             })
             if (!isStreamClosed) {
               controller.error(new Error('Run buffer terminal event publish failed'))

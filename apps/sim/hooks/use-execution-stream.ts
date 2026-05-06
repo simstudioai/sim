@@ -64,12 +64,8 @@ function isClientDisconnectError(error: any): boolean {
   return error.name === 'AbortError'
 }
 
-function isAbortDisconnectError(error: any): boolean {
-  return error.name === 'AbortError'
-}
-
 function isRecoverableStreamError(error: any): boolean {
-  if (isAbortDisconnectError(error)) return false
+  if (isClientDisconnectError(error)) return false
   const msg = (error.message ?? '').toLowerCase()
   return (
     msg.includes('network error') || msg.includes('failed to fetch') || msg.includes('load failed')
@@ -466,7 +462,7 @@ export function useExecutionStream() {
 
       await processSSEStream(response.body.getReader(), callbacks, 'Reconnect')
     } catch (error: any) {
-      if (isAbortDisconnectError(error)) return
+      if (isClientDisconnectError(error)) return
       logger.error('Reconnection stream error:', error)
       throw error
     } finally {

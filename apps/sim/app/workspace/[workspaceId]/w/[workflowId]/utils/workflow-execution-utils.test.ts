@@ -427,7 +427,7 @@ describe('workflow-execution-utils', () => {
         executionId: 'exec-1',
         executionOrder: 3,
         isRunning: true,
-        childWorkflowBlockId: 'child-inst-1',
+        childWorkflowBlockId: 'workflow-1',
         childWorkflowName: 'Workflow 1',
       })
       terminalConsoleMockFns.mockAddConsole({
@@ -489,7 +489,7 @@ describe('workflow-execution-utils', () => {
           success: true,
           isRunning: false,
           isCanceled: false,
-          childWorkflowBlockId: 'child-inst-1',
+          childWorkflowBlockId: 'workflow-1',
         }),
         'exec-1',
       ])
@@ -501,7 +501,7 @@ describe('workflow-execution-utils', () => {
           error: 'Request failed',
           isRunning: false,
           isCanceled: false,
-          childWorkflowBlockId: 'child-inst-1',
+          childWorkflowBlockId: 'workflow-1',
         }),
         'exec-1',
       ])
@@ -529,7 +529,7 @@ describe('workflow-execution-utils', () => {
         iterationCurrent: 0,
         iterationType: 'loop',
         iterationContainerId: 'loop-1',
-        childWorkflowBlockId: 'child-inst-1',
+        childWorkflowBlockId: 'workflow-1',
       })
       terminalConsoleMockFns.mockAddConsole({
         workflowId: 'wf-1',
@@ -542,7 +542,7 @@ describe('workflow-execution-utils', () => {
         iterationCurrent: 1,
         iterationType: 'loop',
         iterationContainerId: 'loop-1',
-        childWorkflowBlockId: 'child-inst-1',
+        childWorkflowBlockId: 'workflow-1',
       })
 
       const startedAt = new Date().toISOString()
@@ -632,7 +632,7 @@ describe('workflow-execution-utils', () => {
         executionId: 'exec-1',
         executionOrder: 3,
         isRunning: false,
-        childWorkflowBlockId: 'child-inst-1',
+        childWorkflowBlockId: 'workflow-1',
         childWorkflowInstanceId: 'nested-inst-1',
       })
       terminalConsoleMockFns.mockAddConsole({
@@ -643,7 +643,7 @@ describe('workflow-execution-utils', () => {
         executionId: 'exec-1',
         executionOrder: 1,
         isRunning: true,
-        childWorkflowBlockId: 'nested-inst-1',
+        childWorkflowBlockId: 'nested-workflow',
       })
 
       const startedAt = new Date().toISOString()
@@ -688,7 +688,7 @@ describe('workflow-execution-utils', () => {
       expect(updateConsole.mock.calls[1]).toEqual([
         'nested-api',
         expect.objectContaining({
-          childWorkflowBlockId: 'nested-inst-1',
+          childWorkflowBlockId: 'nested-workflow',
           success: true,
           isRunning: false,
           isCanceled: false,
