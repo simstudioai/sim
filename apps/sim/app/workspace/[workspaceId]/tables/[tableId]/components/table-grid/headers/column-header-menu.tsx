@@ -286,10 +286,10 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             draggable={false}
           >
             <ColumnTypeIcon
-            type={column.type}
-            isWorkflowColumn={!!column.workflowGroupId}
-            blockIconInfo={sourceInfo?.blockIconInfo}
-          />
+              type={column.type}
+              isWorkflowColumn={!!column.workflowGroupId}
+              blockIconInfo={sourceInfo?.blockIconInfo}
+            />
             <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
               {column.workflowGroupId ? column.headerLabel : column.name}
             </span>

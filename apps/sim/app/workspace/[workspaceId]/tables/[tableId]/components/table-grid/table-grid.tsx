@@ -4,25 +4,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import {
-  Button,
-  Checkbox,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  Skeleton,
-  toast,
-} from '@/components/emcn'
+import { Button, Checkbox, Skeleton, toast } from '@/components/emcn'
 import { PlayOutline, Plus, Square, TableX } from '@/components/emcn/icons'
-import { Loader } from '@/components/emcn/icons/loader'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
-import type {
-  ColumnDefinition,
-  TableRow as TableRowType,
-  WorkflowGroup,
-} from '@/lib/table'
+import type { ColumnDefinition, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getUnmetGroupDeps } from '@/lib/table/deps'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -47,14 +33,14 @@ import {
   generateColumnName as sharedGenerateColumnName,
   storageToDisplay,
 } from '../../utils'
-import { type ColumnConfig, COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
+import type { ColumnConfig } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
 import { RunStatusControl } from '../run-status-control'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { CellContent, ExpandedCellPopover } from './cells'
 import { COL_WIDTH, SELECTION_TINT_BG } from './constants'
-import { COLUMN_TYPE_ICONS, ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
+import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
 import type { DisplayColumn } from './types'
 import {
   areRowDepsSatisfied,
@@ -178,17 +164,13 @@ interface TableGridProps {
    * sidebars can fire a column rename back into the grid (rewrites local
    * `columnWidths` / `columnOrder` keys). The wrapper just forwards the call.
    */
-  columnRenameSinkRef: React.MutableRefObject<
-    ((oldName: string, newName: string) => void) | null
-  >
+  columnRenameSinkRef: React.MutableRefObject<((oldName: string, newName: string) => void) | null>
   /**
    * Ref the grid populates with its post-row-delete cleanup (push undo,
    * clear selection). The wrapper invokes after the row-delete modal's
    * mutation succeeds.
    */
-  afterDeleteRowsSinkRef: React.MutableRefObject<
-    ((snapshots: DeletedRowSnapshot[]) => void) | null
-  >
+  afterDeleteRowsSinkRef: React.MutableRefObject<((snapshots: DeletedRowSnapshot[]) => void) | null>
   /**
    * Ref the grid populates with its full delete-columns cascade (per-column
    * mutation, undo push, columnOrder + columnWidths cleanup). The wrapper's
@@ -562,7 +544,6 @@ export function TableGrid({
       updateColumnMutation.mutate({ columnName, updates: { name: newName } })
     },
   })
-
 
   const toggleBooleanCell = useCallback(
     (rowId: string, columnName: string, currentValue: unknown) => {
@@ -2209,7 +2190,10 @@ export function TableGrid({
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
-  const generateColumnName = useCallback(() => sharedGenerateColumnName(schemaColumnsRef.current), [])
+  const generateColumnName = useCallback(
+    () => sharedGenerateColumnName(schemaColumnsRef.current),
+    []
+  )
 
   const handleChangeType = useCallback((columnName: string, newType: ColumnDefinition['type']) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
@@ -2503,7 +2487,6 @@ export function TableGrid({
     setIsColumnSelection(false)
     deleteNext(0)
   }
-
 
   /**
    * Row ids the context menu acts on. If the right-clicked row is checked, all
@@ -2953,7 +2936,6 @@ export function TableGrid({
             <AddRowButton onClick={handleAppendRow} />
           )}
         </div>
-
       </div>
 
       <ContextMenu
@@ -3348,7 +3330,6 @@ const TableBodySkeleton = React.memo(function TableBodySkeleton({
   )
 })
 
-
 const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
   checked,
   onCheckedChange,
@@ -3379,7 +3360,6 @@ const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
   )
 })
 
-
 const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: () => void }) {
   return (
     <div className='px-2 py-[7px]'>
@@ -3394,4 +3374,3 @@ const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: ()
     </div>
   )
 })
-

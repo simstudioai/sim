@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
 import { createLogger } from '@sim/logger'
+import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
   Modal,
@@ -12,14 +12,18 @@ import {
   ModalHeader,
   toast,
 } from '@/components/emcn'
+import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
+import type { ColumnDefinition, Filter, TableRow as TableRowType } from '@/lib/table'
 import {
-  Download,
-  Pencil,
-  Plus,
-  Table as TableIcon,
-  Trash,
-  Upload,
-} from '@/components/emcn/icons'
+  type ColumnOption,
+  ResourceHeader,
+  ResourceOptionsBar,
+  type SortConfig,
+} from '@/app/workspace/[workspaceId]/components'
+import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
+import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
   downloadTableExport,
   useCancelTableRuns,
@@ -28,21 +32,8 @@ import {
   useRunGroup,
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
-import type { DeletedRowSnapshot } from '@/stores/table/types'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
-import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
-import type { ColumnDefinition, Filter, TableRow as TableRowType } from '@/lib/table'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import {
-  type ColumnOption,
-  ResourceHeader,
-  ResourceOptionsBar,
-  type SortConfig,
-} from '@/app/workspace/[workspaceId]/components'
-import type { QueryOptions } from './types'
-import { generateColumnName } from './utils'
-import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
-import { useLogByExecutionId } from '@/hooks/queries/logs'
+import type { DeletedRowSnapshot } from '@/stores/table/types'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
@@ -59,6 +50,8 @@ import {
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
 import { useTable } from './hooks'
+import type { QueryOptions } from './types'
+import { generateColumnName } from './utils'
 
 const logger = createLogger('Table')
 
@@ -211,12 +204,7 @@ export function Table({
   const cancelRunsMutate = cancelRunsMutation.mutate
 
   const onRunGroup = useCallback(
-    (
-      groupId: string,
-      workflowId: string,
-      runMode: 'all' | 'incomplete',
-      rowIds?: string[]
-    ) => {
+    (groupId: string, workflowId: string, runMode: 'all' | 'incomplete', rowIds?: string[]) => {
       runGroupMutate({ groupId, workflowId, runMode, rowIds })
     },
     [runGroupMutate]

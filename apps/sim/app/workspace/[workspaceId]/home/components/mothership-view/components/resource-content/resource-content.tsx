@@ -147,14 +147,7 @@ export const ResourceContent = memo(function ResourceContent({
 
   switch (resource.type) {
     case 'table':
-      return (
-        <Table
-          key={resource.id}
-          workspaceId={workspaceId}
-          tableId={resource.id}
-          embedded
-        />
-      )
+      return <Table key={resource.id} workspaceId={workspaceId} tableId={resource.id} embedded />
 
     case 'file':
       return (
