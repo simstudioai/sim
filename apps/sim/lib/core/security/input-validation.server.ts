@@ -192,6 +192,7 @@ export interface SecureFetchOptions {
   timeout?: number
   maxRedirects?: number
   maxResponseBytes?: number
+  signal?: AbortSignal
 }
 
 export class SecureFetchHeaders {
@@ -310,7 +311,7 @@ export async function secureFetchWithPinnedIP(
         validateUrlWithDNS(redirectUrl, 'redirectUrl', { allowHttp: options.allowHttp })
           .then((validation) => {
             if (!validation.isValid) {
-              reject(new Error(`Redirect blocked: ${validation.error}`))
+              settledReject(new Error(`Redirect blocked: ${validation.error}`))
               return
             }
             return secureFetchWithPinnedIP(
@@ -321,15 +322,15 @@ export async function secureFetchWithPinnedIP(
             )
           })
           .then((response) => {
-            if (response) resolve(response)
+            if (response) settledResolve(response)
           })
-          .catch(reject)
+          .catch(settledReject)
         return
       }
 
       if (isRedirectStatus(statusCode) && location && redirectCount >= maxRedirects) {
         res.resume()
-        reject(new Error(`Too many redirects (max: ${maxRedirects})`))
+        settledReject(new Error(`Too many redirects (max: ${maxRedirects})`))
         return
       }
 
@@ -355,7 +356,7 @@ export async function secureFetchWithPinnedIP(
       })
 
       res.on('error', (error) => {
-        reject(error)
+        settledReject(error)
       })
 
       res.on('end', () => {
@@ -371,7 +372,7 @@ export async function secureFetchWithPinnedIP(
           }
         }
 
-        resolve({
+        settledResolve({
           ok: statusCode >= 200 && statusCode < 300,
           status: statusCode,
           statusText: res.statusMessage || '',
@@ -387,14 +388,43 @@ export async function secureFetchWithPinnedIP(
       })
     })
 
+    let onAbort: (() => void) | null = null
+    const cleanupAbort = () => {
+      if (onAbort && options.signal) {
+        options.signal.removeEventListener('abort', onAbort)
+        onAbort = null
+      }
+    }
+    const settledResolve: typeof resolve = (value) => {
+      cleanupAbort()
+      resolve(value)
+    }
+    const settledReject: typeof reject = (reason) => {
+      cleanupAbort()
+      reject(reason)
+    }
+
     req.on('error', (error) => {
-      reject(error)
+      settledReject(error)
     })
 
     req.on('timeout', () => {
       req.destroy()
-      reject(new Error(`Request timed out after ${requestOptions.timeout}ms`))
+      settledReject(new Error(`Request timed out after ${requestOptions.timeout}ms`))
     })
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        req.destroy()
+        settledReject(options.signal.reason ?? new Error('Aborted'))
+        return
+      }
+      onAbort = () => {
+        req.destroy()
+        settledReject(options.signal?.reason ?? new Error('Aborted'))
+      }
+      options.signal.addEventListener('abort', onAbort, { once: true })
+    }
 
     if (options.body) {
       req.write(options.body)

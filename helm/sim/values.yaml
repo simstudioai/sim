@@ -262,6 +262,8 @@ app:
     NEXT_PUBLIC_WHITELABELING_ENABLED: ""                 # Show whitelabeling settings page ("true" to enable)
     AUDIT_LOGS_ENABLED: ""                                # Enable audit logs on self-hosted ("true" to enable)
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED: ""                    # Show audit logs settings page ("true" to enable)
+    DATA_DRAINS_ENABLED: ""                               # Enable data drains on self-hosted ("true" to enable)
+    NEXT_PUBLIC_DATA_DRAINS_ENABLED: ""                   # Show data drains settings page ("true" to enable)
 
     # AWS Bedrock Credential Mode
     # Set to "true" when the deployment uses AWS default credential chain (IAM roles, instance
@@ -1010,6 +1012,15 @@ cronjobs:
       name: connector-sync
       schedule: "*/5 * * * *"
       path: "/api/knowledge/connectors/sync"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    runDataDrains:
+      enabled: true
+      name: run-data-drains
+      schedule: "0 * * * *"
+      path: "/api/cron/run-data-drains"
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
