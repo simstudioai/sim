@@ -3040,7 +3040,7 @@ interface DataRowProps {
   workflowNameById: Record<string, string>
 }
 
-function rowSelectionChanged(
+function cellRangeRowChanged(
   rowIndex: number,
   colCount: number,
   prev: NormalizedSelection | null,
@@ -3103,7 +3103,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     return false
   }
 
-  return !rowSelectionChanged(
+  return !cellRangeRowChanged(
     prev.rowIndex,
     prev.columns.length,
     prev.normalizedSelection,
