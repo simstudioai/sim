@@ -93,6 +93,7 @@ export function TablesDetail({
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
   const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
+  const [deletingColumns, setDeletingColumns] = useState<string[] | null>(null)
 
   /**
    * Sink populated by the grid: invoked from sidebar `onColumnRename` so the
@@ -110,6 +111,13 @@ export function TablesDetail({
    * mutation succeeds.
    */
   const afterDeleteRowsSinkRef = useRef<((snapshots: DeletedRowSnapshot[]) => void) | null>(null)
+
+  /**
+   * Sink the grid populates with its full delete-columns cascade (per-column
+   * mutation, undo push, columnOrder + columnWidths cleanup). The wrapper's
+   * delete-columns confirmation modal invokes this on confirm.
+   */
+  const confirmDeleteColumnsSinkRef = useRef<((names: string[]) => void) | null>(null)
 
   // Query data needed for the slideouts and modal copy. The grid also calls
   // `useTable`; React Query dedupes the request so this is one network call.
@@ -145,6 +153,9 @@ export function TablesDetail({
   const onRequestDeleteRows = useCallback((snapshots: DeletedRowSnapshot[]) => {
     setDeletingRows(snapshots)
   }, [])
+  const onRequestDeleteColumns = useCallback((names: string[]) => {
+    setDeletingColumns(names)
+  }, [])
 
   const deleteTableMutation = useDeleteTable(workspaceId)
   const handleDeleteTable = useCallback(async () => {
@@ -177,8 +188,10 @@ export function TablesDetail({
         onRequestImportCsv={onRequestImportCsv}
         onOpenRowModal={onOpenRowModal}
         onRequestDeleteRows={onRequestDeleteRows}
+        onRequestDeleteColumns={onRequestDeleteColumns}
         columnRenameSinkRef={columnRenameSinkRef}
         afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}
+        confirmDeleteColumnsSinkRef={confirmDeleteColumnsSinkRef}
       />
       <ColumnConfigSidebar
         config={columnConfig}
@@ -238,6 +251,62 @@ export function TablesDetail({
           }}
         />
       )}
+      <Modal
+        open={deletingColumns !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingColumns(null)
+        }}
+      >
+        <ModalContent size='sm'>
+          <ModalHeader>
+            {deletingColumns && deletingColumns.length > 1
+              ? `Delete ${deletingColumns.length} Columns`
+              : 'Delete Column'}
+          </ModalHeader>
+          <ModalBody>
+            <p className='text-[var(--text-secondary)]'>
+              {deletingColumns && deletingColumns.length > 1 ? (
+                <>
+                  Are you sure you want to delete{' '}
+                  <span className='font-medium text-[var(--text-primary)]'>
+                    {deletingColumns.length} columns
+                  </span>
+                  ?{' '}
+                </>
+              ) : (
+                <>
+                  Are you sure you want to delete{' '}
+                  <span className='font-medium text-[var(--text-primary)]'>
+                    {deletingColumns?.[0]}
+                  </span>
+                  ?{' '}
+                </>
+              )}
+              <span className='text-[var(--text-error)]'>
+                This will remove all data in{' '}
+                {deletingColumns && deletingColumns.length > 1 ? 'these columns' : 'this column'}.
+              </span>{' '}
+              You can undo this action.
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='default' onClick={() => setDeletingColumns(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant='destructive'
+              onClick={() => {
+                if (!deletingColumns) return
+                const names = deletingColumns
+                setDeletingColumns(null)
+                confirmDeleteColumnsSinkRef.current?.(names)
+              }}
+            >
+              Delete
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
       {!embedded && (
         <Modal open={showDeleteTableConfirm} onOpenChange={setShowDeleteTableConfirm}>
           <ModalContent size='sm'>

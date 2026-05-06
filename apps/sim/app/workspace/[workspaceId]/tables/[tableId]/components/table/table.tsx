@@ -12,11 +12,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
   Skeleton,
   toast,
   Upload,
@@ -157,6 +152,8 @@ interface TableProps {
   onOpenRowModal: (row: TableRowType) => void
   /** Open the row-delete modal for `snapshots`. Wrapper renders the modal. */
   onRequestDeleteRows: (snapshots: DeletedRowSnapshot[]) => void
+  /** Open the delete-columns confirmation modal for `names`. Wrapper renders the modal. */
+  onRequestDeleteColumns: (names: string[]) => void
   /**
    * Ref the grid populates with its `handleColumnRename` so the wrapper's
    * sidebars can fire a column rename back into the grid (rewrites local
@@ -173,6 +170,12 @@ interface TableProps {
   afterDeleteRowsSinkRef: React.MutableRefObject<
     ((snapshots: DeletedRowSnapshot[]) => void) | null
   >
+  /**
+   * Ref the grid populates with its full delete-columns cascade (per-column
+   * mutation, undo push, columnOrder + columnWidths cleanup). The wrapper's
+   * delete-columns confirmation modal invokes this on confirm.
+   */
+  confirmDeleteColumnsSinkRef: React.MutableRefObject<((names: string[]) => void) | null>
 }
 
 export function Table({
@@ -187,8 +190,10 @@ export function Table({
   onRequestImportCsv,
   onOpenRowModal,
   onRequestDeleteRows,
+  onRequestDeleteColumns,
   columnRenameSinkRef,
   afterDeleteRowsSinkRef,
+  confirmDeleteColumnsSinkRef,
 }: TableProps) {
   const params = useParams()
   const router = useRouter()
@@ -214,8 +219,6 @@ export function Table({
   const [isColumnSelection, setIsColumnSelection] = useState(false)
   const lastCheckboxRowRef = useRef<string | null>(null)
   const isColumnSelectionRef = useRef(false)
-  const [deletingColumns, setDeletingColumns] = useState<string[] | null>(null)
-
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
   const columnWidthsRef = useRef(columnWidths)
   columnWidthsRef.current = columnWidths
@@ -2393,15 +2396,17 @@ export function Table({
       // group with ≥1 output, hide them directly — no destructive-confirm
       // modal, since the workflow can re-produce the value any time.
       if (hideWorkflowOutputColumns(names)) return
-      setDeletingColumns(names)
+      onRequestDeleteColumns(names)
     },
-    [resolveDeletionNames, hideWorkflowOutputColumns]
+    [resolveDeletionNames, hideWorkflowOutputColumns, onRequestDeleteColumns]
   )
 
-  const handleDeleteColumnConfirm = useCallback(() => {
-    if (!deletingColumns || deletingColumns.length === 0) return
-    const columnsToDelete = [...deletingColumns]
-    setDeletingColumns(null)
+  // Populated as a sink so the wrapper's delete-columns modal can run the
+  // full cascade (per-column mutation + undo + columnOrder/columnWidths
+  // cleanup) without lifting any of that grid-internal state.
+  confirmDeleteColumnsSinkRef.current = (names: string[]) => {
+    if (!names || names.length === 0) return
+    const columnsToDelete = [...names]
 
     let currentOrder = columnOrderRef.current ? [...columnOrderRef.current] : null
     const cols = schemaColumnsRef.current
@@ -2493,7 +2498,7 @@ export function Table({
     setSelectionFocus(null)
     setIsColumnSelection(false)
     deleteNext(0)
-  }, [deletingColumns])
+  }
 
   const handleSortChange = useCallback((column: string, direction: SortDirection) => {
     setQueryOptions((prev) => ({ ...prev, sort: { [column]: direction } }))
@@ -3187,56 +3192,6 @@ export function Table({
         canEdit={userPermissions.canEdit}
         scrollContainer={scrollRef.current}
       />
-
-
-      <Modal
-        open={deletingColumns !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeletingColumns(null)
-        }}
-      >
-        <ModalContent size='sm'>
-          <ModalHeader>
-            {deletingColumns && deletingColumns.length > 1
-              ? `Delete ${deletingColumns.length} Columns`
-              : 'Delete Column'}
-          </ModalHeader>
-          <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
-              {deletingColumns && deletingColumns.length > 1 ? (
-                <>
-                  Are you sure you want to delete{' '}
-                  <span className='font-medium text-[var(--text-primary)]'>
-                    {deletingColumns.length} columns
-                  </span>
-                  ?{' '}
-                </>
-              ) : (
-                <>
-                  Are you sure you want to delete{' '}
-                  <span className='font-medium text-[var(--text-primary)]'>
-                    {deletingColumns?.[0]}
-                  </span>
-                  ?{' '}
-                </>
-              )}
-              <span className='text-[var(--text-error)]'>
-                This will remove all data in{' '}
-                {deletingColumns && deletingColumns.length > 1 ? 'these columns' : 'this column'}.
-              </span>{' '}
-              You can undo this action.
-            </p>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setDeletingColumns(null)}>
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDeleteColumnConfirm}>
-              Delete
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
     </div>
   )
 }
