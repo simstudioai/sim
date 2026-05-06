@@ -99,12 +99,11 @@ function sign(body: Buffer, secret: string, timestamp: number): string {
 function sleepUntilAborted(ms: number, signal: AbortSignal): Promise<void> {
   if (signal.aborted) return Promise.resolve()
   return new Promise((resolve) => {
-    let timeoutId: ReturnType<typeof setTimeout>
     const onAbort = () => {
       clearTimeout(timeoutId)
       resolve()
     }
-    timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       signal.removeEventListener('abort', onAbort)
       resolve()
     }, ms)
