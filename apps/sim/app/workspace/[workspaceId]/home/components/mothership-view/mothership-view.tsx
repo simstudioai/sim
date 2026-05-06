@@ -6,6 +6,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { RICH_PREVIEWABLE_EXTENSIONS } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/use-file-preview-sessions'
 import type {
   GenericResourceData,
   MothershipResource,
@@ -23,7 +24,7 @@ const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
 /**
  * Whether the active resource should show the in-progress file stream.
  * The synthetic `streaming-file` tab always shows it; a real file tab only shows it
- * when the streamed fileId matches that exact resource.
+ * after a preview content event has arrived for that exact resource.
  */
 function shouldShowStreamingFilePanel(
   previewSession: FilePreviewSession | null | undefined,
@@ -32,7 +33,9 @@ function shouldShowStreamingFilePanel(
   if (!previewSession || previewSession.status === 'complete' || !active) return false
   if (active.id === 'streaming-file') return true
   if (active.type !== 'file') return false
-  if (active.id && previewSession.fileId === active.id) return true
+  if (active.id && previewSession.fileId === active.id) {
+    return hasRenderableFilePreviewContent(previewSession)
+  }
   return false
 }
 
