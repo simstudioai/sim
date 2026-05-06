@@ -5,8 +5,10 @@ import { describe, expect, it } from 'vitest'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import {
   buildCompletedPreviewSessions,
+  hasRenderableFilePreviewContent,
   INITIAL_FILE_PREVIEW_SESSIONS_STATE,
   reduceFilePreviewSessions,
+  shouldReplaceSession,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-file-preview-sessions'
 
 function createSession(
@@ -31,6 +33,56 @@ function createSession(
 }
 
 describe('reduceFilePreviewSessions', () => {
+  it('does not treat a pending empty preview as renderable content', () => {
+    expect(
+      hasRenderableFilePreviewContent(
+        createSession({
+          id: 'preview-1',
+          toolCallId: 'preview-1',
+          status: 'pending',
+          previewText: '',
+          previewVersion: 0,
+        })
+      )
+    ).toBe(false)
+  })
+
+  it('treats emitted preview snapshots as renderable even when empty', () => {
+    expect(
+      hasRenderableFilePreviewContent(
+        createSession({
+          id: 'preview-1',
+          toolCallId: 'preview-1',
+          status: 'streaming',
+          previewText: '',
+          previewVersion: 1,
+        })
+      )
+    ).toBe(true)
+  })
+
+  it('does not replace a completed session with same-version replayed streaming events', () => {
+    const completed = createSession({
+      id: 'preview-1',
+      toolCallId: 'preview-1',
+      status: 'complete',
+      previewText: 'final',
+      previewVersion: 2,
+      updatedAt: '2026-04-10T00:00:02.000Z',
+      completedAt: '2026-04-10T00:00:02.000Z',
+    })
+    const replayedStreaming = createSession({
+      id: 'preview-1',
+      toolCallId: 'preview-1',
+      status: 'streaming',
+      previewText: 'final',
+      previewVersion: 2,
+      updatedAt: '2026-04-10T00:00:03.000Z',
+    })
+
+    expect(shouldReplaceSession(completed, replayedStreaming)).toBe(false)
+  })
+
   it('builds complete sessions for terminal stream reconciliation', () => {
     const completedAt = '2026-04-10T00:00:10.000Z'
     const nextSessions = buildCompletedPreviewSessions(
