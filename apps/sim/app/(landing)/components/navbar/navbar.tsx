@@ -1,6 +1,14 @@
 'use client'
 
-import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  Suspense,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -50,7 +58,15 @@ interface NavbarProps {
   blogPosts?: NavBlogPost[]
 }
 
-export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps) {
+export default function Navbar(props: NavbarProps) {
+  return (
+    <Suspense fallback={null}>
+      <NavbarInner {...props} />
+    </Suspense>
+  )
+}
+
+function NavbarInner({ logoOnly = false, blogPosts = [] }: NavbarProps) {
   const brand = getBrandConfig()
   const searchParams = useSearchParams()
   const sessionCtx = useContext(SessionContext)
