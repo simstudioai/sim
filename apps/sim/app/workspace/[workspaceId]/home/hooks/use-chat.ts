@@ -4596,7 +4596,7 @@ export function useChat(
         }).catch(() => {})
       }
 
-      consoleStore.cancelRunningEntries(workflowId)
+      consoleStore.cancelRunningEntries(workflowId, executionId ?? undefined)
       const now = new Date()
       consoleStore.addConsole({
         input: {},

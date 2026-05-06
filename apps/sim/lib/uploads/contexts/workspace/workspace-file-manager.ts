@@ -477,9 +477,7 @@ export async function trackChatUpload(
         size,
       })
 
-      logger.info(
-        `Tracked chat upload: ${fileName} (display: ${candidate}) for chat ${chatId}`
-      )
+      logger.info(`Tracked chat upload: ${fileName} (display: ${candidate}) for chat ${chatId}`)
       return { displayName: candidate }
     } catch (error) {
       // Other 23505s (e.g. active-key collision from a racing same-s3Key insert) signal

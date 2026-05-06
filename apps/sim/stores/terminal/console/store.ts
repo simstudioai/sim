@@ -110,6 +110,14 @@ const matchesEntryForUpdate = (
     return false
   }
 
+  if (
+    update.childWorkflowInstanceId !== undefined &&
+    entry.childWorkflowInstanceId !== undefined &&
+    entry.childWorkflowInstanceId !== update.childWorkflowInstanceId
+  ) {
+    return false
+  }
+
   return true
 }
 
@@ -328,7 +336,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
     clearWorkflowConsole: (workflowId: string) => {
       set((state) => replaceWorkflowEntries(state, workflowId, EMPTY_CONSOLE_ENTRIES))
       useExecutionStore.getState().clearRunPath(workflowId)
-      consolePersistence.persist()
+      consolePersistence.persist({ merge: false })
     },
 
     clearExecutionEntries: (executionId: string) =>
@@ -604,13 +612,17 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
       }
     },
 
-    cancelRunningEntries: (workflowId: string) => {
+    cancelRunningEntries: (workflowId: string, executionId?: string) => {
       set((state) => {
         const now = new Date()
         const workflowEntries = state.workflowEntries[workflowId] ?? EMPTY_CONSOLE_ENTRIES
         let didChange = false
         const updatedEntries = workflowEntries.map((entry) => {
-          if (entry.workflowId === workflowId && entry.isRunning) {
+          if (
+            entry.workflowId === workflowId &&
+            entry.isRunning &&
+            (executionId === undefined || entry.executionId === executionId)
+          ) {
             didChange = true
             const durationMs = entry.startedAt
               ? now.getTime() - new Date(entry.startedAt).getTime()
@@ -619,6 +631,38 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               ...entry,
               isRunning: false,
               isCanceled: true,
+              endedAt: now.toISOString(),
+              durationMs,
+            }
+          }
+          return entry
+        })
+        if (!didChange) {
+          return state
+        }
+        return replaceWorkflowEntries(state, workflowId, updatedEntries)
+      })
+    },
+
+    finishRunningEntries: (workflowId: string, executionId?: string) => {
+      set((state) => {
+        const now = new Date()
+        const workflowEntries = state.workflowEntries[workflowId] ?? EMPTY_CONSOLE_ENTRIES
+        let didChange = false
+        const updatedEntries = workflowEntries.map((entry) => {
+          if (
+            entry.workflowId === workflowId &&
+            entry.isRunning &&
+            (executionId === undefined || entry.executionId === executionId)
+          ) {
+            didChange = true
+            const durationMs = entry.startedAt
+              ? now.getTime() - new Date(entry.startedAt).getTime()
+              : entry.durationMs
+            return {
+              ...entry,
+              isRunning: false,
+              isCanceled: false,
               endedAt: now.toISOString(),
               durationMs,
             }

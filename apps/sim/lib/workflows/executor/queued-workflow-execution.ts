@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
-import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/event-buffer'
+import {
+  createExecutionEventWriter,
+  type ExecutionEventWriter,
+  initializeExecutionStreamMeta,
+  type TerminalExecutionStreamStatus,
+} from '@/lib/execution/event-buffer'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
@@ -23,6 +28,7 @@ import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 
 const logger = createLogger('QueuedWorkflowExecution')
+const TERMINAL_PUBLISH_ERROR = 'Run buffer terminal event publish failed'
 
 export const DIRECT_WORKFLOW_JOB_NAME = 'direct-workflow-execution'
 
@@ -86,22 +92,45 @@ function buildResult(
   }
 }
 
+async function publishTerminalExecutionEvent(params: {
+  writer: ExecutionEventWriter
+  executionId: string
+  status: TerminalExecutionStreamStatus
+  event: ExecutionEvent
+}): Promise<boolean> {
+  try {
+    await params.writer.writeTerminal(params.event, params.status)
+    return true
+  } catch (error) {
+    logger.warn('Failed to buffer terminal execution event', {
+      executionId: params.executionId,
+      status: params.status,
+      error: toError(error).message,
+    })
+    return false
+  }
+}
+
 export async function executeQueuedWorkflowJob(
   payload: QueuedWorkflowExecutionPayload
 ): Promise<QueuedWorkflowExecutionResult> {
   const { metadata } = payload
   const { executionId, requestId, workflowId, triggerType } = metadata
   const loggingSession = new LoggingSession(workflowId, executionId, triggerType, requestId)
-  const timeoutController = createTimeoutAbortController(payload.timeoutMs)
   const eventWriter = payload.streamEvents ? createExecutionEventWriter(executionId) : null
+  let eventWriterClosed = false
 
   if (payload.streamEvents) {
-    await setExecutionMeta(executionId, {
-      status: 'active',
+    const metaInitialized = await initializeExecutionStreamMeta(executionId, {
       userId: metadata.userId,
       workflowId,
     })
+    if (!metaInitialized) {
+      throw new Error('Run buffer temporarily unavailable')
+    }
   }
+
+  const timeoutController = createTimeoutAbortController(payload.timeoutMs)
 
   try {
     const snapshot = new ExecutionSnapshot(
@@ -161,19 +190,25 @@ export async function executeQueuedWorkflowJob(
       await loggingSession.markAsFailed(timeoutErrorMessage)
 
       if (eventWriter) {
-        await eventWriter.write({
-          type: 'execution:error',
-          timestamp: new Date().toISOString(),
+        eventWriterClosed = await publishTerminalExecutionEvent({
+          writer: eventWriter,
           executionId,
-          workflowId,
-          data: {
-            error: timeoutErrorMessage,
-            duration: result.metadata?.duration || 0,
-            finalBlockLogs: result.logs,
+          status: 'error',
+          event: {
+            type: 'execution:error',
+            timestamp: new Date().toISOString(),
+            executionId,
+            workflowId,
+            data: {
+              error: timeoutErrorMessage,
+              duration: result.metadata?.duration || 0,
+              finalBlockLogs: result.logs,
+            },
           },
         })
-
-        await setExecutionMeta(executionId, { status: 'error' })
+      }
+      if (eventWriter && !eventWriterClosed) {
+        throw new Error(TERMINAL_PUBLISH_ERROR)
       }
 
       return buildResult(
@@ -208,48 +243,64 @@ export async function executeQueuedWorkflowJob(
 
     if (eventWriter) {
       if (result.status === 'cancelled') {
-        await eventWriter.write({
-          type: 'execution:cancelled',
-          timestamp: new Date().toISOString(),
+        eventWriterClosed = await publishTerminalExecutionEvent({
+          writer: eventWriter,
           executionId,
-          workflowId,
-          data: {
-            duration: result.metadata?.duration || 0,
-            finalBlockLogs: result.logs,
+          status: 'cancelled',
+          event: {
+            type: 'execution:cancelled',
+            timestamp: new Date().toISOString(),
+            executionId,
+            workflowId,
+            data: {
+              duration: result.metadata?.duration || 0,
+              finalBlockLogs: result.logs,
+            },
           },
         })
-        await setExecutionMeta(executionId, { status: 'cancelled' })
       } else if (result.status === 'paused') {
-        await eventWriter.write({
-          type: 'execution:paused',
-          timestamp: new Date().toISOString(),
+        eventWriterClosed = await publishTerminalExecutionEvent({
+          writer: eventWriter,
           executionId,
-          workflowId,
-          data: {
-            output: outputWithBase64,
-            duration: result.metadata?.duration || 0,
-            startTime: result.metadata?.startTime || metadata.startTime,
-            endTime: result.metadata?.endTime || new Date().toISOString(),
+          status: 'complete',
+          event: {
+            type: 'execution:paused',
+            timestamp: new Date().toISOString(),
+            executionId,
+            workflowId,
+            data: {
+              output: outputWithBase64,
+              duration: result.metadata?.duration || 0,
+              startTime: result.metadata?.startTime || metadata.startTime,
+              endTime: result.metadata?.endTime || new Date().toISOString(),
+              finalBlockLogs: result.logs,
+            },
           },
         })
-        await setExecutionMeta(executionId, { status: 'complete' })
       } else {
-        await eventWriter.write({
-          type: 'execution:completed',
-          timestamp: new Date().toISOString(),
+        eventWriterClosed = await publishTerminalExecutionEvent({
+          writer: eventWriter,
           executionId,
-          workflowId,
-          data: {
-            success: result.success,
-            output: outputWithBase64,
-            duration: result.metadata?.duration || 0,
-            startTime: result.metadata?.startTime || metadata.startTime,
-            endTime: result.metadata?.endTime || new Date().toISOString(),
-            finalBlockLogs: result.logs,
+          status: 'complete',
+          event: {
+            type: 'execution:completed',
+            timestamp: new Date().toISOString(),
+            executionId,
+            workflowId,
+            data: {
+              success: result.success,
+              output: outputWithBase64,
+              duration: result.metadata?.duration || 0,
+              startTime: result.metadata?.startTime || metadata.startTime,
+              endTime: result.metadata?.endTime || new Date().toISOString(),
+              finalBlockLogs: result.logs,
+            },
           },
         })
-        await setExecutionMeta(executionId, { status: 'complete' })
       }
+    }
+    if (eventWriter && !eventWriterClosed) {
+      throw new Error(TERMINAL_PUBLISH_ERROR)
     }
 
     return buildResult(
@@ -274,6 +325,10 @@ export async function executeQueuedWorkflowJob(
       executionId
     )
   } catch (error) {
+    if (toError(error).message === TERMINAL_PUBLISH_ERROR) {
+      throw error
+    }
+
     logger.error('Queued workflow execution failed', {
       workflowId,
       executionId,
@@ -295,18 +350,25 @@ export async function executeQueuedWorkflowJob(
     const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
 
     if (eventWriter) {
-      await eventWriter.write({
-        type: 'execution:error',
-        timestamp: new Date().toISOString(),
+      eventWriterClosed = await publishTerminalExecutionEvent({
+        writer: eventWriter,
         executionId,
-        workflowId,
-        data: {
-          error: toError(error).message,
-          duration: 0,
-          finalBlockLogs: executionResult?.logs,
+        status: 'error',
+        event: {
+          type: 'execution:error',
+          timestamp: new Date().toISOString(),
+          executionId,
+          workflowId,
+          data: {
+            error: toError(error).message,
+            duration: 0,
+            finalBlockLogs: executionResult?.logs,
+          },
         },
       })
-      await setExecutionMeta(executionId, { status: 'error' })
+    }
+    if (eventWriter && !eventWriterClosed) {
+      throw new Error(TERMINAL_PUBLISH_ERROR)
     }
 
     return buildResult(
@@ -330,8 +392,13 @@ export async function executeQueuedWorkflowJob(
   } finally {
     timeoutController.cleanup()
 
-    if (eventWriter) {
-      await eventWriter.close()
+    if (eventWriter && !eventWriterClosed) {
+      await eventWriter.close().catch((error) => {
+        logger.warn('Failed to close queued execution event writer', {
+          executionId,
+          error: toError(error).message,
+        })
+      })
     }
 
     await cleanupExecutionBase64Cache(executionId).catch((error) => {

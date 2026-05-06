@@ -32,12 +32,40 @@ export function isExecutionStreamHttpError(error: unknown): error is ExecutionSt
   return error instanceof ExecutionStreamHttpError
 }
 
+export class SSEEventHandlerError extends Error {
+  constructor(
+    message: string,
+    public readonly eventType: string,
+    public readonly eventId: number | undefined,
+    public readonly executionId: string | undefined,
+    public readonly originalError: unknown
+  ) {
+    super(message)
+    this.name = 'SSEEventHandlerError'
+  }
+}
+
+export class SSEStreamInterruptedError extends Error {
+  constructor(
+    message: string,
+    public readonly executionId: string | undefined,
+    public readonly originalError: unknown
+  ) {
+    super(message)
+    this.name = 'SSEStreamInterruptedError'
+  }
+}
+
 /**
  * Detects errors caused by the browser killing a fetch (page refresh, navigation, tab close).
  * These should be treated as clean disconnects, not execution errors.
  */
 function isClientDisconnectError(error: any): boolean {
-  if (error.name === 'AbortError') return true
+  return error.name === 'AbortError'
+}
+
+function isRecoverableStreamError(error: any): boolean {
+  if (isClientDisconnectError(error)) return false
   const msg = (error.message ?? '').toLowerCase()
   return (
     msg.includes('network error') || msg.includes('failed to fetch') || msg.includes('load failed')
@@ -75,52 +103,69 @@ export async function processSSEStream(
           continue
         }
 
+        let event: ExecutionEvent
         try {
-          const event = JSON.parse(data) as ExecutionEvent
+          event = JSON.parse(data) as ExecutionEvent
+        } catch (error) {
+          logger.error('Failed to parse SSE event:', error, { data })
+          continue
+        }
 
-          if (event.eventId != null) {
-            callbacks.onEventId?.(event.eventId)
-          }
-
+        try {
           switch (event.type) {
             case 'execution:started':
-              callbacks.onExecutionStarted?.(event.data)
+              await callbacks.onExecutionStarted?.(event.data)
               break
             case 'execution:completed':
-              callbacks.onExecutionCompleted?.(event.data)
+              await callbacks.onExecutionCompleted?.(event.data)
               break
             case 'execution:paused':
-              callbacks.onExecutionPaused?.(event.data)
+              await callbacks.onExecutionPaused?.(event.data)
               break
             case 'execution:error':
-              callbacks.onExecutionError?.(event.data)
+              await callbacks.onExecutionError?.(event.data)
               break
             case 'execution:cancelled':
-              callbacks.onExecutionCancelled?.(event.data)
+              await callbacks.onExecutionCancelled?.(event.data)
               break
             case 'block:started':
-              callbacks.onBlockStarted?.(event.data)
+              await callbacks.onBlockStarted?.(event.data)
               break
             case 'block:completed':
-              callbacks.onBlockCompleted?.(event.data)
+              await callbacks.onBlockCompleted?.(event.data)
               break
             case 'block:error':
-              callbacks.onBlockError?.(event.data)
+              await callbacks.onBlockError?.(event.data)
               break
             case 'block:childWorkflowStarted':
-              callbacks.onBlockChildWorkflowStarted?.(event.data)
+              await callbacks.onBlockChildWorkflowStarted?.(event.data)
               break
             case 'stream:chunk':
-              callbacks.onStreamChunk?.(event.data)
+              await callbacks.onStreamChunk?.(event.data)
               break
             case 'stream:done':
-              callbacks.onStreamDone?.(event.data)
+              await callbacks.onStreamDone?.(event.data)
               break
             default:
               logger.warn('Unknown event type:', (event as any).type)
           }
+
+          if (event.eventId != null) {
+            await callbacks.onEventId?.(event.eventId)
+          }
         } catch (error) {
-          logger.error('Failed to parse SSE event:', error, { data })
+          logger.error('SSE event handler failed:', error, {
+            eventType: event.type,
+            eventId: event.eventId,
+          })
+          const message = error instanceof Error ? error.message : String(error)
+          throw new SSEEventHandlerError(
+            message,
+            event.type,
+            event.eventId,
+            event.executionId,
+            error
+          )
         }
       }
     }
@@ -130,18 +175,18 @@ export async function processSSEStream(
 }
 
 export interface ExecutionStreamCallbacks {
-  onExecutionStarted?: (data: ExecutionStartedData) => void
-  onExecutionCompleted?: (data: ExecutionCompletedData) => void
-  onExecutionPaused?: (data: ExecutionPausedData) => void
-  onExecutionError?: (data: ExecutionErrorData) => void
-  onExecutionCancelled?: (data: ExecutionCancelledData) => void
-  onBlockStarted?: (data: BlockStartedData) => void
-  onBlockCompleted?: (data: BlockCompletedData) => void
-  onBlockError?: (data: BlockErrorData) => void
-  onBlockChildWorkflowStarted?: (data: BlockChildWorkflowStartedData) => void
-  onStreamChunk?: (data: StreamChunkData) => void
-  onStreamDone?: (data: StreamDoneData) => void
-  onEventId?: (eventId: number) => void
+  onExecutionStarted?: (data: ExecutionStartedData) => void | Promise<void>
+  onExecutionCompleted?: (data: ExecutionCompletedData) => void | Promise<void>
+  onExecutionPaused?: (data: ExecutionPausedData) => void | Promise<void>
+  onExecutionError?: (data: ExecutionErrorData) => void | Promise<void>
+  onExecutionCancelled?: (data: ExecutionCancelledData) => void | Promise<void>
+  onBlockStarted?: (data: BlockStartedData) => void | Promise<void>
+  onBlockCompleted?: (data: BlockCompletedData) => void | Promise<void>
+  onBlockError?: (data: BlockErrorData) => void | Promise<void>
+  onBlockChildWorkflowStarted?: (data: BlockChildWorkflowStartedData) => void | Promise<void>
+  onStreamChunk?: (data: StreamChunkData) => void | Promise<void>
+  onStreamDone?: (data: StreamDoneData) => void | Promise<void>
+  onEventId?: (eventId: number) => void | Promise<void>
 }
 
 export interface ExecuteStreamOptions {
@@ -191,6 +236,30 @@ export interface ReconnectStreamOptions {
  */
 const sharedAbortControllers = new Map<string, AbortController>()
 
+function executeStreamKey(workflowId: string): string {
+  return `${workflowId}:execute`
+}
+
+function reconnectStreamKey(workflowId: string, executionId: string): string {
+  return `${workflowId}:reconnect:${executionId}`
+}
+
+function abortStream(key: string): void {
+  const controller = sharedAbortControllers.get(key)
+  if (!controller) return
+  controller.abort()
+  sharedAbortControllers.delete(key)
+}
+
+function abortWorkflowStreams(workflowId: string): void {
+  const prefix = `${workflowId}:`
+  for (const [key, controller] of sharedAbortControllers) {
+    if (!key.startsWith(prefix)) continue
+    controller.abort()
+    sharedAbortControllers.delete(key)
+  }
+}
+
 /**
  * Hook for executing workflows via server-side SSE streaming.
  * Supports concurrent executions via per-workflow AbortController maps.
@@ -199,13 +268,12 @@ export function useExecutionStream() {
   const execute = useCallback(async (options: ExecuteStreamOptions) => {
     const { workflowId, callbacks = {}, onExecutionId, ...payload } = options
 
-    const existing = sharedAbortControllers.get(workflowId)
-    if (existing) {
-      existing.abort()
-    }
+    abortWorkflowStreams(workflowId)
 
     const abortController = new AbortController()
-    sharedAbortControllers.set(workflowId, abortController)
+    const streamKey = executeStreamKey(workflowId)
+    sharedAbortControllers.set(streamKey, abortController)
+    let serverExecutionId: string | undefined
 
     try {
       // boundary-raw-fetch: workflow execute endpoint returns an SSE stream consumed via response.body.getReader() and processSSEStream; also reads the X-Execution-Id response header
@@ -242,7 +310,7 @@ export function useExecutionStream() {
         throw new Error('No response body')
       }
 
-      const serverExecutionId = response.headers.get('X-Execution-Id')
+      serverExecutionId = response.headers.get('X-Execution-Id') ?? undefined
       if (serverExecutionId) {
         onExecutionId?.(serverExecutionId)
       }
@@ -254,15 +322,28 @@ export function useExecutionStream() {
         logger.info('Execution stream disconnected (page unload or abort)')
         return
       }
+      if (isRecoverableStreamError(error)) {
+        logger.warn('Execution stream interrupted; preserving execution for reconnect', {
+          executionId: serverExecutionId,
+          error: error.message,
+        })
+        throw new SSEStreamInterruptedError(
+          'Execution stream interrupted before a terminal event was received',
+          serverExecutionId,
+          error
+        )
+      }
       logger.error('Execution stream error:', error)
-      callbacks.onExecutionError?.({
-        error: error.message || 'Unknown error',
-        duration: 0,
-      })
+      if (!(error instanceof SSEEventHandlerError)) {
+        await callbacks.onExecutionError?.({
+          error: error.message || 'Unknown error',
+          duration: 0,
+        })
+      }
       throw error
     } finally {
-      if (sharedAbortControllers.get(workflowId) === abortController) {
-        sharedAbortControllers.delete(workflowId)
+      if (sharedAbortControllers.get(streamKey) === abortController) {
+        sharedAbortControllers.delete(streamKey)
       }
     }
   }, [])
@@ -277,13 +358,12 @@ export function useExecutionStream() {
       callbacks = {},
     } = options
 
-    const existing = sharedAbortControllers.get(workflowId)
-    if (existing) {
-      existing.abort()
-    }
+    abortWorkflowStreams(workflowId)
 
     const abortController = new AbortController()
-    sharedAbortControllers.set(workflowId, abortController)
+    const streamKey = executeStreamKey(workflowId)
+    sharedAbortControllers.set(streamKey, abortController)
+    let serverExecutionId: string | undefined
 
     try {
       // boundary-raw-fetch: run-from-block endpoint returns an SSE stream consumed via response.body.getReader() and processSSEStream; also reads the X-Execution-Id response header
@@ -324,7 +404,7 @@ export function useExecutionStream() {
         throw new Error('No response body')
       }
 
-      const serverExecutionId = response.headers.get('X-Execution-Id')
+      serverExecutionId = response.headers.get('X-Execution-Id') ?? undefined
       if (serverExecutionId) {
         onExecutionId?.(serverExecutionId)
       }
@@ -336,15 +416,28 @@ export function useExecutionStream() {
         logger.info('Run-from-block stream disconnected (page unload or abort)')
         return
       }
+      if (isRecoverableStreamError(error)) {
+        logger.warn('Run-from-block stream interrupted; preserving execution for reconnect', {
+          executionId: serverExecutionId,
+          error: error.message,
+        })
+        throw new SSEStreamInterruptedError(
+          'Run-from-block stream interrupted before a terminal event was received',
+          serverExecutionId,
+          error
+        )
+      }
       logger.error('Run-from-block execution error:', error)
-      callbacks.onExecutionError?.({
-        error: error.message || 'Unknown error',
-        duration: 0,
-      })
+      if (!(error instanceof SSEEventHandlerError)) {
+        await callbacks.onExecutionError?.({
+          error: error.message || 'Unknown error',
+          duration: 0,
+        })
+      }
       throw error
     } finally {
-      if (sharedAbortControllers.get(workflowId) === abortController) {
-        sharedAbortControllers.delete(workflowId)
+      if (sharedAbortControllers.get(streamKey) === abortController) {
+        sharedAbortControllers.delete(streamKey)
       }
     }
   }, [])
@@ -352,13 +445,10 @@ export function useExecutionStream() {
   const reconnect = useCallback(async (options: ReconnectStreamOptions) => {
     const { workflowId, executionId, fromEventId = 0, callbacks = {} } = options
 
-    const existing = sharedAbortControllers.get(workflowId)
-    if (existing) {
-      existing.abort()
-    }
-
     const abortController = new AbortController()
-    sharedAbortControllers.set(workflowId, abortController)
+    const streamKey = reconnectStreamKey(workflowId, executionId)
+    abortStream(streamKey)
+    sharedAbortControllers.set(streamKey, abortController)
     try {
       // boundary-raw-fetch: execution reconnect endpoint returns an SSE stream consumed via response.body.getReader() and processSSEStream
       const response = await fetch(
@@ -376,19 +466,15 @@ export function useExecutionStream() {
       logger.error('Reconnection stream error:', error)
       throw error
     } finally {
-      if (sharedAbortControllers.get(workflowId) === abortController) {
-        sharedAbortControllers.delete(workflowId)
+      if (sharedAbortControllers.get(streamKey) === abortController) {
+        sharedAbortControllers.delete(streamKey)
       }
     }
   }, [])
 
   const cancel = useCallback((workflowId?: string) => {
     if (workflowId) {
-      const controller = sharedAbortControllers.get(workflowId)
-      if (controller) {
-        controller.abort()
-        sharedAbortControllers.delete(workflowId)
-      }
+      abortWorkflowStreams(workflowId)
     } else {
       for (const [, controller] of sharedAbortControllers) {
         controller.abort()
@@ -397,10 +483,20 @@ export function useExecutionStream() {
     }
   }, [])
 
+  const cancelReconnect = useCallback((workflowId: string, executionId: string) => {
+    abortStream(reconnectStreamKey(workflowId, executionId))
+  }, [])
+
+  const cancelExecute = useCallback((workflowId: string) => {
+    abortStream(executeStreamKey(workflowId))
+  }, [])
+
   return {
     execute,
     executeFromBlock,
     reconnect,
     cancel,
+    cancelReconnect,
+    cancelExecute,
   }
 }
