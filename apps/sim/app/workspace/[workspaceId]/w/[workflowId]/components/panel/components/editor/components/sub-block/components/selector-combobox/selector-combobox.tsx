@@ -53,6 +53,7 @@ export function SelectorCombobox({
   const {
     data: options = [],
     isLoading,
+    hasMore,
     error,
   } = useSelectorOptions(selectorKey, {
     context: selectorContext,
@@ -67,6 +68,7 @@ export function SelectorCombobox({
     Boolean(activeValue) &&
     Boolean(missingOptionLabel) &&
     !isLoading &&
+    !hasMore &&
     !optionMap.get(activeValue!)
   const selectedLabel = activeValue
     ? hasMissingOption

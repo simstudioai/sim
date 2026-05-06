@@ -359,10 +359,17 @@ const defineConfluenceGetContract = <TQuery extends z.ZodType>(path: string, que
     },
   })
 
+export const confluenceSpacesSelectorBodySchema = credentialWorkflowDomainBodySchema.extend({
+  cursor: optionalString,
+})
+
 export const confluenceSpacesSelectorContract = definePostSelector(
   '/api/tools/confluence/selector-spaces',
-  credentialWorkflowDomainBodySchema,
-  z.object({ spaces: z.array(confluenceSpaceSchema) })
+  confluenceSpacesSelectorBodySchema,
+  z.object({
+    spaces: z.array(confluenceSpaceSchema),
+    nextCursor: optionalString,
+  })
 )
 
 export const confluencePagesSelectorContract = definePostSelector(

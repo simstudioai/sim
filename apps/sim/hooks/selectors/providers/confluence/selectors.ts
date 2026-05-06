@@ -24,19 +24,51 @@ export const confluenceSelectors = {
     fetchList: async ({ context, signal }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'confluence.spaces')
       const domain = ensureDomain(context, 'confluence.spaces')
+      const collected: { id: string; label: string }[] = []
+      let cursor: string | undefined
+      do {
+        const data = await requestJson(selectorContracts.confluenceSpacesSelectorContract, {
+          body: {
+            credential: credentialId,
+            workflowId: context.workflowId,
+            domain,
+            cursor,
+          },
+          signal,
+        })
+        for (const space of data.spaces || []) {
+          collected.push({ id: space.id, label: formatConfluenceSpaceLabel(space) })
+        }
+        cursor = data.nextCursor
+      } while (cursor)
+      return collected
+    },
+    fetchPage: async ({ context, cursor, signal }) => {
+      const credentialId = ensureCredential(context, 'confluence.spaces')
+      const domain = ensureDomain(context, 'confluence.spaces')
       const data = await requestJson(selectorContracts.confluenceSpacesSelectorContract, {
         body: {
           credential: credentialId,
           workflowId: context.workflowId,
           domain,
+          cursor,
         },
         signal,
       })
-      return (data.spaces || []).map((space) => ({
-        id: space.id,
-        label: formatConfluenceSpaceLabel(space),
-      }))
+      return {
+        items: (data.spaces || []).map((space) => ({
+          id: space.id,
+          label: formatConfluenceSpaceLabel(space),
+        })),
+        nextCursor: data.nextCursor,
+      }
     },
+    /**
+     * Resolves a single space label. Hits only the first page — the dropdown's
+     * `fetchPage` stream populates the options cache for spaces beyond page 1,
+     * and `useSelectorOptionMap` merges them in. Walking all pages here would
+     * double API load since the stream is already running in parallel.
+     */
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'confluence.spaces')
