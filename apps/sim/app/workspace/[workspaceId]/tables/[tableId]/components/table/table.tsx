@@ -74,19 +74,16 @@ import { cleanCellValue, storageToDisplay } from '../../utils'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
-} from '../column-config-sidebar/column-config-sidebar'
-import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar/column-types'
+  COLUMN_TYPE_OPTIONS,
+} from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
 import { RowModal } from '../row-modal'
-import { TableActionBar } from '../table-action-bar/table-action-bar'
+import { TableActionBar } from '../table-action-bar'
 import { TableFilter } from '../table-filter'
-import { type WorkflowConfig, WorkflowSidebar } from '../workflow-sidebar/workflow-sidebar'
-import { CellContent } from './cells/cell-content'
-import { ExpandedCellPopover } from './cells/expanded-cell-popover'
+import { type WorkflowConfig, WorkflowSidebar } from '../workflow-sidebar'
+import { CellContent, ExpandedCellPopover } from './cells'
 import { COL_WIDTH, COLUMN_SIDEBAR_WIDTH, SELECTION_TINT_BG } from './constants'
-import { ColumnHeaderMenu } from './headers/column-header-menu'
-import { COLUMN_TYPE_ICONS } from './headers/column-type-icon'
-import { WorkflowGroupMetaCell } from './headers/workflow-group-meta-cell'
+import { COLUMN_TYPE_ICONS, ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
 import type { DisplayColumn } from './types'
 import {
   areRowDepsSatisfied,

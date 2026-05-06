@@ -1,4 +1,7 @@
+export * from './column-config-sidebar'
 export * from './context-menu'
 export * from './row-modal'
 export * from './table'
+export * from './table-action-bar'
 export * from './table-filter'
+export * from './workflow-sidebar'
