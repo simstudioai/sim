@@ -3265,32 +3265,35 @@ export async function addWorkflowGroupOutput(
     `[${requestId}] Added output "${columnName}" (${newColDef.type}) to workflow group "${data.groupId}" in table ${data.tableId}`
   )
 
-  // Backfill: re-run the group on every dep-satisfied row (including ones
-  // that previously completed) so the new column actually gets populated.
-  // Adding an output without values defeats the point — the user wants the
-  // values, not just the empty header.
-  void (async () => {
-    try {
-      const { triggerWorkflowGroupRun } = await import('./workflow-columns')
-      const { triggered } = await triggerWorkflowGroupRun({
-        tableId: data.tableId,
-        groupId: data.groupId,
-        workspaceId: table.workspaceId,
-        mode: 'all',
-        requestId,
-      })
-      logger.info(
-        `[${requestId}] Backfilled ${triggered} row(s) after adding output "${columnName}"`
-      )
-    } catch (err) {
-      logger.error(
-        `[${requestId}] Failed to backfill rows after adding output "${columnName}":`,
-        err
-      )
-    }
-  })()
+  // Backfill from saved execution logs — same flow `updateWorkflowGroup`
+  // uses for added outputs. Reads each row's saved trace spans for the
+  // group's executionId and writes the new output's value back. Existing
+  // rows that have hand-edited values are left alone (overwrite: false).
+  // Cheap compared to re-running the workflow on every row, which is what
+  // an earlier version of this code did — that mistakenly fanned out N
+  // workflow-group-cell jobs and burned compute the user didn't ask for.
+  const updatedTable: TableDefinition = {
+    ...table,
+    schema: updatedSchema,
+    metadata: updatedMetadata,
+    updatedAt: now,
+  }
+  try {
+    await backfillGroupOutputsFromLogs({
+      table: updatedTable,
+      groupId: data.groupId,
+      outputs: [newOutput],
+      overwrite: false,
+      requestId,
+    })
+  } catch (err) {
+    logger.warn(
+      `[${requestId}] Backfill from execution logs failed for ${data.tableId} group ${data.groupId} after adding output "${columnName}":`,
+      err
+    )
+  }
 
-  return { ...table, schema: updatedSchema, metadata: updatedMetadata, updatedAt: now }
+  return updatedTable
 }
 
 /**
