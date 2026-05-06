@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { agiloftAttachContract } from '@/lib/api/contracts/tools/agiloft'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -90,7 +91,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const agiloftResponse = await fetch(url, {
         method: 'PUT',
         headers: {
-          'Content-Type': userFile.type || 'application/octet-stream',
+          'Content-Type': 'application/octet-stream',
           Authorization: `Bearer ${token}`,
         },
         body: new Uint8Array(fileBuffer),
@@ -136,9 +137,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error(`[${requestId}] Error attaching file to Agiloft:`, error)
 
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
   }
 })

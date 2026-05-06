@@ -321,7 +321,7 @@
     "name": "Agiloft",
     "description": "Manage records in Agiloft CLM",
     "longDescription": "Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#001028",
     "iconName": "AgiloftIcon",
     "docsUrl": "https://docs.sim.ai/tools/agiloft",
     "operations": [
@@ -372,9 +372,13 @@
       {
         "name": "Lock Record",
         "description": "Lock, unlock, or check the lock status of an Agiloft record."
+      },
+      {
+        "name": "Get Choice Line ID",
+        "description": "Resolve the internal numeric ID of a choice-list value, for use in EWSelect WHERE clauses against choice fields."
       }
     ],
-    "operationCount": 12,
+    "operationCount": 13,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",

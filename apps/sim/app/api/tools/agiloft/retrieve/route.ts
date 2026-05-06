@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { agiloftRetrieveContract } from '@/lib/api/contracts/tools/agiloft'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -127,9 +128,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error(`[${requestId}] Error retrieving Agiloft attachment:`, error)
 
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
   }
 })

@@ -78,7 +78,7 @@ export const agiloftUpdateRecordTool: ToolConfig<AgiloftUpdateRecordParams, Agil
         (base) => ({
           url: buildUpdateRecordUrl(base, params),
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body,
         }),
         async (response) => {

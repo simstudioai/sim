@@ -65,6 +65,7 @@ export const agiloftReadRecordTool: ToolConfig<AgiloftReadRecordParams, AgiloftR
       (base) => ({
         url: buildReadRecordUrl(base, params),
         method: 'GET',
+        headers: { Accept: 'application/json' },
       }),
       async (response) => {
         if (!response.ok) {
