@@ -52,6 +52,7 @@ const SEARCH_AND_AI_BOTS = [
   'Bingbot',
   'DuckDuckBot',
   'Kagibot',
+  'Bravebot',
   // Regional search engines
   'YandexBot',
   'Baiduspider',
