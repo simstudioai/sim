@@ -701,7 +701,7 @@ export async function resolveActiveResourceContext(
   resourceType: string,
   resourceId: string,
   workspaceId: string,
-  _userId: string,
+  userId: string,
   chatId?: string
 ): Promise<AgentContext | null> {
   try {
@@ -709,10 +709,10 @@ export async function resolveActiveResourceContext(
       case 'workflow': {
         const ctx = await processWorkflowFromDb(
           resourceId,
-          undefined,
+          userId,
           '@active_resource',
           'current_workflow',
-          undefined,
+          workspaceId,
           chatId
         )
         if (!ctx) return null
