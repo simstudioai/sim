@@ -346,6 +346,15 @@ export class VariableResolver {
     for (let i = 0; i < index; i++) {
       const char = template[i]
 
+      if (quoteContext === null && this.isShellCommentStart(template, i)) {
+        const nextNewline = template.indexOf('\n', i + 1)
+        if (nextNewline === -1 || nextNewline >= index) {
+          break
+        }
+        i = nextNewline
+        continue
+      }
+
       if (char === '\\' && quoteContext !== 'single') {
         i++
         continue
@@ -359,6 +368,15 @@ export class VariableResolver {
     }
 
     return quoteContext
+  }
+
+  private isShellCommentStart(template: string, index: number): boolean {
+    if (template[index] !== '#') {
+      return false
+    }
+
+    const previous = template[index - 1]
+    return previous === undefined || /\s|[;&|()<>]/.test(previous)
   }
 
   private resolveTemplate(

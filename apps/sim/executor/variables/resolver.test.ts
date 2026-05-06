@@ -134,4 +134,20 @@ describe('VariableResolver function block inputs', () => {
       __blockRef_1: 'hello world',
     })
   })
+
+  it('ignores shell comment quotes when formatting later block references', () => {
+    const { block, ctx, resolver } = createResolver('shell')
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: "# don't confuse quote tracking\necho <Producer.result>" },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      `# don't confuse quote tracking\necho "\${__blockRef_0}"`
+    )
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
 })
