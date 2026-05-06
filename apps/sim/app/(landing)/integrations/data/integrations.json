@@ -3634,6 +3634,77 @@
     "tags": ["text-to-speech"]
   },
   {
+    "type": "emailbison",
+    "slug": "email-bison",
+    "name": "Email Bison",
+    "description": "Manage Email Bison leads, campaigns, replies, and tags",
+    "longDescription": "Integrate Email Bison into workflows. Create and update leads, manage campaigns, attach leads to campaigns, list replies, and organize leads with tags.",
+    "bgColor": "#FB7A22",
+    "iconName": "EmailBisonIcon",
+    "docsUrl": "https://docs.sim.ai/tools/emailbison",
+    "operations": [
+      {
+        "name": "List Leads",
+        "description": "Retrieves leads from Email Bison with optional search and tag filters."
+      },
+      {
+        "name": "Get Lead",
+        "description": "Retrieves a lead by Email Bison lead ID or email address."
+      },
+      {
+        "name": "Create Lead",
+        "description": "Creates a single lead in Email Bison."
+      },
+      {
+        "name": "Update Lead",
+        "description": "Updates an existing Email Bison lead. Fields omitted from a PUT update may be cleared by Email Bison."
+      },
+      {
+        "name": "List Campaigns",
+        "description": "Retrieves Email Bison campaigns."
+      },
+      {
+        "name": "Create Campaign",
+        "description": "Creates a new Email Bison campaign."
+      },
+      {
+        "name": "Update Campaign",
+        "description": "Updates Email Bison campaign settings."
+      },
+      {
+        "name": "Update Campaign Status",
+        "description": "Pauses, resumes, or archives an Email Bison campaign."
+      },
+      {
+        "name": "Attach Leads to Campaign",
+        "description": "Adds existing Email Bison leads to a campaign."
+      },
+      {
+        "name": "List Replies",
+        "description": "Retrieves Email Bison replies with optional status, folder, campaign, sender, lead, and tag filters."
+      },
+      {
+        "name": "List Tags",
+        "description": "Retrieves all Email Bison tags for the authenticated workspace."
+      },
+      {
+        "name": "Create Tag",
+        "description": "Creates a new Email Bison tag."
+      },
+      {
+        "name": "Attach Tags to Leads",
+        "description": "Attaches Email Bison tags to one or more leads."
+      }
+    ],
+    "operationCount": 13,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["email", "developer-tools", "sales"],
+    "tags": ["sales-engagement", "email-marketing", "automation"]
+  },
+  {
     "type": "openai",
     "slug": "embeddings",
     "name": "Embeddings",
