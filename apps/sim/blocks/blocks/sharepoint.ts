@@ -918,8 +918,6 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           columnDefinitions,
           listItemFields,
           files,
-          uploadFiles,
-          fileRefs,
           maxPages,
           driveId,
           ...rest
@@ -945,7 +943,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           }
         }
 
-        const normalizedFiles = normalizeFileInput(files || uploadFiles || fileRefs)
+        const normalizedFiles = normalizeFileInput(files)
         const result: Record<string, any> = {
           ...rest,
           oauthCredential,
