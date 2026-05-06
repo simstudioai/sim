@@ -75,6 +75,8 @@ export function optimisticallyScheduleNewlyEligibleGroups(
 
   let next: RowExecutions | null = null
   for (const group of groups) {
+    // autoRun=false groups don't auto-fire on dep-fill — leave them empty.
+    if (group.autoRun === false) continue
     const wasSatisfied = areGroupDepsSatisfied(group, beforeRow)
     if (wasSatisfied) continue
     if (!areGroupDepsSatisfied(group, afterRow)) continue

@@ -909,7 +909,7 @@ export const runRowWorkflowGroupContract = defineRouteContract({
   body: runRowWorkflowGroupBodySchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema(z.object({ executionId: z.string() })),
+    schema: successResponseSchema(z.object({ triggered: z.number() })),
   },
 })
 

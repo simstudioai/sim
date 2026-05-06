@@ -36,19 +36,19 @@ export {
 } from './deps'
 
 /**
- * Per-(row, group) eligibility for the **automatic** scheduler path. Skip
- * when the group has `autoRun: false` set (manual-only), when the group is
- * in flight (`queued`, `running`, or `pending` with a `jobId` already
- * stamped), or in a terminal state. Plain `pending` without a jobId is the
- * "ready to dispatch" state — the run route sets it and the scheduler is
- * what actually enqueues the job.
- *
- * The manual "Run all" path (`triggerWorkflowGroupRun`) uses
- * `areGroupDepsSatisfied` directly and bypasses this guard, so the user can
- * still kick off a run on a group that's set to manual-only.
+ * Per-(row, group) eligibility for both the auto-fire reactor and manual
+ * runs. Manual runs bypass the `autoRun === false` skip, and additionally
+ * bypass the dep check for `autoRun === false` groups (those are user-model
+ * "no deps, manual only").
  */
-export function isGroupEligible(group: WorkflowGroup, row: TableRow): boolean {
-  if (group.autoRun === false) return false
+export function isGroupEligible(
+  group: WorkflowGroup,
+  row: TableRow,
+  opts?: { isManualRun?: boolean }
+): boolean {
+  const isManualRun = opts?.isManualRun ?? false
+  if (group.autoRun === false && !isManualRun) return false
+
   const exec = row.executions?.[group.id]
   const status = exec?.status
   if (
@@ -60,25 +60,37 @@ export function isGroupEligible(group: WorkflowGroup, row: TableRow): boolean {
   ) {
     return false
   }
-  if (status === 'pending' && exec?.jobId) {
-    return false
-  }
+  if (status === 'pending' && exec?.jobId) return false
+
+  if (isManualRun && group.autoRun === false) return true
   return areGroupDepsSatisfied(group, row)
 }
 
 /**
  * Iterates workflow groups × rows and enqueues eligible cell jobs. Safe to
- * call after any row-write; errors are logged. Concurrency is bounded by the
- * trigger.dev queue (`concurrencyKey: tableId`), so this just enqueues.
+ * call after any row-write; errors are logged. Auto-fire callers omit
+ * `opts`; manual callers (`triggerWorkflowGroupRun`) pass `{ groupId,
+ * isManualRun: true }`.
  */
+export interface ScheduleOpts {
+  groupId?: string
+  isManualRun?: boolean
+}
+
 export async function scheduleWorkflowGroupRuns(
   table: TableDefinition,
-  rows: TableRow[]
-): Promise<void> {
+  rows: TableRow[],
+  opts?: ScheduleOpts
+): Promise<{ triggered: number }> {
   try {
-    const groups = table.schema.workflowGroups ?? []
-    if (groups.length === 0) return
-    if (rows.length === 0) return
+    const allGroups = table.schema.workflowGroups ?? []
+    if (allGroups.length === 0) return { triggered: 0 }
+    if (rows.length === 0) return { triggered: 0 }
+
+    const groups = opts?.groupId
+      ? allGroups.filter((g) => g.id === opts.groupId)
+      : allGroups
+    if (groups.length === 0) return { triggered: 0 }
 
     const orderedRows = rows.length <= 1 ? rows : [...rows].sort((a, b) => a.position - b.position)
 
@@ -86,7 +98,7 @@ export async function scheduleWorkflowGroupRuns(
 
     for (const row of orderedRows) {
       for (const group of groups) {
-        if (!isGroupEligible(group, row)) continue
+        if (!isGroupEligible(group, row, { isManualRun: opts?.isManualRun })) continue
         pendingRuns.push({
           tableId: table.id,
           tableName: table.name,
@@ -99,29 +111,33 @@ export async function scheduleWorkflowGroupRuns(
       }
     }
 
-    if (pendingRuns.length === 0) return
+    if (pendingRuns.length === 0) return { triggered: 0 }
 
     logger.info(`Scheduling ${pendingRuns.length} workflow group cell run(s) for table=${table.id}`)
 
     const queue = await getJobQueue()
     const { executeWorkflowGroupCellJob } = await import('@/background/workflow-column-execution')
-    const items = pendingRuns.map((opts) => ({
-      payload: opts,
+    const items = pendingRuns.map((runOpts) => ({
+      payload: runOpts,
       options: {
         metadata: {
-          workflowId: opts.workflowId,
-          workspaceId: opts.workspaceId,
+          workflowId: runOpts.workflowId,
+          workspaceId: runOpts.workspaceId,
           correlation: {
-            executionId: opts.executionId,
-            requestId: `wfgrp-${opts.executionId}`,
+            executionId: runOpts.executionId,
+            requestId: `wfgrp-${runOpts.executionId}`,
             source: 'workflow' as const,
-            workflowId: opts.workflowId,
+            workflowId: runOpts.workflowId,
             triggerType: 'table',
           },
         },
-        concurrencyKey: opts.tableId,
+        concurrencyKey: runOpts.tableId,
         concurrencyLimit: TABLE_CONCURRENCY_LIMIT,
-        tags: [`tableId:${opts.tableId}`, `rowId:${opts.rowId}`, `group:${opts.groupId}`],
+        tags: [
+          `tableId:${runOpts.tableId}`,
+          `rowId:${runOpts.rowId}`,
+          `group:${runOpts.groupId}`,
+        ],
         runner: executeWorkflowGroupCellJob as EnqueueOptions['runner'],
       },
     }))
@@ -132,26 +148,28 @@ export async function scheduleWorkflowGroupRuns(
     } catch (err) {
       logger.error(`Batch enqueue failed for table=${table.id}:`, err)
       await Promise.allSettled(
-        pendingRuns.map((opts) =>
-          writeWorkflowGroupState(opts, {
+        pendingRuns.map((runOpts) =>
+          writeWorkflowGroupState(runOpts, {
             executionState: {
               status: 'error',
-              executionId: opts.executionId,
+              executionId: runOpts.executionId,
               jobId: null,
-              workflowId: opts.workflowId,
+              workflowId: runOpts.workflowId,
               error: toError(err).message,
             },
           })
         )
       )
-      return
+      return { triggered: 0 }
     }
 
     for (let i = 0; i < pendingRuns.length; i++) {
       await stampQueuedOrCancel(queue, pendingRuns[i], jobIds[i])
     }
+    return { triggered: pendingRuns.length }
   } catch (err) {
     logger.error('scheduleWorkflowGroupRuns failed:', err)
+    return { triggered: 0 }
   }
 }
 
@@ -298,16 +316,10 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
 }
 
 /**
- * Manually triggers a workflow group for every dep-satisfied row in a table.
- * `mode: 'all'` re-runs every eligible row; `mode: 'incomplete'` skips rows
- * whose group is already `completed`. When `rowIds` is provided, only those
- * rows are candidates — the same eligibility predicate still applies, so a
- * mid-run row or one with unmet deps is silently skipped. Eligible rows have
- * their output cells cleared and their `executions[groupId]` reset to
- * `pending`; the scheduler picks them up and enqueues per-cell jobs. Returns
- * the number of rows that were marked for re-run. Used by the
- * `groups/[groupId]/run` HTTP route and the Copilot/Mothership
- * `run_workflow_group` op so both share one eligibility predicate.
+ * Manually runs a workflow group on the user-selected rows. `mode:
+ * 'incomplete'` skips already-completed rows; `rowIds` narrows the
+ * candidate set further. Clears output cells, then delegates to
+ * `scheduleWorkflowGroupRuns` with `isManualRun: true`.
  */
 export async function triggerWorkflowGroupRun(opts: {
   tableId: string
@@ -326,10 +338,8 @@ export async function triggerWorkflowGroupRun(opts: {
   const group = (table.schema.workflowGroups ?? []).find((g) => g.id === groupId)
   if (!group) throw new Error('Workflow group not found')
 
-  // Push the in-flight / terminal-state filters into SQL so we don't pull
-  // every row in the table into Node just to discard most of them. Dependency
-  // satisfaction is still checked in JS afterwards (it can span multiple
-  // columns and other groups' statuses, so it's awkward to express in JSONB).
+  // SQL pre-filter so we don't pull the whole table into Node;
+  // isGroupEligible re-checks every survivor.
   const filters = [
     eq(userTableRows.tableId, tableId),
     eq(userTableRows.workspaceId, workspaceId),
@@ -358,42 +368,35 @@ export async function triggerWorkflowGroupRun(opts: {
 
   if (candidateRows.length === 0) return { triggered: 0 }
 
-  const eligibleRows = candidateRows.filter((r) => {
-    const tableRow: TableRow = {
+  // Clear output values + drop the group's exec entry so the cell goes
+  // back to empty before the scheduler stamps `queued`. `null` in the
+  // executionsPatch deletes the entry.
+  const clearedData = Object.fromEntries(group.outputs.map((o) => [o.columnName, null])) as RowData
+  const updates = candidateRows.map((r) => ({
+    rowId: r.id,
+    data: clearedData,
+    executionsPatch: { [groupId]: null },
+  }))
+
+  await batchUpdateRows({ tableId, updates, workspaceId }, table, requestId)
+
+  const clearedRows: TableRow[] = candidateRows.map((r) => {
+    const existingExec = (r.executions as RowExecutions) ?? {}
+    const { [groupId]: _, ...remaining } = existingExec
+    return {
       id: r.id,
-      data: r.data as RowData,
-      executions: (r.executions as RowExecutions) ?? {},
+      data: { ...(r.data as RowData), ...clearedData },
+      executions: remaining,
       position: r.position,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     }
-    try {
-      return areGroupDepsSatisfied(group, tableRow)
-    } catch {
-      return false
-    }
   })
 
-  if (eligibleRows.length === 0) return { triggered: 0 }
-
-  const clearedData = Object.fromEntries(group.outputs.map((o) => [o.columnName, null])) as RowData
-  const updates = eligibleRows.map((r) => {
-    const pendingExec: RowExecutionMetadata = {
-      status: 'pending',
-      executionId: generateId(),
-      jobId: null,
-      workflowId: group.workflowId,
-      error: null,
-    }
-    return {
-      rowId: r.id,
-      data: clearedData,
-      executionsPatch: { [groupId]: pendingExec },
-    }
+  return scheduleWorkflowGroupRuns(table, clearedRows, {
+    groupId,
+    isManualRun: true,
   })
-
-  const opResult = await batchUpdateRows({ tableId, updates, workspaceId }, table, requestId)
-  return { triggered: opResult.affectedCount }
 }
 
 // ───────────────────────────── Validation ─────────────────────────────
