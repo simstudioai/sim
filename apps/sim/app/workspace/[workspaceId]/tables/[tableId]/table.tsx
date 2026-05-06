@@ -127,6 +127,7 @@ export function Table({
     runningInActionBarSelection: 0,
     totalRunning: 0,
     hasWorkflowColumns: false,
+    singleWorkflowCell: null,
   })
   const [queryOptions, setQueryOptions] = useState<QueryOptions>({ filter: null, sort: null })
   const [filterOpen, setFilterOpen] = useState(false)
@@ -419,7 +420,7 @@ export function Table({
   const { data: executionLog } = useLogByExecutionId(workspaceId, executionId)
 
   return (
-    <div className='flex h-full flex-col overflow-hidden'>
+    <div className='relative flex h-full flex-col overflow-hidden'>
       {!embedded && (
         <>
           <ResourceHeader
@@ -484,6 +485,31 @@ export function Table({
           onRun={() => onRunRows(selection.actionBarRowIds, 'incomplete')}
           onRerun={() => onRunRows(selection.actionBarRowIds, 'all')}
           onStopWorkflows={() => onStopRows(selection.actionBarRowIds)}
+          singleCell={
+            selection.singleWorkflowCell
+              ? {
+                  canViewExecution: selection.singleWorkflowCell.canViewExecution,
+                  isRunning: selection.singleWorkflowCell.isRunning,
+                  onViewExecution: () => {
+                    if (selection.singleWorkflowCell?.executionId) {
+                      onOpenExecutionDetails(selection.singleWorkflowCell.executionId)
+                    }
+                  },
+                  onRunCell: () => {
+                    const cell = selection.singleWorkflowCell
+                    if (!cell) return
+                    const group = tableWorkflowGroups.find((g) => g.id === cell.groupId)
+                    if (!group) return
+                    onRunGroup(group.id, group.workflowId, 'all', [cell.rowId])
+                  },
+                  onStopCell: () => {
+                    if (selection.singleWorkflowCell?.rowId) {
+                      onStopRow(selection.singleWorkflowCell.rowId)
+                    }
+                  },
+                }
+              : null
+          }
         />
       )}
       <ColumnConfigSidebar

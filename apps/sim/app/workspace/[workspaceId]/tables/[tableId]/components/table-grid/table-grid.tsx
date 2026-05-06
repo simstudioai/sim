@@ -108,6 +108,24 @@ export interface SelectionSnapshot {
   totalRunning: number
   /** Whether the table has any workflow-output columns (drives the Run/Stop visibility). */
   hasWorkflowColumns: boolean
+  /**
+   * When the highlight resolves to exactly one workflow-group execution —
+   * same row, every highlighted column in the same workflow group — describe
+   * it so the action bar can offer "View execution" and per-execution run /
+   * stop. Covers both the 1×1 single-cell case and 1 row × N cols highlights
+   * within one group. `null` for multi-row, cross-group, or plain-column
+   * selections.
+   */
+  singleWorkflowCell: {
+    rowId: string
+    groupId: string
+    executionId: string | null
+    /** True iff the exec is in a state that produced a server log
+     *  (completed / error / running). Drives the View execution button. */
+    canViewExecution: boolean
+    /** True iff the exec is currently running or queued. Drives Stop. */
+    isRunning: boolean
+  } | null
 }
 
 interface TableGridProps {
@@ -649,10 +667,12 @@ export function TableGrid({
       return { isWorkflowColumn: false, executionId: null, hasStartedRun: false }
     }
     const exec = contextMenu.row.executions?.[groupId]
-    // `queued` / `pending` rows have an executionId reserved but no execution
-    // row in the logs DB yet — the worker hasn't started, so View execution
-    // would 404.
-    const hasStartedRun = exec?.status !== 'queued' && exec?.status !== 'pending'
+    // Only `completed` / `error` / `running` cells are guaranteed to have a
+    // server-side execution log. `queued` / `pending` haven't started yet;
+    // `cancelled` may have been cancelled before the worker ever picked the
+    // job up, so its executionId can't be relied on either.
+    const hasStartedRun =
+      exec?.status === 'completed' || exec?.status === 'error' || exec?.status === 'running'
     return {
       isWorkflowColumn: true,
       executionId: exec?.executionId ?? null,
@@ -2606,6 +2626,39 @@ export function TableGrid({
     0
   )
 
+  /**
+   * Selection that resolves to exactly one workflow-group execution — same
+   * row, every highlighted column belonging to the same workflow group. Drives
+   * the action bar's per-execution mode (View execution / Run cell / Stop
+   * cell). Includes the single-cell case (1×1) and the "highlight a row's
+   * workflow outputs" case (1 row × N cols, all in one group). Null for
+   * multi-row selections, plain columns, or no selection.
+   */
+  const singleWorkflowCell = useMemo<SelectionSnapshot['singleWorkflowCell']>(() => {
+    const sel = normalizedSelection
+    if (!sel) return null
+    if (sel.startRow !== sel.endRow) return null
+    const row = rows[sel.startRow]
+    if (!row) return null
+    const firstCol = displayColumns[sel.startCol]
+    const groupId = firstCol?.workflowGroupId
+    if (!groupId) return null
+    // All columns in the highlight must be in the same workflow group, else
+    // we'd be straddling two executions.
+    for (let c = sel.startCol + 1; c <= sel.endCol; c++) {
+      if (displayColumns[c]?.workflowGroupId !== groupId) return null
+    }
+    const exec = row.executions?.[groupId]
+    const status = exec?.status
+    return {
+      rowId: row.id,
+      groupId,
+      executionId: exec?.executionId ?? null,
+      canViewExecution: status === 'completed' || status === 'error' || status === 'running',
+      isRunning: status === 'running' || status === 'queued' || status === 'pending',
+    }
+  }, [normalizedSelection, rows, displayColumns])
+
   // Emit selection snapshots so the wrapper can render <TableActionBar>.
   // The grid can't fold this into individual event handlers (running counts
   // come from React Query refetches, not user events) so it's intentionally
@@ -2616,8 +2669,19 @@ export function TableGrid({
   const lastSelectionSnapshotRef = useRef<SelectionSnapshot | null>(null)
   useEffect(() => {
     const prev = lastSelectionSnapshotRef.current
+    const sameSingleCell =
+      (prev?.singleWorkflowCell ?? null) === null && singleWorkflowCell === null
+        ? true
+        : prev?.singleWorkflowCell &&
+          singleWorkflowCell &&
+          prev.singleWorkflowCell.rowId === singleWorkflowCell.rowId &&
+          prev.singleWorkflowCell.groupId === singleWorkflowCell.groupId &&
+          prev.singleWorkflowCell.executionId === singleWorkflowCell.executionId &&
+          prev.singleWorkflowCell.canViewExecution === singleWorkflowCell.canViewExecution &&
+          prev.singleWorkflowCell.isRunning === singleWorkflowCell.isRunning
     if (
       prev &&
+      sameSingleCell &&
       prev.runningInActionBarSelection === runningInActionBarSelection &&
       prev.totalRunning === totalRunning &&
       prev.hasWorkflowColumns === hasWorkflowColumns &&
@@ -2631,10 +2695,17 @@ export function TableGrid({
       runningInActionBarSelection,
       totalRunning,
       hasWorkflowColumns,
+      singleWorkflowCell,
     }
     lastSelectionSnapshotRef.current = next
     onSelectionChangeRef.current(next)
-  }, [actionBarRowIds, runningInActionBarSelection, totalRunning, hasWorkflowColumns])
+  }, [
+    actionBarRowIds,
+    runningInActionBarSelection,
+    totalRunning,
+    hasWorkflowColumns,
+    singleWorkflowCell,
+  ])
 
   const handleRunRow = useCallback(
     (rowId: string) => {
