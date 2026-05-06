@@ -4,6 +4,112 @@ import type { ExcelCellValue } from '@/tools/microsoft_excel/types'
 
 const logger = createLogger('MicrosoftExcelUtils')
 
+/**
+ * Extract a developer-readable message from a parsed Microsoft Graph error body.
+ * Graph errors follow the documented shape:
+ *   { error: { code, message, innerError: { code, message, ... }, details: [...] } }
+ * See https://learn.microsoft.com/en-us/graph/errors
+ *
+ * Walks the nested innerError chain (capped at depth 5) and appends details[].message.
+ * Returns undefined when no message-like field is present so callers can fall back.
+ */
+export function parseGraphErrorFromData(data: unknown): string | undefined {
+  if (!data || typeof data !== 'object') return undefined
+
+  const root = (
+    data as {
+      error?: {
+        code?: unknown
+        message?: unknown
+        innerError?: unknown
+        innererror?: unknown
+        details?: unknown
+      }
+    }
+  ).error
+  if (root && typeof root === 'object') {
+    const messages: string[] = []
+    if (typeof root.message === 'string' && root.message.trim()) {
+      messages.push(root.message.trim())
+    }
+
+    // Walk the (possibly nested) innerError chain. Spec uses `innererror`
+    // but Graph commonly returns `innerError` — accept both.
+    let inner: any = (root as any).innererror ?? (root as any).innerError
+    let depth = 0
+    while (inner && depth < 5) {
+      if (typeof inner.message === 'string' && inner.message.trim()) {
+        const msg = inner.message.trim()
+        if (!messages.includes(msg)) messages.push(msg)
+      }
+      inner = inner.innererror ?? inner.innerError
+      depth++
+    }
+
+    if (Array.isArray((root as any).details)) {
+      for (const detail of (root as any).details) {
+        if (detail && typeof detail.message === 'string' && detail.message.trim()) {
+          const msg = detail.message.trim()
+          if (!messages.includes(msg)) messages.push(msg)
+        }
+      }
+    }
+
+    if (messages.length > 0) return messages.join(' — ')
+
+    if (typeof root.code === 'string' && root.code.trim()) {
+      return root.code.trim()
+    }
+  }
+
+  const topMessage = (data as { message?: unknown }).message
+  if (typeof topMessage === 'string' && topMessage.trim()) {
+    return topMessage.trim()
+  }
+
+  return undefined
+}
+
+/**
+ * Parse a Microsoft Graph error response body into a string message.
+ * Used by API routes that have a Response object rather than parsed data.
+ */
+export function parseGraphErrorMessage(
+  status: number,
+  statusText: string,
+  errorText: string
+): string {
+  try {
+    const data = JSON.parse(errorText)
+    const message = parseGraphErrorFromData(data)
+    if (message) {
+      // If the only thing we found was the bare error code, append status for context.
+      const root = data?.error
+      if (
+        root &&
+        message === root.code?.trim?.() &&
+        !(typeof root.message === 'string' && root.message.trim())
+      ) {
+        return `${message} (${status} ${statusText})`
+      }
+      return message
+    }
+  } catch {
+    if (errorText?.trim()) return errorText.trim()
+  }
+
+  return statusText ? `${status} ${statusText}` : `Microsoft Graph request failed (${status})`
+}
+
+/**
+ * Read an error response body and produce a developer-readable message.
+ * Safely handles non-JSON bodies and read failures. Used by internal API routes.
+ */
+export async function extractGraphError(response: Response): Promise<string> {
+  const errorText = await response.text().catch(() => '')
+  return parseGraphErrorMessage(response.status, response.statusText, errorText)
+}
+
 /** Pattern for Microsoft Graph item/drive IDs: alphanumeric, hyphens, underscores, and ! (for SharePoint b!<base64> format) */
 export const GRAPH_ID_PATTERN = /^[a-zA-Z0-9!_-]+$/
 

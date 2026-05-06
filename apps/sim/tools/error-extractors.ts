@@ -19,6 +19,8 @@
  * 2. Add the ID to ErrorExtractorId constant at the bottom of this file
  */
 
+import { parseGraphErrorFromData } from '@/tools/microsoft_excel/utils'
+
 export interface ErrorInfo {
   status?: number
   statusText?: string
@@ -185,6 +187,13 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     extract: (errorInfo) => errorInfo?.data?.error_description,
   },
   {
+    id: 'microsoft-graph-errors',
+    description:
+      'Microsoft Graph error format with nested innerError chain and details[] (Excel, OneDrive, SharePoint, Outlook). See https://learn.microsoft.com/en-us/graph/errors',
+    examples: ['Microsoft Excel', 'Microsoft OneDrive', 'Microsoft SharePoint'],
+    extract: (errorInfo) => parseGraphErrorFromData(errorInfo?.data),
+  },
+  {
     id: 'nested-error-object',
     description: 'Error field containing nested object or string',
     examples: ['Airtable', 'Google APIs'],
@@ -260,6 +269,7 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
 
 export const ErrorExtractorId = {
   ATLASSIAN_ERRORS: 'atlassian-errors',
+  MICROSOFT_GRAPH_ERRORS: 'microsoft-graph-errors',
   GRAPHQL_ERRORS: 'graphql-errors',
   TWITTER_ERRORS: 'twitter-errors',
   DETAILS_ARRAY: 'details-array',
