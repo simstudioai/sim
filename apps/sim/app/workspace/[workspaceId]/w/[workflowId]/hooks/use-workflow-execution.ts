@@ -2178,6 +2178,7 @@ export function useWorkflowExecution() {
           .getWorkflowExecution(reconnectWorkflowId)
         const currentId = executionState?.currentExecutionId ?? null
         if (currentId && currentId !== capturedExecutionId) return
+        finishRunningEntries(reconnectWorkflowId, capturedExecutionId)
         setCurrentExecutionId(reconnectWorkflowId, null)
         setIsExecuting(reconnectWorkflowId, false)
         setActiveBlocks(reconnectWorkflowId, new Set())
