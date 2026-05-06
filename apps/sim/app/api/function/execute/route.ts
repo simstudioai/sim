@@ -1089,10 +1089,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const executionMethod = 'isolated-vm'
 
+    const SAFE_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/
     const wrapperLines = ['(async () => {', '  try {']
     if (isCustomTool) {
       Object.keys(executionParams).forEach((key) => {
-        wrapperLines.push(`    const ${key} = params.${key};`)
+        if (SAFE_IDENTIFIER.test(key)) {
+          wrapperLines.push(`    const ${key} = params.${key};`)
+        }
       })
     }
     userCodeStartLine = wrapperLines.length + 1
@@ -1100,7 +1103,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     let codeToExecute = resolvedCode
     let prependedLineCount = 0
     if (isCustomTool) {
-      const paramKeys = Object.keys(executionParams)
+      const paramKeys = Object.keys(executionParams).filter((key) => SAFE_IDENTIFIER.test(key))
       const paramDestructuring = paramKeys.map((key) => `const ${key} = params.${key};`).join('\n')
       codeToExecute = `${paramDestructuring}\n${resolvedCode}`
       prependedLineCount = paramKeys.length
