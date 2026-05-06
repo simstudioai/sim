@@ -487,7 +487,9 @@ const STATIC_MARKDOWN_COMPONENTS = {
   pre: ({ children }: { children?: React.ReactNode }) => (
     <>
       {Children.map(children, (child) =>
-        isValidElement(child) ? cloneElement(child, { 'data-block': 'true' }) : child
+        isValidElement<Record<string, unknown>>(child)
+          ? cloneElement(child, { 'data-block': 'true' })
+          : child
       ) ?? children}
     </>
   ),

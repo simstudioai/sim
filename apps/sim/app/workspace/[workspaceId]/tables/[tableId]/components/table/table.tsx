@@ -66,7 +66,7 @@ import { RowModal } from '../row-modal'
 import { TableFilter } from '../table-filter'
 import { CellContent } from './cells/cell-content'
 import { ExpandedCellPopover } from './cells/expanded-cell-popover'
-import { COL_WIDTH, SELECTION_TINT_BG } from './constants'
+import { COL_WIDTH, COLUMN_SIDEBAR_WIDTH_CSS, SELECTION_TINT_BG } from './constants'
 import { ColumnHeaderMenu } from './headers/column-header-menu'
 import { COLUMN_TYPE_ICONS } from './headers/column-type-icon'
 import { WorkflowGroupMetaCell } from './headers/workflow-group-meta-cell'
@@ -94,8 +94,6 @@ const COL_WIDTH_AUTO_FIT_MAX = 1000
 // row-by-row.
 const CHECKBOX_COL_WIDTH = 56
 const ADD_COL_WIDTH = 120
-/** Width of the column-config slideout (matches `column-sidebar.tsx`'s `w-[400px]`). */
-const COLUMN_SIDEBAR_WIDTH = 400
 const SKELETON_COL_COUNT = 4
 const SKELETON_ROW_COUNT = 10
 const ROW_HEIGHT_ESTIMATE = 35
@@ -1218,22 +1216,25 @@ export function Table({
     return () => cancelAnimationFrame(rafId)
   }, [selectionAnchor, selectionFocus, isColumnSelection])
 
-  const handleCellClick = useCallback((rowId: string, columnName: string) => {
-    const column = columnsRef.current.find((c) => c.name === columnName)
-    if (column?.type === 'boolean') {
-      if (!canEditRef.current) return
-      const row = rowsRef.current.find((r) => r.id === rowId)
-      if (row) {
-        toggleBooleanCell(rowId, columnName, row.data[columnName])
+  const handleCellClick = useCallback(
+    (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => {
+      const column = columnsRef.current.find((c) => c.name === columnName)
+      if (column?.type === 'boolean') {
+        if (!options?.toggleBoolean || !canEditRef.current) return
+        const row = rowsRef.current.find((r) => r.id === rowId)
+        if (row) {
+          toggleBooleanCell(rowId, columnName, row.data[columnName])
+        }
+        return
       }
-      return
-    }
 
-    const current = editingCellRef.current
-    if (current && current.rowId === rowId && current.columnName === columnName) return
-    setEditingCell(null)
-    setInitialCharacter(null)
-  }, [])
+      const current = editingCellRef.current
+      if (current && current.rowId === rowId && current.columnName === columnName) return
+      setEditingCell(null)
+      setInitialCharacter(null)
+    },
+    []
+  )
 
   // The cell has `select-none` which suppresses programmatic selection, so we
   // override `user-select` on the inner element until the next click. The popover
@@ -1241,6 +1242,9 @@ export function Table({
   // (workflow cells nest text inside a span with its own `overflow-clip`).
   const handleCellDoubleClick = useCallback(
     (rowId: string, columnName: string, columnKey: string) => {
+      const column = columnsRef.current.find((c) => c.key === columnKey)
+      if (column?.type === 'boolean') return
+
       setSelectionFocus(null)
       setIsColumnSelection(false)
 
@@ -2080,11 +2084,11 @@ export function Table({
    * The two panels are mutually exclusive (each opener closes the other).
    */
   const logPanelWidth = useLogDetailsUIStore((state) => state.panelWidth)
-  const sidebarReservedPx = configState
-    ? COLUMN_SIDEBAR_WIDTH
+  const sidebarReservedWidth = configState
+    ? COLUMN_SIDEBAR_WIDTH_CSS
     : executionDetailsId
-      ? logPanelWidth
-      : 0
+      ? `${logPanelWidth}px`
+      : '0px'
 
   const handleConfigureColumn = useCallback((columnName: string) => {
     setExecutionDetailsId(null)
@@ -2578,8 +2582,8 @@ export function Table({
           <div
             className='relative h-fit'
             style={{
-              width: `${tableWidth + sidebarReservedPx}px`,
-              paddingRight: sidebarReservedPx,
+              width: `calc(${tableWidth}px + ${sidebarReservedWidth})`,
+              paddingRight: sidebarReservedWidth,
             }}
           >
             <table
@@ -2989,7 +2993,7 @@ interface DataRowProps {
   initialCharacter: string | null
   pendingCellValue: Record<string, unknown> | null
   normalizedSelection: NormalizedSelection | null
-  onClick: (rowId: string, columnName: string) => void
+  onClick: (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => void
   onDoubleClick: (rowId: string, columnName: string, columnKey: string) => void
   onSave: (rowId: string, columnName: string, value: unknown, reason: SaveReason) => void
   onCancel: () => void
@@ -3115,15 +3119,15 @@ const DataRow = React.memo(function DataRow({
 
   return (
     <tr onContextMenu={(e) => onContextMenu(e, row)}>
-      <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
+      <td
+        className={cn(CELL_CHECKBOX, 'cursor-pointer')}
+        onMouseDown={(e) => {
+          if (e.button !== 0) return
+          onRowToggle(rowIndex, e.shiftKey)
+        }}
+      >
         <div className='flex items-center justify-center gap-1'>
-          <div
-            className='group/checkbox flex h-[20px] w-[24px] shrink-0 items-center justify-center'
-            onMouseDown={(e) => {
-              if (e.button !== 0) return
-              onRowToggle(rowIndex, e.shiftKey)
-            }}
-          >
+          <div className='group/checkbox flex h-[20px] w-[24px] shrink-0 items-center justify-center'>
             <span
               className={cn(
                 'text-[var(--text-tertiary)] text-xs tabular-nums',
@@ -3147,6 +3151,9 @@ const DataRow = React.memo(function DataRow({
               aria-label={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
               title={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
               className='ml-auto flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded text-[var(--text-primary)] transition-colors hover-hover:bg-[var(--surface-2)]'
+              onMouseDown={(e) => {
+                e.stopPropagation()
+              }}
               onClick={() => {
                 if (runningCount > 0) {
                   onStopRow(row.id)
@@ -3192,7 +3199,13 @@ const DataRow = React.memo(function DataRow({
               onCellMouseDown(rowIndex, colIndex, e.shiftKey)
             }}
             onMouseEnter={() => onCellMouseEnter(rowIndex, colIndex)}
-            onClick={() => onClick(row.id, column.name)}
+            onClick={(e) =>
+              onClick(row.id, column.name, {
+                toggleBoolean: Boolean(
+                  (e.target as HTMLElement).closest('[data-boolean-cell-toggle]')
+                ),
+              })
+            }
             onDoubleClick={() => onDoubleClick(row.id, column.name, column.key)}
           >
             {isHighlighted && (isMultiCell || isRowChecked) && (
@@ -3307,9 +3320,23 @@ const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
   onCheckedChange: () => void
 }) {
   return (
-    <th className={CELL_HEADER_CHECKBOX}>
+    <th
+      className={cn(CELL_HEADER_CHECKBOX, 'cursor-pointer')}
+      role='checkbox'
+      aria-checked={checked}
+      tabIndex={0}
+      onMouseDown={(e) => {
+        if (e.button !== 0) return
+        onCheckedChange()
+      }}
+      onKeyDown={(e) => {
+        if (e.key !== ' ' && e.key !== 'Enter') return
+        e.preventDefault()
+        onCheckedChange()
+      }}
+    >
       <div className='flex items-center justify-center'>
-        <Checkbox size='sm' checked={checked} onCheckedChange={onCheckedChange} />
+        <Checkbox size='sm' checked={checked} className='pointer-events-none' />
       </div>
     </th>
   )

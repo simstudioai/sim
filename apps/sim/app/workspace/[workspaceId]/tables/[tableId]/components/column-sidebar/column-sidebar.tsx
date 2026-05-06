@@ -63,6 +63,7 @@ import {
 } from '@/hooks/queries/tables'
 import { useWorkflowState, workflowKeys } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { COLUMN_SIDEBAR_WIDTH_CSS } from '../table/constants'
 import { COLUMN_TYPE_OPTIONS, type SidebarColumnType } from './column-types'
 
 export type ColumnConfigState =
@@ -1017,9 +1018,10 @@ export function ColumnSidebar({
       role='dialog'
       aria-label='Configure column'
       className={cn(
-        'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] shadow-overlay transition-transform duration-200 ease-out',
+        'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] shadow-md transition-transform duration-200 ease-out',
         open ? 'translate-x-0' : 'translate-x-full'
       )}
+      style={{ width: COLUMN_SIDEBAR_WIDTH_CSS }}
     >
       <div className='flex h-full flex-col'>
         <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2'>
