@@ -3272,7 +3272,10 @@ const DataRow = React.memo(function DataRow({
               size='sm'
               aria-label={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
               title={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
-              className='h-[20px] w-[20px] shrink-0 px-0 py-0 text-[var(--text-primary)] hover-hover:bg-[var(--surface-2)]'
+              // mr-px keeps the hover bg off the cell's right border — without
+              // it the rounded-rect background paints over the divider line
+              // while the button is hovered.
+              className='mr-px h-[20px] w-[20px] shrink-0 px-0 py-0 text-[var(--text-primary)] hover-hover:bg-[var(--surface-2)]'
               onClick={() => {
                 if (runningCount > 0) {
                   onStopRow(row.id)
