@@ -136,10 +136,14 @@ export function EditConnectorModal({
   const subscriptionAccess = getSubscriptionAccessState(subscriptionResponse?.data)
   const hasMaxAccess = !isBillingEnabled || subscriptionAccess.hasUsableMaxAccess
 
+  const persistedCanonicalModes = useMemo(
+    () => readPersistedCanonicalModes(connector.sourceConfig),
+    [connector.sourceConfig]
+  )
+
   const hasChanges = useMemo(() => {
     if (syncInterval !== connector.syncIntervalMinutes) return true
-    const persisted = readPersistedCanonicalModes(connector.sourceConfig)
-    if (didCanonicalModesChange(canonicalModes, persisted)) return true
+    if (didCanonicalModesChange(canonicalModes, persistedCanonicalModes)) return true
     const resolved = resolveSourceConfig()
     for (const [key, value] of Object.entries(resolved)) {
       if (String(connector.sourceConfig[key] ?? '') !== value) return true
@@ -151,6 +155,7 @@ export function EditConnectorModal({
     connector.syncIntervalMinutes,
     connector.sourceConfig,
     canonicalModes,
+    persistedCanonicalModes,
   ])
 
   const handleSave = () => {
@@ -168,8 +173,7 @@ export function EditConnectorModal({
       if (String(connector.sourceConfig[key] ?? '') !== value) changedEntries[key] = value
     }
 
-    const persistedModes = readPersistedCanonicalModes(connector.sourceConfig)
-    const modesChanged = didCanonicalModesChange(canonicalModes, persistedModes)
+    const modesChanged = didCanonicalModesChange(canonicalModes, persistedCanonicalModes)
 
     if (Object.keys(changedEntries).length > 0 || modesChanged) {
       const next: Record<string, unknown> = { ...connector.sourceConfig, ...changedEntries }
