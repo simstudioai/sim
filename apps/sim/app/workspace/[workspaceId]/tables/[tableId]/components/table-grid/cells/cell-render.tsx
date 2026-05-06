@@ -232,7 +232,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
       )
 
     case 'empty':
-      return <span className='text-[var(--text-tertiary)]'>—</span>
+      return null
 
     default: {
       // Exhaustiveness guard: TypeScript flags this branch if a new
