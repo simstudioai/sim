@@ -286,10 +286,7 @@ export function useInfiniteTableRows({
     filter: filter ?? null,
     sort: sort ?? null,
   })
-  const queryKey = useMemo(
-    () => tableKeys.infiniteRows(tableId, paramsKey),
-    [tableId, paramsKey]
-  )
+  const queryKey = useMemo(() => tableKeys.infiniteRows(tableId, paramsKey), [tableId, paramsKey])
 
   const query = useInfiniteQuery({
     queryKey,
