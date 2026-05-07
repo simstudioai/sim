@@ -75,9 +75,13 @@ export interface RecordUsageParams {
  *
  * The two writes are intentionally not wrapped in a transaction: under high
  * concurrency for the same userId, holding BEGIN/COMMIT across the user_stats
- * row-lock wait pins pgbouncer connections and exhausts the pool. usage_log
- * is the source of truth; if the userStats UPDATE fails the counter drifts
- * and must be reconciled from usage_log out-of-band.
+ * row-lock wait pins pgbouncer connections and exhausts the pool.
+ *
+ * usage_log is the source of truth and the INSERT propagates errors to the
+ * caller. The userStats UPDATE is best-effort: failures (and missing-row
+ * cases) are logged as warnings and swallowed. Counter drift is acceptable
+ * here — the long-term plan is to derive counters from usage_log directly.
+ * Any drift warning in logs is a signal that needs investigation.
  */
 export async function recordUsage(params: RecordUsageParams): Promise<void> {
   if (!isBillingEnabled) {
@@ -135,16 +139,20 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
       .returning({ userId: userStats.userId })
 
     if (result.length === 0) {
-      logger.warn('recordUsage: userStats row not found; counter will drift from usage_log', {
+      logger.warn('recordUsage: userStats row not found; counter increment dropped', {
         userId,
         totalCost,
+        hadEntries: validEntries.length > 0,
+        additionalStatsKeys: safeStats ? Object.keys(safeStats) : [],
       })
     }
   } catch (error) {
-    logger.error('recordUsage: userStats update failed; counter will drift from usage_log', {
+    logger.warn('recordUsage: userStats update failed; counter increment dropped', {
       error: toError(error).message,
       userId,
       totalCost,
+      hadEntries: validEntries.length > 0,
+      additionalStatsKeys: safeStats ? Object.keys(safeStats) : [],
     })
   }
 
