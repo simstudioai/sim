@@ -202,8 +202,14 @@ export async function scheduleRunsForRows(
       return { triggered: 0 }
     }
 
-    for (let i = 0; i < pendingRuns.length; i++) {
-      await stampQueuedOrCancel(queue, pendingRuns[i], jobIds[i])
+    // Stamp `queued` in chunks of `TABLE_CONCURRENCY_LIMIT`. Within a chunk we
+    // parallelize the writes (no ordering constraint); across chunks we await
+    // serially so trigger.dev still picks rows up in submission order — the
+    // concurrency cap means at most one chunk is in flight per table anyway.
+    for (let i = 0; i < pendingRuns.length; i += TABLE_CONCURRENCY_LIMIT) {
+      const chunk = pendingRuns.slice(i, i + TABLE_CONCURRENCY_LIMIT)
+      const ids = jobIds.slice(i, i + TABLE_CONCURRENCY_LIMIT)
+      await Promise.all(chunk.map((run, j) => stampQueuedOrCancel(queue, run, ids[j])))
     }
     return { triggered: pendingRuns.length }
   } catch (err) {
