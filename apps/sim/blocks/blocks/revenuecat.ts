@@ -288,7 +288,7 @@ Return ONLY the numeric timestamp, no text.`,
       id: 'attributes',
       title: 'Attributes',
       type: 'long-input',
-      placeholder: '{"$email": {"value": "user@example.com"}}',
+      placeholder: '{"$email": {"value": "user@example.com", "updated_at_ms": 1709195668093}}',
       condition: {
         field: 'operation',
         value: ['update_subscriber_attributes', 'create_purchase'],
@@ -300,17 +300,17 @@ Return ONLY the numeric timestamp, no text.`,
       wandConfig: {
         enabled: true,
         prompt: `Generate a JSON object of RevenueCat subscriber attributes based on the user's description.
-Each attribute key maps to an object with a "value" field.
+Each attribute key maps to an object with a "value" field (string) and an "updated_at_ms" field (Unix epoch ms; required by the API for conflict resolution — use the current timestamp unless the user specifies otherwise).
 Reserved attribute keys start with "$": $email, $displayName, $phoneNumber, $mediaSource, $campaign, $adGroup, $ad, $keyword, $creative, $iterableUserId, $iterableCampaignId, $iterableTemplateId, $onesignalId, $airshipChannelId, $cleverTapId, $firebaseAppInstanceId.
 Custom attributes use plain keys without "$".
 
 Examples:
 - "set email to john@example.com and name to John" ->
-  {"$email": {"value": "john@example.com"}, "$displayName": {"value": "John"}}
+  {"$email": {"value": "john@example.com", "updated_at_ms": 1709195668093}, "$displayName": {"value": "John", "updated_at_ms": 1709195668093}}
 - "set plan to premium and team to acme" ->
-  {"plan": {"value": "premium"}, "team": {"value": "acme"}}
+  {"plan": {"value": "premium", "updated_at_ms": 1709195668093}, "team": {"value": "acme", "updated_at_ms": 1709195668093}}
 
-Return ONLY valid JSON.`,
+Return ONLY valid JSON - no explanations, no extra text.`,
       },
     },
     {
