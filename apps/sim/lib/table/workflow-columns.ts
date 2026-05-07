@@ -47,52 +47,52 @@ export {
  * cells win over the exec metadata, so deleting an output value re-arms the
  * row for the cascade and for manual incomplete-mode runs.
  */
+/**
+ * Reason codes the eligibility predicate emits. Stable strings so the caller
+ * can aggregate skip reasons into one summary log per scheduler call instead
+ * of allocating a per-cell debug line.
+ */
+export type EligibilityReason =
+  | 'eligible'
+  | 'autoRun-off'
+  | 'in-flight'
+  | 'completed-on-auto'
+  | 'error-on-auto'
+  | 'completed-on-incomplete'
+  | 'manual-bypass'
+  | 'deps-unmet'
+
+export function classifyEligibility(
+  group: WorkflowGroup,
+  row: TableRow,
+  opts?: { isManualRun?: boolean; mode?: 'all' | 'incomplete' }
+): EligibilityReason {
+  const isManualRun = opts?.isManualRun ?? false
+  const mode = opts?.mode ?? 'all'
+
+  if (group.autoRun === false && !isManualRun) return 'autoRun-off'
+
+  const exec = row.executions?.[group.id]
+  if (isExecInFlight(exec)) return 'in-flight'
+  const status = exec?.status
+
+  const completedAndFilled = status === 'completed' && areOutputsFilled(group, row)
+  if (!isManualRun && completedAndFilled) return 'completed-on-auto'
+  // Auto-fire skips `error` to avoid infinite-retry loops on a deterministic
+  // failure. `cancelled` is left runnable — cancellation is user-initiated.
+  if (!isManualRun && status === 'error') return 'error-on-auto'
+  if (mode === 'incomplete' && completedAndFilled) return 'completed-on-incomplete'
+
+  if (isManualRun && group.autoRun === false) return 'manual-bypass'
+  return areGroupDepsSatisfied(group, row) ? 'eligible' : 'deps-unmet'
+}
+
 export function isGroupEligible(
   group: WorkflowGroup,
   row: TableRow,
   opts?: { isManualRun?: boolean; mode?: 'all' | 'incomplete' }
 ): boolean {
-  const isManualRun = opts?.isManualRun ?? false
-  const mode = opts?.mode ?? 'all'
-  const tag = `[Eligibility] row=${row.id} group=${group.id} manual=${isManualRun} mode=${mode}`
-
-  if (group.autoRun === false && !isManualRun) {
-    logger.debug(`${tag} → skip: autoRun=false on auto-fire`)
-    return false
-  }
-
-  const exec = row.executions?.[group.id]
-  if (isExecInFlight(exec)) {
-    logger.debug(`${tag} → skip: in-flight (status=${exec?.status})`)
-    return false
-  }
-  const status = exec?.status
-
-  const completedAndFilled = status === 'completed' && areOutputsFilled(group, row)
-  if (!isManualRun && completedAndFilled) {
-    logger.debug(`${tag} → skip: completed+filled on auto-fire`)
-    return false
-  }
-  // Auto-fire skips `error` to avoid infinite-retry loops on a deterministic
-  // failure. `cancelled` doesn't get the same treatment — cancellation is
-  // user-initiated, and once an upstream dep re-fires the cascade, the user
-  // almost certainly wants the chain to continue.
-  if (!isManualRun && status === 'error') {
-    logger.debug(`${tag} → skip: terminal status=error on auto-fire`)
-    return false
-  }
-  if (mode === 'incomplete' && completedAndFilled) {
-    logger.debug(`${tag} → skip: completed+filled on mode=incomplete`)
-    return false
-  }
-
-  if (isManualRun && group.autoRun === false) {
-    logger.debug(`${tag} → eligible: manual on autoRun=false group (deps bypassed)`)
-    return true
-  }
-  const depsOk = areGroupDepsSatisfied(group, row)
-  logger.debug(`${tag} → ${depsOk ? 'eligible: deps satisfied' : 'skip: deps unmet'}`)
-  return depsOk
+  return classifyEligibility(group, row, opts) === 'eligible'
 }
 
 /**
@@ -130,18 +130,19 @@ export async function scheduleRunsForRows(
     const groups = groupIdFilter ? allGroups.filter((g) => groupIdFilter.has(g.id)) : allGroups
     if (groups.length === 0) return { triggered: 0 }
 
-    logger.debug(
-      `[Cascade] scheduleRunsForRows table=${table.id} rows=${rows.length} groups=${groups.length} manual=${opts?.isManualRun ?? false} mode=${opts?.mode ?? 'all'} scoped=${groupIdFilter ? 'yes' : 'no'}`
-    )
-
     const orderedRows = rows.length <= 1 ? rows : [...rows].sort((a, b) => a.position - b.position)
 
     const pendingRuns: RunGroupCellOptions[] = []
+    const reasonCounts: Partial<Record<EligibilityReason, number>> = {}
 
     for (const row of orderedRows) {
       for (const group of groups) {
-        if (!isGroupEligible(group, row, { isManualRun: opts?.isManualRun, mode: opts?.mode }))
-          continue
+        const reason = classifyEligibility(group, row, {
+          isManualRun: opts?.isManualRun,
+          mode: opts?.mode,
+        })
+        reasonCounts[reason] = (reasonCounts[reason] ?? 0) + 1
+        if (reason !== 'eligible') continue
         pendingRuns.push({
           tableId: table.id,
           tableName: table.name,
@@ -153,6 +154,10 @@ export async function scheduleRunsForRows(
         })
       }
     }
+
+    logger.debug(
+      `[Cascade] table=${table.id} rows=${rows.length} groups=${groups.length} manual=${opts?.isManualRun ?? false} mode=${opts?.mode ?? 'all'} reasons=${JSON.stringify(reasonCounts)}`
+    )
 
     if (pendingRuns.length === 0) return { triggered: 0 }
 
@@ -418,14 +423,13 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
 }
 
 /**
- * Generalized run helper. Three public wrappers below pin specific
- * argument shapes; this is the shared inner primitive.
- *
- * `groupIds` omitted = every workflow group on the table.
- * `rowIds` omitted = every row (with `mode === 'incomplete'` filter applied
- * per group when targeting specific groups).
+ * Run a set of groups across the table or a row subset. Single canonical
+ * user-driven run op — every UI gesture (single cell, per-row Play, action-bar
+ * Play/Refresh, column-header menu) reduces to this. `mode: 'all'` re-runs
+ * completed cells; `mode: 'incomplete'` skips them. `groupIds` omitted = every
+ * workflow group on the table. `rowIds` omitted = every row.
  */
-async function runWorkflowGroupsInternal(opts: {
+export async function runWorkflowColumn(opts: {
   tableId: string
   workspaceId: string
   mode: 'all' | 'incomplete'
@@ -444,7 +448,7 @@ async function runWorkflowGroupsInternal(opts: {
   if (targetGroups.length === 0) return { triggered: 0 }
 
   logger.info(
-    `[Cascade] [${requestId}] runWorkflowColumn table=${tableId} groups=[${targetGroups.map((g) => g.id).join(',')}] rows=${rowIds ? `[${rowIds.join(',')}]` : 'all'} mode=${mode}`
+    `[Cascade] [${requestId}] manual run table=${tableId} groups=[${targetGroups.map((g) => g.id).join(',')}] rows=${rowIds ? `[${rowIds.join(',')}]` : 'all'} mode=${mode}`
   )
 
   const filters = [eq(userTableRows.tableId, tableId), eq(userTableRows.workspaceId, workspaceId)]
@@ -520,31 +524,27 @@ async function runWorkflowGroupsInternal(opts: {
   })
 }
 
-/**
- * Run a set of groups across the table or a row subset. Single canonical
- * user-driven run op — every UI gesture (single cell, per-row Play, action-bar
- * Play/Refresh, column-header menu) reduces to this. `mode: 'all'` re-runs
- * completed cells; `mode: 'incomplete'` skips them.
- */
-export async function runWorkflowColumn(opts: {
-  tableId: string
-  workspaceId: string
-  groupIds: string[]
-  mode: 'all' | 'incomplete'
-  rowIds?: string[]
-  requestId: string
-}): Promise<{ triggered: number }> {
-  return runWorkflowGroupsInternal({
-    tableId: opts.tableId,
-    workspaceId: opts.workspaceId,
-    groupIds: opts.groupIds,
-    rowIds: opts.rowIds,
-    mode: opts.mode,
-    requestId: opts.requestId,
-  })
-}
-
 // ───────────────────────────── Validation ─────────────────────────────
+
+/**
+/**
+ * Removes the given column names from a group's `dependencies.columns`. When
+ * the resulting list is empty, drops the `dependencies` field entirely so
+ * schema validation doesn't see an empty-deps object. Returns the same group
+ * reference when nothing changed.
+ */
+export function stripGroupDeps(group: WorkflowGroup, removed: ReadonlySet<string>): WorkflowGroup {
+  const cols = group.dependencies?.columns
+  if (!cols || cols.length === 0) return group
+  const filtered = cols.filter((d) => !removed.has(d))
+  if (filtered.length === cols.length) return group
+  return {
+    ...group,
+    ...(filtered.length > 0
+      ? { dependencies: { columns: filtered } }
+      : { dependencies: undefined }),
+  }
+}
 
 /**
  * Validates schema-level invariants. Run on every `addTableColumn`,

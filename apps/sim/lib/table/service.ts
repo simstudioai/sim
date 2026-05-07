@@ -61,7 +61,12 @@ import {
   validateTableName,
   validateTableSchema,
 } from './validation'
-import { assertValidSchema, scheduleRunsForRows, scheduleRunsForTable } from './workflow-columns'
+import {
+  assertValidSchema,
+  scheduleRunsForRows,
+  scheduleRunsForTable,
+  stripGroupDeps,
+} from './workflow-columns'
 
 const logger = createLogger('TableService')
 
@@ -2400,16 +2405,7 @@ export async function deleteColumn(
         }
         next = { ...next, outputs: remaining }
       }
-      const filtered = next.dependencies?.columns?.filter((d) => d !== actualName)
-      if (filtered && filtered.length !== (next.dependencies?.columns?.length ?? 0)) {
-        next = {
-          ...next,
-          ...(filtered.length > 0
-            ? { dependencies: { columns: filtered } }
-            : { dependencies: undefined }),
-        }
-      }
-      return next
+      return stripGroupDeps(next, new Set([actualName]))
     })
     .filter((g) => g.id !== groupRemovedId)
 
@@ -2502,17 +2498,7 @@ export async function deleteColumns(
   })
   updatedGroups = updatedGroups
     .filter((g) => !removedGroupIds.has(g.id))
-    .map((group) => {
-      const depCols = group.dependencies?.columns?.filter((d) => !namesToDelete.has(d))
-      const colsChanged = depCols && depCols.length !== (group.dependencies?.columns?.length ?? 0)
-      if (!colsChanged) return group
-      return {
-        ...group,
-        ...(depCols && depCols.length > 0
-          ? { dependencies: { columns: depCols } }
-          : { dependencies: undefined }),
-      }
-    })
+    .map((group) => stripGroupDeps(group, namesToDelete))
   const updatedSchema: TableSchema = {
     ...schema,
     columns: remaining,
@@ -2983,17 +2969,7 @@ export async function updateWorkflowGroup(
   // refs so we don't leave dangling-column deps that fail schema validation.
   const nextGroups = groups
     .map((g, i) => (i === groupIndex ? updatedGroup : g))
-    .map((g) => {
-      if (g.id === updatedGroup.id) return g
-      const filtered = g.dependencies?.columns?.filter((d) => !removedColumnNames.has(d))
-      if (!filtered || filtered.length === (g.dependencies?.columns?.length ?? 0)) return g
-      return {
-        ...g,
-        ...(filtered.length > 0
-          ? { dependencies: { columns: filtered } }
-          : { dependencies: undefined }),
-      }
-    })
+    .map((g) => (g.id === updatedGroup.id ? g : stripGroupDeps(g, removedColumnNames)))
   const updatedSchema: TableSchema = {
     ...schema,
     columns: nextColumns,
@@ -3424,16 +3400,7 @@ export async function deleteWorkflowGroup(
   // Strip those refs so we don't leave dangling-column deps behind.
   const nextGroups = groups
     .filter((g) => g.id !== data.groupId)
-    .map((g) => {
-      const filtered = g.dependencies?.columns?.filter((d) => !removedColumnNames.has(d))
-      if (!filtered || filtered.length === (g.dependencies?.columns?.length ?? 0)) return g
-      return {
-        ...g,
-        ...(filtered.length > 0
-          ? { dependencies: { columns: filtered } }
-          : { dependencies: undefined }),
-      }
-    })
+    .map((g) => stripGroupDeps(g, removedColumnNames))
   const updatedSchema: TableSchema = {
     ...schema,
     columns: schema.columns.filter((c) => !removedColumnNames.has(c.name)),

@@ -95,24 +95,25 @@ export function optimisticallyScheduleNewlyEligibleGroups(
   }
 
   let next: RowExecutions | null = null
+  let flipped = 0
+  let skipped = 0
   for (const group of groups) {
-    const tag = `[OptimisticCascade] row=${beforeRow.id} group=${group.id}`
     if (group.autoRun === false) {
-      logger.debug(`${tag} → skip: autoRun=false`)
+      skipped++
       continue
     }
     if (!areGroupDepsSatisfied(group, afterRow)) {
-      logger.debug(`${tag} → skip: deps unmet on afterRow`)
+      skipped++
       continue
     }
 
     const exec = beforeRow.executions?.[group.id]
     if (exec?.status === 'queued' || exec?.status === 'running') {
-      logger.debug(`${tag} → skip: already ${exec.status}`)
+      skipped++
       continue
     }
     if (exec?.status === 'pending' && exec.jobId) {
-      logger.debug(`${tag} → skip: pending+jobId (worker reserved)`)
+      skipped++
       continue
     }
 
@@ -121,13 +122,11 @@ export function optimisticallyScheduleNewlyEligibleGroups(
     const becameSatisfied = !wasSatisfied
     const isRetryable = exec?.status === 'cancelled' || exec?.status === 'error'
     if (!becameSatisfied && !isStaleCompleted && !isRetryable && exec) {
-      logger.debug(`${tag} → skip: no fire reason (status=${exec?.status})`)
+      skipped++
       continue
     }
 
-    logger.debug(
-      `${tag} → flip to pending (becameSatisfied=${becameSatisfied} stale=${isStaleCompleted} retry=${isRetryable})`
-    )
+    flipped++
     if (next === null) next = { ...(beforeRow.executions ?? {}) }
     const pending: RowExecutionMetadata = {
       status: 'pending',
@@ -137,6 +136,11 @@ export function optimisticallyScheduleNewlyEligibleGroups(
       error: null,
     }
     next[group.id] = pending
+  }
+  if (flipped > 0) {
+    logger.debug(
+      `[OptimisticCascade] row=${beforeRow.id} flipped=${flipped} skipped=${skipped}`
+    )
   }
   return next
 }

@@ -84,6 +84,16 @@ function hasRunningGroupExecution(rows: TableRow[] | undefined): boolean {
   return false
 }
 
+function hasRunningGroupExecutionInPages(
+  pages: TableRowsResponse[] | undefined
+): boolean {
+  if (!pages) return false
+  for (const page of pages) {
+    if (hasRunningGroupExecution(page.rows)) return true
+  }
+  return false
+}
+
 const logger = createLogger('TableQueries')
 
 type TableQueryScope = 'active' | 'archived' | 'all'
@@ -317,8 +327,9 @@ export function useInfiniteTableRows({
      */
     refetchInterval: (query) => {
       if (queryClient.isMutating() > 0) return false
-      const rows = query.state.data?.pages.flatMap((p) => p.rows)
-      return hasRunningGroupExecution(rows) ? ROWS_POLL_INTERVAL_WHILE_RUNNING_MS : false
+      return hasRunningGroupExecutionInPages(query.state.data?.pages)
+        ? ROWS_POLL_INTERVAL_WHILE_RUNNING_MS
+        : false
     },
     refetchIntervalInBackground: false,
   })
