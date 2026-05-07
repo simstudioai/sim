@@ -70,21 +70,46 @@ export const apolloPeopleBulkEnrichTool: ToolConfig<
     }
 
     const data = await response.json()
-    const people = data.people || data.matches || []
+    const matches = Array.isArray(data.matches)
+      ? data.matches
+      : Array.isArray(data.people)
+        ? data.people
+        : []
 
     return {
       success: true,
       output: {
-        people,
-        total: people.length,
-        enriched: people.filter((p: unknown) => p).length,
+        matches,
+        total_requested_enrichments: data.total_requested_enrichments ?? matches.length,
+        unique_enriched_records: data.unique_enriched_records ?? matches.filter(Boolean).length,
+        missing_records: data.missing_records ?? null,
+        credits_consumed: data.credits_consumed ?? null,
       },
     }
   },
 
   outputs: {
-    people: { type: 'json', description: 'Array of enriched people data' },
-    total: { type: 'number', description: 'Total number of people processed' },
-    enriched: { type: 'number', description: 'Number of people successfully enriched' },
+    matches: {
+      type: 'json',
+      description: 'Array of enriched people (null entries indicate no match)',
+    },
+    total_requested_enrichments: {
+      type: 'number',
+      description: 'Total number of records submitted for enrichment',
+    },
+    unique_enriched_records: {
+      type: 'number',
+      description: 'Number of records successfully enriched',
+    },
+    missing_records: {
+      type: 'number',
+      description: 'Number of records that could not be enriched',
+      optional: true,
+    },
+    credits_consumed: {
+      type: 'number',
+      description: 'Number of Apollo credits consumed by this request',
+      optional: true,
+    },
   },
 }

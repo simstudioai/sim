@@ -47,14 +47,18 @@ export const apolloOpportunityGetTool: ToolConfig<
     return {
       success: true,
       output: {
-        opportunity: data.opportunity || {},
+        opportunity: data.opportunity ?? null,
         found: !!data.opportunity,
       },
     }
   },
 
   outputs: {
-    opportunity: { type: 'json', description: 'Complete opportunity data from Apollo' },
+    opportunity: {
+      type: 'json',
+      description: 'Complete opportunity data from Apollo',
+      optional: true,
+    },
     found: { type: 'boolean', description: 'Whether the opportunity was found' },
   },
 }

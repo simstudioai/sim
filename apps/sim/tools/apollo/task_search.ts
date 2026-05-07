@@ -71,7 +71,7 @@ export const apolloTaskSearchTool: ToolConfig<ApolloTaskSearchParams, ApolloTask
     return {
       success: true,
       output: {
-        tasks: data.tasks ?? null,
+        tasks: data.tasks ?? [],
         pagination: data.pagination ?? null,
       },
     }
@@ -81,7 +81,6 @@ export const apolloTaskSearchTool: ToolConfig<ApolloTaskSearchParams, ApolloTask
     tasks: {
       type: 'json',
       description: 'Array of tasks matching the search criteria',
-      optional: true,
     },
     pagination: { type: 'json', description: 'Pagination information', optional: true },
   },

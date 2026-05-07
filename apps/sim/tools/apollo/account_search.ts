@@ -100,7 +100,7 @@ export const apolloAccountSearchTool: ToolConfig<
     return {
       success: true,
       output: {
-        accounts: data.accounts ?? null,
+        accounts: data.accounts ?? [],
         pagination: data.pagination ?? null,
       },
     }
@@ -110,7 +110,6 @@ export const apolloAccountSearchTool: ToolConfig<
     accounts: {
       type: 'json',
       description: 'Array of accounts matching the search criteria',
-      optional: true,
     },
     pagination: { type: 'json', description: 'Pagination information', optional: true },
   },

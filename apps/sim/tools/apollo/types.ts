@@ -155,7 +155,7 @@ export interface ApolloPeopleEnrichParams extends ApolloBaseParams {
 
 export interface ApolloPeopleEnrichResponse extends ToolResponse {
   output: {
-    person: ApolloPerson
+    person: ApolloPerson | null
     enriched: boolean
   }
 }
@@ -179,9 +179,11 @@ export interface ApolloPeopleBulkEnrichParams extends ApolloBaseParams {
 
 export interface ApolloPeopleBulkEnrichResponse extends ToolResponse {
   output: {
-    people: ApolloPerson[]
-    total: number
-    enriched: number
+    matches: Array<ApolloPerson | null>
+    total_requested_enrichments: number
+    unique_enriched_records: number
+    missing_records: number | null
+    credits_consumed: number | null
   }
 }
 
@@ -355,7 +357,7 @@ export interface ApolloPagination {
 
 export interface ApolloContactSearchResponse extends ToolResponse {
   output: {
-    contacts: ApolloContact[] | null
+    contacts: ApolloContact[]
     pagination: ApolloPagination | null
   }
 }
@@ -410,7 +412,7 @@ export interface ApolloAccountSearchParams extends ApolloBaseParams {
 
 export interface ApolloAccountSearchResponse extends ToolResponse {
   output: {
-    accounts: ApolloAccount[] | null
+    accounts: ApolloAccount[]
     pagination: ApolloPagination | null
   }
 }
@@ -428,10 +430,10 @@ export interface ApolloAccountBulkCreateParams extends ApolloBaseParams {
 export interface ApolloAccountBulkCreateResponse extends ToolResponse {
   output: {
     created_accounts: ApolloAccount[]
-    failed_accounts: Array<{ name: string; error: string }>
+    existing_accounts: ApolloAccount[]
     total_submitted: number
     created: number
-    failed: number
+    existing: number
   }
 }
 
@@ -483,7 +485,7 @@ export interface ApolloSequenceAddContactsResponse extends ToolResponse {
   output: {
     added: ApolloSequenceAddedContact[]
     skipped: ApolloSequenceSkippedContact[]
-    skipped_contact_ids: Record<string, string> | null
+    skipped_contact_ids: string[] | null
     emailer_campaign: { id: string; name: string } | null
     sequence_id: string
     total_added: number
@@ -519,7 +521,7 @@ export interface ApolloTaskSearchParams extends ApolloBaseParams {
 
 export interface ApolloTaskSearchResponse extends ToolResponse {
   output: {
-    tasks: ApolloTask[] | null
+    tasks: ApolloTask[]
     pagination: ApolloPagination | null
   }
 }
@@ -528,11 +530,12 @@ export interface ApolloTaskSearchResponse extends ToolResponse {
 export interface ApolloEmailAccountsParams extends ApolloBaseParams {}
 
 export interface ApolloEmailAccount {
-  id: string
+  id: string | number
   email: string
   type?: string
   active?: boolean
   default?: boolean
+  linked_at?: string | null
 }
 
 export interface ApolloEmailAccountsResponse extends ToolResponse {
@@ -583,7 +586,7 @@ export interface ApolloOpportunityGetParams extends ApolloBaseParams {
 
 export interface ApolloOpportunityGetResponse extends ToolResponse {
   output: {
-    opportunity: ApolloOpportunity
+    opportunity: ApolloOpportunity | null
     found: boolean
   }
 }

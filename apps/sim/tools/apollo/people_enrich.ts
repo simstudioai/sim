@@ -110,14 +110,18 @@ export const apolloPeopleEnrichTool: ToolConfig<
     return {
       success: true,
       output: {
-        person: data.person || {},
+        person: data.person ?? null,
         enriched: !!data.person,
       },
     }
   },
 
   outputs: {
-    person: { type: 'json', description: 'Enriched person data from Apollo' },
+    person: {
+      type: 'json',
+      description: 'Enriched person data from Apollo',
+      optional: true,
+    },
     enriched: { type: 'boolean', description: 'Whether the person was successfully enriched' },
   },
 }

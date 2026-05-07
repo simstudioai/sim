@@ -50,15 +50,21 @@ export const apolloAccountBulkCreateTool: ToolConfig<
     }
 
     const data = await response.json()
+    const createdAccounts = Array.isArray(data.created_accounts)
+      ? data.created_accounts
+      : Array.isArray(data.accounts)
+        ? data.accounts
+        : []
+    const existingAccounts = Array.isArray(data.existing_accounts) ? data.existing_accounts : []
 
     return {
       success: true,
       output: {
-        created_accounts: data.accounts || data.created_accounts || [],
-        failed_accounts: data.failed_accounts || [],
-        total_submitted: data.accounts?.length || 0,
-        created: data.created_accounts?.length || data.accounts?.length || 0,
-        failed: data.failed_accounts?.length || 0,
+        created_accounts: createdAccounts,
+        existing_accounts: existingAccounts,
+        total_submitted: createdAccounts.length + existingAccounts.length,
+        created: createdAccounts.length,
+        existing: existingAccounts.length,
       },
     }
   },
@@ -68,21 +74,21 @@ export const apolloAccountBulkCreateTool: ToolConfig<
       type: 'json',
       description: 'Array of newly created accounts',
     },
-    failed_accounts: {
+    existing_accounts: {
       type: 'json',
-      description: 'Array of accounts that failed to create',
+      description: 'Array of existing accounts returned by Apollo (when duplicates are detected)',
     },
     total_submitted: {
       type: 'number',
-      description: 'Total number of accounts submitted',
+      description: 'Total number of accounts in the response (created + existing)',
     },
     created: {
       type: 'number',
       description: 'Number of accounts successfully created',
     },
-    failed: {
+    existing: {
       type: 'number',
-      description: 'Number of accounts that failed to create',
+      description: 'Number of existing accounts found',
     },
   },
 }

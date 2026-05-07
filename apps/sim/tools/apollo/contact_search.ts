@@ -99,7 +99,7 @@ export const apolloContactSearchTool: ToolConfig<
     return {
       success: true,
       output: {
-        contacts: data.contacts ?? null,
+        contacts: data.contacts ?? [],
         pagination: data.pagination ?? null,
       },
     }
@@ -109,7 +109,6 @@ export const apolloContactSearchTool: ToolConfig<
     contacts: {
       type: 'json',
       description: 'Array of contacts matching the search criteria',
-      optional: true,
     },
     pagination: { type: 'json', description: 'Pagination information', optional: true },
   },
