@@ -4141,6 +4141,25 @@ export function SapS4HanaIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function SapConcurIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 43.1 43.1'>
+      <path
+        fill='#F0AB00'
+        d='M20.5,28.2c-3.6,0-6.6-3-6.6-6.6s2.9-6.6,6.6-6.6c1.8,0,3.5,0.7,4.6,1.9l3.4-3.4c-2.1-2.1-4.9-3.3-8.1-3.3 C14.1,10.2,9,15.3,9,21.6S14.1,33,20.4,33c3.1,0,6-1.3,8.1-3.3l-3.4-3.4C23.9,27.4,22.3,28.2,20.5,28.2'
+      />
+      <path
+        fill='#F0AB00'
+        d='M30.1,18.7c-1.6,0-2.9,1.3-2.9,2.9s1.3,2.9,2.9,2.9c1.6,0,2.9-1.3,2.9-2.9C33,20,31.7,18.7,30.1,18.7'
+      />
+      <path
+        fill='#F0AB00'
+        d='M0,43.1h43.1V0H0V43.1z M4.8,38.2V4.8h33.4v15.5v2.4v15.5C38.2,38.2,4.8,38.2,4.8,38.2z'
+      />
+    </svg>
+  )
+}
+
 export function ServiceNowIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 71.1 63.6'>
