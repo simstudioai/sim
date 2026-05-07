@@ -113,8 +113,8 @@ interface CsrfBundle {
 }
 
 function joinSetCookies(response: SecureFetchResponse): string {
-  const cookies = (response.headers.get('set-cookie') ?? '').split(/,\s*(?=[^=,;\s]+=)/)
-  return cookies
+  return response.headers
+    .getSetCookie()
     .map((c) => c.split(';')[0]?.trim())
     .filter(Boolean)
     .join('; ')
