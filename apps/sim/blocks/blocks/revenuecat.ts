@@ -147,30 +147,27 @@ Return ONLY the numeric timestamp, no text.`,
     },
     {
       id: 'productId',
-      title: 'Product ID',
+      title: 'Product ID / Store Transaction ID',
       type: 'short-input',
-      placeholder: 'Product identifier',
+      placeholder:
+        'Product ID, or store transaction ID for refunds (e.g., GPA.3309-9122-6177-45730)',
       condition: {
         field: 'operation',
-        value: ['create_purchase', 'defer_google_subscription', 'revoke_google_subscription'],
+        value: [
+          'create_purchase',
+          'defer_google_subscription',
+          'refund_google_subscription',
+          'revoke_google_subscription',
+        ],
       },
       required: {
         field: 'operation',
-        value: ['create_purchase', 'defer_google_subscription', 'revoke_google_subscription'],
-      },
-    },
-    {
-      id: 'storeTransactionId',
-      title: 'Store Transaction ID',
-      type: 'short-input',
-      placeholder: 'e.g., GPA.3309-9122-6177-45730',
-      condition: {
-        field: 'operation',
-        value: 'refund_google_subscription',
-      },
-      required: {
-        field: 'operation',
-        value: 'refund_google_subscription',
+        value: [
+          'create_purchase',
+          'defer_google_subscription',
+          'refund_google_subscription',
+          'revoke_google_subscription',
+        ],
       },
     },
     {
@@ -356,6 +353,10 @@ Return ONLY the numeric timestamp, no text.`,
           next.platform = params.purchasePlatform
         }
         next.purchasePlatform = undefined
+        if (params.productId && params.operation === 'refund_google_subscription') {
+          next.storeTransactionId = params.productId
+          next.productId = undefined
+        }
         if (params.isRestore !== undefined && params.isRestore !== '') {
           next.isRestore = params.isRestore === true || params.isRestore === 'true'
         }
@@ -386,8 +387,10 @@ Return ONLY the numeric timestamp, no text.`,
     duration: { type: 'string', description: 'Promotional entitlement duration' },
     startTimeMs: { type: 'number', description: 'Custom start time in ms since epoch' },
     fetchToken: { type: 'string', description: 'Store receipt or purchase token' },
-    productId: { type: 'string', description: 'Product identifier' },
-    storeTransactionId: { type: 'string', description: 'Store transaction identifier' },
+    productId: {
+      type: 'string',
+      description: 'Product identifier (or store transaction ID for refunds)',
+    },
     price: { type: 'number', description: 'Product price' },
     currency: { type: 'string', description: 'ISO 4217 currency code' },
     isRestore: { type: 'boolean', description: 'Whether this is a restore purchase' },
