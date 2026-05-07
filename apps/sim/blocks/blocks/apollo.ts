@@ -739,7 +739,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       options: [
         { label: 'Call', id: 'call' },
         { label: 'Outreach Manual Email', id: 'outreach_manual_email' },
-        { label: 'LinkedIn Step Message', id: 'linkedin_step_message' },
         { label: 'Action Item', id: 'action_item' },
       ],
       value: () => 'action_item',
@@ -1004,10 +1003,12 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
 
         if (params.operation === 'contact_bulk_update') {
           const { ids, attributes } = splitBulkUpdateInput(parsedParams.contacts)
-          if (attributes && parsedParams.contact_attributes === undefined) {
-            parsedParams.contact_attributes = attributes
-          }
-          if (ids && !attributes && parsedParams.contact_ids === undefined) {
+          if (attributes) {
+            const merged = ids ? [...attributes, ...ids.map((id) => ({ id }))] : attributes
+            if (parsedParams.contact_attributes === undefined) {
+              parsedParams.contact_attributes = merged
+            }
+          } else if (ids && parsedParams.contact_ids === undefined) {
             parsedParams.contact_ids = ids
           }
           parsedParams.contacts = undefined
@@ -1015,10 +1016,12 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
 
         if (params.operation === 'account_bulk_update') {
           const { ids, attributes } = splitBulkUpdateInput(parsedParams.accounts)
-          if (attributes && parsedParams.account_attributes === undefined) {
-            parsedParams.account_attributes = attributes
-          }
-          if (ids && !attributes && parsedParams.account_ids === undefined) {
+          if (attributes) {
+            const merged = ids ? [...attributes, ...ids.map((id) => ({ id }))] : attributes
+            if (parsedParams.account_attributes === undefined) {
+              parsedParams.account_attributes = merged
+            }
+          } else if (ids && parsedParams.account_ids === undefined) {
             parsedParams.account_ids = ids
           }
           parsedParams.accounts = undefined
