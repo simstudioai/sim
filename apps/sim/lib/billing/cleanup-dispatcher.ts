@@ -1,13 +1,13 @@
 import { db } from '@sim/db'
 import { organization, subscription, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { tasks } from '@trigger.dev/sdk'
 import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import { type PlanCategory, sqlIsPaid, sqlIsPro, sqlIsTeam } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
+import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('RetentionDispatcher')
@@ -143,53 +143,18 @@ export async function resolveCleanupScope(
   }
 }
 
-type RunnerFn = (payload: CleanupJobPayload) => Promise<void>
-
-async function getInlineRunner(jobType: CleanupJobType): Promise<RunnerFn> {
-  switch (jobType) {
-    case 'cleanup-logs': {
-      const { runCleanupLogs } = await import('@/background/cleanup-logs')
-      return runCleanupLogs
-    }
-    case 'cleanup-soft-deletes': {
-      const { runCleanupSoftDeletes } = await import('@/background/cleanup-soft-deletes')
-      return runCleanupSoftDeletes
-    }
-    case 'cleanup-tasks': {
-      const { runCleanupTasks } = await import('@/background/cleanup-tasks')
-      return runCleanupTasks
-    }
-  }
-}
-
-/**
- * When the job queue backend is "database" (no Trigger.dev, no BullMQ), the
- * enqueued rows just sit in async_jobs forever. Run them inline as fire-and-forget
- * promises, following the same pattern as the workflow execution API route.
- */
-async function runInlineIfNeeded(
-  jobQueue: Awaited<ReturnType<typeof getJobQueue>>,
-  jobType: CleanupJobType,
-  jobId: string,
-  payload: CleanupJobPayload
-): Promise<void> {
-  if (!shouldExecuteInline()) return
-  const runner = await getInlineRunner(jobType)
-  void (async () => {
-    try {
-      await jobQueue.startJob(jobId)
-      await runner(payload)
-      await jobQueue.completeJob(jobId, null)
-    } catch (error) {
-      const errorMessage = toError(error).message
-      logger.error(`[${jobType}] Inline job ${jobId} failed`, { error: errorMessage })
-      try {
-        await jobQueue.markJobFailed(jobId, errorMessage)
-      } catch (markErr) {
-        logger.error(`[${jobType}] Failed to mark job ${jobId} as failed`, { markErr })
-      }
+async function buildCleanupRunner(jobType: CleanupJobType): Promise<EnqueueOptions['runner']> {
+  const cleanupRunner = await (async () => {
+    switch (jobType) {
+      case 'cleanup-logs':
+        return (await import('@/background/cleanup-logs')).runCleanupLogs
+      case 'cleanup-soft-deletes':
+        return (await import('@/background/cleanup-soft-deletes')).runCleanupSoftDeletes
+      case 'cleanup-tasks':
+        return (await import('@/background/cleanup-tasks')).runCleanupTasks
     }
   })()
+  return ((payload) => cleanupRunner(payload as CleanupJobPayload)) as EnqueueOptions['runner']
 }
 
 /**
@@ -214,9 +179,10 @@ export async function dispatchCleanupJobs(
 
   for (const plan of plansWithDefaults) {
     const payload: CleanupJobPayload = { plan }
-    const jobId = await jobQueue.enqueue(jobType, payload)
+    const jobId = await jobQueue.enqueue(jobType, payload, {
+      runner: shouldExecuteInline() ? await buildCleanupRunner(jobType) : undefined,
+    })
     jobIds.push(jobId)
-    await runInlineIfNeeded(jobQueue, jobType, jobId, payload)
   }
 
   // Enterprise: workspaces whose owning org is on an active enterprise sub and
@@ -270,12 +236,11 @@ export async function dispatchCleanupJobs(
     }
   } else {
     // Fallback: parallel enqueue via abstraction
+    const inlineRunner = shouldExecuteInline() ? await buildCleanupRunner(jobType) : undefined
     const results = await Promise.allSettled(
       enterpriseRows.map(async (row) => {
         const payload: CleanupJobPayload = { plan: 'enterprise', workspaceId: row.id }
-        const jobId = await jobQueue.enqueue(jobType, payload)
-        await runInlineIfNeeded(jobQueue, jobType, jobId, payload)
-        return jobId
+        return jobQueue.enqueue(jobType, payload, { runner: inlineRunner })
       })
     )
 

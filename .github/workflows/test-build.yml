@@ -44,11 +44,13 @@ jobs:
           key: ${{ github.repository }}-turbo-cache
           path: ./.turbo
 
-      - name: Mount Next.js build cache (Sticky Disk)
-        uses: useblacksmith/stickydisk@v1
+      - name: Restore Next.js build cache
+        uses: actions/cache@v5
         with:
-          key: ${{ github.repository }}-nextjs-cache
           path: ./apps/sim/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

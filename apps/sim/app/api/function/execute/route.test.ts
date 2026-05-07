@@ -538,6 +538,36 @@ describe('Function Execute API Route', () => {
       expect(data.error).toContain('undefinedVariable is not defined')
     })
 
+    it('should show original source code when resolved block references cause syntax errors', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        error: {
+          message: 'Unexpected identifier "globalThis"',
+          name: 'SyntaxError',
+          line: 1,
+          column: 7,
+          lineContent: 'retur globalThis["__blockRef_0"]',
+        },
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'retur globalThis["__blockRef_0"]',
+        sourceCode: 'retur <start.reqerror>',
+        contextVariables: { __blockRef_0: 'value' },
+        timeout: 5000,
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(422)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('Line 1: `retur <start.reqerror>`')
+      expect(data.error).not.toContain('globalThis')
+      expect(data.debug.lineContent).toBe('retur <start.reqerror>')
+    })
+
     it('should handle thrown errors gracefully', async () => {
       const req = createMockRequest('POST', {
         code: 'throw new Error("Custom error message");',

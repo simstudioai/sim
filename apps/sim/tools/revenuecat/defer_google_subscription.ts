@@ -2,7 +2,12 @@ import type {
   DeferGoogleSubscriptionParams,
   DeferGoogleSubscriptionResponse,
 } from '@/tools/revenuecat/types'
-import { SUBSCRIBER_OUTPUT } from '@/tools/revenuecat/types'
+import {
+  extractSubscriber,
+  SUBSCRIBER_OUTPUT,
+  shapeSubscriber,
+  throwIfRevenueCatError,
+} from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const revenuecatDeferGoogleSubscriptionTool: ToolConfig<
@@ -37,38 +42,59 @@ export const revenuecatDeferGoogleSubscriptionTool: ToolConfig<
     },
     extendByDays: {
       type: 'number',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Number of days to extend the subscription by (1-365)',
+      description:
+        'Number of days to extend the subscription by (1-365). Provide either extendByDays or expiryTimeMs.',
+    },
+    expiryTimeMs: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Absolute new expiry time in milliseconds since Unix epoch. Use instead of extendByDays to set an exact expiry.',
     },
   },
 
   request: {
     url: (params) =>
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId)}/subscriptions/${encodeURIComponent(params.productId)}/defer`,
+      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId.trim())}/subscriptions/${encodeURIComponent(params.productId.trim())}/defer`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      extend_by_days: params.extendByDays,
-    }),
+    body: (params) => {
+      const hasExtend = params.extendByDays !== undefined && (params.extendByDays as unknown) !== ''
+      const hasExpiry = params.expiryTimeMs !== undefined && (params.expiryTimeMs as unknown) !== ''
+      if (!hasExtend && !hasExpiry) {
+        throw new Error('Provide either extendByDays or expiryTimeMs to defer a subscription')
+      }
+      if (hasExtend && hasExpiry) {
+        throw new Error(
+          'Provide only one of extendByDays or expiryTimeMs — they cannot be used together'
+        )
+      }
+      const body: Record<string, unknown> = {}
+      if (hasExpiry) body.expiry_time_ms = params.expiryTimeMs
+      else if (hasExtend) {
+        const days = params.extendByDays as number
+        if (!Number.isInteger(days) || days < 1 || days > 365) {
+          throw new Error('extendByDays must be an integer between 1 and 365')
+        }
+        body.extend_by_days = days
+      }
+      return body
+    },
   },
 
   transformResponse: async (response) => {
+    await throwIfRevenueCatError(response)
     const data = await response.json()
-    const subscriber = data.subscriber ?? {}
-
     return {
       success: true,
       output: {
-        subscriber: {
-          first_seen: subscriber.first_seen ?? '',
-          original_app_user_id: subscriber.original_app_user_id ?? '',
-          subscriptions: subscriber.subscriptions ?? {},
-          entitlements: subscriber.entitlements ?? {},
-        },
+        subscriber: shapeSubscriber(extractSubscriber(data)),
       },
     }
   },

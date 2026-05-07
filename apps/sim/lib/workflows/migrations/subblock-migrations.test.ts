@@ -133,6 +133,69 @@ describe('migrateSubblockIds', () => {
     expect(blocks.b1.subBlocks.code.value).toBe('console.log("hi")')
   })
 
+  it('should repair malformed subBlocks for every block type without deleting values', () => {
+    const input: Record<string, BlockState> = {
+      b1: makeBlock({
+        type: 'function',
+        subBlocks: {
+          code: { id: 'code', type: 'unknown', value: 'console.log("hi")' },
+          language: { value: 'javascript' },
+          undefined: { type: 'unknown', value: null },
+          noId: { type: 'short-input', value: 'stale' },
+          noType: { id: 'noType', value: 'stale' },
+          unknownType: { id: 'unknownType', type: 'unknown', value: 'preserved' },
+          notRecord: 'stale',
+          arrayValue: ['a', 'b'],
+        } as unknown as BlockState['subBlocks'],
+      }),
+    }
+
+    const { blocks, migrated } = migrateSubblockIds(input)
+
+    expect(migrated).toBe(true)
+    expect(blocks.b1.subBlocks.code).toEqual({
+      id: 'code',
+      type: 'code',
+      value: 'console.log("hi")',
+    })
+    expect(blocks.b1.subBlocks.language).toEqual({
+      id: 'language',
+      type: 'dropdown',
+      value: 'javascript',
+    })
+    expect(blocks.b1.subBlocks.undefined).toBeUndefined()
+    expect(blocks.b1.subBlocks.noId).toBeUndefined()
+    expect(blocks.b1.subBlocks.noType).toBeUndefined()
+    expect(blocks.b1.subBlocks.unknownType).toBeUndefined()
+    expect(blocks.b1.subBlocks.notRecord).toBeUndefined()
+    expect(blocks.b1.subBlocks.arrayValue).toBeUndefined()
+  })
+
+  it('should preserve malformed legacy subBlocks before renaming them', () => {
+    const input: Record<string, BlockState> = {
+      b1: makeBlock({
+        type: 'knowledge',
+        subBlocks: {
+          knowledgeBaseId: {
+            id: 'knowledgeBaseId',
+            type: 'unknown',
+            value: 'kb-uuid-123',
+          },
+        },
+      }),
+    }
+
+    const { blocks, migrated } = migrateSubblockIds(input)
+
+    expect(migrated).toBe(true)
+    expect(blocks.b1.subBlocks.knowledgeBaseId).toBeUndefined()
+    expect(blocks.b1.subBlocks.knowledgeBaseSelector).toEqual({
+      id: 'knowledgeBaseSelector',
+      type: 'knowledge-base-selector',
+      value: 'kb-uuid-123',
+    })
+  })
+
   it('should migrate multiple blocks in one pass', () => {
     const input: Record<string, BlockState> = {
       b1: makeBlock({

@@ -24,7 +24,7 @@ export const WorkdayBlock: BlockConfig = {
         { label: 'List Workers', id: 'list_workers' },
         { label: 'Create Pre-Hire', id: 'create_prehire' },
         { label: 'Hire Employee', id: 'hire_employee' },
-        { label: 'Update Worker', id: 'update_worker' },
+        { label: 'Update Personal Information', id: 'update_worker' },
         { label: 'Assign Onboarding Plan', id: 'assign_onboarding' },
         { label: 'Get Organizations', id: 'get_organizations' },
         { label: 'Change Job', id: 'change_job' },
@@ -228,31 +228,38 @@ export const WorkdayBlock: BlockConfig = {
     // Update Worker
     {
       id: 'fields',
-      title: 'Fields (JSON)',
+      title: 'Personal Information (JSON)',
       type: 'code',
       language: 'json',
       placeholder:
-        '{\n  "businessTitle": "Senior Engineer",\n  "primaryWorkEmail": "new@company.com"\n}',
+        '{\n  "Marital_Status_Reference": {\n    "ID": { "attributes": { "wd:type": "Marital_Status_ID" }, "$value": "Married" }\n  }\n}',
+      description:
+        'Demographic fields supported by Workday Change_Personal_Information (e.g. Date_of_Birth, Gender_Reference, Marital_Status_Reference, Ethnicity_Reference, Citizenship_Status_Reference). Does not update business title or work contact info.',
       condition: { field: 'operation', value: 'update_worker' },
       required: { field: 'operation', value: 'update_worker' },
       wandConfig: {
         enabled: true,
         maintainHistory: true,
-        prompt: `Generate a Workday worker update payload as JSON.
+        prompt: `Generate a Workday Personal_Information_Data payload as JSON for the Change_Personal_Information SOAP operation.
 
-### COMMON FIELDS
-- businessTitle: Job title string
-- primaryWorkEmail: Work email address
-- primaryWorkPhone: Work phone number
-- managerReference: Manager worker ID
+### SUPPORTED FIELDS (demographics only)
+- Date_of_Birth: ISO date string (YYYY-MM-DD)
+- Gender_Reference: { ID: { attributes: { "wd:type": "Gender_Code" }, $value: "Male" | "Female" | ... } }
+- Marital_Status_Reference: { ID: { attributes: { "wd:type": "Marital_Status_ID" }, $value: "Married" | "Single" | ... } }
+- Ethnicity_Reference: { ID: { attributes: { "wd:type": "Ethnicity_ID" }, $value: "..." } }
+- Citizenship_Status_Reference: same shape
+
+### NOT SUPPORTED BY THIS OPERATION
+- Business title (use Change_Job)
+- Work email / phone / manager (different SOAP ops)
 
 ### RULES
 - Output ONLY valid JSON starting with { and ending with }
 - Include only fields that need updating
 
 ### EXAMPLE
-User: "Update title to Senior Engineer"
-Output: {"businessTitle": "Senior Engineer"}`,
+User: "Mark marital status as Married"
+Output: {"Marital_Status_Reference":{"ID":{"attributes":{"wd:type":"Marital_Status_ID"},"$value":"Married"}}}`,
         generationType: 'json-object',
       },
     },
@@ -424,8 +431,16 @@ Output: {"businessTitle": "Senior Engineer"}`,
     lastDayOfWork: { type: 'string', description: 'Last day of work' },
   },
   outputs: {
-    worker: { type: 'json', description: 'Worker profile data' },
-    workers: { type: 'json', description: 'Array of worker profiles' },
+    worker: {
+      type: 'json',
+      description:
+        'Worker profile (id, descriptor, primaryWorkEmail, primaryWorkPhone, businessTitle, supervisoryOrganization, hireDate, workerType, isActive)',
+    },
+    workers: {
+      type: 'json',
+      description:
+        'Array of worker profiles (id, descriptor, primaryWorkEmail, businessTitle, supervisoryOrganization, hireDate, workerType, isActive)',
+    },
     total: { type: 'number', description: 'Total count of results' },
     preHireId: { type: 'string', description: 'Created pre-hire ID' },
     descriptor: { type: 'string', description: 'Display name of pre-hire' },
@@ -434,10 +449,16 @@ Output: {"businessTitle": "Senior Engineer"}`,
     hireDate: { type: 'string', description: 'Hire date' },
     assignmentId: { type: 'string', description: 'Onboarding assignment ID' },
     planId: { type: 'string', description: 'Onboarding plan ID' },
-    organizations: { type: 'json', description: 'Array of organizations' },
+    organizations: {
+      type: 'json',
+      description: 'Array of organizations (id, descriptor, type, subtype, isActive)',
+    },
     eventId: { type: 'string', description: 'Event ID for staffing changes' },
     effectiveDate: { type: 'string', description: 'Effective date of change' },
-    compensationPlans: { type: 'json', description: 'Compensation plan details' },
+    compensationPlans: {
+      type: 'json',
+      description: 'Compensation plans (id, planName, amount, currency, frequency)',
+    },
     terminationDate: { type: 'string', description: 'Termination date' },
   },
 }

@@ -127,7 +127,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
     },
     rateLimit: {
       mode: 'per_request',
-      requestsPerMinute: 5,
+      requestsPerMinute: 60,
     },
   },
 

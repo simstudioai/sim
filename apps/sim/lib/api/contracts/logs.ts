@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { userFileSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const comparisonOperatorSchema = z.enum(['=', '>', '<', '>=', '<=', '!='])
@@ -65,19 +66,6 @@ const workflowSummarySchema = z
     updatedAt: z.string().nullable(),
   })
   .partial()
-
-const fileSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  size: z.number(),
-  type: z.string(),
-  url: z.string(),
-  key: z.string(),
-  uploadedAt: z.string(),
-  expiresAt: z.string(),
-  storageProvider: z.enum(['s3', 'blob', 'local']).optional(),
-  bucketName: z.string().optional(),
-})
 
 const tokenBreakdownSchema = z
   .object({
@@ -237,7 +225,7 @@ export const workflowLogSummarySchema = z.object({
 
 export const workflowLogDetailSchema = workflowLogSummarySchema.extend({
   executionData: executionDataDetailSchema,
-  files: z.array(fileSchema).nullable(),
+  files: z.array(userFileSchema).nullable(),
 })
 
 export type WorkflowLogSummary = z.output<typeof workflowLogSummarySchema>

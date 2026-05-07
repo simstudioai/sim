@@ -43,9 +43,17 @@ export type ConnectedAccount = z.output<typeof connectedAccountSchema>
 
 export const trelloTokenBodySchema = z.object({
   token: z.string().min(1),
+  state: z.string().min(1, 'state is required'),
 })
 
 const emptyTrelloAuthQuerySchema = z.object({}).passthrough()
+
+const trelloCallbackQuerySchema = z
+  .object({
+    state: z.string().min(1).optional(),
+    error: z.string().min(1).optional(),
+  })
+  .passthrough()
 
 export const oauthTokenRequestBodySchema = z
   .object({
@@ -203,7 +211,7 @@ export const authorizeTrelloContract = defineRouteContract({
 export const trelloCallbackContract = defineRouteContract({
   method: 'GET',
   path: '/api/auth/trello/callback',
-  query: emptyTrelloAuthQuerySchema,
+  query: trelloCallbackQuerySchema,
   response: { mode: 'text' },
 })
 

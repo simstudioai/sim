@@ -171,6 +171,7 @@ import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 import { RssBlock } from '@/blocks/blocks/rss'
 import { S3Block } from '@/blocks/blocks/s3'
 import { SalesforceBlock } from '@/blocks/blocks/salesforce'
+import { SapConcurBlock } from '@/blocks/blocks/sap_concur'
 import { SapS4HanaBlock } from '@/blocks/blocks/sap_s4hana'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { SearchBlock } from '@/blocks/blocks/search'
@@ -424,6 +425,7 @@ export const registry: Record<string, BlockConfig> = {
   rss: RssBlock,
   s3: S3Block,
   salesforce: SalesforceBlock,
+  sap_concur: SapConcurBlock,
   sap_s4hana: SapS4HanaBlock,
   schedule: ScheduleBlock,
   search: SearchBlock,

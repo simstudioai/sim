@@ -59,6 +59,7 @@ export {
   DropdownMenuTrigger,
 } from './dropdown-menu/dropdown-menu'
 export { Expandable, ExpandableContent } from './expandable/expandable'
+export { FieldDivider, type FieldDividerProps } from './field-divider/field-divider'
 export { FormField, type FormFieldProps } from './form-field/form-field'
 export { Input, type InputProps, inputVariants } from './input/input'
 export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'

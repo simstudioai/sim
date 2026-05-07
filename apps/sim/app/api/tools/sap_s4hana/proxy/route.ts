@@ -9,6 +9,10 @@ import {
 } from '@/lib/api/contracts/tools/sap'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import {
+  type SecureFetchResponse,
+  secureFetchWithValidation,
+} from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -65,16 +69,20 @@ async function fetchAccessToken(req: ProxyRequest, requestId: string): Promise<s
   const tokenUrl = assertSafeSapExternalUrl(resolveTokenUrl(req), 'tokenUrl').toString()
   const basic = Buffer.from(`${req.clientId}:${req.clientSecret}`).toString('base64')
 
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${basic}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Accept: 'application/json',
+  const response = await secureFetchWithValidation(
+    tokenUrl,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${basic}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+      },
+      body: 'grant_type=client_credentials',
+      timeout: OUTBOUND_FETCH_TIMEOUT_MS,
     },
-    body: 'grant_type=client_credentials',
-    signal: AbortSignal.timeout(OUTBOUND_FETCH_TIMEOUT_MS),
-  })
+    'tokenUrl'
+  )
 
   if (!response.ok) {
     const text = await response.text().catch(() => '')
@@ -104,12 +112,9 @@ interface CsrfBundle {
   cookie: string
 }
 
-function joinSetCookies(headers: Headers): string {
-  const cookies =
-    typeof (headers as { getSetCookie?: () => string[] }).getSetCookie === 'function'
-      ? (headers as { getSetCookie: () => string[] }).getSetCookie()
-      : (headers.get('set-cookie') ?? '').split(/,\s*(?=[^=,;\s]+=)/)
-  return cookies
+function joinSetCookies(response: SecureFetchResponse): string {
+  return response.headers
+    .getSetCookie()
     .map((c) => c.split(';')[0]?.trim())
     .filter(Boolean)
     .join('; ')
@@ -129,15 +134,19 @@ async function fetchCsrf(
   requestId: string
 ): Promise<CsrfBundle | null> {
   const url = buildOdataUrl(req, '/$metadata')
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      Authorization: buildAuthHeader(req, accessToken),
-      Accept: 'application/xml',
-      'X-CSRF-Token': 'Fetch',
+  const response = await secureFetchWithValidation(
+    url,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: buildAuthHeader(req, accessToken),
+        Accept: 'application/xml',
+        'X-CSRF-Token': 'Fetch',
+      },
+      timeout: OUTBOUND_FETCH_TIMEOUT_MS,
     },
-    signal: AbortSignal.timeout(OUTBOUND_FETCH_TIMEOUT_MS),
-  })
+    'baseUrl'
+  )
 
   if (!response.ok) {
     const text = await response.text().catch(() => '')
@@ -146,7 +155,7 @@ async function fetchCsrf(
   }
 
   const token = response.headers.get('x-csrf-token')
-  const cookie = joinSetCookies(response.headers)
+  const cookie = joinSetCookies(response)
   if (!token) return null
   return { token, cookie }
 }
@@ -217,12 +226,16 @@ async function callOdata(
     if (csrf.cookie) headers.Cookie = csrf.cookie
   }
 
-  const response = await fetch(url, {
-    method: req.method,
-    headers,
-    body: hasBody ? JSON.stringify(req.body) : undefined,
-    signal: AbortSignal.timeout(OUTBOUND_FETCH_TIMEOUT_MS),
-  })
+  const response = await secureFetchWithValidation(
+    url,
+    {
+      method: req.method,
+      headers,
+      body: hasBody ? JSON.stringify(req.body) : undefined,
+      timeout: OUTBOUND_FETCH_TIMEOUT_MS,
+    },
+    'baseUrl'
+  )
 
   const raw = await response.text()
   let parsed: unknown = null

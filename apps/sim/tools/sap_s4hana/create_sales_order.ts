@@ -16,26 +16,26 @@ export const createSalesOrderTool: ToolConfig<CreateSalesOrderParams, SapProxyRe
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -150,10 +150,42 @@ export const createSalesOrderTool: ToolConfig<CreateSalesOrderParams, SapProxyRe
   },
   transformResponse: transformSapProxyResponse,
   outputs: {
-    status: { type: 'number', description: 'HTTP status code returned by SAP' },
+    status: { type: 'number', description: 'HTTP status code returned by SAP (201 on create)' },
     data: {
       type: 'json',
-      description: 'Created A_SalesOrder entity (with deep-inserted items if expanded by SAP)',
+      description: 'OData v2 response envelope; created entity at output.data.d',
+      properties: {
+        d: {
+          type: 'json',
+          description: 'Created A_SalesOrder entity',
+          properties: {
+            SalesOrder: { type: 'string', description: 'Newly assigned sales order number' },
+            SalesOrderType: { type: 'string', description: 'Sales document type' },
+            SalesOrganization: { type: 'string', description: 'Sales organization' },
+            DistributionChannel: { type: 'string', description: 'Distribution channel' },
+            OrganizationDivision: { type: 'string', description: 'Division' },
+            SoldToParty: { type: 'string', description: 'Sold-to business partner' },
+            TotalNetAmount: { type: 'string', description: 'Total net amount' },
+            TransactionCurrency: { type: 'string', description: 'Document currency' },
+            CreationDate: { type: 'string', description: 'Creation date' },
+            OverallSDProcessStatus: {
+              type: 'string',
+              description: 'Overall sales document process status',
+              optional: true,
+            },
+            OverallTotalDeliveryStatus: {
+              type: 'string',
+              description: 'Overall total delivery status',
+              optional: true,
+            },
+            to_Item: {
+              type: 'json',
+              description: 'Deep-inserted sales order items as returned by SAP',
+              optional: true,
+            },
+          },
+        },
+      },
     },
   },
 }

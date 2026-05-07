@@ -180,13 +180,13 @@ const applyBlockMigrations = createMigrationPipeline([
     blocks: migrateAgentBlocksToMessagesFormat(ctx.blocks),
   }),
 
-  async (ctx) => {
-    const { blocks, migrated } = await migrateCredentialIds(ctx.blocks, ctx.workspaceId)
+  (ctx) => {
+    const { blocks, migrated } = migrateSubblockIds(ctx.blocks)
     return { ...ctx, blocks, migrated: ctx.migrated || migrated }
   },
 
-  (ctx) => {
-    const { blocks, migrated } = migrateSubblockIds(ctx.blocks)
+  async (ctx) => {
+    const { blocks, migrated } = await migrateCredentialIds(ctx.blocks, ctx.workspaceId)
     return { ...ctx, blocks, migrated: ctx.migrated || migrated }
   },
 
@@ -271,6 +271,7 @@ async function migrateCredentialIds(
 
   for (const block of Object.values(blocks)) {
     for (const [subBlockId, subBlock] of Object.entries(block.subBlocks || {})) {
+      if (!subBlock || typeof subBlock !== 'object') continue
       const value = (subBlock as { value?: unknown }).value
       if (
         CREDENTIAL_SUBBLOCK_IDS.has(subBlockId) &&

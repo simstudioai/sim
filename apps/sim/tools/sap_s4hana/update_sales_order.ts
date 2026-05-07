@@ -12,31 +12,31 @@ export const updateSalesOrderTool: ToolConfig<UpdateSalesOrderParams, SapProxyRe
   id: 'sap_s4hana_update_sales_order',
   name: 'SAP S/4HANA Update Sales Order',
   description:
-    'Update fields on an A_SalesOrder entity in SAP S/4HANA Cloud (API_SALES_ORDER_SRV). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
+    'Update fields on an A_SalesOrder header in SAP S/4HANA Cloud (API_SALES_ORDER_SRV). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. Header-only — deep updates to to_Item / to_Partner / to_PricingElement navigations are not supported (see SAP KBA 2833338); use A_SalesOrderItem operations for line-level changes. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
   version: '1.0.0',
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -121,7 +121,43 @@ export const updateSalesOrderTool: ToolConfig<UpdateSalesOrderParams, SapProxyRe
     status: { type: 'number', description: 'HTTP status code returned by SAP (204 on success)' },
     data: {
       type: 'json',
-      description: 'Null on 204 success, or updated A_SalesOrder entity if SAP returns one',
+      description:
+        'Null on 204 success; otherwise OData v2 envelope with the updated entity at output.data.d',
+      optional: true,
+      properties: {
+        d: {
+          type: 'json',
+          description: 'Updated A_SalesOrder entity (when SAP returns one)',
+          optional: true,
+          properties: {
+            SalesOrder: {
+              type: 'string',
+              description: 'Sales order number',
+              optional: true,
+            },
+            SalesOrderType: {
+              type: 'string',
+              description: 'Sales document type',
+              optional: true,
+            },
+            PurchaseOrderByCustomer: {
+              type: 'string',
+              description: 'Customer purchase order reference',
+              optional: true,
+            },
+            OverallSDProcessStatus: {
+              type: 'string',
+              description: 'Overall sales document process status',
+              optional: true,
+            },
+            OverallTotalDeliveryStatus: {
+              type: 'string',
+              description: 'Overall total delivery status',
+              optional: true,
+            },
+          },
+        },
+      },
     },
   },
 }
