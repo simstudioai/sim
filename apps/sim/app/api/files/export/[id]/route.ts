@@ -86,7 +86,7 @@ export const GET = withRouteHandler(
       MAX_EMBEDDED_IMAGES
     )
 
-    logger.info('Exporting markdown with embedded images', { id, imageCount: imageIds.length })
+    logger.info('Exporting markdown', { id, imageCount: imageIds.length })
 
     const fetchResults = await Promise.allSettled(
       imageIds.map(async (imageId) => {
@@ -120,6 +120,19 @@ export const GET = withRouteHandler(
       const filename = deduplicatedFilename(preferred, usedFilenames, imageId)
       usedFilenames.add(filename)
       assetMap.set(imageId, { filename, buffer })
+    }
+
+    if (assetMap.size === 0) {
+      const mdName = safeFilename(record.originalName)
+      const mdBytes = Buffer.from(mdContent, 'utf-8')
+      return new NextResponse(new Uint8Array(mdBytes), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${mdName}"`,
+          'Content-Length': String(mdBytes.length),
+        },
+      })
     }
 
     for (const [imageId, asset] of assetMap) {
