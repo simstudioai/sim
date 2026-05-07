@@ -47,12 +47,7 @@ export const revenuecatDeleteCustomerTool: ToolConfig<
     return {
       success: true,
       output: {
-        deleted:
-          typeof body.deleted === 'boolean'
-            ? body.deleted
-            : typeof body.was_deleted === 'boolean'
-              ? body.was_deleted
-              : true,
+        deleted: typeof body.deleted === 'boolean' ? body.deleted : true,
         app_user_id:
           typeof body.app_user_id === 'string' ? body.app_user_id : (params?.appUserId ?? ''),
       },

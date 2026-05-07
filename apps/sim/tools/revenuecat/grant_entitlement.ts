@@ -40,7 +40,7 @@ export const revenuecatGrantEntitlementTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Duration of the entitlement. Provide either duration or endTimeMs. One of: daily, three_day, weekly, two_week, monthly, two_month, three_month, six_month, yearly, lifetime',
+        'Deprecated. Duration of the entitlement. Provide either duration or endTimeMs (endTimeMs preferred). One of: daily, three_day, weekly, two_week, monthly, two_month, three_month, six_month, yearly, lifetime',
     },
     endTimeMs: {
       type: 'number',
@@ -54,7 +54,7 @@ export const revenuecatGrantEntitlementTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Optional start time in milliseconds since Unix epoch. Set to a past time to achieve custom durations shorter than daily.',
+        'Deprecated. Optional start time in milliseconds since Unix epoch, used with duration to determine expiration. Regardless of value, the entitlement is always granted immediately.',
     },
   },
 

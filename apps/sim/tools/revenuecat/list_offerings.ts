@@ -29,7 +29,8 @@ export const revenuecatListOfferingsTool: ToolConfig<ListOfferingsParams, ListOf
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Platform to filter offerings (ios, android, stripe, etc.)',
+      description:
+        'X-Platform header value. One of: ios, android, amazon, stripe, roku, paddle. Required when using a legacy public API key; ignored with app-specific API keys.',
     },
   },
 
