@@ -13,6 +13,7 @@ import {
   toast,
 } from '@/components/emcn'
 import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
+import type { RunMode } from '@/lib/api/contracts/tables'
 import type { ColumnDefinition, Filter, TableRow as TableRowType } from '@/lib/table'
 import {
   type ColumnOption,
@@ -29,9 +30,7 @@ import {
   useCancelTableRuns,
   useDeleteTable,
   useRenameTable,
-  useRunCell,
   useRunColumn,
-  useRunRow,
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
@@ -129,6 +128,8 @@ export function Table({
     runningInActionBarSelection: 0,
     totalRunning: 0,
     hasWorkflowColumns: false,
+    selectedRunScope: null,
+    selectionStats: { hasIncompleteOrFailed: false, hasCompleted: false, hasInFlight: false },
     singleWorkflowCell: null,
   })
   const [queryOptions, setQueryOptions] = useState<QueryOptions>({ filter: null, sort: null })
@@ -201,37 +202,46 @@ export function Table({
     queryOptions,
   })
 
-  const runCellMutation = useRunCell({ workspaceId, tableId })
-  const runRowMutation = useRunRow({ workspaceId, tableId })
   const runColumnMutation = useRunColumn({ workspaceId, tableId })
   const cancelRunsMutation = useCancelTableRuns({ workspaceId, tableId })
-  const runCellMutate = runCellMutation.mutate
-  const runRowMutate = runRowMutation.mutate
   const runColumnMutate = runColumnMutation.mutate
   const cancelRunsMutate = cancelRunsMutation.mutate
 
-  const onRunColumn = useCallback(
-    (groupId: string, runMode: 'all' | 'incomplete', rowIds?: string[]) => {
-      runColumnMutate({ groupIds: [groupId], runMode, rowIds })
+  // Canonical run dispatcher. Every UI gesture (column-header menu, per-row
+  // gutter, action-bar Play/Refresh, right-click context menu) reduces to a
+  // (groupIds, rowIds?, runMode) triple. Empty groupIds = no-op.
+  const runScope = useCallback(
+    (args: { groupIds: string[]; rowIds?: string[]; runMode: RunMode }) => {
+      if (args.groupIds.length === 0) return
+      if (args.rowIds && args.rowIds.length === 0) return
+      runColumnMutate(args)
     },
     [runColumnMutate]
   )
 
-  const onRunRows = useCallback(
-    (rowIds: string[], runMode: 'all' | 'incomplete') => {
-      if (tableWorkflowGroups.length === 0 || rowIds.length === 0) return
-      const groupIds = tableWorkflowGroups.map((g) => g.id)
-      runColumnMutate({ groupIds, runMode, rowIds })
+  const onRunColumn = useCallback(
+    (groupId: string, runMode: RunMode, rowIds?: string[]) => {
+      runScope({ groupIds: [groupId], rowIds, runMode })
     },
-    [runColumnMutate, tableWorkflowGroups]
+    [runScope]
+  )
+
+  const onRunRows = useCallback(
+    (rowIds: string[], runMode: RunMode) => {
+      runScope({ groupIds: tableWorkflowGroups.map((g) => g.id), rowIds, runMode })
+    },
+    [runScope, tableWorkflowGroups]
   )
 
   const onRunRow = useCallback(
     (rowId: string) => {
-      if (tableWorkflowGroups.length === 0) return
-      runRowMutate({ rowIds: [rowId] })
+      runScope({
+        groupIds: tableWorkflowGroups.map((g) => g.id),
+        rowIds: [rowId],
+        runMode: 'incomplete',
+      })
     },
-    [runRowMutate, tableWorkflowGroups.length]
+    [runScope, tableWorkflowGroups]
   )
 
   // useCallback because <DataRow> is React.memo-wrapped — identity stability
@@ -491,40 +501,35 @@ export function Table({
       />
       {userPermissions.canEdit && (
         <TableActionBar
-          selectedCount={selection.actionBarRowIds.length}
+          selectedCellCount={
+            selection.selectedRunScope
+              ? selection.selectedRunScope.groupIds.length *
+                selection.selectedRunScope.rowIds.length
+              : 0
+          }
           runningCount={selection.runningInActionBarSelection}
           hasWorkflowColumns={selection.hasWorkflowColumns}
-          onRun={() => onRunRows(selection.actionBarRowIds, 'incomplete')}
-          onRerun={() => onRunRows(selection.actionBarRowIds, 'all')}
-          onStopWorkflows={() => onStopRows(selection.actionBarRowIds)}
-          singleCell={
-            selection.singleWorkflowCell
-              ? {
-                  canViewExecution: selection.singleWorkflowCell.canViewExecution,
-                  isRunning: selection.singleWorkflowCell.isRunning,
-                  onViewExecution: () => {
-                    if (selection.singleWorkflowCell?.executionId) {
-                      onOpenExecutionDetails(selection.singleWorkflowCell.executionId)
-                    }
-                  },
-                  onRunCell: () => {
-                    const cell = selection.singleWorkflowCell
-                    if (!cell) return
-                    const group = tableWorkflowGroups.find((g) => g.id === cell.groupId)
-                    if (!group) return
-                    runCellMutate({
-                      rowId: cell.rowId,
-                      groupId: group.id,
-                      workflowId: group.workflowId,
-                    })
-                  },
-                  onStopCell: () => {
-                    if (selection.singleWorkflowCell?.rowId) {
-                      onStopRow(selection.singleWorkflowCell.rowId)
-                    }
-                  },
+          showPlay={selection.selectionStats.hasIncompleteOrFailed}
+          showRefresh={selection.selectionStats.hasCompleted}
+          onPlay={() =>
+            selection.selectedRunScope &&
+            runScope({ ...selection.selectedRunScope, runMode: 'incomplete' })
+          }
+          onRefresh={() =>
+            selection.selectedRunScope &&
+            runScope({ ...selection.selectedRunScope, runMode: 'all' })
+          }
+          onStopWorkflows={() =>
+            selection.selectedRunScope && onStopRows(selection.selectedRunScope.rowIds)
+          }
+          onViewExecution={
+            selection.singleWorkflowCell?.canViewExecution &&
+            selection.singleWorkflowCell.executionId
+              ? () => {
+                  const id = selection.singleWorkflowCell?.executionId
+                  if (id) onOpenExecutionDetails(id)
                 }
-              : null
+              : undefined
           }
         />
       )}

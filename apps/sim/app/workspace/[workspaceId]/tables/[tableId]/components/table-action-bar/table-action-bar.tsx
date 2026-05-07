@@ -6,38 +6,32 @@ import { Eye, PlayOutline, RefreshCw, Square } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 interface TableActionBarProps {
-  /** Number of rows currently selected (checkbox + multi-row range). 0 in
-   *  single-cell mode (use `singleCell` instead). */
-  selectedCount: number
-  /** Total running/queued workflow cells across the selected rows. Drives the
-   *  Stop button's visibility (hidden when 0) and label. */
+  /** Number of (row × group) cells the run/stop buttons would target. Drives
+   *  the bar's leading label ("N cells"). */
+  selectedCellCount: number
+  /** Total running/queued workflow cells in the selection. Drives Stop. */
   runningCount: number
-  /** Whether the table has any workflow columns. The bar is hidden entirely
-   *  when there are none — Run/Stop have nothing to act on. */
+  /** Whether the table has any workflow columns. The bar hides entirely when
+   *  there are none — Run/Stop have nothing to act on. */
   hasWorkflowColumns: boolean
-  /** Smart run: fire workflows only on rows whose cells are empty / errored
-   *  / cancelled. Skips already-completed cells. Maps to server
-   *  `runMode: 'incomplete'`. The default action — what "play" should
-   *  intuitively do. */
-  onRun: () => void
-  /** Forceful re-run: fire workflows on every selected row, including ones
-   *  that already have results. Maps to server `runMode: 'all'`. */
-  onRerun: () => void
-  /** Cancel running/queued cells across selected rows. */
+  /** Show the Play (incomplete-mode) button — true when any selected cell is
+   *  empty / errored / cancelled. */
+  showPlay: boolean
+  /** Show the Refresh (all-mode) button — true when any selected cell is
+   *  already completed. */
+  showRefresh: boolean
+  /** Smart run: fire workflows only on cells that are empty / errored /
+   *  cancelled. Maps to server `runMode: 'incomplete'`. */
+  onPlay: () => void
+  /** Forceful re-run: fire workflows on every selected cell, including
+   *  completed ones. Maps to server `runMode: 'all'`. */
+  onRefresh: () => void
+  /** Cancel running/queued cells in the selection. */
   onStopWorkflows: () => void
-  /**
-   * When the user has a single workflow-output cell highlighted (no row
-   * selection), the bar switches to a per-cell mode showing the cell's
-   * status + an Eye button to open the execution log. `null` for multi-row
-   * selections.
-   */
-  singleCell?: {
-    canViewExecution: boolean
-    onViewExecution: () => void
-    isRunning: boolean
-    onRunCell: () => void
-    onStopCell: () => void
-  } | null
+  /** When the user has highlighted exactly one workflow cell (or N adjacent
+   *  cells in the same row + group), surface a "View execution" affordance
+   *  alongside the run buttons. Omit when no single-execution view applies. */
+  onViewExecution?: () => void
   /** Disables actions while a bulk mutation is in flight. */
   isLoading?: boolean
   /** Additional className for the floating wrapper — used to lift the bar
@@ -46,9 +40,11 @@ interface TableActionBarProps {
 }
 
 /**
- * Floating action bar shown at the bottom of the table when one or more rows
- * are selected, OR when a single workflow-output cell is highlighted. Mirrors
- * the shell + interaction pattern from the knowledge-base `<ActionBar>`.
+ * Floating action bar shown at the bottom of the table when one or more
+ * workflow cells are highlighted. Play / Refresh visibility is data-driven:
+ * Play appears when there's anything empty/failed in the selection; Refresh
+ * appears when there's anything already completed; both when the selection is
+ * mixed.
  *
  * Rendered with `position: absolute` inside the table's container (not
  * `fixed`) so it scopes to the table's bounds — important for embedded mode,
@@ -56,24 +52,27 @@ interface TableActionBarProps {
  * centered on the whole viewport instead of the panel.
  */
 export function TableActionBar({
-  selectedCount,
+  selectedCellCount,
   runningCount,
   hasWorkflowColumns,
-  onRun,
-  onRerun,
+  showPlay,
+  showRefresh,
+  onPlay,
+  onRefresh,
   onStopWorkflows,
-  singleCell,
+  onViewExecution,
   isLoading = false,
   className,
 }: TableActionBarProps) {
-  const isMultiRow = selectedCount > 0
-  const isSingleCell = !isMultiRow && Boolean(singleCell)
-  const visible = hasWorkflowColumns && (isMultiRow || isSingleCell)
+  const visible =
+    hasWorkflowColumns &&
+    selectedCellCount > 0 &&
+    (showPlay || showRefresh || runningCount > 0 || Boolean(onViewExecution))
   const stopLabel =
     runningCount === 1 ? 'Stop running workflow' : `Stop ${runningCount} running workflows`
-  const runLabel = 'Run workflows on empty or failed cells'
-  const rerunLabel =
-    selectedCount === 1 ? 'Re-run workflows on row' : `Re-run workflows on ${selectedCount} rows`
+  const playLabel =
+    selectedCellCount === 1 ? 'Run cell' : `Run ${selectedCellCount} empty or failed cells`
+  const refreshLabel = selectedCellCount === 1 ? 'Re-run cell' : `Re-run ${selectedCellCount} cells`
 
   return (
     <AnimatePresence>
@@ -91,114 +90,76 @@ export function TableActionBar({
         >
           <div className='pointer-events-auto flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
             <span className='px-1 text-[var(--text-secondary)] text-small'>
-              {isMultiRow ? `${selectedCount} selected` : 'Cell'}
+              {selectedCellCount === 1 ? 'Cell' : `${selectedCellCount} cells`}
             </span>
 
             <div className='flex items-center gap-[5px]'>
-              {isMultiRow && (
-                <>
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        variant='ghost'
-                        onClick={onRun}
-                        disabled={isLoading}
-                        className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                        aria-label={runLabel}
-                      >
-                        <PlayOutline className='h-[12px] w-[12px]' />
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>{runLabel}</Tooltip.Content>
-                  </Tooltip.Root>
-
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        variant='ghost'
-                        onClick={onRerun}
-                        disabled={isLoading}
-                        className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                        aria-label={rerunLabel}
-                      >
-                        <RefreshCw className='h-[12px] w-[12px]' />
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>{rerunLabel}</Tooltip.Content>
-                  </Tooltip.Root>
-
-                  {runningCount > 0 && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={onStopWorkflows}
-                          disabled={isLoading}
-                          className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                          aria-label={stopLabel}
-                        >
-                          <Square className='h-[12px] w-[12px]' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content side='top'>{stopLabel}</Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-                </>
+              {showPlay && (
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='ghost'
+                      onClick={onPlay}
+                      disabled={isLoading}
+                      className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                      aria-label={playLabel}
+                    >
+                      <PlayOutline className='h-[12px] w-[12px]' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>{playLabel}</Tooltip.Content>
+                </Tooltip.Root>
               )}
 
-              {isSingleCell && singleCell && (
-                <>
-                  {!singleCell.isRunning && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={singleCell.onRunCell}
-                          disabled={isLoading}
-                          className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                          aria-label='Run cell'
-                        >
-                          <PlayOutline className='h-[12px] w-[12px]' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content side='top'>Run cell</Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
+              {showRefresh && (
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='ghost'
+                      onClick={onRefresh}
+                      disabled={isLoading}
+                      className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                      aria-label={refreshLabel}
+                    >
+                      <RefreshCw className='h-[12px] w-[12px]' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>{refreshLabel}</Tooltip.Content>
+                </Tooltip.Root>
+              )}
 
-                  {singleCell.isRunning && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={singleCell.onStopCell}
-                          disabled={isLoading}
-                          className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                          aria-label='Stop cell'
-                        >
-                          <Square className='h-[12px] w-[12px]' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content side='top'>Stop cell</Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
+              {runningCount > 0 && (
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='ghost'
+                      onClick={onStopWorkflows}
+                      disabled={isLoading}
+                      className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                      aria-label={stopLabel}
+                    >
+                      <Square className='h-[12px] w-[12px]' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>{stopLabel}</Tooltip.Content>
+                </Tooltip.Root>
+              )}
 
-                  {singleCell.canViewExecution && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Button
-                          variant='ghost'
-                          onClick={singleCell.onViewExecution}
-                          disabled={isLoading}
-                          className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                          aria-label='View execution'
-                        >
-                          <Eye className='h-[12px] w-[12px]' />
-                        </Button>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content side='top'>View execution</Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-                </>
+              {onViewExecution && (
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='ghost'
+                      onClick={onViewExecution}
+                      disabled={isLoading}
+                      className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                      aria-label='View execution'
+                    >
+                      <Eye className='h-[12px] w-[12px]' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>View execution</Tooltip.Content>
+                </Tooltip.Root>
               )}
             </div>
           </div>

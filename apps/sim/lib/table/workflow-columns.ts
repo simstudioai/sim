@@ -476,46 +476,12 @@ async function runWorkflowGroupsInternal(opts: {
   return scheduleRunsForRows(table, clearedRows, { isManualRun: true })
 }
 
-/** Run one (group, row) cell. */
-export async function runWorkflowCell(opts: {
-  tableId: string
-  workspaceId: string
-  rowId: string
-  groupId: string
-  requestId: string
-}): Promise<{ triggered: number }> {
-  return runWorkflowGroupsInternal({
-    tableId: opts.tableId,
-    workspaceId: opts.workspaceId,
-    groupIds: [opts.groupId],
-    rowIds: [opts.rowId],
-    mode: 'all',
-    requestId: opts.requestId,
-  })
-}
-
 /**
- * Run every runnable group on the given rows. Skips already-completed cells —
- * the user-facing "Run row" intent is "fill in what's missing", not "rerun
- * everything." Errors and never-run cells are picked up; completed cells stay
- * put.
+ * Run a set of groups across the table or a row subset. Single canonical
+ * user-driven run op — every UI gesture (single cell, per-row Play, action-bar
+ * Play/Refresh, column-header menu) reduces to this. `mode: 'all'` re-runs
+ * completed cells; `mode: 'incomplete'` skips them.
  */
-export async function runWorkflowRow(opts: {
-  tableId: string
-  workspaceId: string
-  rowIds: string[]
-  requestId: string
-}): Promise<{ triggered: number }> {
-  return runWorkflowGroupsInternal({
-    tableId: opts.tableId,
-    workspaceId: opts.workspaceId,
-    rowIds: opts.rowIds,
-    mode: 'incomplete',
-    requestId: opts.requestId,
-  })
-}
-
-/** Run a set of groups across the table (or a row subset). */
 export async function runWorkflowColumn(opts: {
   tableId: string
   workspaceId: string

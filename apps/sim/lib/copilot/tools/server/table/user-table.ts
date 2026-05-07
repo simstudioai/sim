@@ -56,12 +56,7 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
-import {
-  cancelWorkflowGroupRuns,
-  runWorkflowCell,
-  runWorkflowColumn,
-  runWorkflowRow,
-} from '@/lib/table/workflow-columns'
+import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
 import {
   fetchWorkspaceFileBuffer,
   resolveWorkspaceFileReference,
@@ -1378,59 +1373,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             success: true,
             message: `Removed output "${columnName}" from workflow group ${groupId}`,
             data: { schema: updated.schema },
-          }
-        }
-
-        case 'run_cell': {
-          if (!args.tableId) return { success: false, message: 'Table ID is required' }
-          if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
-          const rowId = args.rowId as string | undefined
-          const groupId = args.groupId as string | undefined
-          if (!rowId) return { success: false, message: 'rowId is required for run_cell' }
-          if (!groupId) return { success: false, message: 'groupId is required for run_cell' }
-          const requestId = generateId().slice(0, 8)
-          assertNotAborted()
-          const { triggered } = await runWorkflowCell({
-            tableId: args.tableId,
-            workspaceId,
-            rowId,
-            groupId,
-            requestId,
-          })
-          return {
-            success: true,
-            message: `Triggered ${triggered} cell run for group ${groupId} on row ${rowId}`,
-            data: { triggered },
-          }
-        }
-
-        case 'run_row': {
-          if (!args.tableId) return { success: false, message: 'Table ID is required' }
-          if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
-          const rawRowIds = args.rowIds as unknown
-          if (
-            !Array.isArray(rawRowIds) ||
-            rawRowIds.length === 0 ||
-            rawRowIds.some((id) => typeof id !== 'string' || id.length === 0)
-          ) {
-            return {
-              success: false,
-              message: 'rowIds must be a non-empty array of row id strings',
-            }
-          }
-          const rowIds = rawRowIds as string[]
-          const requestId = generateId().slice(0, 8)
-          assertNotAborted()
-          const { triggered } = await runWorkflowRow({
-            tableId: args.tableId,
-            workspaceId,
-            rowIds,
-            requestId,
-          })
-          return {
-            success: true,
-            message: `Triggered ${triggered} cell run(s) across ${rowIds.length} row(s)`,
-            data: { triggered },
           }
         }
 

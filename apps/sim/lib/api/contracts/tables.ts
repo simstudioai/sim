@@ -68,10 +68,6 @@ export const tableRowParamsSchema = tableIdParamsSchema.extend({
   rowId: z.string().min(1),
 })
 
-export const tableCellParamsSchema = tableRowParamsSchema.extend({
-  groupId: z.string().min(1),
-})
-
 export const listTablesQuerySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   scope: tableScopeSchema.default('active'),
@@ -880,49 +876,10 @@ export const cancelTableRunsContract = defineRouteContract({
  * `mode` arg (`append` / `replace`) which lives on a different op.
  */
 /**
- * Run one workflow cell — a single (group, row) pair. Smallest unit; not
- * batched. Used by the action bar single-cell Run button and the AI's
- * `run_cell` tool op.
- */
-export const runCellBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-})
-
-export const runCellContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/[tableId]/rows/[rowId]/cells/[groupId]/run',
-  params: tableCellParamsSchema,
-  body: runCellBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ triggered: z.number() })),
-  },
-})
-
-/**
- * Run every runnable workflow group on the given rows. Used by the per-row
- * Play button and the AI's `run_row` tool op.
- */
-export const runRowBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  rowIds: z.array(z.string().min(1)).min(1),
-})
-
-export const runRowContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/[tableId]/rows/run',
-  params: tableIdParamsSchema,
-  body: runRowBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ triggered: z.number() })),
-  },
-})
-
-/**
- * Run a set of workflow groups across the table (or a row subset). Used by
- * the meta-cell "Run all" / "Run empty" / "Run N selected" actions and the
- * AI's `run_column` tool op.
+ * Run a set of workflow groups across the table or a row subset. The single
+ * canonical user-driven run op — every UI gesture (single cell, per-row Play,
+ * action-bar Play/Refresh, column-header menu) reduces to a `groupIds` +
+ * optional `rowIds` shape. AI uses the `run_column` tool op.
  */
 export const runColumnBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
@@ -946,6 +903,7 @@ export type AddWorkflowGroupBodyInput = z.input<typeof addWorkflowGroupBodySchem
 export type UpdateWorkflowGroupBodyInput = z.input<typeof updateWorkflowGroupBodySchema>
 export type DeleteWorkflowGroupBodyInput = z.input<typeof deleteWorkflowGroupBodySchema>
 export type CancelTableRunsBodyInput = z.input<typeof cancelTableRunsBodySchema>
-export type RunCellBodyInput = z.input<typeof runCellBodySchema>
-export type RunRowBodyInput = z.input<typeof runRowBodySchema>
 export type RunColumnBodyInput = z.input<typeof runColumnBodySchema>
+/** Shared `runMode` union — used by every UI / hook / Mothership site that
+ *  builds a run-column payload. Single source of truth for the literal pair. */
+export type RunMode = NonNullable<RunColumnBodyInput['runMode']>

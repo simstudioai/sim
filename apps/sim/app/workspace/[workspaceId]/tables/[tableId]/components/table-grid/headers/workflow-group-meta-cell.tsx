@@ -21,6 +21,7 @@ import {
   PlayOutline,
   Trash,
 } from '@/components/emcn/icons'
+import type { RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { SELECTION_TINT_BG } from '../constants'
@@ -174,7 +175,7 @@ interface WorkflowGroupMetaCellProps {
   isGroupSelected: boolean
   onSelectGroup: (startColIndex: number, size: number) => void
   onOpenConfig: (columnName: string) => void
-  onRunColumn?: (groupId: string, mode?: 'all' | 'incomplete', rowIds?: string[]) => void
+  onRunColumn?: (groupId: string, mode?: RunMode, rowIds?: string[]) => void
   onInsertLeft?: (columnName: string) => void
   onInsertRight?: (columnName: string) => void
   onDeleteColumn?: (columnName: string) => void

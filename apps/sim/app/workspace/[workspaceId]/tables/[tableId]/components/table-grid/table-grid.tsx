@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { Button, Checkbox, Skeleton, toast } from '@/components/emcn'
 import { PlayOutline, Plus, Square, TableX } from '@/components/emcn/icons'
+import type { RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
@@ -107,13 +108,22 @@ export interface SelectionSnapshot {
   totalRunning: number
   /** Whether the table has any workflow-output columns (drives the Run/Stop visibility). */
   hasWorkflowColumns: boolean
+  /** Cells the Play / Refresh / Stop buttons act on. Null when the selection
+   *  contains no workflow output cells. */
+  selectedRunScope: { groupIds: string[]; rowIds: string[] } | null
+  /** Drives Play (`hasIncompleteOrFailed`) / Refresh (`hasCompleted`) /
+   *  Stop (`hasInFlight`) visibility on the action bar. */
+  selectionStats: {
+    hasIncompleteOrFailed: boolean
+    hasCompleted: boolean
+    hasInFlight: boolean
+  }
   /**
    * When the highlight resolves to exactly one workflow-group execution —
    * same row, every highlighted column in the same workflow group — describe
-   * it so the action bar can offer "View execution" and per-execution run /
-   * stop. Covers both the 1×1 single-cell case and 1 row × N cols highlights
-   * within one group. `null` for multi-row, cross-group, or plain-column
-   * selections.
+   * it so the action bar can offer "View execution". Covers both the 1×1
+   * single-cell case and 1 row × N cols highlights within one group. `null`
+   * for multi-row, cross-group, or plain-column selections.
    */
   singleWorkflowCell: {
     rowId: string
@@ -122,8 +132,6 @@ export interface SelectionSnapshot {
     /** True iff the exec is in a state that produced a server log
      *  (completed / error / running). Drives the View execution button. */
     canViewExecution: boolean
-    /** True iff the exec is currently running or queued. Drives Stop. */
-    isRunning: boolean
   } | null
 }
 
@@ -153,11 +161,11 @@ interface TableGridProps {
   /** Open the delete-columns confirmation modal for `names`. Wrapper renders the modal. */
   onRequestDeleteColumns: (names: string[]) => void
   /** Fire run for a single column (meta-cell Run menu). */
-  onRunColumn: (groupId: string, runMode: 'all' | 'incomplete', rowIds?: string[]) => void
+  onRunColumn: (groupId: string, runMode: RunMode, rowIds?: string[]) => void
   /** Fire every runnable column on a single row (per-row gutter Play). */
   onRunRow: (rowId: string) => void
   /** Fan out a run across every workflow group on `rowIds`. Used by context menu. */
-  onRunRows: (rowIds: string[], runMode: 'all' | 'incomplete') => void
+  onRunRows: (rowIds: string[], runMode: RunMode) => void
   /** Stop running workflows on `rowIds`. Per-row gutter Stop also funnels through here. */
   onStopRows: (rowIds: string[]) => void
   /** Single-row stop for the per-row gutter button. */
@@ -319,7 +327,7 @@ export function TableGrid({
   const updateWorkflowGroupMutation = useUpdateWorkflowGroup({ workspaceId, tableId })
 
   const handleRunColumn = useCallback(
-    (groupId: string, runMode: 'all' | 'incomplete' = 'all', rowIds?: string[]) => {
+    (groupId: string, runMode: RunMode = 'all', rowIds?: string[]) => {
       onRunColumn(groupId, runMode, rowIds)
     },
     [onRunColumn]
@@ -2649,9 +2657,79 @@ export function TableGrid({
       groupId,
       executionId: exec?.executionId ?? null,
       canViewExecution: status === 'completed' || status === 'error' || status === 'running',
-      isRunning: status === 'running' || status === 'queued' || status === 'pending',
     }
   }, [normalizedSelection, rows, displayColumns])
+
+  const tableWorkflowGroupIds = useMemo(
+    () => tableWorkflowGroups.map((g) => g.id),
+    [tableWorkflowGroups]
+  )
+
+  // Run scope is derived from one of two selection sources:
+  //   - checkedRows (whole-row selection) → those rows × every workflow group
+  //   - normalizedSelection rectangle covering workflow-output columns →
+  //     rows in the rectangle × distinct workflow groups inside it
+  const selectedRunScope = useMemo<SelectionSnapshot['selectedRunScope']>(() => {
+    if (tableWorkflowGroupIds.length === 0) return null
+    if (checkedRows.size > 0) {
+      const rowIds: string[] = []
+      for (const row of rows) {
+        if (checkedRows.has(row.id)) rowIds.push(row.id)
+      }
+      if (rowIds.length === 0) return null
+      return { groupIds: tableWorkflowGroupIds, rowIds }
+    }
+    const sel = normalizedSelection
+    if (!sel) return null
+    const groupIdsInRect = new Set<string>()
+    for (let c = Math.max(0, sel.startCol); c <= sel.endCol; c++) {
+      const gid = displayColumns[c]?.workflowGroupId
+      if (gid) groupIdsInRect.add(gid)
+    }
+    if (groupIdsInRect.size === 0) return null
+    const rowIds: string[] = []
+    const startRow = Math.max(0, sel.startRow)
+    const endRow = Math.min(rows.length - 1, sel.endRow)
+    for (let r = startRow; r <= endRow; r++) {
+      const row = rows[r]
+      if (row) rowIds.push(row.id)
+    }
+    if (rowIds.length === 0) return null
+    return { groupIds: [...groupIdsInRect], rowIds }
+  }, [checkedRows, normalizedSelection, rows, displayColumns, tableWorkflowGroupIds])
+
+  const selectionStats = useMemo<SelectionSnapshot['selectionStats']>(() => {
+    let hasIncompleteOrFailed = false
+    let hasCompleted = false
+    let hasInFlight = false
+    if (!selectedRunScope) return { hasIncompleteOrFailed, hasCompleted, hasInFlight }
+    // Walk only the selected rows (not every row in the table). When the
+    // selection comes from `checkedRows` we have a Set already; for the
+    // rectangle path we build one over the small rowIds list.
+    const rowIdSet = checkedRows.size > 0 ? checkedRows : new Set(selectedRunScope.rowIds)
+    const target = selectedRunScope.rowIds.length
+    let seen = 0
+    const groupIds = selectedRunScope.groupIds
+    for (const row of rows) {
+      if (!rowIdSet.has(row.id)) continue
+      seen++
+      for (const groupId of groupIds) {
+        const status = readExecution(row, groupId)?.status
+        if (status === 'queued' || status === 'running' || status === 'pending') {
+          hasInFlight = true
+        } else if (status === 'completed') {
+          hasCompleted = true
+        } else {
+          hasIncompleteOrFailed = true
+        }
+        if (hasInFlight && hasCompleted && hasIncompleteOrFailed) {
+          return { hasIncompleteOrFailed, hasCompleted, hasInFlight }
+        }
+      }
+      if (seen === target) break
+    }
+    return { hasIncompleteOrFailed, hasCompleted, hasInFlight }
+  }, [selectedRunScope, rows, checkedRows])
 
   // Emit selection snapshots so the wrapper can render <TableActionBar>.
   // The grid can't fold this into individual event handlers (running counts
@@ -2671,11 +2749,26 @@ export function TableGrid({
           prev.singleWorkflowCell.rowId === singleWorkflowCell.rowId &&
           prev.singleWorkflowCell.groupId === singleWorkflowCell.groupId &&
           prev.singleWorkflowCell.executionId === singleWorkflowCell.executionId &&
-          prev.singleWorkflowCell.canViewExecution === singleWorkflowCell.canViewExecution &&
-          prev.singleWorkflowCell.isRunning === singleWorkflowCell.isRunning
+          prev.singleWorkflowCell.canViewExecution === singleWorkflowCell.canViewExecution
+    const sameRunScope =
+      (prev?.selectedRunScope ?? null) === null && selectedRunScope === null
+        ? true
+        : prev?.selectedRunScope &&
+          selectedRunScope &&
+          prev.selectedRunScope.groupIds.length === selectedRunScope.groupIds.length &&
+          prev.selectedRunScope.rowIds.length === selectedRunScope.rowIds.length &&
+          prev.selectedRunScope.groupIds.every((id, i) => id === selectedRunScope.groupIds[i]) &&
+          prev.selectedRunScope.rowIds.every((id, i) => id === selectedRunScope.rowIds[i])
+    const sameStats =
+      prev?.selectionStats &&
+      prev.selectionStats.hasIncompleteOrFailed === selectionStats.hasIncompleteOrFailed &&
+      prev.selectionStats.hasCompleted === selectionStats.hasCompleted &&
+      prev.selectionStats.hasInFlight === selectionStats.hasInFlight
     if (
       prev &&
       sameSingleCell &&
+      sameRunScope &&
+      sameStats &&
       prev.runningInActionBarSelection === runningInActionBarSelection &&
       prev.totalRunning === totalRunning &&
       prev.hasWorkflowColumns === hasWorkflowColumns &&
@@ -2689,6 +2782,8 @@ export function TableGrid({
       runningInActionBarSelection,
       totalRunning,
       hasWorkflowColumns,
+      selectedRunScope,
+      selectionStats,
       singleWorkflowCell,
     }
     lastSelectionSnapshotRef.current = next
@@ -2698,6 +2793,8 @@ export function TableGrid({
     runningInActionBarSelection,
     totalRunning,
     hasWorkflowColumns,
+    selectedRunScope,
+    selectionStats,
     singleWorkflowCell,
   ])
 

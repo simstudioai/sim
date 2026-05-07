@@ -123,6 +123,17 @@ export function readExecution(
   return row?.executions?.[groupId]
 }
 
+/** True when the cell has a worker actively reserved (queued / running, or
+ *  pending after the scheduler stamped a jobId). Mirrors the eligibility
+ *  predicate's in-flight check on the server. */
+export function isExecInFlight(exec: RowExecutionMetadata | undefined): boolean {
+  if (!exec) return false
+  const s = exec.status
+  if (s === 'queued' || s === 'running') return true
+  if (s === 'pending' && exec.jobId) return true
+  return false
+}
+
 export function moveCell(
   anchor: CellCoord,
   colCount: number,
