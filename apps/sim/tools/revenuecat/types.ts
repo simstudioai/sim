@@ -399,7 +399,6 @@ export interface UpdateSubscriberAttributesResponse extends ToolResponse {
   output: {
     updated: boolean
     app_user_id: string
-    subscriber: RevenueCatSubscriber
   }
 }
 

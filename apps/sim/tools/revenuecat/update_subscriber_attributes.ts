@@ -2,12 +2,7 @@ import type {
   UpdateSubscriberAttributesParams,
   UpdateSubscriberAttributesResponse,
 } from '@/tools/revenuecat/types'
-import {
-  extractSubscriber,
-  SUBSCRIBER_OUTPUT,
-  shapeSubscriber,
-  throwIfRevenueCatError,
-} from '@/tools/revenuecat/types'
+import { throwIfRevenueCatError } from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const revenuecatUpdateSubscriberAttributesTool: ToolConfig<
@@ -51,22 +46,27 @@ export const revenuecatUpdateSubscriberAttributesTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const attributes =
-        typeof params.attributes === 'string' ? JSON.parse(params.attributes) : params.attributes
+      let attributes: unknown
+      if (typeof params.attributes === 'string') {
+        try {
+          attributes = JSON.parse(params.attributes)
+        } catch {
+          throw new Error('attributes must be a valid JSON object')
+        }
+      } else {
+        attributes = params.attributes
+      }
       return { attributes }
     },
   },
 
   transformResponse: async (response, params) => {
     await throwIfRevenueCatError(response)
-    const data = await response.json().catch(() => ({}))
-    const subscriber = shapeSubscriber(extractSubscriber(data))
     return {
       success: true,
       output: {
         updated: true,
-        app_user_id: subscriber.original_app_user_id || (params?.appUserId ?? ''),
-        subscriber,
+        app_user_id: params?.appUserId ?? '',
       },
     }
   },
@@ -79,10 +79,6 @@ export const revenuecatUpdateSubscriberAttributesTool: ToolConfig<
     app_user_id: {
       type: 'string',
       description: 'The app user ID of the updated subscriber',
-    },
-    subscriber: {
-      ...SUBSCRIBER_OUTPUT,
-      description: 'The updated subscriber object after applying the attribute changes',
     },
   },
 }

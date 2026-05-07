@@ -70,6 +70,9 @@ export const revenuecatGrantEntitlementTool: ToolConfig<
       if (!params.duration && params.endTimeMs === undefined) {
         throw new Error('Provide either duration or endTimeMs to grant a promotional entitlement')
       }
+      if (params.duration && params.endTimeMs !== undefined) {
+        throw new Error('Provide only one of duration or endTimeMs — they cannot be used together')
+      }
       const body: Record<string, unknown> = {}
       if (params.endTimeMs !== undefined) body.end_time_ms = params.endTimeMs
       else if (params.duration) body.duration = params.duration

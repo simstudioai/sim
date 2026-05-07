@@ -135,8 +135,15 @@ export const revenuecatCreatePurchaseTool: ToolConfig<
         body.introductory_price = params.introductoryPrice
       }
       if (params.attributes !== undefined && params.attributes !== '') {
-        body.attributes =
-          typeof params.attributes === 'string' ? JSON.parse(params.attributes) : params.attributes
+        if (typeof params.attributes === 'string') {
+          try {
+            body.attributes = JSON.parse(params.attributes)
+          } catch {
+            throw new Error('attributes must be a valid JSON object')
+          }
+        } else {
+          body.attributes = params.attributes
+        }
       }
       if (params.updatedAtMs !== undefined) body.updated_at_ms = params.updatedAtMs
       return body
