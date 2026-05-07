@@ -73,14 +73,15 @@ export function isGroupEligible(
 }
 
 /**
- * Shared options for the three `scheduleRuns*` entry points. `groupId` scopes
- * to one workflow group; auto-fire callers omit it. `isManualRun` flips two
- * gates in the eligibility predicate so a manual click can re-run terminal
- * states and bypass the autoRun=false skip.
+ * Shared options for the three `scheduleRuns*` entry points. `isManualRun`
+ * flips two gates in the eligibility predicate so a manual click can re-run
+ * terminal states and bypass the autoRun=false skip.
  */
 export interface ScheduleOpts {
   groupId?: string
+  groupIds?: string[]
   isManualRun?: boolean
+  mode?: 'all' | 'incomplete'
 }
 
 /**
@@ -98,7 +99,12 @@ export async function scheduleRunsForRows(
     if (allGroups.length === 0) return { triggered: 0 }
     if (rows.length === 0) return { triggered: 0 }
 
-    const groups = opts?.groupId ? allGroups.filter((g) => g.id === opts.groupId) : allGroups
+    const groupIdFilter = opts?.groupIds
+      ? new Set(opts.groupIds)
+      : opts?.groupId
+        ? new Set([opts.groupId])
+        : null
+    const groups = groupIdFilter ? allGroups.filter((g) => groupIdFilter.has(g.id)) : allGroups
     if (groups.length === 0) return { triggered: 0 }
 
     const orderedRows = rows.length <= 1 ? rows : [...rows].sort((a, b) => a.position - b.position)
@@ -107,7 +113,8 @@ export async function scheduleRunsForRows(
 
     for (const row of orderedRows) {
       for (const group of groups) {
-        if (!isGroupEligible(group, row, { isManualRun: opts?.isManualRun })) continue
+        if (!isGroupEligible(group, row, { isManualRun: opts?.isManualRun, mode: opts?.mode }))
+          continue
         pendingRuns.push({
           tableId: table.id,
           tableName: table.name,
@@ -469,7 +476,11 @@ async function runWorkflowGroupsInternal(opts: {
   // satisfied would race the manual call.
   await batchUpdateRows({ tableId, updates, workspaceId, skipScheduler: true }, table, requestId)
 
-  return scheduleRunsForRows(table, clearedRows, { isManualRun: true })
+  return scheduleRunsForRows(table, clearedRows, {
+    isManualRun: true,
+    groupIds: targetGroups.map((g) => g.id),
+    mode,
+  })
 }
 
 /**
