@@ -403,6 +403,7 @@ Return ONLY the numeric timestamp, no text.`,
         }
         if (params.expiryTimeMs !== undefined && params.expiryTimeMs !== '') {
           next.expiryTimeMs = Number(params.expiryTimeMs)
+          next.extendByDays = undefined
         }
         if (params.introductoryPrice !== undefined && params.introductoryPrice !== '') {
           next.introductoryPrice = Number(params.introductoryPrice)

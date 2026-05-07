@@ -65,8 +65,8 @@ export const revenuecatDeferGoogleSubscriptionTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const hasExtend = params.extendByDays !== undefined
-      const hasExpiry = params.expiryTimeMs !== undefined
+      const hasExtend = params.extendByDays !== undefined && (params.extendByDays as unknown) !== ''
+      const hasExpiry = params.expiryTimeMs !== undefined && (params.expiryTimeMs as unknown) !== ''
       if (!hasExtend && !hasExpiry) {
         throw new Error('Provide either extendByDays or expiryTimeMs to defer a subscription')
       }
