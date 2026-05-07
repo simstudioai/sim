@@ -573,7 +573,7 @@ Add contacts to an Apollo sequence
 | --------- | ---- | ----------- |
 | `added` | json | Array of contact objects successfully added to the sequence |
 | `skipped` | json | Array of contact objects that were skipped, with reasons |
-| `skipped_contact_ids` | json | Array of contact IDs that were skipped |
+| `skipped_contact_ids` | json | Skipped contact IDs — either an array of IDs or a hash mapping ID → reason code |
 | `emailer_campaign` | json | Details of the emailer campaign \(id, name\) |
 | `sequence_id` | string | ID of the sequence contacts were added to |
 | `total_added` | number | Total number of contacts added |
