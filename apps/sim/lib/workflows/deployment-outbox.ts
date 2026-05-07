@@ -468,20 +468,25 @@ async function cleanupNullVersionWebhooksIfStillUndeployed(params: {
   workflow: Record<string, unknown>
   requestId: string
 }): Promise<void> {
-  const [workflowRecord] = await db
-    .select({ isDeployed: workflowTable.isDeployed })
-    .from(workflowTable)
-    .where(eq(workflowTable.id, params.workflowId))
-    .limit(1)
+  const isStillUndeployed = async () => {
+    const [workflowRecord] = await db
+      .select({ isDeployed: workflowTable.isDeployed })
+      .from(workflowTable)
+      .where(eq(workflowTable.id, params.workflowId))
+      .limit(1)
 
-  if (!workflowRecord || workflowRecord.isDeployed) return
+    return Boolean(workflowRecord && !workflowRecord.isDeployed)
+  }
+
+  if (!(await isStillUndeployed())) return
   await cleanupWebhooksForWorkflow(
     params.workflowId,
     params.workflow,
     params.requestId,
     null,
     false,
-    true
+    true,
+    isStillUndeployed
   )
 }
 

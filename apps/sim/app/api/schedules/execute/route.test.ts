@@ -20,6 +20,7 @@ const {
   mockExecuteJobInline,
   mockFeatureFlags,
   mockEnqueue,
+  mockGetJob,
   mockStartJob,
   mockCompleteJob,
   mockMarkJobFailed,
@@ -34,6 +35,7 @@ const {
     isDev: true,
   },
   mockEnqueue: vi.fn().mockResolvedValue('job-id-1'),
+  mockGetJob: vi.fn().mockResolvedValue(null),
   mockStartJob: vi.fn().mockResolvedValue(undefined),
   mockCompleteJob: vi.fn().mockResolvedValue(undefined),
   mockMarkJobFailed: vi.fn().mockResolvedValue(undefined),
@@ -54,6 +56,7 @@ vi.mock('@/lib/core/config/feature-flags', () => mockFeatureFlags)
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({
     enqueue: mockEnqueue,
+    getJob: mockGetJob,
     startJob: mockStartJob,
     completeJob: mockCompleteJob,
     markJobFailed: mockMarkJobFailed,
@@ -265,6 +268,8 @@ describe('Scheduled Workflow Execution API Route', () => {
         requestId: 'test-request-id',
       }),
       expect.objectContaining({
+        jobId: expect.stringMatching(/^schedule_[0-9a-f]{32}$/),
+        concurrencyKey: expect.stringMatching(/^schedule_[0-9a-f]{32}$/),
         metadata: expect.objectContaining({
           workflowId: 'workflow-1',
           workspaceId: 'workspace-1',

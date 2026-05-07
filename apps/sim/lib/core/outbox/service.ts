@@ -313,7 +313,7 @@ async function runHandler(
     return 'completed'
   } catch (error) {
     if (error instanceof OutboxHandlerTimeoutError) {
-      return scheduleRetry(event, error.message, STUCK_PROCESSING_THRESHOLD_MS)
+      return recordTimedOutAttempt(event, error.message)
     }
 
     const nextAttempts = event.attempts + 1
@@ -346,6 +346,48 @@ async function runHandler(
 
     return scheduleRetry(event, errMsg)
   }
+}
+
+async function recordTimedOutAttempt(
+  event: typeof outboxEvent.$inferSelect,
+  errMsg: string
+): Promise<'dead_letter' | 'lease_lost'> {
+  const nextAttempts = event.attempts + 1
+  const isDead = nextAttempts >= event.maxAttempts
+
+  if (isDead) {
+    const updated = await updateIfLeaseHeld(event, {
+      attempts: nextAttempts,
+      status: 'dead_letter',
+      lastError: errMsg,
+      processedAt: new Date(),
+      lockedAt: null,
+    })
+    if (!updated) return 'lease_lost'
+    logger.error('Outbox event dead-lettered after handler timeout max attempts', {
+      eventId: event.id,
+      eventType: event.eventType,
+      attempts: nextAttempts,
+      error: errMsg,
+    })
+    return 'dead_letter'
+  }
+
+  const updated = await updateProcessingIfLeaseHeld(event, {
+    attempts: nextAttempts,
+    lastError: errMsg,
+    lockedAt: new Date(),
+  })
+  if (!updated) return 'lease_lost'
+
+  logger.warn('Outbox event handler timed out; leaving lease for stuck-row reaper', {
+    eventId: event.id,
+    eventType: event.eventType,
+    attempts: nextAttempts,
+    reaperThresholdMs: STUCK_PROCESSING_THRESHOLD_MS,
+    error: errMsg,
+  })
+  return 'lease_lost'
 }
 
 async function scheduleRetry(
@@ -408,6 +450,28 @@ async function scheduleRetry(
     error: errMsg,
   })
   return 'pending'
+}
+
+async function updateProcessingIfLeaseHeld(
+  event: typeof outboxEvent.$inferSelect,
+  patch: {
+    attempts: number
+    lastError: string
+    lockedAt: Date
+  }
+): Promise<boolean> {
+  const whereClauses = [eq(outboxEvent.id, event.id), eq(outboxEvent.status, 'processing')]
+  if (event.lockedAt) {
+    whereClauses.push(eq(outboxEvent.lockedAt, event.lockedAt))
+  }
+
+  const result = await db
+    .update(outboxEvent)
+    .set(patch)
+    .where(and(...whereClauses))
+    .returning({ id: outboxEvent.id })
+
+  return result.length > 0
 }
 
 function runHandlerWithTimeout(

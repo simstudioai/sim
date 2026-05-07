@@ -11,8 +11,13 @@ import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
 import { and, eq, isNull } from 'drizzle-orm'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
-import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import {
+  createTimeoutAbortController,
+  getExecutionTimeout,
+  getTimeoutErrorMessage,
+} from '@/lib/core/execution-limits'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -1007,6 +1012,8 @@ export async function executeJobInline(payload: JobExecutionPayload) {
   const promptText = buildJobPrompt(jobRecord)
 
   try {
+    const userSubscription = await getHighestPrioritySubscription(jobRecord.sourceUserId)
+    const mothershipJobTimeoutMs = getExecutionTimeout(userSubscription?.plan, 'sync')
     const url = buildAPIUrl('/api/mothership/execute')
     const headers = await buildAuthHeaders(jobRecord.sourceUserId)
 
@@ -1018,16 +1025,52 @@ export async function executeJobInline(payload: JobExecutionPayload) {
     }
 
     const startTime = new Date()
-    const response = await fetch(url.toString(), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    })
-    const endTime = new Date()
-    const durationMs = endTime.getTime() - startTime.getTime()
+    const timeoutController = createTimeoutAbortController(mothershipJobTimeoutMs)
+    try {
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: timeoutController.signal,
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unknown error')
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => {
+          if (timeoutController.isTimedOut()) {
+            throw new Error(getTimeoutErrorMessage(null, timeoutController.timeoutMs))
+          }
+          return 'Unknown error'
+        })
+        const endTime = new Date()
+        const durationMs = endTime.getTime() - startTime.getTime()
+
+        await createJobLogEntry({
+          scheduleId: payload.scheduleId,
+          workspaceId: jobRecord.sourceWorkspaceId,
+          jobTitle: jobRecord.jobTitle,
+          startTime,
+          endTime,
+          durationMs,
+          success: false,
+          errorMessage: errorText,
+        })
+
+        throw new Error(`Mothership execution failed (${response.status}): ${errorText}`)
+      }
+
+      let responseBody: Record<string, any> = {}
+      let wasCompletedByTool = false
+      try {
+        responseBody = await response.json()
+        const toolCalls = responseBody?.toolCalls as Array<{ name?: string }> | undefined
+        wasCompletedByTool = toolCalls?.some((tc) => tc.name === 'complete_job') ?? false
+      } catch {
+        if (timeoutController.isTimedOut()) {
+          throw new Error(getTimeoutErrorMessage(null, timeoutController.timeoutMs))
+        }
+      }
+      const endTime = new Date()
+      const durationMs = endTime.getTime() - startTime.getTime()
 
       await createJobLogEntry({
         scheduleId: payload.scheduleId,
@@ -1036,92 +1079,71 @@ export async function executeJobInline(payload: JobExecutionPayload) {
         startTime,
         endTime,
         durationMs,
-        success: false,
-        errorMessage: errorText,
+        success: true,
+        responseBody,
       })
 
-      throw new Error(`Mothership execution failed (${response.status}): ${errorText}`)
-    }
+      const newRunCount = (jobRecord.runCount || 0) + 1
 
-    let responseBody: Record<string, any> = {}
-    let wasCompletedByTool = false
-    try {
-      responseBody = await response.json()
-      const toolCalls = responseBody?.toolCalls as Array<{ name?: string }> | undefined
-      wasCompletedByTool = toolCalls?.some((tc) => tc.name === 'complete_job') ?? false
-    } catch {
-      // Response may not be JSON; proceed with normal flow
-    }
+      logger.info(`[${requestId}] Job executed successfully`, {
+        scheduleId: payload.scheduleId,
+        runCount: newRunCount,
+        wasCompletedByTool,
+      })
 
-    await createJobLogEntry({
-      scheduleId: payload.scheduleId,
-      workspaceId: jobRecord.sourceWorkspaceId,
-      jobTitle: jobRecord.jobTitle,
-      startTime,
-      endTime,
-      durationMs,
-      success: true,
-      responseBody,
-    })
+      if (wasCompletedByTool) {
+        await applyScheduleUpdate(
+          payload.scheduleId,
+          {
+            lastRanAt: now,
+            updatedAt: now,
+            runCount: newRunCount,
+            failedCount: 0,
+            lastQueuedAt: null,
+          },
+          requestId,
+          `Error updating job ${payload.scheduleId} after completion`
+        )
+        return
+      }
 
-    const newRunCount = (jobRecord.runCount || 0) + 1
+      const isOneTime = !jobRecord.cronExpression
+      let nextRunAt: Date | null = null
 
-    logger.info(`[${requestId}] Job executed successfully`, {
-      scheduleId: payload.scheduleId,
-      runCount: newRunCount,
-      wasCompletedByTool,
-    })
+      if (!isOneTime && jobRecord.cronExpression) {
+        const validation = validateCronExpression(
+          jobRecord.cronExpression,
+          jobRecord.timezone || 'UTC'
+        )
+        nextRunAt = validation.nextRun || null
+      }
 
-    if (wasCompletedByTool) {
+      const maxRunsReached = jobRecord.maxRuns && newRunCount >= jobRecord.maxRuns
+      if (maxRunsReached) {
+        logger.info(`[${requestId}] Job hit maxRuns limit`, {
+          scheduleId: payload.scheduleId,
+          maxRuns: jobRecord.maxRuns,
+          runCount: newRunCount,
+        })
+      }
+
       await applyScheduleUpdate(
         payload.scheduleId,
         {
           lastRanAt: now,
           updatedAt: now,
-          runCount: newRunCount,
+          nextRunAt: isOneTime || maxRunsReached ? null : nextRunAt,
           failedCount: 0,
           lastQueuedAt: null,
+          runCount: newRunCount,
+          status: isOneTime || maxRunsReached ? 'completed' : 'active',
         },
         requestId,
-        `Error updating job ${payload.scheduleId} after completion`
+        `Error updating job ${payload.scheduleId} after success`
       )
-      return
+    } finally {
+      timeoutController.cleanup()
     }
-
-    const isOneTime = !jobRecord.cronExpression
-    let nextRunAt: Date | null = null
-
-    if (!isOneTime && jobRecord.cronExpression) {
-      const validation = validateCronExpression(
-        jobRecord.cronExpression,
-        jobRecord.timezone || 'UTC'
-      )
-      nextRunAt = validation.nextRun || null
-    }
-
-    const maxRunsReached = jobRecord.maxRuns && newRunCount >= jobRecord.maxRuns
-    if (maxRunsReached) {
-      logger.info(`[${requestId}] Job hit maxRuns limit`, {
-        scheduleId: payload.scheduleId,
-        maxRuns: jobRecord.maxRuns,
-        runCount: newRunCount,
-      })
-    }
-
-    await applyScheduleUpdate(
-      payload.scheduleId,
-      {
-        lastRanAt: now,
-        updatedAt: now,
-        nextRunAt: isOneTime || maxRunsReached ? null : nextRunAt,
-        failedCount: 0,
-        lastQueuedAt: null,
-        runCount: newRunCount,
-        status: isOneTime || maxRunsReached ? 'completed' : 'active',
-      },
-      requestId,
-      `Error updating job ${payload.scheduleId} after success`
-    )
   } catch (error) {
     const errorMessage = toError(error).message
     logger.error(`[${requestId}] Job execution failed`, {

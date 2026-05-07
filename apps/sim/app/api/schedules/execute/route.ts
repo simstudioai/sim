@@ -1,11 +1,14 @@
 import { db, workflowDeploymentVersion, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { Cron } from 'croner'
 import { and, eq, inArray, isNull, lt, lte, ne, not, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -15,11 +18,13 @@ import {
 } from '@/background/schedule-execution'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 3600
 
 const logger = createLogger('ScheduledExecuteAPI')
 const MAX_CRON_CLAIMS = 20
 const RESERVED_WORKFLOW_CLAIMS = 10
 const RESERVED_JOB_CLAIMS = MAX_CRON_CLAIMS - RESERVED_WORKFLOW_CLAIMS
+const STALE_SCHEDULE_CLAIM_MS = getMaxExecutionTimeout()
 
 const dueFilter = (queuedAt: Date) =>
   and(
@@ -29,7 +34,8 @@ const dueFilter = (queuedAt: Date) =>
     ne(workflowSchedule.status, 'completed'),
     or(
       isNull(workflowSchedule.lastQueuedAt),
-      lt(workflowSchedule.lastQueuedAt, workflowSchedule.nextRunAt)
+      lt(workflowSchedule.lastQueuedAt, workflowSchedule.nextRunAt),
+      lt(workflowSchedule.lastQueuedAt, new Date(queuedAt.getTime() - STALE_SCHEDULE_CLAIM_MS))
     )
   )
 
@@ -45,6 +51,22 @@ const workflowScheduleFilter = (queuedAt: Date) =>
 
 const jobScheduleFilter = (queuedAt: Date) =>
   and(dueFilter(queuedAt), eq(workflowSchedule.sourceType, 'job'))
+
+function buildScheduleExecutionJobId(schedule: {
+  id: string
+  nextRunAt?: Date | null
+  lastQueuedAt?: Date | null
+}): string {
+  const occurrence =
+    schedule.nextRunAt?.toISOString() ?? schedule.lastQueuedAt?.toISOString() ?? 'due'
+  return `schedule_${sha256Hex(`${schedule.id}:${occurrence}`).slice(0, 32)}`
+}
+
+function getNextRunFromCronExpression(cronExpression?: string | null): Date | null {
+  if (!cronExpression) return null
+  const cron = new Cron(cronExpression)
+  return cron.nextRun()
+}
 
 async function claimWorkflowSchedules(queuedAt: Date, limit: number) {
   if (limit <= 0) return []
@@ -182,12 +204,40 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
 
       try {
+        const scheduleJobId = buildScheduleExecutionJobId(schedule)
+        const existingJob = await jobQueue.getJob(scheduleJobId)
+        if (existingJob && ['pending', 'processing'].includes(existingJob.status)) {
+          logger.info(`[${requestId}] Schedule execution job already exists`, {
+            scheduleId: schedule.id,
+            jobId: scheduleJobId,
+            status: existingJob.status,
+          })
+          return
+        }
+        if (existingJob) {
+          logger.info(`[${requestId}] Releasing stale schedule claim for finished job`, {
+            scheduleId: schedule.id,
+            jobId: scheduleJobId,
+            status: existingJob.status,
+          })
+          await releaseScheduleLock(
+            schedule.id,
+            requestId,
+            queuedAt,
+            `Released stale schedule ${schedule.id} for finished job ${scheduleJobId}`,
+            getNextRunFromCronExpression(schedule.cronExpression)
+          )
+          return
+        }
+
         const resolvedWorkflow = schedule.workflowId
           ? await workflowUtils?.getWorkflowById(schedule.workflowId)
           : null
         const resolvedWorkspaceId = resolvedWorkflow?.workspaceId
 
         const jobId = await jobQueue.enqueue('schedule-execution', payload, {
+          jobId: scheduleJobId,
+          concurrencyKey: scheduleJobId,
           metadata: {
             workflowId: schedule.workflowId ?? undefined,
             workspaceId: resolvedWorkspaceId ?? undefined,
@@ -197,6 +247,23 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         logger.info(
           `[${requestId}] Queued schedule execution task ${jobId} for workflow ${schedule.workflowId}`
         )
+
+        const queuedJob = await jobQueue.getJob(jobId)
+        if (queuedJob && !['pending', 'processing'].includes(queuedJob.status)) {
+          logger.info(`[${requestId}] Schedule execution job already finished`, {
+            scheduleId: schedule.id,
+            jobId,
+            status: queuedJob.status,
+          })
+          await releaseScheduleLock(
+            schedule.id,
+            requestId,
+            queuedAt,
+            `Released stale schedule ${schedule.id} for finished job ${jobId}`,
+            getNextRunFromCronExpression(schedule.cronExpression)
+          )
+          return
+        }
 
         if (shouldExecuteInline()) {
           try {

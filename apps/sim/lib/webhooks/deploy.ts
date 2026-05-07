@@ -706,6 +706,7 @@ export async function saveTriggerWebhooksForDeploy({
     } catch (error: unknown) {
       logger.error(`[${requestId}] Failed to create external subscription for ${block.id}`, error)
       await pendingVerificationTracker.clearAll()
+      let cleanupFailure: unknown
       for (const sub of createdSubscriptions) {
         if (sub.externalSubscriptionCreated) {
           try {
@@ -717,20 +718,31 @@ export async function saveTriggerWebhooksForDeploy({
                 providerConfig: sub.updatedProviderConfig,
               },
               workflow,
-              requestId
+              requestId,
+              { throwOnError: strictExternalCleanup }
             )
           } catch (cleanupError) {
+            cleanupFailure = cleanupError
             logger.warn(
               `[${requestId}] Failed to cleanup external subscription for ${sub.block.id}`,
               cleanupError
             )
+            await persistCreatedWebhookRecordAfterCleanupFailure({
+              workflowId,
+              deploymentVersionId,
+              sub,
+              requestId,
+            })
           }
         }
       }
       return {
         success: false,
         error: {
-          message: (error as Error)?.message || 'Failed to create external subscription',
+          message:
+            (cleanupFailure as Error)?.message ||
+            (error as Error)?.message ||
+            'Failed to create external subscription',
           status: 500,
         },
       }
@@ -771,6 +783,7 @@ export async function saveTriggerWebhooksForDeploy({
           `[${requestId}] Polling configuration failed for ${sub.block.id}`,
           pollingError
         )
+        const cleanedWebhookIds: string[] = []
         for (const otherSub of createdSubscriptions) {
           if (otherSub.webhookId === sub.webhookId) continue
           if (otherSub.externalSubscriptionCreated) {
@@ -783,21 +796,22 @@ export async function saveTriggerWebhooksForDeploy({
                   providerConfig: otherSub.updatedProviderConfig,
                 },
                 workflow,
-                requestId
+                requestId,
+                { throwOnError: strictExternalCleanup }
               )
+              cleanedWebhookIds.push(otherSub.webhookId)
             } catch (cleanupError) {
               logger.warn(
                 `[${requestId}] Failed to cleanup external subscription for ${otherSub.block.id}`,
                 cleanupError
               )
             }
+          } else {
+            cleanedWebhookIds.push(otherSub.webhookId)
           }
         }
-        const otherWebhookIds = createdSubscriptions
-          .filter((s) => s.webhookId !== sub.webhookId)
-          .map((s) => s.webhookId)
-        if (otherWebhookIds.length > 0) {
-          await db.delete(webhook).where(inArray(webhook.id, otherWebhookIds))
+        if (cleanedWebhookIds.length > 0) {
+          await db.delete(webhook).where(inArray(webhook.id, cleanedWebhookIds))
         }
         return { success: false, error: pollingError }
       }
@@ -805,6 +819,7 @@ export async function saveTriggerWebhooksForDeploy({
   } catch (error: unknown) {
     await pendingVerificationTracker.clearAll()
     logger.error(`[${requestId}] Failed to insert webhook records`, error)
+    let cleanupFailure: unknown
     for (const sub of createdSubscriptions) {
       if (sub.externalSubscriptionCreated) {
         try {
@@ -816,26 +831,76 @@ export async function saveTriggerWebhooksForDeploy({
               providerConfig: sub.updatedProviderConfig,
             },
             workflow,
-            requestId
+            requestId,
+            { throwOnError: strictExternalCleanup }
           )
         } catch (cleanupError) {
+          cleanupFailure = cleanupError
           logger.warn(
             `[${requestId}] Failed to cleanup external subscription for ${sub.block.id}`,
             cleanupError
           )
+          await persistCreatedWebhookRecordAfterCleanupFailure({
+            workflowId,
+            deploymentVersionId,
+            sub,
+            requestId,
+          })
         }
       }
     }
     return {
       success: false,
       error: {
-        message: (error as Error)?.message || 'Failed to save webhook records',
+        message:
+          (cleanupFailure as Error)?.message ||
+          (error as Error)?.message ||
+          'Failed to save webhook records',
         status: 500,
       },
     }
   }
 
   return { success: true, warnings: collectedWarnings.length > 0 ? collectedWarnings : undefined }
+}
+
+async function persistCreatedWebhookRecordAfterCleanupFailure({
+  workflowId,
+  deploymentVersionId,
+  sub,
+  requestId,
+}: {
+  workflowId: string
+  deploymentVersionId?: string
+  sub: {
+    webhookId: string
+    block: BlockState
+    provider: string
+    triggerPath: string
+    updatedProviderConfig: Record<string, unknown>
+  }
+  requestId: string
+}): Promise<void> {
+  try {
+    await db.insert(webhook).values({
+      id: sub.webhookId,
+      workflowId,
+      deploymentVersionId: deploymentVersionId || null,
+      blockId: sub.block.id,
+      path: sub.triggerPath,
+      provider: sub.provider,
+      providerConfig: sub.updatedProviderConfig,
+      credentialSetId: (sub.updatedProviderConfig.credentialSetId as string | undefined) || null,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  } catch (persistError) {
+    logger.error(
+      `[${requestId}] Failed to persist webhook record after external cleanup failure`,
+      persistError
+    )
+  }
 }
 
 /**
