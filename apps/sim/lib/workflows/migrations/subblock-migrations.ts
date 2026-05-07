@@ -1,4 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
+import { isPlainRecord } from '@/lib/core/utils/records'
+import { sanitizeMalformedSubBlocks } from '@/lib/workflows/sanitization/subblocks'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -68,6 +71,7 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
  * Returns a new subBlocks record if anything changed, or the original if not.
  */
 function migrateBlockSubblockIds(
+  blockType: string,
   subBlocks: Record<string, BlockState['subBlocks'][string]>,
   renames: Record<string, string>
 ): { subBlocks: Record<string, BlockState['subBlocks'][string]>; migrated: boolean } {
@@ -83,6 +87,7 @@ function migrateBlockSubblockIds(
   if (!migrated) return { subBlocks, migrated: false }
 
   const result = { ...subBlocks }
+  const blockConfig = getBlock(blockType)
 
   for (const [oldId, newId] of Object.entries(renames)) {
     if (!(oldId in result)) continue
@@ -93,7 +98,24 @@ function migrateBlockSubblockIds(
     }
 
     const oldEntry = result[oldId]
-    result[newId] = { ...oldEntry, id: newId }
+    const configuredType = blockConfig?.subBlocks?.find((config) => config.id === newId)?.type
+    result[newId] = isPlainRecord(oldEntry)
+      ? {
+          ...oldEntry,
+          id: newId,
+          type:
+            configuredType ||
+            (typeof oldEntry.type === 'string' && oldEntry.type.length > 0
+              ? oldEntry.type === 'unknown'
+                ? DEFAULT_SUBBLOCK_TYPE
+                : oldEntry.type
+              : DEFAULT_SUBBLOCK_TYPE),
+        }
+      : ({
+          id: newId,
+          type: configuredType || DEFAULT_SUBBLOCK_TYPE,
+          value: oldEntry,
+        } as BlockState['subBlocks'][string])
     delete result[oldId]
   }
 
@@ -112,20 +134,28 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
   const result: Record<string, BlockState> = {}
 
   for (const [blockId, block] of Object.entries(blocks)) {
-    const renames = SUBBLOCK_ID_MIGRATIONS[block.type]
-    if (!renames || !block.subBlocks) {
+    if (!block.subBlocks) {
       result[blockId] = block
       continue
     }
 
-    const { subBlocks, migrated } = migrateBlockSubblockIds(block.subBlocks, renames)
-    if (migrated) {
-      logger.info('Migrated legacy subblock IDs', {
-        blockId: block.id,
-        blockType: block.type,
-      })
+    const renames = SUBBLOCK_ID_MIGRATIONS[block.type]
+    const renamed = renames
+      ? migrateBlockSubblockIds(block.type, block.subBlocks, renames)
+      : { subBlocks: block.subBlocks, migrated: false }
+    const renamedBlock = renamed.migrated ? { ...block, subBlocks: renamed.subBlocks } : block
+    const sanitized = sanitizeMalformedSubBlocks(renamedBlock)
+    const blockMigrated = renamed.migrated || sanitized.changed
+
+    if (blockMigrated) {
+      if (renamed.migrated) {
+        logger.info('Migrated legacy subblock IDs', {
+          blockId: block.id,
+          blockType: block.type,
+        })
+      }
       anyMigrated = true
-      result[blockId] = { ...block, subBlocks }
+      result[blockId] = { ...renamedBlock, subBlocks: sanitized.subBlocks }
     } else {
       result[blockId] = block
     }
