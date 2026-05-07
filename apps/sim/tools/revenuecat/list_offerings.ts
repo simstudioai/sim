@@ -52,9 +52,17 @@ export const revenuecatListOfferingsTool: ToolConfig<ListOfferingsParams, ListOf
 
   transformResponse: async (response) => {
     await throwIfRevenueCatError(response)
-    const data = await response.json()
-    const offerings = data.offerings ?? []
-    const currentOfferingId = data.current_offering_id ?? null
+    const raw = await response.json()
+    /**
+     * RevenueCat's offerings endpoint may return the payload wrapped in `{ value: { ... } }`
+     * or unwrapped. Normalize to a single shape.
+     */
+    const data =
+      raw && typeof raw === 'object' && 'value' in raw && raw.value && typeof raw.value === 'object'
+        ? (raw.value as Record<string, unknown>)
+        : (raw as Record<string, unknown>)
+    const offerings = (data.offerings as Array<Record<string, unknown>>) ?? []
+    const currentOfferingId = (data.current_offering_id as string | null) ?? null
 
     return {
       success: true,
