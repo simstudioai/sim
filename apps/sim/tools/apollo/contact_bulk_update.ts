@@ -26,14 +26,14 @@ export const apolloContactBulkUpdateTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Array of contact IDs to update with the same values. Use either this OR contact_attributes.',
+        'Array of contact IDs to update. Must be paired with an object-form contact_attributes specifying the fields to apply uniformly to all listed contacts.',
     },
     contact_attributes: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Either an array of per-contact updates (each with id) or a single object of attributes to apply to all contact_ids. Supported fields: owner_id, email, organization_name, title, first_name, last_name, account_id, present_raw_address, linkedin_url, typed_custom_fields',
+        'Required. Either an array of per-contact updates (each with id) — used standalone — or a single object of attributes to apply to all contact_ids. Supported fields: owner_id, email, organization_name, title, first_name, last_name, account_id, present_raw_address, linkedin_url, typed_custom_fields',
     },
     async: {
       type: 'boolean',

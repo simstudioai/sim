@@ -311,8 +311,8 @@ Update up to 100 existing contacts at once in your Apollo database. Each contact
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
-| `contact_ids` | array | No | Array of contact IDs to update with the same values. Use either this OR contact_attributes. |
-| `contact_attributes` | json | No | Either an array of per-contact updates \(each with id\) or a single object of attributes to apply to all contact_ids. Supported fields: owner_id, email, organization_name, title, first_name, last_name, account_id, present_raw_address, linkedin_url, typed_custom_fields |
+| `contact_ids` | array | No | Array of contact IDs to update. Must be paired with an object-form contact_attributes specifying the fields to apply uniformly to all listed contacts. |
+| `contact_attributes` | json | No | Required. Either an array of per-contact updates \(each with id\) — used standalone — or a single object of attributes to apply to all contact_ids. Supported fields: owner_id, email, organization_name, title, first_name, last_name, account_id, present_raw_address, linkedin_url, typed_custom_fields |
 | `async` | boolean | No | Force asynchronous processing. Automatically enabled for &gt;100 contacts |
 
 #### Output
