@@ -45,7 +45,8 @@ export const revenuecatGetCustomerTool: ToolConfig<GetCustomerParams, CustomerRe
     const subscriberRaw = extractSubscriber(data)
     const subscriber = shapeSubscriber(subscriberRaw)
     const requestDate = (data?.value?.request_date ?? data?.request_date) as string | undefined
-    const now = requestDate ? new Date(requestDate).getTime() : Date.now()
+    const parsed = requestDate ? new Date(requestDate).getTime() : Number.NaN
+    const now = Number.isFinite(parsed) ? parsed : Date.now()
 
     const isActiveByDates = (
       expires: string | null | undefined,
