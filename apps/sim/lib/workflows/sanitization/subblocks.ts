@@ -97,7 +97,7 @@ export function sanitizeMalformedSubBlocks(
           : null
 
     const repairedMetadata = id !== subBlock.id || type !== subBlock.type
-    const normalizedValue = value !== subBlock.value
+    const normalizedValue = hasValue && value !== subBlock.value
 
     if (repairedMetadata) {
       logger.warn('Repairing malformed subBlock metadata', { blockId: block.id, subBlockId })
