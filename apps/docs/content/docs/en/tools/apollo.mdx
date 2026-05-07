@@ -112,9 +112,11 @@ Enrich data for up to 10 people at once using Apollo
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `people` | json | Array of enriched people data |
-| `total` | number | Total number of people processed |
-| `enriched` | number | Number of people successfully enriched |
+| `matches` | json | Array of enriched people \(null entries indicate no match\) |
+| `total_requested_enrichments` | number | Total number of records submitted for enrichment |
+| `unique_enriched_records` | number | Number of records successfully enriched |
+| `missing_records` | number | Number of records that could not be enriched |
+| `credits_consumed` | number | Number of Apollo credits consumed by this request |
 
 ### `apollo_organization_search`
 
@@ -409,10 +411,10 @@ Create up to 100 accounts at once in your Apollo database. Note: Apollo does not
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `created_accounts` | json | Array of newly created accounts |
-| `failed_accounts` | json | Array of accounts that failed to create |
-| `total_submitted` | number | Total number of accounts submitted |
+| `existing_accounts` | json | Array of existing accounts returned by Apollo \(when duplicates are detected\) |
+| `total_submitted` | number | Total number of accounts in the response \(created + existing\) |
 | `created` | number | Number of accounts successfully created |
-| `failed` | number | Number of accounts that failed to create |
+| `existing` | number | Number of existing accounts found |
 
 ### `apollo_account_bulk_update`
 
@@ -571,7 +573,7 @@ Add contacts to an Apollo sequence
 | --------- | ---- | ----------- |
 | `added` | json | Array of contact objects successfully added to the sequence |
 | `skipped` | json | Array of contact objects that were skipped, with reasons |
-| `skipped_contact_ids` | json | Hash mapping contact IDs to skip reason codes |
+| `skipped_contact_ids` | json | Array of contact IDs that were skipped |
 | `emailer_campaign` | json | Details of the emailer campaign \(id, name\) |
 | `sequence_id` | string | ID of the sequence contacts were added to |
 | `total_added` | number | Total number of contacts added |
