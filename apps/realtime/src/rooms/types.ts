@@ -143,45 +143,4 @@ export interface IRoomManager {
    * Handle workflow deployment change - notify users to refresh deployment state
    */
   handleWorkflowDeployed(workflowId: string): Promise<void>
-
-  /**
-   * Emit an event to all clients in a table room (`table:${tableId}`).
-   * Tables don't track presence/last-modified state — just pub/sub.
-   */
-  emitToTable<T = unknown>(tableId: string, event: string, payload: T): void
-
-  /**
-   * Notify all clients in a table room of a row write (insert/update/cell-state-change).
-   * Sim API calls this via the `/api/table-row-updated` HTTP bridge after every successful
-   * row commit; the client merges the delta into its React Query cache.
-   */
-  handleTableRowUpdated(tableId: string, payload: TableRowUpdatedPayload): Promise<void>
-
-  /**
-   * Notify all clients in a table room that a row has been deleted.
-   */
-  handleTableRowDeleted(tableId: string, rowId: string): Promise<void>
-
-  /**
-   * Notify all clients in a table room that the table has been deleted; eject sockets.
-   */
-  handleTableDeleted(tableId: string): Promise<void>
 }
-
-/**
- * Payload broadcast on `table-row-updated`. Mirrors the shape of `TableRow.data` so
- * the client can merge directly into its React Query rows cache. `position` and
- * `updatedAt` are included for cache reconciliation; `data` is the full row data
- * (not a per-cell delta) — see plan Notes.
- */
-export interface TableRowUpdatedPayload {
-  rowId: string
-  data: Record<string, unknown>
-  /** Per-workflow-group execution state. Keyed by `WorkflowGroup.id`. */
-  executions?: Record<string, unknown>
-  position: number
-  updatedAt: string | number
-}
-
-/** Socket.IO room name for a table. Namespaced from workflow rooms. */
-export const tableRoomName = (tableId: string): string => `table:${tableId}`

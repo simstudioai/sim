@@ -13,9 +13,7 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, gt, gte, inArray, isNull, type SQL, sql } from 'drizzle-orm'
-import { env } from '@/lib/core/config/env'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
-import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import { fireTableTrigger } from './trigger'
@@ -66,61 +64,6 @@ import {
 import { assertValidSchema, scheduleRunsForRows, scheduleRunsForTable } from './workflow-columns'
 
 const logger = createLogger('TableService')
-
-/**
- * Fire-and-forget bridge to the realtime socket server. Mirrors the
- * `notifyWorkflowArchived` pattern in `lib/workflows/lifecycle.ts:35`.
- * Failures are logged but never thrown — sockets are best-effort, polling
- * is the fallback. Each helper sends a single row delta so the realtime
- * server can broadcast to subscribed clients in the table room.
- */
-async function postRealtimeBridge(path: string, body: unknown, label: string): Promise<void> {
-  try {
-    const res = await fetch(`${getSocketServerUrl()}${path}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': env.INTERNAL_API_SECRET,
-      },
-      body: JSON.stringify(body),
-    })
-    if (!res.ok) {
-      logger.warn(`${label} bridge non-OK response`, {
-        status: res.status,
-        statusText: res.statusText,
-      })
-    }
-  } catch (err) {
-    logger.warn(`${label} bridge failed:`, err)
-  }
-}
-
-function notifyTableRowUpdated(tableId: string, row: TableRow): void {
-  void postRealtimeBridge(
-    '/api/table-row-updated',
-    {
-      tableId,
-      rowId: row.id,
-      data: row.data,
-      executions: row.executions,
-      position: row.position,
-      updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
-    },
-    `table-row-updated ${tableId}/${row.id}`
-  )
-}
-
-function notifyTableRowDeleted(tableId: string, rowId: string): void {
-  void postRealtimeBridge(
-    '/api/table-row-deleted',
-    { tableId, rowId },
-    `table-row-deleted ${tableId}/${rowId}`
-  )
-}
-
-function notifyTableDeleted(tableId: string): void {
-  void postRealtimeBridge('/api/table-deleted', { tableId }, `table-deleted ${tableId}`)
-}
 
 export class TableConflictError extends Error {
   readonly code = 'TABLE_EXISTS' as const
@@ -720,7 +663,6 @@ export async function deleteTable(tableId: string, requestId: string): Promise<v
     .where(eq(userTableDefinitions.id, tableId))
 
   logger.info(`[${requestId}] Archived table ${tableId}`)
-  notifyTableDeleted(tableId)
 }
 
 /**
@@ -979,7 +921,6 @@ export async function insertRow(
     table.schema,
     requestId
   )
-  notifyTableRowUpdated(data.tableId, insertedRow)
   void scheduleRunsForRows(table, [insertedRow])
 
   return insertedRow
@@ -1098,7 +1039,6 @@ export async function batchInsertRowsWithTx(
   }))
 
   void fireTableTrigger(data.tableId, table.name, 'insert', result, null, table.schema, requestId)
-  for (const row of result) notifyTableRowUpdated(data.tableId, row)
   void scheduleRunsForRows(table, result)
 
   return result
@@ -1440,7 +1380,6 @@ export async function upsertRow(
       requestId
     )
   }
-  notifyTableRowUpdated(data.tableId, result.row)
   void scheduleRunsForRows(table, [result.row])
 
   return result
@@ -1751,12 +1690,6 @@ export async function updateRow(
     table.schema,
     requestId
   )
-  // Notify BEFORE the scheduler so this event (carrying the user's data
-  // update with pre-scheduler executions) reaches the client first. The
-  // scheduler then fires its own per-write notifications with `pending`/
-  // `running` execution state — those land last, so the cached executions
-  // end on the live state instead of being clobbered by a stale envelope.
-  notifyTableRowUpdated(data.tableId, updatedRow)
   // Awaited (not `void`) so cell tasks dispatch their cascade before the
   // trigger.dev worker tears down on `run()` resolve.
   if (!data.skipScheduler) await scheduleRunsForRows(table, [updatedRow])
@@ -1801,7 +1734,6 @@ export async function deleteRow(
   })
 
   logger.info(`[${requestId}] Deleted row ${rowId} from table ${tableId}`)
-  notifyTableRowDeleted(tableId, rowId)
 }
 
 /**
@@ -1922,7 +1854,6 @@ export async function updateRowsByFilter(
     table.schema,
     requestId
   )
-  for (const row of updatedRows) notifyTableRowUpdated(data.tableId, row)
   void scheduleRunsForRows(table, updatedRows)
 
   return {
@@ -2065,10 +1996,6 @@ export async function batchUpdateRows(
     table.schema,
     requestId
   )
-  // Same ordering as `updateRow`: notify with the user's data update first
-  // so the scheduler's later per-write notifications (pending/running) land
-  // last and stick in the client cache.
-  for (const row of updatedRowsForTrigger) notifyTableRowUpdated(data.tableId, row)
   if (!data.skipScheduler) void scheduleRunsForRows(table, updatedRowsForTrigger)
 
   return {
@@ -2180,7 +2107,6 @@ export async function deleteRowsByFilter(
   })
 
   logger.info(`[${requestId}] Deleted ${matchingRows.length} rows from table ${data.tableId}`)
-  for (const id of rowIds) notifyTableRowDeleted(data.tableId, id)
 
   return {
     affectedCount: matchingRows.length,
@@ -2238,7 +2164,6 @@ export async function deleteRowsByIds(
   const missingRowIds = uniqueRequestedRowIds.filter((id) => !deletedIdSet.has(id))
 
   logger.info(`[${requestId}] Deleted ${deletedIds.length} rows by ID from table ${data.tableId}`)
-  for (const id of deletedIds) notifyTableRowDeleted(data.tableId, id)
 
   return {
     deletedCount: deletedIds.length,

@@ -4,7 +4,6 @@
  * React Query hooks for managing user-defined tables.
  */
 
-import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   type InfiniteData,
@@ -70,7 +69,6 @@ import type {
   WorkflowGroupOutput,
 } from '@/lib/table'
 import { optimisticallyScheduleNewlyEligibleGroups } from '@/lib/table/deps'
-import { useSocket } from '@/app/workspace/providers/socket-provider'
 
 /** Short poll to surface running → completed transitions from the server without a dedicated realtime channel. */
 const ROWS_POLL_INTERVAL_WHILE_RUNNING_MS = 1500
@@ -228,12 +226,9 @@ interface InfiniteTableRowsParams {
 }
 
 /**
- * Fetch a single page of rows for a table with pagination/filter/sort.
- *
- * Subscribes to the realtime `table-row-updated` / `table-row-deleted` socket
- * events for this `tableId`; on receipt, merges the delta into every cached
- * rows query for the table via `setQueriesData`. Polling stays as a fallback
- * gated on `!isConnected` so a brief disconnect window doesn't go stale.
+ * Fetch a single page of rows for a table with pagination/filter/sort. Polls
+ * while any cell is in flight so cells reach their terminal state without a
+ * manual refresh.
  */
 export function useTableRows({
   workspaceId,
@@ -253,97 +248,6 @@ export function useTableRows({
     sort: sort ?? null,
     includeTotal,
   })
-  const {
-    isConnected: socketConnected,
-    joinTable,
-    leaveTable,
-    onTableRowUpdated,
-    onTableRowDeleted,
-  } = useSocket()
-
-  useEffect(() => {
-    if (!tableId) return
-    joinTable(tableId)
-
-    onTableRowUpdated((event) => {
-      if (event.tableId !== tableId) return
-      // While an optimistic mutation is in flight, applying the socket delta
-      // could clobber the optimistic state — defer to onSettled invalidate.
-      // Mark stale without triggering a refetch (refetchType: 'none') so the
-      // refetch races neither the in-flight optimistic update nor any
-      // server-side post-response work the mutation is awaiting (e.g. backfill).
-      if (queryClient.isMutating() > 0) {
-        queryClient.invalidateQueries({
-          queryKey: tableKeys.rowsRoot(tableId),
-          refetchType: 'none',
-        })
-        return
-      }
-      queryClient.setQueriesData<TableRowsResponse>(
-        { queryKey: tableKeys.rowsRoot(tableId) },
-        (current) => {
-          if (!current) return current
-          const incoming: TableRow = {
-            id: event.rowId,
-            data: event.data as RowData,
-            executions: (event.executions as RowExecutions) ?? {},
-            position: event.position,
-            createdAt: '',
-            updatedAt:
-              typeof event.updatedAt === 'string' ? event.updatedAt : String(event.updatedAt),
-          }
-          const idx = current.rows.findIndex((r) => r.id === event.rowId)
-          if (idx === -1) {
-            const next = [...current.rows, incoming].sort((a, b) => a.position - b.position)
-            return {
-              ...current,
-              rows: next,
-              totalCount: current.totalCount === null ? null : current.totalCount + 1,
-            }
-          }
-          const merged = {
-            ...current.rows[idx],
-            data: incoming.data,
-            executions: incoming.executions,
-            updatedAt: incoming.updatedAt,
-          }
-          const next = [...current.rows]
-          next[idx] = merged
-          return { ...current, rows: next }
-        }
-      )
-    })
-
-    onTableRowDeleted((event) => {
-      if (event.tableId !== tableId) return
-      if (queryClient.isMutating() > 0) {
-        queryClient.invalidateQueries({
-          queryKey: tableKeys.rowsRoot(tableId),
-          refetchType: 'none',
-        })
-        return
-      }
-      queryClient.setQueriesData<TableRowsResponse>(
-        { queryKey: tableKeys.rowsRoot(tableId) },
-        (current) => {
-          if (!current) return current
-          const next = current.rows.filter((r) => r.id !== event.rowId)
-          if (next.length === current.rows.length) return current
-          return {
-            ...current,
-            rows: next,
-            totalCount: current.totalCount === null ? null : Math.max(0, current.totalCount - 1),
-          }
-        }
-      )
-    })
-
-    return () => {
-      leaveTable()
-    }
-    // joinTable / leaveTable / on* are stable callbacks; tableId is the only real dep.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableId])
 
   return useQuery({
     queryKey: [...tableKeys.rowsRoot(tableId), paramsKey] as const,
@@ -352,13 +256,8 @@ export function useTableRows({
     enabled: Boolean(workspaceId && tableId) && enabled,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
-    // Polling is the fallback for when the socket isn't carrying updates.
-    // - Pause while any mutation is in flight (optimistic-update guard).
-    // - Skip while connected (sockets push every cell write).
-    // - Otherwise poll only while a cell is in `running` state, the original cadence.
     refetchInterval: (query) => {
       if (queryClient.isMutating() > 0) return false
-      if (socketConnected) return false
       return hasRunningGroupExecution(query.state.data?.rows)
         ? ROWS_POLL_INTERVAL_WHILE_RUNNING_MS
         : false
