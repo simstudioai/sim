@@ -122,7 +122,7 @@ export const GET = withRouteHandler(
       assetMap.set(imageId, { filename, buffer })
     }
 
-    if (assetMap.size === 0) {
+    if (imageIds.length === 0) {
       const mdName = safeFilename(record.originalName)
       const mdBytes = Buffer.from(mdContent, 'utf-8')
       return new NextResponse(new Uint8Array(mdBytes), {
