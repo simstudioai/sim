@@ -278,5 +278,15 @@ Upload files to a SharePoint document library
 |   ↳ `createdDateTime` | string | When the file was created |
 |   ↳ `lastModifiedDateTime` | string | When the file was last modified |
 | `fileCount` | number | Number of files uploaded |
+| `skippedFiles` | array | Files that were skipped before upload |
+|   ↳ `name` | string | File name |
+|   ↳ `size` | number | File size in bytes |
+|   ↳ `limit` | number | Upload size limit in bytes |
+|   ↳ `reason` | string | Reason the file was skipped |
+| `skippedCount` | number | Number of files skipped |
+| `errors` | array | Per-file upload errors |
+|   ↳ `name` | string | File name |
+|   ↳ `error` | string | Error message |
+|   ↳ `status` | number | HTTP status from Microsoft Graph |
 
 

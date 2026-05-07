@@ -11522,11 +11522,11 @@
       },
       {
         "name": "Approve Expense Report",
-        "description": "Approve an expense report as a manager (PATCH /expensereports/v4/users/{userId}/context/MANAGER/reports/{reportId}/approve)."
+        "description": "Approve an expense report as a manager (PATCH /expensereports/v4/reports/{reportId}/approve). Required body field: comment."
       },
       {
         "name": "Send Back Expense Report",
-        "description": "Send back an expense report to the employee (PATCH /expensereports/v4/users/{userId}/context/MANAGER/reports/{reportId}/sendBack)."
+        "description": "Send back an expense report to the employee (PATCH /expensereports/v4/reports/{reportId}/sendBack). Required body field: comment."
       },
       {
         "name": "List Reports To Approve",

@@ -42,7 +42,7 @@ Connect SAP Concur via OAuth 2.0. Manage expense reports and line items, allocat
 
 ### `sap_concur_approve_expense_report`
 
-Approve an expense report as a manager (PATCH /expensereports/v4/users/{userId}/context/MANAGER/reports/{reportId}/approve).
+Approve an expense report as a manager (PATCH /expensereports/v4/reports/{reportId}/approve). Required body field: comment.
 
 #### Input
 
@@ -55,8 +55,6 @@ Approve an expense report as a manager (PATCH /expensereports/v4/users/{userId}/
 | `username` | string | No | Username \(only for password grant\) |
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
-| `userId` | string | Yes | Manager user UUID approving the report |
-| `contextType` | string | Yes | Access context: must be MANAGER |
 | `reportId` | string | Yes | Expense report ID to approve |
 | `body` | json | Yes | Request body — `comment` is required by Concur \(e.g., \{ "comment": "Approved" \}\). If the report contains rejected expenses, `expenseRejectedComment` is also required. Optional fields: `expectedStepCode`, `expectedStepSequence`, `statusId` \(defaults to "A_APPR"\). |
 
@@ -98,7 +96,7 @@ Associate attendees with an expense (POST /expensereports/v4/users/{userId}/cont
 
 ### `sap_concur_create_cash_advance`
 
-Create a cash advance (POST /cashadvance/v4.1/cashadvances).
+Create a cash advance (POST /cashadvance/v4/cashadvances).
 
 #### Input
 
@@ -470,7 +468,7 @@ Delete an expected expense (DELETE /travelrequest/v4/expenses/{expenseUuid}).
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
-| `data` | json | Empty body on 204 No Content when the expected expense is deleted. Error payload otherwise. |
+| `data` | json | Returns boolean true on 200 OK when the expected expense is deleted. |
 
 ### `sap_concur_delete_expense`
 
@@ -688,7 +686,7 @@ Get a budget item header by ID (GET /budget/v4/budgetItemHeader/{id}).
 
 ### `sap_concur_get_cash_advance`
 
-Get a cash advance (GET /cashadvance/v4.1/cashadvances/{cashadvanceId}).
+Get a cash advance (GET /cashadvance/v4/cashadvances/{cashadvanceId}).
 
 #### Input
 
@@ -1428,7 +1426,7 @@ Get a single user by UUID (GET /profile/identity/v4.1/Users/{id}).
 
 ### `sap_concur_issue_cash_advance`
 
-Issue a cash advance (POST /cashadvance/v4.1/cashadvances/{cashadvanceId}/issue).
+Issue a cash advance (POST /cashadvance/v4/cashadvances/{cashadvanceId}/issue).
 
 #### Input
 
@@ -1450,7 +1448,7 @@ Issue a cash advance (POST /cashadvance/v4.1/cashadvances/{cashadvanceId}/issue)
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Issue cash advance result payload |
-|   ↳ `issuedDate` | string | Datetime the cash advance was issued \(UTC, YYYY-MM-DD hh:mm:ss\) |
+|   ↳ `issuedDate` | string | Date the cash advance was issued \(YYYY-MM-DD\) |
 |   ↳ `status` | json | Cash advance status after the issue action |
 |     ↳ `code` | string | Status code |
 |     ↳ `name` | string | Status display name |
@@ -2427,7 +2425,7 @@ Search users via SCIM .search endpoint (POST /profile/identity/v4.1/Users/.searc
 
 ### `sap_concur_send_back_expense_report`
 
-Send back an expense report to the employee (PATCH /expensereports/v4/users/{userId}/context/MANAGER/reports/{reportId}/sendBack).
+Send back an expense report to the employee (PATCH /expensereports/v4/reports/{reportId}/sendBack). Required body field: comment.
 
 #### Input
 
@@ -2440,8 +2438,6 @@ Send back an expense report to the employee (PATCH /expensereports/v4/users/{use
 | `username` | string | No | Username \(only for password grant\) |
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
-| `userId` | string | Yes | Manager user UUID sending back the report |
-| `contextType` | string | Yes | Access context: must be MANAGER |
 | `reportId` | string | Yes | Expense report ID to send back |
 | `body` | json | Yes | Request body — `comment` is required by Concur \(e.g., \{ "comment": "Missing receipt" \}\). Optional fields: `expectedStepCode`, `expectedStepSequence`. |
 
