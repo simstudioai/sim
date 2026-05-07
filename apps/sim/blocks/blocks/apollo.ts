@@ -461,7 +461,10 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
       id: 'run_dedupe',
       title: 'Run Deduplication',
       type: 'switch',
-      condition: { field: 'operation', value: 'contact_bulk_create' },
+      condition: {
+        field: 'operation',
+        value: ['contact_bulk_create', 'account_bulk_create'],
+      },
       mode: 'advanced',
     },
     {
@@ -469,7 +472,10 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
       title: 'Append Label Names (JSON Array)',
       type: 'code',
       placeholder: '["Hot Lead", "Q4 Outreach"]',
-      condition: { field: 'operation', value: 'contact_bulk_create' },
+      condition: {
+        field: 'operation',
+        value: ['contact_bulk_create', 'account_bulk_create'],
+      },
       mode: 'advanced',
     },
 
@@ -967,29 +973,46 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           throw new Error(`Invalid JSON input: ${message}`)
         }
 
-        const extractIds = (raw: unknown): string[] | undefined => {
-          if (!Array.isArray(raw)) return undefined
-          return raw
-            .map((item) => {
-              if (typeof item === 'string') return item
-              if (item && typeof item === 'object' && 'id' in item) {
-                const id = (item as { id: unknown }).id
-                return typeof id === 'string' ? id : undefined
+        const splitBulkUpdateInput = (
+          raw: unknown
+        ): { ids?: string[]; attributes?: Array<Record<string, unknown>> } => {
+          if (!Array.isArray(raw)) return {}
+          const ids: string[] = []
+          const attributes: Array<Record<string, unknown>> = []
+          for (const item of raw) {
+            if (typeof item === 'string') {
+              ids.push(item)
+              continue
+            }
+            if (item && typeof item === 'object' && 'id' in item) {
+              const obj = item as Record<string, unknown>
+              const id = obj.id
+              if (typeof id !== 'string') continue
+              const otherKeys = Object.keys(obj).filter((k) => k !== 'id')
+              if (otherKeys.length === 0) {
+                ids.push(id)
+              } else {
+                attributes.push(obj)
               }
-              return undefined
-            })
-            .filter((id): id is string => Boolean(id))
+            }
+          }
+          return {
+            ids: ids.length > 0 ? ids : undefined,
+            attributes: attributes.length > 0 ? attributes : undefined,
+          }
         }
 
         if (params.operation === 'contact_bulk_update') {
-          const ids = extractIds(parsedParams.contacts)
-          if (ids) parsedParams.contact_ids = ids
+          const { ids, attributes } = splitBulkUpdateInput(parsedParams.contacts)
+          if (attributes) parsedParams.contact_attributes = attributes
+          if (ids && !attributes) parsedParams.contact_ids = ids
           parsedParams.contacts = undefined
         }
 
         if (params.operation === 'account_bulk_update') {
-          const ids = extractIds(parsedParams.accounts)
-          if (ids) parsedParams.account_ids = ids
+          const { ids, attributes } = splitBulkUpdateInput(parsedParams.accounts)
+          if (attributes) parsedParams.account_attributes = attributes
+          if (ids && !attributes) parsedParams.account_ids = ids
           parsedParams.accounts = undefined
           if (rest.account_bulk_update_name) {
             parsedParams.name = rest.account_bulk_update_name

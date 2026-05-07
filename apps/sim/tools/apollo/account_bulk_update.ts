@@ -94,6 +94,11 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
           'Apollo account bulk update requires account_ids (with name/owner_id) or account_attributes (with embedded ids).'
         )
       }
+      if (body.account_attributes && !Array.isArray(body.account_attributes) && !body.account_ids) {
+        throw new Error(
+          'Apollo account bulk update with object-form account_attributes requires account_ids to identify which accounts to update.'
+        )
+      }
       if (params.async !== undefined) body.async = params.async
       return body
     },
