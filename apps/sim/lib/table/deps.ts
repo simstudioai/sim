@@ -7,6 +7,36 @@
 import type { RowData, RowExecutionMetadata, RowExecutions, TableRow, WorkflowGroup } from './types'
 
 /**
+ * True when the cell has a worker actively reserved — `queued` / `running`,
+ * or `pending` after the scheduler stamped a jobId. Single source of truth
+ * for the "is this exec in flight" classification across the eligibility
+ * predicate, optimistic patches, status counters, and renderer. `pending`
+ * without a jobId is the optimistic-flag-only state, not in-flight.
+ */
+export function isExecInFlight(exec: RowExecutionMetadata | undefined): boolean {
+  if (!exec) return false
+  const s = exec.status
+  if (s === 'queued' || s === 'running') return true
+  if (s === 'pending' && exec.jobId) return true
+  return false
+}
+
+/**
+ * True when every output column the group writes still has a non-empty value
+ * on this row. The "completed" exec status is metadata, but the cells are the
+ * source of truth — if the user cleared an output cell, the row is effectively
+ * incomplete and should be re-run on dep-fill / manual incomplete-mode runs.
+ */
+export function areOutputsFilled(group: WorkflowGroup, row: TableRow): boolean {
+  if (group.outputs.length === 0) return true
+  for (const o of group.outputs) {
+    const v = row.data[o.columnName]
+    if (v === null || v === undefined || v === '') return false
+  }
+  return true
+}
+
+/**
  * Returns true when every column this group depends on is non-empty on this
  * row. Workflow output columns count the same as plain columns — the model
  * is uniform.
@@ -96,13 +126,4 @@ export function optimisticallyScheduleNewlyEligibleGroups(
     next[group.id] = pending
   }
   return next
-}
-
-function areOutputsFilled(group: WorkflowGroup, row: TableRow): boolean {
-  if (group.outputs.length === 0) return true
-  for (const o of group.outputs) {
-    const v = row.data[o.columnName]
-    if (v === null || v === undefined || v === '') return false
-  }
-  return true
 }

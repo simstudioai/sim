@@ -123,15 +123,51 @@ export function readExecution(
   return row?.executions?.[groupId]
 }
 
-/** True when the cell has a worker actively reserved (queued / running, or
- *  pending after the scheduler stamped a jobId). Mirrors the eligibility
- *  predicate's in-flight check on the server. */
-export function isExecInFlight(exec: RowExecutionMetadata | undefined): boolean {
-  if (!exec) return false
-  const s = exec.status
-  if (s === 'queued' || s === 'running') return true
-  if (s === 'pending' && exec.jobId) return true
-  return false
+export interface ExecStatusMix {
+  hasIncompleteOrFailed: boolean
+  hasCompleted: boolean
+  hasInFlight: boolean
+}
+
+/**
+ * Walks `(rowIdSet × groupIds)` exec statuses on `rows` and reports which
+ * status buckets are present. Short-circuits once all three buckets are
+ * observed and once every selected row has been visited. Drives Play /
+ * Refresh / Stop visibility on the action bar and the context menu — both
+ * surfaces use the same shape so they stay in sync.
+ */
+export function classifyExecStatusMix(
+  rows: TableRowType[],
+  rowIdSet: ReadonlySet<string>,
+  groupIds: readonly string[]
+): ExecStatusMix {
+  const result: ExecStatusMix = {
+    hasIncompleteOrFailed: false,
+    hasCompleted: false,
+    hasInFlight: false,
+  }
+  if (rowIdSet.size === 0 || groupIds.length === 0) return result
+  const target = rowIdSet.size
+  let seen = 0
+  for (const row of rows) {
+    if (!rowIdSet.has(row.id)) continue
+    seen++
+    for (const groupId of groupIds) {
+      const status = readExecution(row, groupId)?.status
+      if (status === 'queued' || status === 'running' || status === 'pending') {
+        result.hasInFlight = true
+      } else if (status === 'completed') {
+        result.hasCompleted = true
+      } else {
+        result.hasIncompleteOrFailed = true
+      }
+      if (result.hasInFlight && result.hasCompleted && result.hasIncompleteOrFailed) {
+        return result
+      }
+    }
+    if (seen === target) break
+  }
+  return result
 }
 
 export function moveCell(

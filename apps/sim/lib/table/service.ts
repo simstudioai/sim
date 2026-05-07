@@ -1599,6 +1599,24 @@ function buildExecutionsSqlPatch(
 }
 
 /**
+ * Strips the given workflow group ids from every row's `executions` jsonb on
+ * a table — used by the column / group delete paths so stale running/queued
+ * exec records don't linger and inflate counters after the group is gone.
+ * The caller wraps in their own transaction.
+ */
+async function stripGroupExecutions(
+  trx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  tableId: string,
+  groupIds: Iterable<string>
+): Promise<void> {
+  for (const gid of groupIds) {
+    await trx.execute(
+      sql`UPDATE user_table_rows SET executions = executions - ${gid}::text WHERE table_id = ${tableId} AND executions ? ${gid}::text`
+    )
+  }
+}
+
+/**
  * Updates a single row.
  *
  * @param data - Update data
@@ -2425,15 +2443,7 @@ export async function deleteColumn(
     await trx.execute(
       sql`UPDATE user_table_rows SET data = data - ${actualName}::text WHERE table_id = ${data.tableId} AND data ? ${actualName}::text`
     )
-    // If deleting this column orphaned its parent group (last output gone),
-    // strip the group's exec entries from every row. Otherwise stale
-    // running/queued exec records linger forever and inflate the
-    // "N running" counter.
-    if (groupRemovedId) {
-      await trx.execute(
-        sql`UPDATE user_table_rows SET executions = executions - ${groupRemovedId}::text WHERE table_id = ${data.tableId} AND executions ? ${groupRemovedId}::text`
-      )
-    }
+    if (groupRemovedId) await stripGroupExecutions(trx, data.tableId, [groupRemovedId])
   })
 
   logger.info(`[${requestId}] Deleted column "${actualName}" from table ${data.tableId}`)
@@ -2536,13 +2546,7 @@ export async function deleteColumns(
         sql`UPDATE user_table_rows SET data = data - ${name}::text WHERE table_id = ${data.tableId} AND data ? ${name}::text`
       )
     }
-    // Strip exec entries for any group orphaned by these column deletes —
-    // see `deleteColumn` for rationale.
-    for (const gid of removedGroupIds) {
-      await trx.execute(
-        sql`UPDATE user_table_rows SET executions = executions - ${gid}::text WHERE table_id = ${data.tableId} AND executions ? ${gid}::text`
-      )
-    }
+    await stripGroupExecutions(trx, data.tableId, removedGroupIds)
   })
 
   logger.info(
@@ -3443,9 +3447,7 @@ export async function deleteWorkflowGroup(
         sql`UPDATE user_table_rows SET data = data - ${name}::text WHERE table_id = ${data.tableId} AND data ? ${name}::text`
       )
     }
-    await trx.execute(
-      sql`UPDATE user_table_rows SET executions = executions - ${data.groupId}::text WHERE table_id = ${data.tableId} AND executions ? ${data.groupId}::text`
-    )
+    await stripGroupExecutions(trx, data.tableId, [data.groupId])
   })
 
   logger.info(`[${requestId}] Deleted workflow group "${data.groupId}" from table ${data.tableId}`)

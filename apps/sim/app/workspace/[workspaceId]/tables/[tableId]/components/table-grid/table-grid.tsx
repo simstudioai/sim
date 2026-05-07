@@ -10,7 +10,7 @@ import type { RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
-import { getUnmetGroupDeps } from '@/lib/table/deps'
+import { getUnmetGroupDeps, isExecInFlight } from '@/lib/table/deps'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   useAddTableColumn,
@@ -46,8 +46,10 @@ import type { DisplayColumn } from './types'
 import {
   buildHeaderGroups,
   type CellCoord,
+  classifyExecStatusMix,
   collectRowSnapshots,
   computeNormalizedSelection,
+  type ExecStatusMix,
   expandToDisplayColumns,
   moveCell,
   type NormalizedSelection,
@@ -116,11 +118,7 @@ export interface SelectionSnapshot {
   selectedRunScope: { groupIds: string[]; rowIds: string[] } | null
   /** Drives Play (`hasIncompleteOrFailed`) / Refresh (`hasCompleted`) /
    *  Stop (`hasInFlight`) visibility on the action bar. */
-  selectionStats: {
-    hasIncompleteOrFailed: boolean
-    hasCompleted: boolean
-    hasInFlight: boolean
-  }
+  selectionStats: ExecStatusMix
   /**
    * When the highlight resolves to exactly one workflow-group execution —
    * same row, every highlighted column in the same workflow group — describe
@@ -2569,8 +2567,7 @@ export function TableGrid({
       let count = 0
       const executions = row.executions ?? {}
       for (const gid in executions) {
-        const status = executions[gid]?.status
-        if (status === 'running' || status === 'queued') count++
+        if (isExecInFlight(executions[gid])) count++
       }
       if (count > 0) {
         byRow.set(row.id, count)
@@ -2671,30 +2668,12 @@ export function TableGrid({
     [tableWorkflowGroups]
   )
 
-  // Status mix across the (row, group) cells the context menu is acting on.
-  // Drives Run vs Refresh visibility in the dropdown — same shape the action
-  // bar uses for its selectionStats so both surfaces stay in sync.
-  const contextMenuStats = useMemo(() => {
-    let hasIncompleteOrFailed = false
-    let hasCompleted = false
-    if (contextMenuRowIds.length === 0 || tableWorkflowGroupIds.length === 0) {
-      return { hasIncompleteOrFailed, hasCompleted }
-    }
-    const rowIdSet = new Set(contextMenuRowIds)
-    for (const row of rows) {
-      if (!rowIdSet.has(row.id)) continue
-      for (const groupId of tableWorkflowGroupIds) {
-        const status = readExecution(row, groupId)?.status
-        if (status === 'queued' || status === 'running' || status === 'pending') continue
-        if (status === 'completed') hasCompleted = true
-        else hasIncompleteOrFailed = true
-        if (hasIncompleteOrFailed && hasCompleted) {
-          return { hasIncompleteOrFailed, hasCompleted }
-        }
-      }
-    }
-    return { hasIncompleteOrFailed, hasCompleted }
-  }, [contextMenuRowIds, rows, tableWorkflowGroupIds])
+  // Drives Run vs Refresh visibility on the context menu — same classifier
+  // the action bar uses, so both surfaces stay in sync.
+  const contextMenuStats = useMemo(
+    () => classifyExecStatusMix(rows, new Set(contextMenuRowIds), tableWorkflowGroupIds),
+    [contextMenuRowIds, rows, tableWorkflowGroupIds]
+  )
 
   // Run scope is derived from one of two selection sources:
   //   - checkedRows (whole-row selection) → those rows × every workflow group
@@ -2730,36 +2709,13 @@ export function TableGrid({
   }, [checkedRows, normalizedSelection, rows, displayColumns, tableWorkflowGroupIds])
 
   const selectionStats = useMemo<SelectionSnapshot['selectionStats']>(() => {
-    let hasIncompleteOrFailed = false
-    let hasCompleted = false
-    let hasInFlight = false
-    if (!selectedRunScope) return { hasIncompleteOrFailed, hasCompleted, hasInFlight }
-    // Walk only the selected rows (not every row in the table). When the
-    // selection comes from `checkedRows` we have a Set already; for the
-    // rectangle path we build one over the small rowIds list.
-    const rowIdSet = checkedRows.size > 0 ? checkedRows : new Set(selectedRunScope.rowIds)
-    const target = selectedRunScope.rowIds.length
-    let seen = 0
-    const groupIds = selectedRunScope.groupIds
-    for (const row of rows) {
-      if (!rowIdSet.has(row.id)) continue
-      seen++
-      for (const groupId of groupIds) {
-        const status = readExecution(row, groupId)?.status
-        if (status === 'queued' || status === 'running' || status === 'pending') {
-          hasInFlight = true
-        } else if (status === 'completed') {
-          hasCompleted = true
-        } else {
-          hasIncompleteOrFailed = true
-        }
-        if (hasInFlight && hasCompleted && hasIncompleteOrFailed) {
-          return { hasIncompleteOrFailed, hasCompleted, hasInFlight }
-        }
-      }
-      if (seen === target) break
+    if (!selectedRunScope) {
+      return { hasIncompleteOrFailed: false, hasCompleted: false, hasInFlight: false }
     }
-    return { hasIncompleteOrFailed, hasCompleted, hasInFlight }
+    // Reuse `checkedRows` as the rowIdSet when the selection comes from
+    // checkboxes — saves an O(n) Set construction for "select all 10k rows."
+    const rowIdSet = checkedRows.size > 0 ? checkedRows : new Set(selectedRunScope.rowIds)
+    return classifyExecStatusMix(rows, rowIdSet, selectedRunScope.groupIds)
   }, [selectedRunScope, rows, checkedRows])
 
   // Emit selection snapshots so the wrapper can render <TableActionBar>.

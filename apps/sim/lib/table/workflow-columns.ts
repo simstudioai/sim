@@ -26,29 +26,16 @@ import type {
 
 const logger = createLogger('WorkflowGroupScheduler')
 
-import { areGroupDepsSatisfied } from './deps'
+import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from './deps'
 
 export {
   areGroupDepsSatisfied,
+  areOutputsFilled,
   getUnmetGroupDeps,
+  isExecInFlight,
   optimisticallyScheduleNewlyEligibleGroups,
   type UnmetDeps,
 } from './deps'
-
-/**
- * True when every output column the group writes still has a non-empty value
- * on this row. The "completed" exec status is metadata, but the cells are the
- * source of truth — if the user cleared an output cell, the row is effectively
- * incomplete and should be re-run on dep-fill / manual incomplete-mode runs.
- */
-function areOutputsFilled(group: WorkflowGroup, row: TableRow): boolean {
-  if (group.outputs.length === 0) return true
-  for (const o of group.outputs) {
-    const v = row.data[o.columnName]
-    if (v === null || v === undefined || v === '') return false
-  }
-  return true
-}
 
 /**
  * Per-(row, group) eligibility for both the auto-fire reactor and manual
@@ -70,9 +57,8 @@ export function isGroupEligible(
   if (group.autoRun === false && !isManualRun) return false
 
   const exec = row.executions?.[group.id]
+  if (isExecInFlight(exec)) return false
   const status = exec?.status
-  if (status === 'queued' || status === 'running') return false
-  if (status === 'pending' && exec?.jobId) return false
 
   const completedAndFilled = status === 'completed' && areOutputsFilled(group, row)
   if (!isManualRun && completedAndFilled) return false

@@ -78,9 +78,7 @@ function hasRunningGroupExecution(rows: TableRow[] | undefined): boolean {
   for (const row of rows) {
     const executions = row.executions ?? {}
     for (const key in executions) {
-      const exec = executions[key]
-      if (exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending')
-        return true
+      if (isOptimisticInFlight(executions[key])) return true
     }
   }
   return false
@@ -825,8 +823,7 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
         const nextExecutions: RowExecutions = { ...executions }
         for (const gid in executions) {
           const exec = executions[gid]
-          if (exec.status !== 'running' && exec.status !== 'queued' && exec.status !== 'pending')
-            continue
+          if (!isOptimisticInFlight(exec)) continue
           // Preserve blockErrors so cells that already errored keep their
           // Error rendering after the stop — only cells without a value or
           // error should flip to "Cancelled".
@@ -1138,7 +1135,11 @@ function buildPendingExec(
   }
 }
 
-function isInFlight(exec: RowExecutionMetadata | undefined): boolean {
+/** Broader sibling of `isExecInFlight` from `lib/table/deps`: treats any
+ *  `pending` (with or without a jobId) as in-flight. The optimistic-patch
+ *  context uses this to avoid re-marking a cell we just flipped optimistically.
+ *  The eligibility predicate uses the stricter version. */
+function isOptimisticInFlight(exec: RowExecutionMetadata | undefined): boolean {
   return exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending'
 }
 
@@ -1173,7 +1174,7 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         const next: RowExecutions = { ...executions }
         for (const groupId of targetGroupIds) {
           const exec = executions[groupId] as RowExecutionMetadata | undefined
-          if (isInFlight(exec)) continue
+          if (isOptimisticInFlight(exec)) continue
           if (runMode === 'incomplete' && exec?.status === 'completed') continue
           next[groupId] = buildPendingExec(exec)
           changed = true
