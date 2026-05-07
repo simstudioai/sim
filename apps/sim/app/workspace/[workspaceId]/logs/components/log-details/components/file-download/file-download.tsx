@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { ArrowDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button, Loader } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileCards')
@@ -16,8 +17,8 @@ interface FileData {
   type: string
   key: string
   url: string
-  uploadedAt: string
-  expiresAt: string
+  uploadedAt?: string
+  expiresAt?: string
   storageProvider?: 's3' | 'blob' | 'local'
   bucketName?: string
 }
@@ -220,7 +221,7 @@ export function FileDownload({
   return (
     <Button
       variant='ghost'
-      className={`h-7 px-2 text-xs ${className}`}
+      className={cn('h-7 px-2 text-xs', className)}
       onClick={handleDownload}
       disabled={isDownloading}
     >

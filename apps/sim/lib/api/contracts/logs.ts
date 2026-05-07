@@ -73,8 +73,8 @@ const fileSchema = z.object({
   type: z.string(),
   url: z.string(),
   key: z.string(),
-  uploadedAt: z.string(),
-  expiresAt: z.string(),
+  uploadedAt: z.string().optional(),
+  expiresAt: z.string().optional(),
   storageProvider: z.enum(['s3', 'blob', 'local']).optional(),
   bucketName: z.string().optional(),
 })
