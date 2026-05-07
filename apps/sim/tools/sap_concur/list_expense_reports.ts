@@ -11,7 +11,7 @@ export const listExpenseReportsTool: ToolConfig<ListExpenseReportsParams, SapCon
     id: 'sap_concur_list_expense_reports',
     name: 'SAP Concur List Expense Reports',
     description:
-      'List expense reports (GET /api/v3.0/expense/reports). Returns a v3 envelope { Items, NextPage }.',
+      'List expense reports (GET /api/v3.0/expense/reports). Returns a v3 envelope with Items and NextPage.',
     version: '1.0.0',
     params: {
       datacenter: {

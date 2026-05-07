@@ -11494,7 +11494,7 @@
     "operations": [
       {
         "name": "List Expense Reports",
-        "description": "List expense reports (GET /api/v3.0/expense/reports). Returns a v3 envelope { Items, NextPage }."
+        "description": "List expense reports (GET /api/v3.0/expense/reports). Returns a v3 envelope with Items and NextPage."
       },
       {
         "name": "Get Expense Report",
