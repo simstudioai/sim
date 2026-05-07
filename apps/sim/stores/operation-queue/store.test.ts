@@ -108,6 +108,190 @@ describe('operation queue room gating', () => {
     ).toBeUndefined()
   })
 
+  it('coalesces pending subblock updates to the latest value for the same field', () => {
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-1',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'subblock-update',
+        target: 'subblock',
+        payload: {
+          blockId: 'block-1',
+          subblockId: 'prompt',
+          value: 'old value',
+        },
+      },
+    })
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-2',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'subblock-update',
+        target: 'subblock',
+        payload: {
+          blockId: 'block-1',
+          subblockId: 'prompt',
+          value: 'new value',
+        },
+      },
+    })
+
+    expect(useOperationQueueStore.getState().operations).toEqual([
+      expect.objectContaining({
+        id: 'op-2',
+        operation: expect.objectContaining({
+          payload: expect.objectContaining({ value: 'new value' }),
+        }),
+      }),
+    ])
+  })
+
+  it('does not coalesce matching subblock updates across workflows', () => {
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-1',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'subblock-update',
+        target: 'subblock',
+        payload: {
+          blockId: 'block-1',
+          subblockId: 'prompt',
+          value: 'workflow a value',
+        },
+      },
+    })
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-2',
+      workflowId: 'workflow-b',
+      userId: 'user-1',
+      operation: {
+        operation: 'subblock-update',
+        target: 'subblock',
+        payload: {
+          blockId: 'block-1',
+          subblockId: 'prompt',
+          value: 'workflow b value',
+        },
+      },
+    })
+
+    expect(useOperationQueueStore.getState().operations).toEqual([
+      expect.objectContaining({
+        id: 'op-1',
+        workflowId: 'workflow-a',
+      }),
+      expect.objectContaining({
+        id: 'op-2',
+        workflowId: 'workflow-b',
+      }),
+    ])
+  })
+
+  it('coalesces variable field updates without dropping unrelated fields', () => {
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-1',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'variable-update',
+        target: 'variable',
+        payload: {
+          variableId: 'variable-1',
+          field: 'value',
+          value: 'old value',
+        },
+      },
+    })
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-2',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'variable-update',
+        target: 'variable',
+        payload: {
+          variableId: 'variable-1',
+          field: 'name',
+          value: 'Variable Name',
+        },
+      },
+    })
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-3',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'variable-update',
+        target: 'variable',
+        payload: {
+          variableId: 'variable-1',
+          field: 'value',
+          value: 'new value',
+        },
+      },
+    })
+
+    expect(useOperationQueueStore.getState().operations).toEqual([
+      expect.objectContaining({
+        id: 'op-2',
+        operation: expect.objectContaining({
+          payload: expect.objectContaining({ field: 'name', value: 'Variable Name' }),
+        }),
+      }),
+      expect.objectContaining({
+        id: 'op-3',
+        operation: expect.objectContaining({
+          payload: expect.objectContaining({ field: 'value', value: 'new value' }),
+        }),
+      }),
+    ])
+  })
+
+  it('does not coalesce matching variable updates across workflows', () => {
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-1',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'variable-update',
+        target: 'variable',
+        payload: {
+          variableId: 'variable-1',
+          field: 'value',
+          value: 'workflow a value',
+        },
+      },
+    })
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-2',
+      workflowId: 'workflow-b',
+      userId: 'user-1',
+      operation: {
+        operation: 'variable-update',
+        target: 'variable',
+        payload: {
+          variableId: 'variable-1',
+          field: 'value',
+          value: 'workflow b value',
+        },
+      },
+    })
+
+    expect(useOperationQueueStore.getState().operations).toEqual([
+      expect.objectContaining({
+        id: 'op-1',
+        workflowId: 'workflow-a',
+      }),
+      expect.objectContaining({
+        id: 'op-2',
+        workflowId: 'workflow-b',
+      }),
+    ])
+  })
+
   it('waits for matching workflow operations to drain', async () => {
     useOperationQueueStore.getState().addToQueue({
       id: 'op-1',

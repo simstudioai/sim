@@ -25,6 +25,28 @@ const logger = createLogger('WorkflowDBHelpers')
 export type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
 export type WorkflowDeploymentVersion = InferSelectModel<typeof workflowDeploymentVersion>
 
+async function lockWorkflowForUpdate(tx: DbOrTx, workflowId: string): Promise<boolean> {
+  if ('execute' in tx && typeof tx.execute === 'function') {
+    await tx.execute(sql`SELECT id FROM workflow WHERE id = ${workflowId} FOR UPDATE`)
+    return true
+  }
+
+  const query = tx.select({ id: workflow.id }).from(workflow).where(eq(workflow.id, workflowId))
+
+  if ('limit' in query && typeof query.limit === 'function') {
+    const limited = query.limit(1)
+    const rows =
+      'for' in limited && typeof limited.for === 'function'
+        ? await limited.for('update')
+        : await limited
+    return Array.isArray(rows) ? rows.length > 0 : true
+  }
+
+  const rows = await query
+
+  return Array.isArray(rows) ? rows.length > 0 : true
+}
+
 export interface WorkflowDeploymentVersionResponse {
   id: string
   version: number
@@ -342,9 +364,10 @@ async function migrateCredentialIds(
  * has not been migrated to normalized tables yet.
  */
 export async function loadWorkflowFromNormalizedTables(
-  workflowId: string
+  workflowId: string,
+  externalTx?: DbOrTx
 ): Promise<NormalizedWorkflowData | null> {
-  const raw = await loadWorkflowFromNormalizedTablesRaw(workflowId)
+  const raw = await loadWorkflowFromNormalizedTablesRaw(workflowId, externalTx)
   if (!raw) return null
 
   const { blocks: finalBlocks, migrated } = await applyBlockMigrations(raw.blocks, raw.workspaceId)
@@ -380,20 +403,32 @@ export async function loadWorkflowFromNormalizedTables(
 }
 
 export async function loadWorkflowDeploymentSnapshot(
-  workflowId: string
+  workflowId: string,
+  externalTx?: DbOrTx
 ): Promise<WorkflowState | null> {
-  const [normalizedData, [workflowRecord]] = await Promise.all([
-    loadWorkflowFromNormalizedTables(workflowId),
-    db
-      .select({ variables: workflow.variables })
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1),
-  ])
+  const loadSnapshot = async (tx: DbOrTx) => {
+    const [normalizedData, [workflowRecord]] = await Promise.all([
+      loadWorkflowFromNormalizedTables(workflowId, tx),
+      tx
+        .select({ variables: workflow.variables })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1),
+    ])
 
-  if (!normalizedData) return null
+    if (!normalizedData) return null
 
-  return buildWorkflowDeploymentSnapshot(normalizedData, workflowRecord?.variables)
+    return buildWorkflowDeploymentSnapshot(normalizedData, workflowRecord?.variables)
+  }
+
+  if (externalTx) {
+    return loadSnapshot(externalTx)
+  }
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
+    return loadSnapshot(tx)
+  })
 }
 
 export function buildWorkflowDeploymentSnapshot(
@@ -415,7 +450,20 @@ export async function saveWorkflowToNormalizedTables(
   state: WorkflowState,
   externalTx?: DbOrTx
 ): Promise<{ success: boolean; error?: string }> {
-  return saveWorkflowToNormalizedTablesRaw(workflowId, state, externalTx)
+  if (externalTx) {
+    return saveWorkflowToNormalizedTablesRaw(workflowId, state, externalTx)
+  }
+
+  try {
+    return await db.transaction(async (tx) => {
+      await lockWorkflowForUpdate(tx, workflowId)
+      return saveWorkflowToNormalizedTablesRaw(workflowId, state, tx)
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to save workflow state'
+    logger.error(`Error saving workflow ${workflowId} to normalized tables:`, error)
+    return { success: false, error: message }
+  }
 }
 
 export async function workflowExistsInNormalizedTables(workflowId: string): Promise<boolean> {
@@ -439,25 +487,49 @@ export async function deployWorkflow(params: {
   deployedBy: string
   workflowName?: string
   workflowState?: WorkflowState
+  validateWorkflowState?: (workflowState: WorkflowState) => string | null
 }): Promise<{
   success: boolean
   version?: number
   deploymentVersionId?: string
   deployedAt?: Date
-  currentState?: any
+  previousVersionId?: string
+  currentState?: WorkflowState
   error?: string
 }> {
   const { workflowId, deployedBy, workflowName } = params
 
   try {
-    const currentState = params.workflowState ?? (await loadWorkflowDeploymentSnapshot(workflowId))
-    if (!currentState) {
-      return { success: false, error: 'Failed to load workflow state' }
-    }
-
     const now = new Date()
+    let currentState: WorkflowState | null = null
 
     const deployedVersion = await db.transaction(async (tx) => {
+      if (!(await lockWorkflowForUpdate(tx, workflowId))) {
+        return { success: false as const, error: 'Workflow not found' }
+      }
+
+      currentState = params.workflowState ?? (await loadWorkflowDeploymentSnapshot(workflowId, tx))
+      if (!currentState) {
+        return { success: false as const, error: 'Failed to load workflow state' }
+      }
+
+      const validationError = params.validateWorkflowState?.(currentState)
+      if (validationError) {
+        return { success: false as const, error: validationError }
+      }
+
+      const [currentActiveVersion] = await tx
+        .select({ id: workflowDeploymentVersion.id })
+        .from(workflowDeploymentVersion)
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, workflowId),
+            eq(workflowDeploymentVersion.isActive, true)
+          )
+        )
+        .limit(1)
+      const previousVersionId = currentActiveVersion?.id
+
       const [{ maxVersion }] = await tx
         .select({ maxVersion: sql`COALESCE(MAX("version"), 0)` })
         .from(workflowDeploymentVersion)
@@ -488,8 +560,17 @@ export async function deployWorkflow(params: {
 
       await tx.update(workflow).set(updateData).where(eq(workflow.id, workflowId))
 
-      return { version: nextVersion, deploymentVersionId }
+      return {
+        success: true as const,
+        version: nextVersion,
+        deploymentVersionId,
+        previousVersionId,
+      }
     })
+
+    if (!deployedVersion.success) {
+      return { success: false, error: deployedVersion.error }
+    }
 
     logger.info(`Deployed workflow ${workflowId} as v${deployedVersion.version}`)
 
@@ -522,8 +603,9 @@ export async function deployWorkflow(params: {
       success: true,
       version: deployedVersion.version,
       deploymentVersionId: deployedVersion.deploymentVersionId,
+      previousVersionId: deployedVersion.previousVersionId,
       deployedAt: now,
-      currentState,
+      currentState: currentState || undefined,
     }
   } catch (error) {
     logger.error(`Error deploying workflow ${workflowId}:`, error)
@@ -689,6 +771,8 @@ export async function undeployWorkflow(params: { workflowId: string; tx?: DbOrTx
   const { workflowId, tx } = params
 
   const executeUndeploy = async (dbCtx: DbOrTx) => {
+    await lockWorkflowForUpdate(dbCtx, workflowId)
+
     const { deleteSchedulesForWorkflow } = await import('@/lib/workflows/schedules/deploy')
     await deleteSchedulesForWorkflow(workflowId, dbCtx)
 
@@ -730,29 +814,47 @@ export async function activateWorkflowVersion(params: {
   success: boolean
   deployedAt?: Date
   state?: unknown
+  previousVersionId?: string
   error?: string
 }> {
   const { workflowId, version } = params
 
   try {
-    const [versionData] = await db
-      .select({ id: workflowDeploymentVersion.id, state: workflowDeploymentVersion.state })
-      .from(workflowDeploymentVersion)
-      .where(
-        and(
-          eq(workflowDeploymentVersion.workflowId, workflowId),
-          eq(workflowDeploymentVersion.version, version)
-        )
-      )
-      .limit(1)
-
-    if (!versionData) {
-      return { success: false, error: 'Deployment version not found' }
-    }
-
     const now = new Date()
+    let versionState: unknown
 
-    await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
+      if (!(await lockWorkflowForUpdate(tx, workflowId))) {
+        return { success: false as const, error: 'Workflow not found' }
+      }
+
+      const [currentActiveVersion] = await tx
+        .select({ id: workflowDeploymentVersion.id })
+        .from(workflowDeploymentVersion)
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, workflowId),
+            eq(workflowDeploymentVersion.isActive, true)
+          )
+        )
+        .limit(1)
+
+      const [versionData] = await tx
+        .select({ id: workflowDeploymentVersion.id, state: workflowDeploymentVersion.state })
+        .from(workflowDeploymentVersion)
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, workflowId),
+            eq(workflowDeploymentVersion.version, version)
+          )
+        )
+        .limit(1)
+
+      if (!versionData) {
+        return { success: false as const, error: 'Deployment version not found' }
+      }
+      versionState = versionData.state
+
       await tx
         .update(workflowDeploymentVersion)
         .set({ isActive: false })
@@ -777,14 +879,21 @@ export async function activateWorkflowVersion(params: {
         .update(workflow)
         .set({ isDeployed: true, deployedAt: now })
         .where(eq(workflow.id, workflowId))
+
+      return { success: true as const, previousVersionId: currentActiveVersion?.id }
     })
+
+    if (!result.success) {
+      return { success: false, error: result.error }
+    }
 
     logger.info(`Activated version ${version} for workflow ${workflowId}`)
 
     return {
       success: true,
       deployedAt: now,
-      state: versionData.state,
+      state: versionState,
+      previousVersionId: result.previousVersionId,
     }
   } catch (error) {
     logger.error(`Error activating version ${version} for workflow ${workflowId}:`, error)
@@ -802,29 +911,47 @@ export async function activateWorkflowVersionById(params: {
   success: boolean
   deployedAt?: Date
   state?: unknown
+  previousVersionId?: string
   error?: string
 }> {
   const { workflowId, deploymentVersionId } = params
 
   try {
-    const [versionData] = await db
-      .select({ id: workflowDeploymentVersion.id, state: workflowDeploymentVersion.state })
-      .from(workflowDeploymentVersion)
-      .where(
-        and(
-          eq(workflowDeploymentVersion.workflowId, workflowId),
-          eq(workflowDeploymentVersion.id, deploymentVersionId)
-        )
-      )
-      .limit(1)
-
-    if (!versionData) {
-      return { success: false, error: 'Deployment version not found' }
-    }
-
     const now = new Date()
+    let versionState: unknown
 
-    await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
+      if (!(await lockWorkflowForUpdate(tx, workflowId))) {
+        return { success: false as const, error: 'Workflow not found' }
+      }
+
+      const [currentActiveVersion] = await tx
+        .select({ id: workflowDeploymentVersion.id })
+        .from(workflowDeploymentVersion)
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, workflowId),
+            eq(workflowDeploymentVersion.isActive, true)
+          )
+        )
+        .limit(1)
+
+      const [versionData] = await tx
+        .select({ id: workflowDeploymentVersion.id, state: workflowDeploymentVersion.state })
+        .from(workflowDeploymentVersion)
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, workflowId),
+            eq(workflowDeploymentVersion.id, deploymentVersionId)
+          )
+        )
+        .limit(1)
+
+      if (!versionData) {
+        return { success: false as const, error: 'Deployment version not found' }
+      }
+      versionState = versionData.state
+
       await tx
         .update(workflowDeploymentVersion)
         .set({ isActive: false })
@@ -844,14 +971,21 @@ export async function activateWorkflowVersionById(params: {
         .update(workflow)
         .set({ isDeployed: true, deployedAt: now })
         .where(eq(workflow.id, workflowId))
+
+      return { success: true as const, previousVersionId: currentActiveVersion?.id }
     })
+
+    if (!result.success) {
+      return { success: false, error: result.error }
+    }
 
     logger.info(`Activated deployment version ${deploymentVersionId} for workflow ${workflowId}`)
 
     return {
       success: true,
       deployedAt: now,
-      state: versionData.state,
+      state: versionState,
+      previousVersionId: result.previousVersionId,
     }
   } catch (error) {
     logger.error(

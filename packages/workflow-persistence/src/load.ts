@@ -4,7 +4,7 @@ import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
 import { SUBFLOW_TYPES } from '@sim/workflow-types/workflow'
 import { eq } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
-import type { NormalizedWorkflowData } from './types'
+import type { DbOrTx, NormalizedWorkflowData } from './types'
 
 const logger = createLogger('WorkflowPersistenceLoad')
 
@@ -27,14 +27,16 @@ export interface RawNormalizedWorkflow extends NormalizedWorkflowData {
  * config on the returned object will silently diverge from the migrated block.
  */
 export async function loadWorkflowFromNormalizedTablesRaw(
-  workflowId: string
+  workflowId: string,
+  externalTx?: DbOrTx
 ): Promise<RawNormalizedWorkflow | null> {
   try {
+    const tx = externalTx ?? db
     const [blocks, edges, subflows, [workflowRow]] = await Promise.all([
-      db.select().from(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
-      db.select().from(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
-      db.select().from(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
-      db
+      tx.select().from(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
+      tx.select().from(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
+      tx.select().from(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
+      tx
         .select({ workspaceId: workflow.workspaceId })
         .from(workflow)
         .where(eq(workflow.id, workflowId))

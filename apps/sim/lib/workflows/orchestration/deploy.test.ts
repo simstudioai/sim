@@ -9,12 +9,29 @@ const {
   mockSaveWorkflowToNormalizedTables,
   mockRecordAudit,
   mockCaptureServerEvent,
+  mockTransaction,
+  mockTx,
 } = vi.hoisted(() => ({
   mockLimit: vi.fn(),
   mockUpdateSet: vi.fn(),
   mockSaveWorkflowToNormalizedTables: vi.fn(),
   mockRecordAudit: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
+  mockTransaction: vi.fn(),
+  mockTx: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => ({
+            for: vi.fn().mockResolvedValue([{ id: 'workflow-1' }]),
+          })),
+        })),
+      })),
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
+    })),
+  },
 }))
 
 vi.mock('@sim/db', () => ({
@@ -29,6 +46,7 @@ vi.mock('@sim/db', () => ({
     update: vi.fn(() => ({
       set: mockUpdateSet,
     })),
+    transaction: mockTransaction,
   },
   workflow: { id: 'workflow.id' },
   workflowDeploymentVersion: {
@@ -90,6 +108,20 @@ describe('performRevertToVersion', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
+    mockTransaction.mockImplementation(async (callback) => callback(mockTx))
+    mockTx.select.mockImplementation((selection?: Record<string, unknown>) => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit:
+            selection && Object.hasOwn(selection, 'state')
+              ? mockLimit
+              : vi.fn(() => ({
+                  for: vi.fn().mockResolvedValue([{ id: 'workflow-1' }]),
+                })),
+        })),
+      })),
+    }))
+    mockTx.update.mockReturnValue({ set: mockUpdateSet })
     mockUpdateSet.mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
     mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
   })
@@ -133,7 +165,8 @@ describe('performRevertToVersion', () => {
             value: 'deployed-value',
           },
         },
-      })
+      }),
+      mockTx
     )
     expect(mockUpdateSet).toHaveBeenCalledWith(
       expect.objectContaining({

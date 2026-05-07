@@ -117,6 +117,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       const { blockId, subblockId } = operation.operation.payload
       shouldDropPendingOperation = (op) =>
         op.status === 'pending' &&
+        op.workflowId === operation.workflowId &&
         op.operation.operation === 'subblock-update' &&
         op.operation.target === 'subblock' &&
         op.operation.payload?.blockId === blockId &&
@@ -130,6 +131,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       const { variableId, field } = operation.operation.payload
       shouldDropPendingOperation = (op) =>
         op.status === 'pending' &&
+        op.workflowId === operation.workflowId &&
         op.operation.operation === 'variable-update' &&
         op.operation.target === 'variable' &&
         op.operation.payload?.variableId === variableId &&

@@ -17,6 +17,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -30,8 +31,11 @@ interface GeneralDeployProps {
   isLoadingDeployedState: boolean
   versions: WorkflowDeploymentVersionResponse[]
   versionsLoading: boolean
+  isPromotingVersion: boolean
+  deployReadiness: DeployReadiness
   onPromoteToLive: (version: number) => Promise<void>
   onLoadDeploymentComplete: () => void
+  onLoadDeploymentBlocked: (message: string) => void
 }
 
 type PreviewMode = 'active' | 'selected'
@@ -45,8 +49,11 @@ export function GeneralDeploy({
   isLoadingDeployedState,
   versions,
   versionsLoading,
+  isPromotingVersion,
+  deployReadiness,
   onPromoteToLive,
   onLoadDeploymentComplete,
+  onLoadDeploymentBlocked,
 }: GeneralDeployProps) {
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [showActiveDespiteSelection, setShowActiveDespiteSelection] = useState(false)
@@ -84,6 +91,10 @@ export function GeneralDeploy({
 
   const confirmLoadDeployment = async () => {
     if (!workflowId || versionToLoad === null) return
+    if (!(await deployReadiness.waitUntilReady())) {
+      onLoadDeploymentBlocked(deployReadiness.tooltip)
+      return
+    }
 
     setShowLoadDialog(false)
     const version = versionToLoad
@@ -98,7 +109,7 @@ export function GeneralDeploy({
   }
 
   const confirmPromoteToLive = async () => {
-    if (versionToPromote === null) return
+    if (versionToPromote === null || isPromotingVersion) return
 
     setShowPromoteDialog(false)
     const version = versionToPromote
@@ -221,6 +232,7 @@ export function GeneralDeploy({
             workflowId={workflowId}
             versions={versions}
             versionsLoading={versionsLoading}
+            isPromotingVersion={isPromotingVersion}
             selectedVersion={selectedVersion}
             onSelectVersion={handleSelectVersion}
             onPromoteToLive={handlePromoteToLive}
@@ -274,7 +286,7 @@ export function GeneralDeploy({
             <Button variant='default' onClick={() => setShowPromoteDialog(false)}>
               Cancel
             </Button>
-            <Button variant='tertiary' onClick={confirmPromoteToLive}>
+            <Button variant='tertiary' onClick={confirmPromoteToLive} disabled={isPromotingVersion}>
               Promote to live
             </Button>
           </ModalFooter>

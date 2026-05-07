@@ -93,7 +93,7 @@ export function Deploy({
     if (isChangeDetectionSettling) {
       return 'Syncing deployment state...'
     }
-    if (deployReadiness.isBlocked) {
+    if (deployReadiness.isBlocked && !isDeployed) {
       return deployReadiness.tooltip
     }
     if (changeDetected) {
@@ -108,9 +108,6 @@ export function Deploy({
   const getButtonLabel = () => {
     if (isDeploymentSettling) {
       return deployReadiness.isSyncing ? deployReadiness.label : 'Syncing...'
-    }
-    if (isDeployed && deployReadiness.isBlocked) {
-      return deployReadiness.label
     }
     if (changeDetected) {
       return 'Update'

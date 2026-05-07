@@ -8,7 +8,7 @@ import {
   FolderLockedError,
   WorkflowLockedError,
 } from '@sim/workflow-authz'
-import { and, eq, isNull, ne } from 'drizzle-orm'
+import { and, eq, isNull, ne, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateWorkflowContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
@@ -85,7 +85,15 @@ export const GET = withRouteHandler(
         }
       }
 
-      const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+      const snapshot = await db.transaction(async (tx) => {
+        await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
+        const [normalizedData, [workflowRecord]] = await Promise.all([
+          loadWorkflowFromNormalizedTables(workflowId, tx),
+          tx.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1),
+        ])
+        return { normalizedData, workflowRecord }
+      })
+      const responseWorkflowData = snapshot.workflowRecord ?? workflowData
 
       // Stamp `workflowId` from the path param on each variable so the
       // global client-side variables store can filter by workflow without
@@ -93,7 +101,7 @@ export const GET = withRouteHandler(
       // The persisted blob may or may not include `workflowId` depending on
       // when the variable was last written; the path param is authoritative.
       const persistedVariables =
-        (workflowData.variables as Record<string, Record<string, unknown>>) || {}
+        (responseWorkflowData.variables as Record<string, Record<string, unknown>>) || {}
       const stampedVariables: Record<string, Record<string, unknown>> = {}
       for (const [variableId, variable] of Object.entries(persistedVariables)) {
         if (variable && typeof variable === 'object') {
@@ -101,20 +109,20 @@ export const GET = withRouteHandler(
         }
       }
 
-      if (normalizedData) {
+      if (snapshot.normalizedData) {
         const finalWorkflowData = {
-          ...workflowData,
+          ...responseWorkflowData,
           state: {
-            blocks: normalizedData.blocks,
-            edges: normalizedData.edges,
-            loops: normalizedData.loops,
-            parallels: normalizedData.parallels,
+            blocks: snapshot.normalizedData.blocks,
+            edges: snapshot.normalizedData.edges,
+            loops: snapshot.normalizedData.loops,
+            parallels: snapshot.normalizedData.parallels,
             lastSaved: Date.now(),
-            isDeployed: workflowData.isDeployed || false,
-            deployedAt: workflowData.deployedAt,
+            isDeployed: responseWorkflowData.isDeployed || false,
+            deployedAt: responseWorkflowData.deployedAt,
             metadata: {
-              name: workflowData.name,
-              description: workflowData.description,
+              name: responseWorkflowData.name,
+              description: responseWorkflowData.description,
             },
           },
           variables: stampedVariables,
@@ -128,18 +136,18 @@ export const GET = withRouteHandler(
       }
 
       const emptyWorkflowData = {
-        ...workflowData,
+        ...responseWorkflowData,
         state: {
           blocks: {},
           edges: [],
           loops: {},
           parallels: {},
           lastSaved: Date.now(),
-          isDeployed: workflowData.isDeployed || false,
-          deployedAt: workflowData.deployedAt,
+          isDeployed: responseWorkflowData.isDeployed || false,
+          deployedAt: responseWorkflowData.deployedAt,
           metadata: {
-            name: workflowData.name,
-            description: workflowData.description,
+            name: responseWorkflowData.name,
+            description: responseWorkflowData.description,
           },
         },
         variables: stampedVariables,

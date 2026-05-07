@@ -18,7 +18,6 @@ import {
   activateWorkflowVersion,
   activateWorkflowVersionById,
   deployWorkflow,
-  loadWorkflowDeploymentSnapshot,
   saveWorkflowToNormalizedTables,
   undeployWorkflow,
 } from '@/lib/workflows/persistence/utils'
@@ -53,6 +52,25 @@ export async function notifySocketDeploymentChanged(workflowId: string): Promise
   } catch (error) {
     logger.error('Error sending workflow deployed event to socket server', error)
   }
+}
+
+async function isDeploymentVersionActive(
+  workflowId: string,
+  deploymentVersionId: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: workflowDeploymentVersion.id })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.id, deploymentVersionId),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+    .limit(1)
+
+  return Boolean(row)
 }
 
 export interface PerformFullDeployParams {
@@ -96,20 +114,6 @@ export async function performFullDeploy(
   const requestId = params.requestId ?? generateRequestId()
   const request = params.request ?? new NextRequest(new URL('/api/webhooks', getBaseUrl()))
 
-  const deploymentSnapshot = await loadWorkflowDeploymentSnapshot(workflowId)
-  if (!deploymentSnapshot) {
-    return { success: false, error: 'Failed to load workflow state', errorCode: 'not_found' }
-  }
-
-  const scheduleValidation = validateWorkflowSchedules(deploymentSnapshot.blocks)
-  if (!scheduleValidation.isValid) {
-    return {
-      success: false,
-      error: `Invalid schedule configuration: ${scheduleValidation.error}`,
-      errorCode: 'validation',
-    }
-  }
-
   const [workflowRecord] = await db
     .select()
     .from(workflowTable)
@@ -122,17 +126,36 @@ export async function performFullDeploy(
 
   const workflowData = workflowRecord as Record<string, unknown>
 
-  const [currentActiveVersion] = await db
-    .select({ id: workflowDeploymentVersion.id })
-    .from(workflowDeploymentVersion)
-    .where(
-      and(
-        eq(workflowDeploymentVersion.workflowId, workflowId),
-        eq(workflowDeploymentVersion.isActive, true)
-      )
-    )
-    .limit(1)
-  const previousVersionId = currentActiveVersion?.id
+  const deployResult = await deployWorkflow({
+    workflowId,
+    deployedBy: actorId,
+    workflowName: workflowName || workflowRecord.name || undefined,
+    validateWorkflowState: (workflowState) => {
+      const scheduleValidation = validateWorkflowSchedules(workflowState.blocks)
+      return scheduleValidation.isValid
+        ? null
+        : `Invalid schedule configuration: ${scheduleValidation.error}`
+    },
+  })
+
+  if (!deployResult.success) {
+    const error = deployResult.error || 'Failed to deploy workflow'
+    return {
+      success: false,
+      error,
+      errorCode: error.startsWith('Invalid schedule configuration') ? 'validation' : undefined,
+    }
+  }
+
+  const deployedAt = deployResult.deployedAt!
+  const deploymentVersionId = deployResult.deploymentVersionId
+  const previousVersionId = deployResult.previousVersionId
+  const deploymentSnapshot = deployResult.currentState
+
+  if (!deploymentVersionId || !deploymentSnapshot) {
+    await undeployWorkflow({ workflowId })
+    return { success: false, error: 'Failed to resolve deployment version' }
+  }
 
   const rollbackDeployment = async () => {
     if (previousVersionId) {
@@ -152,25 +175,6 @@ export async function performFullDeploy(
     await undeployWorkflow({ workflowId })
   }
 
-  const deployResult = await deployWorkflow({
-    workflowId,
-    deployedBy: actorId,
-    workflowName: workflowName || workflowRecord.name || undefined,
-    workflowState: deploymentSnapshot,
-  })
-
-  if (!deployResult.success) {
-    return { success: false, error: deployResult.error || 'Failed to deploy workflow' }
-  }
-
-  const deployedAt = deployResult.deployedAt!
-  const deploymentVersionId = deployResult.deploymentVersionId
-
-  if (!deploymentVersionId) {
-    await undeployWorkflow({ workflowId })
-    return { success: false, error: 'Failed to resolve deployment version' }
-  }
-
   const triggerSaveResult = await saveTriggerWebhooksForDeploy({
     request,
     workflowId,
@@ -179,7 +183,6 @@ export async function performFullDeploy(
     blocks: deploymentSnapshot.blocks,
     requestId,
     deploymentVersionId,
-    previousVersionId,
   })
 
   if (!triggerSaveResult.success) {
@@ -214,14 +217,17 @@ export async function performFullDeploy(
     return { success: false, error: scheduleResult.error || 'Failed to create schedule' }
   }
 
-  if (previousVersionId && previousVersionId !== deploymentVersionId) {
+  if (
+    previousVersionId &&
+    previousVersionId !== deploymentVersionId &&
+    !(await isDeploymentVersionActive(workflowId, previousVersionId))
+  ) {
     try {
       await cleanupDeploymentVersion({
         workflowId,
         workflow: workflowData,
         requestId,
         deploymentVersionId: previousVersionId,
-        skipExternalCleanup: true,
       })
     } catch (cleanupError) {
       logger.error(`[${requestId}] Failed to clean up previous version`, cleanupError)
@@ -426,18 +432,6 @@ export async function performActivateVersion(
     return { success: false, error: 'Invalid deployed state structure', errorCode: 'validation' }
   }
 
-  const [currentActiveVersion] = await db
-    .select({ id: workflowDeploymentVersion.id })
-    .from(workflowDeploymentVersion)
-    .where(
-      and(
-        eq(workflowDeploymentVersion.workflowId, workflowId),
-        eq(workflowDeploymentVersion.isActive, true)
-      )
-    )
-    .limit(1)
-  const previousVersionId = currentActiveVersion?.id
-
   const scheduleValidation = validateWorkflowSchedules(blocks as Record<string, BlockState>)
   if (!scheduleValidation.isValid) {
     return {
@@ -455,20 +449,10 @@ export async function performActivateVersion(
     blocks: blocks as Record<string, BlockState>,
     requestId,
     deploymentVersionId: versionRow.id,
-    previousVersionId,
     forceRecreateSubscriptions: true,
   })
 
   if (!triggerSaveResult.success) {
-    if (previousVersionId) {
-      await restorePreviousVersionWebhooks({
-        request,
-        workflow,
-        userId,
-        previousVersionId,
-        requestId,
-      })
-    }
     return {
       success: false,
       error: triggerSaveResult.error?.message || 'Failed to sync trigger configuration',
@@ -489,19 +473,11 @@ export async function performActivateVersion(
       requestId,
       deploymentVersionId: versionRow.id,
     })
-    if (previousVersionId) {
-      await restorePreviousVersionWebhooks({
-        request,
-        workflow,
-        userId,
-        previousVersionId,
-        requestId,
-      })
-    }
     return { success: false, error: scheduleResult.error || 'Failed to sync schedules' }
   }
 
   const result = await activateWorkflowVersion({ workflowId, version })
+  const previousVersionId = result.previousVersionId
   if (!result.success) {
     await cleanupDeploymentVersion({
       workflowId,
@@ -509,26 +485,20 @@ export async function performActivateVersion(
       requestId,
       deploymentVersionId: versionRow.id,
     })
-    if (previousVersionId) {
-      await restorePreviousVersionWebhooks({
-        request,
-        workflow,
-        userId,
-        previousVersionId,
-        requestId,
-      })
-    }
     return { success: false, error: result.error || 'Failed to activate version' }
   }
 
-  if (previousVersionId && previousVersionId !== versionRow.id) {
+  if (
+    previousVersionId &&
+    previousVersionId !== versionRow.id &&
+    !(await isDeploymentVersionActive(workflowId, previousVersionId))
+  ) {
     try {
       await cleanupDeploymentVersion({
         workflowId,
         workflow,
         requestId,
         deploymentVersionId: previousVersionId,
-        skipExternalCleanup: true,
       })
     } catch (cleanupError) {
       logger.error(`[${requestId}] Failed to clean up previous version`, cleanupError)
@@ -578,83 +548,92 @@ export async function performRevertToVersion(
   const actorId = params.actorId ?? userId
   const versionLabel = String(version)
 
-  let stateRow: { state: unknown } | null = null
-  if (version === 'active') {
-    const [row] = await db
-      .select({ state: workflowDeploymentVersion.state })
-      .from(workflowDeploymentVersion)
-      .where(
-        and(
-          eq(workflowDeploymentVersion.workflowId, workflowId),
-          eq(workflowDeploymentVersion.isActive, true)
-        )
-      )
-      .limit(1)
-    stateRow = row || null
-  } else {
-    const [row] = await db
-      .select({ state: workflowDeploymentVersion.state })
-      .from(workflowDeploymentVersion)
-      .where(
-        and(
-          eq(workflowDeploymentVersion.workflowId, workflowId),
-          eq(workflowDeploymentVersion.version, version)
-        )
-      )
-      .limit(1)
-    stateRow = row || null
-  }
-
-  if (!stateRow?.state) {
-    return { success: false, error: 'Deployment version not found', errorCode: 'not_found' }
-  }
-
-  const deployedState = stateRow.state as {
-    blocks?: Record<string, unknown>
-    edges?: unknown[]
-    loops?: Record<string, unknown>
-    parallels?: Record<string, unknown>
-    variables?: WorkflowState['variables']
-  }
-  if (!deployedState.blocks || !deployedState.edges) {
-    return {
-      success: false,
-      error: 'Invalid deployed state structure',
-      errorCode: 'internal',
-    }
-  }
-
   const lastSaved = Date.now()
-  const hasDeploymentVariables = Object.hasOwn(deployedState, 'variables')
-  const restoredState: WorkflowState = {
-    blocks: deployedState.blocks,
-    edges: deployedState.edges,
-    loops: deployedState.loops || {},
-    parallels: deployedState.parallels || {},
-    lastSaved,
-  } as WorkflowState
-  if (hasDeploymentVariables) {
-    restoredState.variables = deployedState.variables || {}
-  }
+  const saveResult = await db.transaction(async (tx) => {
+    await tx
+      .select({ id: workflowTable.id })
+      .from(workflowTable)
+      .where(eq(workflowTable.id, workflowId))
+      .limit(1)
+      .for('update')
 
-  const saveResult = await saveWorkflowToNormalizedTables(workflowId, restoredState)
+    const [stateRow] =
+      version === 'active'
+        ? await tx
+            .select({ state: workflowDeploymentVersion.state })
+            .from(workflowDeploymentVersion)
+            .where(
+              and(
+                eq(workflowDeploymentVersion.workflowId, workflowId),
+                eq(workflowDeploymentVersion.isActive, true)
+              )
+            )
+            .limit(1)
+        : await tx
+            .select({ state: workflowDeploymentVersion.state })
+            .from(workflowDeploymentVersion)
+            .where(
+              and(
+                eq(workflowDeploymentVersion.workflowId, workflowId),
+                eq(workflowDeploymentVersion.version, version)
+              )
+            )
+            .limit(1)
+
+    if (!stateRow?.state) {
+      return { success: false, error: 'Deployment version not found' }
+    }
+
+    const deployedState = stateRow.state as {
+      blocks?: Record<string, unknown>
+      edges?: unknown[]
+      loops?: Record<string, unknown>
+      parallels?: Record<string, unknown>
+      variables?: WorkflowState['variables']
+    }
+    if (!deployedState.blocks || !deployedState.edges) {
+      return { success: false, error: 'Invalid deployed state structure' }
+    }
+
+    const hasDeploymentVariables = Object.hasOwn(deployedState, 'variables')
+    const restoredState: WorkflowState = {
+      blocks: deployedState.blocks,
+      edges: deployedState.edges,
+      loops: deployedState.loops || {},
+      parallels: deployedState.parallels || {},
+      lastSaved,
+    } as WorkflowState
+    if (hasDeploymentVariables) {
+      restoredState.variables = deployedState.variables || {}
+    }
+
+    const result = await saveWorkflowToNormalizedTables(workflowId, restoredState, tx)
+    if (!result.success) return result
+
+    await tx
+      .update(workflowTable)
+      .set({
+        ...(hasDeploymentVariables ? { variables: deployedState.variables || {} } : {}),
+        lastSynced: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(workflowTable.id, workflowId))
+
+    return result
+  })
 
   if (!saveResult.success) {
     return {
       success: false,
       error: saveResult.error || 'Failed to save deployed state',
-      errorCode: 'internal',
+      errorCode:
+        saveResult.error === 'Deployment version not found'
+          ? 'not_found'
+          : saveResult.error === 'Invalid deployed state structure'
+            ? 'internal'
+            : 'internal',
     }
   }
-
-  await db
-    .update(workflowTable)
-    .set({
-      ...(hasDeploymentVariables ? { variables: deployedState.variables || {} } : {}),
-      lastSynced: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(workflowTable.id, workflowId))
 
   try {
     await fetch(`${getSocketServerUrl()}/api/workflow-reverted`, {

@@ -739,6 +739,7 @@ export function useCollaborativeWorkflow() {
       logger.info(`Workflow ${workflowId} has been reverted to deployed state`)
 
       if (activeWorkflowId !== workflowId) return
+      useWorkflowDiffStore.getState().markRemoteUpdateSeen(workflowId)
 
       try {
         await reloadWorkflowFromApi(workflowId, 'revert')
