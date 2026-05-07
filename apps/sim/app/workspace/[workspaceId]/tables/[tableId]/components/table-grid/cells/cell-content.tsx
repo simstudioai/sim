@@ -14,7 +14,6 @@ interface CellContentProps {
   initialCharacter?: string | null
   onSave: (value: unknown, reason: SaveReason) => void
   onCancel: () => void
-  workflowNameById?: Record<string, string>
   /**
    * Human-readable labels for unmet deps on this row+group, used to render a
    * "Waiting" pill when the cell hasn't run because something it depends on

@@ -52,8 +52,6 @@ export interface UseTableReturn {
   /** Pre-resolved icon + block-name info per output column name. Headers read
    *  from this map instead of each subscribing to its own workflow-state query. */
   columnSourceInfo: Map<string, ColumnSourceInfo>
-  /** `workflowId → workflow.name` lookup for cell labels and execution-detail copy. */
-  workflowNameById: Record<string, string>
 }
 
 /**
@@ -137,14 +135,6 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     return map
   }, [tableWorkflowGroups, workflowStates])
 
-  const workflowNameById = useMemo(() => {
-    const map: Record<string, string> = {}
-    for (const wf of workflows ?? []) {
-      map[wf.id] = wf.name
-    }
-    return map
-  }, [workflows])
-
   return {
     tableData,
     isLoadingTable,
@@ -159,6 +149,5 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     tableWorkflowGroups,
     workflowStates,
     columnSourceInfo,
-    workflowNameById,
   }
 }

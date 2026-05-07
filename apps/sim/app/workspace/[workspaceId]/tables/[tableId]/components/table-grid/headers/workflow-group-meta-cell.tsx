@@ -318,6 +318,7 @@ export function WorkflowGroupMetaCell({
   )
 
   const handleDragEnd = useCallback(() => {
+    didDragRef.current = false
     onDragEnd?.()
   }, [onDragEnd])
 

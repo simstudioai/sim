@@ -289,7 +289,6 @@ export function TableGrid({
     tableWorkflowGroups,
     workflowStates,
     columnSourceInfo,
-    workflowNameById,
   } = useTable({ workspaceId, tableId, queryOptions })
 
   const fetchNextPageRef = useRef(fetchNextPage)
@@ -3034,7 +3033,6 @@ export function TableGrid({
                         isLargeRowCountTable={isLargeRowCountTable}
                         onStopRow={onStopRow}
                         onRunRow={handleRunRow}
-                        workflowNameById={workflowNameById}
                         workflowGroups={tableWorkflowGroups}
                       />
                     ))}
@@ -3161,8 +3159,6 @@ interface DataRowProps {
   isLargeRowCountTable: boolean
   onStopRow: (rowId: string) => void
   onRunRow: (rowId: string) => void
-  /** Lookup from workflow id → human-readable name, used to label running cells. */
-  workflowNameById: Record<string, string>
   /**
    * The table's workflow groups, used to compute per-row "Waiting on …" labels
    * for empty workflow-output cells whose group has unmet dependencies.
@@ -3223,7 +3219,6 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.isLargeRowCountTable !== next.isLargeRowCountTable ||
     prev.onStopRow !== next.onStopRow ||
     prev.onRunRow !== next.onRunRow ||
-    prev.workflowNameById !== next.workflowNameById ||
     prev.workflowGroups !== next.workflowGroups
   ) {
     return false
@@ -3266,7 +3261,6 @@ const DataRow = React.memo(function DataRow({
   isLargeRowCountTable,
   onStopRow,
   onRunRow,
-  workflowNameById,
   workflowGroups,
 }: DataRowProps) {
   const sel = normalizedSelection
@@ -3422,7 +3416,6 @@ const DataRow = React.memo(function DataRow({
                 initialCharacter={isEditing ? initialCharacter : undefined}
                 onSave={(value, reason) => onSave(row.id, column.name, value, reason)}
                 onCancel={onCancel}
-                workflowNameById={workflowNameById}
                 waitingOnLabels={
                   column.workflowGroupId
                     ? (waitingByGroupId?.get(column.workflowGroupId) ?? undefined)
