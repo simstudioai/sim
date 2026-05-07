@@ -861,9 +861,7 @@ export const auth = betterAuth({
           }),
         ]
       : []),
-    admin({
-      impersonationSessionDuration: 60 * 60 * 24 * 365 * 100,
-    }),
+    admin(),
     jwt({
       jwks: {
         keyPairConfig: { alg: 'RS256' },
