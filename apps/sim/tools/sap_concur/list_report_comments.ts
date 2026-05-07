@@ -68,7 +68,7 @@ export const listReportCommentsTool: ToolConfig<ListReportCommentsParams, SapCon
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Access context: TRAVELER, MANAGER, or PROXY',
+        description: 'Access context: TRAVELER or PROXY',
       },
       reportId: {
         type: 'string',

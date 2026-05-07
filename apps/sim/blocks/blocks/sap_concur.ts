@@ -44,8 +44,6 @@ const EXPENSE_READ_CONTEXT_TYPE_OPS = [
   'sap_concur_list_expenses',
   'sap_concur_get_expense',
   'sap_concur_get_itemizations',
-  'sap_concur_create_report_comment',
-  'sap_concur_list_report_comments',
   'sap_concur_list_exceptions',
 ]
 
@@ -60,6 +58,8 @@ const ATTENDEE_CONTEXT_TYPE_OPS = [
   'sap_concur_list_attendee_associations',
   'sap_concur_associate_attendees',
   'sap_concur_remove_all_attendees',
+  'sap_concur_create_report_comment',
+  'sap_concur_list_report_comments',
 ]
 
 const ALLOCATION_CONTEXT_TYPE_OPS = [
@@ -1105,18 +1105,6 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       condition: { field: 'operation', value: 'sap_concur_list_travel_profiles_summary' },
     },
     {
-      id: 'travelProfileActive',
-      title: 'Active Filter',
-      type: 'dropdown',
-      options: [
-        { label: 'Any', id: '' },
-        { label: 'Active', id: '1' },
-        { label: 'Inactive', id: '0' },
-      ],
-      value: () => '',
-      condition: { field: 'operation', value: 'sap_concur_list_travel_profiles_summary' },
-    },
-    {
       id: 'travelConfigs',
       title: 'Travel Config IDs',
       type: 'short-input',
@@ -1721,10 +1709,6 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
               lastModifiedDate: params.lastModifiedDate,
               page: params.travelProfilePage ? Number(params.travelProfilePage) : undefined,
               itemsPerPage: params.itemsPerPage ? Number(params.itemsPerPage) : undefined,
-              active:
-                params.travelProfileActive === '1' || params.travelProfileActive === '0'
-                  ? params.travelProfileActive
-                  : undefined,
               travelConfigs: params.travelConfigs || undefined,
             }
           case 'sap_concur_search_locations':
@@ -1885,10 +1869,6 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
     page: { type: 'number', description: 'Page number (lists/list_items)' },
     travelProfilePage: { type: 'number', description: 'Profile summary page number' },
     itemsPerPage: { type: 'number', description: 'Profile summary items per page' },
-    travelProfileActive: {
-      type: 'string',
-      description: 'Active filter ("1" for active, "0" for inactive)',
-    },
     travelConfigs: { type: 'string', description: 'Comma-separated travel config ids' },
     searchText: { type: 'string', description: 'Locations v5 free-text search' },
     locCode: { type: 'string', description: 'Locations v5 location code' },

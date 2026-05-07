@@ -178,14 +178,14 @@ export interface RemoveAllAttendeesParams extends SapConcurBaseParams {
 
 export interface ListReportCommentsParams extends SapConcurBaseParams {
   userId: string
-  contextType: 'TRAVELER' | 'MANAGER' | 'PROXY'
+  contextType: 'TRAVELER' | 'PROXY'
   reportId: string
   includeAllComments?: boolean
 }
 
 export interface CreateReportCommentParams extends SapConcurBaseParams {
   userId: string
-  contextType: 'TRAVELER' | 'MANAGER' | 'PROXY'
+  contextType: 'TRAVELER' | 'PROXY'
   reportId: string
   comment: string
 }
@@ -327,7 +327,6 @@ export interface GetItineraryParams extends SapConcurBaseParams {
 export interface ListUsersParams extends SapConcurBaseParams {
   count?: number
   cursor?: string
-  filter?: string
   attributes?: string
   excludedAttributes?: string
 }
@@ -366,7 +365,6 @@ export interface ListTravelProfilesSummaryParams extends SapConcurBaseParams {
   lastModifiedDate: string
   page?: number
   itemsPerPage?: number
-  active?: 'Active' | 'Inactive'
   travelConfigs?: string
 }
 

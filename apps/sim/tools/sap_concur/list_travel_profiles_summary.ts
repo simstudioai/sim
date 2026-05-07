@@ -81,13 +81,6 @@ export const listTravelProfilesSummaryTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Items per page (max 200)',
     },
-    active: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Active filter (sent as Active query param): "1" (active) or "0" (inactive). Omit for all.',
-    },
     travelConfigs: {
       type: 'string',
       required: false,
@@ -105,7 +98,6 @@ export const listTravelProfilesSummaryTool: ToolConfig<
         LastModifiedDate: lastModifiedDate,
         Page: params.page,
         ItemsPerPage: params.itemsPerPage,
-        Active: params.active,
         travelConfigs: params.travelConfigs,
       })
       return {
