@@ -1,10 +1,9 @@
 'use client'
 
-import { useRef } from 'react'
 import type { RowExecutionMetadata } from '@/lib/table'
 import type { SaveReason } from '../../../types'
 import type { DisplayColumn } from '../types'
-import { CellRender, type CellRenderKind, resolveCellRender } from './cell-render'
+import { CellRender, resolveCellRender } from './cell-render'
 import { InlineEditor } from './inline-editors'
 
 interface CellContentProps {
@@ -40,10 +39,7 @@ export function CellContent({
   onCancel,
   waitingOnLabels,
 }: CellContentProps) {
-  const kind = useTypewriterTrigger(
-    resolveCellRender({ value, exec, column, waitingOnLabels }),
-    column
-  )
+  const kind = resolveCellRender({ value, exec, column, waitingOnLabels })
 
   return (
     <>
@@ -61,30 +57,4 @@ export function CellContent({
       <CellRender kind={kind} isEditing={isEditing} />
     </>
   )
-}
-
-/**
- * Sets `animateMount: true` on a workflow-output `value` kind when the cell
- * just transitioned into the value state from a non-value one (queued /
- * running / waiting / error / cancelled / empty) — i.e., the worker just
- * filled it in — or when an existing value's text changed. Stays `false` on
- * initial page load (cell mounts already filled) and on no-op refetches.
- */
-function useTypewriterTrigger(kind: CellRenderKind, column: DisplayColumn): CellRenderKind {
-  const mountedRef = useRef(false)
-  const lastKindRef = useRef<CellRenderKind['kind'] | null>(null)
-  const lastValueTextRef = useRef<string | null>(null)
-  if (!column.workflowGroupId) return kind
-  const isFirstRender = !mountedRef.current
-  mountedRef.current = true
-  const prevKind = lastKindRef.current
-  const prevText = lastValueTextRef.current
-  lastKindRef.current = kind.kind
-  if (kind.kind === 'value') lastValueTextRef.current = kind.text
-  if (kind.kind !== 'value') return kind
-  if (isFirstRender) return kind
-  // Just transitioned into value from a non-value state, or text changed.
-  const justTransitioned = prevKind !== 'value' || prevText !== kind.text
-  if (!justTransitioned) return kind
-  return { ...kind, animateMount: true }
 }

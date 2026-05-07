@@ -1519,6 +1519,39 @@ export async function getRowById(
   }
 }
 
+/**
+ * When a user edit clears a workflow output column to empty, also clear the
+ * exec record for that group. Without this, a `cancelled` (or `error`) exec
+ * sticks on the row even after the user wipes the output, blocking the
+ * auto-fire reactor (which respects terminal states). Treating the cleared
+ * cell as "user wants this re-armed" matches the rule that cells are the
+ * source of truth — we already do this for `completed` via
+ * `areOutputsFilled` in the eligibility predicate; this extends the same
+ * behavior to error/cancelled by making the data clear remove the exec.
+ *
+ * Returns a merged `executionsPatch` (caller's patch + null for groups whose
+ * outputs were cleared), or the caller's patch unchanged if nothing applies.
+ */
+function deriveExecClearsForDataPatch(
+  dataPatch: RowData,
+  schema: TableSchema,
+  callerPatch: Record<string, RowExecutionMetadata | null> | undefined
+): Record<string, RowExecutionMetadata | null> | undefined {
+  const groupsToClear = new Set<string>()
+  for (const [columnName, value] of Object.entries(dataPatch)) {
+    const cleared = value === null || value === undefined || value === ''
+    if (!cleared) continue
+    const col = schema.columns.find((c) => c.name === columnName)
+    if (col?.workflowGroupId) groupsToClear.add(col.workflowGroupId)
+  }
+  if (groupsToClear.size === 0) return callerPatch
+  const merged: Record<string, RowExecutionMetadata | null> = { ...(callerPatch ?? {}) }
+  for (const gid of groupsToClear) {
+    if (!(gid in merged)) merged[gid] = null
+  }
+  return merged
+}
+
 /** Merges an `executionsPatch` into the row's existing executions blob. */
 function applyExecutionsPatch(
   existing: RowExecutions,
@@ -1590,7 +1623,14 @@ export async function updateRow(
     ...(existingRow.data as RowData),
     ...data.data,
   }
-  const mergedExecutions = applyExecutionsPatch(existingRow.executions, data.executionsPatch)
+  // Auto-clear exec records for workflow output columns the user just wiped,
+  // so the auto-fire reactor sees no exec and re-arms the cell.
+  const effectiveExecutionsPatch = deriveExecClearsForDataPatch(
+    data.data,
+    table.schema,
+    data.executionsPatch
+  )
+  const mergedExecutions = applyExecutionsPatch(existingRow.executions, effectiveExecutionsPatch)
 
   // Validate size
   const sizeValidation = validateRowSize(mergedData)
@@ -1653,7 +1693,7 @@ export async function updateRow(
   // in-memory snapshot and the last writer wins, clobbering the other's
   // exec keys. The data field still does last-writer-wins because that's
   // the user's edit, but exec records are independently keyed by groupId.
-  const executionsExpr = buildExecutionsSqlPatch(data.executionsPatch)
+  const executionsExpr = buildExecutionsSqlPatch(effectiveExecutionsPatch)
   const updated = await db
     .update(userTableRows)
     .set({
@@ -1913,7 +1953,14 @@ export async function batchUpdateRows(
   for (const update of data.updates) {
     const existing = existingMap.get(update.rowId)!
     const merged = { ...existing.data, ...update.data }
-    const mergedExecutions = applyExecutionsPatch(existing.executions, update.executionsPatch)
+    // Auto-clear exec records for workflow output columns the user just
+    // wiped — same rationale as `updateRow`.
+    const effectiveExecutionsPatch = deriveExecClearsForDataPatch(
+      update.data,
+      table.schema,
+      update.executionsPatch
+    )
+    const mergedExecutions = applyExecutionsPatch(existing.executions, effectiveExecutionsPatch)
 
     const sizeValidation = validateRowSize(merged)
     if (!sizeValidation.valid) {
@@ -1929,7 +1976,7 @@ export async function batchUpdateRows(
       rowId: update.rowId,
       mergedData: merged,
       mergedExecutions,
-      executionsPatch: update.executionsPatch,
+      executionsPatch: effectiveExecutionsPatch,
     })
   }
 

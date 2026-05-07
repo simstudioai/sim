@@ -1,7 +1,6 @@
 'use client'
 
 import type React from 'react'
-import { useEffect, useRef, useState } from 'react'
 import { Badge, Checkbox, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { RowExecutionMetadata } from '@/lib/table'
@@ -27,7 +26,7 @@ import type { DisplayColumn } from '../types'
  */
 export type CellRenderKind =
   // Workflow-output cells
-  | { kind: 'value'; text: string; animateMount?: boolean }
+  | { kind: 'value'; text: string }
   | { kind: 'block-error' }
   | { kind: 'running' }
   | { kind: 'pending-upstream' }
@@ -132,7 +131,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
             isEditing && 'invisible'
           )}
         >
-          <Typewriter text={kind.text} animateMount={kind.animateMount ?? false} />
+          {kind.text}
         </span>
       )
 
@@ -253,55 +252,4 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
 function Wrap({ isEditing, children }: { isEditing: boolean; children: React.ReactNode }) {
   if (!isEditing) return <>{children}</>
   return <div className='invisible'>{children}</div>
-}
-
-const TYPEWRITER_MS_PER_CHAR = 18
-const TYPEWRITER_TOTAL_MS_CAP = 600
-
-/**
- * Reveals `text` one character at a time. The caller controls whether to
- * animate on mount via `animateMount` — true when this Typewriter just
- * appeared because the cell transitioned from a non-value state (queued /
- * running / error) to a value, false on the first render of an already-filled
- * cell. Subsequent text changes always animate. Caps total runtime at
- * `TYPEWRITER_TOTAL_MS_CAP` so long values still finish fast.
- */
-function Typewriter({ text, animateMount }: { text: string; animateMount: boolean }) {
-  const [shown, setShown] = useState(animateMount ? 1 : text.length)
-  // Track the last text we animated for so StrictMode's effect double-invoke
-  // (and Fast Refresh remounts) don't re-trigger the animation for an
-  // already-shown value.
-  const lastAnimatedTextRef = useRef<string | null>(animateMount ? null : text)
-  useEffect(() => {
-    if (lastAnimatedTextRef.current === text) {
-      setShown(text.length)
-      return
-    }
-    lastAnimatedTextRef.current = text
-    if (text.length <= 1) {
-      setShown(text.length)
-      return
-    }
-    setShown(1)
-    const msPerChar = Math.max(
-      4,
-      Math.min(TYPEWRITER_MS_PER_CHAR, Math.floor(TYPEWRITER_TOTAL_MS_CAP / text.length))
-    )
-    let cancelled = false
-    let i = 1
-    let timeoutId = window.setTimeout(function tick() {
-      if (cancelled) return
-      i++
-      setShown(i)
-      if (i < text.length) timeoutId = window.setTimeout(tick, msPerChar)
-    }, msPerChar)
-    return () => {
-      cancelled = true
-      window.clearTimeout(timeoutId)
-    }
-    // animateMount is consulted only via the lazy init of `lastAnimatedTextRef`;
-    // changing it later is meaningless.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text])
-  return <>{text.slice(0, shown)}</>
 }
