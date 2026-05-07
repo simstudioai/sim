@@ -67,7 +67,7 @@ Approve an expense report as a manager (PATCH /expensereports/v4/reports/\{repor
 
 ### `sap_concur_associate_attendees`
 
-Associate attendees with an expense (POST /expensereports/v4/users/\{userId\}/context/TRAVELER/reports/\{reportId\}/expenses/\{expenseId\}/attendees).
+Associate attendees with an expense (POST /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/attendees).
 
 #### Input
 
@@ -96,7 +96,7 @@ Associate attendees with an expense (POST /expensereports/v4/users/\{userId\}/co
 
 ### `sap_concur_create_cash_advance`
 
-Create a cash advance (POST /cashadvance/v4/cashadvances).
+Create a cash advance (POST /cashadvance/v4.1/cashadvances).
 
 #### Input
 
@@ -686,7 +686,7 @@ Get a budget item header by ID (GET /budget/v4/budgetItemHeader/\{id\}).
 
 ### `sap_concur_get_cash_advance`
 
-Get a cash advance (GET /cashadvance/v4/cashadvances/\{cashadvanceId\}).
+Get a cash advance (GET /cashadvance/v4.1/cashadvances/\{cashAdvanceId\}).
 
 #### Input
 
@@ -988,7 +988,7 @@ Get expense itemizations (GET /expensereports/v4/users/\{userId\}/context/\{cont
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `userId` | string | Yes | Concur user UUID |
-| `contextType` | string | Yes | Access context \(TRAVELER per the v4 spec\) |
+| `contextType` | string | Yes | Access context: TRAVELER, MANAGER, or PROXY |
 | `reportId` | string | Yes | Expense report ID |
 | `expenseId` | string | Yes | Expense ID |
 
@@ -1426,7 +1426,7 @@ Get a single user by UUID (GET /profile/identity/v4.1/Users/\{id\}).
 
 ### `sap_concur_issue_cash_advance`
 
-Issue a cash advance (POST /cashadvance/v4/cashadvances/\{cashadvanceId\}/issue).
+Issue a cash advance (POST /cashadvance/v4.1/cashadvances/\{cashAdvanceId\}/issue).
 
 #### Input
 
@@ -1651,7 +1651,7 @@ List expenses on a report (GET /expensereports/v4/users/\{userId\}/context/\{con
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `userId` | string | Yes | Concur user UUID |
-| `contextType` | string | Yes | Access context \(TRAVELER per the v4 spec\) |
+| `contextType` | string | Yes | Access context: TRAVELER, MANAGER, or PROXY |
 | `reportId` | string | Yes | Expense report ID |
 
 #### Output
@@ -2081,10 +2081,10 @@ List travel profile summaries (GET /api/travelprofile/v2.0/summary). LastModifie
 | `username` | string | No | Username \(only for password grant\) |
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
-| `lastModifiedDate` | string | Yes | Required ISO 8601 date \(YYYY-MM-DD or full timestamp\) |
+| `lastModifiedDate` | string | Yes | Required UTC datetime in YYYY-MM-DDThh:mm:ss format |
 | `page` | number | No | 1-based page number |
 | `itemsPerPage` | number | No | Items per page \(max 200\) |
-| `active` | string | No | Status filter \(sent as Status query param\): "Active" or "Inactive". Omit for all. |
+| `active` | string | No | Active filter \(sent as Active query param\): "1" \(active\) or "0" \(inactive\). Omit for all. |
 | `travelConfigs` | string | No | Comma-separated travel configuration ids |
 
 #### Output
@@ -2238,6 +2238,7 @@ List Concur user identities (GET /profile/identity/v4.1/Users).
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `count` | number | No | Max number of users to return \(default 100, max 1000\) |
 | `cursor` | string | No | SCIM v4.1 pagination cursor returned by a prior call |
+| `filter` | string | No | SCIM filter expression. Supported attributes: userName, employeeNumber, externalId. |
 | `attributes` | string | No | Comma-separated list of attributes to include in the response |
 | `excludedAttributes` | string | No | Comma-separated list of attributes to exclude from the response |
 
@@ -2318,7 +2319,7 @@ Recall a submitted expense report (PATCH /expensereports/v4/users/\{userId\}/con
 
 ### `sap_concur_remove_all_attendees`
 
-Remove all attendees from an expense (DELETE /expensereports/v4/users/\{userId\}/context/TRAVELER/reports/\{reportId\}/expenses/\{expenseId\}/attendees).
+Remove all attendees from an expense (DELETE /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/attendees).
 
 #### Input
 

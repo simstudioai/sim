@@ -11570,11 +11570,11 @@
       },
       {
         "name": "Associate Attendees",
-        "description": "Associate attendees with an expense (POST /expensereports/v4/users/{userId}/context/TRAVELER/reports/{reportId}/expenses/{expenseId}/attendees)."
+        "description": "Associate attendees with an expense (POST /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/attendees)."
       },
       {
         "name": "Remove All Attendees",
-        "description": "Remove all attendees from an expense (DELETE /expensereports/v4/users/{userId}/context/TRAVELER/reports/{reportId}/expenses/{expenseId}/attendees)."
+        "description": "Remove all attendees from an expense (DELETE /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/attendees)."
       },
       {
         "name": "List Report Comments",
@@ -11666,15 +11666,15 @@
       },
       {
         "name": "Create Cash Advance",
-        "description": "Create a cash advance (POST /cashadvance/v4/cashadvances)."
+        "description": "Create a cash advance (POST /cashadvance/v4.1/cashadvances)."
       },
       {
         "name": "Get Cash Advance",
-        "description": "Get a cash advance (GET /cashadvance/v4/cashadvances/{cashadvanceId})."
+        "description": "Get a cash advance (GET /cashadvance/v4.1/cashadvances/{cashAdvanceId})."
       },
       {
         "name": "Issue Cash Advance",
-        "description": "Issue a cash advance (POST /cashadvance/v4/cashadvances/{cashadvanceId}/issue)."
+        "description": "Issue a cash advance (POST /cashadvance/v4.1/cashadvances/{cashAdvanceId}/issue)."
       },
       {
         "name": "List Itineraries (Trips)",

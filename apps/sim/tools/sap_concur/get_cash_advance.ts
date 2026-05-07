@@ -10,7 +10,7 @@ import type { ToolConfig } from '@/tools/types'
 export const getCashAdvanceTool: ToolConfig<GetCashAdvanceParams, SapConcurProxyResponse> = {
   id: 'sap_concur_get_cash_advance',
   name: 'SAP Concur Get Cash Advance',
-  description: 'Get a cash advance (GET /cashadvance/v4/cashadvances/{cashadvanceId}).',
+  description: 'Get a cash advance (GET /cashadvance/v4.1/cashadvances/{cashAdvanceId}).',
   version: '1.0.0',
   params: {
     datacenter: {
@@ -70,7 +70,7 @@ export const getCashAdvanceTool: ToolConfig<GetCashAdvanceParams, SapConcurProxy
       const cashAdvanceId = trimRequired(params.cashAdvanceId, 'cashAdvanceId')
       return {
         ...baseProxyBody(params),
-        path: `/cashadvance/v4/cashadvances/${encodeURIComponent(cashAdvanceId)}`,
+        path: `/cashadvance/v4.1/cashadvances/${encodeURIComponent(cashAdvanceId)}`,
         method: 'GET',
       }
     },

@@ -68,6 +68,13 @@ export const listUsersTool: ToolConfig<ListUsersParams, SapConcurProxyResponse> 
       visibility: 'user-or-llm',
       description: 'SCIM v4.1 pagination cursor returned by a prior call',
     },
+    filter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'SCIM filter expression. Supported attributes: userName, employeeNumber, externalId.',
+    },
     attributes: {
       type: 'string',
       required: false,
@@ -92,6 +99,7 @@ export const listUsersTool: ToolConfig<ListUsersParams, SapConcurProxyResponse> 
       query: buildListQuery({
         count: params.count,
         cursor: params.cursor,
+        filter: params.filter,
         attributes: params.attributes,
         excludedAttributes: params.excludedAttributes,
       }),

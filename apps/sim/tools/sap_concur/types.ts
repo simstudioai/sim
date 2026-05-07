@@ -327,6 +327,7 @@ export interface GetItineraryParams extends SapConcurBaseParams {
 export interface ListUsersParams extends SapConcurBaseParams {
   count?: number
   cursor?: string
+  filter?: string
   attributes?: string
   excludedAttributes?: string
 }
