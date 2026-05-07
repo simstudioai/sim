@@ -332,8 +332,8 @@ export function useUndeployWorkflow() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workflowId }: UndeployWorkflowVariables): Promise<void> => {
-      await requestJson(undeployWorkflowContract, {
+    mutationFn: async ({ workflowId }: UndeployWorkflowVariables) => {
+      return requestJson(undeployWorkflowContract, {
         params: { id: workflowId },
       })
     },

@@ -69,6 +69,7 @@ vi.mock('drizzle-orm', () => ({
   ne: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'ne' })),
   lte: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'lte' })),
   lt: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'lt' })),
+  inArray: vi.fn((field: unknown, values: unknown[]) => ({ field, values, type: 'inArray' })),
   not: vi.fn((condition: unknown) => ({ type: 'not', condition })),
   isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
   or: vi.fn((...conditions: unknown[]) => ({ type: 'or', conditions })),
@@ -166,6 +167,8 @@ function createMockRequest(): NextRequest {
 describe('Scheduled Workflow Execution API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.returning.mockReset()
     resetDbChainMock()
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('test-request-id')
     workflowsUtilsMockFns.mockGetWorkflowById.mockResolvedValue({
@@ -180,6 +183,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should execute scheduled workflows with Trigger.dev disabled', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'schedule-1' }]).mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
@@ -193,6 +197,7 @@ describe('Scheduled Workflow Execution API Route', () => {
 
   it('should queue schedules to Trigger.dev when enabled', async () => {
     mockFeatureFlags.isTriggerDevEnabled = true
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'schedule-1' }]).mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
@@ -215,6 +220,9 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should execute multiple schedules in parallel', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'schedule-1' }, { id: 'schedule-2' }])
+      .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce(MULTIPLE_SCHEDULES).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
@@ -225,7 +233,8 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should execute mothership jobs inline', async () => {
-    dbChainMockFns.returning.mockReturnValueOnce([]).mockReturnValueOnce(SINGLE_JOB)
+    dbChainMockFns.limit.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'job-1' }])
+    dbChainMockFns.returning.mockReturnValueOnce(SINGLE_JOB)
 
     const response = await GET(createMockRequest())
 
@@ -241,6 +250,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should enqueue schedule with correlation metadata via job queue', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'schedule-1' }]).mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())

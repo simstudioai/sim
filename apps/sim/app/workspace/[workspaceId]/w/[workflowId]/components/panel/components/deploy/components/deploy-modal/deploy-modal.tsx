@@ -114,7 +114,7 @@ export function DeployModal({
   const [isChatFormValid, setIsChatFormValid] = useState(false)
   const [selectedStreamingOutputs, setSelectedStreamingOutputs] = useState<string[]>([])
 
-  const [showUndeployConfirm, setShowUndeployConfirm] = useState(false)
+  const [undeployTargetWorkflowId, setUndeployTargetWorkflowId] = useState<string | null>(null)
   // const [templateFormValid, setTemplateFormValid] = useState(false)
   // const [templateSubmitting, setTemplateSubmitting] = useState(false)
   const [mcpToolSubmitting, setMcpToolSubmitting] = useState(false)
@@ -218,6 +218,7 @@ export function DeployModal({
   useEffect(() => {
     deployActionIdRef.current += 1
     setIsFinalizingDeploy(false)
+    setUndeployTargetWorkflowId(null)
   }, [workflowId])
 
   const getApiKeyLabel = useCallback(
@@ -397,18 +398,29 @@ export function DeployModal({
   )
 
   const handleUndeploy = useCallback(async () => {
-    if (!workflowId) return
+    if (!undeployTargetWorkflowId) return
+    const targetWorkflowId = undeployTargetWorkflowId
+    if (workflowId !== targetWorkflowId || !isWorkflowStillActive(targetWorkflowId)) {
+      setUndeployTargetWorkflowId(null)
+      return
+    }
+
+    setDeployWarnings([])
 
     try {
-      await undeployMutation.mutateAsync({ workflowId })
-      if (!isWorkflowStillActive(workflowId)) return
-      setShowUndeployConfirm(false)
+      const result = await undeployMutation.mutateAsync({ workflowId: targetWorkflowId })
+      if (!isWorkflowStillActive(targetWorkflowId)) return
+      setUndeployTargetWorkflowId(null)
+      if (result.warnings && result.warnings.length > 0) {
+        setDeployWarnings(result.warnings)
+        return
+      }
       onOpenChange(false)
     } catch (error: unknown) {
-      if (!isWorkflowStillActive(workflowId)) return
+      if (!isWorkflowStillActive(targetWorkflowId)) return
       logger.error('Error undeploying workflow:', { error })
     }
-  }, [workflowId, undeployMutation, onOpenChange, isWorkflowStillActive])
+  }, [workflowId, undeployTargetWorkflowId, undeployMutation, onOpenChange, isWorkflowStillActive])
 
   const handleRedeploy = useCallback(async () => {
     if (!workflowId) return
@@ -720,7 +732,9 @@ export function DeployModal({
               isDeploymentSettling={isDeploymentSettling}
               onDeploy={onDeploy}
               onRedeploy={handleRedeploy}
-              onUndeploy={() => setShowUndeployConfirm(true)}
+              onUndeploy={() => {
+                if (workflowId) setUndeployTargetWorkflowId(workflowId)
+              }}
             />
           )}
           {activeTab === 'api' && (
@@ -949,7 +963,12 @@ export function DeployModal({
         </ModalContent>
       </Modal>
 
-      <Modal open={showUndeployConfirm} onOpenChange={setShowUndeployConfirm}>
+      <Modal
+        open={Boolean(undeployTargetWorkflowId)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setUndeployTargetWorkflowId(null)
+        }}
+      >
         <ModalContent size='sm'>
           <ModalHeader>Undeploy API</ModalHeader>
           <ModalBody>
@@ -963,7 +982,7 @@ export function DeployModal({
           <ModalFooter>
             <Button
               variant='default'
-              onClick={() => setShowUndeployConfirm(false)}
+              onClick={() => setUndeployTargetWorkflowId(null)}
               disabled={isUndeploying}
             >
               Cancel

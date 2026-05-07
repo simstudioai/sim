@@ -249,10 +249,16 @@ export const linearHandler: WebhookProviderHandler = {
 
   async deleteSubscription(ctx: DeleteSubscriptionContext): Promise<void> {
     const config = getProviderConfig(ctx.webhook)
+    const triggerId = config.triggerId as string | undefined
+    if (!triggerId || !triggerId.endsWith('_v2')) {
+      return
+    }
+
     const externalId = config.externalId as string | undefined
     const apiKey = config.apiKey as string | undefined
 
     if (!externalId || !apiKey) {
+      if (ctx.strict) throw new Error('Missing Linear webhook deletion credentials')
       return
     }
 
@@ -275,6 +281,7 @@ export const linearHandler: WebhookProviderHandler = {
         logger.warn(
           `[${ctx.requestId}] Linear API returned HTTP ${response.status} during webhook deletion for ${externalId}`
         )
+        if (ctx.strict) throw new Error(`Linear webhook deletion failed: ${response.status}`)
         return
       }
 
@@ -284,14 +291,48 @@ export const linearHandler: WebhookProviderHandler = {
           `[${ctx.requestId}] Deleted Linear webhook ${externalId} for webhook ${ctx.webhook.id}`
         )
       } else {
+        const errorMessages = getGraphQLErrorMessages(data)
+        if (errorMessages.some(isAlreadyAbsentWebhookMessage)) {
+          logger.info(
+            `[${ctx.requestId}] Linear webhook ${externalId} was already absent during deletion`
+          )
+          return
+        }
+
         logger.warn(
           `[${ctx.requestId}] Linear webhook deletion returned unsuccessful for ${externalId}`
         )
+        if (ctx.strict) throw new Error('Linear webhook deletion returned unsuccessful')
       }
     } catch (error) {
       logger.warn(`[${ctx.requestId}] Error deleting Linear webhook ${externalId} (non-fatal)`, {
         error: toError(error).message,
       })
+      if (ctx.strict) throw error
     }
   },
+}
+
+function getGraphQLErrorMessages(data: unknown): string[] {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return []
+  const errors = (data as Record<string, unknown>).errors
+  if (!Array.isArray(errors)) return []
+
+  return errors
+    .map((error) => {
+      if (!error || typeof error !== 'object' || Array.isArray(error)) return null
+      const message = (error as Record<string, unknown>).message
+      return typeof message === 'string' ? message : null
+    })
+    .filter((message): message is string => Boolean(message))
+}
+
+function isAlreadyAbsentWebhookMessage(message: string): boolean {
+  const normalized = message.toLowerCase()
+  return (
+    normalized.includes('not found') ||
+    normalized.includes('not_found') ||
+    normalized.includes('does not exist') ||
+    normalized.includes('already deleted')
+  )
 }

@@ -1,4 +1,6 @@
+import { db, webhook, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { and, eq, isNull, ne } from 'drizzle-orm'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -184,6 +186,15 @@ export const telegramHandler: WebhookProviderHandler = {
         logger.warn(
           `[${ctx.requestId}] Missing botToken for Telegram webhook deletion ${ctx.webhook.id}`
         )
+        if (ctx.strict) throw new Error('Missing Telegram botToken for webhook deletion')
+        return
+      }
+
+      if (await activeTelegramWebhookUsesBot(ctx.webhook, botToken)) {
+        logger.info(
+          `[${ctx.requestId}] Skipping Telegram webhook deletion because an active deployment uses the same bot token`,
+          { webhookId: ctx.webhook.id }
+        )
         return
       }
 
@@ -199,6 +210,7 @@ export const telegramHandler: WebhookProviderHandler = {
           responseBody.description ||
           `Failed to delete Telegram webhook. Status: ${telegramResponse.status}`
         logger.error(`[${ctx.requestId}] ${errorMessage}`, { response: responseBody })
+        if (ctx.strict) throw new Error(errorMessage)
       } else {
         logger.info(
           `[${ctx.requestId}] Successfully deleted Telegram webhook for webhook ${ctx.webhook.id}`
@@ -209,6 +221,39 @@ export const telegramHandler: WebhookProviderHandler = {
         `[${ctx.requestId}] Error deleting Telegram webhook for webhook ${ctx.webhook.id}`,
         error
       )
+      if (ctx.strict) throw error
     }
   },
+}
+
+async function activeTelegramWebhookUsesBot(
+  webhookRecord: Record<string, unknown>,
+  botToken: string
+): Promise<boolean> {
+  const workflowId = webhookRecord.workflowId
+  const webhookId = webhookRecord.id
+  if (typeof workflowId !== 'string' || typeof webhookId !== 'string') return false
+
+  const activeWebhooks = await db
+    .select({ id: webhook.id, providerConfig: webhook.providerConfig })
+    .from(webhook)
+    .innerJoin(
+      workflowDeploymentVersion,
+      eq(webhook.deploymentVersionId, workflowDeploymentVersion.id)
+    )
+    .where(
+      and(
+        eq(webhook.workflowId, workflowId),
+        ne(webhook.id, webhookId),
+        eq(webhook.provider, 'telegram'),
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.isActive, true),
+        isNull(webhook.archivedAt)
+      )
+    )
+
+  return activeWebhooks.some((activeWebhook) => {
+    const config = getProviderConfig({ providerConfig: activeWebhook.providerConfig })
+    return config.botToken === botToken
+  })
 }

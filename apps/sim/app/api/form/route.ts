@@ -12,8 +12,7 @@ import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { notifySocketDeploymentChanged } from '@/lib/workflows/orchestration'
-import { deployWorkflow } from '@/lib/workflows/persistence/utils'
+import { performFullDeploy } from '@/lib/workflows/orchestration'
 import {
   checkWorkflowAccessForFormCreation,
   DEFAULT_FORM_CUSTOMIZATIONS,
@@ -21,6 +20,7 @@ import {
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('FormAPI')
+export const maxDuration = 120
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
@@ -106,21 +106,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return createErrorResponse('Workflow not found or access denied', 404)
     }
 
-    const result = await deployWorkflow({
-      workflowId,
-      deployedBy: session.user.id,
-    })
-
-    if (!result.success) {
-      return createErrorResponse(result.error || 'Failed to deploy workflow', 500)
-    }
-
-    logger.info(
-      `${workflowRecord.isDeployed ? 'Redeployed' : 'Auto-deployed'} workflow ${workflowId} for form (v${result.version})`
-    )
-
-    await notifySocketDeploymentChanged(workflowId)
-
     let encryptedPassword = null
     if (authType === 'password' && password) {
       const { encrypted } = await encryptSecret(password)
@@ -160,6 +145,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       createdAt: new Date(),
       updatedAt: new Date(),
     })
+
+    const result = await performFullDeploy({
+      workflowId,
+      userId: session.user.id,
+      request,
+    })
+
+    if (!result.success) {
+      await db.delete(form).where(eq(form.id, id))
+      const status =
+        result.errorCode === 'validation' ? 400 : result.errorCode === 'not_found' ? 404 : 500
+      return createErrorResponse(result.error || 'Failed to deploy workflow', status)
+    }
+
+    logger.info(
+      `${workflowRecord.isDeployed ? 'Redeployed' : 'Auto-deployed'} workflow ${workflowId} for form (v${result.version})`
+    )
 
     const baseDomain = getEmailDomain()
     const protocol = isDev ? 'http' : 'https'

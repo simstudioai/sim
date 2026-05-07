@@ -31,6 +31,7 @@ const {
     update: vi.fn(() => ({
       set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
     })),
+    execute: vi.fn().mockResolvedValue(undefined),
   },
 }))
 

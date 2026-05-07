@@ -2,30 +2,25 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getBaseUrl, getSocketServerUrl } from '@/lib/core/utils/urls'
-import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
+import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { validateTriggerWebhookConfigForDeploy } from '@/lib/webhooks/deploy'
 import {
-  cleanupWebhooksForWorkflow,
-  restorePreviousVersionWebhooks,
-  saveTriggerWebhooksForDeploy,
-} from '@/lib/webhooks/deploy'
+  enqueueWorkflowDeploymentSideEffects,
+  enqueueWorkflowUndeploySideEffects,
+  processWorkflowDeploymentOutboxEvent,
+} from '@/lib/workflows/deployment-outbox'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 import {
   activateWorkflowVersion,
-  activateWorkflowVersionById,
   deployWorkflow,
   saveWorkflowToNormalizedTables,
   undeployWorkflow,
 } from '@/lib/workflows/persistence/utils'
-import {
-  cleanupDeploymentVersion,
-  createSchedulesForDeploy,
-  validateWorkflowSchedules,
-} from '@/lib/workflows/schedules'
+import { validateWorkflowSchedules } from '@/lib/workflows/schedules'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployOrchestration')
@@ -52,25 +47,6 @@ export async function notifySocketDeploymentChanged(workflowId: string): Promise
   } catch (error) {
     logger.error('Error sending workflow deployed event to socket server', error)
   }
-}
-
-async function isDeploymentVersionActive(
-  workflowId: string,
-  deploymentVersionId: string
-): Promise<boolean> {
-  const [row] = await db
-    .select({ id: workflowDeploymentVersion.id })
-    .from(workflowDeploymentVersion)
-    .where(
-      and(
-        eq(workflowDeploymentVersion.workflowId, workflowId),
-        eq(workflowDeploymentVersion.id, deploymentVersionId),
-        eq(workflowDeploymentVersion.isActive, true)
-      )
-    )
-    .limit(1)
-
-  return Boolean(row)
 }
 
 export interface PerformFullDeployParams {
@@ -101,10 +77,10 @@ export interface PerformFullDeployResult {
 }
 
 /**
- * Performs a full workflow deployment: creates a deployment version, syncs
- * trigger webhooks, creates schedules, cleans up the previous version, and
- * syncs MCP tools. Both the deploy API route and the copilot deploy tools
- * must use this single function so behaviour stays consistent.
+ * Performs a full workflow deployment: creates a deployment version, queues
+ * external side effects transactionally, processes that outbox event after
+ * commit, and notifies clients. Both the deploy API route and the copilot
+ * deploy tools must use this single function so behaviour stays consistent.
  */
 export async function performFullDeploy(
   params: PerformFullDeployParams
@@ -112,7 +88,6 @@ export async function performFullDeploy(
   const { workflowId, userId, workflowName } = params
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
-  const request = params.request ?? new NextRequest(new URL('/api/webhooks', getBaseUrl()))
 
   const [workflowRecord] = await db
     .select()
@@ -125,16 +100,38 @@ export async function performFullDeploy(
   }
 
   const workflowData = workflowRecord as Record<string, unknown>
+  let outboxEventId: string | undefined
 
   const deployResult = await deployWorkflow({
     workflowId,
     deployedBy: actorId,
     workflowName: workflowName || workflowRecord.name || undefined,
-    validateWorkflowState: (workflowState) => {
+    validateWorkflowState: async (workflowState) => {
       const scheduleValidation = validateWorkflowSchedules(workflowState.blocks)
-      return scheduleValidation.isValid
-        ? null
-        : `Invalid schedule configuration: ${scheduleValidation.error}`
+      if (!scheduleValidation.isValid) {
+        return {
+          success: false,
+          error: `Invalid schedule configuration: ${scheduleValidation.error}`,
+          errorCode: 'validation',
+        }
+      }
+      const triggerValidation = await validateTriggerWebhookConfigForDeploy(workflowState.blocks)
+      if (!triggerValidation.success) {
+        return {
+          success: false,
+          error: triggerValidation.error?.message || 'Invalid trigger configuration',
+          errorCode: 'validation',
+        }
+      }
+      return { success: true }
+    },
+    onDeployTransaction: async (tx, result) => {
+      outboxEventId = await enqueueWorkflowDeploymentSideEffects(tx, {
+        workflowId,
+        deploymentVersionId: result.deploymentVersionId,
+        userId,
+        requestId,
+      })
     },
   })
 
@@ -143,7 +140,7 @@ export async function performFullDeploy(
     return {
       success: false,
       error,
-      errorCode: error.startsWith('Invalid schedule configuration') ? 'validation' : undefined,
+      errorCode: deployResult.errorCode,
     }
   }
 
@@ -155,106 +152,6 @@ export async function performFullDeploy(
   if (!deploymentVersionId || !deploymentSnapshot) {
     await undeployWorkflow({ workflowId })
     return { success: false, error: 'Failed to resolve deployment version' }
-  }
-
-  const rollbackDeployment = async () => {
-    if (previousVersionId) {
-      await restorePreviousVersionWebhooks({
-        request,
-        workflow: workflowData,
-        userId,
-        previousVersionId,
-        requestId,
-      })
-      const reactivateResult = await activateWorkflowVersionById({
-        workflowId,
-        deploymentVersionId: previousVersionId,
-      })
-      if (reactivateResult.success) return
-    }
-    await undeployWorkflow({ workflowId })
-  }
-
-  const triggerSaveResult = await saveTriggerWebhooksForDeploy({
-    request,
-    workflowId,
-    workflow: workflowData,
-    userId,
-    blocks: deploymentSnapshot.blocks,
-    requestId,
-    deploymentVersionId,
-  })
-
-  if (!triggerSaveResult.success) {
-    await cleanupDeploymentVersion({
-      workflowId,
-      workflow: workflowData,
-      requestId,
-      deploymentVersionId,
-    })
-    await rollbackDeployment()
-    return {
-      success: false,
-      error: triggerSaveResult.error?.message || 'Failed to save trigger configuration',
-    }
-  }
-
-  const scheduleResult = await createSchedulesForDeploy(
-    workflowId,
-    deploymentSnapshot.blocks,
-    db,
-    deploymentVersionId
-  )
-  if (!scheduleResult.success) {
-    logger.error(`[${requestId}] Failed to create schedule: ${scheduleResult.error}`)
-    await cleanupDeploymentVersion({
-      workflowId,
-      workflow: workflowData,
-      requestId,
-      deploymentVersionId,
-    })
-    await rollbackDeployment()
-    return { success: false, error: scheduleResult.error || 'Failed to create schedule' }
-  }
-
-  if (
-    previousVersionId &&
-    previousVersionId !== deploymentVersionId &&
-    !(await isDeploymentVersionActive(workflowId, previousVersionId))
-  ) {
-    try {
-      await cleanupDeploymentVersion({
-        workflowId,
-        workflow: workflowData,
-        requestId,
-        deploymentVersionId: previousVersionId,
-      })
-    } catch (cleanupError) {
-      logger.error(`[${requestId}] Failed to clean up previous version`, cleanupError)
-    }
-  }
-
-  await syncMcpToolsForWorkflow({ workflowId, requestId, context: 'deploy' })
-
-  // Drop stale block refs from any table workflow column targeting this workflow,
-  // so columns that referenced just-removed blocks collapse cleanly instead of
-  // showing perpetual "Waiting" indicators on future row runs.
-  if (workflowData.workspaceId) {
-    try {
-      const { pruneStaleWorkflowGroupOutputs } = await import('@/lib/table/service')
-      const validBlockIds = new Set(Object.keys(deploymentSnapshot.blocks))
-      await pruneStaleWorkflowGroupOutputs({
-        workflowId,
-        workspaceId: workflowData.workspaceId as string,
-        validBlockIds,
-        requestId,
-      })
-    } catch (pruneError) {
-      logger.warn(
-        `[${requestId}] Failed to prune stale workflow column outputs for ${workflowId}`,
-        pruneError
-      )
-    }
   }
 
   recordAudit({
@@ -269,11 +166,11 @@ export async function performFullDeploy(
       deploymentVersionId,
       version: deployResult.version,
       previousVersionId: previousVersionId || undefined,
-      triggerWarnings: triggerSaveResult.warnings?.length ? triggerSaveResult.warnings : undefined,
     },
-    request,
+    request: params.request,
   })
 
+  const sideEffectWarning = await processDeploymentSideEffectsNow(outboxEventId, requestId)
   await notifySocketDeploymentChanged(workflowId)
 
   return {
@@ -281,7 +178,7 @@ export async function performFullDeploy(
     deployedAt,
     version: deployResult.version,
     deploymentVersionId,
-    warnings: triggerSaveResult.warnings,
+    warnings: sideEffectWarning ? [sideEffectWarning] : undefined,
   }
 }
 
@@ -296,13 +193,14 @@ export interface PerformFullUndeployParams {
 export interface PerformFullUndeployResult {
   success: boolean
   error?: string
+  warnings?: string[]
 }
 
 /**
- * Performs a full workflow undeploy: marks the workflow as undeployed, cleans up
- * webhook records and external subscriptions, removes MCP tools, emits a
- * telemetry event, and records an audit log entry. Both the deploy API DELETE
- * handler and the copilot undeploy tools must use this single function.
+ * Performs a full workflow undeploy: marks the workflow as undeployed, queues
+ * external cleanup transactionally, emits a telemetry event, and records an
+ * audit log entry. Both the deploy API DELETE handler and the copilot undeploy
+ * tools must use this single function.
  */
 export async function performFullUndeploy(
   params: PerformFullUndeployParams
@@ -322,14 +220,22 @@ export async function performFullUndeploy(
   }
 
   const workflowData = workflowRecord as Record<string, unknown>
+  let outboxEventId: string | undefined
 
-  const result = await undeployWorkflow({ workflowId })
+  const result = await undeployWorkflow({
+    workflowId,
+    onUndeployTransaction: async (tx, undeploy) => {
+      outboxEventId = await enqueueWorkflowUndeploySideEffects(tx, {
+        workflowId,
+        deploymentVersionIds: undeploy.deploymentVersionIds,
+        userId,
+        requestId,
+      })
+    },
+  })
   if (!result.success) {
     return { success: false, error: result.error || 'Failed to undeploy workflow' }
   }
-
-  await cleanupWebhooksForWorkflow(workflowId, workflowData, requestId)
-  await removeMcpToolsForWorkflow(workflowId, requestId)
 
   logger.info(`[${requestId}] Workflow undeployed successfully: ${workflowId}`)
 
@@ -351,8 +257,9 @@ export async function performFullUndeploy(
   })
 
   await notifySocketDeploymentChanged(workflowId)
+  const sideEffectWarning = await processDeploymentSideEffectsNow(outboxEventId, requestId)
 
-  return { success: true }
+  return { success: true, warnings: sideEffectWarning ? [sideEffectWarning] : undefined }
 }
 
 export interface PerformActivateVersionParams {
@@ -394,11 +301,10 @@ export interface PerformRevertToVersionResult {
 }
 
 /**
- * Activates an existing deployment version: validates schedules, syncs trigger
- * webhooks (with forced subscription recreation), creates schedules, activates
- * the version, cleans up the previous version, syncs MCP tools, and records
- * an audit entry. Both the deployment version PATCH handler and the admin
- * activate route must use this function.
+ * Activates an existing deployment version: validates schedules, activates the
+ * version, queues external side effects transactionally, processes that outbox
+ * event after commit, and records an audit entry. Both the deployment version
+ * PATCH handler and the admin activate route must use this function.
  */
 export async function performActivateVersion(
   params: PerformActivateVersionParams
@@ -406,12 +312,12 @@ export async function performActivateVersion(
   const { workflowId, version, userId, workflow } = params
   const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
-  const request = params.request ?? new NextRequest(new URL('/api/webhooks', getBaseUrl()))
 
   const [versionRow] = await db
     .select({
       id: workflowDeploymentVersion.id,
       state: workflowDeploymentVersion.state,
+      isActive: workflowDeploymentVersion.isActive,
     })
     .from(workflowDeploymentVersion)
     .where(
@@ -424,6 +330,16 @@ export async function performActivateVersion(
 
   if (!versionRow?.state) {
     return { success: false, error: 'Deployment version not found', errorCode: 'not_found' }
+  }
+
+  if (versionRow.isActive) {
+    const [workflowDeployment] = await db
+      .select({ deployedAt: workflowTable.deployedAt })
+      .from(workflowTable)
+      .where(eq(workflowTable.id, workflowId))
+      .limit(1)
+
+    return { success: true, deployedAt: workflowDeployment?.deployedAt ?? new Date(), warnings: [] }
   }
 
   const deployedState = versionRow.state as { blocks?: Record<string, unknown> }
@@ -441,76 +357,34 @@ export async function performActivateVersion(
     }
   }
 
-  const triggerSaveResult = await saveTriggerWebhooksForDeploy({
-    request,
-    workflowId,
-    workflow,
-    userId,
-    blocks: blocks as Record<string, BlockState>,
-    requestId,
-    deploymentVersionId: versionRow.id,
-    forceRecreateSubscriptions: true,
-  })
-
-  if (!triggerSaveResult.success) {
+  const triggerValidation = await validateTriggerWebhookConfigForDeploy(
+    blocks as Record<string, BlockState>
+  )
+  if (!triggerValidation.success) {
     return {
       success: false,
-      error: triggerSaveResult.error?.message || 'Failed to sync trigger configuration',
+      error: triggerValidation.error?.message || 'Invalid trigger configuration',
+      errorCode: 'validation',
     }
   }
 
-  const scheduleResult = await createSchedulesForDeploy(
+  let outboxEventId: string | undefined
+  const result = await activateWorkflowVersion({
     workflowId,
-    blocks as Record<string, BlockState>,
-    db,
-    versionRow.id
-  )
-
-  if (!scheduleResult.success) {
-    await cleanupDeploymentVersion({
-      workflowId,
-      workflow,
-      requestId,
-      deploymentVersionId: versionRow.id,
-    })
-    return { success: false, error: scheduleResult.error || 'Failed to sync schedules' }
-  }
-
-  const result = await activateWorkflowVersion({ workflowId, version })
-  const previousVersionId = result.previousVersionId
+    version,
+    onActivateTransaction: async (tx, activation) => {
+      outboxEventId = await enqueueWorkflowDeploymentSideEffects(tx, {
+        workflowId,
+        deploymentVersionId: activation.deploymentVersionId,
+        userId,
+        requestId,
+        forceRecreateSubscriptions: true,
+      })
+    },
+  })
   if (!result.success) {
-    await cleanupDeploymentVersion({
-      workflowId,
-      workflow,
-      requestId,
-      deploymentVersionId: versionRow.id,
-    })
     return { success: false, error: result.error || 'Failed to activate version' }
   }
-
-  if (
-    previousVersionId &&
-    previousVersionId !== versionRow.id &&
-    !(await isDeploymentVersionActive(workflowId, previousVersionId))
-  ) {
-    try {
-      await cleanupDeploymentVersion({
-        workflowId,
-        workflow,
-        requestId,
-        deploymentVersionId: previousVersionId,
-      })
-    } catch (cleanupError) {
-      logger.error(`[${requestId}] Failed to clean up previous version`, cleanupError)
-    }
-  }
-
-  await syncMcpToolsForWorkflow({
-    workflowId,
-    requestId,
-    state: versionRow.state as { blocks?: Record<string, unknown> },
-    context: 'activate',
-  })
 
   recordAudit({
     workspaceId: (workflow.workspaceId as string) || null,
@@ -523,16 +397,50 @@ export async function performActivateVersion(
     metadata: {
       version,
       deploymentVersionId: versionRow.id,
-      previousVersionId: previousVersionId || undefined,
+      previousVersionId: result.previousVersionId || undefined,
     },
   })
 
+  const sideEffectWarning = await processDeploymentSideEffectsNow(outboxEventId, requestId)
   await notifySocketDeploymentChanged(workflowId)
 
   return {
     success: true,
     deployedAt: result.deployedAt,
-    warnings: triggerSaveResult.warnings,
+    warnings: sideEffectWarning ? [sideEffectWarning] : undefined,
+  }
+}
+
+async function processDeploymentSideEffectsNow(
+  outboxEventId: string | undefined,
+  requestId: string
+): Promise<string | undefined> {
+  if (!outboxEventId) {
+    return 'Deployment state changed, but side-effect sync was not queued. Redeploy if triggers or schedules look stale.'
+  }
+
+  try {
+    const result = await processWorkflowDeploymentOutboxEvent(outboxEventId)
+    if (result === 'completed') return undefined
+    if (result === 'dead_letter' || result === 'not_found') {
+      logger.error(`[${requestId}] Deployment side-effect sync cannot be retried automatically`, {
+        outboxEventId,
+        result,
+      })
+      return 'Deployment saved, but trigger, schedule, and MCP sync could not be queued. Redeploy if triggers or schedules look stale.'
+    }
+
+    logger.warn(`[${requestId}] Deployment side-effect sync queued for retry`, {
+      outboxEventId,
+      result,
+    })
+    return 'Deployment saved. Trigger, schedule, and MCP sync is queued and may finish shortly.'
+  } catch (error) {
+    logger.warn(`[${requestId}] Deployment side-effect sync queued for retry`, {
+      outboxEventId,
+      error,
+    })
+    return 'Deployment saved. Trigger, schedule, and MCP sync is queued and may finish shortly.'
   }
 }
 

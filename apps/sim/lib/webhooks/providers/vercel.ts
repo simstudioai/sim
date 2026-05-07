@@ -219,6 +219,7 @@ export const vercelHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Missing apiKey or externalId for Vercel webhook deletion ${webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Missing Vercel webhook deletion credentials')
         return
       }
 
@@ -237,12 +238,14 @@ export const vercelHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Failed to delete Vercel webhook (non-fatal): ${response.status}`
         )
+        if (ctx.strict) throw new Error(`Failed to delete Vercel webhook: ${response.status}`)
       } else {
         await response.body?.cancel()
         logger.info(`[${requestId}] Successfully deleted Vercel webhook ${externalId}`)
       }
     } catch (error) {
       logger.warn(`[${requestId}] Error deleting Vercel webhook (non-fatal)`, error)
+      if (ctx.strict) throw error
     }
   },
 

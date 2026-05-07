@@ -75,7 +75,7 @@ const { state, mockDb } = vi.hoisted(() => {
     chain.where = vi.fn(self)
     chain.orderBy = vi.fn(self)
     chain.limit = vi.fn(self)
-    chain.for = vi.fn(async () => state.claimedRows)
+    chain.for = vi.fn(async () => state.claimedRows.splice(0, 1))
     return chain
   }
 
