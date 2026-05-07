@@ -56,7 +56,8 @@ Search Apollo
 | `organization_names` | array | No | Company names to search within \(legacy filter\) |
 | `organization_locations` | array | No | Headquarters locations of the people's current employer \(e.g., \['texas', 'tokyo', 'spain'\]\) |
 | `q_organization_domains_list` | array | No | Employer domain names \(e.g., \["apollo.io", "microsoft.com"\]\) — up to 1,000, no www. or @ |
-| `contact_email_status` | array | No | Email statuses to filter by: verified, unverified, likely to engage, unavailable |
+| `organization_num_employees_ranges` | array | No | Employee count ranges for the person\'s current employer. Each entry is "min,max" \(e.g., \["1,10", "250,500", "10000,20000"\]\) |
+| `contact_email_status` | array | No | Email statuses to filter by: "verified", "unverified", "likely to engage", "unavailable" |
 | `q_keywords` | string | No | Keywords to search for |
 | `page` | number | No | Page number for pagination, default 1 \(e.g., 1, 2, 3\) |
 | `per_page` | number | No | Results per page, default 25, max 100 \(e.g., 25, 50, 100\) |
@@ -178,7 +179,7 @@ Enrich data for up to 10 organizations at once using Apollo
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key |
-| `organizations` | array | Yes | Array of organizations to enrich \(max 10\) |
+| `organizations` | array | Yes | Array of organizations to enrich \(max 10\). Each item requires `name` and may include `domain` \(e.g., \[\{"name": "Example Corp", "domain": "example.com"\}\]\) |
 
 #### Output
 
@@ -293,7 +294,7 @@ Create up to 100 contacts at once in your Apollo database. Supports deduplicatio
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
-| `contacts` | array | Yes | Array of contacts to create \(max 100\). Each contact may include first_name, last_name, email, title, organization_name, owner_id, contact_stage_id, linkedin_url, phone_numbers, and contact_emails |
+| `contacts` | array | Yes | Array of contacts to create \(max 100\). Each contact may include first_name, last_name, email, title, organization_name, account_id, owner_id, contact_stage_id, linkedin_url, phone \(single string\) or phone_numbers \(array of \{raw_number, position\}\), contact_emails, typed_custom_fields, and CRM IDs \(salesforce_contact_id, hubspot_id, team_id\) for cross-system matching |
 | `append_label_names` | array | No | Label names to add to all contacts in this request \(e.g., \["Hot Lead"\]\) |
 | `run_dedupe` | boolean | No | Enable deduplication to prevent creating duplicate contacts. When true, existing contacts are returned without modification |
 
@@ -419,9 +420,11 @@ Create up to 100 accounts at once in your Apollo database. Set run_dedupe=true t
 | --------- | ---- | ----------- |
 | `created_accounts` | json | Array of newly created accounts |
 | `existing_accounts` | json | Array of existing accounts returned by Apollo \(when duplicates are detected\) |
-| `total_submitted` | number | Total number of accounts in the response \(created + existing\) |
+| `failed_accounts` | json | Array of accounts that failed to be created, with reasons for failure |
+| `total_submitted` | number | Total number of accounts in the response \(created + existing + failed\) |
 | `created` | number | Number of accounts successfully created |
 | `existing` | number | Number of existing accounts found |
+| `failed` | number | Number of accounts that failed to be created |
 
 ### `apollo_account_bulk_update`
 
