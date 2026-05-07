@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { mediaUserFileSchema } from '@/lib/api/contracts/tools/media/shared'
+import { userFileSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const comparisonOperatorSchema = z.enum(['=', '>', '<', '>=', '<=', '!='])
@@ -225,7 +225,7 @@ export const workflowLogSummarySchema = z.object({
 
 export const workflowLogDetailSchema = workflowLogSummarySchema.extend({
   executionData: executionDataDetailSchema,
-  files: z.array(mediaUserFileSchema).nullable(),
+  files: z.array(userFileSchema).nullable(),
 })
 
 export type WorkflowLogSummary = z.output<typeof workflowLogSummarySchema>

@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { mediaUserFileSchema, toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
+import { userFileSchema } from '@/lib/api/contracts/primitives'
+import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const videoProviders = ['runway', 'veo', 'luma', 'minimax', 'falai'] as const
@@ -19,7 +20,7 @@ export const videoToolBodySchema = z
     duration: z.coerce.number().optional(),
     aspectRatio: z.string().optional(),
     resolution: z.string().optional(),
-    visualReference: mediaUserFileSchema.optional(),
+    visualReference: userFileSchema.optional(),
     cameraControl: z.unknown().optional(),
     endpoint: z.string().optional(),
     promptOptimizer: z.boolean().optional(),

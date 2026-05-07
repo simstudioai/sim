@@ -59,6 +59,26 @@ export const workflowIdSchema = z.string().min(1, 'Workflow ID is required')
  * Use `.optional()` / `.default(...)` at the call site, not here, so each
  * query field controls its own omission/default semantics.
  */
+/**
+ * Canonical boundary schema for `UserFile` (`apps/sim/executor/types.ts`) — the
+ * shape produced by the executor and persisted in `workflowExecutionLogs.files`,
+ * forwarded through tool inputs, and rendered in the logs UI. `.passthrough()`
+ * tolerates legacy/extra fields on stored rows (e.g. `uploadedAt`, `expiresAt`,
+ * `storageProvider`) without rejecting the whole payload.
+ */
+export const userFileSchema = z
+  .object({
+    id: z.string().optional().default(''),
+    name: z.string().min(1),
+    url: z.string().optional().default(''),
+    size: z.coerce.number().nonnegative(),
+    type: z.string().optional().default('application/octet-stream'),
+    key: z.string().min(1),
+    context: z.string().optional(),
+    base64: z.string().optional(),
+  })
+  .passthrough()
+
 export const booleanQueryFlagSchema = z.preprocess(
   (value) => {
     if (typeof value === 'boolean') return value
