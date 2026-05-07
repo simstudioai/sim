@@ -30,10 +30,11 @@ export const apolloOrganizationEnrichTool: ToolConfig<
 
   request: {
     url: (params: ApolloOrganizationEnrichParams) => {
-      if (!params.domain) {
+      const domain = params.domain?.trim()
+      if (!domain) {
         throw new Error('domain is required for organization enrichment')
       }
-      return `https://api.apollo.io/api/v1/organizations/enrich?domain=${encodeURIComponent(params.domain.trim())}`
+      return `https://api.apollo.io/api/v1/organizations/enrich?domain=${encodeURIComponent(domain)}`
     },
     method: 'GET',
     headers: (params: ApolloOrganizationEnrichParams) => ({

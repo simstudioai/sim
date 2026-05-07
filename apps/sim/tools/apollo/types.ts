@@ -145,12 +145,16 @@ export interface ApolloPeopleSearchResponse extends ToolResponse {
 export interface ApolloPeopleEnrichParams extends ApolloBaseParams {
   first_name?: string
   last_name?: string
+  name?: string
+  id?: string
+  hashed_email?: string
   organization_name?: string
   email?: string
   domain?: string
   linkedin_url?: string
   reveal_personal_emails?: boolean
   reveal_phone_number?: boolean
+  webhook_url?: string
 }
 
 export interface ApolloPeopleEnrichResponse extends ToolResponse {
@@ -175,6 +179,7 @@ export interface ApolloPeopleBulkEnrichParams extends ApolloBaseParams {
   }>
   reveal_personal_emails?: boolean
   reveal_phone_number?: boolean
+  webhook_url?: string
 }
 
 export interface ApolloPeopleBulkEnrichResponse extends ToolResponse {
@@ -425,6 +430,8 @@ export interface ApolloAccountBulkCreateParams extends ApolloBaseParams {
     phone?: string
     owner_id?: string
   }>
+  append_label_names?: string[]
+  run_dedupe?: boolean
 }
 
 export interface ApolloAccountBulkCreateResponse extends ToolResponse {
@@ -443,6 +450,7 @@ export interface ApolloAccountBulkUpdateParams extends ApolloBaseParams {
   name?: string
   owner_id?: string
   account_attributes?: Array<{ id: string; [key: string]: unknown }> | Record<string, unknown>
+  async?: boolean
 }
 
 export interface ApolloAccountBulkUpdateResponse extends ToolResponse {

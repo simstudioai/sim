@@ -136,8 +136,16 @@ export const apolloSequenceAddContactsTool: ToolConfig<
 
     const data = await response.json()
 
-    const added = Array.isArray(data?.contacts?.added) ? data.contacts.added : []
-    const skipped = Array.isArray(data?.contacts?.skipped) ? data.contacts.skipped : []
+    // Apollo's response shape for this endpoint varies: some payloads return a flat
+    // `contacts: [...]` array of successfully added contacts, others wrap under
+    // `contacts: { added, skipped }`. Handle both defensively.
+    const contactsField = data?.contacts
+    const added = Array.isArray(contactsField)
+      ? contactsField
+      : Array.isArray(contactsField?.added)
+        ? contactsField.added
+        : []
+    const skipped = Array.isArray(contactsField?.skipped) ? contactsField.skipped : []
     const rawSkippedIds = data?.skipped_contact_ids
     const skippedIds =
       Array.isArray(rawSkippedIds) || (rawSkippedIds && typeof rawSkippedIds === 'object')

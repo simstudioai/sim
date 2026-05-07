@@ -862,7 +862,7 @@
       },
       {
         "name": "Bulk Create Accounts",
-        "description": "Create up to 100 accounts at once in your Apollo database. Note: Apollo does not apply deduplication - duplicate accounts may be created if entries share similar names or domains. Master key required."
+        "description": "Create up to 100 accounts at once in your Apollo database. Set run_dedupe=true to deduplicate by domain, organization_id, and name. Master key required."
       },
       {
         "name": "Bulk Update Accounts",

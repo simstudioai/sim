@@ -29,6 +29,24 @@ export const apolloPeopleEnrichTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Last name of the person',
     },
+    name: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Full name of the person (alternative to first_name/last_name)',
+    },
+    id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Apollo ID for the person',
+    },
+    hashed_email: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'MD5 or SHA-256 hashed email',
+    },
     email: {
       type: 'string',
       required: false,
@@ -63,7 +81,14 @@ export const apolloPeopleEnrichTool: ToolConfig<
       type: 'boolean',
       required: false,
       visibility: 'user-only',
-      description: 'Reveal phone numbers (uses credits)',
+      description: 'Reveal phone numbers (uses credits, requires webhook_url)',
+    },
+    webhook_url: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Webhook URL for async phone number delivery (required when reveal_phone_number is true)',
     },
   },
 
@@ -75,6 +100,9 @@ export const apolloPeopleEnrichTool: ToolConfig<
       }
       if (params.reveal_phone_number !== undefined) {
         qs.set('reveal_phone_number', String(params.reveal_phone_number))
+      }
+      if (params.webhook_url) {
+        qs.set('webhook_url', params.webhook_url)
       }
       const query = qs.toString()
       return `https://api.apollo.io/api/v1/people/match${query ? `?${query}` : ''}`
@@ -90,7 +118,10 @@ export const apolloPeopleEnrichTool: ToolConfig<
 
       if (params.first_name) body.first_name = params.first_name
       if (params.last_name) body.last_name = params.last_name
+      if (params.name) body.name = params.name
       if (params.email) body.email = params.email
+      if (params.hashed_email) body.hashed_email = params.hashed_email
+      if (params.id) body.id = params.id
       if (params.organization_name) body.organization_name = params.organization_name
       if (params.domain) body.domain = params.domain
       if (params.linkedin_url) body.linkedin_url = params.linkedin_url

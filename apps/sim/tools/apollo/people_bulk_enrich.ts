@@ -36,7 +36,14 @@ export const apolloPeopleBulkEnrichTool: ToolConfig<
       type: 'boolean',
       required: false,
       visibility: 'user-only',
-      description: 'Reveal phone numbers (uses credits)',
+      description: 'Reveal phone numbers (uses credits, requires webhook_url)',
+    },
+    webhook_url: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Webhook URL for async phone number delivery (required when reveal_phone_number is true)',
     },
   },
 
@@ -48,6 +55,9 @@ export const apolloPeopleBulkEnrichTool: ToolConfig<
       }
       if (params.reveal_phone_number !== undefined) {
         qs.set('reveal_phone_number', String(params.reveal_phone_number))
+      }
+      if (params.webhook_url) {
+        qs.set('webhook_url', params.webhook_url)
       }
       const query = qs.toString()
       return `https://api.apollo.io/api/v1/people/bulk_match${query ? `?${query}` : ''}`

@@ -28,9 +28,9 @@ export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTask
     },
     priority: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Task priority: "high", "medium", or "low" (defaults to "medium")',
+      description: 'Task priority: "high", "medium", or "low"',
     },
     due_at: {
       type: 'string',
@@ -42,8 +42,7 @@ export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTask
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'Task type: "call", "outreach_manual_email", "linkedin_step_message", or "action_item"',
+      description: 'Task type: "call", "outreach_manual_email", or "action_item"',
     },
     status: {
       type: 'string',
@@ -71,11 +70,11 @@ export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTask
       const body: Record<string, unknown> = {
         user_id: params.user_id,
         contact_ids: params.contact_ids,
+        priority: params.priority || 'medium',
         due_at: params.due_at,
         type: params.type,
         status: params.status,
       }
-      if (params.priority) body.priority = params.priority
       if (params.note) body.note = params.note
       return body
     },
@@ -87,9 +86,13 @@ export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTask
       throw new Error(`Apollo API error: ${response.status} - ${errorText}`)
     }
 
-    const data = await response.json()
+    const data = await response.json().catch(() => null)
     const tasks = Array.isArray(data?.tasks) ? data.tasks : []
-    const created = data?.success === true || tasks.length > 0
+    const created =
+      data === true ||
+      data?.success === true ||
+      tasks.length > 0 ||
+      (response.status >= 200 && response.status < 300)
 
     return {
       success: true,

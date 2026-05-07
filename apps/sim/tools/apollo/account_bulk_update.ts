@@ -47,6 +47,13 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
       description:
         'Array of account objects with individual updates (each must include id). Example: [{"id": "acc1", "name": "Acme", "owner_id": "u1", "account_stage_id": "s1", "typed_custom_fields": {"field_id": "value"}}]',
     },
+    async: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'When true, processes the update asynchronously. Only supported when using account_ids; returns 422 if used with account_attributes.',
+    },
   },
 
   request: {
@@ -87,6 +94,7 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
           'Apollo account bulk update requires account_ids (with name/owner_id) or account_attributes (with embedded ids).'
         )
       }
+      if (params.async !== undefined) body.async = params.async
       return body
     },
   },

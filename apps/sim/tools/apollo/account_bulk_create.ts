@@ -11,7 +11,7 @@ export const apolloAccountBulkCreateTool: ToolConfig<
   id: 'apollo_account_bulk_create',
   name: 'Apollo Bulk Create Accounts',
   description:
-    'Create up to 100 accounts at once in your Apollo database. Note: Apollo does not apply deduplication - duplicate accounts may be created if entries share similar names or domains. Master key required.',
+    'Create up to 100 accounts at once in your Apollo database. Set run_dedupe=true to deduplicate by domain, organization_id, and name. Master key required.',
   version: '1.0.0',
 
   params: {
@@ -26,7 +26,20 @@ export const apolloAccountBulkCreateTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Array of accounts to create (max 100). Each account should include name (required), and optionally website_url, phone, owner_id',
+        'Array of accounts to create (max 100). Each account should include name (required), and optionally domain, phone, owner_id',
+    },
+    append_label_names: {
+      type: 'array',
+      required: false,
+      visibility: 'user-only',
+      description: 'Array of label names to add to ALL accounts in this request',
+    },
+    run_dedupe: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'When true, performs aggressive deduplication by domain, organization_id, and name (defaults to false)',
     },
   },
 
@@ -38,9 +51,16 @@ export const apolloAccountBulkCreateTool: ToolConfig<
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
     }),
-    body: (params: ApolloAccountBulkCreateParams) => ({
-      accounts: params.accounts.slice(0, 100),
-    }),
+    body: (params: ApolloAccountBulkCreateParams) => {
+      const body: Record<string, unknown> = {
+        accounts: params.accounts.slice(0, 100),
+      }
+      if (params.append_label_names?.length) {
+        body.append_label_names = params.append_label_names
+      }
+      if (params.run_dedupe !== undefined) body.run_dedupe = params.run_dedupe
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {
