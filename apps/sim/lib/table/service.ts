@@ -2979,7 +2979,21 @@ export async function updateWorkflowGroup(
     outputs: newOutputs,
     ...(data.autoRun !== undefined ? { autoRun: data.autoRun } : {}),
   }
-  const nextGroups = groups.map((g, i) => (i === groupIndex ? updatedGroup : g))
+  // Removed outputs may be referenced as deps by sibling groups; strip those
+  // refs so we don't leave dangling-column deps that fail schema validation.
+  const nextGroups = groups
+    .map((g, i) => (i === groupIndex ? updatedGroup : g))
+    .map((g) => {
+      if (g.id === updatedGroup.id) return g
+      const filtered = g.dependencies?.columns?.filter((d) => !removedColumnNames.has(d))
+      if (!filtered || filtered.length === (g.dependencies?.columns?.length ?? 0)) return g
+      return {
+        ...g,
+        ...(filtered.length > 0
+          ? { dependencies: { columns: filtered } }
+          : { dependencies: undefined }),
+      }
+    })
   const updatedSchema: TableSchema = {
     ...schema,
     columns: nextColumns,
