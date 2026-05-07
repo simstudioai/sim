@@ -68,12 +68,19 @@ export const apolloPeopleSearchTool: ToolConfig<
       description:
         'Employer domain names (e.g., ["apollo.io", "microsoft.com"]) — up to 1,000, no www. or @',
     },
+    organization_num_employees_ranges: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Employee count ranges for the person\'s current employer. Each entry is "min,max" (e.g., ["1,10", "250,500", "10000,20000"])',
+    },
     contact_email_status: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Email statuses to filter by: verified, unverified, likely to engage, unavailable',
+        'Email statuses to filter by: "verified", "unverified", "likely to engage", "unavailable"',
     },
     q_keywords: {
       type: 'string',
@@ -132,6 +139,12 @@ export const apolloPeopleSearchTool: ToolConfig<
       }
       if (params.q_organization_domains_list && params.q_organization_domains_list.length > 0) {
         body.q_organization_domains_list = params.q_organization_domains_list
+      }
+      if (
+        params.organization_num_employees_ranges &&
+        params.organization_num_employees_ranges.length > 0
+      ) {
+        body.organization_num_employees_ranges = params.organization_num_employees_ranges
       }
       if (params.contact_email_status && params.contact_email_status.length > 0) {
         body.contact_email_status = params.contact_email_status

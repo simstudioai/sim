@@ -83,6 +83,48 @@ export const apolloSequenceAddContactsTool: ToolConfig<
       visibility: 'user-only',
       description: 'Add contacts who finished other campaigns',
     },
+    sequence_same_company_in_same_campaign: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Add contacts even if others from the same company are in the sequence',
+    },
+    contacts_without_ownership_permission: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Add contacts without ownership permission',
+    },
+    add_if_in_queue: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Add contacts even if they are in the queue',
+    },
+    contact_verification_skipped: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Skip contact verification when adding',
+    },
+    user_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'ID of the user performing the action',
+    },
+    status: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Initial status for added contacts: "active" or "paused"',
+    },
+    auto_unpause_at: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'ISO 8601 datetime to automatically unpause contacts',
+    },
   },
 
   request: {
@@ -124,6 +166,19 @@ export const apolloSequenceAddContactsTool: ToolConfig<
       if (params.sequence_finished_in_other_campaigns !== undefined) {
         body.sequence_finished_in_other_campaigns = params.sequence_finished_in_other_campaigns
       }
+      if (params.sequence_same_company_in_same_campaign !== undefined) {
+        body.sequence_same_company_in_same_campaign = params.sequence_same_company_in_same_campaign
+      }
+      if (params.contacts_without_ownership_permission !== undefined) {
+        body.contacts_without_ownership_permission = params.contacts_without_ownership_permission
+      }
+      if (params.add_if_in_queue !== undefined) body.add_if_in_queue = params.add_if_in_queue
+      if (params.contact_verification_skipped !== undefined) {
+        body.contact_verification_skipped = params.contact_verification_skipped
+      }
+      if (params.user_id) body.user_id = params.user_id
+      if (params.status) body.status = params.status
+      if (params.auto_unpause_at) body.auto_unpause_at = params.auto_unpause_at
       return body
     },
   },

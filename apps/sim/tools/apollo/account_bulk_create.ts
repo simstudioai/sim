@@ -26,7 +26,7 @@ export const apolloAccountBulkCreateTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Array of accounts to create (max 100). Each account should include name (required), and optionally domain, phone, owner_id',
+        'Array of accounts to create (max 100). Each account should include a name, and may optionally include domain, phone, phone_status_cd, raw_address, owner_id, linkedin_url, facebook_url, twitter_url, salesforce_id, and hubspot_id.',
     },
     append_label_names: {
       type: 'array',
@@ -76,15 +76,18 @@ export const apolloAccountBulkCreateTool: ToolConfig<
         ? data.accounts
         : []
     const existingAccounts = Array.isArray(data.existing_accounts) ? data.existing_accounts : []
+    const failedAccounts = Array.isArray(data.failed_accounts) ? data.failed_accounts : []
 
     return {
       success: true,
       output: {
         created_accounts: createdAccounts,
         existing_accounts: existingAccounts,
-        total_submitted: createdAccounts.length + existingAccounts.length,
+        failed_accounts: failedAccounts,
+        total_submitted: createdAccounts.length + existingAccounts.length + failedAccounts.length,
         created: createdAccounts.length,
         existing: existingAccounts.length,
+        failed: failedAccounts.length,
       },
     }
   },
@@ -98,9 +101,13 @@ export const apolloAccountBulkCreateTool: ToolConfig<
       type: 'json',
       description: 'Array of existing accounts returned by Apollo (when duplicates are detected)',
     },
+    failed_accounts: {
+      type: 'json',
+      description: 'Array of accounts that failed to be created, with reasons for failure',
+    },
     total_submitted: {
       type: 'number',
-      description: 'Total number of accounts in the response (created + existing)',
+      description: 'Total number of accounts in the response (created + existing + failed)',
     },
     created: {
       type: 'number',
@@ -109,6 +116,10 @@ export const apolloAccountBulkCreateTool: ToolConfig<
     existing: {
       type: 'number',
       description: 'Number of existing accounts found',
+    },
+    failed: {
+      type: 'number',
+      description: 'Number of accounts that failed to be created',
     },
   },
 }

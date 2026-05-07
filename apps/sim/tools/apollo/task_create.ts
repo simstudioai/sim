@@ -28,9 +28,9 @@ export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTask
     },
     priority: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Task priority: "high", "medium", or "low"',
+      description: 'Task priority: "high", "medium", or "low" (defaults to "medium")',
     },
     due_at: {
       type: 'string',
@@ -42,13 +42,14 @@ export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTask
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Task type: "call", "outreach_manual_email", or "action_item"',
+      description:
+        'Task type: "call", "outreach_manual_email", "linkedin_step_connect", "linkedin_step_message", "linkedin_step_view_profile", "linkedin_step_interact_post", or "action_item"',
     },
     status: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Task status: "scheduled", "completed", or "archived"',
+      description: 'Task status: "scheduled", "completed", or "skipped"',
     },
     note: {
       type: 'string',

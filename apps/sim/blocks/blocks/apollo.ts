@@ -103,7 +103,7 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
       id: 'contact_email_status',
       title: 'Contact Email Status',
       type: 'code',
-      placeholder: '["verified", "unverified", "likely_to_engage"]',
+      placeholder: '["verified", "unverified", "likely to engage"]',
       condition: { field: 'operation', value: 'people_search' },
       mode: 'advanced',
     },
@@ -213,9 +213,10 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
     },
     {
       id: 'organizations',
-      title: 'Organizations (JSON Array of domain objects)',
+      title: 'Organizations (JSON Array)',
       type: 'code',
-      placeholder: '[{"domain": "companya.com"}, {"domain": "companyb.com"}]',
+      placeholder:
+        '[{"name": "Company A", "domain": "companya.com"}, {"name": "Company B", "domain": "companyb.com"}]',
       condition: { field: 'operation', value: 'organization_bulk_enrich' },
       required: true,
     },
@@ -258,7 +259,7 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
       title: 'Employee Count Ranges',
       type: 'code',
       placeholder: '["1,10", "11,50", "51,200"]',
-      condition: { field: 'operation', value: 'organization_search' },
+      condition: { field: 'operation', value: ['organization_search', 'people_search'] },
       mode: 'advanced',
     },
     {
@@ -709,6 +710,61 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       condition: { field: 'operation', value: 'sequence_add' },
       mode: 'advanced',
     },
+    {
+      id: 'sequence_same_company_in_same_campaign',
+      title: 'Allow Same Company in Same Campaign',
+      type: 'switch',
+      condition: { field: 'operation', value: 'sequence_add' },
+      mode: 'advanced',
+    },
+    {
+      id: 'contacts_without_ownership_permission',
+      title: 'Add Contacts Without Ownership Permission',
+      type: 'switch',
+      condition: { field: 'operation', value: 'sequence_add' },
+      mode: 'advanced',
+    },
+    {
+      id: 'add_if_in_queue',
+      title: 'Add If In Queue',
+      type: 'switch',
+      condition: { field: 'operation', value: 'sequence_add' },
+      mode: 'advanced',
+    },
+    {
+      id: 'contact_verification_skipped',
+      title: 'Skip Contact Verification',
+      type: 'switch',
+      condition: { field: 'operation', value: 'sequence_add' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sequence_user_id',
+      title: 'Acting User ID',
+      type: 'short-input',
+      placeholder: 'Apollo user ID',
+      condition: { field: 'operation', value: 'sequence_add' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sequence_status',
+      title: 'Initial Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Active', id: 'active' },
+        { label: 'Paused', id: 'paused' },
+      ],
+      condition: { field: 'operation', value: 'sequence_add' },
+      mode: 'advanced',
+    },
+    {
+      id: 'auto_unpause_at',
+      title: 'Auto Unpause At',
+      type: 'short-input',
+      placeholder: 'ISO 8601 (e.g., 2024-12-31T23:59:59Z)',
+      condition: { field: 'operation', value: 'sequence_add' },
+      mode: 'advanced',
+    },
 
     // Task Create Fields
     {
@@ -730,7 +786,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       ],
       value: () => 'medium',
       condition: { field: 'operation', value: 'task_create' },
-      required: true,
     },
     {
       id: 'type',
@@ -739,6 +794,10 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       options: [
         { label: 'Call', id: 'call' },
         { label: 'Outreach Manual Email', id: 'outreach_manual_email' },
+        { label: 'LinkedIn — Connect', id: 'linkedin_step_connect' },
+        { label: 'LinkedIn — Message', id: 'linkedin_step_message' },
+        { label: 'LinkedIn — View Profile', id: 'linkedin_step_view_profile' },
+        { label: 'LinkedIn — Interact with Post', id: 'linkedin_step_interact_post' },
         { label: 'Action Item', id: 'action_item' },
       ],
       value: () => 'action_item',
@@ -752,7 +811,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       options: [
         { label: 'Scheduled', id: 'scheduled' },
         { label: 'Completed', id: 'completed' },
-        { label: 'Archived', id: 'archived' },
+        { label: 'Skipped', id: 'skipped' },
       ],
       value: () => 'scheduled',
       condition: { field: 'operation', value: 'task_create' },
@@ -1056,6 +1115,14 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
             parsedParams.label_names = parsedParams.sequence_add_label_names
           }
           parsedParams.sequence_add_label_names = undefined
+          if (rest.sequence_user_id !== undefined && rest.sequence_user_id !== '') {
+            parsedParams.user_id = rest.sequence_user_id
+          }
+          parsedParams.sequence_user_id = undefined
+          if (rest.sequence_status !== undefined && rest.sequence_status !== '') {
+            parsedParams.status = rest.sequence_status
+          }
+          parsedParams.sequence_status = undefined
         }
 
         if (params.operation === 'task_create') {

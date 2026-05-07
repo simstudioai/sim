@@ -409,7 +409,7 @@ Create up to 100 accounts at once in your Apollo database. Set run_dedupe=true t
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
-| `accounts` | array | Yes | Array of accounts to create \(max 100\). Each account should include name \(required\), and optionally domain, phone, owner_id |
+| `accounts` | array | Yes | Array of accounts to create \(max 100\). Each account should include a name, and may optionally include domain, phone, phone_status_cd, raw_address, owner_id, linkedin_url, facebook_url, twitter_url, salesforce_id, and hubspot_id. |
 | `append_label_names` | array | No | Array of label names to add to ALL accounts in this request |
 | `run_dedupe` | boolean | No | When true, performs aggressive deduplication by domain, organization_id, and name \(defaults to false\) |
 
@@ -574,6 +574,13 @@ Add contacts to an Apollo sequence
 | `sequence_job_change` | boolean | No | Add contacts who recently changed jobs |
 | `sequence_active_in_other_campaigns` | boolean | No | Add contacts active in other campaigns |
 | `sequence_finished_in_other_campaigns` | boolean | No | Add contacts who finished other campaigns |
+| `sequence_same_company_in_same_campaign` | boolean | No | Add contacts even if others from the same company are in the sequence |
+| `contacts_without_ownership_permission` | boolean | No | Add contacts without ownership permission |
+| `add_if_in_queue` | boolean | No | Add contacts even if they are in the queue |
+| `contact_verification_skipped` | boolean | No | Skip contact verification when adding |
+| `user_id` | string | No | ID of the user performing the action |
+| `status` | string | No | Initial status for added contacts: "active" or "paused" |
+| `auto_unpause_at` | string | No | ISO 8601 datetime to automatically unpause contacts |
 
 #### Output
 
@@ -598,10 +605,10 @@ Create one or more tasks in Apollo (one task per contact_id, master key required
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
 | `user_id` | string | Yes | ID of the Apollo user the task is assigned to |
 | `contact_ids` | array | Yes | Array of contact IDs. One task is created per contact. |
-| `priority` | string | Yes | Task priority: "high", "medium", or "low" |
+| `priority` | string | No | Task priority: "high", "medium", or "low" \(defaults to "medium"\) |
 | `due_at` | string | Yes | Due date/time in ISO 8601 format \(e.g., "2024-12-31T23:59:59Z"\) |
-| `type` | string | Yes | Task type: "call", "outreach_manual_email", or "action_item" |
-| `status` | string | Yes | Task status: "scheduled", "completed", or "archived" |
+| `type` | string | Yes | Task type: "call", "outreach_manual_email", "linkedin_step_connect", "linkedin_step_message", "linkedin_step_view_profile", "linkedin_step_interact_post", or "action_item" |
+| `status` | string | Yes | Task status: "scheduled", "completed", or "skipped" |
 | `note` | string | No | Free-form note providing context for the task |
 
 #### Output

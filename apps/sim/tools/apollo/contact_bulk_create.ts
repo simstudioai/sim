@@ -26,7 +26,7 @@ export const apolloContactBulkCreateTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Array of contacts to create (max 100). Each contact may include first_name, last_name, email, title, organization_name, owner_id, contact_stage_id, linkedin_url, phone_numbers, and contact_emails',
+        'Array of contacts to create (max 100). Each contact may include first_name, last_name, email, title, organization_name, account_id, owner_id, contact_stage_id, linkedin_url, phone (single string) or phone_numbers (array of {raw_number, position}), contact_emails, typed_custom_fields, and CRM IDs (salesforce_contact_id, hubspot_id, team_id) for cross-system matching',
     },
     append_label_names: {
       type: 'array',

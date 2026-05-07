@@ -24,23 +24,21 @@ export const apolloOrganizationBulkEnrichTool: ToolConfig<
       type: 'array',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Array of organizations to enrich (max 10)',
+      description:
+        'Array of organizations to enrich (max 10). Each item requires `name` and may include `domain` (e.g., [{"name": "Example Corp", "domain": "example.com"}])',
     },
   },
 
   request: {
-    url: (params: ApolloOrganizationBulkEnrichParams) => {
-      const domains = params.organizations
-        .slice(0, 10)
-        .map((o) => o.domain)
-        .filter((d): d is string => Boolean(d))
-      const qs = domains.map((d) => `domains[]=${encodeURIComponent(d)}`).join('&')
-      return `https://api.apollo.io/api/v1/organizations/bulk_enrich${qs ? `?${qs}` : ''}`
-    },
+    url: 'https://api.apollo.io/api/v1/organizations/bulk_enrich',
     method: 'POST',
     headers: (params: ApolloOrganizationBulkEnrichParams) => ({
+      'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
+    }),
+    body: (params: ApolloOrganizationBulkEnrichParams) => ({
+      organizations: params.organizations.slice(0, 10),
     }),
   },
 

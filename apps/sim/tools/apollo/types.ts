@@ -126,6 +126,7 @@ export interface ApolloPeopleSearchParams extends ApolloBaseParams {
   organization_names?: string[]
   organization_locations?: string[]
   q_organization_domains_list?: string[]
+  organization_num_employees_ranges?: string[]
   contact_email_status?: string[]
   q_keywords?: string
   page?: number
@@ -228,7 +229,7 @@ export interface ApolloOrganizationEnrichResponse extends ToolResponse {
 
 // Bulk Organization Enrichment Types
 export interface ApolloOrganizationBulkEnrichParams extends ApolloBaseParams {
-  organizations: Array<{ domain: string }>
+  organizations: Array<{ name: string; domain?: string }>
 }
 
 export interface ApolloOrganizationBulkEnrichResponse extends ToolResponse {
@@ -311,8 +312,14 @@ export interface ApolloContactBulkCreateParams extends ApolloBaseParams {
     owner_id?: string
     contact_stage_id?: string
     linkedin_url?: string
+    phone?: string
     phone_numbers?: Array<{ raw_number: string; position?: number }>
     contact_emails?: Array<{ email: string; position?: number }>
+    salesforce_contact_id?: string
+    hubspot_id?: string
+    team_id?: string
+    typed_custom_fields?: Record<string, unknown>
+    [key: string]: unknown
   }>
   run_dedupe?: boolean
   append_label_names?: string[]
@@ -425,10 +432,18 @@ export interface ApolloAccountSearchResponse extends ToolResponse {
 // Account Bulk Create Types
 export interface ApolloAccountBulkCreateParams extends ApolloBaseParams {
   accounts: Array<{
-    name: string
+    name?: string
     domain?: string
     phone?: string
+    phone_status_cd?: string
+    raw_address?: string
     owner_id?: string
+    linkedin_url?: string
+    facebook_url?: string
+    twitter_url?: string
+    salesforce_id?: string
+    hubspot_id?: string
+    [key: string]: unknown
   }>
   append_label_names?: string[]
   run_dedupe?: boolean
@@ -438,9 +453,11 @@ export interface ApolloAccountBulkCreateResponse extends ToolResponse {
   output: {
     created_accounts: ApolloAccount[]
     existing_accounts: ApolloAccount[]
+    failed_accounts: Array<Record<string, unknown>>
     total_submitted: number
     created: number
     existing: number
+    failed: number
   }
 }
 
@@ -472,6 +489,13 @@ export interface ApolloSequenceAddContactsParams extends ApolloBaseParams {
   sequence_job_change?: boolean
   sequence_active_in_other_campaigns?: boolean
   sequence_finished_in_other_campaigns?: boolean
+  sequence_same_company_in_same_campaign?: boolean
+  contacts_without_ownership_permission?: boolean
+  add_if_in_queue?: boolean
+  contact_verification_skipped?: boolean
+  user_id?: string
+  status?: string
+  auto_unpause_at?: string
 }
 
 export interface ApolloSequenceAddedContact {

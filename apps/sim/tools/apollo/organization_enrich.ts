@@ -29,18 +29,20 @@ export const apolloOrganizationEnrichTool: ToolConfig<
   },
 
   request: {
-    url: (params: ApolloOrganizationEnrichParams) => {
+    url: 'https://api.apollo.io/api/v1/organizations/enrich',
+    method: 'POST',
+    headers: (params: ApolloOrganizationEnrichParams) => ({
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
+      'X-Api-Key': params.apiKey,
+    }),
+    body: (params: ApolloOrganizationEnrichParams) => {
       const domain = params.domain?.trim()
       if (!domain) {
         throw new Error('domain is required for organization enrichment')
       }
-      return `https://api.apollo.io/api/v1/organizations/enrich?domain=${encodeURIComponent(domain)}`
+      return { domain }
     },
-    method: 'GET',
-    headers: (params: ApolloOrganizationEnrichParams) => ({
-      'Cache-Control': 'no-cache',
-      'X-Api-Key': params.apiKey,
-    }),
   },
 
   transformResponse: async (response: Response) => {
