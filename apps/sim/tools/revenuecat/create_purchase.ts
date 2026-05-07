@@ -1,5 +1,5 @@
 import type { CreatePurchaseParams, CreatePurchaseResponse } from '@/tools/revenuecat/types'
-import { SUBSCRIBER_OUTPUT } from '@/tools/revenuecat/types'
+import { SUBSCRIBER_OUTPUT, throwIfRevenueCatError } from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const revenuecatCreatePurchaseTool: ToolConfig<
@@ -53,14 +53,28 @@ export const revenuecatCreatePurchaseTool: ToolConfig<
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whether this is a restore of a previous purchase',
+      description: 'Whether this is a restore of a previous purchase (deprecated by RevenueCat)',
     },
-    platform: {
+    presentedOfferingIdentifier: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Platform of the purchase (ios, android, amazon, macos, stripe). Required for Stripe and Paddle purchases.',
+        'Identifier of the offering that was presented to the user when they made this purchase. Used by RevenueCat for offering-level analytics.',
+    },
+    paymentMode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Payment mode for the purchase. One of: pay_as_you_go, pay_up_front, free_trial. Only applies to introductory pricing periods.',
+    },
+    platform: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'Platform of the purchase. One of: ios, android, amazon, macos, uikitformac, stripe, roku, paddle. Sent as the X-Platform header (required by RevenueCat).',
     },
   },
 
@@ -86,11 +100,16 @@ export const revenuecatCreatePurchaseTool: ToolConfig<
       if (params.price !== undefined) body.price = params.price
       if (params.currency) body.currency = params.currency
       if (params.isRestore !== undefined) body.is_restore = params.isRestore
+      if (params.presentedOfferingIdentifier) {
+        body.presented_offering_identifier = params.presentedOfferingIdentifier
+      }
+      if (params.paymentMode) body.payment_mode = params.paymentMode
       return body
     },
   },
 
   transformResponse: async (response) => {
+    await throwIfRevenueCatError(response)
     const data = await response.json()
     const subscriber = data.subscriber ?? {}
 

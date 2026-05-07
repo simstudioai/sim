@@ -2,7 +2,7 @@ import type {
   DeferGoogleSubscriptionParams,
   DeferGoogleSubscriptionResponse,
 } from '@/tools/revenuecat/types'
-import { SUBSCRIBER_OUTPUT } from '@/tools/revenuecat/types'
+import { SUBSCRIBER_OUTPUT, throwIfRevenueCatError } from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const revenuecatDeferGoogleSubscriptionTool: ToolConfig<
@@ -37,26 +37,38 @@ export const revenuecatDeferGoogleSubscriptionTool: ToolConfig<
     },
     extendByDays: {
       type: 'number',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Number of days to extend the subscription by (1-365)',
+      description:
+        'Number of days to extend the subscription by (1-365). Provide either extendByDays or expiryTimeMs.',
+    },
+    expiryTimeMs: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Absolute new expiry time in milliseconds since Unix epoch. Use instead of extendByDays to set an exact expiry.',
     },
   },
 
   request: {
     url: (params) =>
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId)}/subscriptions/${encodeURIComponent(params.productId)}/defer`,
+      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId.trim())}/subscriptions/${encodeURIComponent(params.productId.trim())}/defer`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      extend_by_days: params.extendByDays,
-    }),
+    body: (params) => {
+      const body: Record<string, unknown> = {}
+      if (params.extendByDays !== undefined) body.extend_by_days = params.extendByDays
+      if (params.expiryTimeMs !== undefined) body.expiry_time_ms = params.expiryTimeMs
+      return body
+    },
   },
 
   transformResponse: async (response) => {
+    await throwIfRevenueCatError(response)
     const data = await response.json()
     const subscriber = data.subscriber ?? {}
 

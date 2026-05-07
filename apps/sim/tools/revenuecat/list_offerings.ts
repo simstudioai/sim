@@ -2,6 +2,7 @@ import type { ListOfferingsParams, ListOfferingsResponse } from '@/tools/revenue
 import {
   OFFERING_OUTPUT_PROPERTIES,
   OFFERINGS_METADATA_OUTPUT_PROPERTIES,
+  throwIfRevenueCatError,
 } from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -34,7 +35,7 @@ export const revenuecatListOfferingsTool: ToolConfig<ListOfferingsParams, ListOf
 
   request: {
     url: (params) =>
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId)}/offerings`,
+      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId.trim())}/offerings`,
     method: 'GET',
     headers: (params) => {
       const headers: Record<string, string> = {
@@ -49,6 +50,7 @@ export const revenuecatListOfferingsTool: ToolConfig<ListOfferingsParams, ListOf
   },
 
   transformResponse: async (response) => {
+    await throwIfRevenueCatError(response)
     const data = await response.json()
     const offerings = data.offerings ?? []
     const currentOfferingId = data.current_offering_id ?? null

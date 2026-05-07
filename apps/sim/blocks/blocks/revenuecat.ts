@@ -72,6 +72,7 @@ export const RevenueCatBlock: BlockConfig<RevenueCatResponse> = {
         { label: 'Daily', id: 'daily' },
         { label: '3 Days', id: 'three_day' },
         { label: 'Weekly', id: 'weekly' },
+        { label: '2 Weeks', id: 'two_week' },
         { label: 'Monthly', id: 'monthly' },
         { label: '2 Months', id: 'two_month' },
         { label: '3 Months', id: 'three_month' },
@@ -83,6 +84,28 @@ export const RevenueCatBlock: BlockConfig<RevenueCatResponse> = {
       condition: {
         field: 'operation',
         value: 'grant_entitlement',
+      },
+    },
+    {
+      id: 'endTimeMs',
+      title: 'End Time (ms)',
+      type: 'short-input',
+      placeholder: 'Optional absolute end time in ms since epoch',
+      condition: {
+        field: 'operation',
+        value: 'grant_entitlement',
+      },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix epoch timestamp in milliseconds based on the user's description.
+The timestamp should represent the absolute end time for the entitlement.
+Examples:
+- "in 7 days" -> current time plus 604800000 milliseconds
+- "next month" -> current time plus 2592000000 milliseconds
+- "end of 2026" -> 1798761600000
+
+Return ONLY the numeric timestamp, no text.`,
       },
     },
     {
@@ -129,21 +152,25 @@ Return ONLY the numeric timestamp, no text.`,
       placeholder: 'Product identifier',
       condition: {
         field: 'operation',
-        value: [
-          'create_purchase',
-          'defer_google_subscription',
-          'refund_google_subscription',
-          'revoke_google_subscription',
-        ],
+        value: ['create_purchase', 'defer_google_subscription', 'revoke_google_subscription'],
       },
       required: {
         field: 'operation',
-        value: [
-          'create_purchase',
-          'defer_google_subscription',
-          'refund_google_subscription',
-          'revoke_google_subscription',
-        ],
+        value: ['create_purchase', 'defer_google_subscription', 'revoke_google_subscription'],
+      },
+    },
+    {
+      id: 'storeTransactionId',
+      title: 'Store Transaction ID',
+      type: 'short-input',
+      placeholder: 'e.g., GPA.3309-9122-6177-45730',
+      condition: {
+        field: 'operation',
+        value: 'refund_google_subscription',
+      },
+      required: {
+        field: 'operation',
+        value: 'refund_google_subscription',
       },
     },
     {
@@ -162,6 +189,32 @@ Return ONLY the numeric timestamp, no text.`,
       title: 'Currency',
       type: 'short-input',
       placeholder: 'e.g., USD',
+      condition: {
+        field: 'operation',
+        value: 'create_purchase',
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'presentedOfferingIdentifier',
+      title: 'Presented Offering ID',
+      type: 'short-input',
+      placeholder: 'Offering identifier shown to the user',
+      condition: {
+        field: 'operation',
+        value: 'create_purchase',
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'paymentMode',
+      title: 'Payment Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'Pay As You Go', id: 'pay_as_you_go' },
+        { label: 'Pay Up Front', id: 'pay_up_front' },
+        { label: 'Free Trial', id: 'free_trial' },
+      ],
       condition: {
         field: 'operation',
         value: 'create_purchase',
@@ -192,13 +245,19 @@ Return ONLY the numeric timestamp, no text.`,
         { label: 'Android', id: 'android' },
         { label: 'Amazon', id: 'amazon' },
         { label: 'macOS', id: 'macos' },
+        { label: 'UIKit for Mac', id: 'uikitformac' },
         { label: 'Stripe', id: 'stripe' },
+        { label: 'Roku', id: 'roku' },
+        { label: 'Paddle', id: 'paddle' },
       ],
       condition: {
         field: 'operation',
         value: 'create_purchase',
       },
-      mode: 'advanced',
+      required: {
+        field: 'operation',
+        value: 'create_purchase',
+      },
     },
     {
       id: 'attributes',
@@ -238,9 +297,23 @@ Return ONLY valid JSON.`,
         field: 'operation',
         value: 'defer_google_subscription',
       },
-      required: {
+    },
+    {
+      id: 'expiryTimeMs',
+      title: 'Expiry Time (ms)',
+      type: 'short-input',
+      placeholder: 'Absolute new expiry time in ms since epoch',
+      condition: {
         field: 'operation',
         value: 'defer_google_subscription',
+      },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix epoch timestamp in milliseconds based on the user's description.
+The timestamp should represent the new absolute expiry time of the subscription.
+
+Return ONLY the numeric timestamp, no text.`,
       },
     },
     {
@@ -251,13 +324,15 @@ Return ONLY valid JSON.`,
         { label: 'iOS', id: 'ios' },
         { label: 'Android', id: 'android' },
         { label: 'Amazon', id: 'amazon' },
-        { label: 'macOS', id: 'macos' },
         { label: 'Stripe', id: 'stripe' },
+        { label: 'Roku', id: 'roku' },
+        { label: 'Paddle', id: 'paddle' },
       ],
       condition: {
         field: 'operation',
         value: 'list_offerings',
       },
+      mode: 'advanced',
     },
   ],
   tools: {
@@ -274,23 +349,32 @@ Return ONLY valid JSON.`,
       'revenuecat_revoke_google_subscription',
     ],
     config: {
-      tool: (params) => {
+      tool: (params) => `revenuecat_${params.operation}`,
+      params: (params) => {
+        const next: Record<string, unknown> = { ...params }
         if (params.purchasePlatform && params.operation === 'create_purchase') {
-          params.platform = params.purchasePlatform
+          next.platform = params.purchasePlatform
         }
-        if (params.isRestore !== undefined) {
-          params.isRestore = params.isRestore === 'true'
+        next.purchasePlatform = undefined
+        if (params.isRestore !== undefined && params.isRestore !== '') {
+          next.isRestore = params.isRestore === true || params.isRestore === 'true'
         }
         if (params.price !== undefined && params.price !== '') {
-          params.price = Number(params.price)
+          next.price = Number(params.price)
         }
         if (params.extendByDays !== undefined && params.extendByDays !== '') {
-          params.extendByDays = Number(params.extendByDays)
+          next.extendByDays = Number(params.extendByDays)
         }
         if (params.startTimeMs !== undefined && params.startTimeMs !== '') {
-          params.startTimeMs = Number(params.startTimeMs)
+          next.startTimeMs = Number(params.startTimeMs)
         }
-        return `revenuecat_${params.operation}`
+        if (params.endTimeMs !== undefined && params.endTimeMs !== '') {
+          next.endTimeMs = Number(params.endTimeMs)
+        }
+        if (params.expiryTimeMs !== undefined && params.expiryTimeMs !== '') {
+          next.expiryTimeMs = Number(params.expiryTimeMs)
+        }
+        return next
       },
     },
   },
@@ -303,25 +387,43 @@ Return ONLY valid JSON.`,
     startTimeMs: { type: 'number', description: 'Custom start time in ms since epoch' },
     fetchToken: { type: 'string', description: 'Store receipt or purchase token' },
     productId: { type: 'string', description: 'Product identifier' },
+    storeTransactionId: { type: 'string', description: 'Store transaction identifier' },
     price: { type: 'number', description: 'Product price' },
     currency: { type: 'string', description: 'ISO 4217 currency code' },
     isRestore: { type: 'boolean', description: 'Whether this is a restore purchase' },
-    purchasePlatform: { type: 'string', description: 'Platform for the purchase' },
+    presentedOfferingIdentifier: {
+      type: 'string',
+      description: 'Identifier of the offering presented to the user',
+    },
+    paymentMode: {
+      type: 'string',
+      description: 'Payment mode (pay_as_you_go, pay_up_front, free_trial)',
+    },
     attributes: { type: 'string', description: 'JSON object of subscriber attributes' },
     extendByDays: { type: 'number', description: 'Number of days to extend (1-365)' },
-    platform: { type: 'string', description: 'Platform filter for offerings' },
+    expiryTimeMs: { type: 'number', description: 'Absolute new expiry time in ms since epoch' },
+    endTimeMs: {
+      type: 'number',
+      description: 'Absolute end time for entitlement in ms since epoch',
+    },
+    platform: { type: 'string', description: 'Platform (X-Platform header)' },
   },
   outputs: {
     subscriber: {
       type: 'json',
-      description: 'Subscriber object with subscriptions and entitlements',
+      description:
+        'Subscriber object (first_seen, original_app_user_id, original_purchase_date, management_url, subscriptions, entitlements, non_subscriptions)',
     },
     offerings: {
       type: 'json',
-      description: 'Array of offerings with packages',
+      description: 'Array of offerings, each with identifier, description, and packages[]',
     },
     current_offering_id: { type: 'string', description: 'Current offering identifier' },
-    metadata: { type: 'json', description: 'Operation metadata' },
+    metadata: {
+      type: 'json',
+      description:
+        'Operation metadata. For get_customer: app_user_id, first_seen, active_entitlements, active_subscriptions. For list_offerings: count, current_offering_id.',
+    },
     deleted: { type: 'boolean', description: 'Whether the subscriber was deleted' },
     app_user_id: { type: 'string', description: 'The app user ID' },
     updated: { type: 'boolean', description: 'Whether the attributes were updated' },

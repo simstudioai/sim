@@ -2,6 +2,7 @@ import type {
   UpdateSubscriberAttributesParams,
   UpdateSubscriberAttributesResponse,
 } from '@/tools/revenuecat/types'
+import { throwIfRevenueCatError } from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const revenuecatUpdateSubscriberAttributesTool: ToolConfig<
@@ -32,13 +33,13 @@ export const revenuecatUpdateSubscriberAttributesTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'JSON object of attributes to set. Each key maps to an object with a "value" field. Example: {"$email": {"value": "user@example.com"}, "$displayName": {"value": "John"}}',
+        'JSON object of attributes to set. Each key maps to an object with "value" (string; null or empty deletes the attribute) and "updated_at_ms" (Unix epoch ms used for conflict resolution — required). Example: {"$email": {"value": "user@example.com", "updated_at_ms": 1709195668093}}',
     },
   },
 
   request: {
     url: (params) =>
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId)}/attributes`,
+      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId.trim())}/attributes`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -52,10 +53,11 @@ export const revenuecatUpdateSubscriberAttributesTool: ToolConfig<
   },
 
   transformResponse: async (response, params) => {
+    await throwIfRevenueCatError(response)
     return {
-      success: response.ok,
+      success: true,
       output: {
-        updated: response.ok,
+        updated: true,
         app_user_id: params?.appUserId ?? '',
       },
     }

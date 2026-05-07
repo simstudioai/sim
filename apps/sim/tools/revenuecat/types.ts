@@ -187,6 +187,28 @@ export const OFFERINGS_METADATA_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
+ * Parse a RevenueCat REST API error response into a meaningful Error.
+ * RevenueCat returns `{ code, message }` on 4xx/5xx.
+ */
+export async function throwIfRevenueCatError(response: Response): Promise<void> {
+  if (response.ok) return
+  let message = `RevenueCat API error (${response.status})`
+  try {
+    const body = await response.clone().json()
+    if (body && typeof body === 'object') {
+      const m = (body as Record<string, unknown>).message
+      const c = (body as Record<string, unknown>).code
+      if (typeof m === 'string' && m.length > 0) {
+        message = c ? `${m} (code ${c})` : m
+      }
+    }
+  } catch {
+    // Body not JSON — fall back to status-only message
+  }
+  throw new Error(message)
+}
+
+/**
  * Base params interface for RevenueCat API calls
  */
 export interface RevenueCatBaseParams {
@@ -204,7 +226,8 @@ export interface DeleteCustomerParams extends RevenueCatBaseParams {
 export interface GrantEntitlementParams extends RevenueCatBaseParams {
   appUserId: string
   entitlementIdentifier: string
-  duration: string
+  duration?: string
+  endTimeMs?: number
   startTimeMs?: number
 }
 
@@ -225,7 +248,9 @@ export interface CreatePurchaseParams extends RevenueCatBaseParams {
   price?: number
   currency?: string
   isRestore?: boolean
-  platform?: string
+  presentedOfferingIdentifier?: string
+  paymentMode?: string
+  platform: string
 }
 
 export interface UpdateSubscriberAttributesParams extends RevenueCatBaseParams {
@@ -236,12 +261,13 @@ export interface UpdateSubscriberAttributesParams extends RevenueCatBaseParams {
 export interface DeferGoogleSubscriptionParams extends RevenueCatBaseParams {
   appUserId: string
   productId: string
-  extendByDays: number
+  extendByDays?: number
+  expiryTimeMs?: number
 }
 
 export interface RefundGoogleSubscriptionParams extends RevenueCatBaseParams {
   appUserId: string
-  productId: string
+  storeTransactionId: string
 }
 
 export interface RevokeGoogleSubscriptionParams extends RevenueCatBaseParams {

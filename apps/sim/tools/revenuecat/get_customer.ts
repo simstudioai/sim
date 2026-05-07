@@ -1,5 +1,9 @@
 import type { CustomerResponse, GetCustomerParams } from '@/tools/revenuecat/types'
-import { METADATA_OUTPUT_PROPERTIES, SUBSCRIBER_OUTPUT } from '@/tools/revenuecat/types'
+import {
+  METADATA_OUTPUT_PROPERTIES,
+  SUBSCRIBER_OUTPUT,
+  throwIfRevenueCatError,
+} from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const revenuecatGetCustomerTool: ToolConfig<GetCustomerParams, CustomerResponse> = {
@@ -25,7 +29,7 @@ export const revenuecatGetCustomerTool: ToolConfig<GetCustomerParams, CustomerRe
 
   request: {
     url: (params) =>
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId)}`,
+      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId.trim())}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -34,14 +38,18 @@ export const revenuecatGetCustomerTool: ToolConfig<GetCustomerParams, CustomerRe
   },
 
   transformResponse: async (response) => {
+    await throwIfRevenueCatError(response)
     const data = await response.json()
     const subscriber = data.subscriber ?? {}
     const entitlements = subscriber.entitlements ?? {}
     const subscriptions = subscriber.subscriptions ?? {}
+    const requestDate: string | undefined = data.request_date
 
-    const activeEntitlements = Object.values(entitlements).filter(
-      (e: unknown) => (e as Record<string, unknown>).is_active
-    ).length
+    const now = requestDate ? new Date(requestDate).getTime() : Date.now()
+    const activeEntitlements = Object.values(entitlements).filter((e: unknown) => {
+      const expires = (e as Record<string, unknown>).expires_date as string | null | undefined
+      return !expires || new Date(expires).getTime() > now
+    }).length
     const activeSubscriptions = Object.keys(subscriptions).length
 
     return {

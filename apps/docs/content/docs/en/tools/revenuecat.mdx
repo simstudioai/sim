@@ -119,8 +119,10 @@ Record a purchase (receipt) for a subscriber via the REST API
 | `productId` | string | Yes | The product identifier for the purchase |
 | `price` | number | No | The price of the product in the currency specified |
 | `currency` | string | No | ISO 4217 currency code \(e.g., USD, EUR\) |
-| `isRestore` | boolean | No | Whether this is a restore of a previous purchase |
-| `platform` | string | No | Platform of the purchase \(ios, android, amazon, macos, stripe\). Required for Stripe and Paddle purchases. |
+| `isRestore` | boolean | No | Whether this is a restore of a previous purchase \(deprecated by RevenueCat\) |
+| `presentedOfferingIdentifier` | string | No | Identifier of the offering that was presented to the user when they made this purchase. Used by RevenueCat for offering-level analytics. |
+| `paymentMode` | string | No | Payment mode for the purchase. One of: pay_as_you_go, pay_up_front, free_trial. Only applies to introductory pricing periods. |
+| `platform` | string | Yes | Platform of the purchase. One of: ios, android, amazon, macos, uikitformac, stripe, roku, paddle. Sent as the X-Platform header \(required by RevenueCat\). |
 
 #### Output
 
@@ -170,7 +172,8 @@ Grant a promotional entitlement to a subscriber
 | `apiKey` | string | Yes | RevenueCat secret API key \(sk_...\) |
 | `appUserId` | string | Yes | The app user ID of the subscriber |
 | `entitlementIdentifier` | string | Yes | The entitlement identifier to grant |
-| `duration` | string | Yes | Duration of the entitlement \(daily, three_day, weekly, monthly, two_month, three_month, six_month, yearly, lifetime\) |
+| `duration` | string | No | Duration of the entitlement. Provide either duration or endTimeMs. One of: daily, three_day, weekly, two_week, monthly, two_month, three_month, six_month, yearly, lifetime |
+| `endTimeMs` | number | No | Absolute end time in milliseconds since Unix epoch. Use instead of duration to grant the entitlement until a specific timestamp. |
 | `startTimeMs` | number | No | Optional start time in milliseconds since Unix epoch. Set to a past time to achieve custom durations shorter than daily. |
 
 #### Output
@@ -296,7 +299,7 @@ Update custom subscriber attributes (e.g., $email, $displayName, or custom key-v
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | RevenueCat secret API key \(sk_...\) |
 | `appUserId` | string | Yes | The app user ID of the subscriber |
-| `attributes` | json | Yes | JSON object of attributes to set. Each key maps to an object with a "value" field. Example: \{"$email": \{"value": "user@example.com"\}, "$displayName": \{"value": "John"\}\} |
+| `attributes` | json | Yes | JSON object of attributes to set. Each key maps to an object with "value" \(string; null or empty deletes the attribute\) and "updated_at_ms" \(Unix epoch ms used for conflict resolution — required\). Example: \{"$email": \{"value": "user@example.com", "updated_at_ms": 1709195668093\}\} |
 
 #### Output
 
@@ -316,7 +319,8 @@ Defer a Google Play subscription by extending its billing date by a number of da
 | `apiKey` | string | Yes | RevenueCat secret API key \(sk_...\) |
 | `appUserId` | string | Yes | The app user ID of the subscriber |
 | `productId` | string | Yes | The Google Play product identifier of the subscription to defer \(use the part before the colon for products set up after Feb 2023\) |
-| `extendByDays` | number | Yes | Number of days to extend the subscription by \(1-365\) |
+| `extendByDays` | number | No | Number of days to extend the subscription by \(1-365\). Provide either extendByDays or expiryTimeMs. |
+| `expiryTimeMs` | number | No | Absolute new expiry time in milliseconds since Unix epoch. Use instead of extendByDays to set an exact expiry. |
 
 #### Output
 
@@ -357,7 +361,7 @@ Defer a Google Play subscription by extending its billing date by a number of da
 
 ### `revenuecat_refund_google_subscription`
 
-Refund and optionally revoke a Google Play subscription (Google Play only)
+Refund a specific store transaction by its store transaction identifier and revoke access (subscription or non-subscription, last 365 days)
 
 #### Input
 
@@ -365,7 +369,7 @@ Refund and optionally revoke a Google Play subscription (Google Play only)
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | RevenueCat secret API key \(sk_...\) |
 | `appUserId` | string | Yes | The app user ID of the subscriber |
-| `productId` | string | Yes | The Google Play product identifier of the subscription to refund |
+| `storeTransactionId` | string | Yes | The store transaction identifier of the purchase to refund \(e.g., GPA.3309-9122-6177-45730 for Google Play\) |
 
 #### Output
 

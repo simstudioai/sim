@@ -2,7 +2,7 @@ import type {
   RefundGoogleSubscriptionParams,
   RefundGoogleSubscriptionResponse,
 } from '@/tools/revenuecat/types'
-import { SUBSCRIBER_OUTPUT } from '@/tools/revenuecat/types'
+import { SUBSCRIBER_OUTPUT, throwIfRevenueCatError } from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const revenuecatRefundGoogleSubscriptionTool: ToolConfig<
@@ -11,7 +11,8 @@ export const revenuecatRefundGoogleSubscriptionTool: ToolConfig<
 > = {
   id: 'revenuecat_refund_google_subscription',
   name: 'RevenueCat Refund Google Subscription',
-  description: 'Refund and optionally revoke a Google Play subscription (Google Play only)',
+  description:
+    'Refund a specific store transaction by its store transaction identifier and revoke access (subscription or non-subscription, last 365 days)',
   version: '1.0.0',
 
   params: {
@@ -27,17 +28,18 @@ export const revenuecatRefundGoogleSubscriptionTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The app user ID of the subscriber',
     },
-    productId: {
+    storeTransactionId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The Google Play product identifier of the subscription to refund',
+      description:
+        'The store transaction identifier of the purchase to refund (e.g., GPA.3309-9122-6177-45730 for Google Play)',
     },
   },
 
   request: {
     url: (params) =>
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId)}/subscriptions/${encodeURIComponent(params.productId)}/refund`,
+      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId.trim())}/transactions/${encodeURIComponent(params.storeTransactionId.trim())}/refund`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -46,6 +48,7 @@ export const revenuecatRefundGoogleSubscriptionTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
+    await throwIfRevenueCatError(response)
     const data = await response.json()
     const subscriber = data.subscriber ?? {}
 
