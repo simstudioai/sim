@@ -95,12 +95,19 @@ export const apolloSequenceAddContactsTool: ToolConfig<
       'X-Api-Key': params.apiKey,
     }),
     body: (params: ApolloSequenceAddContactsParams) => {
+      const hasContactIds = !!params.contact_ids?.length
+      const hasLabelNames = !!params.label_names?.length
+      if (!hasContactIds && !hasLabelNames) {
+        throw new Error(
+          'Apollo sequence add requires either contact_ids or label_names to be provided'
+        )
+      }
       const body: Record<string, unknown> = {
         emailer_campaign_id: params.sequence_id,
         send_email_from_email_account_id: params.send_email_from_email_account_id,
       }
-      if (params.contact_ids?.length) body.contact_ids = params.contact_ids
-      if (params.label_names?.length) body.label_names = params.label_names
+      if (hasContactIds) body.contact_ids = params.contact_ids
+      if (hasLabelNames) body.label_names = params.label_names
       if (params.send_email_from_email_address) {
         body.send_email_from_email_address = params.send_email_from_email_address
       }

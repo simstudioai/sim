@@ -178,7 +178,7 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
       },
       required: {
         field: 'operation',
-        value: ['organization_enrich', 'account_create'],
+        value: 'organization_enrich',
       },
     },
     {
@@ -1022,6 +1022,13 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
             parsedParams.label_names = parsedParams.sequence_add_label_names
           }
           parsedParams.sequence_add_label_names = undefined
+        }
+
+        if (params.operation === 'task_create') {
+          if (rest.task_notes !== undefined) {
+            parsedParams.note = rest.task_notes
+          }
+          parsedParams.task_notes = undefined
         }
 
         if (

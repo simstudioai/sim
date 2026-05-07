@@ -39,7 +39,6 @@ export const apolloOrganizationBulkEnrichTool: ToolConfig<
     },
     method: 'POST',
     headers: (params: ApolloOrganizationBulkEnrichParams) => ({
-      'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
     }),

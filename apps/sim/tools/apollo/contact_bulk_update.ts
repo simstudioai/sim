@@ -68,6 +68,11 @@ export const apolloContactBulkUpdateTool: ToolConfig<
           body.contact_attributes = params.contact_attributes
         }
       }
+      if (!body.contact_ids && !body.contact_attributes) {
+        throw new Error(
+          'Apollo bulk update requires either contact_ids or contact_attributes to be provided'
+        )
+      }
       if (params.async !== undefined) body.async = params.async
       return body
     },
