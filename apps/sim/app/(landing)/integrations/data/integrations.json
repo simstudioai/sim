@@ -11666,15 +11666,15 @@
       },
       {
         "name": "Create Cash Advance",
-        "description": "Create a cash advance (POST /cashadvance/v4/cashadvances)."
+        "description": "Create a cash advance (POST /cashadvance/v4.1/cashadvances)."
       },
       {
         "name": "Get Cash Advance",
-        "description": "Get a cash advance (GET /cashadvance/v4/cashadvances/{cashAdvanceId})."
+        "description": "Get a cash advance (GET /cashadvance/v4.1/cashadvances/{cashAdvanceId})."
       },
       {
         "name": "Issue Cash Advance",
-        "description": "Issue a cash advance (POST /cashadvance/v4/cashadvances/{cashAdvanceId}/issue)."
+        "description": "Issue a cash advance (POST /cashadvance/v4.1/cashadvances/{cashAdvanceId}/issue)."
       },
       {
         "name": "List Itineraries (Trips)",
