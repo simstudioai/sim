@@ -106,8 +106,8 @@ export function Deploy({
   }
 
   const getButtonLabel = () => {
-    if (isDeploymentSettling) {
-      return deployReadiness.isSyncing ? deployReadiness.label : 'Syncing...'
+    if (isDeployed && (changeDetected || isDeploymentSettling)) {
+      return 'Update'
     }
     if (changeDetected) {
       return 'Update'
@@ -135,7 +135,9 @@ export function Deploy({
               onClick={onDeployClick}
               disabled={isRegistryLoading || isDisabled}
             >
-              {isDeploying && <Loader className='h-[13px] w-[13px]' animate />}
+              {(isDeploying || isDeploymentSettling) && (
+                <Loader className='h-[13px] w-[13px]' animate />
+              )}
               {getButtonLabel()}
             </Button>
           </span>

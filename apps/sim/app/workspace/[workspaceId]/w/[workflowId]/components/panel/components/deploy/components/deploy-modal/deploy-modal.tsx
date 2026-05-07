@@ -8,6 +8,7 @@ import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
+  Loader,
   Modal,
   ModalBody,
   ModalContent,
@@ -1109,11 +1110,11 @@ function GeneralFooter({
 }: GeneralFooterProps) {
   const isDeployBlocked =
     deployReadiness.isBlocked || isDeploymentSettling || isSubmitting || isUndeploying
-  const syncingLabel = deployReadiness.isSyncing ? deployReadiness.label : 'Syncing...'
   const blockedMessage =
     deployReadiness.isBlocked && !isDeploymentSettling && !isSubmitting && !isUndeploying
       ? deployReadiness.tooltip
       : null
+  const deployActionLoading = isSubmitting || isDeploymentSettling
 
   if (!isDeployed) {
     return (
@@ -1121,7 +1122,8 @@ function GeneralFooter({
         <div className='max-w-[260px] text-muted-foreground text-xs'>{blockedMessage}</div>
         <div className='flex items-center gap-2'>
           <Button variant='tertiary' onClick={onDeploy} disabled={isDeployBlocked}>
-            {isSubmitting ? 'Deploying...' : isDeploymentSettling ? syncingLabel : 'Deploy'}
+            {deployActionLoading && <Loader className='mr-1.5 h-3.5 w-3.5' animate />}
+            Deploy
           </Button>
         </div>
       </ModalFooter>
@@ -1140,9 +1142,10 @@ function GeneralFooter({
         <Button variant='default' onClick={onUndeploy} disabled={isUndeploying || isSubmitting}>
           {isUndeploying ? 'Undeploying...' : 'Undeploy'}
         </Button>
-        {needsRedeployment && (
+        {(needsRedeployment || isDeploymentSettling) && (
           <Button variant='tertiary' onClick={onRedeploy} disabled={isDeployBlocked}>
-            {isSubmitting ? 'Updating...' : isDeploymentSettling ? syncingLabel : 'Update'}
+            {deployActionLoading && <Loader className='mr-1.5 h-3.5 w-3.5' animate />}
+            Update
           </Button>
         )}
       </div>
