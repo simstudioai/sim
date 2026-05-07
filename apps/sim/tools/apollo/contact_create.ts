@@ -170,12 +170,13 @@ export const apolloContactCreateTool: ToolConfig<
     }
 
     const data = await response.json()
+    const contact = data?.contact ?? (data?.id ? data : null)
 
     return {
       success: true,
       output: {
-        contact: data.contact ?? null,
-        created: !!data.contact,
+        contact,
+        created: !!contact,
       },
     }
   },
