@@ -47,6 +47,14 @@ function startPingHealthCheck(redis: Redis): void {
           consecutiveFailures: pingFailures,
         })
         pingFailures = 0
+        // Drop the cached client and stop this health check before disconnecting,
+        // so the next getRedisClient() builds a fresh client and a fresh PING loop.
+        // Listeners may call getRedisClient() and must observe the cleared global.
+        globalRedisClient = null
+        if (pingInterval) {
+          clearInterval(pingInterval)
+          pingInterval = null
+        }
         for (const cb of reconnectListeners) {
           try {
             cb()
