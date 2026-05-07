@@ -399,6 +399,7 @@ Return ONLY the numeric timestamp, no text.`,
         }
         if (params.endTimeMs !== undefined && params.endTimeMs !== '') {
           next.endTimeMs = Number(params.endTimeMs)
+          next.duration = undefined
         }
         if (params.expiryTimeMs !== undefined && params.expiryTimeMs !== '') {
           next.expiryTimeMs = Number(params.expiryTimeMs)
