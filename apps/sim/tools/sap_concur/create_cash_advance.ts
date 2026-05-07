@@ -9,7 +9,7 @@ import type { ToolConfig } from '@/tools/types'
 export const createCashAdvanceTool: ToolConfig<CreateCashAdvanceParams, SapConcurProxyResponse> = {
   id: 'sap_concur_create_cash_advance',
   name: 'SAP Concur Create Cash Advance',
-  description: 'Create a cash advance (POST /cashadvance/v4.1/cashadvances).',
+  description: 'Create a cash advance (POST /cashadvance/v4/cashadvances).',
   version: '1.0.0',
   params: {
     datacenter: {
@@ -67,7 +67,7 @@ export const createCashAdvanceTool: ToolConfig<CreateCashAdvanceParams, SapConcu
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({
       ...baseProxyBody(params),
-      path: `/cashadvance/v4.1/cashadvances`,
+      path: `/cashadvance/v4/cashadvances`,
       method: 'POST',
       body: params.body,
     }),

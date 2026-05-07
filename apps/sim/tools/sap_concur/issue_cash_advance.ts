@@ -10,7 +10,7 @@ import type { ToolConfig } from '@/tools/types'
 export const issueCashAdvanceTool: ToolConfig<IssueCashAdvanceParams, SapConcurProxyResponse> = {
   id: 'sap_concur_issue_cash_advance',
   name: 'SAP Concur Issue Cash Advance',
-  description: 'Issue a cash advance (POST /cashadvance/v4.1/cashadvances/{cashAdvanceId}/issue).',
+  description: 'Issue a cash advance (POST /cashadvance/v4/cashadvances/{cashAdvanceId}/issue).',
   version: '1.0.0',
   params: {
     datacenter: {
@@ -76,7 +76,7 @@ export const issueCashAdvanceTool: ToolConfig<IssueCashAdvanceParams, SapConcurP
       const cashAdvanceId = trimRequired(params.cashAdvanceId, 'cashAdvanceId')
       return {
         ...baseProxyBody(params),
-        path: `/cashadvance/v4.1/cashadvances/${encodeURIComponent(cashAdvanceId)}/issue`,
+        path: `/cashadvance/v4/cashadvances/${encodeURIComponent(cashAdvanceId)}/issue`,
         method: 'POST',
         body: params.body ?? {},
       }
