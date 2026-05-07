@@ -735,7 +735,7 @@ Get a cash advance (GET /cashadvance/v4/cashadvances/{cashadvanceId}).
 
 ### `sap_concur_upload_exchange_rates`
 
-Bulk upload up to 100 custom exchange rates (POST /exchangerate/v4/rates). Body: { currency_sets: [{ from_crn_code, to_crn_code, start_date: 
+Bulk upload up to 100 custom exchange rates (POST /exchangerate/v4/rates). Body contains a currency_sets array, each with from_crn_code, to_crn_code, start_date (YYYY-MM-DD), and rate.
 
 #### Input
 

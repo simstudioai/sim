@@ -13,7 +13,7 @@ export const uploadExchangeRatesTool: ToolConfig<
   id: 'sap_concur_upload_exchange_rates',
   name: 'SAP Concur Upload Exchange Rates',
   description:
-    'Bulk upload up to 100 custom exchange rates (POST /exchangerate/v4/rates). Body: { currency_sets: [{ from_crn_code, to_crn_code, start_date: "YYYY-MM-DD", rate }] }',
+    'Bulk upload up to 100 custom exchange rates (POST /exchangerate/v4/rates). Body contains a currency_sets array, each with from_crn_code, to_crn_code, start_date (YYYY-MM-DD), and rate.',
   version: '1.0.0',
   params: {
     datacenter: {

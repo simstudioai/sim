@@ -11749,8 +11749,8 @@
         "description": "List budget categories (GET /budget/v4/budgetCategory)."
       },
       {
-        "name": "Get Exchange Rate",
-        "description": "Bulk upload up to 100 custom exchange rates (POST /exchangerate/v4/rates). Body: { currency_sets: [{ from_crn_code, to_crn_code, start_date: "
+        "name": "Upload Exchange Rates",
+        "description": "Bulk upload up to 100 custom exchange rates (POST /exchangerate/v4/rates). Body contains a currency_sets array, each with from_crn_code, to_crn_code, start_date (YYYY-MM-DD), and rate."
       },
       {
         "name": "Create Purchase Request",
