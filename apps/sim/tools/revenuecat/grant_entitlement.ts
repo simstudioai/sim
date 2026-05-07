@@ -62,9 +62,12 @@ export const revenuecatGrantEntitlementTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
+      if (!params.duration && params.endTimeMs === undefined) {
+        throw new Error('Provide either duration or endTimeMs to grant a promotional entitlement')
+      }
       const body: Record<string, unknown> = {}
-      if (params.duration) body.duration = params.duration
       if (params.endTimeMs !== undefined) body.end_time_ms = params.endTimeMs
+      else if (params.duration) body.duration = params.duration
       if (params.startTimeMs !== undefined) body.start_time_ms = params.startTimeMs
       return body
     },

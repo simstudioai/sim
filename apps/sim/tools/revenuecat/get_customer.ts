@@ -47,8 +47,14 @@ export const revenuecatGetCustomerTool: ToolConfig<GetCustomerParams, CustomerRe
 
     const now = requestDate ? new Date(requestDate).getTime() : Date.now()
     const activeEntitlements = Object.values(entitlements).filter((e: unknown) => {
-      const expires = (e as Record<string, unknown>).expires_date as string | null | undefined
-      return !expires || new Date(expires).getTime() > now
+      const ent = e as Record<string, unknown>
+      if (typeof ent.is_active === 'boolean') return ent.is_active
+      const expires = ent.expires_date as string | null | undefined
+      const grace = ent.grace_period_expires_date as string | null | undefined
+      if (!expires) return true
+      if (new Date(expires).getTime() > now) return true
+      if (grace && new Date(grace).getTime() > now) return true
+      return false
     }).length
     const activeSubscriptions = Object.keys(subscriptions).length
 

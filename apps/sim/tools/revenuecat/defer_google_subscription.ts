@@ -60,9 +60,12 @@ export const revenuecatDeferGoogleSubscriptionTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
+      if (params.extendByDays === undefined && params.expiryTimeMs === undefined) {
+        throw new Error('Provide either extendByDays or expiryTimeMs to defer a subscription')
+      }
       const body: Record<string, unknown> = {}
-      if (params.extendByDays !== undefined) body.extend_by_days = params.extendByDays
       if (params.expiryTimeMs !== undefined) body.expiry_time_ms = params.expiryTimeMs
+      else if (params.extendByDays !== undefined) body.extend_by_days = params.extendByDays
       return body
     },
   },
