@@ -895,7 +895,12 @@ export const runColumnContract = defineRouteContract({
   body: runColumnBodySchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema(z.object({ triggered: z.number() })),
+    /**
+     * `triggered` is `null` when the dispatcher runs in the background — the
+     * actual count is only known after a fan-out that may be tens of thousands
+     * of rows, and we don't hold the HTTP response open for that long.
+     */
+    schema: successResponseSchema(z.object({ triggered: z.number().nullable() })),
   },
 })
 
