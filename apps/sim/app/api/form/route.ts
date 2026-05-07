@@ -26,6 +26,14 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
 
+async function cleanupFormAfterDeployFailure(formId: string) {
+  try {
+    await db.delete(form).where(eq(form.id, formId))
+  } catch (cleanupError) {
+    logger.error('Failed to clean up form after deploy failure:', cleanupError)
+  }
+}
+
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
@@ -146,14 +154,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       updatedAt: new Date(),
     })
 
-    const result = await performFullDeploy({
-      workflowId,
-      userId: session.user.id,
-      request,
-    })
+    let result: Awaited<ReturnType<typeof performFullDeploy>>
+    try {
+      result = await performFullDeploy({
+        workflowId,
+        userId: session.user.id,
+        request,
+      })
+    } catch (error) {
+      await cleanupFormAfterDeployFailure(id)
+      throw error
+    }
 
     if (!result.success) {
-      await db.delete(form).where(eq(form.id, id))
+      await cleanupFormAfterDeployFailure(id)
       const status =
         result.errorCode === 'validation' ? 400 : result.errorCode === 'not_found' ? 404 : 500
       return createErrorResponse(result.error || 'Failed to deploy workflow', status)
