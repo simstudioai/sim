@@ -138,9 +138,7 @@ export function optimisticallyScheduleNewlyEligibleGroups(
     next[group.id] = pending
   }
   if (flipped > 0) {
-    logger.debug(
-      `[OptimisticCascade] row=${beforeRow.id} flipped=${flipped} skipped=${skipped}`
-    )
+    logger.debug(`[OptimisticCascade] row=${beforeRow.id} flipped=${flipped} skipped=${skipped}`)
   }
   return next
 }

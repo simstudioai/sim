@@ -84,9 +84,7 @@ function hasRunningGroupExecution(rows: TableRow[] | undefined): boolean {
   return false
 }
 
-function hasRunningGroupExecutionInPages(
-  pages: TableRowsResponse[] | undefined
-): boolean {
+function hasRunningGroupExecutionInPages(pages: TableRowsResponse[] | undefined): boolean {
   if (!pages) return false
   for (const page of pages) {
     if (hasRunningGroupExecution(page.rows)) return true
