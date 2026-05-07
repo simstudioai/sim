@@ -1,5 +1,10 @@
 import type { GrantEntitlementParams, GrantEntitlementResponse } from '@/tools/revenuecat/types'
-import { SUBSCRIBER_OUTPUT } from '@/tools/revenuecat/types'
+import {
+  extractSubscriber,
+  SUBSCRIBER_OUTPUT,
+  shapeSubscriber,
+  throwIfRevenueCatError,
+} from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const revenuecatGrantEntitlementTool: ToolConfig<
@@ -32,48 +37,61 @@ export const revenuecatGrantEntitlementTool: ToolConfig<
     },
     duration: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Duration of the entitlement (daily, three_day, weekly, monthly, two_month, three_month, six_month, yearly, lifetime)',
+        'Deprecated. Duration of the entitlement. Provide either duration or endTimeMs (endTimeMs preferred). One of: daily, three_day, weekly, two_week, monthly, two_month, three_month, six_month, yearly, lifetime',
+    },
+    endTimeMs: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Absolute end time in milliseconds since Unix epoch. Use instead of duration to grant the entitlement until a specific timestamp.',
     },
     startTimeMs: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Optional start time in milliseconds since Unix epoch. Set to a past time to achieve custom durations shorter than daily.',
+        'Deprecated. Optional start time in milliseconds since Unix epoch, used with duration to determine expiration. Regardless of value, the entitlement is always granted immediately.',
     },
   },
 
   request: {
     url: (params) =>
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId)}/entitlements/${encodeURIComponent(params.entitlementIdentifier)}/promotional`,
+      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId.trim())}/entitlements/${encodeURIComponent(params.entitlementIdentifier.trim())}/promotional`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: Record<string, unknown> = { duration: params.duration }
-      if (params.startTimeMs !== undefined) body.start_time_ms = params.startTimeMs
+      const hasEnd = params.endTimeMs !== undefined && (params.endTimeMs as unknown) !== ''
+      const hasDuration = Boolean(params.duration)
+      if (!hasDuration && !hasEnd) {
+        throw new Error('Provide either duration or endTimeMs to grant a promotional entitlement')
+      }
+      if (hasDuration && hasEnd) {
+        throw new Error('Provide only one of duration or endTimeMs — they cannot be used together')
+      }
+      const body: Record<string, unknown> = {}
+      if (hasEnd) body.end_time_ms = params.endTimeMs
+      else if (hasDuration) body.duration = params.duration
+      if (params.startTimeMs !== undefined && (params.startTimeMs as unknown) !== '') {
+        body.start_time_ms = params.startTimeMs
+      }
       return body
     },
   },
 
   transformResponse: async (response) => {
+    await throwIfRevenueCatError(response)
     const data = await response.json()
-    const subscriber = data.subscriber ?? {}
-
     return {
       success: true,
       output: {
-        subscriber: {
-          first_seen: subscriber.first_seen ?? '',
-          original_app_user_id: subscriber.original_app_user_id ?? '',
-          subscriptions: subscriber.subscriptions ?? {},
-          entitlements: subscriber.entitlements ?? {},
-        },
+        subscriber: shapeSubscriber(extractSubscriber(data)),
       },
     }
   },

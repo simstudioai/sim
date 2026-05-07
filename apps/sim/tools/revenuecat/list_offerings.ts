@@ -2,6 +2,7 @@ import type { ListOfferingsParams, ListOfferingsResponse } from '@/tools/revenue
 import {
   OFFERING_OUTPUT_PROPERTIES,
   OFFERINGS_METADATA_OUTPUT_PROPERTIES,
+  throwIfRevenueCatError,
 } from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -28,13 +29,14 @@ export const revenuecatListOfferingsTool: ToolConfig<ListOfferingsParams, ListOf
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Platform to filter offerings (ios, android, stripe, etc.)',
+      description:
+        'X-Platform header value. One of: ios, android, amazon, stripe, roku, paddle. Required when using a legacy public API key; ignored with app-specific API keys.',
     },
   },
 
   request: {
     url: (params) =>
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId)}/offerings`,
+      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId.trim())}/offerings`,
     method: 'GET',
     headers: (params) => {
       const headers: Record<string, string> = {
@@ -49,9 +51,18 @@ export const revenuecatListOfferingsTool: ToolConfig<ListOfferingsParams, ListOf
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-    const offerings = data.offerings ?? []
-    const currentOfferingId = data.current_offering_id ?? null
+    await throwIfRevenueCatError(response)
+    const raw = await response.json()
+    /**
+     * RevenueCat's offerings endpoint may return the payload wrapped in `{ value: { ... } }`
+     * or unwrapped. Normalize to a single shape.
+     */
+    const data =
+      raw && typeof raw === 'object' && 'value' in raw && raw.value && typeof raw.value === 'object'
+        ? (raw.value as Record<string, unknown>)
+        : (raw as Record<string, unknown>)
+    const offerings = (data.offerings as Array<Record<string, unknown>>) ?? []
+    const currentOfferingId = (data.current_offering_id as string | null) ?? null
 
     return {
       success: true,

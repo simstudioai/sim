@@ -10748,7 +10748,7 @@
       },
       {
         "name": "Refund Google Subscription",
-        "description": "Refund and optionally revoke a Google Play subscription (Google Play only)"
+        "description": "Refund a specific store transaction by its store transaction identifier and revoke access (subscription or non-subscription, last 365 days)"
       },
       {
         "name": "Revoke Google Subscription",
@@ -14173,7 +14173,7 @@
         "description": "Hire a pre-hire into an employee position. Converts an applicant into an active employee record with position, start date, and manager assignment."
       },
       {
-        "name": "Update Worker",
+        "name": "Update Personal Information",
         "description": "Update fields on an existing worker record in Workday."
       },
       {
