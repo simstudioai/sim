@@ -133,6 +133,50 @@ describe('migrateSubblockIds', () => {
     expect(blocks.b1.subBlocks.code.value).toBe('console.log("hi")')
   })
 
+  it('should repair malformed subBlocks for every block type without deleting values', () => {
+    const input: Record<string, BlockState> = {
+      b1: makeBlock({
+        type: 'function',
+        subBlocks: {
+          code: { id: 'code', type: 'unknown', value: 'console.log("hi")' },
+          undefined: { type: 'unknown', value: null },
+          noId: { type: 'short-input', value: 'stale' },
+          noType: { id: 'noType', value: 'stale' },
+          unknownType: { id: 'unknownType', type: 'unknown', value: 'preserved' },
+          notRecord: 'stale',
+          arrayValue: ['a', 'b'],
+        } as unknown as BlockState['subBlocks'],
+      }),
+    }
+
+    const { blocks, migrated } = migrateSubblockIds(input)
+
+    expect(migrated).toBe(true)
+    expect(blocks.b1.subBlocks.code).toEqual({
+      id: 'code',
+      type: 'code',
+      value: 'console.log("hi")',
+    })
+    expect(blocks.b1.subBlocks.undefined).toBeUndefined()
+    expect(blocks.b1.subBlocks.noId).toEqual({ id: 'noId', type: 'short-input', value: 'stale' })
+    expect(blocks.b1.subBlocks.noType).toEqual({
+      id: 'noType',
+      type: 'short-input',
+      value: 'stale',
+    })
+    expect(blocks.b1.subBlocks.unknownType).toBeUndefined()
+    expect(blocks.b1.subBlocks.notRecord).toEqual({
+      id: 'notRecord',
+      type: 'short-input',
+      value: 'stale',
+    })
+    expect(blocks.b1.subBlocks.arrayValue).toEqual({
+      id: 'arrayValue',
+      type: 'short-input',
+      value: ['a', 'b'],
+    })
+  })
+
   it('should migrate multiple blocks in one pass', () => {
     const input: Record<string, BlockState> = {
       b1: makeBlock({

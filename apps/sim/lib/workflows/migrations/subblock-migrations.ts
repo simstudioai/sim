@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { sanitizeMalformedSubBlocks } from '@/lib/workflows/sanitization/subblocks'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -112,18 +113,28 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
   const result: Record<string, BlockState> = {}
 
   for (const [blockId, block] of Object.entries(blocks)) {
-    const renames = SUBBLOCK_ID_MIGRATIONS[block.type]
-    if (!renames || !block.subBlocks) {
+    if (!block.subBlocks) {
       result[blockId] = block
       continue
     }
 
-    const { subBlocks, migrated } = migrateBlockSubblockIds(block.subBlocks, renames)
-    if (migrated) {
-      logger.info('Migrated legacy subblock IDs', {
-        blockId: block.id,
-        blockType: block.type,
-      })
+    const sanitized = sanitizeMalformedSubBlocks(block)
+    const renames = SUBBLOCK_ID_MIGRATIONS[block.type]
+    if (!renames) {
+      result[blockId] = sanitized.changed ? { ...block, subBlocks: sanitized.subBlocks } : block
+      anyMigrated = anyMigrated || sanitized.changed
+      continue
+    }
+
+    const { subBlocks, migrated } = migrateBlockSubblockIds(sanitized.subBlocks, renames)
+    const blockMigrated = sanitized.changed || migrated
+    if (blockMigrated) {
+      if (migrated) {
+        logger.info('Migrated legacy subblock IDs', {
+          blockId: block.id,
+          blockType: block.type,
+        })
+      }
       anyMigrated = true
       result[blockId] = { ...block, subBlocks }
     } else {
