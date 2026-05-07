@@ -1,0 +1,2761 @@
+---
+title: SAP Concur
+description: Manage expense reports, travel requests, cash advances, and more in SAP Concur
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sap_concur"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[SAP Concur](https://www.concur.com/) is a leading cloud-based platform for travel, expense, and invoice management. It helps organizations capture spend across every channel — corporate cards, receipts, mileage, and travel bookings — and route it through approval, audit, and reimbursement workflows.
+
+With SAP Concur, you can:
+
+- **Manage expense reports end-to-end**: Create reports, add expenses and itemizations, allocate costs, attach receipts, and run them through submit/approve/recall/send-back workflows
+- **Capture spend at the source**: Upload receipt images, create quick expenses with images, and pull receipts back for matching and audit
+- **Automate travel programs**: List and inspect trips and itineraries, manage travel requests with cash advance support, and read traveler profiles
+- **Govern users and reference data**: Provision identities via SCIM v4.1, maintain custom lists for cost centers and projects, and look up locations, exchange rates, and budgets
+- **Issue and track cash advances**: Create, retrieve, and issue cash advances tied to travel requests or expense reports
+
+In Sim, the SAP Concur integration empowers your agents to automate AP and travel workflows across every Concur datacenter. Use tool actions to:
+
+- **Drive expense automation**: Programmatically build, submit, and route expense reports without users opening the Concur UI
+- **Sync identities and reference data**: Keep employees, cost centers, and project codes aligned with your HRIS and ERP systems
+- **Process receipts at scale**: Forward receipt images from email or Slack into Concur for OCR, matching, and reimbursement
+- **Build approval bots**: Surface pending reports to managers, summarize line items, and approve or send back with a single message
+
+These capabilities let you eliminate manual data entry, accelerate close cycles, and run your travel and expense program as code — all as part of your workflows.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect SAP Concur via OAuth 2.0. Manage expense reports and line items, allocations, attendees, comments, exceptions, quick expenses, receipts, travel requests and expected expenses, cash advances, itineraries, user identities, custom lists, budgets, exchange rates, and purchase requests across every Concur datacenter.
+
+
+
+## Tools
+
+### `sap_concur_approve_expense_report`
+
+Approve an expense report as a manager (PATCH /expensereports/v4/reports/\{reportId\}/approve). Required body field: comment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `reportId` | string | Yes | Expense report ID to approve |
+| `body` | json | Yes | Request body — `comment` is required by Concur \(e.g., \{ "comment": "Approved" \}\). If the report contains rejected expenses, `expenseRejectedComment` is also required. Optional fields: `expectedStepCode`, `expectedStepSequence`, `statusId` \(defaults to "A_APPR"\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Empty \(204 No Content\) |
+
+### `sap_concur_associate_attendees`
+
+Associate attendees with an expense (POST /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/attendees).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID |
+| `contextType` | string | Yes | Access context: TRAVELER or PROXY |
+| `reportId` | string | Yes | Expense report ID |
+| `expenseId` | string | Yes | Expense ID |
+| `body` | json | Yes | Attendee associations payload \(e.g., \{ "attendeeAssociations": \[...\] \}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Concur association response \(201 Created with URI\) |
+|   ↳ `uri` | string | Resource URI of the attendee associations collection |
+
+### `sap_concur_create_cash_advance`
+
+Create a cash advance (POST /cashadvance/v4.1/cashadvances).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `body` | json | Yes | Cash advance payload |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Created cash advance payload |
+|   ↳ `cashAdvanceId` | string | Unique identifier of the created cash advance |
+
+### `sap_concur_create_expected_expense`
+
+Create an expected expense on a travel request (POST /travelrequest/v4/requests/\{requestUuid\}/expenses).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `requestUuid` | string | Yes | Travel request UUID |
+| `userId` | string | No | User UUID acting on the request \(required when using a Company JWT, optional otherwise\) |
+| `body` | json | Yes | Expected expense payload |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Created expected expense payload |
+|   ↳ `id` | string | Expected expense identifier |
+|   ↳ `href` | string | Self-link to the resource |
+|   ↳ `expenseType` | json | Expense type \{id, name\} |
+|   ↳ `transactionDate` | string | Transaction date |
+|   ↳ `transactionAmount` | json | Transaction amount \{value, currencyCode\} |
+|   ↳ `postedAmount` | json | Posted amount \{value, currencyCode\} |
+|   ↳ `approvedAmount` | json | Approved amount \{value, currencyCode\} |
+|   ↳ `remainingAmount` | json | Remaining amount on the expected expense |
+|   ↳ `businessPurpose` | string | Business purpose of the expense |
+|   ↳ `location` | json | Location \{id, name, city, countryCode, countrySubDivisionCode, iataCode, locationType\} |
+|   ↳ `exchangeRate` | json | Exchange rate \{value, operation\} |
+|   ↳ `allocations` | json | Budget allocations array \(allocationId, allocationAmount, approvedAmount, postedAmount, expenseId, percentEdited, systemAllocation, percentage\) |
+|   ↳ `tripData` | json | Trip data \{agencyBooked, selfBooked, tripType \(ONE_WAY\|ROUND_TRIP\), legs\[\{id, returnLeg, startDate, startTime, startLocationDetail, startLocation, endLocation, class \{code,value\}, travelExceptionReasonCodes\}\], segmentType \{category, code\}\} |
+|   ↳ `parentRequest` | json | Parent travel request resource link \{href, id\} |
+|   ↳ `comments` | json | Comments sub-resource link \{href, id\} |
+
+### `sap_concur_create_expense_report`
+
+Create an expense report (POST /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports — supported contexts: TRAVELER, PROXY). Required body fields: name, policyId.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID who will own the report |
+| `contextType` | string | Yes | Access context: TRAVELER \(creating own report\) or PROXY \(creating on behalf of another user\) |
+| `body` | json | Yes | Report payload — `name` and `policyId` are required. Optional fields: businessPurpose, comment, customData, countryCode, countrySubDivisionCode, etc. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Created expense report \(Concur returns 201 with a URI to the new report\) |
+|   ↳ `uri` | string | URI of the newly created expense report |
+
+### `sap_concur_create_list_item`
+
+Create a list item (POST /list/v4/items).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `body` | json | Yes | List item payload. Required: listId, shortCode, value. Optional: parentId or parentCode \(mutually exclusive\). Note: Concur rejects shortCode/value containing hyphens. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Created list item |
+|   ↳ `id` | string | List item UUID |
+|   ↳ `code` | string | Long code format for the item |
+|   ↳ `shortCode` | string | Short code identifier |
+|   ↳ `value` | string | Display value of the item |
+|   ↳ `parentId` | string | Parent item UUID \(omitted for first-level items\) |
+|   ↳ `level` | number | Hierarchy level \(1 for root items\) |
+|   ↳ `isDeleted` | boolean | Deletion status across all containing lists |
+|   ↳ `lists` | array | Lists containing this item |
+|     ↳ `id` | string | List UUID |
+|     ↳ `hasChildren` | boolean | Whether this item has children in the list |
+
+### `sap_concur_create_purchase_request`
+
+Create a purchase request (POST /purchaserequest/v4/purchaserequests).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `body` | json | Yes | Purchase request payload |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Created purchase request payload |
+|   ↳ `id` | string | Identifier of the created purchase request |
+|   ↳ `uri` | string | Resource URI for the created purchase request |
+|   ↳ `errors` | array | Validation or processing errors returned by Concur |
+|     ↳ `errorCode` | string | Error code |
+|     ↳ `errorMessage` | string | Error message |
+|     ↳ `dataPath` | string | Path to the request data which has the error |
+
+### `sap_concur_create_quick_expense`
+
+Create a quick expense (POST /quickexpense/v4/users/\{userId\}/context/TRAVELER/quickexpenses).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID who owns the quick expense |
+| `contextType` | string | Yes | Access context: must be TRAVELER |
+| `body` | json | Yes | Quick expense payload \(expenseTypeId, transactionAmount, transactionDate, etc.\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Created quick expense response \(HTTP 201 Created\) |
+|   ↳ `quickExpenseIdUri` | string | URI of the created quick expense resource |
+
+### `sap_concur_create_quick_expense_with_image`
+
+Create a quick expense with an attached image (POST /quickexpense/v4/users/\{userId\}/context/\{contextType\}/quickexpenses/image).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID |
+| `contextType` | string | Yes | Access context: must be TRAVELER |
+| `receipt` | json | Yes | Receipt image \(UserFile\). Allowed: PDF, PNG, JPEG, TIFF \(max 50MB\) |
+| `body` | json | Yes | Quick expense payload \(transactionAmount, transactionDate, expenseTypeId, vendor, ...\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Created quick expense response \(HTTP 201 with attached receipt image\) |
+|   ↳ `quickExpenseIdUri` | string | URI of the created quick expense resource |
+
+### `sap_concur_create_report_comment`
+
+Create a comment on a report (POST /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/comments).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID |
+| `contextType` | string | Yes | Access context: TRAVELER or PROXY |
+| `reportId` | string | Yes | Expense report ID |
+| `comment` | string | Yes | Comment text to add |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Created comment response \(Concur returns 201 Created with URI\) |
+|   ↳ `uri` | string | Resource URI of the created comment |
+
+### `sap_concur_create_travel_request`
+
+Create a travel request (POST /travelrequest/v4/requests).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | No | Optional Concur user UUID — required when impersonating another user |
+| `body` | json | Yes | Travel request payload \(name, purpose, startDate, endDate, requestPolicyId, etc.\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Created travel request payload |
+|   ↳ `id` | string | Travel request UUID |
+|   ↳ `href` | string | Resource hyperlink |
+|   ↳ `requestId` | string | Public-facing request ID \(4-6 alphanumeric characters\) |
+|   ↳ `name` | string | Request name |
+|   ↳ `businessPurpose` | string | Business purpose |
+|   ↳ `comment` | string | Last attached comment |
+|   ↳ `creationDate` | string | Creation timestamp |
+|   ↳ `lastModified` | string | Last modification timestamp |
+|   ↳ `submitDate` | string | Last submission timestamp |
+|   ↳ `startDate` | string | Trip start date \(ISO 8601\) |
+|   ↳ `endDate` | string | Trip end date \(ISO 8601\) |
+|   ↳ `startTime` | string | Trip start time \(HH:mm\) |
+|   ↳ `endTime` | string | Trip end time \(HH:mm\) |
+|   ↳ `approved` | boolean | Whether the request is approved |
+|   ↳ `pendingApproval` | boolean | Pending approval flag |
+|   ↳ `closed` | boolean | Closed flag |
+|   ↳ `everSentBack` | boolean | Ever-sent-back flag |
+|   ↳ `canceledPostApproval` | boolean | Canceled after approval flag |
+|   ↳ `approvalStatus` | json | Approval status |
+|     ↳ `code` | string | Status code \(NOT_SUBMITTED, SUBMITTED, APPROVED, CANCELED, SENTBACK\) |
+|     ↳ `name` | string | Localized status name |
+|   ↳ `owner` | json | Travel request owner |
+|     ↳ `id` | string | User UUID |
+|     ↳ `firstName` | string | Owner first name |
+|     ↳ `lastName` | string | Owner last name |
+|   ↳ `approver` | json | Approver assigned to the request |
+|     ↳ `id` | string | User UUID |
+|     ↳ `firstName` | string | Approver first name |
+|     ↳ `lastName` | string | Approver last name |
+|   ↳ `policy` | json | Resource link to the applicable policy |
+|     ↳ `id` | string | Policy ID |
+|     ↳ `href` | string | Policy hyperlink |
+|   ↳ `type` | json | Request type |
+|     ↳ `code` | string | Request type code |
+|     ↳ `label` | string | Request type label |
+|   ↳ `mainDestination` | json | Main destination of the trip |
+|     ↳ `city` | string | City |
+|     ↳ `countryCode` | string | ISO country code |
+|     ↳ `countrySubDivisionCode` | string | ISO country sub-division code |
+|     ↳ `name` | string | Destination name |
+|   ↳ `totalApprovedAmount` | json | Total approved amount |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currency` | string | Currency code |
+|   ↳ `totalPostedAmount` | json | Total posted amount |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currency` | string | Currency code |
+|   ↳ `totalRemainingAmount` | json | Total remaining amount |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currency` | string | Currency code |
+|   ↳ `operations` | array | Available workflow actions |
+|     ↳ `rel` | string | Operation name |
+|     ↳ `href` | string | Operation URL |
+|   ↳ `expenses` | array | Expected expenses attached to the request |
+|   ↳ `highestExceptionLevel` | string | Highest exception level \(NONE, WARNING, ERROR\) |
+|   ↳ `travelAgency` | json | Travel agency reference |
+|     ↳ `id` | string | Agency identifier |
+|     ↳ `href` | string | Agency URL |
+|     ↳ `template` | string | Template URL |
+|   ↳ `custom1` | json | Custom field 1 |
+|   ↳ `custom2` | json | Custom field 2 |
+|   ↳ `custom3` | json | Custom field 3 |
+|   ↳ `custom4` | json | Custom field 4 |
+
+### `sap_concur_create_user`
+
+Create a new user identity (POST /profile/identity/v4.1/Users).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `body` | json | Yes | SCIM User payload \(schemas, userName, name, emails, active, etc.\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Created SCIM User payload |
+
+### `sap_concur_delete_expected_expense`
+
+Delete an expected expense (DELETE /travelrequest/v4/expenses/\{expenseUuid\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `expenseUuid` | string | Yes | Expected expense UUID to delete |
+| `userId` | string | No | User UUID acting on the request \(required when using a Company JWT, optional otherwise\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Returns boolean true on 200 OK when the expected expense is deleted. |
+
+### `sap_concur_delete_expense`
+
+Delete an expense (DELETE /expensereports/v4/reports/\{reportId\}/expenses/\{expenseId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `reportId` | string | Yes | Expense report ID |
+| `expenseId` | string | Yes | Expense ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Empty body on success \(HTTP 204 No Content\). Error details when status is non-2xx |
+
+### `sap_concur_delete_expense_report`
+
+Delete an expense report (DELETE /expensereports/v4/reports/\{reportId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `reportId` | string | Yes | Expense report ID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Empty \(204 No Content\) |
+
+### `sap_concur_delete_list_item`
+
+Delete a list item (DELETE /list/v4/items/\{itemId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `itemId` | string | Yes | List item UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Empty body on success \(HTTP 204 No Content\). Error details when status is non-2xx |
+
+### `sap_concur_delete_travel_request`
+
+Delete a travel request (DELETE /travelrequest/v4/requests/\{requestUuid\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `requestUuid` | string | Yes | Travel request UUID to delete |
+| `userId` | string | No | Optional Concur user UUID — required when impersonating another user |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Concur delete response payload \(boolean true on 200 OK\) |
+
+### `sap_concur_delete_user`
+
+Delete a user identity (DELETE /profile/identity/v4.1/Users/\{id\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userUuid` | string | Yes | User UUID to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Deletion response — empty body on HTTP 204 No Content |
+
+### `sap_concur_get_allocation`
+
+Get a single allocation (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/allocations/\{allocationId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID |
+| `contextType` | string | Yes | Access context: TRAVELER or PROXY |
+| `reportId` | string | Yes | Expense report ID |
+| `allocationId` | string | Yes | Allocation ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Allocation detail payload |
+|   ↳ `allocationId` | string | Unique allocation identifier |
+|   ↳ `accountCode` | string | Ledger account code |
+|   ↳ `overLimitAccountCode` | string | Account code applied to amounts over the per-allocation limit |
+|   ↳ `percentage` | number | Allocation percentage |
+|   ↳ `allocationAmount` | json | Allocation amount \(value, currencyCode\) |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currencyCode` | string | ISO 4217 currency code |
+|   ↳ `approvedAmount` | json | Pro-rated approved amount \(value, currencyCode\) |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currencyCode` | string | ISO 4217 currency code |
+|   ↳ `claimedAmount` | json | Requested reimbursement amount \(value, currencyCode\) |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currencyCode` | string | ISO 4217 currency code |
+|   ↳ `customData` | array | Custom field values \(id, value, isValid\) |
+|   ↳ `expenseId` | string | Associated expense identifier |
+|   ↳ `isSystemAllocation` | boolean | True when system-managed |
+|   ↳ `isPercentEdited` | boolean | True when the percentage was manually edited |
+
+### `sap_concur_get_budget`
+
+Get a budget item header by ID (GET /budget/v4/budgetItemHeader/\{id\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `budgetId` | string | Yes | Budget item header ID \(syncguid\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Budget header detail payload |
+|   ↳ `id` | string | Budget item header ID |
+|   ↳ `name` | string | Admin-facing budget name |
+|   ↳ `description` | string | User-friendly display name |
+|   ↳ `budgetItemStatusType` | string | Status: OPEN, CLOSED, or REMOVED |
+|   ↳ `budgetType` | string | Type: PERSONAL_USE, BUDGET, RESTRICTED, or TEAM |
+|   ↳ `periodType` | string | Period type: YEARLY, QUARTERLY, MONTHLY, or DATE_RANGE |
+|   ↳ `currencyCode` | string | ISO 4217 currency code |
+|   ↳ `isTest` | boolean | Test budget flag |
+|   ↳ `active` | boolean | Display availability flag |
+|   ↳ `owned` | boolean | Caller ownership flag |
+|   ↳ `annualBudget` | number | Total annual budget amount |
+|   ↳ `createdDate` | string | UTC creation timestamp |
+|   ↳ `lastModifiedDate` | string | UTC modification timestamp |
+|   ↳ `fiscalYear` | json | Fiscal year reference \(id, name, startDate, endDate, status\) |
+|   ↳ `budgetAmounts` | json | Aggregate spend amounts \(pendingAmount, spendAmount, unExpensedAmount, availableAmount, adjustedBudgetAmount, consumedPercent, threshold\) |
+|   ↳ `owner` | json | Owner user \(externalUserCUUID, employeeUuid, email, employeeId, name\) |
+|   ↳ `budgetManagers` | array | Manager user objects |
+|   ↳ `budgetApprovers` | array | Approver user objects |
+|   ↳ `budgetViewers` | array | Viewer user objects |
+|   ↳ `budgetTeamMembers` | array | Team member entries \(budgetPerson, startDate, endDate, active, status\) |
+|   ↳ `budgetCategory` | json | Linked category \(id, name, description, statusType\) |
+|   ↳ `costObjects` | array | Tracking field values \(fieldDefinitionId, code, value, operator\) |
+|   ↳ `budgetItemDetails` | array | Per-period detail entries \(id, currencyCode, amount, budgetItemDetailStatusType, fiscalPeriod, budgetAmounts\) |
+|   ↳ `dateRange` | json | Date range for DATE_RANGE budgets \(startDate, endDate\) |
+
+### `sap_concur_get_cash_advance`
+
+Get a cash advance (GET /cashadvance/v4.1/cashadvances/\{cashAdvanceId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `cashAdvanceId` | string | Yes | Cash advance ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Cash advance detail payload |
+|   ↳ `cashAdvanceId` | string | Unique identifier of the cash advance |
+|   ↳ `name` | string | Cash advance name |
+|   ↳ `purpose` | string | Purpose for the cash advance |
+|   ↳ `comment` | string | Comment recorded on the cash advance |
+|   ↳ `accountCode` | string | Account code linked to the employee |
+|   ↳ `requestDate` | string | Datetime the cash advance was requested \(UTC, YYYY-MM-DD hh:mm:ss\) |
+|   ↳ `issuedDate` | string | Datetime the cash advance was issued \(UTC, YYYY-MM-DD hh:mm:ss\) |
+|   ↳ `lastModifiedDate` | string | Datetime the cash advance was last modified \(UTC, YYYY-MM-DD hh:mm:ss\) |
+|   ↳ `hasReceipts` | boolean | Whether the cash advance has receipts |
+|   ↳ `reimbursementCurrency` | string | Reimbursement currency \(3-letter ISO 4217 currency code\) |
+|   ↳ `amountRequested` | json | Amount requested for the cash advance |
+|     ↳ `amount` | string | Requested amount value |
+|     ↳ `currency` | string | 3-letter ISO 4217 currency code |
+|   ↳ `availableBalance` | json | Unsubmitted balance for the cash advance |
+|     ↳ `amount` | string | Balance amount |
+|     ↳ `currency` | string | 3-letter ISO 4217 currency code |
+|   ↳ `exchangeRate` | json | Exchange rate that applies to the cash advance |
+|     ↳ `value` | string | Exchange rate value |
+|     ↳ `operation` | string | Exchange rate operation \(MULTIPLY\) |
+|   ↳ `approvalStatus` | json | Approval status of the cash advance |
+|     ↳ `code` | string | Status code |
+|     ↳ `name` | string | Status display name |
+|   ↳ `paymentType` | json | Payment type for the cash advance |
+|     ↳ `paymentCode` | string | Payment type code |
+|     ↳ `description` | string | Payment method description |
+
+### `sap_concur_upload_exchange_rates`
+
+Bulk upload up to 100 custom exchange rates (POST /exchangerate/v4/rates). Body contains a currency_sets array, each with from_crn_code, to_crn_code, start_date (YYYY-MM-DD), and rate.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `body` | json | Yes | Bulk upload body: \{ currency_sets: \[\{ from_crn_code, to_crn_code, start_date: "YYYY-MM-DD", rate \}\] \} \(max 100 entries\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Bulk-upload exchange rate response \(Exchange Rate v4\) |
+|   ↳ `overallStatus` | string | Overall result status for the bulk upload \(e.g. SUCCESS, FAILURE\) |
+|   ↳ `message` | string | Top-level result message |
+|   ↳ `currencySets` | json | Per-row results: array of \{ from_crn_code, to_crn_code, start_date, rate, statusCode, statusMessage \} |
+
+### `sap_concur_get_expected_expense`
+
+Get an expected expense (GET /travelrequest/v4/expenses/\{expenseUuid\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `expenseUuid` | string | Yes | Expected expense UUID |
+| `userId` | string | No | User UUID acting on the request \(optional\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Expected expense payload |
+|   ↳ `id` | string | Expected expense identifier |
+|   ↳ `href` | string | Self-link |
+|   ↳ `expenseType` | json | Expense type \{id, name\} |
+|   ↳ `transactionDate` | string | Transaction date |
+|   ↳ `transactionAmount` | json | Transaction amount \{value, currencyCode\} |
+|   ↳ `postedAmount` | json | Posted amount \{value, currencyCode\} |
+|   ↳ `approvedAmount` | json | Approved amount \{value, currencyCode\} |
+|   ↳ `remainingAmount` | json | Remaining amount on the expected expense |
+|   ↳ `businessPurpose` | string | Business purpose of the expense |
+|   ↳ `location` | json | Location \{id, name, city, countryCode, countrySubDivisionCode, iataCode, locationType\} |
+|   ↳ `exchangeRate` | json | Exchange rate \{value, operation\} |
+|   ↳ `allocations` | json | Budget allocations array |
+|   ↳ `tripData` | json | Trip data \{agencyBooked, selfBooked, tripType \(ONE_WAY\|ROUND_TRIP\), legs\[\{id, returnLeg, startDate, startTime, startLocationDetail, startLocation, endLocation, class \{code,value\}, travelExceptionReasonCodes\}\], segmentType \{category, code\}\} |
+|   ↳ `parentRequest` | json | Parent travel request resource link \{href, id\} |
+|   ↳ `comments` | json | Comments sub-resource link \{href, id\} |
+
+### `sap_concur_get_expense`
+
+Get a single expense (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID |
+| `contextType` | string | Yes | Access context: TRAVELER, MANAGER, or PROXY |
+| `reportId` | string | Yes | Expense report ID |
+| `expenseId` | string | Yes | Expense ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Expense detail \(ReportExpenseDetail\) payload |
+|   ↳ `expenseId` | string | Expense identifier |
+|   ↳ `allocationSetId` | string | Identifier of the associated allocation set |
+|   ↳ `allocationState` | string | FULLY_ALLOCATED, NOT_ALLOCATED, or PARTIALLY_ALLOCATED |
+|   ↳ `expenseType` | json | Expense type \{id, name, code, isDeleted\} |
+|   ↳ `paymentType` | json | Payment type \{id, name, code\} |
+|   ↳ `expenseSource` | string | Source of the expense \(CASH, CCARD, EBOOKING, etc.\) |
+|   ↳ `transactionDate` | string | Transaction date \(YYYY-MM-DD\) |
+|   ↳ `budgetAccrualDate` | string | Budget accrual date |
+|   ↳ `transactionAmount` | json | Transaction amount \{currencyCode, value\} |
+|   ↳ `postedAmount` | json | Posted amount in report currency \{currencyCode, value\} |
+|   ↳ `claimedAmount` | json | Non-personal claimed amount \{currencyCode, value\} |
+|   ↳ `approvedAmount` | json | Approved amount \{currencyCode, value\} |
+|   ↳ `approverAdjustedAmount` | json | Total amount adjusted by the approver |
+|   ↳ `exchangeRate` | json | Exchange rate \{value, operation\} |
+|   ↳ `vendor` | json | Vendor info \{id, name, description\} |
+|   ↳ `location` | json | Location \{id, name, city, countryCode, countrySubDivisionCode\} |
+|   ↳ `businessPurpose` | string | Business purpose |
+|   ↳ `comment` | string | Free-form comment associated with the expense |
+|   ↳ `isExpenseBillable` | boolean | Billable flag |
+|   ↳ `isPersonalExpense` | boolean | Personal-expense flag |
+|   ↳ `isExpenseRejected` | boolean | Whether the expense was rejected |
+|   ↳ `isExcludedFromCashAdvanceByUser` | boolean | Whether the user excluded this from cash advance |
+|   ↳ `isImageRequired` | boolean | Whether a receipt image is required |
+|   ↳ `isPaperReceiptRequired` | boolean | Whether a paper receipt is required |
+|   ↳ `isPaperReceiptReceived` | boolean | Whether a paper receipt was received |
+|   ↳ `isAutoCreated` | boolean | Auto-creation indicator |
+|   ↳ `hasBlockingExceptions` | boolean | Whether submission-blocking exceptions exist |
+|   ↳ `hasExceptions` | boolean | Whether any exceptions exist |
+|   ↳ `hasMissingReceiptDeclaration` | boolean | Affidavit declaration status |
+|   ↳ `attendeeCount` | number | Number of attendees |
+|   ↳ `receiptImageId` | string | Identifier of the attached receipt image |
+|   ↳ `ereceiptImageId` | string | eReceipt image identifier |
+|   ↳ `receiptType` | json | Receipt \{id, status\} |
+|   ↳ `imageCertificationStatus` | string | Receipt image processing/certification status |
+|   ↳ `ticketNumber` | string | Associated travel ticket number |
+|   ↳ `travel` | json | Travel data \(airline, car rental, hotel, etc.\) |
+|   ↳ `travelAllowance` | json | Travel allowance association data |
+|   ↳ `mileage` | json | Mileage details \(odometerStart, odometerEnd, totalDistance, ...\) |
+|   ↳ `expenseTaxSummary` | json | Aggregated tax data for the expense |
+|   ↳ `taxRateLocation` | string | Tax rate location: FOREIGN, HOME, or OUT_OF_PROVINCE |
+|   ↳ `fuelTypeListItem` | json | Fuel type list item \{id, value, isValid\} |
+|   ↳ `merchantTaxId` | string | Merchant tax identifier |
+|   ↳ `customData` | json | Array of custom field values \[\{id, value, isValid\}\] |
+|   ↳ `parentExpenseId` | string | Identifier of the parent expense \(for itemizations\) |
+|   ↳ `authorizationRequestExpenseId` | string | Linked travel-request expected expense identifier |
+|   ↳ `jptRouteId` | string | Japan Public Transport route id |
+|   ↳ `invoiceId` | string | Invoice identifier |
+|   ↳ `governmentInvoiceId` | string | Government invoice identifier |
+|   ↳ `lastModifiedDate` | string | Last modified timestamp |
+|   ↳ `expenseSourceIdentifiers` | json | Source reference identifiers |
+|   ↳ `links` | json | HATEOAS links for the expense |
+
+### `sap_concur_get_expense_report`
+
+Retrieve a single expense report header by id via Expense Report v4 (/expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID who owns the report |
+| `contextType` | string | Yes | Access context: TRAVELER \(own report\), MANAGER \(report under approval\), PROCESSOR, or PROXY |
+| `reportId` | string | Yes | Expense report ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Concur expense report header \(ReportDetails\) |
+|   ↳ `reportId` | string | Unique report identifier |
+|   ↳ `reportNumber` | string | Report number |
+|   ↳ `reportFormId` | string | Report form ID |
+|   ↳ `policyId` | string | Policy ID applied to the report |
+|   ↳ `policy` | string | Policy name |
+|   ↳ `name` | string | Report name |
+|   ↳ `currencyCode` | string | ISO currency code |
+|   ↳ `currency` | string | Currency name |
+|   ↳ `approvalStatus` | string | Approval status name |
+|   ↳ `approvalStatusId` | string | Approval status identifier |
+|   ↳ `paymentStatus` | string | Payment status name |
+|   ↳ `paymentStatusId` | string | Payment status identifier |
+|   ↳ `ledger` | string | Ledger name |
+|   ↳ `ledgerId` | string | Ledger identifier |
+|   ↳ `userId` | string | Owner user UUID |
+|   ↳ `reportDate` | string | Report date \(YYYY-MM-DD\) |
+|   ↳ `creationDate` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `submitDate` | string | Submit timestamp \(ISO 8601\) or null |
+|   ↳ `startDate` | string | Report period start \(YYYY-MM-DD\) |
+|   ↳ `endDate` | string | Report period end \(YYYY-MM-DD\) |
+|   ↳ `approvedAmount` | json | Amount approved \{ value, currencyCode \} |
+|   ↳ `claimedAmount` | json | Amount claimed \{ value, currencyCode \} |
+|   ↳ `reportTotal` | json | Report total \{ value, currencyCode \} |
+|   ↳ `amountDueEmployee` | json | Amount due employee |
+|   ↳ `amountDueCompany` | json | Amount due company |
+|   ↳ `amountDueCompanyCard` | json | Amount due company card |
+|   ↳ `amountCompanyPaid` | json | Amount company has paid |
+|   ↳ `personalAmount` | json | Personal portion of the report |
+|   ↳ `paymentConfirmedAmount` | json | Confirmed payment amount |
+|   ↳ `amountNotApproved` | json | Amount not approved |
+|   ↳ `totalAmountPaidEmployee` | json | Total amount paid to employee |
+|   ↳ `concurAuditStatus` | string | Concur audit status |
+|   ↳ `isFinancialIntegrationEnabled` | boolean | Whether financial integration is enabled |
+|   ↳ `isSubmitted` | boolean | Whether the report has been submitted |
+|   ↳ `isSentBack` | boolean | Whether the report has been sent back |
+|   ↳ `isReopened` | boolean | Whether the report was reopened |
+|   ↳ `isReportEverSentBack` | boolean | Whether the report was ever sent back |
+|   ↳ `canRecall` | boolean | Whether the report can be recalled |
+|   ↳ `canAddExpense` | boolean | Whether expenses can be added to the report |
+|   ↳ `canReopen` | boolean | Whether the report can be reopened |
+|   ↳ `isReceiptImageRequired` | boolean | Whether receipt images are required |
+|   ↳ `isReceiptImageAvailable` | boolean | Whether receipt images are available |
+|   ↳ `isPaperReceiptsReceived` | boolean | Whether paper receipts were received |
+|   ↳ `isPendingDelegatorReview` | boolean | Whether pending delegator review |
+|   ↳ `isFundsAndGrantsIntegrationEligible` | boolean | Funds and grants eligibility |
+|   ↳ `hasReceivedCashAdvanceReturns` | boolean | Whether cash advance returns received |
+|   ↳ `analyticsGroupId` | string | Analytics group ID |
+|   ↳ `hierarchyNodeId` | string | Hierarchy node ID |
+|   ↳ `allocationFormId` | string | Allocation form ID |
+|   ↳ `countryCode` | string | ISO country code |
+|   ↳ `countrySubDivisionCode` | string | ISO country subdivision code |
+|   ↳ `country` | string | Country name |
+|   ↳ `businessPurpose` | string | Business purpose |
+|   ↳ `comment` | string | Header-level comment on the report |
+|   ↳ `reportVersion` | number | Report version number |
+|   ↳ `reportType` | string | Report type identifier |
+|   ↳ `cardProgramStatementPeriodId` | string | Card program statement period ID |
+|   ↳ `defaultFieldAccess` | string | Default field access \(HD/RO/RW\) |
+|   ↳ `imageStatus` | string | Image status |
+|   ↳ `receiptContainerId` | string | Receipt container ID |
+|   ↳ `receiptStatus` | string | Receipt status |
+|   ↳ `sponsorId` | string | Sponsor ID |
+|   ↳ `submitterId` | string | Submitter user ID |
+|   ↳ `taxConfigId` | string | Tax configuration ID |
+|   ↳ `redirectFund` | json | Redirect fund object \{ amount, creditCardId \} |
+|   ↳ `customData` | array | Array of custom data \{ id, value, isValid, listItemUrl \} |
+|   ↳ `employee` | json | Employee object \{ employeeId, employeeUuid \} |
+|   ↳ `links` | array | HATEOAS links |
+
+### `sap_concur_get_itemizations`
+
+Get expense itemizations (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/itemizations).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID |
+| `contextType` | string | Yes | Access context: TRAVELER, MANAGER, or PROXY |
+| `reportId` | string | Yes | Expense report ID |
+| `expenseId` | string | Yes | Expense ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | array | Array of itemizations \(ReportExpenseSummary\[\]\) |
+|   ↳ `id` | string | Itemization identifier |
+|   ↳ `expenseId` | string | Itemization expense id |
+|   ↳ `allocations` | array | Allocations applied to the itemization |
+|   ↳ `expenseType` | json | Expense type \{id, name, code, isDeleted\} |
+|   ↳ `transactionDate` | string | Transaction date \(YYYY-MM-DD\) |
+|   ↳ `transactionAmount` | json | Transaction amount |
+|   ↳ `postedAmount` | json | Posted amount |
+|   ↳ `approvedAmount` | json | Approved amount |
+|   ↳ `claimedAmount` | json | Claimed amount |
+|   ↳ `approverAdjustedAmount` | json | Approver-adjusted amount |
+|   ↳ `paymentType` | json | Payment type |
+|   ↳ `vendor` | json | Vendor info |
+|   ↳ `location` | json | Location info |
+|   ↳ `allocationState` | string | Allocation state |
+|   ↳ `allocationSetId` | string | Allocation set identifier |
+|   ↳ `attendeeCount` | number | Attendee count |
+|   ↳ `businessPurpose` | string | Business purpose |
+|   ↳ `hasBlockingExceptions` | boolean | Has blocking exceptions |
+|   ↳ `hasExceptions` | boolean | Has exceptions |
+|   ↳ `isPersonalExpense` | boolean | Personal expense |
+|   ↳ `links` | array | HATEOAS links |
+
+### `sap_concur_get_itinerary`
+
+Get a single trip/itinerary (GET /api/travel/trip/v1.1/\{tripID\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `tripId` | string | Yes | Trip ID |
+| `useridType` | string | No | User identifier type \(login, xmlsyncid, uuid\) |
+| `useridValue` | string | No | User identifier value \(paired with useridType\) |
+| `systemFormat` | string | No | Optional system format \(e.g., GDS\) for the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Trip detail payload \(Itinerary v1.1\) |
+|   ↳ `ItinLocator` | string | Concur trip locator \(trip ID\) |
+|   ↳ `ClientLocator` | string | Client \(booking source\) trip locator |
+|   ↳ `ItinSourceName` | string | Booking source name |
+|   ↳ `BookedVia` | string | How the trip was booked \(e.g. ConcurTravel, Direct\) |
+|   ↳ `TripName` | string | Trip name |
+|   ↳ `Status` | string | Trip status \(e.g. Confirmed, Cancelled\) |
+|   ↳ `Description` | string | Trip description |
+|   ↳ `Comments` | string | Comments attached to the trip |
+|   ↳ `CancelComments` | string | Cancellation comments \(when applicable\) |
+|   ↳ `ProjectName` | string | Associated project name |
+|   ↳ `StartDateUtc` | string | Trip start datetime in UTC |
+|   ↳ `EndDateUtc` | string | Trip end datetime in UTC |
+|   ↳ `StartDateLocal` | string | Trip start datetime in local time |
+|   ↳ `EndDateLocal` | string | Trip end datetime in local time |
+|   ↳ `DateCreatedUtc` | string | Trip creation timestamp \(UTC\) |
+|   ↳ `DateModifiedUtc` | string | Trip last-modified timestamp \(UTC\) |
+|   ↳ `DateBookedLocal` | string | Booking date in local time |
+|   ↳ `UserLoginId` | string | Login id of the trip owner |
+|   ↳ `BookedByFirstName` | string | First name of the booker |
+|   ↳ `BookedByLastName` | string | Last name of the booker |
+|   ↳ `IsPersonal` | boolean | Whether the trip is flagged personal |
+|   ↳ `RuleViolations` | array | Travel rule violations attached to the trip |
+|   ↳ `Bookings` | array | Bookings \(air/hotel/car/rail\) attached to the trip |
+
+### `sap_concur_get_list`
+
+Get a single custom list (GET /list/v4/lists/\{listId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `listId` | string | Yes | List ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | List detail payload |
+|   ↳ `id` | string | Unique identifier \(UUID\) of the list |
+|   ↳ `value` | string | Name of the list |
+|   ↳ `levelCount` | number | Number of levels in the list |
+|   ↳ `searchCriteria` | string | Search attribute \(TEXT or CODE\) |
+|   ↳ `displayFormat` | string | Display order \(\(CODE\) TEXT or TEXT \(CODE\)\) |
+|   ↳ `category` | json | List category |
+|     ↳ `id` | string | Category UUID |
+|     ↳ `type` | string | Category type |
+|   ↳ `isReadOnly` | boolean | Whether the list is read-only |
+|   ↳ `isDeleted` | boolean | Whether the list has been deleted |
+|   ↳ `managedBy` | string | Identifier of the managing application or service |
+|   ↳ `externalThreshold` | number | Threshold from where the level starts being external |
+
+### `sap_concur_get_list_item`
+
+Get a single list item (GET /list/v4/items/\{itemId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `itemId` | string | Yes | List item ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | List item detail payload |
+|   ↳ `id` | string | List item UUID |
+|   ↳ `code` | string | Long code format for the item |
+|   ↳ `shortCode` | string | Short code identifier |
+|   ↳ `value` | string | Display value of the item |
+|   ↳ `parentId` | string | Parent item UUID \(omitted for first-level items\) |
+|   ↳ `level` | number | Hierarchy level \(1 for root items\) |
+|   ↳ `isDeleted` | boolean | Deletion status across all containing lists |
+|   ↳ `lists` | array | Lists containing this item |
+|     ↳ `id` | string | List UUID |
+|     ↳ `hasChildren` | boolean | Whether this item has children in the list |
+
+### `sap_concur_get_purchase_request`
+
+Get a purchase request by ID (GET /purchaserequest/v4/purchaserequests/\{id\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `purchaseRequestId` | string | Yes | Purchase request ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Purchase request detail payload |
+|   ↳ `purchaseRequestId` | string | Unique identifier of the purchase request |
+|   ↳ `purchaseRequestNumber` | string | Human-readable purchase request number |
+|   ↳ `purchaseRequestQueueStatus` | string | Queue status of the purchase request |
+|   ↳ `purchaseRequestWorkflowStatus` | string | Workflow status of the purchase request |
+|   ↳ `purchaseOrders` | array | Purchase orders generated from the request |
+|     ↳ `purchaseOrderNumber` | string | Purchase order number |
+|   ↳ `purchaseRequestExceptions` | array | Exceptions raised on the purchase request |
+|     ↳ `eventCode` | string | Event code |
+|     ↳ `exceptionCode` | string | Exception code |
+|     ↳ `isCleared` | boolean | Whether the exception has been cleared |
+|     ↳ `prExceptionId` | string | Identifier of the exception record |
+|     ↳ `message` | string | Exception message |
+
+### `sap_concur_get_receipt`
+
+Get a single receipt by ID (GET /receipts/v4/\{receiptId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `receiptId` | string | Yes | Receipt ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Receipt detail payload |
+|   ↳ `id` | string | Receipt identifier |
+|   ↳ `userId` | string | Owning user UUID |
+|   ↳ `dateTimeReceived` | string | Timestamp when the receipt was received \(ISO 8601\) |
+|   ↳ `receipt` | json | Parsed receipt JSON object |
+|   ↳ `image` | string | Receipt image URL or data reference |
+|   ↳ `validationSchema` | string | Schema used to validate the receipt |
+|   ↳ `self` | string | URL to this receipt resource |
+|   ↳ `template` | string | URL template for receipts |
+
+### `sap_concur_get_receipt_status`
+
+Get receipt processing status (GET /receipts/v4/status/\{receiptId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `receiptId` | string | Yes | Receipt ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Receipt status payload |
+|   ↳ `status` | string | Processing status: ACCEPTED, PROCESSING, PROCESSED, or FAILED |
+|   ↳ `logs` | array | Array of log entries |
+|     ↳ `logLevel` | string | Log level |
+|     ↳ `message` | string | Log message |
+|     ↳ `timestamp` | string | Log timestamp |
+
+### `sap_concur_get_travel_profile`
+
+Get a travel profile (GET /api/travelprofile/v2.0/profile). Returns the calling user by default; pass userid_type and userid_value to impersonate.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `useridType` | string | No | Identifier type: login, xmlsyncid, or uuid |
+| `useridValue` | string | No | Identifier value \(login id, xml sync id, or UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Travel profile payload. Concur returns XML; downstream may parse it to a best-effort JSON object with the documented top-level sections. |
+|   ↳ `General` | json | General profile info \(NamePrefix, FirstName, MiddleName, LastName, NameSuffix, JobTitle, CompanyEmployeeID, EmailAddress, RuleClass, TravelConfigID, etc.\) |
+|   ↳ `Telephones` | json | Telephone numbers \(Telephone\[\] with Type, CountryCode, PhoneNumber, etc.\) |
+|   ↳ `Addresses` | json | Address records \(Address\[\] with Type, Street, City, StateProvince, etc.\) |
+|   ↳ `DriversLicenses` | array | Drivers license records |
+|   ↳ `NationalIDs` | array | National ID records |
+|   ↳ `EmailAddresses` | json | Email addresses \(EmailAddress\[\] with Type, Address, Contact, Verified\) |
+|   ↳ `EmergencyContact` | json | Emergency contact \(Name, Relationship, Phones, Address\) |
+|   ↳ `Air` | json | Air travel preferences \(HomeAirport, Seat, Meal, AirOther, AirMemberships\) |
+|   ↳ `Rail` | json | Rail preferences \(Seat, Coach, Berth, Other, RailMemberships\) |
+|   ↳ `Hotel` | json | Hotel preferences \(SmokingCode, RoomType, HotelOther, HotelMemberships, Accessibility flags\) |
+|   ↳ `Car` | json | Car rental preferences \(CarSmokingCode, CarType, CarMemberships, etc.\) |
+|   ↳ `CustomFields` | json | Custom-defined fields configured by the company |
+|   ↳ `RatePreferences` | json | Rate preferences \(e.g. AAA, AARP, government, military rates\) |
+|   ↳ `DiscountCodes` | json | Discount codes available to the traveler |
+|   ↳ `HasNoPassport` | boolean | Whether the traveler has no passport on file |
+|   ↳ `Roles` | json | Role assignments \(TravelManager, Assistant, etc.\) |
+|   ↳ `Sponsors` | json | Sponsor information for guest travelers |
+|   ↳ `TSAInfo` | json | TSA SecureFlight info \(Gender, DateOfBirth, NoMiddleName, etc.\) |
+|   ↳ `Passports` | json | Passport documents \(Passport\[\] with PassportNumber, Country, Expiration\) |
+|   ↳ `Visas` | json | Visa documents \(Visa\[\] with VisaNationality, VisaNumber, etc.\) |
+|   ↳ `UnusedTickets` | json | Unused ticket records |
+|   ↳ `SouthwestUnusedTickets` | json | Southwest-specific unused ticket records |
+|   ↳ `AdvantageMemberships` | json | Advantage program memberships |
+|   ↳ `XmlSyncId` | string | XML sync identifier for the user |
+|   ↳ `LoginId` | string | Concur login id |
+|   ↳ `ProfileLastModifiedUTC` | string | UTC timestamp the profile was last modified |
+
+### `sap_concur_get_travel_request`
+
+Get a single travel request (GET /travelrequest/v4/requests/\{requestUuid\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `requestUuid` | string | Yes | Travel request UUID |
+| `userId` | string | No | Optional Concur user UUID — required when impersonating another user |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Travel request detail payload |
+|   ↳ `id` | string | Travel request UUID |
+|   ↳ `href` | string | Resource hyperlink |
+|   ↳ `requestId` | string | Public-facing request ID \(4-6 alphanumeric characters\) |
+|   ↳ `name` | string | Request name |
+|   ↳ `businessPurpose` | string | Business purpose |
+|   ↳ `comment` | string | Last attached comment |
+|   ↳ `creationDate` | string | Creation timestamp |
+|   ↳ `lastModified` | string | Last modification timestamp |
+|   ↳ `submitDate` | string | Last submission timestamp |
+|   ↳ `authorizedDate` | string | Date when approval was completed |
+|   ↳ `approvalLimitDate` | string | Required approval deadline |
+|   ↳ `startDate` | string | Trip start date \(ISO 8601\) |
+|   ↳ `endDate` | string | Trip end date \(ISO 8601\) |
+|   ↳ `startTime` | string | Trip start time \(HH:mm\) |
+|   ↳ `endTime` | string | Trip end time \(HH:mm\) |
+|   ↳ `pnr` | string | Passenger record number |
+|   ↳ `approved` | boolean | Whether the request is approved |
+|   ↳ `pendingApproval` | boolean | Pending approval flag |
+|   ↳ `closed` | boolean | Closed flag |
+|   ↳ `everSentBack` | boolean | Ever-sent-back flag |
+|   ↳ `canceledPostApproval` | boolean | Canceled after approval flag |
+|   ↳ `isParentRequest` | boolean | Parent request flag |
+|   ↳ `parentRequestId` | string | Parent budget request ID |
+|   ↳ `allocationFormId` | string | Allocation form identifier |
+|   ↳ `highestExceptionLevel` | string | Highest exception level \(WARNING, ERROR, NONE\) |
+|   ↳ `approvalStatus` | json | Approval status |
+|     ↳ `code` | string | Status code \(NOT_SUBMITTED, SUBMITTED, APPROVED, CANCELED, SENTBACK\) |
+|     ↳ `name` | string | Localized status name |
+|   ↳ `owner` | json | Travel request owner |
+|     ↳ `id` | string | User UUID |
+|     ↳ `firstName` | string | Owner first name |
+|     ↳ `lastName` | string | Owner last name |
+|   ↳ `approver` | json | Approver assigned to the request |
+|     ↳ `id` | string | User UUID |
+|     ↳ `firstName` | string | Approver first name |
+|     ↳ `lastName` | string | Approver last name |
+|   ↳ `policy` | json | Resource link to the applicable policy |
+|     ↳ `id` | string | Policy ID |
+|     ↳ `href` | string | Policy hyperlink |
+|   ↳ `type` | json | Request type |
+|     ↳ `code` | string | Request type code |
+|     ↳ `label` | string | Request type label |
+|   ↳ `mainDestination` | json | Main destination of the trip |
+|     ↳ `city` | string | City |
+|     ↳ `countryCode` | string | ISO country code |
+|     ↳ `countrySubDivisionCode` | string | ISO country sub-division code |
+|     ↳ `name` | string | Destination name |
+|   ↳ `totalApprovedAmount` | json | Total approved amount |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currency` | string | Currency code |
+|   ↳ `totalPostedAmount` | json | Total posted amount |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currency` | string | Currency code |
+|   ↳ `totalRemainingAmount` | json | Total remaining amount |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currency` | string | Currency code |
+|   ↳ `expenses` | array | Resource links to expected expenses |
+|   ↳ `cashAdvances` | json | Resource link to cash advances |
+|     ↳ `id` | string | Resource ID |
+|     ↳ `href` | string | Resource hyperlink |
+|   ↳ `comments` | json | Resource link to comments |
+|     ↳ `id` | string | Resource ID |
+|     ↳ `href` | string | Resource hyperlink |
+|   ↳ `exceptions` | json | Resource link to exceptions |
+|     ↳ `id` | string | Resource ID |
+|     ↳ `href` | string | Resource hyperlink |
+|   ↳ `travelAgency` | json | Resource link to travel agency |
+|     ↳ `id` | string | Resource ID |
+|     ↳ `href` | string | Resource hyperlink |
+|   ↳ `parentRequest` | json | Resource link to parent request |
+|     ↳ `id` | string | Resource ID |
+|     ↳ `href` | string | Resource hyperlink |
+|   ↳ `eventRequest` | json | Resource link to parent event request |
+|     ↳ `id` | string | Resource ID |
+|     ↳ `href` | string | Resource hyperlink |
+|   ↳ `operations` | array | Available workflow actions |
+|     ↳ `rel` | string | Operation name |
+|     ↳ `href` | string | Operation URL |
+|   ↳ `expensePolicy` | json | Expense policy reference |
+|     ↳ `id` | string | Policy identifier |
+|     ↳ `href` | string | Policy URL |
+|   ↳ `custom1` | json | Custom field 1 |
+|   ↳ `custom2` | json | Custom field 2 |
+|   ↳ `custom3` | json | Custom field 3 |
+|   ↳ `custom4` | json | Custom field 4 |
+
+### `sap_concur_get_user`
+
+Get a single user by UUID (GET /profile/identity/v4.1/Users/\{id\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userUuid` | string | Yes | User UUID |
+| `attributes` | string | No | Comma-separated SCIM attributes to include in the response |
+| `excludedAttributes` | string | No | Comma-separated SCIM attributes to exclude from the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | SCIM User identity payload |
+
+### `sap_concur_issue_cash_advance`
+
+Issue a cash advance (POST /cashadvance/v4.1/cashadvances/\{cashAdvanceId\}/issue).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `cashAdvanceId` | string | Yes | Cash advance ID to issue |
+| `body` | json | No | Optional request body |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Issue cash advance result payload |
+|   ↳ `issuedDate` | string | Date the cash advance was issued \(YYYY-MM-DD\) |
+|   ↳ `status` | json | Cash advance status after the issue action |
+|     ↳ `code` | string | Status code |
+|     ↳ `name` | string | Status display name |
+
+### `sap_concur_list_allocations`
+
+List allocations on an expense (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/allocations).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID |
+| `contextType` | string | Yes | Access context: TRAVELER or PROXY |
+| `reportId` | string | Yes | Expense report ID |
+| `expenseId` | string | Yes | Expense ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Allocations list payload |
+
+### `sap_concur_list_attendee_associations`
+
+List attendees associated with an expense (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/attendees).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID |
+| `contextType` | string | Yes | Access context: TRAVELER or PROXY |
+| `reportId` | string | Yes | Expense report ID |
+| `expenseId` | string | Yes | Expense ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Attendees list payload |
+|   ↳ `noShowAttendeeCount` | number | Number of unnamed/no-show attendees |
+|   ↳ `expenseAttendeeList` | array | Attendees associated with the expense, including amounts |
+|     ↳ `attendeeId` | string | Unique identifier of the attendee |
+|     ↳ `transactionAmount` | json | Expense portion assigned to this attendee |
+|       ↳ `value` | number | Numeric amount |
+|       ↳ `currencyCode` | string | ISO 4217 currency code |
+|     ↳ `approvedAmount` | json | Approved amount in report currency |
+|       ↳ `value` | number | Numeric amount |
+|       ↳ `currencyCode` | string | ISO 4217 currency code |
+|     ↳ `isAmountUserEdited` | boolean | Whether the amount was manually edited |
+|     ↳ `isTraveling` | boolean | Whether the attendee is traveling \(affects tax calculations\) |
+|     ↳ `associatedAttendeeCount` | number | Total attendee count; greater than 1 indicates unnamed attendees |
+|     ↳ `versionNumber` | number | Version number preserving previous attendee state |
+|     ↳ `customData` | array | Custom field values for the association |
+|       ↳ `id` | string | Custom field identifier |
+|       ↳ `value` | string | Custom field value \(max 48 characters\) |
+|       ↳ `isValid` | boolean | Whether the value passes validation |
+|       ↳ `listItemUrl` | string | HATEOAS link for list items |
+
+### `sap_concur_list_budget_categories`
+
+List budget categories (GET /budget/v4/budgetCategory).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Budget categories collection payload |
+
+### `sap_concur_list_budgets`
+
+List budget item headers (GET /budget/v4/budgetItemHeader).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `adminView` | boolean | No | When true, returns all budgets the caller can administer \(default false\) |
+| `offset` | number | No | Page offset \(Concur returns up to 50 budget headers per page\) |
+| `responseSchema` | string | No | Response schema variant: "COMPACT" returns a smaller payload |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Budget headers collection payload |
+|   ↳ `offset` | number | Page offset |
+|   ↳ `limit` | number | Page size |
+|   ↳ `totalCount` | number | Total result count |
+
+### `sap_concur_list_exceptions`
+
+List exceptions on a report (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/exceptions).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID |
+| `contextType` | string | Yes | Access context: TRAVELER, MANAGER, or PROXY |
+| `reportId` | string | Yes | Expense report ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | array | Array of report header exception entries |
+|   ↳ `exceptionCode` | string | Unique exception code |
+|   ↳ `exceptionVisibility` | string | Visibility scope: ALL, APPROVER_PROCESSOR, or PROCESSOR |
+|   ↳ `isBlocking` | boolean | Whether the exception prevents report submission |
+|   ↳ `message` | string | Human-readable description of the exception |
+|   ↳ `expenseId` | string | Related expense entry ID |
+|   ↳ `allocationId` | string | Related allocation ID, if any |
+|   ↳ `parentExpenseId` | string | Parent expense ID for itemized entries |
+
+### `sap_concur_list_expected_expenses`
+
+List expected expenses on a travel request (GET /travelrequest/v4/requests/\{requestUuid\}/expenses).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `requestUuid` | string | Yes | Travel request UUID |
+| `userId` | string | No | User UUID acting on the request \(optional\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Array of expected expense objects. Each entry includes id, href, expenseType \{id,name\}, transactionDate, transactionAmount, postedAmount, approvedAmount, remainingAmount, businessPurpose, location, exchangeRate, allocations, tripData, parentRequest \{href, id\}, comments \{href, id\}. |
+
+### `sap_concur_list_expenses`
+
+List expenses on a report (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID |
+| `contextType` | string | Yes | Access context: TRAVELER, MANAGER, or PROXY |
+| `reportId` | string | Yes | Expense report ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | array | Array of expense summary entries \(ReportExpenseSummary\[\]\) |
+|   ↳ `expenseId` | string | Expense identifier |
+|   ↳ `expenseType` | json | Expense type \{id, name, code, isDeleted\} |
+|   ↳ `transactionDate` | string | Transaction date \(YYYY-MM-DD\) |
+|   ↳ `transactionAmount` | json | Transaction amount \{currencyCode, value\} |
+|   ↳ `postedAmount` | json | Posted amount |
+|   ↳ `approvedAmount` | json | Approved amount |
+|   ↳ `claimedAmount` | json | Claimed amount |
+|   ↳ `approverAdjustedAmount` | json | Approver-adjusted amount |
+|   ↳ `paymentType` | json | Payment type \{id, name, code\} |
+|   ↳ `vendor` | json | Vendor info |
+|   ↳ `location` | json | Location info |
+|   ↳ `allocationState` | string | Allocation state |
+|   ↳ `allocationSetId` | string | Allocation set identifier |
+|   ↳ `attendeeCount` | number | Attendee count |
+|   ↳ `businessPurpose` | string | Business purpose |
+|   ↳ `hasBlockingExceptions` | boolean | Has submission-blocking exceptions |
+|   ↳ `hasExceptions` | boolean | Has exceptions |
+|   ↳ `hasMissingReceiptDeclaration` | boolean | Has missing-receipt declaration |
+|   ↳ `isAutoCreated` | boolean | Auto-created |
+|   ↳ `isPersonalExpense` | boolean | Personal-expense flag |
+|   ↳ `isImageRequired` | boolean | Receipt image required |
+|   ↳ `isPaperReceiptRequired` | boolean | Paper receipt required |
+|   ↳ `imageCertificationStatus` | string | Receipt image certification status |
+|   ↳ `receiptImageId` | string | Receipt image identifier |
+|   ↳ `ereceiptImageId` | string | eReceipt image identifier |
+|   ↳ `ticketNumber` | string | Ticket number |
+|   ↳ `exchangeRate` | json | Exchange rate |
+|   ↳ `travelAllowance` | json | Travel allowance |
+|   ↳ `expenseSourceIdentifiers` | json | Expense source identifiers |
+|   ↳ `links` | array | HATEOAS links |
+
+### `sap_concur_list_expense_reports`
+
+List expense reports (GET /api/v3.0/expense/reports). Returns a v3 envelope with Items and NextPage.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(us, us2, eu, eu2, cn, emea — defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `user` | string | No | Filter by a specific user \(login id or user identifier\). |
+| `submitDateBefore` | string | No | Filter to reports submitted on or before this date \(YYYY-MM-DD\) |
+| `submitDateAfter` | string | No | Filter to reports submitted on or after this date \(YYYY-MM-DD\) |
+| `paidDateBefore` | string | No | Filter to reports paid on or before this date \(YYYY-MM-DD\) |
+| `paidDateAfter` | string | No | Filter to reports paid on or after this date \(YYYY-MM-DD\) |
+| `modifiedDateBefore` | string | No | Filter to reports last modified on or before this date \(YYYY-MM-DD\) |
+| `modifiedDateAfter` | string | No | Filter to reports last modified on or after this date \(YYYY-MM-DD\) |
+| `createDateBefore` | string | No | Filter to reports created on or before this date \(YYYY-MM-DD\) |
+| `createDateAfter` | string | No | Filter to reports created on or after this date \(YYYY-MM-DD\) |
+| `approvalStatusCode` | string | No | Filter by approval status code \(e.g. A_NOTF, A_PEND, A_APPR\) |
+| `paymentStatusCode` | string | No | Filter by payment status code |
+| `currencyCode` | string | No | Filter by ISO currency code \(e.g. USD, EUR\) |
+| `approverLoginID` | string | No | Filter by approver login ID |
+| `limit` | number | No | Number of records per page \(default 25, max 100\) |
+| `offset` | string | No | Opaque cursor token returned by a prior call \(NextPage\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Concur v3 expense reports envelope |
+|   ↳ `Items` | array | Array of report header objects |
+|     ↳ `ID` | string | Report ID |
+|     ↳ `Name` | string | Report name |
+|     ↳ `OwnerLoginID` | string | Owner login ID |
+|     ↳ `OwnerName` | string | Owner display name |
+|     ↳ `Total` | number | Report total |
+|     ↳ `TotalApprovedAmount` | number | Total approved amount |
+|     ↳ `TotalClaimedAmount` | number | Total claimed amount |
+|     ↳ `AmountDueEmployee` | number | Amount due employee |
+|     ↳ `CurrencyCode` | string | ISO currency code |
+|     ↳ `ApprovalStatusName` | string | Approval status name |
+|     ↳ `ApprovalStatusCode` | string | Approval status code |
+|     ↳ `PaymentStatusName` | string | Payment status name |
+|     ↳ `PaymentStatusCode` | string | Payment status code |
+|     ↳ `ApproverLoginID` | string | Approver login ID |
+|     ↳ `ApproverName` | string | Approver display name |
+|     ↳ `HasException` | boolean | Whether the report has any exception |
+|     ↳ `ReceiptsReceived` | boolean | Whether paper receipts were received |
+|     ↳ `CreateDate` | string | Creation date |
+|     ↳ `SubmitDate` | string | Submit date |
+|     ↳ `LastModifiedDate` | string | Last modified date |
+|     ↳ `PaidDate` | string | Paid date |
+|     ↳ `URI` | string | Self URI |
+|   ↳ `NextPage` | string | URI of the next page \(use as offset cursor\) |
+
+### `sap_concur_list_itineraries`
+
+List travel trips/itineraries (GET /api/travel/trip/v1.1).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `startDate` | string | No | Filter trips starting on/after this date \(YYYY-MM-DD\) |
+| `endDate` | string | No | Filter trips ending on/before this date \(YYYY-MM-DD\) |
+| `bookingType` | string | No | Filter by booking type \(air, car, hotel, rail, etc.\) |
+| `useridType` | string | No | User identifier type \(login, xmlsyncid, uuid\) |
+| `useridValue` | string | No | User identifier value \(paired with useridType\) |
+| `itemsPerPage` | number | No | Items per page |
+| `page` | number | No | 1-based page number |
+| `includeMetadata` | boolean | No | Include paging metadata in the response |
+| `includeCanceledTrips` | boolean | No | Include canceled trips in the result set |
+| `createdAfterDate` | string | No | Only trips created after this date \(YYYY-MM-DD\) |
+| `createdBeforeDate` | string | No | Only trips created before this date \(YYYY-MM-DD\) |
+| `lastModifiedDate` | string | No | Only trips modified on/after this date \(YYYY-MM-DD\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Trips list payload \(Itinerary v1.1 ConnectResponse\) |
+|   ↳ `Metadata` | json | Paging metadata \(when includeMetadata=true\) |
+|     ↳ `Paging` | json | Pagination details |
+|       ↳ `TotalPages` | number | Total pages |
+|       ↳ `TotalItems` | number | Total items |
+|       ↳ `Page` | number | Current page |
+|       ↳ `ItemsPerPage` | number | Items per page |
+|       ↳ `PreviousPageURL` | string | Previous page URL |
+|       ↳ `NextPageURL` | string | Next page URL |
+|   ↳ `ItineraryInfoList` | array | List of itinerary summary records |
+|     ↳ `ItinLocator` | string | Trip locator \(trip ID\) |
+|     ↳ `ClientLocator` | string | Client trip locator |
+|     ↳ `ItinSourceName` | string | Booking source name |
+|     ↳ `BookedVia` | string | Booking channel |
+|     ↳ `TripName` | string | Trip name |
+|     ↳ `Status` | string | Trip status |
+|     ↳ `Description` | string | Trip description |
+|     ↳ `StartDateUtc` | string | Start \(UTC\) |
+|     ↳ `EndDateUtc` | string | End \(UTC\) |
+|     ↳ `StartDateLocal` | string | Start \(local\) |
+|     ↳ `EndDateLocal` | string | End \(local\) |
+|     ↳ `DateCreatedUtc` | string | Created \(UTC\) |
+|     ↳ `DateModifiedUtc` | string | Modified \(UTC\) |
+|     ↳ `DateBookedLocal` | string | Booked \(local\) |
+|     ↳ `UserLoginId` | string | Trip owner login id |
+|     ↳ `BookedByFirstName` | string | Booker first name |
+|     ↳ `BookedByLastName` | string | Booker last name |
+|     ↳ `IsPersonal` | boolean | Personal trip flag |
+
+### `sap_concur_list_lists`
+
+List custom lists (GET /list/v4/lists).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `page` | number | No | Page number \(1-based; page size is fixed at 100\) |
+| `sortBy` | string | No | Sort field: name, levelcount, or listcategory |
+| `sortDirection` | string | No | Sort direction: asc or desc |
+| `value` | string | No | Filter by list name |
+| `categoryType` | string | No | Filter by category type \(mapped to category.type query param\) |
+| `isDeleted` | boolean | No | Include deleted lists |
+| `levelCount` | number | No | Filter by number of levels |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Paginated lists collection |
+|   ↳ `content` | array | Lists in the current page |
+|     ↳ `id` | string | List UUID |
+|     ↳ `value` | string | Name of the list |
+|     ↳ `levelCount` | number | Number of levels in the list |
+|     ↳ `searchCriteria` | string | Search attribute \(TEXT or CODE\) |
+|     ↳ `displayFormat` | string | Display order \(\(CODE\) TEXT or TEXT \(CODE\)\) |
+|     ↳ `category` | json | List category |
+|       ↳ `id` | string | Category UUID |
+|       ↳ `type` | string | Category type |
+|     ↳ `isReadOnly` | boolean | Whether the list is read-only |
+|     ↳ `isDeleted` | boolean | Whether the list has been deleted |
+|     ↳ `managedBy` | string | Managing application or service identifier |
+|     ↳ `externalThreshold` | number | Threshold from where the level starts being external |
+|   ↳ `page` | json | Pagination metadata |
+|     ↳ `number` | number | Current page number |
+|     ↳ `size` | number | Items per page |
+|     ↳ `totalElements` | number | Total item count |
+|     ↳ `totalPages` | number | Total page count |
+|   ↳ `links` | array | Navigation links \(next, previous, first, last\) |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link URL |
+
+### `sap_concur_list_list_items`
+
+List the top-level items (children) for a custom list (GET /list/v4/lists/\{listId\}/children).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `listId` | string | Yes | List ID |
+| `page` | number | No | Page number \(1-based; page size is fixed at 100\) |
+| `sortBy` | string | No | Sort field: value or shortCode |
+| `sortDirection` | string | No | Sort direction: asc or desc |
+| `hasChildren` | boolean | No | Include only items that have children |
+| `isDeleted` | boolean | No | Include deleted items |
+| `shortCode` | string | No | Filter by short code |
+| `value` | string | No | Filter by display value |
+| `shortCodeOrValue` | string | No | Filter by short code OR value |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Paginated list items collection |
+|   ↳ `content` | array | List items in the current page |
+|     ↳ `id` | string | List item UUID |
+|     ↳ `code` | string | Long code format for the item |
+|     ↳ `shortCode` | string | Short code identifier |
+|     ↳ `value` | string | Display value of the item |
+|     ↳ `parentId` | string | Parent item UUID \(omitted for first-level items\) |
+|     ↳ `level` | number | Hierarchy level \(1 for root items\) |
+|     ↳ `isDeleted` | boolean | Deletion status across all containing lists |
+|     ↳ `lists` | array | Lists containing this item |
+|       ↳ `id` | string | List UUID |
+|       ↳ `hasChildren` | boolean | Whether this item has children in the list |
+|   ↳ `page` | json | Pagination metadata |
+|     ↳ `number` | number | Current page number |
+|     ↳ `size` | number | Items per page |
+|     ↳ `totalElements` | number | Total item count |
+|     ↳ `totalPages` | number | Total page count |
+|   ↳ `links` | array | Navigation links \(next, previous, first, last\) |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link URL |
+
+### `sap_concur_list_receipts`
+
+List receipts for a user (GET /receipts/v4/users/\{userId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | array | Array of e-receipt objects |
+|   ↳ `id` | string | Receipt id |
+|   ↳ `userId` | string | Owner user UUID |
+|   ↳ `dateTimeReceived` | string | Timestamp the receipt was received |
+|   ↳ `receipt` | json | Structured receipt data |
+|   ↳ `image` | string | Receipt image URL or reference |
+|   ↳ `validationSchema` | string | Validation schema URI |
+|   ↳ `self` | string | Self URL |
+|   ↳ `template` | string | Template URL |
+
+### `sap_concur_list_report_comments`
+
+List comments on a report (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/comments).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID |
+| `contextType` | string | Yes | Access context: TRAVELER or PROXY |
+| `reportId` | string | Yes | Expense report ID |
+| `includeAllComments` | boolean | No | Include comments from all expenses in the report \(default false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | array | Array of report comment entries |
+|   ↳ `comment` | string | Comment text |
+|   ↳ `creationDate` | string | Comment creation timestamp \(ISO 8601\) |
+|   ↳ `expenseId` | string | Related expense entry ID |
+|   ↳ `isAuditorComment` | boolean | Whether the comment was added by an auditor |
+|   ↳ `isLatest` | boolean | Whether this is the latest comment |
+|   ↳ `createdForEmployeeId` | string | Employee ID the comment was created for |
+|   ↳ `author` | json | Comment author |
+|     ↳ `employeeId` | string | Employee identifier |
+|     ↳ `employeeUuid` | string | Employee UUID |
+|   ↳ `createdForEmployee` | json | Employee the comment was created for |
+|     ↳ `employeeId` | string | Employee identifier |
+|     ↳ `employeeUuid` | string | Employee UUID |
+|   ↳ `stepInstanceId` | string | Workflow step instance identifier |
+
+### `sap_concur_list_reports_to_approve`
+
+List expense reports awaiting approval (GET /expensereports/v4/users/\{userId\}/context/MANAGER/reportsToApprove).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Manager user UUID |
+| `contextType` | string | No | Access context: must be MANAGER \(default\) |
+| `sort` | string | No | Report field name to sort by \(e.g., reportDate\) |
+| `order` | string | No | Sort direction: asc or desc |
+| `includeDelegateApprovals` | boolean | No | Whether to include reports the caller can approve as a delegate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | array | Array of reports awaiting approval \(ReportToApprove\[\]\) |
+|   ↳ `reportId` | string | Unique report identifier |
+|   ↳ `name` | string | Report name |
+|   ↳ `reportDate` | string | Report date \(YYYY-MM-DD\) |
+|   ↳ `reportNumber` | string | User-friendly report number |
+|   ↳ `submitDate` | string | Submission timestamp \(ISO 8601 UTC\) |
+|   ↳ `approver` | json | Approver employee \{ employeeId, employeeUuid \} |
+|   ↳ `employee` | json | Report owner employee \{ employeeId, employeeUuid \} |
+|   ↳ `amountDueEmployee` | json | Amount due employee \{ value, currencyCode \} |
+|   ↳ `claimedAmount` | json | Total claimed amount \{ value, currencyCode \} |
+|   ↳ `totalApprovedAmount` | json | Total approved amount \{ value, currencyCode \} |
+|   ↳ `hasExceptions` | boolean | Whether the report has exceptions |
+|   ↳ `reportType` | string | Report creation method identifier |
+|   ↳ `links` | array | HATEOAS links |
+
+### `sap_concur_get_request_cash_advance`
+
+Get a single cash advance assigned to a travel request (GET /travelrequest/v4/cashadvances/\{cashAdvanceUuid\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `cashAdvanceUuid` | string | Yes | Cash advance UUID \(returned as part of a travel request\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Cash advance detail |
+|   ↳ `cashAdvanceId` | string | Unique cash advance identifier |
+|   ↳ `amountRequested` | json | Requested amount |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currency` | string | Currency code |
+|     ↳ `amount` | number | Amount \(alias\) |
+|   ↳ `approvalStatus` | json | Approval status |
+|     ↳ `code` | string | Status code |
+|     ↳ `name` | string | Status name |
+|   ↳ `requestDate` | string | Request datetime \(ISO 8601\) |
+|   ↳ `exchangeRate` | json | Exchange rate |
+|     ↳ `value` | number | Rate value |
+|     ↳ `operation` | string | Multiply or divide |
+
+### `sap_concur_list_travel_profiles_summary`
+
+List travel profile summaries (GET /api/travelprofile/v2.0/summary). LastModifiedDate is required by Concur.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `lastModifiedDate` | string | Yes | Required UTC datetime in YYYY-MM-DDThh:mm:ss format |
+| `page` | number | No | 1-based page number |
+| `itemsPerPage` | number | No | Items per page \(max 200\) |
+| `travelConfigs` | string | No | Comma-separated travel configuration ids |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Travel profile summary list payload \(Concur returns XML mapped to JSON\) |
+|   ↳ `Metadata` | json | Paging metadata |
+|     ↳ `Paging` | json | Pagination details |
+|       ↳ `TotalPages` | number | Total number of pages |
+|       ↳ `TotalItems` | number | Total number of items |
+|       ↳ `Page` | number | Current page |
+|       ↳ `ItemsPerPage` | number | Items per page |
+|       ↳ `PreviousPageURL` | string | URL to the previous page |
+|       ↳ `NextPageURL` | string | URL to the next page |
+|   ↳ `Data` | array | Array of travel profile summaries |
+|     ↳ `Status` | string | Status \(Active/Inactive\) |
+|     ↳ `LoginID` | string | Login identifier |
+|     ↳ `XmlProfileSyncID` | string | XML profile sync identifier |
+|     ↳ `ProfileLastModifiedUTC` | string | Last modified timestamp \(UTC\) |
+|     ↳ `RuleClass` | string | Travel rule class assigned to the profile |
+|     ↳ `TravelConfigID` | string | Travel configuration identifier |
+|     ↳ `UUID` | string | Profile UUID |
+|     ↳ `EmployeeID` | string | Employee ID |
+|     ↳ `CompanyID` | string | Company ID |
+
+### `sap_concur_list_travel_request_comments`
+
+List comments on a travel request (GET /travelrequest/v4/requests/\{requestUuid\}/comments).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `requestUuid` | string | Yes | Travel request UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | array | Array of comment entries |
+|   ↳ `author` | json | Comment author |
+|     ↳ `firstName` | string | Author first name |
+|     ↳ `lastName` | string | Author last name |
+|   ↳ `creationDateTime` | string | Comment creation timestamp \(ISO 8601\) |
+|   ↳ `isLatest` | boolean | Whether this is the latest comment |
+|   ↳ `value` | string | Comment text |
+
+### `sap_concur_list_travel_requests`
+
+List travel requests (GET /travelrequest/v4/requests).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `view` | string | No | View filter \(e.g., ALL, ACTIVE, PENDING, TOAPPROVE\) |
+| `limit` | number | No | Max number of results per page |
+| `start` | number | No | Page start cursor \(offset\) |
+| `userId` | string | No | Filter by Concur user UUID |
+| `approvedBefore` | string | No | ISO 8601 date — return requests approved before this date |
+| `approvedAfter` | string | No | ISO 8601 date — return requests approved after this date |
+| `modifiedBefore` | string | No | ISO 8601 date — return requests modified before this date |
+| `modifiedAfter` | string | No | ISO 8601 date — return requests modified after this date |
+| `sortField` | string | No | Field to sort by: startDate, approvalStatus, or requestId \(default startDate\) |
+| `sortOrder` | string | No | Sort order: ASC or DESC \(default DESC\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Travel requests list payload |
+|   ↳ `data` | array | Array of travel request summaries |
+|     ↳ `id` | string | Travel request UUID |
+|     ↳ `href` | string | Resource hyperlink |
+|     ↳ `requestId` | string | Public-facing request ID |
+|     ↳ `name` | string | Request name |
+|     ↳ `businessPurpose` | string | Business purpose |
+|     ↳ `comment` | string | Last attached comment |
+|     ↳ `creationDate` | string | Creation timestamp |
+|     ↳ `submitDate` | string | Last submission timestamp |
+|     ↳ `startDate` | string | Trip start date \(ISO 8601\) |
+|     ↳ `endDate` | string | Trip end date \(ISO 8601\) |
+|     ↳ `startTime` | string | Trip start time \(HH:mm\) |
+|     ↳ `approved` | boolean | Whether the request is approved |
+|     ↳ `pendingApproval` | boolean | Pending approval flag |
+|     ↳ `closed` | boolean | Closed flag |
+|     ↳ `everSentBack` | boolean | Ever-sent-back flag |
+|     ↳ `canceledPostApproval` | boolean | Canceled after approval flag |
+|     ↳ `approvalStatus` | json | Approval status |
+|       ↳ `code` | string | Status code \(NOT_SUBMITTED, SUBMITTED, APPROVED, CANCELED, SENTBACK\) |
+|       ↳ `name` | string | Localized status name |
+|     ↳ `owner` | json | Travel request owner |
+|       ↳ `id` | string | User UUID |
+|       ↳ `firstName` | string | Owner first name |
+|       ↳ `lastName` | string | Owner last name |
+|     ↳ `approver` | json | Approver assigned to the request |
+|       ↳ `id` | string | User UUID |
+|       ↳ `firstName` | string | Approver first name |
+|       ↳ `lastName` | string | Approver last name |
+|     ↳ `type` | json | Request type |
+|       ↳ `code` | string | Request type code |
+|       ↳ `label` | string | Request type label |
+|     ↳ `totalApprovedAmount` | json | Total approved amount |
+|       ↳ `value` | number | Amount value |
+|       ↳ `currency` | string | Currency code |
+|     ↳ `totalPostedAmount` | json | Total posted amount |
+|       ↳ `value` | number | Amount value |
+|       ↳ `currency` | string | Currency code |
+|     ↳ `totalRemainingAmount` | json | Total remaining amount |
+|       ↳ `value` | number | Amount value |
+|       ↳ `currency` | string | Currency code |
+|     ↳ `expenses` | array | Resource links to expected expenses |
+|   ↳ `operations` | array | Pagination links \(next, prev, first, last\) |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | HTTP method |
+|     ↳ `name` | string | Link name |
+
+### `sap_concur_list_users`
+
+List Concur user identities (GET /profile/identity/v4.1/Users).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `count` | number | No | Max number of users to return \(default 100, max 1000\) |
+| `cursor` | string | No | SCIM v4.1 pagination cursor returned by a prior call |
+| `attributes` | string | No | Comma-separated list of attributes to include in the response |
+| `excludedAttributes` | string | No | Comma-separated list of attributes to exclude from the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | SCIM ListResponse with Resources array |
+
+### `sap_concur_move_travel_request`
+
+Move a travel request through workflow (POST /travelrequest/v4/requests/\{requestUuid\}/\{action\}). Valid actions: submit, recall, cancel, approve, sendback, close, reopen.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `requestUuid` | string | Yes | Travel request UUID |
+| `action` | string | Yes | Workflow action: submit, recall, cancel, approve, sendback, close, reopen |
+| `userId` | string | No | Optional Concur user UUID — required when impersonating another user |
+| `body` | json | No | Optional payload \(e.g., \{ "comment": "..." \}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Workflow transition response payload |
+|   ↳ `id` | string | Travel request UUID |
+|   ↳ `href` | string | Resource hyperlink |
+|   ↳ `approvalStatus` | json | Approval status after the workflow transition |
+|     ↳ `code` | string | Status code \(NOT_SUBMITTED, SUBMITTED, APPROVED, CANCELED, SENTBACK\) |
+|     ↳ `name` | string | Localized status name |
+|   ↳ `approver` | json | Approver assigned after the transition |
+|     ↳ `id` | string | User UUID |
+|     ↳ `firstName` | string | Approver first name |
+|     ↳ `lastName` | string | Approver last name |
+|   ↳ `operations` | array | Available follow-up workflow actions |
+|     ↳ `rel` | string | Link relation |
+|     ↳ `href` | string | Link target |
+|     ↳ `method` | string | HTTP method |
+|     ↳ `name` | string | Link name |
+
+### `sap_concur_recall_expense_report`
+
+Recall a submitted expense report (PATCH /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/recall — supported contexts: TRAVELER, PROXY). No request body is required.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID who owns the report |
+| `contextType` | string | Yes | Access context: TRAVELER or PROXY |
+| `reportId` | string | Yes | Expense report ID to recall |
+| `body` | json | No | Optional body. Concur docs don't define a payload for this action; pass an empty object if uncertain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Empty \(204 No Content\) |
+
+### `sap_concur_remove_all_attendees`
+
+Remove all attendees from an expense (DELETE /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/attendees).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID |
+| `contextType` | string | Yes | Access context: TRAVELER or PROXY |
+| `reportId` | string | Yes | Expense report ID |
+| `expenseId` | string | Yes | Expense ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Empty response body \(Concur returns 204 No Content\) |
+
+### `sap_concur_search_locations`
+
+Search Concur location reference data (GET /localities/v5/locations).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `searchText` | string | No | Free-text query \(city, airport, landmark, etc.\) |
+| `locCode` | string | No | IATA / location code |
+| `locationNameId` | string | No | Concur internal location name ID \(UUID\) |
+| `locationNameKey` | number | No | Concur internal numeric location name key |
+| `countryCode` | string | No | 2-letter ISO 3166-1 country code |
+| `subdivisionCode` | string | No | ISO 3166-2:2007 country subdivision \(e.g. US-WA\) |
+| `adminRegionId` | string | No | Administrative region ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Localities v5 search response |
+|   ↳ `locations` | array | Array of matching Location records |
+|     ↳ `id` | string | Location ID \(UUID\) |
+|     ↳ `code` | string | IATA / location code |
+|     ↳ `legacyKey` | number | Legacy numeric location key |
+|     ↳ `timeZoneOffset` | string | IANA timezone or UTC offset |
+|     ↳ `active` | boolean | Whether the location is active |
+|     ↳ `point` | json | Geographic coordinates |
+|       ↳ `latitude` | number | Latitude |
+|       ↳ `longitude` | number | Longitude |
+|     ↳ `names` | array | Localized location names |
+|       ↳ `id` | string | Name ID |
+|       ↳ `key` | number | Numeric name key |
+|       ↳ `locale` | string | Locale tag |
+|       ↳ `name` | string | Display name |
+|     ↳ `administrativeRegion` | json | Administrative region \(e.g., metro area\) |
+|       ↳ `id` | string | Region ID |
+|       ↳ `name` | string | Region name |
+|     ↳ `country` | json | Country reference |
+|       ↳ `id` | string | Country ID |
+|       ↳ `code` | string | ISO country code |
+|       ↳ `name` | string | Country name |
+|     ↳ `subDivision` | json | Country subdivision \(state/province\) |
+|       ↳ `id` | string | Subdivision ID |
+|       ↳ `code` | string | ISO subdivision code |
+|       ↳ `name` | string | Subdivision name |
+|     ↳ `links` | array | HATEOAS links |
+
+### `sap_concur_search_users`
+
+Search users via SCIM .search endpoint (POST /profile/identity/v4.1/Users/.search).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `body` | json | Yes | SCIM search request payload \(\{ schemas, attributes, filter, count, startIndex \}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | SCIM search ListResponse |
+
+### `sap_concur_send_back_expense_report`
+
+Send back an expense report to the employee (PATCH /expensereports/v4/reports/\{reportId\}/sendBack). Required body field: comment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `reportId` | string | Yes | Expense report ID to send back |
+| `body` | json | Yes | Request body — `comment` is required by Concur \(e.g., \{ "comment": "Missing receipt" \}\). Optional fields: `expectedStepCode`, `expectedStepSequence`. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Empty \(204 No Content\) |
+
+### `sap_concur_submit_expense_report`
+
+Submit an expense report into the workflow via Expense Report v4 (PATCH /expensereports/v4/users/\{userId\}/reports/\{reportId\}/submit).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID who owns the report |
+| `reportId` | string | Yes | Expense report ID to submit |
+| `body` | json | No | Optional body. Concur docs don't define a payload for this action; pass an empty object if uncertain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Empty \(204 No Content\) |
+
+### `sap_concur_update_allocation`
+
+Update an allocation (PATCH /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/allocations/\{allocationId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID |
+| `contextType` | string | Yes | Access context: TRAVELER or PROXY \(write requires expense.report.readwrite\) |
+| `reportId` | string | Yes | Expense report ID |
+| `allocationId` | string | Yes | Allocation ID to update |
+| `body` | json | Yes | Fields to update on the allocation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Empty body on success \(Concur returns 204 No Content\) |
+
+### `sap_concur_update_expected_expense`
+
+Update an expected expense (PUT /travelrequest/v4/expenses/\{expenseUuid\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `expenseUuid` | string | Yes | Expected expense UUID to update |
+| `userId` | string | No | User UUID acting on the request \(required when using a Company JWT, optional otherwise\) |
+| `body` | json | Yes | Fields to update on the expected expense |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Updated expected expense payload |
+|   ↳ `id` | string | Expected expense identifier |
+|   ↳ `href` | string | Self-link |
+|   ↳ `expenseType` | json | Expense type \{id, name\} |
+|   ↳ `transactionDate` | string | Transaction date |
+|   ↳ `transactionAmount` | json | Transaction amount \{value, currencyCode\} |
+|   ↳ `postedAmount` | json | Posted amount \{value, currencyCode\} |
+|   ↳ `approvedAmount` | json | Approved amount \{value, currencyCode\} |
+|   ↳ `remainingAmount` | json | Remaining amount on the expected expense |
+|   ↳ `businessPurpose` | string | Business purpose of the expense |
+|   ↳ `location` | json | Location \{id, name, city, countryCode, countrySubDivisionCode, iataCode, locationType\} |
+|   ↳ `exchangeRate` | json | Exchange rate \{value, operation\} |
+|   ↳ `allocations` | json | Budget allocations array |
+|   ↳ `tripData` | json | Trip data \{agencyBooked, selfBooked, tripType \(ONE_WAY\|ROUND_TRIP\), legs\[\{id, returnLeg, startDate, startTime, startLocationDetail, startLocation, endLocation, class \{code,value\}, travelExceptionReasonCodes\}\], segmentType \{category, code\}\} |
+|   ↳ `parentRequest` | json | Parent travel request resource link \{href, id\} |
+|   ↳ `comments` | json | Comments sub-resource link \{href, id\} |
+
+### `sap_concur_update_expense`
+
+Update an expense (PATCH /expensereports/v4/reports/\{reportId\}/expenses/\{expenseId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `reportId` | string | Yes | Expense report ID |
+| `expenseId` | string | Yes | Expense ID to update |
+| `body` | json | Yes | PATCH body. Allowed fields: businessPurpose \(string, max 64\), customData \(CustomData\[\]\), expenseSource \(required: EA\|MOB\|OTHER\|SE\|TA\|TR\|UI\), isExpenseRejected \(boolean\), isPaperReceiptReceived \(boolean\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Empty body on success \(HTTP 204 No Content\). Error details when status is non-2xx |
+
+### `sap_concur_update_expense_report`
+
+Update an unsubmitted expense report (PATCH /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\} — supported contexts: TRAVELER, PROXY). Body fields: businessPurpose, comment, customData, name, etc.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID who owns the report |
+| `contextType` | string | Yes | Access context: TRAVELER \(own report\) or PROXY \(editing on behalf of another user\) |
+| `reportId` | string | Yes | Expense report ID to update |
+| `body` | json | Yes | Fields to update on the report |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Empty \(204 No Content\) |
+
+### `sap_concur_update_list_item`
+
+Update a list item (PUT /list/v4/items/\{itemId\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `itemId` | string | Yes | List item UUID |
+| `body` | json | Yes | List item payload. Required: shortCode, value. Other fields in the body are ignored. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Updated list item |
+|   ↳ `id` | string | List item UUID |
+|   ↳ `code` | string | Long code format for the item |
+|   ↳ `shortCode` | string | Short code identifier |
+|   ↳ `value` | string | Display value of the item |
+|   ↳ `parentId` | string | Parent item UUID \(omitted for first-level items\) |
+|   ↳ `level` | number | Hierarchy level \(1 for root items\) |
+|   ↳ `isDeleted` | boolean | Deletion status across all containing lists |
+|   ↳ `lists` | array | Lists containing this item |
+|     ↳ `id` | string | List UUID |
+|     ↳ `hasChildren` | boolean | Whether this item has children in the list |
+
+### `sap_concur_update_travel_request`
+
+Update a travel request (PUT /travelrequest/v4/requests/\{requestUuid\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `requestUuid` | string | Yes | Travel request UUID to update |
+| `body` | json | Yes | Fields to update on the travel request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Updated travel request payload |
+|   ↳ `id` | string | Travel request UUID |
+|   ↳ `href` | string | Resource hyperlink |
+|   ↳ `requestId` | string | Public-facing request ID \(4-6 alphanumeric characters\) |
+|   ↳ `name` | string | Request name |
+|   ↳ `businessPurpose` | string | Business purpose |
+|   ↳ `comment` | string | Last attached comment |
+|   ↳ `creationDate` | string | Creation timestamp |
+|   ↳ `lastModified` | string | Last modification timestamp |
+|   ↳ `submitDate` | string | Last submission timestamp |
+|   ↳ `startDate` | string | Trip start date \(ISO 8601\) |
+|   ↳ `endDate` | string | Trip end date \(ISO 8601\) |
+|   ↳ `startTime` | string | Trip start time \(HH:mm\) |
+|   ↳ `endTime` | string | Trip end time \(HH:mm\) |
+|   ↳ `approved` | boolean | Whether the request is approved |
+|   ↳ `pendingApproval` | boolean | Pending approval flag |
+|   ↳ `closed` | boolean | Closed flag |
+|   ↳ `everSentBack` | boolean | Ever-sent-back flag |
+|   ↳ `canceledPostApproval` | boolean | Canceled after approval flag |
+|   ↳ `approvalStatus` | json | Approval status |
+|     ↳ `code` | string | Status code \(NOT_SUBMITTED, SUBMITTED, APPROVED, CANCELED, SENTBACK\) |
+|     ↳ `name` | string | Localized status name |
+|   ↳ `owner` | json | Travel request owner |
+|     ↳ `id` | string | User UUID |
+|     ↳ `firstName` | string | Owner first name |
+|     ↳ `lastName` | string | Owner last name |
+|   ↳ `approver` | json | Approver assigned to the request |
+|     ↳ `id` | string | User UUID |
+|     ↳ `firstName` | string | Approver first name |
+|     ↳ `lastName` | string | Approver last name |
+|   ↳ `policy` | json | Resource link to the applicable policy |
+|     ↳ `id` | string | Policy ID |
+|     ↳ `href` | string | Policy hyperlink |
+|   ↳ `type` | json | Request type |
+|     ↳ `code` | string | Request type code |
+|     ↳ `label` | string | Request type label |
+|   ↳ `mainDestination` | json | Main destination of the trip |
+|     ↳ `city` | string | City |
+|     ↳ `countryCode` | string | ISO country code |
+|     ↳ `countrySubDivisionCode` | string | ISO country sub-division code |
+|     ↳ `name` | string | Destination name |
+|   ↳ `totalApprovedAmount` | json | Total approved amount |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currency` | string | Currency code |
+|   ↳ `totalPostedAmount` | json | Total posted amount |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currency` | string | Currency code |
+|   ↳ `totalRemainingAmount` | json | Total remaining amount |
+|     ↳ `value` | number | Amount value |
+|     ↳ `currency` | string | Currency code |
+|   ↳ `operations` | array | Available workflow actions |
+
+### `sap_concur_update_user`
+
+Patch a user identity (PATCH /profile/identity/v4.1/Users/\{id\}).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userUuid` | string | Yes | User UUID to update |
+| `body` | json | Yes | SCIM PATCH operations payload \(\{ schemas, Operations: \[...\] \}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Updated SCIM User payload |
+
+### `sap_concur_upload_receipt_image`
+
+Upload an image-only receipt (POST /receipts/v4/users/\{userId\}/image-only-receipts).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
+| `clientId` | string | Yes | Concur OAuth client ID |
+| `clientSecret` | string | Yes | Concur OAuth client secret |
+| `username` | string | No | Username \(only for password grant\) |
+| `password` | string | No | Password \(only for password grant\) |
+| `companyUuid` | string | No | Company UUID for multi-company access tokens |
+| `userId` | string | Yes | Concur user UUID who owns the receipt |
+| `receipt` | json | Yes | Receipt image file \(UserFile reference\). Supported formats: PDF, PNG, JPEG, GIF, TIFF |
+| `forwardId` | string | No | Optional client-supplied dedup id \(max 40 chars\). Sent as the concur-forwardid header. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status code returned by Concur |
+| `data` | json | Image-only receipt upload response \(HTTP 202 Accepted; Location and Link response headers exposed in body\) |
+|   ↳ `location` | string | Location header URL for the new receipt image \(e.g. /receipts/v4/images/\{receiptId\}\) |
+|   ↳ `link` | string | Link header URL pointing to /receipts/v4/status/\{receiptId\} |
+
+

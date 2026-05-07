@@ -17,26 +17,26 @@ export const getSalesOrderTool: ToolConfig<GetSalesOrderParams, SapProxyResponse
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -110,6 +110,76 @@ export const getSalesOrderTool: ToolConfig<GetSalesOrderParams, SapProxyResponse
   transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
-    data: { type: 'json', description: 'A_SalesOrder entity' },
+    data: {
+      type: 'json',
+      description: 'OData v2 response envelope; entity at output.data.d',
+      properties: {
+        d: {
+          type: 'json',
+          description: 'A_SalesOrder entity',
+          properties: {
+            SalesOrder: { type: 'string', description: 'Sales order number' },
+            SalesOrderType: { type: 'string', description: 'Sales document type' },
+            SalesOrganization: { type: 'string', description: 'Sales organization' },
+            DistributionChannel: { type: 'string', description: 'Distribution channel' },
+            OrganizationDivision: { type: 'string', description: 'Division' },
+            SoldToParty: { type: 'string', description: 'Sold-to business partner' },
+            PurchaseOrderByCustomer: {
+              type: 'string',
+              description: 'Customer purchase order reference',
+              optional: true,
+            },
+            SalesOrderDate: {
+              type: 'string',
+              description: 'Sales order date (OData /Date(ms)/)',
+              optional: true,
+            },
+            RequestedDeliveryDate: {
+              type: 'string',
+              description: 'Requested delivery date (OData /Date(ms)/)',
+              optional: true,
+            },
+            PricingDate: {
+              type: 'string',
+              description: 'Pricing date (OData /Date(ms)/)',
+              optional: true,
+            },
+            LastChangeDate: {
+              type: 'string',
+              description: 'Last change date (OData /Date(ms)/)',
+              optional: true,
+            },
+            LastChangeDateTime: {
+              type: 'string',
+              description: 'Last change timestamp (OData /Date(ms)/)',
+              optional: true,
+            },
+            TotalNetAmount: { type: 'string', description: 'Total net amount' },
+            TransactionCurrency: { type: 'string', description: 'Document currency' },
+            CreationDate: { type: 'string', description: 'Creation date' },
+            OverallSDProcessStatus: {
+              type: 'string',
+              description: 'Overall sales document process status',
+              optional: true,
+            },
+            OverallTotalDeliveryStatus: {
+              type: 'string',
+              description: 'Overall total delivery status',
+              optional: true,
+            },
+            OverallSDDocumentRejectionSts: {
+              type: 'string',
+              description: 'Overall sales document rejection status',
+              optional: true,
+            },
+            to_Item: {
+              type: 'json',
+              description: 'Sales order items (when $expand=to_Item)',
+              optional: true,
+            },
+          },
+        },
+      },
+    },
   },
 }

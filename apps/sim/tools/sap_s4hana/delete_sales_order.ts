@@ -16,26 +16,26 @@ export const deleteSalesOrderTool: ToolConfig<DeleteSalesOrderParams, SapProxyRe
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -103,6 +103,10 @@ export const deleteSalesOrderTool: ToolConfig<DeleteSalesOrderParams, SapProxyRe
   transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP (204 on success)' },
-    data: { type: 'json', description: 'Null on successful deletion' },
+    data: {
+      type: 'json',
+      description: 'Null on successful deletion (SAP returns 204 No Content)',
+      optional: true,
+    },
   },
 }

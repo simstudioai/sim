@@ -19,26 +19,26 @@ export const listPurchaseRequisitionsTool: ToolConfig<
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -130,6 +130,49 @@ export const listPurchaseRequisitionsTool: ToolConfig<
   transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
-    data: { type: 'json', description: 'Array of A_PurchaseRequisitionHeader entities' },
+    data: {
+      type: 'json',
+      description: 'OData v2 response envelope; collection at output.data.d.results',
+      properties: {
+        d: {
+          type: 'json',
+          description: 'OData v2 envelope',
+          properties: {
+            results: {
+              type: 'array',
+              description: 'A_PurchaseRequisitionHeader entities',
+              items: {
+                type: 'object',
+                properties: {
+                  PurchaseRequisition: {
+                    type: 'string',
+                    description: 'Purchase requisition number',
+                  },
+                  PurchaseRequisitionType: {
+                    type: 'string',
+                    description: 'Purchase requisition document type (e.g., NB)',
+                  },
+                  PurReqnDescription: {
+                    type: 'string',
+                    description: 'Purchase requisition description',
+                    optional: true,
+                  },
+                  SourceDetermination: {
+                    type: 'string',
+                    description: 'Source-of-supply determination flag',
+                    optional: true,
+                  },
+                },
+              },
+            },
+            __next: {
+              type: 'string',
+              description: 'OData skiptoken URL for next page',
+              optional: true,
+            },
+          },
+        },
+      },
+    },
   },
 }

@@ -12,31 +12,31 @@ export const updateCustomerTool: ToolConfig<UpdateCustomerParams, SapProxyRespon
   id: 'sap_s4hana_update_customer',
   name: 'SAP S/4HANA Update Customer',
   description:
-    'Update fields on an A_Customer entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. A_Customer PATCH is limited to modifiable fields such as OrderIsBlockedForCustomer, DeliveryIsBlock, BillingIsBlockedForCustomer, PostingIsBlocked, and DeletionIndicator. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
+    'Update fields on an A_Customer entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. A_Customer is limited to modifiable fields such as OrderIsBlockedForCustomer, DeliveryIsBlocked, BillingIsBlockedForCustomer (Edm.String reason codes like "01"), PostingIsBlocked, and DeletionIndicator (Edm.Boolean). If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
   version: '1.0.0',
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -87,7 +87,7 @@ export const updateCustomerTool: ToolConfig<UpdateCustomerParams, SapProxyRespon
       required: true,
       visibility: 'user-or-llm',
       description:
-        'JSON object with A_Customer fields to update (e.g., {"OrderIsBlockedForCustomer":true,"DeletionIndicator":false})',
+        'JSON object with A_Customer fields to update (e.g., {"OrderIsBlockedForCustomer":"01","DeletionIndicator":false}). Block-reason fields are Edm.String codes, not booleans.',
     },
     ifMatch: {
       type: 'string',
@@ -120,8 +120,24 @@ export const updateCustomerTool: ToolConfig<UpdateCustomerParams, SapProxyRespon
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP (204 on success)' },
     data: {
-      type: 'json',
+      type: 'object',
       description: 'Null on 204 success, or updated A_Customer entity if SAP returns one',
+      properties: {
+        Customer: { type: 'string', description: 'Customer key (up to 10 characters)' },
+        CustomerName: { type: 'string', description: 'Name of customer' },
+        CustomerAccountGroup: { type: 'string', description: 'Customer account group' },
+        DeletionIndicator: { type: 'boolean', description: 'Central deletion flag' },
+        OrderIsBlockedForCustomer: {
+          type: 'string',
+          description: 'Central order block reason code',
+        },
+        PostingIsBlocked: { type: 'boolean', description: 'Central posting block flag' },
+        DeliveryIsBlocked: { type: 'string', description: 'Central delivery block reason code' },
+        BillingIsBlockedForCustomer: {
+          type: 'string',
+          description: 'Central billing block reason code',
+        },
+      },
     },
   },
 }

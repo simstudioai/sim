@@ -217,13 +217,20 @@ export interface SecureFetchOptions {
 
 export class SecureFetchHeaders {
   private headers: Map<string, string>
+  private setCookies: string[]
 
-  constructor(headers: Record<string, string>) {
+  constructor(headers: Record<string, string>, setCookies: string[] = []) {
     this.headers = new Map(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]))
+    this.setCookies = setCookies
   }
 
   get(name: string): string | null {
     return this.headers.get(name.toLowerCase()) ?? null
+  }
+
+  /** Returns the raw `Set-Cookie` header values as an array. Each entry is one cookie. */
+  getSetCookie(): string[] {
+    return [...this.setCookies]
   }
 
   toRecord(): Record<string, string> {
@@ -384,11 +391,21 @@ export async function secureFetchWithPinnedIP(
         const bodyBuffer = Buffer.concat(chunks)
         const body = bodyBuffer.toString('utf-8')
         const headersRecord: Record<string, string> = {}
+        let setCookieArray: string[] = []
         for (const [key, value] of Object.entries(res.headers)) {
-          if (typeof value === 'string') {
-            headersRecord[key.toLowerCase()] = value
+          const lowerKey = key.toLowerCase()
+          if (lowerKey === 'set-cookie') {
+            if (Array.isArray(value)) {
+              setCookieArray = value
+              headersRecord[lowerKey] = value.join(', ')
+            } else if (typeof value === 'string') {
+              setCookieArray = [value]
+              headersRecord[lowerKey] = value
+            }
+          } else if (typeof value === 'string') {
+            headersRecord[lowerKey] = value
           } else if (Array.isArray(value)) {
-            headersRecord[key.toLowerCase()] = value.join(', ')
+            headersRecord[lowerKey] = value.join(', ')
           }
         }
 
@@ -396,7 +413,7 @@ export async function secureFetchWithPinnedIP(
           ok: statusCode >= 200 && statusCode < 300,
           status: statusCode,
           statusText: res.statusMessage || '',
-          headers: new SecureFetchHeaders(headersRecord),
+          headers: new SecureFetchHeaders(headersRecord, setCookieArray),
           text: async () => body,
           json: async () => JSON.parse(body),
           arrayBuffer: async () =>

@@ -13,31 +13,31 @@ export const updateBusinessPartnerTool: ToolConfig<UpdateBusinessPartnerParams, 
     id: 'sap_s4hana_update_business_partner',
     name: 'SAP S/4HANA Update Business Partner',
     description:
-      'Update fields on an A_BusinessPartner entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
+      'Update fields on an A_BusinessPartner entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates. Deep updates on nested associations (e.g. to_BusinessPartnerAddress) are not supported by SAP (KBA 2833338) — use the dedicated child endpoints.',
     version: '1.0.0',
     params: {
       subdomain: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-only',
         description:
           'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
       },
       region: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-only',
         description: 'BTP region (e.g. eu10, us10)',
       },
       clientId: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-only',
         description: 'OAuth client ID from the S/4HANA Communication Arrangement',
       },
       clientSecret: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-only',
         description: 'OAuth client secret from the S/4HANA Communication Arrangement',
       },
@@ -123,6 +123,45 @@ export const updateBusinessPartnerTool: ToolConfig<UpdateBusinessPartnerParams, 
       data: {
         type: 'json',
         description: 'Null on 204 success, or updated A_BusinessPartner entity if SAP returns one',
+        properties: {
+          BusinessPartner: {
+            type: 'string',
+            description: 'Business partner key',
+            optional: true,
+          },
+          BusinessPartnerFullName: {
+            type: 'string',
+            description: 'Full name (concatenated first/last or organization name)',
+            optional: true,
+          },
+          BusinessPartnerCategory: {
+            type: 'string',
+            description: '"1" Person, "2" Organization, "3" Group',
+            optional: true,
+          },
+          BusinessPartnerGrouping: {
+            type: 'string',
+            description: 'Grouping / number range',
+            optional: true,
+          },
+          FirstName: { type: 'string', description: 'First name (Person)', optional: true },
+          LastName: { type: 'string', description: 'Last name (Person)', optional: true },
+          OrganizationBPName1: {
+            type: 'string',
+            description: 'Organization name line 1',
+            optional: true,
+          },
+          LastChangeDate: {
+            type: 'string',
+            description: 'Date of last change (OData /Date(...)/ literal)',
+            optional: true,
+          },
+          LastChangedByUser: {
+            type: 'string',
+            description: 'User who last changed the business partner',
+            optional: true,
+          },
+        },
       },
     },
   }
