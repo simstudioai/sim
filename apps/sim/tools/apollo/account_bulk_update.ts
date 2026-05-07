@@ -64,12 +64,27 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
       }
       if (params.name) body.name = params.name
       if (params.owner_id) body.owner_id = params.owner_id
-      if (params.account_attributes && params.account_attributes.length > 0) {
-        body.account_attributes = params.account_attributes
+      if (params.account_attributes) {
+        if (Array.isArray(params.account_attributes)) {
+          if (params.account_attributes.length > 0) {
+            body.account_attributes = params.account_attributes
+          }
+        } else if (
+          typeof params.account_attributes === 'object' &&
+          Object.keys(params.account_attributes).length > 0
+        ) {
+          body.account_attributes = params.account_attributes
+        }
+      }
+      const hasUpdateFields = body.account_attributes || body.name || body.owner_id
+      if (!hasUpdateFields) {
+        throw new Error(
+          'Apollo account bulk update requires update fields. Provide account_attributes (array of per-account updates with id, or single object paired with account_ids), or pair account_ids with name/owner_id to apply uniformly.'
+        )
       }
       if (!body.account_ids && !body.account_attributes) {
         throw new Error(
-          'Apollo account bulk update requires either account_ids or account_attributes to be provided'
+          'Apollo account bulk update requires account_ids (with name/owner_id) or account_attributes (with embedded ids).'
         )
       }
       return body
