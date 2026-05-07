@@ -138,7 +138,11 @@ export const apolloSequenceAddContactsTool: ToolConfig<
 
     const added = Array.isArray(data?.contacts?.added) ? data.contacts.added : []
     const skipped = Array.isArray(data?.contacts?.skipped) ? data.contacts.skipped : []
-    const skippedIds = Array.isArray(data?.skipped_contact_ids) ? data.skipped_contact_ids : null
+    const rawSkippedIds = data?.skipped_contact_ids
+    const skippedIds =
+      Array.isArray(rawSkippedIds) || (rawSkippedIds && typeof rawSkippedIds === 'object')
+        ? rawSkippedIds
+        : null
 
     return {
       success: true,
@@ -165,7 +169,8 @@ export const apolloSequenceAddContactsTool: ToolConfig<
     },
     skipped_contact_ids: {
       type: 'json',
-      description: 'Array of contact IDs that were skipped',
+      description:
+        'Skipped contact IDs — either an array of IDs or a hash mapping ID → reason code',
       optional: true,
     },
     emailer_campaign: {

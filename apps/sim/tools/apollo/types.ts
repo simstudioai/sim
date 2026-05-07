@@ -485,7 +485,7 @@ export interface ApolloSequenceAddContactsResponse extends ToolResponse {
   output: {
     added: ApolloSequenceAddedContact[]
     skipped: ApolloSequenceSkippedContact[]
-    skipped_contact_ids: string[] | null
+    skipped_contact_ids: string[] | Record<string, string> | null
     emailer_campaign: { id: string; name: string } | null
     sequence_id: string
     total_added: number

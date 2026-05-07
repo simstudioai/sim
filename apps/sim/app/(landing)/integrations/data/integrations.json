@@ -14173,7 +14173,7 @@
         "description": "Hire a pre-hire into an employee position. Converts an applicant into an active employee record with position, start date, and manager assignment."
       },
       {
-        "name": "Update Worker",
+        "name": "Update Personal Information",
         "description": "Update fields on an existing worker record in Workday."
       },
       {
