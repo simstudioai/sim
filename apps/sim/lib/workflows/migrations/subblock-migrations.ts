@@ -97,25 +97,31 @@ function migrateBlockSubblockIds(
       continue
     }
 
-    const oldEntry = result[oldId]
+    const oldEntry: unknown = result[oldId]
     const configuredType = blockConfig?.subBlocks?.find((config) => config.id === newId)?.type
-    result[newId] = isPlainRecord(oldEntry)
-      ? {
-          ...oldEntry,
-          id: newId,
-          type:
-            configuredType ||
-            (typeof oldEntry.type === 'string' && oldEntry.type.length > 0
-              ? oldEntry.type === 'unknown'
-                ? DEFAULT_SUBBLOCK_TYPE
-                : oldEntry.type
-              : DEFAULT_SUBBLOCK_TYPE),
-        }
-      : ({
-          id: newId,
-          type: configuredType || DEFAULT_SUBBLOCK_TYPE,
-          value: oldEntry,
-        } as BlockState['subBlocks'][string])
+    if (isPlainRecord(oldEntry)) {
+      const type =
+        configuredType ||
+        (typeof oldEntry.type === 'string' && oldEntry.type.length > 0
+          ? oldEntry.type === 'unknown'
+            ? DEFAULT_SUBBLOCK_TYPE
+            : oldEntry.type
+          : DEFAULT_SUBBLOCK_TYPE)
+      const value = Object.hasOwn(oldEntry, 'value') ? oldEntry.value : null
+
+      result[newId] = {
+        ...oldEntry,
+        id: newId,
+        type: type as BlockState['subBlocks'][string]['type'],
+        value: value as BlockState['subBlocks'][string]['value'],
+      }
+    } else {
+      result[newId] = {
+        id: newId,
+        type: configuredType || DEFAULT_SUBBLOCK_TYPE,
+        value: oldEntry as BlockState['subBlocks'][string]['value'],
+      }
+    }
     delete result[oldId]
   }
 
