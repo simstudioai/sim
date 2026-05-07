@@ -1,16 +1,54 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { trelloCallbackContract } from '@/lib/api/contracts/oauth-connections'
 import { parseRequest } from '@/lib/api/server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
+const logger = createLogger('TrelloCallback')
+
 export const dynamic = 'force-dynamic'
+
+const TRELLO_STATE_COOKIE = 'trello_oauth_state'
+
+function escapeForJsString(value: string): string {
+  return value.replace(/[\\'"<>&\r\n\u2028\u2029]/g, (ch) => {
+    return `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`
+  })
+}
+
+function renderErrorPage(baseUrl: string, redirectQuery: string) {
+  return new NextResponse(
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Trello connection failed</title></head><body><script>window.location.href=${JSON.stringify(`${baseUrl}/workspace?${redirectQuery}`)};</script><p>Trello connection failed. Redirecting...</p></body></html>`,
+    {
+      status: 400,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
+    }
+  )
+}
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const parsed = await parseRequest(trelloCallbackContract, request, {})
   if (!parsed.success) return parsed.response
 
   const baseUrl = getBaseUrl()
+  const queryState = parsed.data.query.state
+  const cookieState = request.cookies.get(TRELLO_STATE_COOKIE)?.value
+
+  if (!queryState || !cookieState || queryState !== cookieState) {
+    logger.warn('Trello callback rejected: state mismatch or missing state', {
+      hasQueryState: Boolean(queryState),
+      hasCookieState: Boolean(cookieState),
+    })
+    const response = renderErrorPage(baseUrl, 'error=trello_state_mismatch')
+    response.cookies.delete({ name: TRELLO_STATE_COOKIE, path: '/api/auth/trello' })
+    return response
+  }
+
+  const safeState = escapeForJsString(queryState)
 
   return new NextResponse(
     `<!DOCTYPE html>
@@ -97,7 +135,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ token: token })
+            body: JSON.stringify({ token: token, state: '${safeState}' })
           })
           .then(response => response.json())
           .then(data => {

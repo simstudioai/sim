@@ -236,10 +236,21 @@ function getEmbedCSPPolicy(): string {
 }
 
 /**
- * CSP for embeddable chat pages
+ * CSP for embeddable chat pages.
+ * Extends the shared embed policy with Microsoft Office.js sources so the
+ * chat page can serve as an Office (Excel/Word/Outlook) add-in surface
+ * when loaded with `?embed=office`.
  */
 export function getChatEmbedCSPPolicy(): string {
-  return getEmbedCSPPolicy()
+  return buildCSPString({
+    ...buildTimeCSPDirectives,
+    'script-src': [...STATIC_SCRIPT_SRC, 'https://appsforoffice.microsoft.com'],
+    'connect-src': [
+      ...(buildTimeCSPDirectives['connect-src'] ?? []),
+      'https://appsforoffice.microsoft.com',
+    ],
+    'frame-ancestors': ['*'],
+  })
 }
 
 /**

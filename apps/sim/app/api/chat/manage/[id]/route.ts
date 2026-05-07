@@ -110,6 +110,10 @@ export const PATCH = withRouteHandler(
         outputConfigs,
       } = validatedData
 
+      if (workflowId && workflowId !== existingChat[0].workflowId) {
+        return createErrorResponse('Changing the workflow of a chat deployment is not allowed', 400)
+      }
+
       if (identifier && identifier !== existingChat[0].identifier) {
         const existingIdentifier = await db
           .select()
@@ -156,7 +160,6 @@ export const PATCH = withRouteHandler(
         updatedAt: new Date(),
       }
 
-      if (workflowId) updateData.workflowId = workflowId
       if (identifier) updateData.identifier = identifier
       if (title) updateData.title = title
       if (description !== undefined) updateData.description = description

@@ -16,26 +16,26 @@ export const listMaterialStockTool: ToolConfig<ListMaterialStockParams, SapProxy
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -128,6 +128,52 @@ export const listMaterialStockTool: ToolConfig<ListMaterialStockParams, SapProxy
   transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
-    data: { type: 'json', description: 'Array of A_MatlStkInAcctMod stock entries' },
+    data: {
+      type: 'json',
+      description: 'OData payload containing the array of A_MatlStkInAcctMod stock entries',
+      properties: {
+        Material: { type: 'string', description: 'Material number' },
+        Plant: { type: 'string', description: 'Plant identifier' },
+        StorageLocation: {
+          type: 'string',
+          description: 'Storage location identifier',
+          optional: true,
+        },
+        Batch: { type: 'string', description: 'Batch identifier', optional: true },
+        Supplier: {
+          type: 'string',
+          description: 'Supplier business partner key',
+          optional: true,
+        },
+        Customer: {
+          type: 'string',
+          description: 'Customer business partner key',
+          optional: true,
+        },
+        WBSElementInternalID: {
+          type: 'string',
+          description: 'WBS element internal ID',
+          optional: true,
+        },
+        SDDocument: { type: 'string', description: 'SD document number', optional: true },
+        SDDocumentItem: { type: 'string', description: 'SD document item', optional: true },
+        InventorySpecialStockType: {
+          type: 'string',
+          description: 'Special stock type indicator',
+          optional: true,
+        },
+        InventoryStockType: {
+          type: 'string',
+          description:
+            'Stock type (e.g., 01 unrestricted-use, 02 quality inspection, 03 blocked, 04 restricted-use)',
+        },
+        MatlWrhsStkQtyInMatlBaseUnit: {
+          type: 'string',
+          description:
+            'Material warehouse stock quantity in material base unit (Edm.Decimal serialized as string)',
+        },
+        MaterialBaseUnit: { type: 'string', description: 'Material base unit of measure' },
+      },
+    },
   },
 }

@@ -4,6 +4,7 @@ import type {
   SharepointPage,
   SharepointToolParams,
 } from '@/tools/sharepoint/types'
+import { optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointCreatePage')
@@ -12,7 +13,7 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
   id: 'sharepoint_create_page',
   name: 'Create SharePoint Page',
   description: 'Create a new page in a SharePoint site',
-  version: '1.0',
+  version: '1.0.0',
 
   oauth: {
     required: true,
@@ -60,8 +61,7 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
 
   request: {
     url: (params) => {
-      // Use specific site if provided, otherwise use root site
-      const siteId = params.siteSelector || params.siteId || 'root'
+      const siteId = optionalTrim(params.siteSelector) || optionalTrim(params.siteId) || 'root'
       return `https://graph.microsoft.com/v1.0/sites/${siteId}/pages`
     },
     method: 'POST',
@@ -71,16 +71,16 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
       Accept: 'application/json',
     }),
     body: (params) => {
-      if (!params.pageName) {
+      const pageName = optionalTrim(params.pageName)
+      if (!pageName) {
         throw new Error('Page name is required')
       }
 
-      const pageTitle = params.pageTitle || params.pageName
+      const pageTitle = optionalTrim(params.pageTitle) || pageName
 
-      // Basic page structure required by Microsoft Graph API
       const pageData: SharepointPage = {
         '@odata.type': '#microsoft.graph.sitePage',
-        name: params.pageName,
+        name: pageName,
         title: pageTitle,
         publishingState: {
           level: 'draft',
@@ -88,8 +88,8 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
         pageLayout: 'article',
       }
 
-      // Add content if provided using the simple innerHtml approach from the documentation
-      if (params.pageContent) {
+      const pageContent = typeof params.pageContent === 'string' ? params.pageContent : undefined
+      if (pageContent) {
         pageData.canvasLayout = {
           horizontalSections: [
             {
@@ -103,7 +103,7 @@ export const createPageTool: ToolConfig<SharepointToolParams, SharepointCreatePa
                   webparts: [
                     {
                       id: '6f9230af-2a98-4952-b205-9ede4f9ef548',
-                      innerHtml: `<p>${params.pageContent.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}</p>`,
+                      innerHtml: `<p>${pageContent.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}</p>`,
                     },
                   ],
                 },

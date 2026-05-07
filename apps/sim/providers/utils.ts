@@ -6,6 +6,11 @@ import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
 import { getBlacklistedProvidersFromEnv, isHosted } from '@/lib/core/config/feature-flags'
 import {
+  normalizeRecord,
+  normalizeStringRecord,
+  normalizeWorkflowVariables,
+} from '@/lib/core/utils/records'
+import {
   buildCanonicalIndex,
   type CanonicalGroup,
   getCanonicalValues,
@@ -1166,10 +1171,16 @@ export function prepareToolExecution(
           },
         }
       : {}),
-    ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
-    ...(request.workflowVariables ? { workflowVariables: request.workflowVariables } : {}),
-    ...(request.blockData ? { blockData: request.blockData } : {}),
-    ...(request.blockNameMapping ? { blockNameMapping: request.blockNameMapping } : {}),
+    ...(request.environmentVariables
+      ? { envVars: normalizeStringRecord(request.environmentVariables) }
+      : {}),
+    ...(request.workflowVariables
+      ? { workflowVariables: normalizeWorkflowVariables(request.workflowVariables) }
+      : {}),
+    ...(request.blockData ? { blockData: normalizeRecord(request.blockData) } : {}),
+    ...(request.blockNameMapping
+      ? { blockNameMapping: normalizeStringRecord(request.blockNameMapping) }
+      : {}),
     ...(tool.parameters ? { _toolSchema: tool.parameters } : {}),
   }
 

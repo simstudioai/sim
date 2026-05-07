@@ -47,7 +47,7 @@ function getFitZoom(container: Size, content: Size): number {
 
   const availableWidth = Math.max(1, container.width - FIT_PADDING)
   const availableHeight = Math.max(1, container.height - FIT_PADDING)
-  return clampZoom(Math.min(1, availableWidth / content.width, availableHeight / content.height))
+  return clampZoom(Math.min(availableWidth / content.width, availableHeight / content.height))
 }
 
 function clampOffset(container: Size, content: Size, offset: Offset, zoom: number): Offset {

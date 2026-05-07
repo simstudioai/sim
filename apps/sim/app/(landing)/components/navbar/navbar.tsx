@@ -4,7 +4,6 @@ import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalSt
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { GithubOutlineIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { SessionContext } from '@/app/_shell/providers/session-provider'
@@ -52,12 +51,14 @@ interface NavbarProps {
 
 export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps) {
   const brand = getBrandConfig()
-  const searchParams = useSearchParams()
   const sessionCtx = useContext(SessionContext)
   const session = sessionCtx?.data ?? null
   const isSessionPending = sessionCtx?.isPending ?? true
   const isAuthenticated = Boolean(session?.user?.id)
-  const isBrowsingHome = searchParams.has('home')
+  const [isBrowsingHome, setIsBrowsingHome] = useState(false)
+  useEffect(() => {
+    setIsBrowsingHome(new URLSearchParams(window.location.search).has('home'))
+  }, [])
   const useHomeLinks = isAuthenticated || isBrowsingHome
   const logoHref = useHomeLinks ? '/?home' : '/'
   const mounted = useSyncExternalStore(

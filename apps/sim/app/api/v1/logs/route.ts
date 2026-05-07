@@ -9,7 +9,11 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildLogFilters, getOrderBy } from '@/app/api/v1/logs/filters'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  checkWorkspaceScope,
+  createRateLimitResponse,
+} from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1LogsAPI')
 
@@ -61,6 +65,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const params = parsed.data.query
+
+    const scopeError = checkWorkspaceScope(rateLimit, params.workspaceId)
+    if (scopeError) return scopeError
 
     logger.info(`[${requestId}] Fetching logs for workspace ${params.workspaceId}`, {
       userId,

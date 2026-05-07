@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sharepointUploadContract } from '@/lib/api/contracts/tools/microsoft'
 import { parseRequest } from '@/lib/api/server'
@@ -9,10 +10,12 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
+import type { SharepointSkippedFile, SharepointUploadError } from '@/tools/sharepoint/types'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('SharepointUploadAPI')
+const MAX_SHAREPOINT_UPLOAD_BYTES = 250 * 1024 * 1024
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -72,42 +75,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    let effectiveDriveId = validatedData.driveId
-    if (!effectiveDriveId) {
-      logger.info(`[${requestId}] No driveId provided, fetching default drive for site`)
-      const driveUrl = `https://graph.microsoft.com/v1.0/sites/${validatedData.siteId}/drive`
-      const driveResponse = await secureFetchWithValidation(
-        driveUrl,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${validatedData.accessToken}`,
-            Accept: 'application/json',
-          },
-        },
-        'driveUrl'
-      )
-
-      if (!driveResponse.ok) {
-        const errorData = (await driveResponse.json().catch(() => ({}))) as {
-          error?: { message?: string }
-        }
-        logger.error(`[${requestId}] Failed to get default drive:`, errorData)
-        return NextResponse.json(
-          {
-            success: false,
-            error: errorData.error?.message || 'Failed to get default document library',
-          },
-          { status: driveResponse.status }
-        )
-      }
-
-      const driveData = (await driveResponse.json()) as { id: string }
-      effectiveDriveId = driveData.id
-      logger.info(`[${requestId}] Using default drive: ${effectiveDriveId}`)
-    }
-
-    const uploadedFiles: any[] = []
+    const siteId = validatedData.siteId.trim() || 'root'
+    const driveId = validatedData.driveId?.trim() || null
+    const uploadedFiles: MicrosoftGraphDriveItem[] = []
+    const skippedFiles: SharepointSkippedFile[] = []
+    const errors: SharepointUploadError[] = []
 
     for (const userFile of userFiles) {
       logger.info(`[${requestId}] Uploading file: ${userFile.name}`)
@@ -119,10 +91,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       const fileSizeMB = buffer.length / (1024 * 1024)
 
-      if (fileSizeMB > 250) {
+      if (buffer.length > MAX_SHAREPOINT_UPLOAD_BYTES) {
         logger.warn(
           `[${requestId}] File ${fileName} is ${fileSizeMB.toFixed(2)}MB, exceeds 250MB limit`
         )
+        skippedFiles.push({
+          name: fileName,
+          size: buffer.length,
+          limit: MAX_SHAREPOINT_UPLOAD_BYTES,
+          reason: 'File exceeds the 250 MB Microsoft Graph small upload limit',
+        })
         continue
       }
 
@@ -142,7 +120,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         .map((segment) => (segment ? encodeURIComponent(segment) : ''))
         .join('/')
 
-      const uploadUrl = `https://graph.microsoft.com/v1.0/sites/${validatedData.siteId}/drives/${effectiveDriveId}/root:${encodedPath}:/content`
+      const uploadUrl = driveId
+        ? `https://graph.microsoft.com/v1.0/drives/${driveId}/root:${encodedPath}:/content`
+        : `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:${encodedPath}:/content`
 
       logger.info(`[${requestId}] Uploading to: ${uploadUrl}`)
 
@@ -185,13 +165,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               error?: { message?: string }
             }
             logger.error(`[${requestId}] Failed to replace file ${fileName}:`, replaceErrorData)
-            return NextResponse.json(
-              {
-                success: false,
-                error: replaceErrorData.error?.message || `Failed to replace file: ${fileName}`,
-              },
-              { status: replaceResponse.status }
-            )
+            errors.push({
+              name: fileName,
+              status: replaceResponse.status,
+              error: replaceErrorData.error?.message || `Failed to replace file: ${fileName}`,
+            })
+            continue
           }
 
           const replaceData = (await replaceResponse.json()) as {
@@ -215,15 +194,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           continue
         }
 
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              (errorData as { error?: { message?: string } }).error?.message ||
-              `Failed to upload file: ${fileName}`,
-          },
-          { status: uploadResponse.status }
-        )
+        errors.push({
+          name: fileName,
+          status: uploadResponse.status,
+          error:
+            (errorData as { error?: { message?: string } }).error?.message ||
+            `Failed to upload file: ${fileName}`,
+        })
+        continue
       }
 
       const uploadData = (await uploadResponse.json()) as MicrosoftGraphDriveItem
@@ -240,22 +218,33 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (uploadedFiles.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'No files were uploaded successfully',
+      return NextResponse.json({
+        success: false,
+        error: 'No files were uploaded successfully',
+        output: {
+          uploadedFiles,
+          fileCount: 0,
+          skippedFiles,
+          skippedCount: skippedFiles.length,
+          errors,
         },
-        { status: 400 }
-      )
+      })
     }
 
-    logger.info(`[${requestId}] Successfully uploaded ${uploadedFiles.length} file(s)`)
+    logger.info(`[${requestId}] Completed SharePoint upload`, {
+      uploadedCount: uploadedFiles.length,
+      skippedCount: skippedFiles.length,
+      errorCount: errors.length,
+    })
 
     return NextResponse.json({
       success: true,
       output: {
         uploadedFiles,
         fileCount: uploadedFiles.length,
+        skippedFiles,
+        skippedCount: skippedFiles.length,
+        errors,
       },
     })
   } catch (error) {
@@ -263,7 +252,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: toError(error).message,
       },
       { status: 500 }
     )

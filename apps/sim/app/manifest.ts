@@ -1,6 +1,8 @@
 import type { MetadataRoute } from 'next'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
+export const dynamic = 'force-dynamic'
+
 export default function manifest(): MetadataRoute.Manifest {
   const brand = getBrandConfig()
 

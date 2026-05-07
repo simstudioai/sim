@@ -16,26 +16,26 @@ export const listBillingDocumentsTool: ToolConfig<ListBillingDocumentsParams, Sa
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -109,7 +109,8 @@ export const listBillingDocumentsTool: ToolConfig<ListBillingDocumentsParams, Sa
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated navigation properties to expand (e.g., "to_Item,to_Partner")',
+      description:
+        'Comma-separated navigation properties to expand (e.g., "to_Item,to_Partner,to_PricingElement")',
     },
   },
   request: {
@@ -127,6 +128,169 @@ export const listBillingDocumentsTool: ToolConfig<ListBillingDocumentsParams, Sa
   transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
-    data: { type: 'json', description: 'Array of A_BillingDocument entities' },
+    data: {
+      type: 'json',
+      description: 'OData v2 response envelope; collection at output.data.d.results',
+      properties: {
+        d: {
+          type: 'json',
+          description: 'OData v2 envelope',
+          properties: {
+            results: {
+              type: 'array',
+              description: 'A_BillingDocument entities',
+              items: {
+                type: 'object',
+                properties: {
+                  BillingDocument: { type: 'string', description: 'Billing document number' },
+                  SDDocumentCategory: {
+                    type: 'string',
+                    description: 'SD document category',
+                    optional: true,
+                  },
+                  BillingDocumentCategory: {
+                    type: 'string',
+                    description: 'Billing document category',
+                    optional: true,
+                  },
+                  BillingDocumentType: {
+                    type: 'string',
+                    description: 'Billing document type (e.g., F2)',
+                    optional: true,
+                  },
+                  BillingDocumentDate: {
+                    type: 'string',
+                    description: 'Billing document date (OData /Date(ms)/)',
+                    optional: true,
+                  },
+                  BillingDocumentIsCancelled: {
+                    type: 'boolean',
+                    description: 'Whether the billing document is cancelled',
+                    optional: true,
+                  },
+                  CancelledBillingDocument: {
+                    type: 'string',
+                    description: 'Cancelled billing document number',
+                    optional: true,
+                  },
+                  TotalNetAmount: {
+                    type: 'string',
+                    description: 'Total net amount (Edm.Decimal as string)',
+                    optional: true,
+                  },
+                  TaxAmount: {
+                    type: 'string',
+                    description: 'Tax amount (Edm.Decimal as string)',
+                    optional: true,
+                  },
+                  TotalGrossAmount: {
+                    type: 'string',
+                    description: 'Total gross amount (Edm.Decimal as string)',
+                    optional: true,
+                  },
+                  TransactionCurrency: {
+                    type: 'string',
+                    description: 'Document currency',
+                    optional: true,
+                  },
+                  SoldToParty: {
+                    type: 'string',
+                    description: 'Sold-to business partner',
+                    optional: true,
+                  },
+                  PayerParty: {
+                    type: 'string',
+                    description: 'Payer party',
+                    optional: true,
+                  },
+                  SalesOrganization: {
+                    type: 'string',
+                    description: 'Sales organization',
+                    optional: true,
+                  },
+                  DistributionChannel: {
+                    type: 'string',
+                    description: 'Distribution channel',
+                    optional: true,
+                  },
+                  Division: { type: 'string', description: 'Division', optional: true },
+                  CompanyCode: {
+                    type: 'string',
+                    description: 'Company code',
+                    optional: true,
+                  },
+                  FiscalYear: { type: 'string', description: 'Fiscal year', optional: true },
+                  OverallBillingStatus: {
+                    type: 'string',
+                    description: 'Overall billing status',
+                    optional: true,
+                  },
+                  AccountingPostingStatus: {
+                    type: 'string',
+                    description: 'Accounting posting status',
+                    optional: true,
+                  },
+                  AccountingTransferStatus: {
+                    type: 'string',
+                    description: 'Accounting transfer status',
+                    optional: true,
+                  },
+                  InvoiceClearingStatus: {
+                    type: 'string',
+                    description: 'Invoice clearing status',
+                    optional: true,
+                  },
+                  AccountingDocument: {
+                    type: 'string',
+                    description: 'Linked accounting document',
+                    optional: true,
+                  },
+                  CustomerPaymentTerms: {
+                    type: 'string',
+                    description: 'Customer payment terms',
+                    optional: true,
+                  },
+                  PaymentMethod: {
+                    type: 'string',
+                    description: 'Payment method',
+                    optional: true,
+                  },
+                  DocumentReferenceID: {
+                    type: 'string',
+                    description: 'Document reference ID',
+                    optional: true,
+                  },
+                  CreationDate: {
+                    type: 'string',
+                    description: 'Creation date (OData /Date(ms)/)',
+                    optional: true,
+                  },
+                  LastChangeDate: {
+                    type: 'string',
+                    description: 'Last change date (OData /Date(ms)/)',
+                    optional: true,
+                  },
+                  LastChangeDateTime: {
+                    type: 'string',
+                    description: 'Last change date-time (Edm.DateTimeOffset)',
+                    optional: true,
+                  },
+                },
+              },
+            },
+            __next: {
+              type: 'string',
+              description: 'OData skiptoken URL for next page',
+              optional: true,
+            },
+            __count: {
+              type: 'string',
+              description: 'Total count when $inlinecount=allpages is used',
+              optional: true,
+            },
+          },
+        },
+      },
+    },
   },
 }

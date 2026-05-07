@@ -12,31 +12,31 @@ export const updateSupplierTool: ToolConfig<UpdateSupplierParams, SapProxyRespon
   id: 'sap_s4hana_update_supplier',
   name: 'SAP S/4HANA Update Supplier',
   description:
-    'Update fields on an A_Supplier entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. A_Supplier PATCH is limited to modifiable fields such as PostingIsBlocked, PurchasingIsBlocked, PaymentIsBlockedForSupplier, DeletionIndicator, and SupplierAccountGroup. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
+    'Update fields on an A_Supplier entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. A_Supplier is limited to modifiable fields such as PostingIsBlocked, PurchasingIsBlocked, PaymentIsBlockedForSupplier, DeletionIndicator, and SupplierAccountGroup; company-code/purchasing-org segments must be updated via the `to_SupplierCompany` / `to_SupplierPurchasingOrg` deep-update endpoints. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
   version: '1.0.0',
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -121,7 +121,53 @@ export const updateSupplierTool: ToolConfig<UpdateSupplierParams, SapProxyRespon
     status: { type: 'number', description: 'HTTP status code returned by SAP (204 on success)' },
     data: {
       type: 'json',
-      description: 'Null on 204 success, or updated A_Supplier entity if SAP returns one',
+      description:
+        'Null on 204 success, or OData v2 envelope with updated entity at output.data.d when SAP returns a representation',
+      properties: {
+        d: {
+          type: 'json',
+          description: 'A_Supplier entity (when SAP returns a representation)',
+          optional: true,
+          properties: {
+            Supplier: {
+              type: 'string',
+              description: 'Supplier key (up to 10 characters)',
+              optional: true,
+            },
+            SupplierName: { type: 'string', description: 'Supplier name', optional: true },
+            SupplierAccountGroup: {
+              type: 'string',
+              description: 'Supplier account group',
+              optional: true,
+            },
+            BusinessPartner: {
+              type: 'string',
+              description: 'Linked BusinessPartner key',
+              optional: true,
+            },
+            PaymentIsBlockedForSupplier: {
+              type: 'boolean',
+              description: 'Payment block flag',
+              optional: true,
+            },
+            PostingIsBlocked: {
+              type: 'boolean',
+              description: 'Posting block flag',
+              optional: true,
+            },
+            PurchasingIsBlocked: {
+              type: 'boolean',
+              description: 'Purchasing block flag',
+              optional: true,
+            },
+            DeletionIndicator: {
+              type: 'boolean',
+              description: 'Central deletion flag',
+              optional: true,
+            },
+          },
+        },
+      },
     },
   },
 }

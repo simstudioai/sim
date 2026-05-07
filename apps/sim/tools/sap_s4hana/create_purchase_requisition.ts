@@ -19,26 +19,26 @@ export const createPurchaseRequisitionTool: ToolConfig<
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -96,7 +96,7 @@ export const createPurchaseRequisitionTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Additional A_PurchaseRequisitionHeader fields merged into the create payload (e.g., {"PurchaseRequisitionDescription":"Office supplies"})',
+        'Additional A_PurchaseRequisitionHeader fields merged into the create payload (e.g., {"PurReqnDescription":"Office supplies"})',
     },
   },
   request: {
@@ -127,6 +127,40 @@ export const createPurchaseRequisitionTool: ToolConfig<
   transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
-    data: { type: 'json', description: 'Created A_PurchaseRequisitionHeader entity' },
+    data: {
+      type: 'json',
+      description: 'OData v2 response envelope; created entity at output.data.d',
+      properties: {
+        d: {
+          type: 'json',
+          description: 'Created A_PurchaseRequisitionHeader entity',
+          properties: {
+            PurchaseRequisition: {
+              type: 'string',
+              description: 'Auto-assigned purchase requisition number',
+            },
+            PurchaseRequisitionType: {
+              type: 'string',
+              description: 'PR document type (e.g., NB)',
+            },
+            PurReqnDescription: {
+              type: 'string',
+              description: 'Purchase requisition description',
+              optional: true,
+            },
+            SourceDetermination: {
+              type: 'string',
+              description: 'Source-of-supply determination flag',
+              optional: true,
+            },
+            to_PurchaseReqnItem: {
+              type: 'json',
+              description: 'Created PR items returned in deep insert',
+              optional: true,
+            },
+          },
+        },
+      },
+    },
   },
 }

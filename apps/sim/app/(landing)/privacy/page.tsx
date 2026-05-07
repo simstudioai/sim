@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { getEnv } from '@/lib/core/config/env'
 import { ExternalRedirect, LegalLayout } from '@/app/(landing)/components'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description:

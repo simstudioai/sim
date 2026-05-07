@@ -50,8 +50,8 @@ export const agiloftAttachBodySchema = z.object({
   table: z.string().min(1, 'Table is required'),
   recordId: z.string().min(1, 'Record ID is required'),
   fieldName: z.string().min(1, 'Field name is required'),
-  file: FileInputSchema.optional().nullable(),
-  fileName: z.string().optional().nullable(),
+  file: FileInputSchema.optional(),
+  fileName: z.string().optional(),
 })
 
 export const agiloftRetrieveContract = defineRouteContract({

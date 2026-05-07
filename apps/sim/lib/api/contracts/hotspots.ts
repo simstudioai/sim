@@ -86,6 +86,7 @@ export const functionExecuteContract = defineRouteContract({
   path: '/api/function/execute',
   body: z.object({
     code: z.string().min(1, 'Code is required'),
+    sourceCode: z.string().optional(),
     params: unknownRecordSchema.optional().default({}),
     timeout: z.coerce.number().int().positive().optional(),
     language: z.string().optional().default(DEFAULT_CODE_LANGUAGE),
@@ -99,6 +100,7 @@ export const functionExecuteContract = defineRouteContract({
     blockNameMapping: z.record(z.string(), z.string()).optional().default({}),
     blockOutputSchemas: z.record(z.string(), unknownRecordSchema).optional().default({}),
     workflowVariables: unknownRecordSchema.optional().default({}),
+    contextVariables: unknownRecordSchema.optional().default({}),
     workflowId: z.string().optional(),
     workspaceId: z.string().optional(),
     userId: z.string().optional(),

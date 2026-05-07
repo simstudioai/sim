@@ -17,26 +17,26 @@ export const getMaterialDocumentTool: ToolConfig<GetMaterialDocumentParams, SapP
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -117,6 +117,62 @@ export const getMaterialDocumentTool: ToolConfig<GetMaterialDocumentParams, SapP
   transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
-    data: { type: 'json', description: 'A_MaterialDocumentHeader entity' },
+    data: {
+      type: 'json',
+      description:
+        'OData payload containing the A_MaterialDocumentHeader entity (and optionally to_MaterialDocumentItem when expanded)',
+      properties: {
+        MaterialDocumentYear: {
+          type: 'string',
+          description: 'Material document year (4-digit fiscal year)',
+        },
+        MaterialDocument: { type: 'string', description: 'Material document number' },
+        DocumentDate: { type: 'string', description: 'Document date (OData /Date(...)/ string)' },
+        PostingDate: { type: 'string', description: 'Posting date (OData /Date(...)/ string)' },
+        MaterialDocumentHeaderText: {
+          type: 'string',
+          description: 'Header text describing the material document',
+          optional: true,
+        },
+        ReferenceDocument: {
+          type: 'string',
+          description: 'Reference document number',
+          optional: true,
+        },
+        GoodsMovementCode: {
+          type: 'string',
+          description: 'Goods movement code (e.g., 01 GR for PO, 03 GI to cost center)',
+        },
+        InventoryTransactionType: {
+          type: 'string',
+          description: 'Inventory transaction type indicator',
+          optional: true,
+        },
+        CreatedByUser: { type: 'string', description: 'User who created the material document' },
+        CreationDate: { type: 'string', description: 'Creation date (OData /Date(...)/ string)' },
+        CreationTime: { type: 'string', description: 'Creation time (OData PT...S string)' },
+        VersionForPrintingSlip: {
+          type: 'string',
+          description: 'Version for printing the goods movement slip',
+          optional: true,
+        },
+        ManualPrintIsTriggered: {
+          type: 'boolean',
+          description: 'Indicates whether manual print was triggered for this document',
+          optional: true,
+        },
+        CtrlPostgForExtWhseMgmtSyst: {
+          type: 'string',
+          description: 'Control posting for external warehouse management system',
+          optional: true,
+        },
+        to_MaterialDocumentItem: {
+          type: 'json',
+          description:
+            'Material document items (only present when $expand=to_MaterialDocumentItem is supplied)',
+          optional: true,
+        },
+      },
+    },
   },
 }

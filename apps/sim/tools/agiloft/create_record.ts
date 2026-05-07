@@ -72,7 +72,7 @@ export const agiloftCreateRecordTool: ToolConfig<AgiloftCreateRecordParams, Agil
         (base) => ({
           url: buildCreateRecordUrl(base, params),
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body,
         }),
         async (response) => {

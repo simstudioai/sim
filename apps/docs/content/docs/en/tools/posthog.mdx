@@ -87,7 +87,7 @@ List persons (users) in PostHog. Returns user profiles with their properties and
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `personalApiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
+| `apiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `limit` | number | No | Number of persons to return \(default: 100, max: 100\) |
@@ -115,7 +115,7 @@ Get detailed information about a specific person in PostHog by their ID or UUID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `personalApiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
+| `apiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `personId` | string | Yes | Person ID or UUID to retrieve \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
@@ -139,7 +139,7 @@ Delete a person from PostHog. This will remove all associated events and data. U
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `personalApiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
+| `apiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `personId` | string | Yes | Person ID or UUID to delete \(e.g., "01234567-89ab-cdef-0123-456789abcdef"\) |
@@ -158,7 +158,7 @@ Execute a HogQL query in PostHog. HogQL is PostHog
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `personalApiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
+| `apiKey` | string | Yes | PostHog Personal API Key \(for authenticated API access\) |
 | `region` | string | No | PostHog region: us \(default\) or eu |
 | `projectId` | string | Yes | PostHog Project ID \(e.g., "12345" or project UUID\) |
 | `query` | string | Yes | HogQL query to execute. Example: \{"kind": "HogQLQuery", "query": "SELECT event, count\(\) FROM events WHERE timestamp &gt; now\(\) - INTERVAL 1 DAY GROUP BY event"\} |
