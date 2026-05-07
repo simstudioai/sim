@@ -9,6 +9,7 @@ import {
   type WorkflowStateContractInput,
   workflowVariablesContract,
 } from '@/lib/api/contracts/workflows'
+import { migrateSubblockIds } from '@/lib/workflows/migrations/subblock-migrations'
 import {
   type ExportWorkflowState,
   sanitizeForExport,
@@ -474,9 +475,10 @@ export function extractWorkflowName(content: string, filename: string): string {
  * with a stable block field.
  */
 function normalizeSubblockValues(blocks: Record<string, any>): Record<string, any> {
+  const { blocks: migratedBlocks } = migrateSubblockIds(blocks)
   const normalizedBlocks: Record<string, any> = {}
 
-  Object.entries(blocks).forEach(([blockId, block]) => {
+  Object.entries(migratedBlocks).forEach(([blockId, block]) => {
     const normalizedBlock = { ...block }
 
     if (block.subBlocks) {
@@ -532,8 +534,8 @@ export function parseWorkflowJson(
 
     // Handle new export format (version/exportedAt/state) or old format (blocks/edges at root)
     let workflowData: any
-    if (data.version && data.state) {
-      // New format with versioning
+    if (isRecord(data.state)) {
+      // Export/API envelope format with workflow state nested under `state`
       logger.info('Parsing workflow JSON with version', {
         version: data.version,
         exportedAt: data.exportedAt,

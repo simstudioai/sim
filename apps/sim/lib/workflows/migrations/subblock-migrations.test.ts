@@ -139,6 +139,7 @@ describe('migrateSubblockIds', () => {
         type: 'function',
         subBlocks: {
           code: { id: 'code', type: 'unknown', value: 'console.log("hi")' },
+          language: { value: 'javascript' },
           undefined: { type: 'unknown', value: null },
           noId: { type: 'short-input', value: 'stale' },
           noType: { id: 'noType', value: 'stale' },
@@ -157,23 +158,41 @@ describe('migrateSubblockIds', () => {
       type: 'code',
       value: 'console.log("hi")',
     })
+    expect(blocks.b1.subBlocks.language).toEqual({
+      id: 'language',
+      type: 'dropdown',
+      value: 'javascript',
+    })
     expect(blocks.b1.subBlocks.undefined).toBeUndefined()
-    expect(blocks.b1.subBlocks.noId).toEqual({ id: 'noId', type: 'short-input', value: 'stale' })
-    expect(blocks.b1.subBlocks.noType).toEqual({
-      id: 'noType',
-      type: 'short-input',
-      value: 'stale',
-    })
+    expect(blocks.b1.subBlocks.noId).toBeUndefined()
+    expect(blocks.b1.subBlocks.noType).toBeUndefined()
     expect(blocks.b1.subBlocks.unknownType).toBeUndefined()
-    expect(blocks.b1.subBlocks.notRecord).toEqual({
-      id: 'notRecord',
-      type: 'short-input',
-      value: 'stale',
-    })
-    expect(blocks.b1.subBlocks.arrayValue).toEqual({
-      id: 'arrayValue',
-      type: 'short-input',
-      value: ['a', 'b'],
+    expect(blocks.b1.subBlocks.notRecord).toBeUndefined()
+    expect(blocks.b1.subBlocks.arrayValue).toBeUndefined()
+  })
+
+  it('should preserve malformed legacy subBlocks before renaming them', () => {
+    const input: Record<string, BlockState> = {
+      b1: makeBlock({
+        type: 'knowledge',
+        subBlocks: {
+          knowledgeBaseId: {
+            id: 'knowledgeBaseId',
+            type: 'unknown',
+            value: 'kb-uuid-123',
+          },
+        },
+      }),
+    }
+
+    const { blocks, migrated } = migrateSubblockIds(input)
+
+    expect(migrated).toBe(true)
+    expect(blocks.b1.subBlocks.knowledgeBaseId).toBeUndefined()
+    expect(blocks.b1.subBlocks.knowledgeBaseSelector).toEqual({
+      id: 'knowledgeBaseSelector',
+      type: 'knowledge-base-selector',
+      value: 'kb-uuid-123',
     })
   })
 

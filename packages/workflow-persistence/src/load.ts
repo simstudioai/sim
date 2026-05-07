@@ -2,7 +2,7 @@ import { db, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@
 import { createLogger } from '@sim/logger'
 import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
 import { SUBFLOW_TYPES } from '@sim/workflow-types/workflow'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import type { NormalizedWorkflowData } from './types'
 
@@ -10,6 +10,7 @@ const logger = createLogger('WorkflowPersistenceLoad')
 
 export interface RawNormalizedWorkflow extends NormalizedWorkflowData {
   workspaceId: string
+  blockUpdatedAt: Record<string, Date>
 }
 
 /**
@@ -50,6 +51,7 @@ export async function loadWorkflowFromNormalizedTablesRaw(
     }
 
     const blocksMap: Record<string, BlockState> = {}
+    const blockUpdatedAt: Record<string, Date> = {}
     blocks.forEach((block) => {
       const blockData = (block.data ?? {}) as BlockState['data']
 
@@ -73,6 +75,7 @@ export async function loadWorkflowFromNormalizedTablesRaw(
       }
 
       blocksMap[block.id] = assembled
+      blockUpdatedAt[block.id] = block.updatedAt
     })
 
     const edgesArray: Edge[] = edges.map((edge) => ({
@@ -151,6 +154,7 @@ export async function loadWorkflowFromNormalizedTablesRaw(
       parallels,
       isFromNormalizedTables: true,
       workspaceId: workflowRow.workspaceId,
+      blockUpdatedAt,
     }
   } catch (error) {
     logger.error(`Error loading workflow ${workflowId} from normalized tables:`, error)
@@ -161,7 +165,8 @@ export async function loadWorkflowFromNormalizedTablesRaw(
 export async function persistMigratedBlocks(
   workflowId: string,
   originalBlocks: Record<string, BlockState>,
-  migratedBlocks: Record<string, BlockState>
+  migratedBlocks: Record<string, BlockState>,
+  originalBlockUpdatedAt: Record<string, Date> = {}
 ): Promise<void> {
   try {
     for (const [blockId, block] of Object.entries(migratedBlocks)) {
@@ -173,7 +178,15 @@ export async function persistMigratedBlocks(
             data: block.data,
             updatedAt: new Date(),
           })
-          .where(eq(workflowBlocks.id, blockId))
+          .where(
+            originalBlockUpdatedAt[blockId]
+              ? and(
+                  eq(workflowBlocks.id, blockId),
+                  eq(workflowBlocks.workflowId, workflowId),
+                  eq(workflowBlocks.updatedAt, originalBlockUpdatedAt[blockId])
+                )
+              : and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId))
+          )
       }
     }
   } catch (err) {

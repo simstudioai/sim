@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.unmock('@/blocks/registry')
+
 import {
   extractWorkflowName,
   parseWorkflowJson,
@@ -76,6 +79,59 @@ describe('workflow import/export parsing', () => {
     })
 
     expect(extractWorkflowName(content, 'wf.json')).toBe('Wrapped Workflow')
+  })
+
+  it('parses API envelopes that contain state without an export version', () => {
+    const content = JSON.stringify({
+      data: {
+        workflow: {
+          name: 'API Workflow',
+        },
+        state: createLegacyState(),
+      },
+    })
+
+    const result = parseWorkflowJson(content, false)
+
+    expect(result.errors).toEqual([])
+    expect(result.data?.blocks['start-1']).toBeDefined()
+    expect(result.data?.blocks['start-1'].subBlocks.undefined).toBeUndefined()
+  })
+
+  it('preserves malformed legacy renamed subBlocks during import parsing', () => {
+    const state = {
+      ...createLegacyState(),
+      blocks: {
+        knowledge: {
+          id: 'knowledge',
+          type: 'knowledge',
+          name: 'Knowledge',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'search' },
+            knowledgeBaseId: {
+              id: 'knowledgeBaseId',
+              type: 'unknown',
+              value: 'kb-uuid-123',
+            },
+          },
+          outputs: {},
+          data: {},
+        },
+      },
+    }
+    const content = JSON.stringify({ data: { workflow: { name: 'Knowledge Workflow' }, state } })
+
+    const result = parseWorkflowJson(content, false)
+
+    expect(result.errors).toEqual([])
+    expect(result.data?.blocks.knowledge.subBlocks.knowledgeBaseId).toBeUndefined()
+    expect(result.data?.blocks.knowledge.subBlocks.knowledgeBaseSelector).toEqual({
+      id: 'knowledgeBaseSelector',
+      type: 'knowledge-base-selector',
+      value: 'kb-uuid-123',
+    })
   })
 })
 

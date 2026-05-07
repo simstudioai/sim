@@ -38,6 +38,15 @@ export function sanitizeMalformedSubBlocks(
     const configuredType = blockConfig?.subBlocks?.find((config) => config.id === subBlockId)?.type
 
     if (!isPlainRecord(subBlock)) {
+      if (!configuredType) {
+        logger.warn('Skipping malformed subBlock: unrecognized value entry', {
+          blockId: block.id,
+          subBlockId,
+        })
+        changed = true
+        continue
+      }
+
       logger.warn('Repairing malformed subBlock value', { blockId: block.id, subBlockId })
       result[subBlockId] = {
         id: subBlockId,
@@ -60,6 +69,21 @@ export function sanitizeMalformedSubBlocks(
     const id = typeof subBlock.id === 'string' && subBlock.id.length > 0 ? subBlock.id : subBlockId
     const typeFromConfig =
       configuredType || blockConfig?.subBlocks?.find((config) => config.id === id)?.type
+    const missingMetadata =
+      typeof subBlock.id !== 'string' ||
+      subBlock.id.length === 0 ||
+      typeof subBlock.type !== 'string' ||
+      subBlock.type.length === 0
+
+    if (missingMetadata && !typeFromConfig) {
+      logger.warn('Skipping malformed subBlock: unrecognized metadata entry', {
+        blockId: block.id,
+        subBlockId,
+      })
+      changed = true
+      continue
+    }
+
     const type =
       typeof subBlock.type === 'string' && subBlock.type.length > 0 && subBlock.type !== 'unknown'
         ? subBlock.type
