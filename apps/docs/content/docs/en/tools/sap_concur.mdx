@@ -322,7 +322,7 @@ Create a comment on a report (POST /expensereports/v4/users/\{userId\}/context/\
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `userId` | string | Yes | Concur user UUID |
-| `contextType` | string | Yes | Access context: TRAVELER, MANAGER, or PROXY |
+| `contextType` | string | Yes | Access context: TRAVELER or PROXY |
 | `reportId` | string | Yes | Expense report ID |
 | `comment` | string | Yes | Comment text to add |
 
@@ -1965,7 +1965,7 @@ List comments on a report (GET /expensereports/v4/users/\{userId\}/context/\{con
 | `password` | string | No | Password \(only for password grant\) |
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `userId` | string | Yes | Concur user UUID |
-| `contextType` | string | Yes | Access context: TRAVELER, MANAGER, or PROXY |
+| `contextType` | string | Yes | Access context: TRAVELER or PROXY |
 | `reportId` | string | Yes | Expense report ID |
 | `includeAllComments` | boolean | No | Include comments from all expenses in the report \(default false\) |
 
@@ -2084,7 +2084,6 @@ List travel profile summaries (GET /api/travelprofile/v2.0/summary). LastModifie
 | `lastModifiedDate` | string | Yes | Required UTC datetime in YYYY-MM-DDThh:mm:ss format |
 | `page` | number | No | 1-based page number |
 | `itemsPerPage` | number | No | Items per page \(max 200\) |
-| `active` | string | No | Active filter \(sent as Active query param\): "1" \(active\) or "0" \(inactive\). Omit for all. |
 | `travelConfigs` | string | No | Comma-separated travel configuration ids |
 
 #### Output
@@ -2238,7 +2237,6 @@ List Concur user identities (GET /profile/identity/v4.1/Users).
 | `companyUuid` | string | No | Company UUID for multi-company access tokens |
 | `count` | number | No | Max number of users to return \(default 100, max 1000\) |
 | `cursor` | string | No | SCIM v4.1 pagination cursor returned by a prior call |
-| `filter` | string | No | SCIM filter expression. Supported attributes: userName, employeeNumber, externalId. |
 | `attributes` | string | No | Comma-separated list of attributes to include in the response |
 | `excludedAttributes` | string | No | Comma-separated list of attributes to exclude from the response |
 
