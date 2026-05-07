@@ -92,7 +92,8 @@ export function isGroupEligible(
   row: TableRow,
   opts?: { isManualRun?: boolean; mode?: 'all' | 'incomplete' }
 ): boolean {
-  return classifyEligibility(group, row, opts) === 'eligible'
+  const reason = classifyEligibility(group, row, opts)
+  return reason === 'eligible' || reason === 'manual-bypass'
 }
 
 /**
@@ -142,7 +143,7 @@ export async function scheduleRunsForRows(
           mode: opts?.mode,
         })
         reasonCounts[reason] = (reasonCounts[reason] ?? 0) + 1
-        if (reason !== 'eligible') continue
+        if (reason !== 'eligible' && reason !== 'manual-bypass') continue
         pendingRuns.push({
           tableId: table.id,
           tableName: table.name,
