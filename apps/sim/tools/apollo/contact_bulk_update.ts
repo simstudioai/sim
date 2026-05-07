@@ -73,6 +73,11 @@ export const apolloContactBulkUpdateTool: ToolConfig<
           'Apollo bulk update requires contact_attributes (the fields to update). Use contact_attributes alone (array of per-contact updates with id) or together with contact_ids (single object applied to all listed contacts).'
         )
       }
+      if (!Array.isArray(body.contact_attributes) && !body.contact_ids) {
+        throw new Error(
+          'Apollo bulk update with object-form contact_attributes requires contact_ids to identify which contacts to update.'
+        )
+      }
       if (params.async !== undefined) body.async = params.async
       return body
     },
