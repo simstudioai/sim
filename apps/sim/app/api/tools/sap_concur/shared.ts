@@ -22,7 +22,7 @@ export const SapConcurDatacenterSchema = z
     message: `datacenter must be one of: ${Array.from(SAP_CONCUR_ALLOWED_DATACENTERS).join(', ')}`,
   })
 
-export const SapConcurGrantTypeSchema = z.enum(['client_credentials', 'password', 'refresh_token'])
+export const SapConcurGrantTypeSchema = z.enum(['client_credentials', 'password'])
 
 export const SapConcurAuthSchema = z.object({
   datacenter: SapConcurDatacenterSchema.default('us.api.concursolutions.com'),
@@ -257,7 +257,12 @@ export async function fetchSapConcurAccessToken(
   }
 
   const geolocation = normalizeGeolocation(data.geolocation, auth.datacenter)
-  assertSafeExternalUrl(geolocation, 'geolocation')
+  const geolocationUrl = assertSafeExternalUrl(geolocation, 'geolocation')
+  if (!SAP_CONCUR_ALLOWED_DATACENTERS.has(geolocationUrl.hostname.toLowerCase())) {
+    throw new Error(
+      `Concur geolocation host is not in the allowed datacenter list: ${geolocationUrl.hostname}`
+    )
+  }
 
   const expiresInMs = (data.expires_in ?? 3600) * 1000
   rememberToken(cacheKey, {

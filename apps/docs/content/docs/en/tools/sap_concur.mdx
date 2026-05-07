@@ -49,7 +49,7 @@ Approve an expense report as a manager (PATCH /expensereports/v4/reports/{report
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -74,7 +74,7 @@ Associate attendees with an expense (POST /expensereports/v4/users/{userId}/cont
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -103,7 +103,7 @@ Create a cash advance (POST /cashadvance/v4/cashadvances).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -128,7 +128,7 @@ Create an expected expense on a travel request (POST /travelrequest/v4/requests/
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -169,7 +169,7 @@ Create an expense report (POST /expensereports/v4/users/{userId}/context/{contex
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -196,7 +196,7 @@ Create a list item (POST /list/v4/items).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -230,7 +230,7 @@ Create a purchase request (POST /purchaserequest/v4/purchaserequests).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -260,7 +260,7 @@ Create a quick expense (POST /quickexpense/v4/users/{userId}/context/TRAVELER/qu
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -287,7 +287,7 @@ Create a quick expense with an attached image (POST /quickexpense/v4/users/{user
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -315,7 +315,7 @@ Create a comment on a report (POST /expensereports/v4/users/{userId}/context/{co
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -343,7 +343,7 @@ Create a travel request (POST /travelrequest/v4/requests).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -430,7 +430,7 @@ Create a new user identity (POST /profile/identity/v4.1/Users).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -454,7 +454,7 @@ Delete an expected expense (DELETE /travelrequest/v4/expenses/{expenseUuid}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -479,7 +479,7 @@ Delete an expense (DELETE /expensereports/v4/reports/{reportId}/expenses/{expens
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -504,7 +504,7 @@ Delete an expense report (DELETE /expensereports/v4/reports/{reportId}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -528,7 +528,7 @@ Delete a list item (DELETE /list/v4/items/{itemId}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -552,7 +552,7 @@ Delete a travel request (DELETE /travelrequest/v4/requests/{requestUuid}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -577,7 +577,7 @@ Delete a user identity (DELETE /profile/identity/v4.1/Users/{id}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -601,7 +601,7 @@ Get a single allocation (GET /expensereports/v4/users/{userId}/context/{contextT
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -645,7 +645,7 @@ Get a budget item header by ID (GET /budget/v4/budgetItemHeader/{id}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -693,7 +693,7 @@ Get a cash advance (GET /cashadvance/v4/cashadvances/{cashadvanceId}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -733,7 +733,7 @@ Get a cash advance (GET /cashadvance/v4/cashadvances/{cashadvanceId}).
 |     ↳ `paymentCode` | string | Payment type code |
 |     ↳ `description` | string | Payment method description |
 
-### `sap_concur_get_exchange_rate`
+### `sap_concur_upload_exchange_rates`
 
 Bulk upload up to 100 custom exchange rates (POST /exchangerate/v4/rates). Body: { currency_sets: [{ from_crn_code, to_crn_code, start_date: 
 
@@ -742,7 +742,7 @@ Bulk upload up to 100 custom exchange rates (POST /exchangerate/v4/rates). Body:
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -769,7 +769,7 @@ Get an expected expense (GET /travelrequest/v4/expenses/{expenseUuid}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -809,7 +809,7 @@ Get a single expense (GET /expensereports/v4/users/{userId}/context/{contextType
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -887,7 +887,7 @@ Retrieve a single expense report header by id via Expense Report v4 (/expenserep
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -981,7 +981,7 @@ Get expense itemizations (GET /expensereports/v4/users/{userId}/context/{context
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1029,7 +1029,7 @@ Get a single trip/itinerary (GET /api/travel/trip/v1.1/{tripID}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1079,7 +1079,7 @@ Get a single custom list (GET /list/v4/lists/{listId}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1115,7 +1115,7 @@ Get a single list item (GET /list/v4/items/{itemId}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1149,7 +1149,7 @@ Get a purchase request by ID (GET /purchaserequest/v4/purchaserequests/{id}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1185,7 +1185,7 @@ Get a single receipt by ID (GET /receipts/v4/{receiptId}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1217,7 +1217,7 @@ Get receipt processing status (GET /receipts/v4/status/{receiptId}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1246,7 +1246,7 @@ Get a travel profile (GET /api/travelprofile/v2.0/profile). Returns the calling 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1297,7 +1297,7 @@ Get a single travel request (GET /travelrequest/v4/requests/{requestUuid}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1407,7 +1407,7 @@ Get a single user by UUID (GET /profile/identity/v4.1/Users/{id}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1433,7 +1433,7 @@ Issue a cash advance (POST /cashadvance/v4/cashadvances/{cashadvanceId}/issue).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1462,7 +1462,7 @@ List allocations on an expense (GET /expensereports/v4/users/{userId}/context/{c
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1489,7 +1489,7 @@ List attendees associated with an expense (GET /expensereports/v4/users/{userId}
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1534,7 +1534,7 @@ List budget categories (GET /budget/v4/budgetCategory).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1557,7 +1557,7 @@ List budget item headers (GET /budget/v4/budgetItemHeader).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1586,7 +1586,7 @@ List exceptions on a report (GET /expensereports/v4/users/{userId}/context/{cont
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1619,7 +1619,7 @@ List expected expenses on a travel request (GET /travelrequest/v4/requests/{requ
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1644,7 +1644,7 @@ List expenses on a report (GET /expensereports/v4/users/{userId}/context/{contex
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1700,7 +1700,7 @@ List expense reports (GET /api/v3.0/expense/reports). Returns a v3 envelope { It
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(us, us2, eu, eu2, cn, emea — defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1762,7 +1762,7 @@ List travel trips/itineraries (GET /api/travel/trip/v1.1).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1824,7 +1824,7 @@ List custom lists (GET /list/v4/lists).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1875,7 +1875,7 @@ List the top-level items (children) for a custom list (GET /list/v4/lists/{listI
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1926,7 +1926,7 @@ List receipts for a user (GET /receipts/v4/users/{userId}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1958,7 +1958,7 @@ List comments on a report (GET /expensereports/v4/users/{userId}/context/{contex
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -1998,7 +1998,7 @@ List expense reports awaiting approval (GET /expensereports/v4/users/{userId}/co
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2039,7 +2039,7 @@ Get a single cash advance assigned to a travel request (GET /travelrequest/v4/ca
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2075,7 +2075,7 @@ List travel profile summaries (GET /api/travelprofile/v2.0/summary). LastModifie
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2121,7 +2121,7 @@ List comments on a travel request (GET /travelrequest/v4/requests/{requestUuid}/
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2151,7 +2151,7 @@ List travel requests (GET /travelrequest/v4/requests).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2230,7 +2230,7 @@ List Concur user identities (GET /profile/identity/v4.1/Users).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2257,7 +2257,7 @@ Move a travel request through workflow (POST /travelrequest/v4/requests/{request
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2298,7 +2298,7 @@ Recall a submitted expense report (PATCH /expensereports/v4/users/{userId}/conte
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2325,7 +2325,7 @@ Remove all attendees from an expense (DELETE /expensereports/v4/users/{userId}/c
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2352,7 +2352,7 @@ Search Concur location reference data (GET /localities/v5/locations).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2408,7 +2408,7 @@ Search users via SCIM .search endpoint (POST /profile/identity/v4.1/Users/.searc
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2432,7 +2432,7 @@ Send back an expense report to the employee (PATCH /expensereports/v4/reports/{r
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2457,7 +2457,7 @@ Submit an expense report into the workflow via Expense Report v4 (PATCH /expense
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2483,7 +2483,7 @@ Update an allocation (PATCH /expensereports/v4/users/{userId}/context/{contextTy
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2511,7 +2511,7 @@ Update an expected expense (PUT /travelrequest/v4/expenses/{expenseUuid}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2552,7 +2552,7 @@ Update an expense (PATCH /expensereports/v4/reports/{reportId}/expenses/{expense
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2578,7 +2578,7 @@ Update an unsubmitted expense report (PATCH /expensereports/v4/users/{userId}/co
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2605,7 +2605,7 @@ Update a list item (PUT /list/v4/items/{itemId}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2640,7 +2640,7 @@ Update a travel request (PUT /travelrequest/v4/requests/{requestUuid}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2715,7 +2715,7 @@ Patch a user identity (PATCH /profile/identity/v4.1/Users/{id}).
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |
@@ -2740,7 +2740,7 @@ Upload an image-only receipt (POST /receipts/v4/users/{userId}/image-only-receip
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `datacenter` | string | No | Concur datacenter base URL \(defaults to us.api.concursolutions.com\) |
-| `grantType` | string | No | OAuth grant type: client_credentials \(default\), password, refresh_token |
+| `grantType` | string | No | OAuth grant type: client_credentials \(default\) or password |
 | `clientId` | string | Yes | Concur OAuth client ID |
 | `clientSecret` | string | Yes | Concur OAuth client secret |
 | `username` | string | No | Username \(only for password grant\) |

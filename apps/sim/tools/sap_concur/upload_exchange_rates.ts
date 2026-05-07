@@ -1,4 +1,4 @@
-import type { GetExchangeRateParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { SapConcurProxyResponse, UploadExchangeRatesParams } from '@/tools/sap_concur/types'
 import {
   baseProxyBody,
   SAP_CONCUR_PROXY_URL,
@@ -6,9 +6,12 @@ import {
 } from '@/tools/sap_concur/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const getExchangeRateTool: ToolConfig<GetExchangeRateParams, SapConcurProxyResponse> = {
-  id: 'sap_concur_get_exchange_rate',
-  name: 'SAP Concur Get Exchange Rate',
+export const uploadExchangeRatesTool: ToolConfig<
+  UploadExchangeRatesParams,
+  SapConcurProxyResponse
+> = {
+  id: 'sap_concur_upload_exchange_rates',
+  name: 'SAP Concur Upload Exchange Rates',
   description:
     'Bulk upload up to 100 custom exchange rates (POST /exchangerate/v4/rates). Body: { currency_sets: [{ from_crn_code, to_crn_code, start_date: "YYYY-MM-DD", rate }] }',
   version: '1.0.0',
@@ -23,7 +26,7 @@ export const getExchangeRateTool: ToolConfig<GetExchangeRateParams, SapConcurPro
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'OAuth grant type: client_credentials (default), password, refresh_token',
+      description: 'OAuth grant type: client_credentials (default) or password',
     },
     clientId: {
       type: 'string',

@@ -23,7 +23,7 @@ export const listItinerariesTool: ToolConfig<ListItinerariesParams, SapConcurPro
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'OAuth grant type: client_credentials (default), password, refresh_token',
+      description: 'OAuth grant type: client_credentials (default) or password',
     },
     clientId: {
       type: 'string',

@@ -8,7 +8,7 @@ export type SapConcurDatacenter =
   | 'cn.api.concursolutions.com'
   | 'emea.api.concursolutions.com'
 
-export type SapConcurGrantType = 'client_credentials' | 'password' | 'refresh_token'
+export type SapConcurGrantType = 'client_credentials' | 'password'
 
 export interface SapConcurBaseParams {
   datacenter?: SapConcurDatacenter
@@ -520,7 +520,7 @@ export interface GetCardTransactionParams extends SapConcurBaseParams {
   cardTransactionId: string
 }
 
-export interface GetExchangeRateParams extends SapConcurBaseParams {
+export interface UploadExchangeRatesParams extends SapConcurBaseParams {
   body: Record<string, unknown> | string
 }
 

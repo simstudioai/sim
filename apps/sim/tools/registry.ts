@@ -2292,7 +2292,6 @@ import {
   getAllocationTool as sapConcurGetAllocationTool,
   getBudgetTool as sapConcurGetBudgetTool,
   getCashAdvanceTool as sapConcurGetCashAdvanceTool,
-  getExchangeRateTool as sapConcurGetExchangeRateTool,
   getExpectedExpenseTool as sapConcurGetExpectedExpenseTool,
   getExpenseReportTool as sapConcurGetExpenseReportTool,
   getExpenseTool as sapConcurGetExpenseTool,
@@ -2340,6 +2339,7 @@ import {
   updateListItemTool as sapConcurUpdateListItemTool,
   updateTravelRequestTool as sapConcurUpdateTravelRequestTool,
   updateUserTool as sapConcurUpdateUserTool,
+  uploadExchangeRatesTool as sapConcurUploadExchangeRatesTool,
   uploadReceiptImageTool as sapConcurUploadReceiptImageTool,
 } from '@/tools/sap_concur'
 import {
@@ -5463,7 +5463,7 @@ export const tools: Record<string, ToolConfig> = {
   sap_concur_get_allocation: sapConcurGetAllocationTool,
   sap_concur_get_budget: sapConcurGetBudgetTool,
   sap_concur_get_cash_advance: sapConcurGetCashAdvanceTool,
-  sap_concur_get_exchange_rate: sapConcurGetExchangeRateTool,
+  sap_concur_upload_exchange_rates: sapConcurUploadExchangeRatesTool,
   sap_concur_get_expected_expense: sapConcurGetExpectedExpenseTool,
   sap_concur_get_expense: sapConcurGetExpenseTool,
   sap_concur_get_expense_report: sapConcurGetExpenseReportTool,

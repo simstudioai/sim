@@ -152,7 +152,7 @@ const BODY_OPS = [
   'sap_concur_update_user',
   'sap_concur_search_users',
   'sap_concur_create_purchase_request',
-  'sap_concur_get_exchange_rate',
+  'sap_concur_upload_exchange_rates',
 ]
 
 export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
@@ -247,7 +247,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
         { label: 'List Budgets', id: 'sap_concur_list_budgets' },
         { label: 'Get Budget', id: 'sap_concur_get_budget' },
         { label: 'List Budget Categories', id: 'sap_concur_list_budget_categories' },
-        { label: 'Get Exchange Rate', id: 'sap_concur_get_exchange_rate' },
+        { label: 'Upload Exchange Rates', id: 'sap_concur_upload_exchange_rates' },
         { label: 'Create Purchase Request', id: 'sap_concur_create_purchase_request' },
         { label: 'Get Purchase Request', id: 'sap_concur_get_purchase_request' },
         { label: 'Get Travel Profile', id: 'sap_concur_get_travel_profile' },
@@ -284,7 +284,6 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       options: [
         { label: 'Client Credentials', id: 'client_credentials' },
         { label: 'Password', id: 'password' },
-        { label: 'Refresh Token', id: 'refresh_token' },
       ],
       value: () => 'client_credentials',
     },
@@ -1240,7 +1239,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
           'sap_concur_update_user',
           'sap_concur_search_users',
           'sap_concur_create_purchase_request',
-          'sap_concur_get_exchange_rate',
+          'sap_concur_upload_exchange_rates',
           'sap_concur_create_list_item',
           'sap_concur_update_list_item',
         ],
@@ -1270,7 +1269,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       'sap_concur_get_allocation',
       'sap_concur_get_budget',
       'sap_concur_get_cash_advance',
-      'sap_concur_get_exchange_rate',
+      'sap_concur_upload_exchange_rates',
       'sap_concur_get_expected_expense',
       'sap_concur_get_expense',
       'sap_concur_get_expense_report',
@@ -1699,7 +1698,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
             return { ...auth, budgetId: params.budgetId }
           case 'sap_concur_list_budget_categories':
             return { ...auth }
-          case 'sap_concur_get_exchange_rate':
+          case 'sap_concur_upload_exchange_rates':
             return { ...auth, body: params.body }
           case 'sap_concur_create_purchase_request':
             return { ...auth, body: params.body }
