@@ -48,7 +48,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const client = await createWorkdaySoapClient(
       data.tenantUrl,
       data.tenant,
-      'staffing',
+      'recruiting',
       data.username,
       data.password
     )
