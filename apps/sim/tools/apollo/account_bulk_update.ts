@@ -67,6 +67,11 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
       if (params.account_attributes && params.account_attributes.length > 0) {
         body.account_attributes = params.account_attributes
       }
+      if (!body.account_ids && !body.account_attributes) {
+        throw new Error(
+          'Apollo account bulk update requires either account_ids or account_attributes to be provided'
+        )
+      }
       return body
     },
   },
