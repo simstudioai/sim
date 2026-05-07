@@ -40,6 +40,8 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
   apollo: {
     contact_ids_bulk: 'contacts',
     account_ids_bulk: 'accounts',
+    close_date: 'closed_date',
+    stage_id: 'opportunity_stage_id',
   },
   rippling: {
     action: '_removed_action',
