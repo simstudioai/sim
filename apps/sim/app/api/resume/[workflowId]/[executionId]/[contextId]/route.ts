@@ -10,7 +10,6 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { setExecutionMeta } from '@/lib/execution/event-buffer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
@@ -157,12 +156,6 @@ export const POST = withRouteHandler(
         })
       }
 
-      await setExecutionMeta(enqueueResult.resumeExecutionId, {
-        status: 'active',
-        userId,
-        workflowId,
-      })
-
       const resumeArgs = {
         resumeEntryId: enqueueResult.resumeEntryId,
         resumeExecutionId: enqueueResult.resumeExecutionId,
@@ -249,6 +242,14 @@ export const POST = withRouteHandler(
             error: toError(dispatchError).message,
             resumeExecutionId: enqueueResult.resumeExecutionId,
           })
+          await PauseResumeManager.markResumeAttemptFailed({
+            resumeEntryId: enqueueResult.resumeEntryId,
+            pausedExecutionId: enqueueResult.pausedExecution.id,
+            parentExecutionId: executionId,
+            contextId: enqueueResult.contextId,
+            failureReason: 'Failed to queue async resume execution',
+          })
+          await PauseResumeManager.processQueuedResumes(executionId)
           return NextResponse.json(
             { error: 'Failed to queue resume execution. Please try again.' },
             { status: 503 }

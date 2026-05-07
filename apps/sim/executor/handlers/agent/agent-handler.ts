@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { getAllBlocks } from '@/blocks'
@@ -815,8 +816,8 @@ export class AgentBlockHandler implements BlockHandler {
       userId: ctx.userId,
       stream: streaming,
       messages: messages?.map(({ executionId, ...msg }) => msg),
-      environmentVariables: ctx.environmentVariables || {},
-      workflowVariables: ctx.workflowVariables || {},
+      environmentVariables: normalizeStringRecord(ctx.environmentVariables),
+      workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
       blockData,
       blockNameMapping,
       reasoningEffort: inputs.reasoningEffort,
@@ -885,8 +886,8 @@ export class AgentBlockHandler implements BlockHandler {
         userId: ctx.userId,
         stream: providerRequest.stream,
         messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
-        environmentVariables: ctx.environmentVariables || {},
-        workflowVariables: ctx.workflowVariables || {},
+        environmentVariables: normalizeStringRecord(ctx.environmentVariables),
+        workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
         blockData,
         blockNameMapping,
         isDeployedContext: ctx.isDeployedContext,

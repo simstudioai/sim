@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import { ArrowLeftRight } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -25,6 +25,14 @@ interface ClientInfo {
 }
 
 export default function OAuthConsentPage() {
+  return (
+    <Suspense fallback={null}>
+      <OAuthConsentInner />
+    </Suspense>
+  )
+}
+
+function OAuthConsentInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session } = useSession()

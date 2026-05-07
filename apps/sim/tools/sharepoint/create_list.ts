@@ -5,6 +5,7 @@ import type {
   SharepointList,
   SharepointToolParams,
 } from '@/tools/sharepoint/types'
+import { optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointCreateList')
@@ -13,7 +14,7 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
   id: 'sharepoint_create_list',
   name: 'Create SharePoint List',
   description: 'Create a new list in a SharePoint site',
-  version: '1.0',
+  version: '1.0.0',
 
   oauth: {
     required: true,
@@ -59,7 +60,7 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
       description: "List template name (e.g., 'genericList')",
     },
     pageContent: {
-      type: 'string',
+      type: 'json',
       required: false,
       visibility: 'user-only',
       description:
@@ -69,7 +70,7 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
 
   request: {
     url: (params) => {
-      const siteId = params.siteSelector || params.siteId || 'root'
+      const siteId = optionalTrim(params.siteSelector) || optionalTrim(params.siteId) || 'root'
       return `https://graph.microsoft.com/v1.0/sites/${siteId}/lists`
     },
     method: 'POST',
@@ -79,36 +80,51 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
       Accept: 'application/json',
     }),
     body: (params) => {
-      if (!params.listDisplayName) {
+      const listDisplayName = optionalTrim(params.listDisplayName)
+      if (!listDisplayName) {
         throw new Error('listDisplayName is required')
       }
 
-      // Derive columns from pageContent JSON (object or string) or top-level array
       let columns: unknown[] | undefined
       if (params.pageContent) {
         if (typeof params.pageContent === 'string') {
           try {
             const parsed = JSON.parse(params.pageContent)
-            if (Array.isArray(parsed)) columns = parsed
-            else if (parsed && Array.isArray((parsed as any).columns))
-              columns = (parsed as any).columns
+            if (Array.isArray(parsed)) {
+              columns = parsed
+            } else if (
+              parsed &&
+              typeof parsed === 'object' &&
+              Array.isArray((parsed as { columns?: unknown[] }).columns)
+            ) {
+              columns = (parsed as { columns: unknown[] }).columns
+            }
           } catch (error) {
             logger.warn('Invalid JSON in pageContent for create list; ignoring', {
               error: toError(error).message,
             })
           }
         } else if (typeof params.pageContent === 'object') {
-          const pc: any = params.pageContent
-          if (Array.isArray(pc)) columns = pc
-          else if (pc && Array.isArray(pc.columns)) columns = pc.columns
+          const pageContent = params.pageContent as { columns?: unknown[] } | unknown[]
+          if (Array.isArray(pageContent)) {
+            columns = pageContent
+          } else if (pageContent && Array.isArray(pageContent.columns)) {
+            columns = pageContent.columns
+          }
         }
       }
 
-      const payload: any = {
-        displayName: params.listDisplayName,
-        description: params.listDescription,
-        list: { template: params.listTemplate || 'genericList' },
+      const payload: {
+        displayName: string
+        description?: string
+        list: { template: string }
+        columns?: unknown[]
+      } = {
+        displayName: listDisplayName,
+        list: { template: optionalTrim(params.listTemplate) || 'genericList' },
       }
+      const listDescription = optionalTrim(params.listDescription)
+      if (listDescription) payload.description = listDescription
       if (columns && columns.length > 0) payload.columns = columns
 
       logger.info('Creating SharePoint list', {

@@ -7,6 +7,7 @@ import type { ConnectorConfig, ConnectorConfigField } from '@/connectors/types'
 export interface UseConnectorConfigFieldsOptions {
   connectorConfig: ConnectorConfig | null
   initialSourceConfig?: Record<string, string>
+  initialCanonicalModes?: Record<string, 'basic' | 'advanced'>
 }
 
 export interface UseConnectorConfigFieldsResult {
@@ -34,11 +35,14 @@ export interface UseConnectorConfigFieldsResult {
 export function useConnectorConfigFields({
   connectorConfig,
   initialSourceConfig,
+  initialCanonicalModes,
 }: UseConnectorConfigFieldsOptions): UseConnectorConfigFieldsResult {
   const [sourceConfig, setSourceConfig] = useState<Record<string, string>>(
     () => initialSourceConfig ?? {}
   )
-  const [canonicalModes, setCanonicalModes] = useState<Record<string, 'basic' | 'advanced'>>({})
+  const [canonicalModes, setCanonicalModes] = useState<Record<string, 'basic' | 'advanced'>>(
+    () => initialCanonicalModes ?? {}
+  )
 
   const canonicalGroups = useMemo(() => {
     const groups = new Map<string, ConnectorConfigField[]>()

@@ -1,9 +1,9 @@
 import { type Context as OtelContext, context as otelContextApi } from '@opentelemetry/api'
 import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
+import { copilotChats, permissions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
@@ -506,14 +506,12 @@ async function resolveBranch(params: {
     }
 
     const resolvedWorkflowId = resolved.workflowId
-    let resolvedWorkspaceId = requestedWorkspaceId
-    if (!resolvedWorkspaceId) {
-      try {
-        const workflow = await getWorkflowById(resolvedWorkflowId)
-        resolvedWorkspaceId = workflow?.workspaceId ?? undefined
-      } catch {
-        // best effort; downstream calls can still proceed
-      }
+    let resolvedWorkspaceId: string | undefined
+    try {
+      const workflow = await getWorkflowById(resolvedWorkflowId)
+      resolvedWorkspaceId = workflow?.workspaceId ?? requestedWorkspaceId
+    } catch {
+      resolvedWorkspaceId = requestedWorkspaceId
     }
 
     const selectedModel = model || DEFAULT_MODEL
@@ -567,6 +565,22 @@ async function resolveBranch(params: {
 
   if (!requestedWorkspaceId) {
     return createBadRequestResponse('workspaceId is required when workflowId is not provided')
+  }
+
+  const [permissionRow] = await db
+    .select({ permissionType: permissions.permissionType })
+    .from(permissions)
+    .where(
+      and(
+        eq(permissions.userId, authenticatedUserId),
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, requestedWorkspaceId)
+      )
+    )
+    .limit(1)
+
+  if (!permissionRow) {
+    return createBadRequestResponse('Workspace not found or access denied')
   }
 
   return {

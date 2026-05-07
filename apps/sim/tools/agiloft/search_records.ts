@@ -94,45 +94,44 @@ export const agiloftSearchRecordsTool: ToolConfig<
 
         const data = (await response.json()) as Record<string, unknown>
         const records: Record<string, unknown>[] = []
+        const result = (data.result ?? data) as Record<string, unknown>
 
-        if (data.result && Array.isArray(data.result)) {
-          for (const item of data.result as Record<string, unknown>[]) {
+        if (Array.isArray(result)) {
+          for (const item of result as Record<string, unknown>[]) {
             records.push(item)
           }
-        } else if (Array.isArray(data)) {
-          for (const item of data as Record<string, unknown>[]) {
-            records.push(item)
-          }
-        } else if (data.results && Array.isArray(data.results)) {
-          for (const item of data.results as Record<string, unknown>[]) {
-            records.push(item)
-          }
-        } else if (data.records && Array.isArray(data.records)) {
-          for (const item of data.records as Record<string, unknown>[]) {
-            records.push(item)
-          }
-        } else if (typeof data.EWREST_length === 'number') {
-          const count = data.EWREST_length as number
-          for (let i = 0; i < count; i++) {
-            const record: Record<string, unknown> = {}
-            for (const key of Object.keys(data)) {
-              const match = key.match(/^EWREST_(.+)_(\d+)$/)
-              if (match && Number(match[2]) === i) {
-                record[match[1]] = data[key]
+        } else {
+          const lengthRaw = result.EWREST_length ?? data.EWREST_length
+          const count = typeof lengthRaw === 'string' ? Number(lengthRaw) : (lengthRaw as number)
+          if (typeof count === 'number' && Number.isFinite(count)) {
+            const source = (result.EWREST_length != null ? result : data) as Record<string, unknown>
+            for (let i = 0; i < count; i++) {
+              const record: Record<string, unknown> = {}
+              for (const key of Object.keys(source)) {
+                const match = key.match(/^EWREST_(.+)_(\d+)$/)
+                if (match && Number(match[2]) === i) {
+                  record[match[1]] = source[key]
+                }
               }
-            }
-            if (Object.keys(record).length > 0) {
-              records.push(record)
+              if (Object.keys(record).length > 0) {
+                records.push(record)
+              }
             }
           }
         }
 
-        const totalCount =
-          (data.totalCount as number) ??
-          (data.total as number) ??
-          (data.count as number) ??
-          (data.EWREST_length as number) ??
+        const totalCountRaw =
+          result.totalCount ??
+          result.total ??
+          result.count ??
+          result.EWREST_length ??
+          data.totalCount ??
+          data.total ??
+          data.count ??
+          data.EWREST_length ??
           records.length
+        const totalCount =
+          typeof totalCountRaw === 'string' ? Number(totalCountRaw) : (totalCountRaw as number)
         const page = params.page ? Number(params.page) : 0
         const limit = params.limit ? Number(params.limit) : 25
 

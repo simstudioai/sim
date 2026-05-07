@@ -213,6 +213,15 @@ export interface NormalizedBlockOutput {
   _pauseMetadata?: PauseMetadata
 }
 
+export const EXECUTION_CONTROL_OUTPUT_FIELD_NAMES = [
+  'error',
+  'selectedOption',
+  'selectedRoute',
+  '_pauseMetadata',
+] as const
+
+export type ExecutionControlOutputFieldName = (typeof EXECUTION_CONTROL_OUTPUT_FIELD_NAMES)[number]
+
 export interface BlockLog {
   blockId: string
   blockName?: string
@@ -268,6 +277,7 @@ export interface ExecutionMetadata {
   triggerBlockId?: string
   useDraftState?: boolean
   resumeFromSnapshot?: boolean
+  resumeTerminalNoop?: boolean
 }
 
 export interface BlockState {
@@ -385,8 +395,9 @@ export interface ExecutionContext {
     blockId: string,
     childWorkflowInstanceId: string,
     iterationContext?: IterationContext,
-    executionOrder?: number
-  ) => void
+    executionOrder?: number,
+    childWorkflowContext?: ChildWorkflowContext
+  ) => Promise<void>
 
   /**
    * AbortSignal for cancellation support.

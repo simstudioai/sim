@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { dataverseUploadFileContract } from '@/lib/api/contracts/tools/microsoft'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
@@ -78,20 +79,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const baseUrl = validatedData.environmentUrl.replace(/\/$/, '')
     const uploadUrl = `${baseUrl}/api/data/v9.2/${validatedData.entitySetName}(${validatedData.recordId})/${validatedData.fileColumn}`
 
-    const response = await fetch(uploadUrl, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${validatedData.accessToken}`,
-        'Content-Type': 'application/octet-stream',
-        'OData-MaxVersion': '4.0',
-        'OData-Version': '4.0',
-        'x-ms-file-name': validatedData.fileName,
+    const response = await secureFetchWithValidation(
+      uploadUrl,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${validatedData.accessToken}`,
+          'Content-Type': 'application/octet-stream',
+          'OData-MaxVersion': '4.0',
+          'OData-Version': '4.0',
+          'x-ms-file-name': validatedData.fileName,
+        },
+        body: fileBuffer,
       },
-      body: new Uint8Array(fileBuffer),
-    })
+      'environmentUrl'
+    )
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const errorData = (await response.json().catch(() => ({}))) as {
+        error?: { message?: string }
+      }
       const errorMessage =
         errorData?.error?.message ??
         `Dataverse API error: ${response.status} ${response.statusText}`

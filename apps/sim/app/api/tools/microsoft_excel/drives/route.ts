@@ -7,7 +7,7 @@ import { validatePathSegment, validateSharePointSiteId } from '@/lib/core/securi
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { GRAPH_ID_PATTERN } from '@/tools/microsoft_excel/utils'
+import { extractGraphError, GRAPH_ID_PATTERN } from '@/tools/microsoft_excel/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,13 +76,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
 
       if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ error: { message: 'Unknown error' } }))
-        return NextResponse.json(
-          { error: errorData.error?.message || 'Failed to fetch drive' },
-          { status: response.status }
-        )
+        const errorMessage = await extractGraphError(response)
+        return NextResponse.json({ error: errorMessage }, { status: response.status })
       }
 
       const data: GraphDrive = await response.json()
@@ -102,15 +97,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
+      const errorMessage = await extractGraphError(response)
       logger.error(`[${requestId}] Microsoft Graph API error fetching drives`, {
         status: response.status,
-        error: errorData.error?.message,
+        error: errorMessage,
       })
-      return NextResponse.json(
-        { error: errorData.error?.message || 'Failed to fetch drives' },
-        { status: response.status }
-      )
+      return NextResponse.json({ error: errorMessage }, { status: response.status })
     }
 
     const data = await response.json()

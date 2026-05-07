@@ -1,6 +1,7 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { redactApiKeys } from '@/lib/core/security/redaction'
+import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   containsUserFileWithMetadata,
@@ -44,7 +45,10 @@ import {
 } from '@/executor/utils/iteration-context'
 import { isJSONString } from '@/executor/utils/json'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
-import type { VariableResolver } from '@/executor/variables/resolver'
+import {
+  FUNCTION_BLOCK_CONTEXT_VARS_KEY,
+  type VariableResolver,
+} from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
@@ -115,7 +119,13 @@ export class BlockExecutor {
         await validateBlockType(ctx.userId, ctx.workspaceId, blockType, ctx)
       }
 
-      resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
+      if (block.metadata?.id === BlockType.FUNCTION) {
+        const { resolvedInputs: fnInputs, contextVariables } =
+          this.resolver.resolveInputsForFunctionBlock(ctx, node.id, block.config.params, block)
+        resolvedInputs = { ...fnInputs, [FUNCTION_BLOCK_CONTEXT_VARS_KEY]: contextVariables }
+      } else {
+        resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
+      }
 
       if (blockLog) {
         blockLog.input = this.sanitizeInputsForLog(resolvedInputs)
@@ -155,7 +165,7 @@ export class BlockExecutor {
             block,
             streamingExec,
             resolvedInputs,
-            ctx.selectedOutputs ?? []
+            normalizeStringArray(ctx.selectedOutputs)
           )
         }
 
@@ -428,7 +438,11 @@ export class BlockExecutor {
     const result: Record<string, any> = {}
 
     for (const [key, value] of Object.entries(inputs)) {
-      if (SYSTEM_SUBBLOCK_IDS.includes(key) || key === 'triggerMode') {
+      if (
+        SYSTEM_SUBBLOCK_IDS.includes(key) ||
+        key === 'triggerMode' ||
+        key === FUNCTION_BLOCK_CONTEXT_VARS_KEY
+      ) {
         continue
       }
 

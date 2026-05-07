@@ -58,7 +58,38 @@ import {
 
 const logger = createLogger('TableView')
 
-const EMPTY_CHECKED_ROWS = new Set<string>()
+type RowSelection = { kind: 'none' } | { kind: 'some'; ids: Set<string> } | { kind: 'all' }
+
+const ROW_SELECTION_NONE: RowSelection = { kind: 'none' }
+const ROW_SELECTION_ALL: RowSelection = { kind: 'all' }
+
+function rowSelectionIncludes(sel: RowSelection, id: string): boolean {
+  if (sel.kind === 'all') return true
+  if (sel.kind === 'some') return sel.ids.has(id)
+  return false
+}
+
+function rowSelectionIsEmpty(sel: RowSelection): boolean {
+  if (sel.kind === 'none') return true
+  if (sel.kind === 'some') return sel.ids.size === 0
+  return false
+}
+
+function rowSelectionMaterialize(sel: RowSelection, rows: TableRowType[]): Set<string> {
+  if (sel.kind === 'all') return new Set(rows.map((r) => r.id))
+  if (sel.kind === 'some') return new Set(sel.ids)
+  return new Set<string>()
+}
+
+function rowSelectionCoversAll(sel: RowSelection, rows: TableRowType[]): boolean {
+  if (rows.length === 0) return false
+  if (sel.kind === 'all') return true
+  if (sel.kind === 'none') return false
+  if (sel.ids.size < rows.length) return false
+  for (const r of rows) if (!sel.ids.has(r.id)) return false
+  return true
+}
+
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
 // Wide enough to host the row-number + per-row run button side by side.
@@ -250,7 +281,7 @@ export function TableGrid({
   const [expandedCell, setExpandedCell] = useState<EditingCell | null>(null)
   const [selectionAnchor, setSelectionAnchor] = useState<CellCoord | null>(null)
   const [selectionFocus, setSelectionFocus] = useState<CellCoord | null>(null)
-  const [checkedRows, setCheckedRows] = useState(EMPTY_CHECKED_ROWS)
+  const [rowSelection, setRowSelection] = useState<RowSelection>(ROW_SELECTION_NONE)
   const [isColumnSelection, setIsColumnSelection] = useState(false)
   const lastCheckboxRowRef = useRef<string | null>(null)
   const isColumnSelectionRef = useRef(false)
@@ -514,22 +545,10 @@ export function TableGrid({
     checkboxColWidth,
   ])
 
-  const isAllRowsSelected = useMemo(() => {
-    if (checkedRows.size > 0 && rows.length > 0 && checkedRows.size >= rows.length) {
-      for (const row of rows) {
-        if (!checkedRows.has(row.id)) return false
-      }
-      return true
-    }
-    return (
-      normalizedSelection !== null &&
-      rows.length > 0 &&
-      normalizedSelection.startRow === 0 &&
-      normalizedSelection.endRow === rows.length - 1 &&
-      normalizedSelection.startCol === 0 &&
-      normalizedSelection.endCol === displayColumns.length - 1
-    )
-  }, [checkedRows, normalizedSelection, displayColumns.length, rows])
+  const isAllRowsSelected = useMemo(
+    () => rowSelectionCoversAll(rowSelection, rows),
+    [rowSelection, rows]
+  )
 
   const isAllRowsSelectedRef = useRef(isAllRowsSelected)
   isAllRowsSelectedRef.current = isAllRowsSelected
@@ -543,8 +562,8 @@ export function TableGrid({
   const anchorRowIdRef = useRef<string | null>(null)
   const focusRowIdRef = useRef<string | null>(null)
 
-  const checkedRowsRef = useRef(checkedRows)
-  checkedRowsRef.current = checkedRows
+  const rowSelectionRef = useRef(rowSelection)
+  rowSelectionRef.current = rowSelection
 
   columnsRef.current = displayColumns
   schemaColumnsRef.current = columns
@@ -601,12 +620,16 @@ export function TableGrid({
       return
     }
 
-    const checked = checkedRowsRef.current
+    const rowSel = rowSelectionRef.current
     const currentRows = rowsRef.current
     let snapshots: DeletedRowSnapshot[] = []
 
-    if (checked.size > 0 && checked.has(contextRow.id)) {
-      snapshots = collectRowSnapshots(currentRows.filter((r) => checked.has(r.id)))
+    const contextRowInRows = currentRows.some((r) => r.id === contextRow.id)
+
+    if (rowSel.kind === 'all' && contextRowInRows) {
+      snapshots = collectRowSnapshots(currentRows)
+    } else if (rowSel.kind === 'some' && rowSel.ids.has(contextRow.id)) {
+      snapshots = collectRowSnapshots(currentRows.filter((r) => rowSel.ids.has(r.id)))
     } else {
       const sel = computeNormalizedSelection(selectionAnchorRef.current, selectionFocusRef.current)
       const contextRowArrayIndex = currentRows.findIndex((r) => r.id === contextRow.id)
@@ -791,7 +814,7 @@ export function TableGrid({
 
   const handleCellMouseDown = useCallback(
     (rowIndex: number, colIndex: number, shiftKey: boolean) => {
-      setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+      setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
       setIsColumnSelection(false)
       lastCheckboxRowRef.current = null
       if (shiftKey && selectionAnchorRef.current) {
@@ -827,25 +850,22 @@ export function TableGrid({
         ? currentRows.findIndex((r) => r.id === lastCheckboxRowRef.current)
         : -1
 
-    if (lastIdx !== -1) {
-      const from = Math.min(lastIdx, rowIndex)
-      const to = Math.max(lastIdx, rowIndex)
-      setCheckedRows((prev) => {
-        const next = new Set(prev)
+    setRowSelection((prev) => {
+      const next = rowSelectionMaterialize(prev, currentRows)
+      if (lastIdx !== -1) {
+        const from = Math.min(lastIdx, rowIndex)
+        const to = Math.max(lastIdx, rowIndex)
         for (let i = from; i <= to; i++) {
           const r = currentRows[i]
           if (r) next.add(r.id)
         }
-        return next
-      })
-    } else {
-      setCheckedRows((prev) => {
-        const next = new Set(prev)
-        if (next.has(targetId)) next.delete(targetId)
-        else next.add(targetId)
-        return next
-      })
-    }
+      } else if (next.has(targetId)) {
+        next.delete(targetId)
+      } else {
+        next.add(targetId)
+      }
+      return next.size === 0 ? ROW_SELECTION_NONE : { kind: 'some', ids: next }
+    })
     lastCheckboxRowRef.current = targetId
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
@@ -853,7 +873,7 @@ export function TableGrid({
   const handleClearSelection = useCallback(() => {
     setSelectionAnchor(null)
     setSelectionFocus(null)
-    setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
     setIsColumnSelection(false)
     lastCheckboxRowRef.current = null
   }, [])
@@ -877,7 +897,7 @@ export function TableGrid({
     if (lastRow < 0) return
 
     setEditingCell(null)
-    setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
     lastCheckboxRowRef.current = null
 
     if (shiftKey && isColumnSelectionRef.current && selectionAnchorRef.current) {
@@ -896,7 +916,7 @@ export function TableGrid({
     if (lastRow < 0) return
 
     setEditingCell(null)
-    setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
     lastCheckboxRowRef.current = null
 
     setSelectionAnchor({ rowIndex: 0, colIndex: startColIndex })
@@ -911,7 +931,7 @@ export function TableGrid({
     const currentCols = columnsRef.current
     if (rws.length === 0 || currentCols.length === 0) return
     setEditingCell(null)
-    setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    setRowSelection(ROW_SELECTION_ALL)
     lastCheckboxRowRef.current = null
     suppressFocusScrollRef.current = true
     setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
@@ -1003,7 +1023,7 @@ export function TableGrid({
     setDragColumnName(columnName)
     setSelectionAnchor(null)
     setSelectionFocus(null)
-    setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
     setIsColumnSelection(false)
   }, [])
 
@@ -1579,7 +1599,7 @@ export function TableGrid({
         }
         setSelectionAnchor(null)
         setSelectionFocus(null)
-        setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
         setIsColumnSelection(false)
         lastCheckboxRowRef.current = null
         return
@@ -1592,7 +1612,7 @@ export function TableGrid({
         if (rws.length > 0 && currentCols.length > 0) {
           suppressFocusScrollRef.current = true
           setEditingCell(null)
-          setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+          setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
           lastCheckboxRowRef.current = null
           setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
           setSelectionFocus({
@@ -1610,7 +1630,7 @@ export function TableGrid({
         const lastRow = rowsRef.current.length - 1
         if (lastRow < 0) return
         e.preventDefault()
-        setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
         lastCheckboxRowRef.current = null
         setSelectionAnchor({ rowIndex: 0, colIndex: a.colIndex })
         setSelectionFocus({ rowIndex: lastRow, colIndex: a.colIndex })
@@ -1624,7 +1644,7 @@ export function TableGrid({
         const currentCols = columnsRef.current
         if (currentCols.length === 0) return
         e.preventDefault()
-        setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
         lastCheckboxRowRef.current = null
         setIsColumnSelection(false)
         setSelectionAnchor({ rowIndex: a.rowIndex, colIndex: 0 })
@@ -1632,17 +1652,20 @@ export function TableGrid({
         return
       }
 
-      if ((e.key === 'Delete' || e.key === 'Backspace') && checkedRowsRef.current.size > 0) {
+      if (
+        (e.key === 'Delete' || e.key === 'Backspace') &&
+        !rowSelectionIsEmpty(rowSelectionRef.current)
+      ) {
         if (editingCellRef.current) return
         if (!canEditRef.current) return
         e.preventDefault()
-        const checked = checkedRowsRef.current
+        const rowSel = rowSelectionRef.current
         const currentRows = rowsRef.current
         const currentCols = columnsRef.current
         const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
         const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
         for (const row of currentRows) {
-          if (!checked.has(row.id)) continue
+          if (!rowSelectionIncludes(rowSel, row.id)) continue
           const updates: Record<string, unknown> = {}
           const previousData: Record<string, unknown> = {}
           for (const col of currentCols) {
@@ -1721,7 +1744,7 @@ export function TableGrid({
 
       if (e.key === 'Tab') {
         e.preventDefault()
-        setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
         setIsColumnSelection(false)
         lastCheckboxRowRef.current = null
         setSelectionAnchor(moveCell(anchor, cols.length, totalRows, e.shiftKey ? -1 : 1))
@@ -1731,7 +1754,7 @@ export function TableGrid({
 
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault()
-        setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
         setIsColumnSelection(false)
         lastCheckboxRowRef.current = null
         const focus = selectionFocusRef.current ?? anchor
@@ -1909,15 +1932,15 @@ export function TableGrid({
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
       if (editingCellRef.current) return
 
-      const checked = checkedRowsRef.current
+      const rowSel = rowSelectionRef.current
       const cols = columnsRef.current
       const currentRows = rowsRef.current
 
-      if (checked.size > 0) {
+      if (!rowSelectionIsEmpty(rowSel)) {
         e.preventDefault()
         const lines: string[] = []
         for (const row of currentRows) {
-          if (!checked.has(row.id)) continue
+          if (!rowSelectionIncludes(rowSel, row.id)) continue
           const cells: string[] = cols.map((col) => {
             const value: unknown = row.data[col.name]
             if (value === null || value === undefined) return ''
@@ -1960,17 +1983,17 @@ export function TableGrid({
       if (editingCellRef.current) return
       if (!canEditRef.current) return
 
-      const checked = checkedRowsRef.current
+      const rowSel = rowSelectionRef.current
       const cols = columnsRef.current
       const currentRows = rowsRef.current
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
 
-      if (checked.size > 0) {
+      if (!rowSelectionIsEmpty(rowSel)) {
         e.preventDefault()
         const lines: string[] = []
         for (const row of currentRows) {
-          if (!checked.has(row.id)) continue
+          if (!rowSelectionIncludes(rowSel, row.id)) continue
           const cells: string[] = cols.map((col) => {
             const value: unknown = row.data[col.name]
             if (value === null || value === undefined) return ''
@@ -2508,17 +2531,20 @@ export function TableGrid({
   }
 
   /**
-   * Row ids the context menu acts on. If the right-clicked row is checked, all
-   * checked rows; if it's inside the active range selection, the range;
-   * otherwise just the row itself. Used by both the count label and the
-   * multi-row "Run workflows" action.
+   * Row ids the context menu acts on. If the right-clicked row is part of the
+   * gutter row selection, the materialized selection; if it's inside the active
+   * range selection, the range; otherwise just the row itself. Used by both the
+   * count label and the multi-row "Run workflows" action.
    */
   const contextMenuRowIds = useMemo<string[]>(() => {
     if (!contextMenu.isOpen || !contextMenu.row) return []
-    if (checkedRows.size > 0 && checkedRows.has(contextMenu.row.id)) {
+    if (
+      !rowSelectionIsEmpty(rowSelection) &&
+      rowSelectionIncludes(rowSelection, contextMenu.row.id)
+    ) {
       const ids: string[] = []
       for (const row of rows) {
-        if (checkedRows.has(row.id)) ids.push(row.id)
+        if (rowSelectionIncludes(rowSelection, row.id)) ids.push(row.id)
       }
       return ids.length > 0 ? ids : [contextMenu.row.id]
     }
@@ -2539,7 +2565,7 @@ export function TableGrid({
       }
     }
     return [contextMenu.row.id]
-  }, [contextMenu.isOpen, contextMenu.row, checkedRows, normalizedSelection, rows])
+  }, [contextMenu.isOpen, contextMenu.row, rowSelection, normalizedSelection, rows])
 
   const selectedRowCount = contextMenuRowIds.length || 1
 
@@ -2551,13 +2577,13 @@ export function TableGrid({
    * the menu collapses to "Run all rows".
    */
   const selectedRowIds = useMemo<string[] | null>(() => {
-    if (checkedRows.size === 0) return null
+    if (rowSelectionIsEmpty(rowSelection)) return null
     const ids: string[] = []
     for (const row of rows) {
-      if (checkedRows.has(row.id)) ids.push(row.id)
+      if (rowSelectionIncludes(rowSelection, row.id)) ids.push(row.id)
     }
     return ids.length > 0 ? ids : null
-  }, [checkedRows, rows])
+  }, [rowSelection, rows])
 
   const { runningByRowId, totalRunning } = useMemo(() => {
     const byRow = new Map<string, number>()
@@ -2599,16 +2625,16 @@ export function TableGrid({
     0
   )
 
-  // Action-bar selection covers both checkbox-row selection AND multi-row
+  // Action-bar selection covers both gutter row-selection AND multi-row
   // range selection (clicking + dragging across rows), matching how the
   // right-click context menu treats them. Single-row range doesn't trigger
   // the bar — only multi-row, since the per-row gutter button already covers
-  // that case. Checkbox selection wins when both exist.
+  // that case. Gutter selection wins when both exist.
   const actionBarRowIds = useMemo<string[]>(() => {
-    if (checkedRows.size > 0) {
+    if (!rowSelectionIsEmpty(rowSelection)) {
       const ids: string[] = []
       for (const row of rows) {
-        if (checkedRows.has(row.id)) ids.push(row.id)
+        if (rowSelectionIncludes(rowSelection, row.id)) ids.push(row.id)
       }
       return ids
     }
@@ -2624,7 +2650,7 @@ export function TableGrid({
       return ids
     }
     return []
-  }, [checkedRows, normalizedSelection, rows])
+  }, [rowSelection, normalizedSelection, rows])
   const runningInActionBarSelection = actionBarRowIds.reduce(
     (total, rowId) => total + (runningByRowId.get(rowId) ?? 0),
     0
@@ -2675,15 +2701,15 @@ export function TableGrid({
   )
 
   // Run scope is derived from one of two selection sources:
-  //   - checkedRows (whole-row selection) → those rows × every workflow group
+  //   - rowSelection (gutter whole-row selection) → those rows × every workflow group
   //   - normalizedSelection rectangle covering workflow-output columns →
   //     rows in the rectangle × distinct workflow groups inside it
   const selectedRunScope = useMemo<SelectionSnapshot['selectedRunScope']>(() => {
     if (tableWorkflowGroupIds.length === 0) return null
-    if (checkedRows.size > 0) {
+    if (!rowSelectionIsEmpty(rowSelection)) {
       const rowIds: string[] = []
       for (const row of rows) {
-        if (checkedRows.has(row.id)) rowIds.push(row.id)
+        if (rowSelectionIncludes(rowSelection, row.id)) rowIds.push(row.id)
       }
       if (rowIds.length === 0) return null
       return { groupIds: tableWorkflowGroupIds, rowIds }
@@ -2705,17 +2731,14 @@ export function TableGrid({
     }
     if (rowIds.length === 0) return null
     return { groupIds: [...groupIdsInRect], rowIds }
-  }, [checkedRows, normalizedSelection, rows, displayColumns, tableWorkflowGroupIds])
+  }, [rowSelection, normalizedSelection, rows, displayColumns, tableWorkflowGroupIds])
 
   const selectionStats = useMemo<SelectionSnapshot['selectionStats']>(() => {
     if (!selectedRunScope) {
       return { hasIncompleteOrFailed: false, hasCompleted: false, hasInFlight: false }
     }
-    // Reuse `checkedRows` as the rowIdSet when the selection comes from
-    // checkboxes — saves an O(n) Set construction for "select all 10k rows."
-    const rowIdSet = checkedRows.size > 0 ? checkedRows : new Set(selectedRunScope.rowIds)
-    return classifyExecStatusMix(rows, rowIdSet, selectedRunScope.groupIds)
-  }, [selectedRunScope, rows, checkedRows])
+    return classifyExecStatusMix(rows, new Set(selectedRunScope.rowIds), selectedRunScope.groupIds)
+  }, [selectedRunScope, rows])
 
   // Emit selection snapshots so the wrapper can render <TableActionBar>.
   // The grid can't fold this into individual event handlers (running counts
@@ -3026,7 +3049,7 @@ export function TableGrid({
                         onContextMenu={handleRowContextMenu}
                         onCellMouseDown={handleCellMouseDown}
                         onCellMouseEnter={handleCellMouseEnter}
-                        isRowChecked={checkedRows.has(row.id)}
+                        isRowChecked={rowSelectionIncludes(rowSelection, row.id)}
                         onRowToggle={handleRowToggle}
                         runningCount={runningByRowId.get(row.id) ?? 0}
                         hasWorkflowColumns={hasWorkflowColumns}
@@ -3166,7 +3189,7 @@ interface DataRowProps {
   workflowGroups: WorkflowGroup[]
 }
 
-function rowSelectionChanged(
+function cellRangeRowChanged(
   rowIndex: number,
   colCount: number,
   prev: NormalizedSelection | null,
@@ -3230,7 +3253,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     return false
   }
 
-  return !rowSelectionChanged(
+  return !cellRangeRowChanged(
     prev.rowIndex,
     prev.columns.length,
     prev.normalizedSelection,
@@ -3285,13 +3308,7 @@ const DataRow = React.memo(function DataRow({
     return map
   }, [workflowGroups, row])
   const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
-  const isRowSelectedByRange =
-    sel !== null &&
-    rowIndex >= sel.startRow &&
-    rowIndex <= sel.endRow &&
-    sel.startCol === 0 &&
-    sel.endCol === columns.length - 1
-  const isRowSelected = isRowChecked || isRowSelectedByRange
+  const isRowSelected = isRowChecked
 
   return (
     <tr onContextMenu={(e) => onContextMenu(e, row)}>

@@ -1,5 +1,5 @@
 import type { NextConfig } from 'next'
-import { env, getEnv, isTruthy } from './lib/core/config/env'
+import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/feature-flags'
 import {
   getChatEmbedCSPPolicy,
@@ -10,6 +10,7 @@ import {
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  poweredByHeader: false,
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [
@@ -40,13 +41,13 @@ const nextConfig: NextConfig = {
         hostname: 'lh3.googleusercontent.com',
       },
       // Brand logo domain if configured
-      ...(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL')
+      ...(process.env.NEXT_PUBLIC_BRAND_LOGO_URL
         ? (() => {
             try {
               return [
                 {
                   protocol: 'https' as const,
-                  hostname: new URL(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL')!).hostname,
+                  hostname: new URL(process.env.NEXT_PUBLIC_BRAND_LOGO_URL!).hostname,
                 },
               ]
             } catch {
@@ -55,13 +56,13 @@ const nextConfig: NextConfig = {
           })()
         : []),
       // Brand favicon domain if configured
-      ...(getEnv('NEXT_PUBLIC_BRAND_FAVICON_URL')
+      ...(process.env.NEXT_PUBLIC_BRAND_FAVICON_URL
         ? (() => {
             try {
               return [
                 {
                   protocol: 'https' as const,
-                  hostname: new URL(getEnv('NEXT_PUBLIC_BRAND_FAVICON_URL')!).hostname,
+                  hostname: new URL(process.env.NEXT_PUBLIC_BRAND_FAVICON_URL!).hostname,
                 },
               ]
             } catch {
@@ -75,9 +76,6 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: isTruthy(env.DOCKER_BUILD),
   },
   output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
-  turbopack: {
-    resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
-  },
   serverExternalPackages: [
     '@1password/sdk',
     'unpdf',
@@ -99,11 +97,9 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizeCss: true,
-    turbopackSourceMaps: false,
-    turbopackFileSystemCacheForDev: true,
     preloadEntriesOnStart: false,
+    turbopackFileSystemCacheForBuild: true,
     optimizePackageImports: [
-      'lucide-react',
       'lodash',
       'framer-motion',
       'reactflow',
@@ -119,7 +115,6 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-slider',
       'streamdown',
       'zod',
-      'date-fns',
     ],
   },
   ...(isDev && {

@@ -17,26 +17,26 @@ export const getInboundDeliveryTool: ToolConfig<GetInboundDeliveryParams, SapPro
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -111,6 +111,85 @@ export const getInboundDeliveryTool: ToolConfig<GetInboundDeliveryParams, SapPro
   transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
-    data: { type: 'json', description: 'A_InbDeliveryHeader entity' },
+    data: {
+      type: 'json',
+      description: 'OData v2 response envelope; entity at output.data.d',
+      properties: {
+        d: {
+          type: 'json',
+          description: 'A_InbDeliveryHeader entity',
+          properties: {
+            DeliveryDocument: { type: 'string', description: 'Inbound delivery number' },
+            DeliveryDocumentType: { type: 'string', description: 'Delivery document type' },
+            SDDocumentCategory: {
+              type: 'string',
+              description: 'SD document category (e.g., 7 = inbound delivery)',
+              optional: true,
+            },
+            ReceivingPlant: { type: 'string', description: 'Receiving plant', optional: true },
+            Supplier: {
+              type: 'string',
+              description: 'Supplier business partner',
+              optional: true,
+            },
+            ShipToParty: {
+              type: 'string',
+              description: 'Ship-to business partner',
+              optional: true,
+            },
+            DeliveryDate: {
+              type: 'string',
+              description: 'Delivery date (Edm.DateTime)',
+              optional: true,
+            },
+            ActualGoodsMovementDate: {
+              type: 'string',
+              description: 'Actual goods movement (receipt) date (Edm.DateTime)',
+              optional: true,
+            },
+            PlannedGoodsMovementDate: {
+              type: 'string',
+              description: 'Planned goods movement date (Edm.DateTime)',
+              optional: true,
+            },
+            OverallSDProcessStatus: {
+              type: 'string',
+              description: 'Overall SD process (delivery) status',
+              optional: true,
+            },
+            OverallGoodsMovementStatus: {
+              type: 'string',
+              description: 'Overall goods movement status',
+              optional: true,
+            },
+            DocumentDate: {
+              type: 'string',
+              description: 'Document date (Edm.DateTime)',
+              optional: true,
+            },
+            CreationDate: {
+              type: 'string',
+              description: 'Creation date (Edm.DateTime)',
+              optional: true,
+            },
+            LastChangeDate: {
+              type: 'string',
+              description: 'Last change date (Edm.DateTime)',
+              optional: true,
+            },
+            to_DeliveryDocumentItem: {
+              type: 'json',
+              description: 'Delivery items (when $expand=to_DeliveryDocumentItem)',
+              optional: true,
+            },
+            to_DeliveryDocumentPartner: {
+              type: 'json',
+              description: 'Delivery partners (when $expand=to_DeliveryDocumentPartner)',
+              optional: true,
+            },
+          },
+        },
+      },
+    },
   },
 }

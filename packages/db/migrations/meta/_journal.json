@@ -1422,6 +1422,13 @@
       "when": 1778022453620,
       "tag": "0203_curvy_quasimodo",
       "breakpoints": true
+    },
+    {
+      "idx": 204,
+      "version": "7",
+      "when": 1778024401275,
+      "tag": "0204_powerful_medusa",
+      "breakpoints": true
     }
   ]
 }

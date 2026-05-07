@@ -18,11 +18,22 @@ export const INITIAL_FILE_PREVIEW_SESSIONS_STATE: FilePreviewSessionsState = {
   sessions: {},
 }
 
+export function hasRenderableFilePreviewContent(session: FilePreviewSession): boolean {
+  return session.previewText.length > 0 || session.previewVersion > 0
+}
+
 export function shouldReplaceSession(
   current: FilePreviewSession | undefined,
   next: FilePreviewSession
 ): boolean {
   if (!current) return true
+  if (
+    current.status === 'complete' &&
+    next.status !== 'complete' &&
+    next.previewVersion <= current.previewVersion
+  ) {
+    return false
+  }
   if (next.previewVersion !== current.previewVersion) {
     return next.previewVersion > current.previewVersion
   }

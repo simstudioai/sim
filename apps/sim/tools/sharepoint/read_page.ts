@@ -6,7 +6,14 @@ import type {
   SharepointReadPageResponse,
   SharepointToolParams,
 } from '@/tools/sharepoint/types'
-import { cleanODataMetadata, extractTextFromCanvasLayout } from '@/tools/sharepoint/utils'
+import {
+  assertGraphNextPageUrl,
+  cleanODataMetadata,
+  escapeODataString,
+  extractTextFromCanvasLayout,
+  getGraphNextPageUrl,
+  optionalTrim,
+} from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointReadPage')
@@ -15,7 +22,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
   id: 'sharepoint_read_page',
   name: 'Read SharePoint Page',
   description: 'Read a specific page from a SharePoint site',
-  version: '1.0',
+  version: '1.0.0',
 
   oauth: {
     required: true,
@@ -62,48 +69,56 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       description:
         'Maximum number of pages to return when listing all pages (default: 10, max: 50)',
     },
+    nextPageUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Full @odata.nextLink URL from a previous Microsoft Graph page response',
+    },
   },
 
   request: {
     url: (params) => {
-      // Use specific site if provided, otherwise use root site
-      const siteId = params.siteId || params.siteSelector || 'root'
+      if (params.nextPageUrl) {
+        return assertGraphNextPageUrl(params.nextPageUrl)
+      }
+
+      const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
+      const pageId = optionalTrim(params.pageId)
 
       let baseUrl: string
-      if (params.pageId) {
-        // Read specific page by ID
-        baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages/${params.pageId}`
+      if (pageId) {
+        baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages/${pageId}/microsoft.graph.sitePage`
       } else {
-        // List all pages (with optional filtering by name)
-        baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages`
+        baseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages/microsoft.graph.sitePage`
       }
 
       const url = new URL(baseUrl)
 
-      // Use Microsoft Graph $select parameter to get page details
-      // Only include valid properties for SharePoint pages
       url.searchParams.append(
         '$select',
-        'id,name,title,webUrl,pageLayout,createdDateTime,lastModifiedDateTime'
+        'id,name,title,webUrl,pageLayout,description,createdDateTime,lastModifiedDateTime'
       )
 
-      // If searching by name, add filter
-      if (params.pageName && !params.pageId) {
-        // Try to handle both with and without .aspx extension
-        const pageName = params.pageName
+      if (params.pageName && !pageId) {
+        const pageName = params.pageName.trim()
         const pageNameWithAspx = pageName.endsWith('.aspx') ? pageName : `${pageName}.aspx`
+        const escapedPageName = escapeODataString(pageName)
+        const escapedPageNameWithAspx = escapeODataString(pageNameWithAspx)
 
-        // Search for exact match first, then with .aspx if needed
-        url.searchParams.append('$filter', `name eq '${pageName}' or name eq '${pageNameWithAspx}'`)
-        url.searchParams.append('$top', '10') // Get more results to find matches
-      } else if (!params.pageId && !params.pageName) {
-        // When listing all pages, apply maxPages limit
-        const maxPages = Math.min(params.maxPages || 10, 50) // Default 10, max 50
+        url.searchParams.append(
+          '$filter',
+          `name eq '${escapedPageName}' or name eq '${escapedPageNameWithAspx}'`
+        )
+        url.searchParams.append('$top', '10')
+      } else if (!pageId && !params.pageName) {
+        const requestedMaxPages =
+          typeof params.maxPages === 'number' ? params.maxPages : Number(params.maxPages || 10)
+        const maxPages = Math.min(Number.isFinite(requestedMaxPages) ? requestedMaxPages : 10, 50)
         url.searchParams.append('$top', maxPages.toString())
       }
 
-      // Only expand content when getting a specific page by ID
-      if (params.pageId) {
+      if (pageId) {
         url.searchParams.append('$expand', 'canvasLayout')
       }
 
@@ -112,7 +127,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       logger.info('SharePoint API URL', {
         finalUrl,
         siteId,
-        pageId: params.pageId,
+        pageId,
         pageName: params.pageName,
         searchParams: Object.fromEntries(url.searchParams),
       })
@@ -138,7 +153,6 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
     })
 
     if (params?.pageId) {
-      // Direct page access - return single page
       const pageData = data
       const contentData = {
         content: extractTextFromCanvasLayout(data.canvasLayout),
@@ -154,6 +168,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
             title: pageData.title || pageData.name!,
             webUrl: pageData.webUrl!,
             pageLayout: pageData.pageLayout,
+            description: pageData.description ?? null,
             createdDateTime: pageData.createdDateTime,
             lastModifiedDateTime: pageData.lastModifiedDateTime,
           },
@@ -161,7 +176,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
         },
       }
     }
-    // Multiple pages or search by name
+
     if (!data.value || data.value.length === 0) {
       logger.info('No pages found', {
         searchName: params?.pageName,
@@ -189,7 +204,6 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
     })
 
     if (params?.pageName) {
-      // Search by name - return single page (first match)
       const pageData = data.value[0]
       const siteId = params?.siteId || params?.siteSelector || 'root'
       const contentUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages/${pageData.id}/microsoft.graph.sitePage?$expand=canvasLayout`
@@ -230,6 +244,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
             title: pageData.title || pageData.name,
             webUrl: pageData.webUrl,
             pageLayout: pageData.pageLayout,
+            description: pageData.description ?? null,
             createdDateTime: pageData.createdDateTime,
             lastModifiedDateTime: pageData.lastModifiedDateTime,
           },
@@ -237,16 +252,16 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
         },
       }
     }
-    // List all pages - return multiple pages with content
+
     const siteId = params?.siteId || params?.siteSelector || 'root'
     const pagesWithContent = []
+    const nextPageUrl = getGraphNextPageUrl(data)
 
     logger.info('Fetching content for all pages', {
       totalPages: data.value.length,
       siteId,
     })
 
-    // Fetch content for each page
     for (const pageInfo of data.value) {
       const contentUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/pages/${pageInfo.id}/microsoft.graph.sitePage?$expand=canvasLayout`
 
@@ -280,6 +295,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
             title: pageInfo.title || pageInfo.name,
             webUrl: pageInfo.webUrl,
             pageLayout: pageInfo.pageLayout,
+            description: pageInfo.description ?? null,
             createdDateTime: pageInfo.createdDateTime,
             lastModifiedDateTime: pageInfo.lastModifiedDateTime,
           },
@@ -292,7 +308,6 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
           error: toError(error).message,
         })
 
-        // Still add the page without content
         pagesWithContent.push({
           page: {
             id: pageInfo.id,
@@ -300,6 +315,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
             title: pageInfo.title || pageInfo.name,
             webUrl: pageInfo.webUrl,
             pageLayout: pageInfo.pageLayout,
+            description: pageInfo.description ?? null,
             createdDateTime: pageInfo.createdDateTime,
             lastModifiedDateTime: pageInfo.lastModifiedDateTime,
           },
@@ -320,6 +336,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       output: {
         pages: pagesWithContent,
         totalPages: pagesWithContent.length,
+        nextPageUrl,
       },
     }
   },
@@ -334,6 +351,7 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
         title: { type: 'string', description: 'The title of the page' },
         webUrl: { type: 'string', description: 'The URL to access the page' },
         pageLayout: { type: 'string', description: 'The layout type of the page' },
+        description: { type: 'string', description: 'The description of the page', optional: true },
         createdDateTime: { type: 'string', description: 'When the page was created' },
         lastModifiedDateTime: { type: 'string', description: 'When the page was last modified' },
       },
@@ -352,6 +370,11 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
               title: { type: 'string', description: 'The title of the page' },
               webUrl: { type: 'string', description: 'The URL to access the page' },
               pageLayout: { type: 'string', description: 'The layout type of the page' },
+              description: {
+                type: 'string',
+                description: 'The description of the page',
+                optional: true,
+              },
               createdDateTime: { type: 'string', description: 'When the page was created' },
               lastModifiedDateTime: {
                 type: 'string',
@@ -381,5 +404,10 @@ export const readPageTool: ToolConfig<SharepointToolParams, SharepointReadPageRe
       },
     },
     totalPages: { type: 'number', description: 'Total number of pages found' },
+    nextPageUrl: {
+      type: 'string',
+      description: 'Full Microsoft Graph @odata.nextLink URL for the next page of results',
+      optional: true,
+    },
   },
 }

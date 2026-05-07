@@ -6,7 +6,7 @@ export interface SharepointSite {
   name: string
   displayName: string
   webUrl: string
-  description?: string
+  description?: string | null
   createdDateTime?: string
   lastModifiedDateTime?: string
 }
@@ -16,6 +16,7 @@ export interface SharepointPage {
   id?: string
   name: string
   title: string
+  description?: string | null
   webUrl?: string
   pageLayout?: string
   createdDateTime?: string
@@ -95,7 +96,7 @@ export interface SharepointList {
 export interface SharepointListSitesResponse extends ToolResponse {
   output: {
     sites: SharepointSite[]
-    nextPageToken?: string
+    nextPageUrl?: string
   }
 }
 
@@ -116,6 +117,7 @@ export interface SharepointReadPageResponse extends ToolResponse {
     pages?: SharepointPageWithContent[]
     content?: SharepointPageContent
     totalPages?: number
+    nextPageUrl?: string
   }
 }
 
@@ -126,7 +128,7 @@ export interface SharepointReadSiteResponse extends ToolResponse {
       name: string
       displayName: string
       webUrl: string
-      description?: string
+      description?: string | null
       createdDateTime?: string
       lastModifiedDateTime?: string
       isPersonalSite?: boolean
@@ -142,10 +144,11 @@ export interface SharepointReadSiteResponse extends ToolResponse {
       name: string
       displayName: string
       webUrl: string
-      description?: string
+      description?: string | null
       createdDateTime?: string
       lastModifiedDateTime?: string
     }>
+    nextPageUrl?: string
   }
 }
 
@@ -155,12 +158,12 @@ export interface SharepointToolParams {
   siteSelector?: string
   pageId?: string
   pageName?: string
-  pageContent?: string
+  pageContent?: string | unknown[] | { columns?: unknown[] }
   pageTitle?: string
   publishingState?: string
   query?: string
   pageSize?: number
-  pageToken?: string
+  nextPageUrl?: string
   hostname?: string
   serverRelativePath?: string
   groupId?: string
@@ -188,6 +191,7 @@ export interface GraphApiResponse {
   id?: string
   name?: string
   title?: string
+  description?: string | null
   webUrl?: string
   pageLayout?: string
   createdDateTime?: string
@@ -203,6 +207,7 @@ export interface GraphApiPageItem {
   id: string
   name: string
   title?: string
+  description?: string | null
   webUrl?: string
   pageLayout?: string
   createdDateTime?: string
@@ -227,36 +232,6 @@ export interface CanvasLayout {
   }>
 }
 
-export interface SharepointReadSiteResponse extends ToolResponse {
-  output: {
-    site?: {
-      id: string
-      name: string
-      displayName: string
-      webUrl: string
-      description?: string
-      createdDateTime?: string
-      lastModifiedDateTime?: string
-      isPersonalSite?: boolean
-      root?: {
-        serverRelativeUrl: string
-      }
-      siteCollection?: {
-        hostname: string
-      }
-    }
-    sites?: Array<{
-      id: string
-      name: string
-      displayName: string
-      webUrl: string
-      description?: string
-      createdDateTime?: string
-      lastModifiedDateTime?: string
-    }>
-  }
-}
-
 export type SharepointResponse =
   | SharepointListSitesResponse
   | SharepointCreatePageResponse
@@ -272,7 +247,8 @@ export interface SharepointGetListResponse extends ToolResponse {
   output: {
     list?: SharepointList
     lists?: SharepointList[]
-    nextPageToken?: string
+    items?: SharepointListItem[]
+    nextPageUrl?: string
   }
 }
 
@@ -309,9 +285,25 @@ export interface SharepointUploadedFile {
   lastModifiedDateTime?: string
 }
 
+export interface SharepointSkippedFile {
+  name: string
+  size: number
+  limit: number
+  reason: string
+}
+
+export interface SharepointUploadError {
+  name: string
+  error: string
+  status?: number
+}
+
 export interface SharepointUploadFileResponse extends ToolResponse {
   output: {
     uploadedFiles: SharepointUploadedFile[]
     fileCount: number
+    skippedFiles?: SharepointSkippedFile[]
+    skippedCount?: number
+    errors?: SharepointUploadError[]
   }
 }

@@ -321,7 +321,7 @@
     "name": "Agiloft",
     "description": "Manage records in Agiloft CLM",
     "longDescription": "Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#001028",
     "iconName": "AgiloftIcon",
     "docsUrl": "https://docs.sim.ai/tools/agiloft",
     "operations": [
@@ -372,9 +372,13 @@
       {
         "name": "Lock Record",
         "description": "Lock, unlock, or check the lock status of an Agiloft record."
+      },
+      {
+        "name": "Get Choice Line ID",
+        "description": "Resolve the internal numeric ID of a choice-list value, for use in EWSelect WHERE clauses against choice fields."
       }
     ],
-    "operationCount": 12,
+    "operationCount": 13,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
@@ -3632,6 +3636,77 @@
     "category": "tools",
     "integrationTypes": ["ai"],
     "tags": ["text-to-speech"]
+  },
+  {
+    "type": "emailbison",
+    "slug": "email-bison",
+    "name": "Email Bison",
+    "description": "Manage Email Bison leads, campaigns, replies, and tags",
+    "longDescription": "Integrate Email Bison into workflows. Create and update leads, manage campaigns, attach leads to campaigns, list replies, and organize leads with tags.",
+    "bgColor": "#FB7A22",
+    "iconName": "EmailBisonIcon",
+    "docsUrl": "https://docs.sim.ai/tools/emailbison",
+    "operations": [
+      {
+        "name": "List Leads",
+        "description": "Retrieves leads from Email Bison with optional search and tag filters."
+      },
+      {
+        "name": "Get Lead",
+        "description": "Retrieves a lead by Email Bison lead ID or email address."
+      },
+      {
+        "name": "Create Lead",
+        "description": "Creates a single lead in Email Bison."
+      },
+      {
+        "name": "Update Lead",
+        "description": "Updates an existing Email Bison lead. Fields omitted from a PUT update may be cleared by Email Bison."
+      },
+      {
+        "name": "List Campaigns",
+        "description": "Retrieves Email Bison campaigns."
+      },
+      {
+        "name": "Create Campaign",
+        "description": "Creates a new Email Bison campaign."
+      },
+      {
+        "name": "Update Campaign",
+        "description": "Updates Email Bison campaign settings."
+      },
+      {
+        "name": "Update Campaign Status",
+        "description": "Pauses, resumes, or archives an Email Bison campaign."
+      },
+      {
+        "name": "Attach Leads to Campaign",
+        "description": "Adds existing Email Bison leads to a campaign."
+      },
+      {
+        "name": "List Replies",
+        "description": "Retrieves Email Bison replies with optional status, folder, campaign, sender, lead, and tag filters."
+      },
+      {
+        "name": "List Tags",
+        "description": "Retrieves all Email Bison tags for the authenticated workspace."
+      },
+      {
+        "name": "Create Tag",
+        "description": "Creates a new Email Bison tag."
+      },
+      {
+        "name": "Attach Tags to Leads",
+        "description": "Attaches Email Bison tags to one or more leads."
+      }
+    ],
+    "operationCount": 13,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["email", "developer-tools", "sales"],
+    "tags": ["sales-engagement", "email-marketing", "automation"]
   },
   {
     "type": "openai",
@@ -11408,6 +11483,305 @@
     "tags": ["sales-engagement", "customer-support"]
   },
   {
+    "type": "sap_concur",
+    "slug": "sap-concur",
+    "name": "SAP Concur",
+    "description": "Manage expense reports, travel requests, cash advances, and more in SAP Concur",
+    "longDescription": "Connect SAP Concur via OAuth 2.0. Manage expense reports and line items, allocations, attendees, comments, exceptions, quick expenses, receipts, travel requests and expected expenses, cash advances, itineraries, user identities, custom lists, budgets, exchange rates, and purchase requests across every Concur datacenter.",
+    "bgColor": "#FFFFFF",
+    "iconName": "SapConcurIcon",
+    "docsUrl": "https://docs.sim.ai/tools/sap_concur",
+    "operations": [
+      {
+        "name": "List Expense Reports",
+        "description": "List expense reports (GET /api/v3.0/expense/reports). Returns a v3 envelope with Items and NextPage."
+      },
+      {
+        "name": "Get Expense Report",
+        "description": "Retrieve a single expense report header by id via Expense Report v4 (/expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId})."
+      },
+      {
+        "name": "Create Expense Report",
+        "description": "Create an expense report (POST /expensereports/v4/users/{userId}/context/{contextType}/reports — supported contexts: TRAVELER, PROXY). Required body fields: name, policyId."
+      },
+      {
+        "name": "Update Expense Report",
+        "description": "Update an unsubmitted expense report (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId} — supported contexts: TRAVELER, PROXY). Body fields: businessPurpose, comment, customData, name, etc."
+      },
+      {
+        "name": "Delete Expense Report",
+        "description": "Delete an expense report (DELETE /expensereports/v4/reports/{reportId})."
+      },
+      {
+        "name": "Submit Expense Report",
+        "description": "Submit an expense report into the workflow via Expense Report v4 (PATCH /expensereports/v4/users/{userId}/reports/{reportId}/submit)."
+      },
+      {
+        "name": "Recall Expense Report",
+        "description": "Recall a submitted expense report (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/recall — supported contexts: TRAVELER, PROXY). No request body is required."
+      },
+      {
+        "name": "Approve Expense Report",
+        "description": "Approve an expense report as a manager (PATCH /expensereports/v4/reports/{reportId}/approve). Required body field: comment."
+      },
+      {
+        "name": "Send Back Expense Report",
+        "description": "Send back an expense report to the employee (PATCH /expensereports/v4/reports/{reportId}/sendBack). Required body field: comment."
+      },
+      {
+        "name": "List Reports To Approve",
+        "description": "List expense reports awaiting approval (GET /expensereports/v4/users/{userId}/context/MANAGER/reportsToApprove)."
+      },
+      {
+        "name": "List Expenses",
+        "description": "List expenses on a report (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses)."
+      },
+      {
+        "name": "Get Expense",
+        "description": "Get a single expense (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId})."
+      },
+      {
+        "name": "Update Expense",
+        "description": "Update an expense (PATCH /expensereports/v4/reports/{reportId}/expenses/{expenseId})."
+      },
+      {
+        "name": "Delete Expense",
+        "description": "Delete an expense (DELETE /expensereports/v4/reports/{reportId}/expenses/{expenseId})."
+      },
+      {
+        "name": "Get Itemizations",
+        "description": "Get expense itemizations (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/itemizations)."
+      },
+      {
+        "name": "List Allocations",
+        "description": "List allocations on an expense (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/allocations)."
+      },
+      {
+        "name": "Get Allocation",
+        "description": "Get a single allocation (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/allocations/{allocationId})."
+      },
+      {
+        "name": "Update Allocation",
+        "description": "Update an allocation (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/allocations/{allocationId})."
+      },
+      {
+        "name": "List Attendee Associations",
+        "description": "List attendees associated with an expense (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/attendees)."
+      },
+      {
+        "name": "Associate Attendees",
+        "description": "Associate attendees with an expense (POST /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/attendees)."
+      },
+      {
+        "name": "Remove All Attendees",
+        "description": "Remove all attendees from an expense (DELETE /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/attendees)."
+      },
+      {
+        "name": "List Report Comments",
+        "description": "List comments on a report (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/comments)."
+      },
+      {
+        "name": "Create Report Comment",
+        "description": "Create a comment on a report (POST /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/comments)."
+      },
+      {
+        "name": "List Exceptions",
+        "description": "List exceptions on a report (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/exceptions)."
+      },
+      {
+        "name": "Create Quick Expense",
+        "description": "Create a quick expense (POST /quickexpense/v4/users/{userId}/context/TRAVELER/quickexpenses)."
+      },
+      {
+        "name": "Create Quick Expense (With Image)",
+        "description": "Create a quick expense with an attached image (POST /quickexpense/v4/users/{userId}/context/{contextType}/quickexpenses/image)."
+      },
+      {
+        "name": "List Receipts",
+        "description": "List receipts for a user (GET /receipts/v4/users/{userId})."
+      },
+      {
+        "name": "Get Receipt",
+        "description": "Get a single receipt by ID (GET /receipts/v4/{receiptId})."
+      },
+      {
+        "name": "Get Receipt Status",
+        "description": "Get receipt processing status (GET /receipts/v4/status/{receiptId})."
+      },
+      {
+        "name": "Upload Receipt Image",
+        "description": "Upload an image-only receipt (POST /receipts/v4/users/{userId}/image-only-receipts)."
+      },
+      {
+        "name": "List Travel Requests",
+        "description": "List travel requests (GET /travelrequest/v4/requests)."
+      },
+      {
+        "name": "Get Travel Request",
+        "description": "Get a single travel request (GET /travelrequest/v4/requests/{requestUuid})."
+      },
+      {
+        "name": "Create Travel Request",
+        "description": "Create a travel request (POST /travelrequest/v4/requests)."
+      },
+      {
+        "name": "Update Travel Request",
+        "description": "Update a travel request (PUT /travelrequest/v4/requests/{requestUuid})."
+      },
+      {
+        "name": "Delete Travel Request",
+        "description": "Delete a travel request (DELETE /travelrequest/v4/requests/{requestUuid})."
+      },
+      {
+        "name": "Move Travel Request (Workflow Action)",
+        "description": "Move a travel request through workflow (POST /travelrequest/v4/requests/{requestUuid}/{action}). Valid actions: submit, recall, cancel, approve, sendback, close, reopen."
+      },
+      {
+        "name": "List Travel Request Comments",
+        "description": "List comments on a travel request (GET /travelrequest/v4/requests/{requestUuid}/comments)."
+      },
+      {
+        "name": "Get Request Cash Advance",
+        "description": "Get a single cash advance assigned to a travel request (GET /travelrequest/v4/cashadvances/{cashAdvanceUuid})."
+      },
+      {
+        "name": "Create Expected Expense",
+        "description": "Create an expected expense on a travel request (POST /travelrequest/v4/requests/{requestUuid}/expenses)."
+      },
+      {
+        "name": "List Expected Expenses",
+        "description": "List expected expenses on a travel request (GET /travelrequest/v4/requests/{requestUuid}/expenses)."
+      },
+      {
+        "name": "Get Expected Expense",
+        "description": "Get an expected expense (GET /travelrequest/v4/expenses/{expenseUuid})."
+      },
+      {
+        "name": "Update Expected Expense",
+        "description": "Update an expected expense (PUT /travelrequest/v4/expenses/{expenseUuid})."
+      },
+      {
+        "name": "Delete Expected Expense",
+        "description": "Delete an expected expense (DELETE /travelrequest/v4/expenses/{expenseUuid})."
+      },
+      {
+        "name": "Create Cash Advance",
+        "description": "Create a cash advance (POST /cashadvance/v4.1/cashadvances)."
+      },
+      {
+        "name": "Get Cash Advance",
+        "description": "Get a cash advance (GET /cashadvance/v4.1/cashadvances/{cashAdvanceId})."
+      },
+      {
+        "name": "Issue Cash Advance",
+        "description": "Issue a cash advance (POST /cashadvance/v4.1/cashadvances/{cashAdvanceId}/issue)."
+      },
+      {
+        "name": "List Itineraries (Trips)",
+        "description": "List travel trips/itineraries (GET /api/travel/trip/v1.1)."
+      },
+      {
+        "name": "Get Itinerary (Trip)",
+        "description": "Get a single trip/itinerary (GET /api/travel/trip/v1.1/{tripID})."
+      },
+      {
+        "name": "List Users",
+        "description": "List Concur user identities (GET /profile/identity/v4.1/Users)."
+      },
+      {
+        "name": "Get User",
+        "description": "Get a single user by UUID (GET /profile/identity/v4.1/Users/{id})."
+      },
+      {
+        "name": "Create User",
+        "description": "Create a new user identity (POST /profile/identity/v4.1/Users)."
+      },
+      {
+        "name": "Update User (PATCH)",
+        "description": "Patch a user identity (PATCH /profile/identity/v4.1/Users/{id})."
+      },
+      {
+        "name": "Delete User",
+        "description": "Delete a user identity (DELETE /profile/identity/v4.1/Users/{id})."
+      },
+      {
+        "name": "Search Users",
+        "description": "Search users via SCIM .search endpoint (POST /profile/identity/v4.1/Users/.search)."
+      },
+      {
+        "name": "List Lists",
+        "description": "List custom lists (GET /list/v4/lists)."
+      },
+      {
+        "name": "Get List",
+        "description": "Get a single custom list (GET /list/v4/lists/{listId})."
+      },
+      {
+        "name": "List List Items",
+        "description": "List the top-level items (children) for a custom list (GET /list/v4/lists/{listId}/children)."
+      },
+      {
+        "name": "Get List Item",
+        "description": "Get a single list item (GET /list/v4/items/{itemId})."
+      },
+      {
+        "name": "Create List Item",
+        "description": "Create a list item (POST /list/v4/items)."
+      },
+      {
+        "name": "Update List Item",
+        "description": "Update a list item (PUT /list/v4/items/{itemId})."
+      },
+      {
+        "name": "Delete List Item",
+        "description": "Delete a list item (DELETE /list/v4/items/{itemId})."
+      },
+      {
+        "name": "List Budgets",
+        "description": "List budget item headers (GET /budget/v4/budgetItemHeader)."
+      },
+      {
+        "name": "Get Budget",
+        "description": "Get a budget item header by ID (GET /budget/v4/budgetItemHeader/{id})."
+      },
+      {
+        "name": "List Budget Categories",
+        "description": "List budget categories (GET /budget/v4/budgetCategory)."
+      },
+      {
+        "name": "Upload Exchange Rates",
+        "description": "Bulk upload up to 100 custom exchange rates (POST /exchangerate/v4/rates). Body contains a currency_sets array, each with from_crn_code, to_crn_code, start_date (YYYY-MM-DD), and rate."
+      },
+      {
+        "name": "Create Purchase Request",
+        "description": "Create a purchase request (POST /purchaserequest/v4/purchaserequests)."
+      },
+      {
+        "name": "Get Purchase Request",
+        "description": "Get a purchase request by ID (GET /purchaserequest/v4/purchaserequests/{id})."
+      },
+      {
+        "name": "Get Travel Profile",
+        "description": "Get a travel profile (GET /api/travelprofile/v2.0/profile). Returns the calling user by default; pass userid_type and userid_value to impersonate."
+      },
+      {
+        "name": "List Travel Profiles Summary",
+        "description": "List travel profile summaries (GET /api/travelprofile/v2.0/summary). LastModifiedDate is required by Concur."
+      },
+      {
+        "name": "Search Locations",
+        "description": "Search Concur location reference data (GET /localities/v5/locations)."
+      }
+    ],
+    "operationCount": 70,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["other", "developer-tools"],
+    "tags": ["automation"]
+  },
+  {
     "type": "sap_s4hana",
     "slug": "sap-s4hana",
     "name": "SAP S4HANA",
@@ -11431,7 +11805,7 @@
       },
       {
         "name": "Update Business Partner",
-        "description": "Update fields on an A_BusinessPartner entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+        "description": "Update fields on an A_BusinessPartner entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates. Deep updates on nested associations (e.g. to_BusinessPartnerAddress) are not supported by SAP (KBA 2833338) — use the dedicated child endpoints."
       },
       {
         "name": "List Customers",
@@ -11443,7 +11817,7 @@
       },
       {
         "name": "Update Customer",
-        "description": "Update fields on an A_Customer entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. A_Customer PATCH is limited to modifiable fields such as OrderIsBlockedForCustomer, DeliveryIsBlock, BillingIsBlockedForCustomer, PostingIsBlocked, and DeletionIndicator. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+        "description": "Update fields on an A_Customer entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. A_Customer is limited to modifiable fields such as OrderIsBlockedForCustomer, DeliveryIsBlocked, BillingIsBlockedForCustomer (Edm.String reason codes like "
       },
       {
         "name": "List Suppliers",
@@ -11455,7 +11829,7 @@
       },
       {
         "name": "Update Supplier",
-        "description": "Update fields on an A_Supplier entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). PATCH only sends the fields you provide; existing values are preserved. A_Supplier PATCH is limited to modifiable fields such as PostingIsBlocked, PurchasingIsBlocked, PaymentIsBlockedForSupplier, DeletionIndicator, and SupplierAccountGroup. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+        "description": ""
       },
       {
         "name": "List Sales Orders",
@@ -11471,7 +11845,7 @@
       },
       {
         "name": "Update Sales Order",
-        "description": "Update fields on an A_SalesOrder entity in SAP S/4HANA Cloud (API_SALES_ORDER_SRV). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+        "description": ""
       },
       {
         "name": "Delete Sales Order",
@@ -11511,7 +11885,7 @@
       },
       {
         "name": "Update Product",
-        "description": "Update fields on an A_Product entity in SAP S/4HANA Cloud (API_PRODUCT_SRV). PATCH only sends the fields you provide; existing values are preserved. Flat scalar header fields only — deep/multi-entity updates across navigation properties are not supported by API_PRODUCT_SRV PATCH/PUT (see SAP KBA 2833338); update child entities (plant, valuation, sales data, etc.) via their own endpoints. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET."
+        "description": ""
       },
       {
         "name": "List Material Stock",
@@ -11539,7 +11913,7 @@
       },
       {
         "name": "Update Purchase Requisition",
-        "description": "Update fields on an A_PurchaseRequisitionHeader entity in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV; deprecated since S/4HANA 2402, successor is API_PURCHASEREQUISITION_2 OData v4). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+        "description": ""
       },
       {
         "name": "List Purchase Orders",
@@ -11555,7 +11929,7 @@
       },
       {
         "name": "Update Purchase Order",
-        "description": "Update fields on an A_PurchaseOrder entity in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
+        "description": "Update fields on an A_PurchaseOrder header in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. Header-only — line-item changes are not supported via deep update on the header (SAP KBA 2833338); use the A_PurchaseOrderItem entity directly to modify items. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates."
       },
       {
         "name": "List Supplier Invoices",
@@ -11567,7 +11941,7 @@
       },
       {
         "name": "OData Query (advanced)",
-        "description": "Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The proxy handles auth, CSRF, and OData unwrapping."
+        "description": "Make an arbitrary OData v2 call against any SAP S/4HANA Cloud whitelisted Communication Scenario. Use when no dedicated tool exists for the entity. The proxy handles auth, CSRF, and OData unwrapping. For write operations (POST/PUT/PATCH/MERGE/DELETE), pass an If-Match ETag obtained from a prior GET to avoid lost updates; misuse will mutate production data."
       }
     ],
     "operationCount": 38,
@@ -11869,9 +12243,9 @@
     "tags": ["cloud", "automation"]
   },
   {
-    "type": "sharepoint",
+    "type": "sharepoint_v2",
     "slug": "sharepoint",
-    "name": "Sharepoint",
+    "name": "SharePoint",
     "description": "Work with pages and lists",
     "longDescription": "Integrate SharePoint into the workflow. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.",
     "bgColor": "#E0E0E0",
@@ -11899,11 +12273,11 @@
         "description": "Get metadata (and optionally columns/items) for a SharePoint list"
       },
       {
-        "name": "Update List",
+        "name": "Update List Item",
         "description": "Update the properties (fields) on a SharePoint list item"
       },
       {
-        "name": "Add List Items",
+        "name": "Add List Item",
         "description": "Add a new item to a SharePoint list"
       },
       {

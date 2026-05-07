@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftExcelWorksheetAddResponse,
   MicrosoftExcelWorksheetToolParams,
@@ -17,6 +18,7 @@ export const worksheetAddTool: ToolConfig<
   name: 'Add Worksheet to Microsoft Excel',
   description: 'Create a new worksheet (sheet) in a Microsoft Excel workbook',
   version: '1.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -99,19 +101,6 @@ export const worksheetAddTool: ToolConfig<
   },
 
   transformResponse: async (response: Response, params?: MicrosoftExcelWorksheetToolParams) => {
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      const errorMessage =
-        errorData?.error?.message || `Failed to create worksheet: ${response.statusText}`
-
-      // Handle specific error cases
-      if (response.status === 409) {
-        throw new Error('A worksheet with this name already exists. Please choose a different name')
-      }
-
-      throw new Error(errorMessage)
-    }
-
     const data = await response.json()
 
     const spreadsheetId = params?.spreadsheetId?.trim() || ''

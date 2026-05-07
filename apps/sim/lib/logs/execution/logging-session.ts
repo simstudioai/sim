@@ -652,6 +652,18 @@ export class LoggingSession {
       const endTime = endedAt ? new Date(endedAt) : new Date()
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
 
+      const currentLog = await db
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(eq(workflowExecutionLogs.executionId, this.executionId))
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (currentLog?.status === 'cancelled') {
+        this.completed = true
+        return
+      }
+
       const costSummary = traceSpans?.length
         ? calculateCostSummary(traceSpans)
         : {
@@ -738,6 +750,18 @@ export class LoggingSession {
 
       const endTime = endedAt ? new Date(endedAt) : new Date()
       const durationMs = typeof totalDurationMs === 'number' ? totalDurationMs : 0
+
+      const currentLog = await db
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(eq(workflowExecutionLogs.executionId, this.executionId))
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (currentLog?.status === 'cancelled') {
+        this.completed = true
+        return
+      }
 
       const costSummary = traceSpans?.length
         ? calculateCostSummary(traceSpans)

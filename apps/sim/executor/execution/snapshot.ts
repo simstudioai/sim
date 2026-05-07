@@ -1,14 +1,30 @@
+import { normalizeStringArray } from '@/lib/core/utils/arrays'
+import { normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 
 export class ExecutionSnapshot {
+  public readonly metadata: ExecutionMetadata
+  public readonly workflow: any
+  public readonly input: any
+  public readonly workflowVariables: Record<string, any>
+  public readonly selectedOutputs: string[]
+  public readonly state?: SerializableExecutionState
+
   constructor(
-    public readonly metadata: ExecutionMetadata,
-    public readonly workflow: any,
-    public readonly input: any,
-    public readonly workflowVariables: Record<string, any>,
-    public readonly selectedOutputs: string[] = [],
-    public readonly state?: SerializableExecutionState
-  ) {}
+    metadata: ExecutionMetadata,
+    workflow: any,
+    input: any,
+    workflowVariables: unknown,
+    selectedOutputs: unknown = [],
+    state?: SerializableExecutionState
+  ) {
+    this.metadata = metadata
+    this.workflow = workflow
+    this.input = input
+    this.workflowVariables = normalizeWorkflowVariables(workflowVariables)
+    this.selectedOutputs = normalizeStringArray(selectedOutputs)
+    this.state = state
+  }
 
   toJSON(): string {
     return JSON.stringify({

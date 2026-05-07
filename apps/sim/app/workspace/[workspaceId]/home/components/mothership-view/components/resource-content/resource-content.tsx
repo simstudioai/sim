@@ -32,6 +32,7 @@ import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/use-file-preview-sessions'
 import type {
   GenericResourceData,
   MothershipResource,
@@ -116,13 +117,19 @@ export const ResourceContent = memo(function ResourceContent({
   const disableStreamingAutoScroll = previewSession?.operation === 'patch'
   const rawPreviewText = previewSession?.previewText
   const streamingPreviewText =
-    typeof rawPreviewText === 'string' && rawPreviewText.length > 0 ? rawPreviewText : undefined
+    previewSession &&
+    typeof rawPreviewText === 'string' &&
+    hasRenderableFilePreviewContent(previewSession)
+      ? rawPreviewText
+      : undefined
   const pendingOrStreamingFilePreviewText =
-    previewSession?.fileId === resource.id && typeof rawPreviewText === 'string'
+    previewSession?.fileId === resource.id &&
+    typeof rawPreviewText === 'string' &&
+    hasRenderableFilePreviewContent(previewSession)
       ? rawPreviewText
       : undefined
 
-  if (previewSession && resource.id === 'streaming-file') {
+  if (resource.id === 'streaming-file') {
     return (
       <div className='flex h-full flex-col overflow-hidden'>
         {streamingPreviewText !== undefined ? (

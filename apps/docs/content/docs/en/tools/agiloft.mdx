@@ -7,7 +7,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="agiloft"
-  color="#FFFFFF"
+  color="#001028"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -137,6 +137,28 @@ Delete a record from an Agiloft table.
 | `id` | string | ID of the deleted record |
 | `deleted` | boolean | Whether the record was successfully deleted |
 
+### `agiloft_get_choice_line_id`
+
+Resolve the internal numeric ID of a choice-list value, for use in EWSelect WHERE clauses against choice fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table name \(e.g., "case", "contracts"\) |
+| `fieldName` | string | Yes | Choice field name \(e.g., "priority", "status"\) |
+| `value` | string | Yes | Choice display value to resolve \(e.g., "High", "Active"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `choiceLineId` | number | Internal numeric line ID of the choice value |
+
 ### `agiloft_lock_record`
 
 Lock, unlock, or check the lock status of an Agiloft record.
@@ -254,7 +276,7 @@ List saved searches defined for an Agiloft table.
 | `searches` | array | List of saved searches for the table |
 |   ↳ `name` | string | Saved search name |
 |   ↳ `label` | string | Saved search display label |
-|   ↳ `id` | string | Saved search database identifier |
+|   ↳ `id` | number | Saved search database identifier |
 |   ↳ `description` | string | Saved search description |
 
 ### `agiloft_search_records`
