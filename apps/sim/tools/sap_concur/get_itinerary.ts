@@ -88,8 +88,8 @@ export const getItineraryTool: ToolConfig<GetItineraryParams, SapConcurProxyResp
     body: (params) => {
       const tripId = trimRequired(params.tripId, 'tripId')
       const query = buildListQuery({
-        useridType: params.useridType,
-        useridValue: params.useridValue,
+        userid_type: params.useridType,
+        userid_value: params.useridValue,
         systemFormat: params.systemFormat,
       })
       return {

@@ -44,6 +44,7 @@ const EXPENSE_READ_CONTEXT_TYPE_OPS = [
   'sap_concur_list_expenses',
   'sap_concur_get_expense',
   'sap_concur_get_itemizations',
+  'sap_concur_create_report_comment',
   'sap_concur_list_report_comments',
   'sap_concur_list_exceptions',
 ]
@@ -59,7 +60,6 @@ const ATTENDEE_CONTEXT_TYPE_OPS = [
   'sap_concur_list_attendee_associations',
   'sap_concur_associate_attendees',
   'sap_concur_remove_all_attendees',
-  'sap_concur_create_report_comment',
 ]
 
 const ALLOCATION_CONTEXT_TYPE_OPS = [
@@ -928,7 +928,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       placeholder: 'List ID',
       condition: {
         field: 'operation',
-        value: ['sap_concur_get_list', 'sap_concur_list_list_items', 'sap_concur_get_list_item'],
+        value: ['sap_concur_get_list', 'sap_concur_list_list_items'],
       },
       required: {
         field: 'operation',
@@ -1080,7 +1080,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       id: 'lastModifiedDate',
       title: 'Last Modified Date',
       type: 'short-input',
-      placeholder: 'YYYY-MM-DD or 1900-01-01T12:00:00',
+      placeholder: '1900-01-01T00:00:00 (UTC datetime)',
       condition: {
         field: 'operation',
         value: 'sap_concur_list_travel_profiles_summary',
@@ -1110,8 +1110,8 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Any', id: '' },
-        { label: 'Active', id: 'Active' },
-        { label: 'Inactive', id: 'Inactive' },
+        { label: 'Active', id: '1' },
+        { label: 'Inactive', id: '0' },
       ],
       value: () => '',
       condition: { field: 'operation', value: 'sap_concur_list_travel_profiles_summary' },
@@ -1684,7 +1684,6 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
           case 'sap_concur_get_list_item':
             return {
               ...auth,
-              listId: params.listId || undefined,
               itemId: params.itemId,
             }
           case 'sap_concur_list_budgets':
@@ -1723,7 +1722,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
               page: params.travelProfilePage ? Number(params.travelProfilePage) : undefined,
               itemsPerPage: params.itemsPerPage ? Number(params.itemsPerPage) : undefined,
               active:
-                params.travelProfileActive === 'Active' || params.travelProfileActive === 'Inactive'
+                params.travelProfileActive === '1' || params.travelProfileActive === '0'
                   ? params.travelProfileActive
                   : undefined,
               travelConfigs: params.travelConfigs || undefined,
@@ -1886,7 +1885,10 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
     page: { type: 'number', description: 'Page number (lists/list_items)' },
     travelProfilePage: { type: 'number', description: 'Profile summary page number' },
     itemsPerPage: { type: 'number', description: 'Profile summary items per page' },
-    travelProfileActive: { type: 'string', description: 'Status filter ("Active" or "Inactive")' },
+    travelProfileActive: {
+      type: 'string',
+      description: 'Active filter ("1" for active, "0" for inactive)',
+    },
     travelConfigs: { type: 'string', description: 'Comma-separated travel config ids' },
     searchText: { type: 'string', description: 'Locations v5 free-text search' },
     locCode: { type: 'string', description: 'Locations v5 location code' },

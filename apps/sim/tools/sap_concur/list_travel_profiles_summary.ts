@@ -67,7 +67,7 @@ export const listTravelProfilesSummaryTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Required ISO 8601 date (YYYY-MM-DD or full timestamp)',
+      description: 'Required UTC datetime in YYYY-MM-DDThh:mm:ss format',
     },
     page: {
       type: 'number',
@@ -86,7 +86,7 @@ export const listTravelProfilesSummaryTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Status filter (sent as Status query param): "Active" or "Inactive". Omit for all.',
+        'Active filter (sent as Active query param): "1" (active) or "0" (inactive). Omit for all.',
     },
     travelConfigs: {
       type: 'string',
@@ -105,7 +105,7 @@ export const listTravelProfilesSummaryTool: ToolConfig<
         LastModifiedDate: lastModifiedDate,
         Page: params.page,
         ItemsPerPage: params.itemsPerPage,
-        Status: params.active,
+        Active: params.active,
         travelConfigs: params.travelConfigs,
       })
       return {

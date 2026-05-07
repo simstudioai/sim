@@ -12,7 +12,7 @@ export const associateAttendeesTool: ToolConfig<AssociateAttendeesParams, SapCon
     id: 'sap_concur_associate_attendees',
     name: 'SAP Concur Associate Attendees',
     description:
-      'Associate attendees with an expense (POST /expensereports/v4/users/{userId}/context/TRAVELER/reports/{reportId}/expenses/{expenseId}/attendees).',
+      'Associate attendees with an expense (POST /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/attendees).',
     version: '1.0.0',
     params: {
       datacenter: {

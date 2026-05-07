@@ -66,7 +66,7 @@ export const getItemizationsTool: ToolConfig<GetItemizationsParams, SapConcurPro
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Access context (TRAVELER per the v4 spec)',
+      description: 'Access context: TRAVELER, MANAGER, or PROXY',
     },
     reportId: {
       type: 'string',

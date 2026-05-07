@@ -12,7 +12,7 @@ export const removeAllAttendeesTool: ToolConfig<RemoveAllAttendeesParams, SapCon
     id: 'sap_concur_remove_all_attendees',
     name: 'SAP Concur Remove All Attendees',
     description:
-      'Remove all attendees from an expense (DELETE /expensereports/v4/users/{userId}/context/TRAVELER/reports/{reportId}/expenses/{expenseId}/attendees).',
+      'Remove all attendees from an expense (DELETE /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/attendees).',
     version: '1.0.0',
     params: {
       datacenter: {
