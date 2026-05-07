@@ -4,7 +4,7 @@
  * React Query hooks for managing user-defined tables.
  */
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   type InfiniteData,
@@ -286,7 +286,10 @@ export function useInfiniteTableRows({
     filter: filter ?? null,
     sort: sort ?? null,
   })
-  const queryKey = tableKeys.infiniteRows(tableId, paramsKey)
+  const queryKey = useMemo(
+    () => tableKeys.infiniteRows(tableId, paramsKey),
+    [tableId, paramsKey]
+  )
 
   const query = useInfiniteQuery({
     queryKey,
