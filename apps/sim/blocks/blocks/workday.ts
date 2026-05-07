@@ -243,7 +243,7 @@ export const WorkdayBlock: BlockConfig = {
         prompt: `Generate a Workday Personal_Information_Data payload as JSON for the Change_Personal_Information SOAP operation.
 
 ### SUPPORTED FIELDS (demographics only)
-- Date_Of_Birth: ISO date string (YYYY-MM-DD)
+- Date_of_Birth: ISO date string (YYYY-MM-DD)
 - Gender_Reference: { ID: { attributes: { "wd:type": "Gender_Code" }, $value: "Male" | "Female" | ... } }
 - Marital_Status_Reference: { ID: { attributes: { "wd:type": "Marital_Status_ID" }, $value: "Married" | "Single" | ... } }
 - Ethnicity_Reference: { ID: { attributes: { "wd:type": "Ethnicity_ID" }, $value: "..." } }
