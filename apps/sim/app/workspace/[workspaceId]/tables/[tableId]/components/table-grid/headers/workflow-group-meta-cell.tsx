@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +12,16 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { ArrowLeft, ArrowRight, EyeOff, Pencil, PlayOutline, Trash } from '@/components/emcn/icons'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Pencil,
+  PlayOutline,
+  Trash,
+} from '@/components/emcn/icons'
+import type { RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { SELECTION_TINT_BG } from '../constants'
@@ -40,8 +49,14 @@ interface ColumnOptionsMenuProps {
   onDeleteGroup?: () => void
   /** When provided, the menu is being opened from a workflow-group header and
    *  exposes group-level run actions above the column actions. */
-  onRunGroupAll?: () => void
-  onRunGroupIncomplete?: () => void
+  onRunColumnAll?: () => void
+  onRunColumnIncomplete?: () => void
+  /** When set, surfaces a "Run N selected rows" item above Run all. */
+  onRunColumnSelected?: () => void
+  selectedRowCount?: number
+  /** When set, the menu surfaces a "View workflow" item that opens a popup
+   *  preview of the configured workflow. */
+  onViewWorkflow?: () => void
 }
 
 /**
@@ -62,10 +77,14 @@ export function ColumnOptionsMenu({
   onInsertRight,
   onDeleteColumn,
   onDeleteGroup,
-  onRunGroupAll,
-  onRunGroupIncomplete,
+  onRunColumnAll,
+  onRunColumnIncomplete,
+  onRunColumnSelected,
+  selectedRowCount = 0,
+  onViewWorkflow,
 }: ColumnOptionsMenuProps) {
-  const showRunActions = Boolean(onRunGroupAll && onRunGroupIncomplete)
+  const showRunActions = Boolean(onRunColumnAll && onRunColumnIncomplete)
+  const showRunSelected = Boolean(onRunColumnSelected) && selectedRowCount > 0
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -97,14 +116,27 @@ export function ColumnOptionsMenu({
                 Run
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
-                <DropdownMenuItem onSelect={() => onRunGroupAll?.()}>Run all rows</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onRunGroupIncomplete?.()}>
+                {showRunSelected && (
+                  <DropdownMenuItem onSelect={() => onRunColumnSelected?.()}>
+                    {`Run ${selectedRowCount} selected ${selectedRowCount === 1 ? 'row' : 'rows'}`}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onSelect={() => onRunColumnAll?.()}>
+                  Run all rows
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onRunColumnIncomplete?.()}>
                   Run empty rows
                 </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSeparator />
           </>
+        )}
+        {onViewWorkflow && (
+          <DropdownMenuItem onSelect={() => onViewWorkflow()}>
+            <Eye />
+            View workflow
+          </DropdownMenuItem>
         )}
         <DropdownMenuItem onSelect={() => onOpenConfig(column.name)}>
           <Pencil />
@@ -143,12 +175,26 @@ interface WorkflowGroupMetaCellProps {
   isGroupSelected: boolean
   onSelectGroup: (startColIndex: number, size: number) => void
   onOpenConfig: (columnName: string) => void
-  onRunGroup?: (groupId: string, workflowId: string, mode?: 'all' | 'incomplete') => void
+  onRunColumn?: (groupId: string, mode?: RunMode, rowIds?: string[]) => void
   onInsertLeft?: (columnName: string) => void
   onInsertRight?: (columnName: string) => void
   onDeleteColumn?: (columnName: string) => void
   /** Right-click delete on the group header drops the entire workflow group. */
   onDeleteGroup?: (groupId: string) => void
+  /** Row ids in the user's current multi-row selection; when non-empty the
+   *  run menu adds a "Run N selected rows" option. */
+  selectedRowIds?: string[] | null
+  /** Opens a popup preview of the underlying workflow. */
+  onViewWorkflow?: (workflowId: string) => void
+  /** When set, the meta cell becomes draggable and forwards events through
+   *  the same column-reorder pipeline used by individual workflow column
+   *  headers. The whole group moves together because downstream code groups
+   *  fan-out siblings by `workflowGroupId`. */
+  onDragStart?: (columnName: string) => void
+  onDragOver?: (columnName: string, side: 'left' | 'right') => void
+  onDragEnd?: () => void
+  onDragLeave?: () => void
+  readOnly?: boolean
 }
 
 /**
@@ -167,11 +213,18 @@ export function WorkflowGroupMetaCell({
   isGroupSelected,
   onSelectGroup,
   onOpenConfig,
-  onRunGroup,
+  onRunColumn,
   onInsertLeft,
   onInsertRight,
   onDeleteColumn,
   onDeleteGroup,
+  selectedRowIds,
+  onViewWorkflow,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  onDragLeave,
+  readOnly,
 }: WorkflowGroupMetaCellProps) {
   const wf = workflows?.find((w) => w.id === workflowId)
   const color = wf?.color ?? 'var(--text-muted)'
@@ -180,14 +233,23 @@ export function WorkflowGroupMetaCell({
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false)
   const [optionsMenuPosition, setOptionsMenuPosition] = useState({ x: 0, y: 0 })
   const [runMenuOpen, setRunMenuOpen] = useState(false)
+  const didDragRef = useRef(false)
+
+  const selectedCount = selectedRowIds?.length ?? 0
 
   const handleRunAll = useCallback(() => {
-    if (groupId && workflowId) onRunGroup?.(groupId, workflowId, 'all')
-  }, [groupId, workflowId, onRunGroup])
+    if (groupId) onRunColumn?.(groupId, 'all')
+  }, [groupId, onRunColumn])
 
   const handleRunIncomplete = useCallback(() => {
-    if (groupId && workflowId) onRunGroup?.(groupId, workflowId, 'incomplete')
-  }, [groupId, workflowId, onRunGroup])
+    if (groupId) onRunColumn?.(groupId, 'incomplete')
+  }, [groupId, onRunColumn])
+
+  const handleRunSelected = useCallback(() => {
+    if (groupId && selectedRowIds && selectedRowIds.length > 0) {
+      onRunColumn?.(groupId, 'all', selectedRowIds)
+    }
+  }, [groupId, onRunColumn, selectedRowIds])
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -207,18 +269,88 @@ export function WorkflowGroupMetaCell({
       // should select the group + open the config sidebar.
       const target = e.target as HTMLElement
       if (target.closest('button, [role="menuitem"], [role="menu"]')) return
+      // Drag-vs-click guard: when a drag just ended on this cell, swallow the
+      // synthetic click so we don't accidentally pop open the sidebar.
+      if (didDragRef.current) {
+        didDragRef.current = false
+        return
+      }
       onSelectGroup(startColIndex, size)
       if (columnName) onOpenConfig(columnName)
     },
     [columnName, onOpenConfig, onSelectGroup, size, startColIndex]
   )
 
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      if (readOnly || !onDragStart || !columnName) {
+        e.preventDefault()
+        return
+      }
+      didDragRef.current = true
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.setData('text/plain', columnName)
+
+      const ghost = document.createElement('div')
+      ghost.textContent = name
+      ghost.style.cssText =
+        'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--text-primary)'
+      document.body.appendChild(ghost)
+      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+      requestAnimationFrame(() => ghost.parentNode?.removeChild(ghost))
+
+      onDragStart(columnName)
+    },
+    [columnName, name, onDragStart, readOnly]
+  )
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (!onDragOver || !columnName) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const midX = rect.left + rect.width / 2
+      const side = e.clientX < midX ? 'left' : 'right'
+      onDragOver(columnName, side)
+    },
+    [columnName, onDragOver]
+  )
+
+  const handleDragEnd = useCallback(() => {
+    didDragRef.current = false
+    onDragEnd?.()
+  }, [onDragEnd])
+
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      const th = e.currentTarget as HTMLElement
+      const related = e.relatedTarget as Node | null
+      if (related && th.contains(related)) return
+      if (related && related instanceof Element && related.closest('th')) return
+      onDragLeave?.()
+    },
+    [onDragLeave]
+  )
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+  }, [])
+
+  const isDraggable = !readOnly && Boolean(onDragStart)
+
   return (
     <th
       colSpan={size}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
-      className='group relative cursor-pointer border-[var(--border)] border-r border-b border-l bg-[var(--bg)] px-2 py-[5px] text-left align-middle'
+      draggable={isDraggable}
+      onDragStart={isDraggable ? handleDragStart : undefined}
+      onDragOver={isDraggable ? handleDragOver : undefined}
+      onDragEnd={isDraggable ? handleDragEnd : undefined}
+      onDragLeave={isDraggable ? handleDragLeave : undefined}
+      onDrop={isDraggable ? handleDrop : undefined}
+      className='group relative cursor-pointer border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[5px] text-left align-middle before:pointer-events-none before:absolute before:top-0 before:bottom-0 before:left-[-1px] before:w-px before:bg-[var(--border)] before:content-[""]'
     >
       <div
         className='pointer-events-none absolute inset-0'
@@ -248,7 +380,7 @@ export function WorkflowGroupMetaCell({
         <span className='min-w-0 truncate font-medium text-[11px] text-[var(--text-secondary)]'>
           {name}
         </span>
-        {onRunGroup && (
+        {onRunColumn && (
           <DropdownMenu open={runMenuOpen} onOpenChange={setRunMenuOpen}>
             <DropdownMenuTrigger asChild>
               <button
@@ -267,6 +399,11 @@ export function WorkflowGroupMetaCell({
               sideOffset={4}
               onCloseAutoFocus={(e) => e.preventDefault()}
             >
+              {selectedCount > 0 && (
+                <DropdownMenuItem onSelect={handleRunSelected}>
+                  {`Run ${selectedCount} selected ${selectedCount === 1 ? 'row' : 'rows'}`}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onSelect={handleRunAll}>Run all rows</DropdownMenuItem>
               <DropdownMenuItem onSelect={handleRunIncomplete}>Run empty rows</DropdownMenuItem>
             </DropdownMenuContent>
@@ -284,8 +421,11 @@ export function WorkflowGroupMetaCell({
           onInsertRight={onInsertRight}
           onDeleteColumn={onDeleteColumn}
           onDeleteGroup={onDeleteGroup ? () => onDeleteGroup(groupId) : undefined}
-          onRunGroupAll={onRunGroup ? handleRunAll : undefined}
-          onRunGroupIncomplete={onRunGroup ? handleRunIncomplete : undefined}
+          onRunColumnAll={onRunColumn ? handleRunAll : undefined}
+          onRunColumnIncomplete={onRunColumn ? handleRunIncomplete : undefined}
+          onRunColumnSelected={onRunColumn && selectedCount > 0 ? handleRunSelected : undefined}
+          selectedRowCount={selectedCount}
+          onViewWorkflow={onViewWorkflow ? () => onViewWorkflow(workflowId) : undefined}
         />
       )}
     </th>

@@ -2792,6 +2792,15 @@ export const UserTable: ToolCatalogEntry = {
         type: 'object',
         description: 'Arguments for the operation',
         properties: {
+          autoRun: {
+            type: 'boolean',
+            description:
+              "Optional flag for add_workflow_group and update_workflow_group. On add: when true, existing rows whose dependencies are already filled run immediately; default false stages the group silently — call run_column when ready to fire rows. On update: toggle a group's auto-fire behavior on an existing group — false stages it (no auto-runs on dep satisfaction; only manual run_column fires rows), true re-enables auto-fire (rows whose deps fill will be scheduled). Set true on add only if the user explicitly asked to start runs immediately.",
+          },
+          blockId: {
+            type: 'string',
+            description: 'Source block ID inside the workflow. Used by add_workflow_group_output.',
+          },
           column: {
             type: 'object',
             description: 'Column definition for add_column: { name, type, unique?, position? }',
@@ -2799,7 +2808,7 @@ export const UserTable: ToolCatalogEntry = {
           columnName: {
             type: 'string',
             description:
-              'Column name (required for rename_column, update_column; use columnNames array for batch delete_column)',
+              'Column name. Required for rename_column, update_column, and delete_workflow_group_output (the bound column to drop). Optional for add_workflow_group_output (auto-derived from path when omitted). Use columnNames array for batch delete_column.',
           },
           columnNames: {
             type: 'array',
@@ -2809,6 +2818,19 @@ export const UserTable: ToolCatalogEntry = {
           data: {
             type: 'object',
             description: 'Row data as key-value pairs (required for insert_row, update_row)',
+          },
+          dependencies: {
+            type: 'object',
+            description:
+              "Dependencies the workflow group requires before running a row. { columns?: string[] } lists input column names that must be filled. Workflow output columns count too — depend on the column produced by an upstream group, not the group itself. The dep graph is column-induced. A group can't depend on its own output columns. Used by add_workflow_group and update_workflow_group.",
+            properties: {
+              columns: {
+                type: 'array',
+                description:
+                  'Input column names that must be filled before the group runs. Plain columns and upstream-group output columns are both valid here.',
+                items: { type: 'string' },
+              },
+            },
           },
           description: { type: 'string', description: "Table description (optional for 'create')" },
           fileId: {
@@ -2826,6 +2848,17 @@ export const UserTable: ToolCatalogEntry = {
             description:
               'MongoDB-style filter for query_rows, update_rows_by_filter, delete_rows_by_filter',
           },
+          groupId: {
+            type: 'string',
+            description:
+              'Workflow group ID. Required for update_workflow_group, delete_workflow_group, add_workflow_group_output, delete_workflow_group_output.',
+          },
+          groupIds: {
+            type: 'array',
+            description:
+              'Array of workflow group IDs. Required for run_column — non-empty list of columns to run.',
+            items: { type: 'string' },
+          },
           limit: {
             type: 'number',
             description: 'Maximum rows to return or affect (optional, default 100)',
@@ -2833,11 +2866,29 @@ export const UserTable: ToolCatalogEntry = {
           mapping: {
             type: 'object',
             description:
-              'Optional explicit CSV-header → table-column mapping for import_file, as { "csvHeader": "columnName" | null }. When omitted, headers are auto-matched by sanitized name (case-insensitive fallback). Use null to skip a CSV column.',
+              'Optional explicit CSV-header → table-column mapping for import_file, as { "csvHeader": "columnName" | null }. A string maps the CSV header to that table column; null skips that CSV header (it won\'t be imported); omit a header entirely to fall back to auto-mapping by sanitized name (case-insensitive).',
             additionalProperties: {
-              type: 'string',
+              type: ['string', 'null'],
               description:
-                'Target column name on the table. Use null to skip this CSV header instead of a column name.',
+                "Target column name on the table. null skips that CSV header (it won't be imported); omit it entirely to fall back to auto-mapping.",
+            },
+          },
+          mappingUpdates: {
+            type: 'array',
+            description:
+              "Surgical per-output remap for update_workflow_group. Each entry repoints ONE existing output column to a new (blockId, path) without touching the rest of the group. Use this when the user wants to swap which block output flows into a column (e.g. 'point the score column at the new agent block') — the bound column stays, only its source pair changes. Stale row data for remapped columns is cleared and backfilled from saved execution logs where possible (no re-run needed). Use this INSTEAD of resending the full outputs array when the change is scoped to a few columns; use outputs only when the whole group's output set is being restructured. Discover valid (blockId, path) pairs via list_workflow_outputs first.",
+            items: {
+              type: 'object',
+              properties: {
+                blockId: { type: 'string', description: 'New source block ID for this column.' },
+                columnName: {
+                  type: 'string',
+                  description:
+                    'The existing output column to remap. Must already be bound to this group.',
+                },
+                path: { type: 'string', description: 'New dotted output path on the new block.' },
+              },
+              required: ['columnName', 'blockId', 'path'],
             },
           },
           mode: {
@@ -2868,6 +2919,33 @@ export const UserTable: ToolCatalogEntry = {
             description:
               'Pipe query_rows results directly to a NEW workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use .csv for tabular exports. Use a flat path like "files/export.csv" — nested paths are not supported.',
           },
+          outputs: {
+            type: 'array',
+            description:
+              "Outputs to surface as columns. Each entry maps a workflow block output to a table column: { blockId, path, columnName?, columnType? }. blockId is the source block; path is the dotted output path; columnName auto-derives from the path when omitted; columnType defaults from the leaf type when omitted. Used by add_workflow_group for the full output set. For update_workflow_group, prefer add_workflow_group_output / delete_workflow_group_output for individual outputs and mappingUpdates for surgical remap; only pass outputs here when restructuring the whole group's output set in one shot. If unsure about valid (blockId, path) pairs, call list_workflow_outputs first — paths are validated against the live workflow and invalid picks return an error with the valid options. For Agent blocks with structured outputs, the structured fields appear as top-level paths (e.g. summary, industry); there is NO response.content path on a structured agent.",
+            items: {
+              type: 'object',
+              properties: {
+                blockId: { type: 'string', description: 'Source block ID inside the workflow.' },
+                columnName: {
+                  type: 'string',
+                  description:
+                    'Optional target column name. Auto-derived from the path when omitted.',
+                },
+                columnType: {
+                  type: 'string',
+                  description: 'Optional column type. Defaults from the leaf type when omitted.',
+                  enum: ['string', 'number', 'boolean', 'date', 'json'],
+                },
+                path: { type: 'string', description: 'Dotted output path on the block.' },
+              },
+              required: ['blockId', 'path'],
+            },
+          },
+          path: {
+            type: 'string',
+            description: 'Dotted output path on the block. Used by add_workflow_group_output.',
+          },
           position: {
             type: 'integer',
             description:
@@ -2881,20 +2959,35 @@ export const UserTable: ToolCatalogEntry = {
           },
           rowId: {
             type: 'string',
-            description: 'Row ID (required for get_row, update_row, delete_row)',
+            description:
+              "Row ID. Required for get_row, update_row, delete_row, and for cancel_table_runs when scope:'row'.",
           },
           rowIds: {
             type: 'array',
-            description: 'Array of row IDs to delete (for batch_delete_rows)',
+            description:
+              'Array of row IDs. Used by batch_delete_rows (rows to delete) and run_column (optional row scope — when omitted, runs across the whole table; when provided, only these rows are candidates and the server eligibility predicate still applies).',
+            items: { type: 'string' },
           },
           rows: {
             type: 'array',
             description: 'Array of row data objects (required for batch_insert_rows)',
           },
+          runMode: {
+            type: 'string',
+            description:
+              "Run mode for run_column. 'incomplete' (default) re-runs only rows that never produced output or last failed; 'all' re-runs every dep-satisfied row.",
+            enum: ['incomplete', 'all'],
+          },
           schema: {
             type: 'object',
             description:
               "Table schema with columns array (required for 'create'). Each column: { name, type, unique? }",
+          },
+          scope: {
+            type: 'string',
+            description:
+              "Cancellation scope for cancel_table_runs. 'all' cancels in-flight runs across the whole table; 'row' cancels only the row identified by rowId.",
+            enum: ['all', 'row'],
           },
           sort: {
             type: 'object',
@@ -2925,6 +3018,11 @@ export const UserTable: ToolCatalogEntry = {
             description:
               'Map of rowId to value for single-column batch update: { "rowId1": val1, "rowId2": val2 } (for batch_update_rows with columnName)',
           },
+          workflowId: {
+            type: 'string',
+            description:
+              'ID of the workflow (required for add_workflow_group and list_workflow_outputs).',
+          },
         },
       },
       operation: {
@@ -2951,6 +3049,14 @@ export const UserTable: ToolCatalogEntry = {
           'rename_column',
           'delete_column',
           'update_column',
+          'add_workflow_group',
+          'update_workflow_group',
+          'delete_workflow_group',
+          'add_workflow_group_output',
+          'delete_workflow_group_output',
+          'run_column',
+          'cancel_table_runs',
+          'list_workflow_outputs',
         ],
       },
     },
@@ -3289,6 +3395,14 @@ export const UserTableOperation = {
   renameColumn: 'rename_column',
   deleteColumn: 'delete_column',
   updateColumn: 'update_column',
+  addWorkflowGroup: 'add_workflow_group',
+  updateWorkflowGroup: 'update_workflow_group',
+  deleteWorkflowGroup: 'delete_workflow_group',
+  addWorkflowGroupOutput: 'add_workflow_group_output',
+  deleteWorkflowGroupOutput: 'delete_workflow_group_output',
+  runColumn: 'run_column',
+  cancelTableRuns: 'cancel_table_runs',
+  listWorkflowOutputs: 'list_workflow_outputs',
 } as const
 
 export type UserTableOperation = (typeof UserTableOperation)[keyof typeof UserTableOperation]
@@ -3314,6 +3428,14 @@ export const UserTableOperationValues = [
   UserTableOperation.renameColumn,
   UserTableOperation.deleteColumn,
   UserTableOperation.updateColumn,
+  UserTableOperation.addWorkflowGroup,
+  UserTableOperation.updateWorkflowGroup,
+  UserTableOperation.deleteWorkflowGroup,
+  UserTableOperation.addWorkflowGroupOutput,
+  UserTableOperation.deleteWorkflowGroupOutput,
+  UserTableOperation.runColumn,
+  UserTableOperation.cancelTableRuns,
+  UserTableOperation.listWorkflowOutputs,
 ] as const
 
 export const WorkspaceFileOperation = {

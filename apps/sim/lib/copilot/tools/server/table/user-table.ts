@@ -56,7 +56,7 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
-import { cancelWorkflowGroupRuns, triggerWorkflowGroupRun } from '@/lib/table/workflow-columns'
+import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
 import {
   fetchWorkspaceFileBuffer,
   resolveWorkspaceFileReference,
@@ -1283,6 +1283,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               dependencies: args.dependencies as WorkflowGroupDependencies | undefined,
               outputs: updateOutputs,
               newOutputColumns: args.newOutputColumns as ColumnDefinition[] | undefined,
+              mappingUpdates: args.mappingUpdates as
+                | Array<{ columnName: string; blockId: string; path: string }>
+                | undefined,
+              autoRun: typeof args.autoRun === 'boolean' ? args.autoRun : undefined,
             },
             requestId
           )
@@ -1372,13 +1376,21 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
         }
 
-        case 'run_workflow_group': {
+        case 'run_column': {
           if (!args.tableId) return { success: false, message: 'Table ID is required' }
           if (!workspaceId) return { success: false, message: 'Workspace ID is required' }
-          const groupId = args.groupId as string | undefined
-          if (!groupId) {
-            return { success: false, message: 'groupId is required for run_workflow_group' }
+          const rawGroupIds = args.groupIds as unknown
+          if (
+            !Array.isArray(rawGroupIds) ||
+            rawGroupIds.length === 0 ||
+            rawGroupIds.some((id) => typeof id !== 'string' || id.length === 0)
+          ) {
+            return {
+              success: false,
+              message: 'groupIds must be a non-empty array of group id strings',
+            }
           }
+          const groupIds = rawGroupIds as string[]
           const runMode = (args.runMode as 'all' | 'incomplete' | undefined) ?? 'incomplete'
           if (runMode !== 'all' && runMode !== 'incomplete') {
             return {
@@ -1403,18 +1415,18 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const { triggered } = await triggerWorkflowGroupRun({
+          const { triggered } = await runWorkflowColumn({
             tableId: args.tableId,
-            groupId,
             workspaceId,
+            groupIds,
             mode: runMode,
-            requestId,
             rowIds,
+            requestId,
           })
           const scopeLabel = rowIds ? `${rowIds.length} row(s) by id` : runMode
           return {
             success: true,
-            message: `Triggered ${triggered} row(s) for workflow group ${groupId} (${scopeLabel})`,
+            message: `Triggered ${triggered} row(s) across ${groupIds.length} column(s) (${scopeLabel})`,
             data: { triggered },
           }
         }

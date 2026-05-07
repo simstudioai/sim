@@ -10,9 +10,9 @@ import {
 import type { ColumnDefinition } from '@/lib/table'
 
 /**
- * UI-only column type. `'workflow'` is a virtual selection that lets the user
- * configure a workflow group from the sidebar; on save, it expands into N real
- * scalar columns + one workflow group, none of which carry a `'workflow'` type.
+ * UI-only column type. `'workflow'` is the virtual entry users pick from the
+ * "+ New column" dropdown to spawn a workflow group; the resulting columns are
+ * stored as scalar types under the hood (none carry `'workflow'`).
  */
 export type SidebarColumnType = ColumnDefinition['type'] | 'workflow'
 
@@ -30,3 +30,6 @@ export const COLUMN_TYPE_OPTIONS: ColumnTypeOption[] = [
   { type: 'json', label: 'JSON', icon: TypeJson },
   { type: 'workflow', label: 'Workflow', icon: PlayOutline },
 ]
+
+/** Plain column types (no workflow). Used by `<ColumnConfigSidebar>`'s type combobox in edit mode. */
+export const PLAIN_COLUMN_TYPE_OPTIONS = COLUMN_TYPE_OPTIONS.filter((o) => o.type !== 'workflow')

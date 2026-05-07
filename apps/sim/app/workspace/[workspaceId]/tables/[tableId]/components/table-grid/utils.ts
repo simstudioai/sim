@@ -123,24 +123,51 @@ export function readExecution(
   return row?.executions?.[groupId]
 }
 
+export interface ExecStatusMix {
+  hasIncompleteOrFailed: boolean
+  hasCompleted: boolean
+  hasInFlight: boolean
+}
+
 /**
- * Client-side mirror of the scheduler's deps predicate. Used to filter the
- * row-run button so we don't fire downstream groups whose upstream isn't
- * `completed` yet — the cascade handles those once the upstream finishes.
+ * Walks `(rowIdSet × groupIds)` exec statuses on `rows` and reports which
+ * status buckets are present. Short-circuits once all three buckets are
+ * observed and once every selected row has been visited. Drives Play /
+ * Refresh / Stop visibility on the action bar and the context menu — both
+ * surfaces use the same shape so they stay in sync.
  */
-export function areRowDepsSatisfied(
-  group: WorkflowGroup,
-  row: { data: Record<string, unknown>; executions?: RowExecutions }
-): boolean {
-  const deps = group.dependencies ?? {}
-  for (const colName of deps.columns ?? []) {
-    const value = row.data[colName]
-    if (value === null || value === undefined || value === '') return false
+export function classifyExecStatusMix(
+  rows: TableRowType[],
+  rowIdSet: ReadonlySet<string>,
+  groupIds: readonly string[]
+): ExecStatusMix {
+  const result: ExecStatusMix = {
+    hasIncompleteOrFailed: false,
+    hasCompleted: false,
+    hasInFlight: false,
   }
-  for (const gid of deps.workflowGroups ?? []) {
-    if (row.executions?.[gid]?.status !== 'completed') return false
+  if (rowIdSet.size === 0 || groupIds.length === 0) return result
+  const target = rowIdSet.size
+  let seen = 0
+  for (const row of rows) {
+    if (!rowIdSet.has(row.id)) continue
+    seen++
+    for (const groupId of groupIds) {
+      const status = readExecution(row, groupId)?.status
+      if (status === 'queued' || status === 'running' || status === 'pending') {
+        result.hasInFlight = true
+      } else if (status === 'completed') {
+        result.hasCompleted = true
+      } else {
+        result.hasIncompleteOrFailed = true
+      }
+      if (result.hasInFlight && result.hasCompleted && result.hasIncompleteOrFailed) {
+        return result
+      }
+    }
+    if (seen === target) break
   }
-  return true
+  return result
 }
 
 export function moveCell(

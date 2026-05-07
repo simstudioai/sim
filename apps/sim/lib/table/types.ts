@@ -44,15 +44,13 @@ export interface WorkflowGroupOutput {
 }
 
 export interface WorkflowGroupDependencies {
-  /** Plain columns that must be non-empty before this group runs. */
-  columns?: string[]
   /**
-   * Other workflow groups that must reach `status: completed` before this
-   * group runs. The dep graph is a first-class concept — you depend on a
-   * producing group, never on a sibling output value (which can legitimately
-   * be null on success).
+   * Columns that must be non-empty before this group runs. Workflow output
+   * columns count too — once an upstream group fills its output column, any
+   * downstream group depending on that column becomes eligible. The user
+   * model is uniform: deps are columns, not group-completion edges.
    */
-  workflowGroups?: string[]
+  columns?: string[]
 }
 
 export interface WorkflowGroup {
@@ -62,6 +60,13 @@ export interface WorkflowGroup {
   name?: string
   dependencies?: WorkflowGroupDependencies
   outputs: WorkflowGroupOutput[]
+  /**
+   * When `false`, the group never auto-fires from the scheduler — it can only
+   * be triggered manually via the "Run" actions. Defaults to `true` so
+   * existing groups keep firing on dep satisfaction. Persisted alongside the
+   * group definition; the scheduler reads it in `isGroupEligible`.
+   */
+  autoRun?: boolean
 }
 
 /**
@@ -70,7 +75,7 @@ export interface WorkflowGroup {
  * values land in `row.data` directly.
  */
 export interface RowExecutionMetadata {
-  status: 'pending' | 'running' | 'completed' | 'error' | 'cancelled'
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
   executionId: string | null
   /**
    * Async-job id (e.g. trigger.dev run id) for the in-flight execution.
@@ -303,6 +308,14 @@ export interface UpdateRowData {
    * state. `updateRow` returns `null` when the guard rejects the write.
    */
   cancellationGuard?: { groupId: string; executionId: string }
+  /**
+   * When true, the post-write `scheduleRunsForRows` call is skipped. Used by
+   * the cancel path (which is tearing rows down, not waking them up) and by
+   * the manual-run path (which fires its own `scheduleRunsForRows` with
+   * `isManualRun: true` and doesn't want a duplicate auto-fire pass on the
+   * cleared cells). Default false: every other write fires the reactor.
+   */
+  skipScheduler?: boolean
 }
 
 export interface BulkUpdateData {
@@ -321,6 +334,8 @@ export interface BatchUpdateByIdData {
     executionsPatch?: Record<string, RowExecutionMetadata | null>
   }>
   workspaceId: string
+  /** Same semantics as `UpdateRowData.skipScheduler`. */
+  skipScheduler?: boolean
 }
 
 export interface BulkDeleteData {
@@ -401,6 +416,15 @@ export interface UpdateWorkflowGroupData {
   outputs?: WorkflowGroupOutput[]
   /** Column definitions for any newly-added outputs. */
   newOutputColumns?: ColumnDefinition[]
+  /**
+   * Per-column mapping swaps: keep the existing column, repoint it at a new
+   * `(blockId, path)`. Applied before the `outputs` diff and clears the
+   * affected columns' row data so the next run repopulates from the new
+   * source.
+   */
+  mappingUpdates?: Array<{ columnName: string; blockId: string; path: string }>
+  /** Toggle the group's auto-run flag. Omit to leave it unchanged. */
+  autoRun?: boolean
 }
 
 export interface DeleteWorkflowGroupData {

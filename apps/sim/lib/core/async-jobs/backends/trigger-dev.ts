@@ -82,6 +82,23 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     return handle.id
   }
 
+  async batchEnqueue<TPayload>(
+    type: JobType,
+    items: Array<{ payload: TPayload; options?: EnqueueOptions }>
+  ): Promise<string[]> {
+    if (items.length === 0) return []
+    // tasks.batchTrigger returns only a batchId, not per-item run IDs, so we
+    // can't use it when callers need to track individual runs (e.g. table cell
+    // tasks need per-row jobIds for cancellation). Sequential `tasks.trigger`
+    // gives us per-item IDs and naturally preserves input order in the queue.
+    const ids: string[] = []
+    for (const { payload, options } of items) {
+      const id = await this.enqueue(type, payload, options)
+      ids.push(id)
+    }
+    return ids
+  }
+
   async getJob(jobId: string): Promise<Job | null> {
     try {
       const run = await runs.retrieve(jobId)

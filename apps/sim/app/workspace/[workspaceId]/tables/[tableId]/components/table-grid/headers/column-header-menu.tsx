@@ -35,8 +35,13 @@ interface ColumnHeaderMenuProps {
   onDragLeave?: () => void
   workflows?: WorkflowMetadata[]
   workflowGroups?: WorkflowGroup[]
+  /** Source-info entry for workflow-output columns; supplies the producing
+   *  block's icon component. The block's color is intentionally not used. */
   sourceInfo?: ColumnSourceInfo
   onOpenConfig: (columnName: string) => void
+  /** Opens a popup preview of the column's underlying workflow. Surfaced in
+   *  the chevron menu for workflow-output columns. */
+  onViewWorkflow?: (workflowId: string) => void
 }
 
 /**
@@ -70,6 +75,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   workflowGroups,
   sourceInfo,
   onOpenConfig,
+  onViewWorkflow,
 }: ColumnHeaderMenuProps) {
   const renameInputRef = useRef<HTMLInputElement>(null)
   const didDragRef = useRef(false)
@@ -90,10 +96,6 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       ? 'Hide column'
       : 'Delete workflow'
     : undefined
-  const workflowColor = configuredWorkflow?.color
-  const blockIconInfo = sourceInfo?.blockIconInfo
-  const blockName = sourceInfo?.blockName
-
   useEffect(() => {
     if (isRenaming && renameInputRef.current) {
       renameInputRef.current.focus()
@@ -142,8 +144,13 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       e.dataTransfer.effectAllowed = 'move'
       e.dataTransfer.setData('text/plain', column.name)
 
+      // Workflow-output columns drag as a whole group, so the ghost shows
+      // the group's name (falling back to the workflow's name, then the
+      // column slug) rather than the individual column slug.
+      const ghostLabel = ownGroup?.name ?? configuredWorkflow?.name ?? column.name
+
       const ghost = document.createElement('div')
-      ghost.textContent = column.name
+      ghost.textContent = ghostLabel
       ghost.style.cssText =
         'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--text-primary)'
       document.body.appendChild(ghost)
@@ -152,7 +159,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
 
       onDragStart?.(column.name)
     },
-    [column.name, readOnly, isRenaming, onDragStart]
+    [column.name, ownGroup, configuredWorkflow, readOnly, isRenaming, onDragStart]
   )
 
   const handleDragOver = useCallback(
@@ -181,6 +188,11 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       const th = e.currentTarget as HTMLElement
       const related = e.relatedTarget as Node | null
       if (related && th.contains(related)) return
+      // Don't clear when the cursor is moving to another column header — the
+      // next dragover will set the right target. Clearing here causes the
+      // drop indicator to flicker between sibling columns of a workflow
+      // group (and any adjacent column hop in general).
+      if (related && related instanceof Element && related.closest('th')) return
       onDragLeave?.()
     },
     [onDragLeave]
@@ -238,8 +250,8 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
-            workflowColor={workflowColor}
-            blockIconInfo={blockIconInfo}
+            isWorkflowColumn={!!column.workflowGroupId}
+            blockIconInfo={sourceInfo?.blockIconInfo}
           />
           <input
             ref={renameInputRef}
@@ -258,25 +270,12 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon
             type={column.type}
-            workflowColor={workflowColor}
-            blockIconInfo={blockIconInfo}
+            isWorkflowColumn={!!column.workflowGroupId}
+            blockIconInfo={sourceInfo?.blockIconInfo}
           />
-          {column.workflowGroupId ? (
-            <div className='ml-1.5 flex min-w-0 flex-1 flex-col text-left'>
-              {blockName && (
-                <span className='block w-full min-w-0 truncate text-[var(--text-tertiary)] text-caption leading-tight'>
-                  {blockName}
-                </span>
-              )}
-              <span className='block w-full min-w-0 truncate font-medium text-[13px] text-[var(--text-primary)] leading-tight'>
-                {column.headerLabel}
-              </span>
-            </div>
-          ) : (
-            <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
-              {column.name}
-            </span>
-          )}
+          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
+            {column.workflowGroupId ? column.headerLabel : column.name}
+          </span>
         </div>
       ) : (
         <div className='flex h-full w-full min-w-0 items-center'>
@@ -288,25 +287,12 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           >
             <ColumnTypeIcon
               type={column.type}
-              workflowColor={workflowColor}
-              blockIconInfo={blockIconInfo}
+              isWorkflowColumn={!!column.workflowGroupId}
+              blockIconInfo={sourceInfo?.blockIconInfo}
             />
-            {column.workflowGroupId ? (
-              <div className='ml-1.5 flex min-w-0 flex-1 flex-col items-start text-left'>
-                {blockName && (
-                  <span className='block w-full min-w-0 truncate text-[10px] text-[var(--text-tertiary)] leading-tight'>
-                    {blockName}
-                  </span>
-                )}
-                <span className='block w-full min-w-0 truncate font-medium text-[var(--text-primary)] text-small leading-tight'>
-                  {column.headerLabel}
-                </span>
-              </div>
-            ) : (
-              <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
-                {column.name}
-              </span>
-            )}
+            <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
+              {column.workflowGroupId ? column.headerLabel : column.name}
+            </span>
           </button>
           <button
             type='button'
@@ -315,7 +301,7 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             draggable={false}
             aria-label='Column options'
           >
-            <ChevronDown className='h-[7px] w-[9px]' />
+            <ChevronDown className='h-[14px] w-[14px] shrink-0' />
           </button>
           <ColumnOptionsMenu
             open={menuOpen}
@@ -327,6 +313,9 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             onInsertLeft={onInsertLeft}
             onInsertRight={onInsertRight}
             onDeleteColumn={onDeleteColumn}
+            onViewWorkflow={
+              onViewWorkflow && ownGroup ? () => onViewWorkflow(ownGroup.workflowId) : undefined
+            }
           />
         </div>
       )}

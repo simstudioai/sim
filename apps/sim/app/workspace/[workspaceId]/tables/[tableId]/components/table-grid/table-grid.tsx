@@ -2,52 +2,23 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Square } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import {
-  Button,
-  Checkbox,
-  Download,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  Skeleton,
-  toast,
-  Upload,
-} from '@/components/emcn'
-import {
-  Pencil,
-  PlayOutline,
-  Plus,
-  Table as TableIcon,
-  TableX,
-  Trash,
-} from '@/components/emcn/icons'
-import { Loader } from '@/components/emcn/icons/loader'
+import { Button, Checkbox, Skeleton, toast } from '@/components/emcn'
+import { PlayOutline, Plus, Square, TableX } from '@/components/emcn/icons'
+import type { RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
-import type { ColumnDefinition, Filter, SortDirection, TableRow as TableRowType } from '@/lib/table'
-import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
-import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
-import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
+import type { ColumnDefinition, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import { getUnmetGroupDeps, isExecInFlight } from '@/lib/table/deps'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
-import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
-  downloadTableExport,
   useAddTableColumn,
   useBatchCreateTableRows,
   useBatchUpdateTableRows,
-  useCancelTableRuns,
   useCreateTableRow,
   useDeleteColumn,
-  useDeleteTable,
   useDeleteWorkflowGroup,
-  useRenameTable,
-  useRunGroup,
   useUpdateColumn,
   useUpdateTableMetadata,
   useUpdateTableRow,
@@ -55,28 +26,30 @@ import {
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
-import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
-import { useContextMenu, useRowExecution, useTable } from '../../hooks'
+import { useContextMenu, useTable } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
-import { cleanCellValue, storageToDisplay } from '../../utils'
-import { type ColumnConfigState, ColumnSidebar } from '../column-sidebar/column-sidebar'
+import {
+  cleanCellValue,
+  generateColumnName as sharedGenerateColumnName,
+  storageToDisplay,
+} from '../../utils'
+import type { ColumnConfig } from '../column-config-sidebar'
 import { ContextMenu } from '../context-menu'
-import { RowModal } from '../row-modal'
-import { TableFilter } from '../table-filter'
-import { CellContent } from './cells/cell-content'
-import { ExpandedCellPopover } from './cells/expanded-cell-popover'
-import { COL_WIDTH, COLUMN_SIDEBAR_WIDTH_CSS, SELECTION_TINT_BG } from './constants'
-import { ColumnHeaderMenu } from './headers/column-header-menu'
-import { COLUMN_TYPE_ICONS } from './headers/column-type-icon'
-import { WorkflowGroupMetaCell } from './headers/workflow-group-meta-cell'
+import { NewColumnDropdown } from '../new-column-dropdown'
+import { RunStatusControl } from '../run-status-control'
+import type { WorkflowConfig } from '../workflow-sidebar'
+import { CellContent, ExpandedCellPopover } from './cells'
+import { COL_WIDTH, SELECTION_TINT_BG } from './constants'
+import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
 import type { DisplayColumn } from './types'
 import {
-  areRowDepsSatisfied,
   buildHeaderGroups,
   type CellCoord,
+  classifyExecStatusMix,
   collectRowSnapshots,
   computeNormalizedSelection,
+  type ExecStatusMix,
   expandToDisplayColumns,
   moveCell,
   type NormalizedSelection,
@@ -120,10 +93,23 @@ function rowSelectionCoversAll(sel: RowSelection, rows: TableRowType[]): boolean
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
 // Wide enough to host the row-number + per-row run button side by side.
-// Single-digit row numbers (rows 1–9) and multi-digit (10+) need to render
-// with the play button at the same x-position so the column doesn't reflow
+// Single-digit row numbers (rows 1–9) and multi-digit need to render with
+// the play button at the same x-position so the column doesn't reflow
 // row-by-row.
-const CHECKBOX_COL_WIDTH = 56
+//
+// Bucketed by the table's plan-derived `maxRows`, not the live count: a small
+// table sized for ≤9,999 always renders the narrow gutter; an enterprise
+// table sized up to 9,999,999 always renders the wide one. The gutter never
+// changes width as rows are added.
+//
+// Tables without workflow columns drop the per-row run button (~28px), so
+// the gutter shrinks accordingly.
+const CHECKBOX_COL_WIDTH_SMALL_WITH_RUN = 48
+const CHECKBOX_COL_WIDTH_SMALL_NUMBER_ONLY = 32
+const CHECKBOX_COL_WIDTH_LARGE_WITH_RUN = 68
+const CHECKBOX_COL_WIDTH_LARGE_NUMBER_ONLY = 52
+/** Bucket boundary: tables sized for >9,999 rows get the wide gutter. */
+const LARGE_ROW_NUMBER_THRESHOLD = 10000
 const ADD_COL_WIDTH = 120
 const SKELETON_COL_COUNT = 4
 const SKELETON_ROW_COUNT = 10
@@ -131,29 +117,156 @@ const ROW_HEIGHT_ESTIMATE = 35
 
 const CELL = 'border-[var(--border)] border-r border-b px-2 py-[7px] align-middle select-none'
 const CELL_CHECKBOX =
-  'border-[var(--border)] border-r border-b px-1 py-[7px] align-middle select-none'
+  'sticky left-0 z-[6] border-[var(--border)] border-r border-b bg-[var(--bg)] px-1 py-[7px] align-middle select-none'
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
 const CELL_HEADER_CHECKBOX =
-  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-1 py-[7px] text-center align-middle'
+  'sticky left-0 z-[12] border-[var(--border)] border-r border-b bg-[var(--bg)] px-1 py-[7px] text-center align-middle'
+// Fixed height (not min-) so a Badge-rendered status pill doesn't make the row
+// grow vs a plain-text neighbor. Sized to comfortably contain the badge; the
+// flex centers plain text + badges on the same baseline.
 const CELL_CONTENT =
-  'relative min-h-[20px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-small'
+  'relative flex h-[22px] min-w-0 items-center overflow-clip text-ellipsis whitespace-nowrap text-small'
 const SELECTION_OVERLAY =
   'pointer-events-none absolute -top-px -right-px -bottom-px -left-px z-[5] border-[2px] border-[var(--selection)]'
 
-interface TableProps {
+/**
+ * Snapshot of grid selection state the wrapper needs to render `<TableActionBar>`.
+ * Fired from a `useEffect` so the callback identity doesn't drive re-renders.
+ */
+export interface SelectionSnapshot {
+  /** Row ids in the action-bar selection (checkbox-row union with multi-row range). */
+  actionBarRowIds: string[]
+  /** Total running/queued workflow runs across `actionBarRowIds`. */
+  runningInActionBarSelection: number
+  /** Total running/queued workflow runs across ALL rows. Drives the page-header
+   *  RunStatusControl ("N running, Stop all"). */
+  totalRunning: number
+  /** Whether the table has any workflow-output columns (drives the Run/Stop visibility). */
+  hasWorkflowColumns: boolean
+  /** Cells the Play / Refresh / Stop buttons act on. Null when the selection
+   *  contains no workflow output cells. */
+  selectedRunScope: { groupIds: string[]; rowIds: string[] } | null
+  /** Drives Play (`hasIncompleteOrFailed`) / Refresh (`hasCompleted`) /
+   *  Stop (`hasInFlight`) visibility on the action bar. */
+  selectionStats: ExecStatusMix
+  /**
+   * When the highlight resolves to exactly one workflow-group execution —
+   * same row, every highlighted column in the same workflow group — describe
+   * it so the action bar can offer "View execution". Covers both the 1×1
+   * single-cell case and 1 row × N cols highlights within one group. `null`
+   * for multi-row, cross-group, or plain-column selections.
+   */
+  singleWorkflowCell: {
+    rowId: string
+    groupId: string
+    executionId: string | null
+    /** True iff the exec is in a state that produced a server log
+     *  (completed / error / running). Drives the View execution button. */
+    canViewExecution: boolean
+  } | null
+}
+
+interface TableGridProps {
   workspaceId?: string
   tableId?: string
   embedded?: boolean
+  /**
+   * Pixel width to reserve on the right of the table's scroll content for the
+   * currently-open slideout panel (column config, workflow config, or log
+   * details). Computed by the wrapper so it can subscribe to whichever panel
+   * width source is relevant. `0` when no panel is open.
+   */
+  sidebarReservedPx: number
+  /**
+   * Open requests fired by the grid (column header click, "+ New column"
+   * dropdown, context-menu items). The wrapper owns the actual panel state
+   * and enforces mutual-exclusion (only one slideout open at a time).
+   */
+  onOpenColumnConfig: (cfg: ColumnConfig) => void
+  onOpenWorkflowConfig: (cfg: WorkflowConfig) => void
+  onOpenExecutionDetails: (executionId: string) => void
+  /** Open the row-edit modal for `row`. Wrapper renders the modal. */
+  onOpenRowModal: (row: TableRowType) => void
+  /** Open the row-delete modal for `snapshots`. Wrapper renders the modal. */
+  onRequestDeleteRows: (snapshots: DeletedRowSnapshot[]) => void
+  /** Open the delete-columns confirmation modal for `names`. Wrapper renders the modal. */
+  onRequestDeleteColumns: (names: string[]) => void
+  /** Fire run for a single column (meta-cell Run menu). */
+  onRunColumn: (groupId: string, runMode: RunMode, rowIds?: string[]) => void
+  /** Fire every runnable column on a single row (per-row gutter Play). */
+  onRunRow: (rowId: string) => void
+  /** Fan out a run across every workflow group on `rowIds`. Used by context menu. */
+  onRunRows: (rowIds: string[], runMode: RunMode) => void
+  /** Stop running workflows on `rowIds`. Per-row gutter Stop also funnels through here. */
+  onStopRows: (rowIds: string[]) => void
+  /** Single-row stop for the per-row gutter button. */
+  onStopRow: (rowId: string) => void
+  /** Wholesale cancel — page-header "Stop all". */
+  onStopAll: () => void
+  /** Whether `useCancelTableRuns` is currently in flight. */
+  cancelRunsPending: boolean
+  /**
+   * Fired whenever the action-bar selection or running-count derivations
+   * change. Wrapper uses this to render <TableActionBar>.
+   */
+  onSelectionChange: (state: SelectionSnapshot) => void
+  /** Filter + sort. Lifted to wrapper so a single `useTable` call serves both. */
+  queryOptions: QueryOptions
+  /**
+   * Ref the grid populates with its `handleColumnRename` so the wrapper's
+   * sidebars can fire a column rename back into the grid (rewrites local
+   * `columnWidths` / `columnOrder` keys). The wrapper just forwards the call.
+   */
+  columnRenameSinkRef: React.MutableRefObject<((oldName: string, newName: string) => void) | null>
+  /**
+   * Ref the grid populates with its post-row-delete cleanup (push undo,
+   * clear selection). The wrapper invokes after the row-delete modal's
+   * mutation succeeds.
+   */
+  afterDeleteRowsSinkRef: React.MutableRefObject<((snapshots: DeletedRowSnapshot[]) => void) | null>
+  /**
+   * Ref the grid populates with its full delete-columns cascade (per-column
+   * mutation, undo push, columnOrder + columnWidths cleanup). The wrapper's
+   * delete-columns confirmation modal invokes this on confirm.
+   */
+  confirmDeleteColumnsSinkRef: React.MutableRefObject<((names: string[]) => void) | null>
+  /**
+   * Ref the grid populates with its `pushUndo({ type: 'rename-table', ... })`
+   * call. The wrapper's table-rename `onSave` invokes this so the rename is
+   * undoable from anywhere in the grid.
+   */
+  pushTableRenameUndoSinkRef: React.MutableRefObject<
+    ((previousName: string, newName: string) => void) | null
+  >
 }
 
-export function Table({
+export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   embedded,
-}: TableProps = {}) {
+  sidebarReservedPx,
+  onOpenColumnConfig,
+  onOpenWorkflowConfig,
+  onOpenExecutionDetails,
+  onOpenRowModal,
+  onRequestDeleteRows,
+  onRequestDeleteColumns,
+  onRunColumn,
+  onRunRow,
+  onRunRows,
+  onStopRows,
+  onStopRow,
+  onStopAll,
+  cancelRunsPending,
+  onSelectionChange,
+  queryOptions,
+  columnRenameSinkRef,
+  afterDeleteRowsSinkRef,
+  confirmDeleteColumnsSinkRef,
+  pushTableRenameUndoSinkRef,
+}: TableGridProps) {
   const params = useParams()
-  const router = useRouter()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
   const posthog = usePostHog()
@@ -163,12 +276,6 @@ export function Table({
     captureEvent(posthog, 'table_opened', { table_id: tableId, workspace_id: workspaceId })
   }, [tableId, workspaceId, posthog])
 
-  const [queryOptions, setQueryOptions] = useState<QueryOptions>({
-    filter: null,
-    sort: null,
-  })
-  const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
-  const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null)
   const [initialCharacter, setInitialCharacter] = useState<string | null>(null)
   const [expandedCell, setExpandedCell] = useState<EditingCell | null>(null)
@@ -178,10 +285,6 @@ export function Table({
   const [isColumnSelection, setIsColumnSelection] = useState(false)
   const lastCheckboxRowRef = useRef<string | null>(null)
   const isColumnSelectionRef = useRef(false)
-  const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
-  const [deletingColumns, setDeletingColumns] = useState<string[] | null>(null)
-  const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
-
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
   const columnWidthsRef = useRef(columnWidths)
   columnWidthsRef.current = columnWidths
@@ -217,7 +320,6 @@ export function Table({
     tableWorkflowGroups,
     workflowStates,
     columnSourceInfo,
-    workflowNameById,
   } = useTable({ workspaceId, tableId, queryOptions })
 
   const fetchNextPageRef = useRef(fetchNextPage)
@@ -231,6 +333,9 @@ export function Table({
   const userPermissions = useUserPermissionsContext()
   const canEditRef = useRef(userPermissions.canEdit)
   canEditRef.current = userPermissions.canEdit
+  // Refs for callback props read inside effects with stable empty deps.
+  const onOpenRowModalRef = useRef(onOpenRowModal)
+  onOpenRowModalRef.current = onOpenRowModal
 
   const {
     contextMenu,
@@ -238,7 +343,6 @@ export function Table({
     closeContextMenu,
   } = useContextMenu()
 
-  const { runWorkflowGroup } = useRowExecution()
   const workflowsRef = useRef(workflows)
   workflowsRef.current = workflows
 
@@ -250,18 +354,21 @@ export function Table({
   const updateColumnMutation = useUpdateColumn({ workspaceId, tableId })
   const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
-  const cancelRunsMutation = useCancelTableRuns({ workspaceId, tableId })
-  const runGroupMutation = useRunGroup({ workspaceId, tableId })
   const deleteWorkflowGroupMutation = useDeleteWorkflowGroup({ workspaceId, tableId })
   const updateWorkflowGroupMutation = useUpdateWorkflowGroup({ workspaceId, tableId })
 
-  const handleRunGroup = useCallback(
-    (groupId: string, workflowId: string, runMode: 'all' | 'incomplete' = 'all') => {
-      runGroupMutation.mutate({ groupId, workflowId, runMode })
+  const handleRunColumn = useCallback(
+    (groupId: string, runMode: RunMode = 'all', rowIds?: string[]) => {
+      onRunColumn(groupId, runMode, rowIds)
     },
-    // mutate is stable; intentionally excluded from deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [onRunColumn]
+  )
+
+  const handleViewWorkflow = useCallback(
+    (workflowId: string) => {
+      window.open(`/workspace/${workspaceId}/w/${workflowId}`, '_blank', 'noopener,noreferrer')
+    },
+    [workspaceId]
   )
 
   function handleColumnOrderChange(order: string[]) {
@@ -296,6 +403,9 @@ export function Table({
       ...(updatedOrder ? { columnOrder: updatedOrder } : {}),
     })
   }
+  // Populate the wrapper's sink so its sidebars can fire renames back into
+  // the grid. Reads through refs, so identity stability isn't required.
+  columnRenameSinkRef.current = handleColumnRename
 
   function getColumnWidths() {
     return columnWidthsRef.current
@@ -341,6 +451,24 @@ export function Table({
     return expandToDisplayColumns(ordered, tableWorkflowGroups)
   }, [columns, columnOrder, tableWorkflowGroups])
 
+  const hasWorkflowColumns = columns.some((c) => !!c.workflowGroupId)
+  /**
+   * The sticky left column hosts the row number / checkbox always, plus a
+   * per-row run button only when the table has workflow columns. Width is
+   * picked from the table's plan-derived `maxRows` so a free-tier table
+   * (≤9,999) gets the narrow gutter and an enterprise table (up to
+   * 9,999,999) gets the wide one. Bucketed, not continuous, so the gutter
+   * never reflows as rows are added.
+   */
+  const isLargeRowCountTable = (tableData?.maxRows ?? 0) >= LARGE_ROW_NUMBER_THRESHOLD
+  const checkboxColWidth = isLargeRowCountTable
+    ? hasWorkflowColumns
+      ? CHECKBOX_COL_WIDTH_LARGE_WITH_RUN
+      : CHECKBOX_COL_WIDTH_LARGE_NUMBER_ONLY
+    : hasWorkflowColumns
+      ? CHECKBOX_COL_WIDTH_SMALL_WITH_RUN
+      : CHECKBOX_COL_WIDTH_SMALL_NUMBER_ONLY
+
   const headerGroups = useMemo(
     () => buildHeaderGroups(displayColumns, tableWorkflowGroups),
     [displayColumns, tableWorkflowGroups]
@@ -357,18 +485,18 @@ export function Table({
     const colsWidth = isLoadingTable
       ? displayColCount * COL_WIDTH
       : displayColumns.reduce((sum, col) => sum + (columnWidths[col.key] ?? COL_WIDTH), 0)
-    return CHECKBOX_COL_WIDTH + colsWidth + ADD_COL_WIDTH
-  }, [isLoadingTable, displayColCount, displayColumns, columnWidths])
+    return checkboxColWidth + colsWidth + ADD_COL_WIDTH
+  }, [isLoadingTable, displayColCount, displayColumns, columnWidths, checkboxColWidth])
 
   const resizeIndicatorLeft = useMemo(() => {
     if (!resizingColumn) return 0
-    let left = CHECKBOX_COL_WIDTH
+    let left = checkboxColWidth
     for (const col of displayColumns) {
       left += columnWidths[col.key] ?? COL_WIDTH
       if (col.key === resizingColumn) return left
     }
     return 0
-  }, [resizingColumn, displayColumns, columnWidths])
+  }, [resizingColumn, displayColumns, columnWidths, checkboxColWidth])
 
   const dropColumnBounds = useMemo(() => {
     if (!dropTargetColumnName || !dragColumnName) return null
@@ -389,7 +517,7 @@ export function Table({
       (dropSide === 'left' && targetGroupStart === dragGroup + dragGroupSize)
     if (wouldBeNoOp) return null
 
-    let left = CHECKBOX_COL_WIDTH
+    let left = checkboxColWidth
     for (let i = 0; i < cols.length; i++) {
       const col = cols[i]
       const w = columnWidths[col.key] ?? COL_WIDTH
@@ -408,7 +536,14 @@ export function Table({
       left += w
     }
     return null
-  }, [dropTargetColumnName, dragColumnName, dropSide, displayColumns, columnWidths])
+  }, [
+    dropTargetColumnName,
+    dragColumnName,
+    dropSide,
+    displayColumns,
+    columnWidths,
+    checkboxColWidth,
+  ])
 
   const isAllRowsSelected = useMemo(
     () => rowSelectionCoversAll(rowSelection, rows),
@@ -438,23 +573,6 @@ export function Table({
   selectionFocusRef.current = selectionFocus
   isColumnSelectionRef.current = isColumnSelection
 
-  const deleteTableMutation = useDeleteTable(workspaceId)
-  const renameTableMutation = useRenameTable(workspaceId)
-
-  const tableHeaderRename = useInlineRename({
-    onSave: (_id, name) => {
-      if (tableData) {
-        pushUndoRef.current({
-          type: 'rename-table',
-          tableId,
-          previousName: tableData.name,
-          newName: name,
-        })
-      }
-      renameTableMutation.mutate({ tableId, name })
-    },
-  })
-
   const columnRename = useInlineRename({
     onSave: (columnName, newName) => {
       pushUndoRef.current({ type: 'rename-column', oldName: columnName, newName })
@@ -462,21 +580,6 @@ export function Table({
       updateColumnMutation.mutate({ columnName, updates: { name: newName } })
     },
   })
-
-  const handleNavigateBack = useCallback(() => {
-    router.push(`/workspace/${workspaceId}/tables`)
-  }, [router, workspaceId])
-
-  const handleDeleteTable = useCallback(async () => {
-    try {
-      await deleteTableMutation.mutateAsync(tableId)
-      setShowDeleteTableConfirm(false)
-      router.push(`/workspace/${workspaceId}/tables`)
-    } catch {
-      setShowDeleteTableConfirm(false)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableId, router, workspaceId])
 
   const toggleBooleanCell = useCallback(
     (rowId: string, columnName: string, currentValue: unknown) => {
@@ -543,11 +646,11 @@ export function Table({
     }
 
     if (snapshots.length > 0) {
-      setDeletingRows(snapshots)
+      onRequestDeleteRows(snapshots)
     }
 
     closeContextMenu()
-  }, [contextMenu.row, closeContextMenu])
+  }, [contextMenu.row, closeContextMenu, onRequestDeleteRows])
 
   const handleInsertRow = useCallback(
     (offset: 0 | 1) => {
@@ -575,27 +678,38 @@ export function Table({
   const contextMenuColumnInfo = useMemo<{
     isWorkflowColumn: boolean
     executionId: string | null
+    hasStartedRun: boolean
   }>(() => {
     if (!contextMenu.row || !contextMenu.columnName) {
-      return { isWorkflowColumn: false, executionId: null }
+      return { isWorkflowColumn: false, executionId: null, hasStartedRun: false }
     }
     const column = columnsRef.current.find((c) => c.name === contextMenu.columnName)
     const groupId = column?.workflowGroupId
     if (!column || !groupId) {
-      return { isWorkflowColumn: false, executionId: null }
+      return { isWorkflowColumn: false, executionId: null, hasStartedRun: false }
     }
     const exec = contextMenu.row.executions?.[groupId]
-    return { isWorkflowColumn: true, executionId: exec?.executionId ?? null }
+    // Only `completed` / `error` / `running` cells are guaranteed to have a
+    // server-side execution log. `queued` / `pending` haven't started yet;
+    // `cancelled` may have been cancelled before the worker ever picked the
+    // job up, so its executionId can't be relied on either.
+    const hasStartedRun =
+      exec?.status === 'completed' || exec?.status === 'error' || exec?.status === 'running'
+    return {
+      isWorkflowColumn: true,
+      executionId: exec?.executionId ?? null,
+      hasStartedRun,
+    }
   }, [contextMenu.row, contextMenu.columnName])
   const contextMenuExecutionId = contextMenuColumnInfo.executionId
   const contextMenuIsWorkflowColumn = contextMenuColumnInfo.isWorkflowColumn
+  const contextMenuHasStartedRun = contextMenuColumnInfo.hasStartedRun
 
   const handleViewExecution = useCallback(() => {
     if (!contextMenuExecutionId) return
-    setConfigState(null)
-    setExecutionDetailsId(contextMenuExecutionId)
+    onOpenExecutionDetails(contextMenuExecutionId)
     closeContextMenu()
-  }, [contextMenuExecutionId, closeContextMenu])
+  }, [contextMenuExecutionId, onOpenExecutionDetails, closeContextMenu])
 
   const handleDuplicateRow = useCallback(() => {
     const contextRow = contextMenu.row
@@ -764,6 +878,20 @@ export function Table({
     lastCheckboxRowRef.current = null
   }, [])
 
+  // Populate the wrapper's after-delete sink so the row-delete modal can run
+  // grid cleanup (push undo + clear selection) once its mutation succeeds.
+  afterDeleteRowsSinkRef.current = (snapshots: DeletedRowSnapshot[]) => {
+    pushUndoRef.current({ type: 'delete-rows', rows: snapshots })
+    handleClearSelection()
+  }
+
+  // Populate the wrapper's table-rename undo sink. The wrapper's <ResourceHeader>
+  // breadcrumb rename calls back here so the rename is part of the grid's undo
+  // stack (Cmd-Z restores the previous name).
+  pushTableRenameUndoSinkRef.current = (previousName: string, newName: string) => {
+    pushUndoRef.current({ type: 'rename-table', tableId, previousName, newName })
+  }
+
   const handleColumnSelect = useCallback((colIndex: number, shiftKey: boolean) => {
     const lastRow = rowsRef.current.length - 1
     if (lastRow < 0) return
@@ -900,19 +1028,29 @@ export function Table({
   }, [])
 
   const handleColumnDragOver = useCallback((columnName: string, side: 'left' | 'right') => {
+    const dragged = dragColumnNameRef.current
+    const cols = schemaColumnsRef.current
+    const targetCol = cols.find((c) => c.name === columnName)
+    const targetGid = targetCol?.workflowGroupId
+
     // Suppress drop targeting while hovering siblings of the dragged column's
     // own group: reordering inside a group is meaningless (the group renders
     // as a unit) and the chasing indicator just flickers.
-    const dragged = dragColumnNameRef.current
     if (dragged) {
-      const cols = schemaColumnsRef.current
       const draggedGid = cols.find((c) => c.name === dragged)?.workflowGroupId
-      const targetGid = cols.find((c) => c.name === columnName)?.workflowGroupId
       if (draggedGid && draggedGid === targetGid) {
         if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
         return
       }
     }
+
+    // Workflow groups: skip per-`<th>` writes and let `handleScrollDragOver`
+    // do the bookkeeping. The scroll handler computes side from the group's
+    // full bounds, so it stays stable across sibling cursor moves; the per-th
+    // events would otherwise oscillate name + side as the cursor crosses each
+    // sibling's midpoint.
+    if (targetGid) return
+
     if (columnName === dropTargetColumnNameRef.current && side === dropSideRef.current) return
     setDropTargetColumnName(columnName)
     setDropSide(side)
@@ -931,7 +1069,15 @@ export function Table({
     const side = dropSideRef.current
     if (target && dragged !== target) {
       const schemaCols = schemaColumnsRef.current
-      const currentOrder = columnOrderRef.current ?? schemaCols.map((c) => c.name)
+      // `columnOrder` is the user-edited persisted order. Tables created
+      // before the server kept it in sync with `addColumn` may have entries
+      // missing — append any unknown schema names so the dragged column is
+      // always indexable. The next reorder write persists the reconciled
+      // list, healing the table going forward.
+      const persisted = columnOrderRef.current ?? schemaCols.map((c) => c.name)
+      const known = new Set(persisted)
+      const missing = schemaCols.map((c) => c.name).filter((n) => !known.has(n))
+      const currentOrder = missing.length > 0 ? [...persisted, ...missing] : persisted
 
       // Group-aware reorder: a workflow group's outputs must stay contiguous in
       // the persisted column order (`workflow-columns.ts` validates this on
@@ -1055,7 +1201,7 @@ export function Table({
 
     const cols = columnsRef.current
     const draggedGid = cols.find((c) => c.name === dragColumnNameRef.current)?.workflowGroupId
-    let left = CHECKBOX_COL_WIDTH
+    let left = checkboxColWidth
     let i = 0
     while (i < cols.length) {
       const col = cols[i]
@@ -1115,7 +1261,7 @@ export function Table({
   }, [tableData?.id])
 
   useEffect(() => {
-    if (!tableData?.metadata || metadataSeededRef.current) return
+    if (!tableData?.metadata) return
     if (!tableData.metadata.columnWidths && !tableData.metadata.columnOrder) return
     // First load: seed both from the server and remember we've seeded.
     if (!metadataSeededRef.current) {
@@ -1163,6 +1309,87 @@ export function Table({
     }
     document.addEventListener('mouseup', handleMouseUp)
     return () => document.removeEventListener('mouseup', handleMouseUp)
+  }, [])
+
+  /**
+   * Auto-scroll the table while a cell-drag selection is in progress and the
+   * cursor enters a "hot zone" near the top or bottom of the scroll
+   * container. Scroll velocity ramps with proximity to the edge (max ~14px /
+   * frame at the very edge). The horizontal axis is intentionally left out:
+   * the fixed sticky checkbox column makes left-edge hot zones awkward and
+   * the table is rarely wider than the viewport in practice.
+   */
+  useEffect(() => {
+    const HOT_ZONE_PX = 48
+    const MAX_VELOCITY_PX = 14
+    let pointerX: number | null = null
+    let pointerY: number | null = null
+    let rafId: number | null = null
+
+    /**
+     * After auto-scroll moves the table under the cursor, no `mouseenter`
+     * fires on newly-revealed cells, so the selection focus would stay stuck
+     * on whatever cell was under the cursor when the cursor stopped moving.
+     * Manually re-pick the cell under the (unchanged) cursor coords and feed
+     * its row/col into the selection so the highlight expands as we scroll.
+     */
+    const updateFocusUnderCursor = () => {
+      if (pointerX === null || pointerY === null) return
+      const target = document.elementFromPoint(pointerX, pointerY)
+      if (!target) return
+      const td = (target as HTMLElement).closest('td[data-row][data-col]') as HTMLElement | null
+      if (!td) return
+      const rowIndex = Number.parseInt(td.getAttribute('data-row') ?? '', 10)
+      const colIndex = Number.parseInt(td.getAttribute('data-col') ?? '', 10)
+      if (Number.isNaN(rowIndex) || Number.isNaN(colIndex)) return
+      setSelectionFocus({ rowIndex, colIndex })
+    }
+
+    const tick = () => {
+      rafId = null
+      const el = scrollRef.current
+      if (!isDraggingRef.current || !el || pointerY === null) return
+      const rect = el.getBoundingClientRect()
+      const distFromTop = pointerY - rect.top
+      const distFromBottom = rect.bottom - pointerY
+      let dy = 0
+      if (distFromTop < HOT_ZONE_PX) {
+        const intensity = 1 - Math.max(0, distFromTop) / HOT_ZONE_PX
+        dy = -Math.ceil(intensity * MAX_VELOCITY_PX)
+      } else if (distFromBottom < HOT_ZONE_PX) {
+        const intensity = 1 - Math.max(0, distFromBottom) / HOT_ZONE_PX
+        dy = Math.ceil(intensity * MAX_VELOCITY_PX)
+      }
+      if (dy !== 0) {
+        el.scrollTop += dy
+        updateFocusUnderCursor()
+        rafId = requestAnimationFrame(tick)
+      }
+    }
+
+    const handleMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return
+      pointerX = e.clientX
+      pointerY = e.clientY
+      if (rafId === null) rafId = requestAnimationFrame(tick)
+    }
+
+    const handleStop = () => {
+      pointerX = null
+      pointerY = null
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
+    }
+
+    document.addEventListener('mousemove', handleMove)
+    document.addEventListener('mouseup', handleStop)
+    return () => {
+      document.removeEventListener('mousemove', handleMove)
+      document.removeEventListener('mouseup', handleStop)
+      handleStop()
+    }
   }, [])
 
   useEffect(() => {
@@ -1270,6 +1497,19 @@ export function Table({
 
       const rowArrayIndex = rowsRef.current.findIndex((r) => r.id === rowId)
       const row = rowArrayIndex !== -1 ? rowsRef.current[rowArrayIndex] : null
+
+      // Workflow-output cell with no value (status pill showing) → enter edit
+      // mode with a blank input so the user can write a value over the status.
+      // Escape cancels without persisting.
+      if (column?.workflowGroupId && row && canEditRef.current) {
+        const cellValue = row.data[columnName]
+        if (cellValue === null || cellValue === undefined || cellValue === '') {
+          setEditingCell({ rowId, columnName })
+          setInitialCharacter('')
+          return
+        }
+      }
+
       const colIndex = columnsRef.current.findIndex((c) => c.key === columnKey)
       let overflows = true
       if (row && colIndex !== -1) {
@@ -1497,7 +1737,7 @@ export function Table({
         e.preventDefault()
         const row = currentRows[anchor.rowIndex]
         if (row) {
-          setEditingRow(row)
+          onOpenRowModalRef.current(row)
         }
         return
       }
@@ -1992,25 +2232,10 @@ export function Table({
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
-  const generateColumnName = useCallback(() => {
-    const existing = schemaColumnsRef.current.map((c) => c.name.toLowerCase())
-    let name = 'untitled'
-    let i = 2
-    while (existing.includes(name.toLowerCase())) {
-      name = `untitled_${i}`
-      i++
-    }
-    return name
-  }, [])
-
-  const handleAddColumn = useCallback(() => {
-    // Open the sidebar in `'create'` mode — nothing is persisted until the
-    // user fills in name/type and hits Save. The sidebar's save flow handles
-    // both scalar (`addColumn`) and workflow-group (`addWorkflowGroup`) paths.
-    const name = generateColumnName()
-    setExecutionDetailsId(null)
-    setConfigState({ mode: 'create', columnName: name, proposedName: name })
-  }, [generateColumnName])
+  const generateColumnName = useCallback(
+    () => sharedGenerateColumnName(schemaColumnsRef.current),
+    []
+  )
 
   const handleChangeType = useCallback((columnName: string, newType: ColumnDefinition['type']) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
@@ -2090,33 +2315,40 @@ export function Table({
   )
 
   /**
-   * Config state for the side panel:
-   * - `null` → closed.
-   * - `{ mode: 'edit' }` → configuring an existing column (any type).
-   * - `{ mode: 'new' }` → user changed an existing column to workflow; not persisted until Save.
-   * - `{ mode: 'create' }` → user picked a workflow from "Add column"; column doesn't exist yet,
-   *   created on Save in a single POST.
+   * Open the column-config sidebar pre-seeded with the chosen scalar type.
+   * Nothing is persisted until the user fills in the name and hits Save.
    */
-  const [configState, setConfigState] = useState<ColumnConfigState>(null)
-  /** Execution id whose run details are open in the slideout. */
-  const [executionDetailsId, setExecutionDetailsId] = useState<string | null>(null)
-  /**
-   * Right padding added to the table's scroll content while a slideout panel
-   * is open, equal to the panel's width. Without it, the rightmost columns are
-   * clipped under the panel and there's no way to scroll them into view.
-   * The two panels are mutually exclusive (each opener closes the other).
-   */
-  const logPanelWidth = useLogDetailsUIStore((state) => state.panelWidth)
-  const sidebarReservedWidth = configState
-    ? COLUMN_SIDEBAR_WIDTH_CSS
-    : executionDetailsId
-      ? `${logPanelWidth}px`
-      : '0px'
+  const handleAddColumnOfType = useCallback(
+    (type: ColumnDefinition['type']) => {
+      onOpenColumnConfig({ mode: 'create', proposedName: generateColumnName(), type })
+    },
+    [generateColumnName, onOpenColumnConfig]
+  )
 
-  const handleConfigureColumn = useCallback((columnName: string) => {
-    setExecutionDetailsId(null)
-    setConfigState({ mode: 'edit', columnName })
-  }, [])
+  /** Open the workflow-config sidebar to spawn a brand-new workflow group. */
+  const handleAddWorkflowColumn = useCallback(() => {
+    onOpenWorkflowConfig({ mode: 'create', proposedName: generateColumnName() })
+  }, [generateColumnName, onOpenWorkflowConfig])
+
+  const handleConfigureColumn = useCallback(
+    (columnName: string) => {
+      const column = columnsRef.current.find((c) => c.name === columnName)
+      if (column?.workflowGroupId) {
+        // Workflow-output column header → single-output sub-mode.
+        onOpenWorkflowConfig({ mode: 'edit-output', columnName })
+      } else {
+        onOpenColumnConfig({ mode: 'edit', columnName })
+      }
+    },
+    [onOpenColumnConfig, onOpenWorkflowConfig]
+  )
+
+  const handleConfigureWorkflowGroup = useCallback(
+    (groupId: string) => {
+      onOpenWorkflowConfig({ mode: 'edit-group', groupId })
+    },
+    [onOpenWorkflowConfig]
+  )
 
   const handleDeleteWorkflowGroup = useCallback(
     (groupId: string) => {
@@ -2194,15 +2426,17 @@ export function Table({
       // group with ≥1 output, hide them directly — no destructive-confirm
       // modal, since the workflow can re-produce the value any time.
       if (hideWorkflowOutputColumns(names)) return
-      setDeletingColumns(names)
+      onRequestDeleteColumns(names)
     },
-    [resolveDeletionNames, hideWorkflowOutputColumns]
+    [resolveDeletionNames, hideWorkflowOutputColumns, onRequestDeleteColumns]
   )
 
-  const handleDeleteColumnConfirm = useCallback(() => {
-    if (!deletingColumns || deletingColumns.length === 0) return
-    const columnsToDelete = [...deletingColumns]
-    setDeletingColumns(null)
+  // Populated as a sink so the wrapper's delete-columns modal can run the
+  // full cascade (per-column mutation + undo + columnOrder/columnWidths
+  // cleanup) without lifting any of that grid-internal state.
+  confirmDeleteColumnsSinkRef.current = (names: string[]) => {
+    if (!names || names.length === 0) return
+    const columnsToDelete = [...names]
 
     let currentOrder = columnOrderRef.current ? [...columnOrderRef.current] : null
     const cols = schemaColumnsRef.current
@@ -2294,190 +2528,62 @@ export function Table({
     setSelectionFocus(null)
     setIsColumnSelection(false)
     deleteNext(0)
-  }, [deletingColumns])
+  }
 
-  const handleSortChange = useCallback((column: string, direction: SortDirection) => {
-    setQueryOptions((prev) => ({ ...prev, sort: { [column]: direction } }))
-  }, [])
-
-  const handleSortClear = useCallback(() => {
-    setQueryOptions((prev) => ({ ...prev, sort: null }))
-  }, [])
-
-  const handleFilterApply = useCallback((filter: Filter | null) => {
-    setQueryOptions((prev) => ({ ...prev, filter }))
-  }, [])
-
-  const [filterOpen, setFilterOpen] = useState(false)
-
-  const handleFilterToggle = useCallback(() => {
-    setFilterOpen((prev) => !prev)
-  }, [])
-
-  const handleFilterClose = useCallback(() => {
-    setFilterOpen(false)
-  }, [])
-
-  const columnOptions = useMemo<ColumnOption[]>(
-    () =>
-      displayColumns.map((col) => ({
-        id: col.name,
-        label: col.name,
-        type: col.type,
-        icon: COLUMN_TYPE_ICONS[col.type],
-      })),
-    [displayColumns]
-  )
-
-  const tableDataRef = useRef(tableData)
-  tableDataRef.current = tableData
-
-  const handleStartTableRename = useCallback(() => {
-    const data = tableDataRef.current
-    if (data) tableHeaderRename.startRename(tableId, data.name)
-  }, [tableHeaderRename.startRename, tableId])
-
-  const handleShowDeleteTableConfirm = useCallback(() => {
-    setShowDeleteTableConfirm(true)
-  }, [])
-
-  const hasTableData = !!tableData
-
-  const breadcrumbs = useMemo(
-    () => [
-      { label: 'Tables', onClick: handleNavigateBack },
-      {
-        label: tableData?.name ?? '',
-        editing: tableHeaderRename.editingId
-          ? {
-              isEditing: true,
-              value: tableHeaderRename.editValue,
-              onChange: tableHeaderRename.setEditValue,
-              onSubmit: tableHeaderRename.submitRename,
-              onCancel: tableHeaderRename.cancelRename,
-            }
-          : undefined,
-        dropdownItems: [
-          {
-            label: 'Rename',
-            icon: Pencil,
-            disabled: !hasTableData,
-            onClick: handleStartTableRename,
-          },
-          {
-            label: 'Delete',
-            icon: Trash,
-            disabled: !hasTableData,
-            onClick: handleShowDeleteTableConfirm,
-          },
-        ],
-      },
-    ],
-    [
-      handleNavigateBack,
-      tableData?.name,
-      tableHeaderRename.editingId,
-      tableHeaderRename.editValue,
-      tableHeaderRename.setEditValue,
-      tableHeaderRename.submitRename,
-      tableHeaderRename.cancelRename,
-      hasTableData,
-      handleStartTableRename,
-      handleShowDeleteTableConfirm,
-    ]
-  )
-
-  const createTrigger = useMemo(
-    () =>
-      userPermissions.canEdit ? (
-        <HeaderAddColumnTrigger onClick={handleAddColumn} disabled={addColumnMutation.isPending} />
-      ) : null,
-    [handleAddColumn, addColumnMutation.isPending, userPermissions.canEdit]
-  )
-
-  const handleExportCsv = useCallback(async () => {
-    if (!tableData) return
-    try {
-      await downloadTableExport(tableData.id, tableData.name)
-    } catch (err) {
-      logger.error('Failed to export table:', err)
-      toast.error('Failed to export table')
-    }
-  }, [tableData])
-
-  const headerActions = useMemo(
-    () =>
-      tableData
-        ? [
-            {
-              label: 'Import CSV',
-              icon: Upload,
-              onClick: () => setIsImportCsvOpen(true),
-              disabled: userPermissions.canEdit !== true,
-            },
-            {
-              label: 'Export CSV',
-              icon: Download,
-              onClick: () => void handleExportCsv(),
-              disabled: tableData.rowCount === 0,
-            },
-          ]
-        : undefined,
-    [tableData, userPermissions.canEdit, handleExportCsv]
-  )
-
-  const activeSortState = useMemo(() => {
-    if (!queryOptions.sort) return null
-    const entries = Object.entries(queryOptions.sort)
-    if (entries.length === 0) return null
-    const [column, direction] = entries[0]
-    return { column, direction }
-  }, [queryOptions.sort])
-
-  const sortConfig = useMemo<SortConfig>(
-    () => ({
-      options: columnOptions,
-      active: activeSortState,
-      onSort: handleSortChange,
-      onClear: handleSortClear,
-    }),
-    [columnOptions, activeSortState, handleSortChange, handleSortClear]
-  )
-
-  const selectedRowCount = useMemo(() => {
-    const contextRow = contextMenu.isOpen ? contextMenu.row : null
-    if (!contextRow) return 1
-
-    if (rowSelection.kind === 'all') {
-      return rows.some((r) => r.id === contextRow.id) ? Math.max(rows.length, 1) : 1
-    }
-
-    if (rowSelection.kind === 'some' && rowSelection.ids.has(contextRow.id)) {
-      let count = 0
+  /**
+   * Row ids the context menu acts on. If the right-clicked row is part of the
+   * gutter row selection, the materialized selection; if it's inside the active
+   * range selection, the range; otherwise just the row itself. Used by both the
+   * count label and the multi-row "Run workflows" action.
+   */
+  const contextMenuRowIds = useMemo<string[]>(() => {
+    if (!contextMenu.isOpen || !contextMenu.row) return []
+    if (
+      !rowSelectionIsEmpty(rowSelection) &&
+      rowSelectionIncludes(rowSelection, contextMenu.row.id)
+    ) {
+      const ids: string[] = []
       for (const row of rows) {
-        if (rowSelection.ids.has(row.id)) count++
+        if (rowSelectionIncludes(rowSelection, row.id)) ids.push(row.id)
       }
-      return Math.max(count, 1)
+      return ids.length > 0 ? ids : [contextMenu.row.id]
     }
-
     const sel = normalizedSelection
-    if (!sel) return 1
-
-    const contextRowArrayIndex = rows.findIndex((r) => r.id === contextRow.id)
-    if (contextRowArrayIndex < sel.startRow || contextRowArrayIndex > sel.endRow) return 1
-
-    const start = Math.max(0, sel.startRow)
-    const end = Math.min(rows.length - 1, sel.endRow)
-    return Math.max(end - start + 1, 1)
+    if (sel) {
+      const contextRowArrayIndex = rows.findIndex((r) => r.id === contextMenu.row!.id)
+      const isInSelection =
+        contextRowArrayIndex >= sel.startRow && contextRowArrayIndex <= sel.endRow
+      if (isInSelection) {
+        const ids: string[] = []
+        const start = Math.max(0, sel.startRow)
+        const end = Math.min(rows.length - 1, sel.endRow)
+        for (let r = start; r <= end; r++) {
+          const row = rows[r]
+          if (row) ids.push(row.id)
+        }
+        return ids.length > 0 ? ids : [contextMenu.row.id]
+      }
+    }
+    return [contextMenu.row.id]
   }, [contextMenu.isOpen, contextMenu.row, rowSelection, normalizedSelection, rows])
+
+  const selectedRowCount = contextMenuRowIds.length || 1
 
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
-  const workflowColumnNames = useMemo(
-    () => columns.filter((c) => !!c.workflowGroupId).map((c) => c.name),
-    [columns]
-  )
-  const hasWorkflowColumns = workflowColumnNames.length > 0
+  /**
+   * Row ids for the current multi-row selection. Drives "Run N selected rows"
+   * in the workflow-group run menu — `null` when there's no multi-selection so
+   * the menu collapses to "Run all rows".
+   */
+  const selectedRowIds = useMemo<string[] | null>(() => {
+    if (rowSelectionIsEmpty(rowSelection)) return null
+    const ids: string[] = []
+    for (const row of rows) {
+      if (rowSelectionIncludes(rowSelection, row.id)) ids.push(row.id)
+    }
+    return ids.length > 0 ? ids : null
+  }, [rowSelection, rows])
 
   const { runningByRowId, totalRunning } = useMemo(() => {
     const byRow = new Map<string, number>()
@@ -2486,7 +2592,7 @@ export function Table({
       let count = 0
       const executions = row.executions ?? {}
       for (const gid in executions) {
-        if (executions[gid]?.status === 'running') count++
+        if (isExecInFlight(executions[gid])) count++
       }
       if (count > 0) {
         byRow.set(row.id, count)
@@ -2496,42 +2602,216 @@ export function Table({
     return { runningByRowId: byRow, totalRunning: total }
   }, [rows])
 
-  const cancelRunsMutate = cancelRunsMutation.mutate
+  // Context-menu wrappers: act on `contextMenuRowIds`, then close the menu.
+  // Mirror the action bar's Play / Refresh split: Play fills empty/failed,
+  // Refresh re-runs everything (including completed cells).
+  const handleRunWorkflowsOnSelection = () => {
+    onRunRows(contextMenuRowIds, 'incomplete')
+    closeContextMenu()
+  }
+  const handleRefreshWorkflowsOnSelection = () => {
+    onRunRows(contextMenuRowIds, 'all')
+    closeContextMenu()
+  }
+  const handleStopWorkflowsOnSelection = () => {
+    onStopRows(contextMenuRowIds)
+    closeContextMenu()
+  }
 
-  const handleStopAll = useCallback(() => {
-    if (totalRunning === 0) return
-    cancelRunsMutate({ scope: 'all' })
-  }, [totalRunning, cancelRunsMutate])
-
-  const handleStopRow = useCallback(
-    (rowId: string) => {
-      cancelRunsMutate({ scope: 'row', rowId })
-    },
-    [cancelRunsMutate]
+  // Total running/queued cells across the rows the context menu is acting on;
+  // drives the "Stop N running workflows" item, shown only when > 0.
+  const runningInContextSelection = contextMenuRowIds.reduce(
+    (total, rowId) => total + (runningByRowId.get(rowId) ?? 0),
+    0
   )
+
+  // Action-bar selection covers both gutter row-selection AND multi-row
+  // range selection (clicking + dragging across rows), matching how the
+  // right-click context menu treats them. Single-row range doesn't trigger
+  // the bar — only multi-row, since the per-row gutter button already covers
+  // that case. Gutter selection wins when both exist.
+  const actionBarRowIds = useMemo<string[]>(() => {
+    if (!rowSelectionIsEmpty(rowSelection)) {
+      const ids: string[] = []
+      for (const row of rows) {
+        if (rowSelectionIncludes(rowSelection, row.id)) ids.push(row.id)
+      }
+      return ids
+    }
+    const sel = normalizedSelection
+    if (sel && sel.endRow > sel.startRow) {
+      const ids: string[] = []
+      const start = Math.max(0, sel.startRow)
+      const end = Math.min(rows.length - 1, sel.endRow)
+      for (let r = start; r <= end; r++) {
+        const row = rows[r]
+        if (row) ids.push(row.id)
+      }
+      return ids
+    }
+    return []
+  }, [rowSelection, normalizedSelection, rows])
+  const runningInActionBarSelection = actionBarRowIds.reduce(
+    (total, rowId) => total + (runningByRowId.get(rowId) ?? 0),
+    0
+  )
+
+  /**
+   * Selection that resolves to exactly one workflow-group execution — same
+   * row, every highlighted column belonging to the same workflow group. Drives
+   * the action bar's per-execution mode (View execution / Run cell / Stop
+   * cell). Includes the single-cell case (1×1) and the "highlight a row's
+   * workflow outputs" case (1 row × N cols, all in one group). Null for
+   * multi-row selections, plain columns, or no selection.
+   */
+  const singleWorkflowCell = useMemo<SelectionSnapshot['singleWorkflowCell']>(() => {
+    const sel = normalizedSelection
+    if (!sel) return null
+    if (sel.startRow !== sel.endRow) return null
+    const row = rows[sel.startRow]
+    if (!row) return null
+    const firstCol = displayColumns[sel.startCol]
+    const groupId = firstCol?.workflowGroupId
+    if (!groupId) return null
+    // All columns in the highlight must be in the same workflow group, else
+    // we'd be straddling two executions.
+    for (let c = sel.startCol + 1; c <= sel.endCol; c++) {
+      if (displayColumns[c]?.workflowGroupId !== groupId) return null
+    }
+    const exec = row.executions?.[groupId]
+    const status = exec?.status
+    return {
+      rowId: row.id,
+      groupId,
+      executionId: exec?.executionId ?? null,
+      canViewExecution: status === 'completed' || status === 'error' || status === 'running',
+    }
+  }, [normalizedSelection, rows, displayColumns])
+
+  const tableWorkflowGroupIds = useMemo(
+    () => tableWorkflowGroups.map((g) => g.id),
+    [tableWorkflowGroups]
+  )
+
+  // Drives Run vs Refresh visibility on the context menu — same classifier
+  // the action bar uses, so both surfaces stay in sync.
+  const contextMenuStats = useMemo(
+    () => classifyExecStatusMix(rows, new Set(contextMenuRowIds), tableWorkflowGroupIds),
+    [contextMenuRowIds, rows, tableWorkflowGroupIds]
+  )
+
+  // Run scope is derived from one of two selection sources:
+  //   - rowSelection (gutter whole-row selection) → those rows × every workflow group
+  //   - normalizedSelection rectangle covering workflow-output columns →
+  //     rows in the rectangle × distinct workflow groups inside it
+  const selectedRunScope = useMemo<SelectionSnapshot['selectedRunScope']>(() => {
+    if (tableWorkflowGroupIds.length === 0) return null
+    if (!rowSelectionIsEmpty(rowSelection)) {
+      const rowIds: string[] = []
+      for (const row of rows) {
+        if (rowSelectionIncludes(rowSelection, row.id)) rowIds.push(row.id)
+      }
+      if (rowIds.length === 0) return null
+      return { groupIds: tableWorkflowGroupIds, rowIds }
+    }
+    const sel = normalizedSelection
+    if (!sel) return null
+    const groupIdsInRect = new Set<string>()
+    for (let c = Math.max(0, sel.startCol); c <= sel.endCol; c++) {
+      const gid = displayColumns[c]?.workflowGroupId
+      if (gid) groupIdsInRect.add(gid)
+    }
+    if (groupIdsInRect.size === 0) return null
+    const rowIds: string[] = []
+    const startRow = Math.max(0, sel.startRow)
+    const endRow = Math.min(rows.length - 1, sel.endRow)
+    for (let r = startRow; r <= endRow; r++) {
+      const row = rows[r]
+      if (row) rowIds.push(row.id)
+    }
+    if (rowIds.length === 0) return null
+    return { groupIds: [...groupIdsInRect], rowIds }
+  }, [rowSelection, normalizedSelection, rows, displayColumns, tableWorkflowGroupIds])
+
+  const selectionStats = useMemo<SelectionSnapshot['selectionStats']>(() => {
+    if (!selectedRunScope) {
+      return { hasIncompleteOrFailed: false, hasCompleted: false, hasInFlight: false }
+    }
+    return classifyExecStatusMix(rows, new Set(selectedRunScope.rowIds), selectedRunScope.groupIds)
+  }, [selectedRunScope, rows])
+
+  // Emit selection snapshots so the wrapper can render <TableActionBar>.
+  // The grid can't fold this into individual event handlers (running counts
+  // come from React Query refetches, not user events) so it's intentionally
+  // an effect — but we content-compare against the last sent snapshot so a
+  // re-render where nothing actually changed doesn't churn the wrapper.
+  const onSelectionChangeRef = useRef(onSelectionChange)
+  onSelectionChangeRef.current = onSelectionChange
+  const lastSelectionSnapshotRef = useRef<SelectionSnapshot | null>(null)
+  useEffect(() => {
+    const prev = lastSelectionSnapshotRef.current
+    const sameSingleCell =
+      (prev?.singleWorkflowCell ?? null) === null && singleWorkflowCell === null
+        ? true
+        : prev?.singleWorkflowCell &&
+          singleWorkflowCell &&
+          prev.singleWorkflowCell.rowId === singleWorkflowCell.rowId &&
+          prev.singleWorkflowCell.groupId === singleWorkflowCell.groupId &&
+          prev.singleWorkflowCell.executionId === singleWorkflowCell.executionId &&
+          prev.singleWorkflowCell.canViewExecution === singleWorkflowCell.canViewExecution
+    const sameRunScope =
+      (prev?.selectedRunScope ?? null) === null && selectedRunScope === null
+        ? true
+        : prev?.selectedRunScope &&
+          selectedRunScope &&
+          prev.selectedRunScope.groupIds.length === selectedRunScope.groupIds.length &&
+          prev.selectedRunScope.rowIds.length === selectedRunScope.rowIds.length &&
+          prev.selectedRunScope.groupIds.every((id, i) => id === selectedRunScope.groupIds[i]) &&
+          prev.selectedRunScope.rowIds.every((id, i) => id === selectedRunScope.rowIds[i])
+    const sameStats =
+      prev?.selectionStats &&
+      prev.selectionStats.hasIncompleteOrFailed === selectionStats.hasIncompleteOrFailed &&
+      prev.selectionStats.hasCompleted === selectionStats.hasCompleted &&
+      prev.selectionStats.hasInFlight === selectionStats.hasInFlight
+    if (
+      prev &&
+      sameSingleCell &&
+      sameRunScope &&
+      sameStats &&
+      prev.runningInActionBarSelection === runningInActionBarSelection &&
+      prev.totalRunning === totalRunning &&
+      prev.hasWorkflowColumns === hasWorkflowColumns &&
+      prev.actionBarRowIds.length === actionBarRowIds.length &&
+      prev.actionBarRowIds.every((id, i) => id === actionBarRowIds[i])
+    ) {
+      return
+    }
+    const next: SelectionSnapshot = {
+      actionBarRowIds,
+      runningInActionBarSelection,
+      totalRunning,
+      hasWorkflowColumns,
+      selectedRunScope,
+      selectionStats,
+      singleWorkflowCell,
+    }
+    lastSelectionSnapshotRef.current = next
+    onSelectionChangeRef.current(next)
+  }, [
+    actionBarRowIds,
+    runningInActionBarSelection,
+    totalRunning,
+    hasWorkflowColumns,
+    selectedRunScope,
+    selectionStats,
+    singleWorkflowCell,
+  ])
 
   const handleRunRow = useCallback(
     (rowId: string) => {
-      if (tableWorkflowGroups.length === 0) return
-      const target = rowsRef.current.find((r) => r.id === rowId)
-      if (!target) return
-      // Only fire groups whose deps are already satisfied for THIS row. The
-      // cascade picks up downstream groups: when an upstream group completes,
-      // `scheduleWorkflowGroupRuns` evaluates eligibility and enqueues the
-      // newly-ready successors automatically.
-      for (const group of tableWorkflowGroups) {
-        if (!areRowDepsSatisfied(group, target)) continue
-        void runWorkflowGroup({
-          tableId,
-          rowId,
-          workspaceId,
-          groupId: group.id,
-          workflowId: group.workflowId,
-          outputColumnNames: group.outputs.map((o) => o.columnName),
-        })
-      }
+      onRunRow(rowId)
     },
-    [runWorkflowGroup, tableId, workspaceId, tableWorkflowGroups]
+    [onRunRow]
   )
 
   if (!isLoadingTable && !tableData) {
@@ -2550,46 +2830,12 @@ export function Table({
 
   return (
     <div ref={containerRef} className='flex h-full flex-col overflow-hidden'>
-      {!embedded && (
-        <>
-          <ResourceHeader
-            icon={TableIcon}
-            breadcrumbs={breadcrumbs}
-            createTrigger={createTrigger}
-            actions={headerActions}
-            trailingActions={
-              totalRunning > 0 ? (
-                <RunStatusControl
-                  running={totalRunning}
-                  onStopAll={handleStopAll}
-                  isStopping={cancelRunsMutation.isPending}
-                />
-              ) : null
-            }
-          />
-
-          <ResourceOptionsBar
-            sort={sortConfig}
-            onFilterToggle={handleFilterToggle}
-            filterActive={filterOpen || !!queryOptions.filter}
-          />
-          {filterOpen && (
-            <TableFilter
-              columns={displayColumns}
-              filter={queryOptions.filter}
-              onApply={handleFilterApply}
-              onClose={handleFilterClose}
-            />
-          )}
-        </>
-      )}
-
       {embedded && totalRunning > 0 && (
         <div className='flex shrink-0 items-center justify-end border-[var(--border)] border-b px-3 py-1.5'>
           <RunStatusControl
             running={totalRunning}
-            onStopAll={handleStopAll}
-            isStopping={cancelRunsMutation.isPending}
+            onStopAll={onStopAll}
+            isStopping={cancelRunsPending}
           />
         </div>
       )}
@@ -2609,8 +2855,8 @@ export function Table({
           <div
             className='relative h-fit'
             style={{
-              width: `calc(${tableWidth}px + ${sidebarReservedWidth})`,
-              paddingRight: sidebarReservedWidth,
+              width: `calc(${tableWidth}px + ${sidebarReservedPx}px)`,
+              paddingRight: sidebarReservedPx,
             }}
           >
             <table
@@ -2619,14 +2865,18 @@ export function Table({
             >
               {isLoadingTable ? (
                 <colgroup>
-                  <col style={{ width: CHECKBOX_COL_WIDTH }} />
+                  <col style={{ width: checkboxColWidth }} />
                   {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
                     <col key={i} style={{ width: COL_WIDTH }} />
                   ))}
                   <col style={{ width: ADD_COL_WIDTH }} />
                 </colgroup>
               ) : (
-                <TableColGroup columns={displayColumns} columnWidths={columnWidths} />
+                <TableColGroup
+                  columns={displayColumns}
+                  columnWidths={columnWidths}
+                  checkboxColWidth={checkboxColWidth}
+                />
               )}
               <thead className='sticky top-0 z-10'>
                 {isLoadingTable ? (
@@ -2655,7 +2905,7 @@ export function Table({
                   <>
                     {hasWorkflowGroup && (
                       <tr>
-                        <th className='border-[var(--border)] border-b bg-[var(--bg)] px-1 py-[5px]' />
+                        <th className='sticky left-0 z-[12] border-[var(--border)] border-b bg-[var(--bg)] px-1 py-[5px]' />
                         {headerGroups.map((g) =>
                           g.kind === 'workflow' ? (
                             <WorkflowGroupMetaCell
@@ -2674,8 +2924,9 @@ export function Table({
                               }
                               groupId={g.groupId}
                               onSelectGroup={handleGroupSelect}
-                              onOpenConfig={handleConfigureColumn}
-                              onRunGroup={userPermissions.canEdit ? handleRunGroup : undefined}
+                              onOpenConfig={() => handleConfigureWorkflowGroup(g.groupId)}
+                              onRunColumn={userPermissions.canEdit ? handleRunColumn : undefined}
+                              selectedRowIds={selectedRowIds}
                               onInsertLeft={
                                 userPermissions.canEdit ? handleInsertColumnLeft : undefined
                               }
@@ -2687,6 +2938,18 @@ export function Table({
                               }
                               onDeleteGroup={
                                 userPermissions.canEdit ? handleDeleteWorkflowGroup : undefined
+                              }
+                              onViewWorkflow={handleViewWorkflow}
+                              readOnly={!userPermissions.canEdit}
+                              onDragStart={
+                                userPermissions.canEdit ? handleColumnDragStart : undefined
+                              }
+                              onDragOver={
+                                userPermissions.canEdit ? handleColumnDragOver : undefined
+                              }
+                              onDragEnd={userPermissions.canEdit ? handleColumnDragEnd : undefined}
+                              onDragLeave={
+                                userPermissions.canEdit ? handleColumnDragLeave : undefined
                               }
                             />
                           ) : (
@@ -2742,12 +3005,15 @@ export function Table({
                           workflowGroups={tableWorkflowGroups}
                           sourceInfo={columnSourceInfo.get(column.name)}
                           onOpenConfig={handleConfigureColumn}
+                          onViewWorkflow={handleViewWorkflow}
                         />
                       ))}
                       {userPermissions.canEdit && (
-                        <AddColumnButton
-                          onClick={handleAddColumn}
+                        <NewColumnDropdown
+                          trigger='inline-header'
                           disabled={addColumnMutation.isPending}
+                          onPickType={handleAddColumnOfType}
+                          onPickWorkflow={handleAddWorkflowColumn}
                         />
                       )}
                     </tr>
@@ -2787,9 +3053,10 @@ export function Table({
                         onRowToggle={handleRowToggle}
                         runningCount={runningByRowId.get(row.id) ?? 0}
                         hasWorkflowColumns={hasWorkflowColumns}
-                        onStopRow={handleStopRow}
+                        isLargeRowCountTable={isLargeRowCountTable}
+                        onStopRow={onStopRow}
                         onRunRow={handleRunRow}
-                        workflowNameById={workflowNameById}
+                        workflowGroups={tableWorkflowGroups}
                       />
                     ))}
                   </>
@@ -2822,54 +3089,7 @@ export function Table({
             <AddRowButton onClick={handleAppendRow} />
           )}
         </div>
-
-        <ColumnSidebar
-          configState={configState}
-          onClose={() => setConfigState(null)}
-          existingColumn={
-            configState?.mode === 'edit'
-              ? (columns.find((c) => c.name === configState.columnName) ?? null)
-              : null
-          }
-          allColumns={columns}
-          workflowGroups={tableWorkflowGroups}
-          workflows={workflows}
-          workspaceId={workspaceId}
-          tableId={tableId}
-        />
-
-        <ExecutionDetailsSidebar
-          workspaceId={workspaceId}
-          executionId={executionDetailsId}
-          onClose={() => setExecutionDetailsId(null)}
-        />
       </div>
-
-      {editingRow && tableData && (
-        <RowModal
-          mode='edit'
-          isOpen={true}
-          onClose={() => setEditingRow(null)}
-          table={tableData}
-          row={editingRow}
-          onSuccess={() => setEditingRow(null)}
-        />
-      )}
-
-      {deletingRows.length > 0 && tableData && (
-        <RowModal
-          mode='delete'
-          isOpen={true}
-          onClose={() => setDeletingRows([])}
-          table={tableData}
-          rowIds={deletingRows.map((r) => r.rowId)}
-          onSuccess={() => {
-            pushUndo({ type: 'delete-rows', rows: deletingRows })
-            setDeletingRows([])
-            handleClearSelection()
-          }}
-        />
-      )}
 
       <ContextMenu
         contextMenu={contextMenu}
@@ -2880,9 +3100,24 @@ export function Table({
         onInsertBelow={handleInsertRowBelow}
         onDuplicate={handleDuplicateRow}
         onViewExecution={handleViewExecution}
-        canViewExecution={Boolean(contextMenuExecutionId)}
+        canViewExecution={Boolean(contextMenuExecutionId) && contextMenuHasStartedRun}
         canEditCell={!contextMenuIsWorkflowColumn}
         selectedRowCount={selectedRowCount}
+        onRunWorkflows={
+          userPermissions.canEdit && hasWorkflowColumns && contextMenuStats.hasIncompleteOrFailed
+            ? handleRunWorkflowsOnSelection
+            : undefined
+        }
+        onRefreshWorkflows={
+          userPermissions.canEdit && hasWorkflowColumns && contextMenuStats.hasCompleted
+            ? handleRefreshWorkflowsOnSelection
+            : undefined
+        }
+        onStopWorkflows={
+          userPermissions.canEdit && hasWorkflowColumns ? handleStopWorkflowsOnSelection : undefined
+        }
+        runningInSelectionCount={runningInContextSelection}
+        hasWorkflowColumns={hasWorkflowColumns}
         disableEdit={!userPermissions.canEdit}
         disableInsert={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit}
@@ -2897,98 +3132,6 @@ export function Table({
         canEdit={userPermissions.canEdit}
         scrollContainer={scrollRef.current}
       />
-
-      {!embedded && (
-        <Modal open={showDeleteTableConfirm} onOpenChange={setShowDeleteTableConfirm}>
-          <ModalContent size='sm'>
-            <ModalHeader>Delete Table</ModalHeader>
-            <ModalBody>
-              <p className='text-[var(--text-secondary)]'>
-                Are you sure you want to delete{' '}
-                <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
-                <span className='text-[var(--text-error)]'>
-                  All {tableData?.rowCount ?? 0} rows will be removed.
-                </span>{' '}
-                You can restore it from Recently Deleted in Settings.
-              </p>
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                variant='default'
-                onClick={() => setShowDeleteTableConfirm(false)}
-                disabled={deleteTableMutation.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant='destructive'
-                onClick={handleDeleteTable}
-                disabled={deleteTableMutation.isPending}
-              >
-                {deleteTableMutation.isPending ? 'Deleting...' : 'Delete'}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-      )}
-
-      {tableData && (
-        <ImportCsvDialog
-          open={isImportCsvOpen}
-          onOpenChange={setIsImportCsvOpen}
-          workspaceId={workspaceId}
-          table={tableData}
-        />
-      )}
-
-      <Modal
-        open={deletingColumns !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeletingColumns(null)
-        }}
-      >
-        <ModalContent size='sm'>
-          <ModalHeader>
-            {deletingColumns && deletingColumns.length > 1
-              ? `Delete ${deletingColumns.length} Columns`
-              : 'Delete Column'}
-          </ModalHeader>
-          <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
-              {deletingColumns && deletingColumns.length > 1 ? (
-                <>
-                  Are you sure you want to delete{' '}
-                  <span className='font-medium text-[var(--text-primary)]'>
-                    {deletingColumns.length} columns
-                  </span>
-                  ?{' '}
-                </>
-              ) : (
-                <>
-                  Are you sure you want to delete{' '}
-                  <span className='font-medium text-[var(--text-primary)]'>
-                    {deletingColumns?.[0]}
-                  </span>
-                  ?{' '}
-                </>
-              )}
-              <span className='text-[var(--text-error)]'>
-                This will remove all data in{' '}
-                {deletingColumns && deletingColumns.length > 1 ? 'these columns' : 'this column'}.
-              </span>{' '}
-              You can undo this action.
-            </p>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setDeletingColumns(null)}>
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDeleteColumnConfirm}>
-              Delete
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
     </div>
   )
 }
@@ -2996,13 +3139,15 @@ export function Table({
 const TableColGroup = React.memo(function TableColGroup({
   columns,
   columnWidths,
+  checkboxColWidth,
 }: {
   columns: DisplayColumn[]
   columnWidths: Record<string, number>
+  checkboxColWidth: number
 }) {
   return (
     <colgroup>
-      <col style={{ width: CHECKBOX_COL_WIDTH }} />
+      <col style={{ width: checkboxColWidth }} />
       {columns.map((col) => (
         <col key={col.key} style={{ width: columnWidths[col.key] ?? COL_WIDTH }} />
       ))}
@@ -3033,10 +3178,15 @@ interface DataRowProps {
   runningCount: number
   /** Whether the table has at least one workflow column — controls whether a run/stop icon is rendered. */
   hasWorkflowColumns: boolean
+  /** True for tables sized for >9,999 rows; widens the row-number slot to fit 5–7 digit numbers. */
+  isLargeRowCountTable: boolean
   onStopRow: (rowId: string) => void
   onRunRow: (rowId: string) => void
-  /** Lookup from workflow id → human-readable name, used to label running cells. */
-  workflowNameById: Record<string, string>
+  /**
+   * The table's workflow groups, used to compute per-row "Waiting on …" labels
+   * for empty workflow-output cells whose group has unmet dependencies.
+   */
+  workflowGroups: WorkflowGroup[]
 }
 
 function cellRangeRowChanged(
@@ -3089,9 +3239,10 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.onRowToggle !== next.onRowToggle ||
     prev.runningCount !== next.runningCount ||
     prev.hasWorkflowColumns !== next.hasWorkflowColumns ||
+    prev.isLargeRowCountTable !== next.isLargeRowCountTable ||
     prev.onStopRow !== next.onStopRow ||
     prev.onRunRow !== next.onRunRow ||
-    prev.workflowNameById !== next.workflowNameById
+    prev.workflowGroups !== next.workflowGroups
   ) {
     return false
   }
@@ -3130,28 +3281,52 @@ const DataRow = React.memo(function DataRow({
   onRowToggle,
   runningCount,
   hasWorkflowColumns,
+  isLargeRowCountTable,
   onStopRow,
   onRunRow,
-  workflowNameById,
+  workflowGroups,
 }: DataRowProps) {
   const sel = normalizedSelection
+  /**
+   * Per-row "Waiting on …" labels keyed by group id. A group has labels iff
+   * at least one of its dependencies is unmet for this row — drives the
+   * "Waiting" pill rendered by `CellContent` for empty workflow-output cells.
+   * Computed once per render rather than per cell so all cells in a group
+   * share the same array reference.
+   */
+  const waitingByGroupId = React.useMemo(() => {
+    if (workflowGroups.length === 0) return null
+    const map = new Map<string, string[]>()
+    for (const group of workflowGroups) {
+      // autoRun=false groups never fire from the scheduler — there's nothing
+      // to wait on. The cell stays empty until the user clicks Run manually.
+      if (group.autoRun === false) continue
+      const unmet = getUnmetGroupDeps(group, row)
+      if (unmet.columns.length === 0) continue
+      map.set(group.id, unmet.columns)
+    }
+    return map
+  }, [workflowGroups, row])
   const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
   const isRowSelected = isRowChecked
 
   return (
     <tr onContextMenu={(e) => onContextMenu(e, row)}>
-      <td
-        className={cn(CELL_CHECKBOX, 'cursor-pointer')}
-        onMouseDown={(e) => {
-          if (e.button !== 0) return
-          onRowToggle(rowIndex, e.shiftKey)
-        }}
-      >
-        <div className='flex items-center justify-center gap-1'>
-          <div className='group/checkbox flex h-[20px] w-[24px] shrink-0 items-center justify-center'>
+      <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
+        <div className='flex items-center justify-between gap-1'>
+          <div
+            className={cn(
+              'group/checkbox flex h-[20px] shrink-0 items-center justify-end',
+              isLargeRowCountTable ? 'w-[40px]' : 'w-[20px]'
+            )}
+            onMouseDown={(e) => {
+              if (e.button !== 0) return
+              onRowToggle(rowIndex, e.shiftKey)
+            }}
+          >
             <span
               className={cn(
-                'text-[var(--text-tertiary)] text-xs tabular-nums',
+                'text-right text-[var(--text-tertiary)] text-xs tabular-nums',
                 isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
               )}
             >
@@ -3159,7 +3334,7 @@ const DataRow = React.memo(function DataRow({
             </span>
             <div
               className={cn(
-                'items-center justify-center',
+                'items-center justify-end',
                 isRowSelected ? 'flex' : 'hidden group-hover/checkbox:flex'
               )}
             >
@@ -3167,14 +3342,16 @@ const DataRow = React.memo(function DataRow({
             </div>
           </div>
           {hasWorkflowColumns && (
-            <button
+            <Button
               type='button'
+              variant='ghost'
+              size='sm'
               aria-label={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
               title={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
-              className='ml-auto flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded text-[var(--text-primary)] transition-colors hover-hover:bg-[var(--surface-2)]'
-              onMouseDown={(e) => {
-                e.stopPropagation()
-              }}
+              // mr-px keeps the hover bg off the cell's right border — without
+              // it the rounded-rect background paints over the divider line
+              // while the button is hovered.
+              className='mr-px h-[20px] w-[20px] shrink-0 px-0 py-0 text-[var(--text-primary)] hover-hover:bg-[var(--surface-2)]'
               onClick={() => {
                 if (runningCount > 0) {
                   onStopRow(row.id)
@@ -3188,7 +3365,7 @@ const DataRow = React.memo(function DataRow({
               ) : (
                 <PlayOutline className='h-[12px] w-[12px]' />
               )}
-            </button>
+            </Button>
           )}
         </div>
       </td>
@@ -3256,7 +3433,11 @@ const DataRow = React.memo(function DataRow({
                 initialCharacter={isEditing ? initialCharacter : undefined}
                 onSave={(value, reason) => onSave(row.id, column.name, value, reason)}
                 onCancel={onCancel}
-                workflowNameById={workflowNameById}
+                waitingOnLabels={
+                  column.workflowGroupId
+                    ? (waitingByGroupId?.get(column.workflowGroupId) ?? undefined)
+                    : undefined
+                }
               />
             </div>
           </td>
@@ -3298,41 +3479,6 @@ const TableBodySkeleton = React.memo(function TableBodySkeleton({
   )
 })
 
-interface RunStatusControlProps {
-  running: number
-  onStopAll: () => void
-  isStopping: boolean
-}
-
-/**
- * Run-status + Stop-all control rendered in the header's trailing actions row.
- * Matches the in-cell running indicator (`Loader` + tertiary text) for consistency.
- */
-const RunStatusControl = React.memo(function RunStatusControl({
-  running,
-  onStopAll,
-  isStopping,
-}: RunStatusControlProps) {
-  return (
-    <div className='flex items-center gap-1.5'>
-      <div className='flex items-center gap-1.5 px-1 text-[var(--text-tertiary)] text-caption'>
-        <Loader animate className='h-3.5 w-3.5 shrink-0' />
-        <span className='tabular-nums'>{running}</span>
-        <span>running</span>
-      </div>
-      <Button
-        variant='subtle'
-        className='px-2 py-1 text-caption'
-        onClick={onStopAll}
-        disabled={isStopping}
-      >
-        <Square className='mr-1.5 h-[14px] w-[14px] fill-current' />
-        Stop all
-      </Button>
-    </div>
-  )
-})
-
 const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
   checked,
   onCheckedChange,
@@ -3363,44 +3509,6 @@ const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
   )
 })
 
-const AddColumnButton = React.memo(function AddColumnButton({
-  onClick,
-  disabled,
-}: {
-  onClick: () => void
-  disabled: boolean
-}) {
-  return (
-    <th className={CELL_HEADER}>
-      <button
-        type='button'
-        className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
-        disabled={disabled}
-        onClick={onClick}
-      >
-        <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
-      </button>
-    </th>
-  )
-})
-
-const HEADER_ADD_COLUMN_ICON = <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
-
-function HeaderAddColumnTrigger({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
-  return (
-    <Button
-      variant='subtle'
-      className='px-2 py-1 text-caption'
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {HEADER_ADD_COLUMN_ICON}
-      New column
-    </Button>
-  )
-}
-
 const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: () => void }) {
   return (
     <div className='px-2 py-[7px]'>
@@ -3415,21 +3523,3 @@ const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: ()
     </div>
   )
 })
-
-/**
- * Reuses the logs page's `LogDetails` slideout inside the tables view so a user
- * can inspect a workflow run for a cell without leaving the table. The query is
- * keyed on `executionId` because that's what's stored on the cell.
- */
-function ExecutionDetailsSidebar({
-  workspaceId,
-  executionId,
-  onClose,
-}: {
-  workspaceId: string
-  executionId: string | null
-  onClose: () => void
-}) {
-  const { data: log } = useLogByExecutionId(workspaceId, executionId)
-  return <LogDetails log={log ?? null} isOpen={Boolean(executionId)} onClose={onClose} />
-}

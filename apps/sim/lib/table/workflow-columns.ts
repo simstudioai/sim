@@ -6,11 +6,13 @@
  */
 
 import { db } from '@sim/db'
-import { userTableRows } from '@sim/db/schema'
+import { pausedExecutions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { getJobQueue } from '@/lib/core/async-jobs/config'
+import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { buildCancelledExecution, writeWorkflowGroupState } from '@/lib/table/cell-write'
 import type {
   RowData,
@@ -24,70 +26,123 @@ import type {
 
 const logger = createLogger('WorkflowGroupScheduler')
 
-/**
- * Returns true when every dependency this group needs is filled. Plain
- * columns are filled when their value is non-empty; upstream groups are
- * filled when `executions[gid].status === 'completed'`. Used both by the
- * scheduler's eligibility check and by the manual "Run group" route, which
- * needs the same gate WITHOUT the in-flight / terminal-state check.
- */
-export function areGroupDepsSatisfied(group: WorkflowGroup, row: TableRow): boolean {
-  const deps = group.dependencies ?? {}
-  for (const colName of deps.columns ?? []) {
-    const value = row.data[colName]
-    if (value === null || value === undefined || value === '') return false
-  }
-  for (const gid of deps.workflowGroups ?? []) {
-    if (row.executions?.[gid]?.status !== 'completed') return false
-  }
-  return true
-}
+import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from './deps'
+
+export {
+  areGroupDepsSatisfied,
+  areOutputsFilled,
+  getUnmetGroupDeps,
+  isExecInFlight,
+  optimisticallyScheduleNewlyEligibleGroups,
+  type UnmetDeps,
+} from './deps'
 
 /**
- * Per-(row, group) eligibility: returns true if a cell job should be enqueued
- * for this pair right now. Skip when the group is in flight (`running`, or
- * `pending` with a `jobId` already stamped) or in a terminal state. Plain
- * `pending` without a jobId is the "ready to dispatch" state — the run route
- * sets it and the scheduler is what actually enqueues the job.
+ * Per-(row, group) eligibility for both the auto-fire reactor and manual
+ * runs. Manual runs bypass the `autoRun === false` skip, and additionally
+ * bypass the dep check for `autoRun === false` groups (those are user-model
+ * "no deps, manual only").
+ *
+ * "Completed" status is treated as stale when any output cell is empty — the
+ * cells win over the exec metadata, so deleting an output value re-arms the
+ * row for the cascade and for manual incomplete-mode runs.
  */
-export function isGroupEligible(group: WorkflowGroup, row: TableRow): boolean {
+/**
+ * Reason codes the eligibility predicate emits. Stable strings so the caller
+ * can aggregate skip reasons into one summary log per scheduler call instead
+ * of allocating a per-cell debug line.
+ */
+export type EligibilityReason =
+  | 'eligible'
+  | 'autoRun-off'
+  | 'in-flight'
+  | 'completed-on-auto'
+  | 'error-on-auto'
+  | 'completed-on-incomplete'
+  | 'manual-bypass'
+  | 'deps-unmet'
+
+export function classifyEligibility(
+  group: WorkflowGroup,
+  row: TableRow,
+  opts?: { isManualRun?: boolean; mode?: 'all' | 'incomplete' }
+): EligibilityReason {
+  const isManualRun = opts?.isManualRun ?? false
+  const mode = opts?.mode ?? 'all'
+
+  if (group.autoRun === false && !isManualRun) return 'autoRun-off'
+
   const exec = row.executions?.[group.id]
+  if (isExecInFlight(exec)) return 'in-flight'
   const status = exec?.status
-  if (
-    status === 'running' ||
-    status === 'completed' ||
-    status === 'error' ||
-    status === 'cancelled'
-  ) {
-    return false
-  }
-  if (status === 'pending' && exec?.jobId) {
-    return false
-  }
-  return areGroupDepsSatisfied(group, row)
+
+  const completedAndFilled = status === 'completed' && areOutputsFilled(group, row)
+  if (!isManualRun && completedAndFilled) return 'completed-on-auto'
+  // Auto-fire skips `error` to avoid infinite-retry loops on a deterministic
+  // failure. `cancelled` is left runnable — cancellation is user-initiated.
+  if (!isManualRun && status === 'error') return 'error-on-auto'
+  if (mode === 'incomplete' && completedAndFilled) return 'completed-on-incomplete'
+
+  if (isManualRun && group.autoRun === false) return 'manual-bypass'
+  return areGroupDepsSatisfied(group, row) ? 'eligible' : 'deps-unmet'
+}
+
+export function isGroupEligible(
+  group: WorkflowGroup,
+  row: TableRow,
+  opts?: { isManualRun?: boolean; mode?: 'all' | 'incomplete' }
+): boolean {
+  return classifyEligibility(group, row, opts) === 'eligible'
 }
 
 /**
- * Iterates workflow groups × rows and enqueues eligible cell jobs. Safe to
- * call after any row-write; errors are logged. Concurrency is bounded by the
- * trigger.dev queue (`concurrencyKey: tableId`), so this just enqueues.
+ * Shared options for the three `scheduleRuns*` entry points. `isManualRun`
+ * flips two gates in the eligibility predicate so a manual click can re-run
+ * terminal states and bypass the autoRun=false skip.
  */
-export async function scheduleWorkflowGroupRuns(
+export interface ScheduleOpts {
+  groupId?: string
+  groupIds?: string[]
+  isManualRun?: boolean
+  mode?: 'all' | 'incomplete'
+}
+
+/**
+ * Re-evaluate eligibility on these specific rows and enqueue runnable cells.
+ * The hot path: every row write (insert / update / cascade) calls this with the
+ * just-written row(s).
+ */
+export async function scheduleRunsForRows(
   table: TableDefinition,
-  rows: TableRow[]
-): Promise<void> {
+  rows: TableRow[],
+  opts?: ScheduleOpts
+): Promise<{ triggered: number }> {
   try {
-    const groups = table.schema.workflowGroups ?? []
-    if (groups.length === 0) return
-    if (rows.length === 0) return
+    const allGroups = table.schema.workflowGroups ?? []
+    if (allGroups.length === 0) return { triggered: 0 }
+    if (rows.length === 0) return { triggered: 0 }
+
+    const groupIdFilter = opts?.groupIds
+      ? new Set(opts.groupIds)
+      : opts?.groupId
+        ? new Set([opts.groupId])
+        : null
+    const groups = groupIdFilter ? allGroups.filter((g) => groupIdFilter.has(g.id)) : allGroups
+    if (groups.length === 0) return { triggered: 0 }
 
     const orderedRows = rows.length <= 1 ? rows : [...rows].sort((a, b) => a.position - b.position)
 
     const pendingRuns: RunGroupCellOptions[] = []
+    const reasonCounts: Partial<Record<EligibilityReason, number>> = {}
 
     for (const row of orderedRows) {
       for (const group of groups) {
-        if (!isGroupEligible(group, row)) continue
+        const reason = classifyEligibility(group, row, {
+          isManualRun: opts?.isManualRun,
+          mode: opts?.mode,
+        })
+        reasonCounts[reason] = (reasonCounts[reason] ?? 0) + 1
+        if (reason !== 'eligible') continue
         pendingRuns.push({
           tableId: table.id,
           tableName: table.name,
@@ -100,13 +155,122 @@ export async function scheduleWorkflowGroupRuns(
       }
     }
 
-    if (pendingRuns.length === 0) return
+    logger.debug(
+      `[Cascade] table=${table.id} rows=${rows.length} groups=${groups.length} manual=${opts?.isManualRun ?? false} mode=${opts?.mode ?? 'all'} reasons=${JSON.stringify(reasonCounts)}`
+    )
+
+    if (pendingRuns.length === 0) return { triggered: 0 }
 
     logger.info(`Scheduling ${pendingRuns.length} workflow group cell run(s) for table=${table.id}`)
 
-    await Promise.allSettled(pendingRuns.map((opts) => runWorkflowGroupCell(opts)))
+    const queue = await getJobQueue()
+    const { executeWorkflowGroupCellJob } = await import('@/background/workflow-column-execution')
+    const items = pendingRuns.map((runOpts) => ({
+      payload: runOpts,
+      options: {
+        metadata: {
+          workflowId: runOpts.workflowId,
+          workspaceId: runOpts.workspaceId,
+          correlation: {
+            executionId: runOpts.executionId,
+            requestId: `wfgrp-${runOpts.executionId}`,
+            source: 'workflow' as const,
+            workflowId: runOpts.workflowId,
+            triggerType: 'table',
+          },
+        },
+        concurrencyKey: runOpts.tableId,
+        concurrencyLimit: TABLE_CONCURRENCY_LIMIT,
+        tags: [`tableId:${runOpts.tableId}`, `rowId:${runOpts.rowId}`, `group:${runOpts.groupId}`],
+        runner: executeWorkflowGroupCellJob as EnqueueOptions['runner'],
+      },
+    }))
+
+    let jobIds: string[]
+    try {
+      jobIds = await queue.batchEnqueue('workflow-group-cell', items)
+    } catch (err) {
+      logger.error(`Batch enqueue failed for table=${table.id}:`, err)
+      await Promise.allSettled(
+        pendingRuns.map((runOpts) =>
+          writeWorkflowGroupState(runOpts, {
+            executionState: {
+              status: 'error',
+              executionId: runOpts.executionId,
+              jobId: null,
+              workflowId: runOpts.workflowId,
+              error: toError(err).message,
+            },
+          })
+        )
+      )
+      return { triggered: 0 }
+    }
+
+    // Stamp `queued` in chunks of `TABLE_CONCURRENCY_LIMIT`. Within a chunk we
+    // parallelize the writes (no ordering constraint); across chunks we await
+    // serially so trigger.dev still picks rows up in submission order — the
+    // concurrency cap means at most one chunk is in flight per table anyway.
+    for (let i = 0; i < pendingRuns.length; i += TABLE_CONCURRENCY_LIMIT) {
+      const chunk = pendingRuns.slice(i, i + TABLE_CONCURRENCY_LIMIT)
+      const ids = jobIds.slice(i, i + TABLE_CONCURRENCY_LIMIT)
+      await Promise.all(chunk.map((run, j) => stampQueuedOrCancel(queue, run, ids[j])))
+    }
+    return { triggered: pendingRuns.length }
   } catch (err) {
-    logger.error('scheduleWorkflowGroupRuns failed:', err)
+    logger.error('scheduleRunsForRows failed:', err)
+    return { triggered: 0 }
+  }
+}
+
+/**
+ * Re-evaluate eligibility on every row of the table. Used after schema changes
+ * (workflow group added, autoRun toggled on) where we don't have a list of
+ * just-written rows but need to fire any newly-eligible (row × group) pair.
+ */
+export async function scheduleRunsForTable(
+  table: TableDefinition,
+  opts?: ScheduleOpts
+): Promise<{ triggered: number }> {
+  const rows = await fetchAllRows(table.id)
+  return scheduleRunsForRows(table, rows, opts)
+}
+
+/**
+ * Re-evaluate eligibility on the rows with these ids. Sugar for callers that
+ * have row ids but not materialized rows.
+ */
+export async function scheduleRunsForRowIds(
+  table: TableDefinition,
+  rowIds: string[],
+  opts?: ScheduleOpts
+): Promise<{ triggered: number }> {
+  if (rowIds.length === 0) return { triggered: 0 }
+  const rows = await fetchRowsByIds(table.id, rowIds)
+  return scheduleRunsForRows(table, rows, opts)
+}
+
+async function fetchAllRows(tableId: string): Promise<TableRow[]> {
+  const records = await db.select().from(userTableRows).where(eq(userTableRows.tableId, tableId))
+  return records.map(toTableRow)
+}
+
+async function fetchRowsByIds(tableId: string, rowIds: string[]): Promise<TableRow[]> {
+  const records = await db
+    .select()
+    .from(userTableRows)
+    .where(and(eq(userTableRows.tableId, tableId), inArray(userTableRows.id, rowIds)))
+  return records.map(toTableRow)
+}
+
+function toTableRow(r: typeof userTableRows.$inferSelect): TableRow {
+  return {
+    id: r.id,
+    data: r.data as RowData,
+    executions: (r.executions as RowExecutions) ?? {},
+    position: r.position,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
   }
 }
 
@@ -120,127 +284,38 @@ interface RunGroupCellOptions {
   executionId: string
 }
 
-/**
- * Enqueues a workflow-group cell run as a `workflow-group-cell` async job
- * and writes `running` (with the returned `jobId`) onto the row's
- * `executions[groupId]`. The actual workflow execution and terminal write
- * happen inside the cell task body. Cancellation is authoritative via
- * `cancelWorkflowGroupRuns`.
- */
-export async function runWorkflowGroupCell(opts: RunGroupCellOptions): Promise<void> {
-  const { tableId, tableName, rowId, groupId, workflowId, workspaceId, executionId } = opts
+/** Per-table concurrency cap. Mirrors trigger.dev's `concurrencyLimit: 20`. */
+const TABLE_CONCURRENCY_LIMIT = 20
 
-  const { getJobQueue, shouldExecuteInline } = await import('@/lib/core/async-jobs/config')
-  const cellCtx = { tableId, rowId, workspaceId, groupId, executionId }
-
-  const taskPayload = {
-    tableId,
-    tableName,
-    rowId,
-    groupId,
-    workflowId,
-    workspaceId,
-    executionId,
-  }
-  let jobId: string
-  let queue: Awaited<ReturnType<typeof getJobQueue>>
-  try {
-    queue = await getJobQueue()
-    jobId = await queue.enqueue('workflow-group-cell', taskPayload, {
-      metadata: {
-        workflowId,
-        workspaceId,
-        correlation: {
-          executionId,
-          requestId: `wfgrp-${executionId}`,
-          source: 'workflow',
-          workflowId,
-          triggerType: 'table',
-        },
-      },
-      // Per-table sub-queue throttles cells within a table without blocking other tables.
-      concurrencyKey: tableId,
-      tags: [`tableId:${tableId}`, `rowId:${rowId}`, `group:${groupId}`],
-    })
-  } catch (err) {
-    const message = toError(err).message
-    logger.error(
-      `Failed to enqueue workflow-group-cell (table=${tableId} row=${rowId} group=${groupId}):`,
-      err
-    )
-    await writeWorkflowGroupState(cellCtx, {
-      executionState: {
-        status: 'error',
-        executionId,
-        jobId: null,
-        workflowId,
-        error: message,
-      },
-    })
-    return
-  }
-
-  // Single post-enqueue write: stamps `running` + jobId so the cancel API can
-  // reach this run from any pod. If cancel won the race the helper bails and
-  // we abort the just-enqueued job.
+async function stampQueuedOrCancel(
+  queue: Awaited<ReturnType<typeof getJobQueue>>,
+  opts: RunGroupCellOptions,
+  jobId: string
+): Promise<void> {
   let stampResult: 'wrote' | 'skipped' = 'wrote'
   try {
-    stampResult = await writeWorkflowGroupState(cellCtx, {
+    stampResult = await writeWorkflowGroupState(opts, {
       executionState: {
-        status: 'running',
-        executionId,
+        status: 'queued',
+        executionId: opts.executionId,
         jobId,
-        workflowId,
+        workflowId: opts.workflowId,
         error: null,
       },
     })
   } catch (err) {
     logger.error(
-      `Failed to persist jobId on group execution (table=${tableId} row=${rowId} group=${groupId}):`,
+      `Failed to stamp queued state (table=${opts.tableId} row=${opts.rowId} group=${opts.groupId}):`,
       err
     )
   }
+
   if (stampResult === 'skipped') {
     try {
       await queue.cancelJob(jobId)
     } catch (cancelErr) {
       logger.error(`Failed to cancel orphaned workflow-group-cell job (jobId=${jobId}):`, cancelErr)
     }
-    return
-  }
-
-  // Trigger.dev disabled — execute the task body inline (DB queue records
-  // rows but doesn't dispatch), mirroring `workflow-execution`.
-  if (shouldExecuteInline()) {
-    const { registerInlineAbort, unregisterInlineAbort } = await import(
-      '@/lib/core/async-jobs/inline-abort'
-    )
-    const abortController = new AbortController()
-    registerInlineAbort(jobId, abortController)
-
-    void (async () => {
-      try {
-        const { executeWorkflowGroupCellJob } = await import(
-          '@/background/workflow-column-execution'
-        )
-        await queue.startJob(jobId)
-        await executeWorkflowGroupCellJob(taskPayload, abortController.signal)
-        await queue.completeJob(jobId, null)
-      } catch (err) {
-        const message = toError(err).message
-        logger.error(
-          `Inline workflow-group-cell failed (jobId=${jobId} table=${tableId} row=${rowId} group=${groupId}):`,
-          err
-        )
-        try {
-          await queue.markJobFailed(jobId, message)
-        } catch (markErr) {
-          logger.error('Also failed to mark job as failed:', markErr)
-        }
-      } finally {
-        unregisterInlineAbort(jobId)
-      }
-    })()
   }
 }
 
@@ -295,9 +370,11 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
     let cancelledCount = 0
     for (const [gid, exec] of Object.entries(executions)) {
       if (!groupIds.has(gid)) continue
-      // `pending` covers the post-reset, pre-dispatch window — a stop click
-      // there must still stick once the scheduler picks the row up.
-      if (exec.status !== 'running' && exec.status !== 'pending') continue
+      // `pending` covers the post-reset, pre-dispatch window; `queued` covers
+      // the post-enqueue, pre-pickup window — a stop click in either state
+      // must still stick once the worker picks the row up.
+      if (exec.status !== 'running' && exec.status !== 'queued' && exec.status !== 'pending')
+        continue
       if (exec.jobId) jobIds.push(exec.jobId)
       executionsPatch[gid] = buildCancelledExecution(exec)
       cancelledCount++
@@ -318,6 +395,11 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
       )
     )
   )
+  // `skipScheduler: true` — we're tearing rows down, not waking them up. The
+  // auto-fire reactor would otherwise see independent (row, group) pairs whose
+  // deps are now satisfied (because the upstream group already wrote its
+  // output before the cancel) and re-enqueue them, which is exactly what the
+  // user clicked Stop to prevent.
   await Promise.allSettled(
     mutations.map((m) =>
       updateRow(
@@ -327,6 +409,7 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
           data: {},
           workspaceId: table.workspaceId,
           executionsPatch: m.executionsPatch,
+          skipScheduler: true,
         },
         table,
         `wfgrp-cancel-${m.rowId}`
@@ -340,49 +423,37 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
 }
 
 /**
- * Manually triggers a workflow group for every dep-satisfied row in a table.
- * `mode: 'all'` re-runs every eligible row; `mode: 'incomplete'` skips rows
- * whose group is already `completed`. When `rowIds` is provided, only those
- * rows are candidates — the same eligibility predicate still applies, so a
- * mid-run row or one with unmet deps is silently skipped. Eligible rows have
- * their output cells cleared and their `executions[groupId]` reset to
- * `pending`; the scheduler picks them up and enqueues per-cell jobs. Returns
- * the number of rows that were marked for re-run. Used by the
- * `groups/[groupId]/run` HTTP route and the Copilot/Mothership
- * `run_workflow_group` op so both share one eligibility predicate.
+ * Run a set of groups across the table or a row subset. Single canonical
+ * user-driven run op — every UI gesture (single cell, per-row Play, action-bar
+ * Play/Refresh, column-header menu) reduces to this. `mode: 'all'` re-runs
+ * completed cells; `mode: 'incomplete'` skips them. `groupIds` omitted = every
+ * workflow group on the table. `rowIds` omitted = every row.
  */
-export async function triggerWorkflowGroupRun(opts: {
+export async function runWorkflowColumn(opts: {
   tableId: string
-  groupId: string
   workspaceId: string
   mode: 'all' | 'incomplete'
   requestId: string
+  groupIds?: string[]
   rowIds?: string[]
 }): Promise<{ triggered: number }> {
-  const { tableId, groupId, workspaceId, mode, requestId, rowIds } = opts
+  const { tableId, workspaceId, mode, requestId, groupIds, rowIds } = opts
   const { getTableById, batchUpdateRows } = await import('./service')
   const table = await getTableById(tableId)
   if (!table) throw new Error('Table not found')
   if (table.workspaceId !== workspaceId) throw new Error('Invalid workspace ID')
 
-  const group = (table.schema.workflowGroups ?? []).find((g) => g.id === groupId)
-  if (!group) throw new Error('Workflow group not found')
+  const allGroups = table.schema.workflowGroups ?? []
+  const targetGroups = groupIds ? allGroups.filter((g) => groupIds.includes(g.id)) : allGroups
+  if (targetGroups.length === 0) return { triggered: 0 }
 
-  // Push the in-flight / terminal-state filters into SQL so we don't pull
-  // every row in the table into Node just to discard most of them. Dependency
-  // satisfaction is still checked in JS afterwards (it can span multiple
-  // columns and other groups' statuses, so it's awkward to express in JSONB).
-  const filters = [
-    eq(userTableRows.tableId, tableId),
-    eq(userTableRows.workspaceId, workspaceId),
-    sql`(executions->${groupId}->>'status') IS DISTINCT FROM 'running'`,
-    sql`((executions->${groupId}->>'status') IS DISTINCT FROM 'pending' OR (executions->${groupId}->>'jobId') IS NULL)`,
-  ]
+  logger.info(
+    `[Cascade] [${requestId}] manual run table=${tableId} groups=[${targetGroups.map((g) => g.id).join(',')}] rows=${rowIds ? `[${rowIds.join(',')}]` : 'all'} mode=${mode}`
+  )
+
+  const filters = [eq(userTableRows.tableId, tableId), eq(userTableRows.workspaceId, workspaceId)]
   if (rowIds && rowIds.length > 0) {
     filters.push(inArray(userTableRows.id, rowIds))
-  }
-  if (mode === 'incomplete') {
-    filters.push(sql`(executions->${groupId}->>'status') IS DISTINCT FROM 'completed'`)
   }
   const candidateRows = await db
     .select({
@@ -399,7 +470,15 @@ export async function triggerWorkflowGroupRun(opts: {
 
   if (candidateRows.length === 0) return { triggered: 0 }
 
-  const eligibleRows = candidateRows.filter((r) => {
+  // Per-row: collect eligible groups, build cleared data + executionsPatch.
+  type Update = {
+    rowId: string
+    data: RowData
+    executionsPatch: Record<string, null>
+  }
+  const updates: Update[] = []
+  const clearedRows: TableRow[] = []
+  for (const r of candidateRows) {
     const tableRow: TableRow = {
       id: r.id,
       data: r.data as RowData,
@@ -408,36 +487,64 @@ export async function triggerWorkflowGroupRun(opts: {
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     }
-    try {
-      return areGroupDepsSatisfied(group, tableRow)
-    } catch {
-      return false
+    const eligibleGroups = targetGroups.filter((g) =>
+      isGroupEligible(g, tableRow, { isManualRun: true, mode })
+    )
+    if (eligibleGroups.length === 0) continue
+
+    const clearedData: RowData = {}
+    const executionsPatch: Record<string, null> = {}
+    for (const g of eligibleGroups) {
+      for (const o of g.outputs) clearedData[o.columnName] = null
+      executionsPatch[g.id] = null
     }
+    updates.push({ rowId: r.id, data: clearedData, executionsPatch })
+
+    const remainingExec = { ...tableRow.executions }
+    for (const g of eligibleGroups) delete remainingExec[g.id]
+    clearedRows.push({
+      ...tableRow,
+      data: { ...tableRow.data, ...clearedData },
+      executions: remainingExec,
+    })
+  }
+
+  if (updates.length === 0) return { triggered: 0 }
+
+  // `skipScheduler: true` because we fire `scheduleRunsForRows` ourselves
+  // below with `isManualRun: true`. Without the skip, batchUpdateRows runs the
+  // auto-fire reactor first and any autoRun=true sibling group whose deps are
+  // satisfied would race the manual call.
+  await batchUpdateRows({ tableId, updates, workspaceId, skipScheduler: true }, table, requestId)
+
+  return scheduleRunsForRows(table, clearedRows, {
+    isManualRun: true,
+    groupIds: targetGroups.map((g) => g.id),
+    mode,
   })
-
-  if (eligibleRows.length === 0) return { triggered: 0 }
-
-  const clearedData = Object.fromEntries(group.outputs.map((o) => [o.columnName, null])) as RowData
-  const updates = eligibleRows.map((r) => {
-    const pendingExec: RowExecutionMetadata = {
-      status: 'pending',
-      executionId: generateId(),
-      jobId: null,
-      workflowId: group.workflowId,
-      error: null,
-    }
-    return {
-      rowId: r.id,
-      data: clearedData,
-      executionsPatch: { [groupId]: pendingExec },
-    }
-  })
-
-  const opResult = await batchUpdateRows({ tableId, updates, workspaceId }, table, requestId)
-  return { triggered: opResult.affectedCount }
 }
 
 // ───────────────────────────── Validation ─────────────────────────────
+
+/**
+/**
+ * Removes the given column names from a group's `dependencies.columns`. When
+ * the resulting list is empty, drops the `dependencies` field entirely so
+ * schema validation doesn't see an empty-deps object. Returns the same group
+ * reference when nothing changed.
+ */
+export function stripGroupDeps(group: WorkflowGroup, removed: ReadonlySet<string>): WorkflowGroup {
+  const cols = group.dependencies?.columns
+  if (!cols || cols.length === 0) return group
+  const filtered = cols.filter((d) => !removed.has(d))
+  if (filtered.length === cols.length) return group
+  return {
+    ...group,
+    ...(filtered.length > 0
+      ? { dependencies: { columns: filtered } }
+      : { dependencies: undefined }),
+  }
+}
 
 /**
  * Validates schema-level invariants. Run on every `addTableColumn`,
@@ -502,34 +609,27 @@ export function validateSchema(schema: TableSchema, columnOrder: string[] | unde
     }
   }
 
-  // Dependency integrity.
+  // Dependency integrity. Deps are columns only — workflow output columns are
+  // valid deps too (the upstream group fills them, downstream becomes eligible
+  // when filled). A group can't depend on its own outputs.
   for (const group of groups) {
-    const deps = group.dependencies ?? {}
-    for (const depCol of deps.columns ?? []) {
+    const ownOutputs = new Set(group.outputs.map((o) => o.columnName))
+    for (const depCol of group.dependencies?.columns ?? []) {
       const col = columnsByName.get(depCol)
       if (!col) {
         errors.push(`Group "${group.name ?? group.id}" depends on missing column "${depCol}".`)
         continue
       }
-      if (col.workflowGroupId) {
+      if (ownOutputs.has(depCol)) {
         errors.push(
-          `Group "${group.name ?? group.id}" depends on workflow-output column "${depCol}". Depend on the producing group instead.`
+          `Group "${group.name ?? group.id}" depends on its own output column "${depCol}".`
         )
-      }
-    }
-    for (const depGroup of deps.workflowGroups ?? []) {
-      if (!groupsById.has(depGroup)) {
-        errors.push(
-          `Group "${group.name ?? group.id}" depends on missing workflow group "${depGroup}".`
-        )
-      }
-      if (depGroup === group.id) {
-        errors.push(`Group "${group.name ?? group.id}" depends on itself.`)
       }
     }
   }
 
-  // Cycle detection on the group dependency graph.
+  // Cycle detection on the column-induced group graph. An edge A → B exists
+  // when B depends on a column that A produces.
   const cycle = findGroupCycle(groups)
   if (cycle) {
     errors.push(
@@ -549,11 +649,25 @@ export function validateSchema(schema: TableSchema, columnOrder: string[] | unde
   return errors
 }
 
-/** Returns the cycle as an ordered list of group ids, or null if acyclic. */
+/**
+ * Returns the cycle as an ordered list of group ids, or null if acyclic. Edges
+ * are induced by columns: an edge A → B exists iff B depends on a column that
+ * A produces.
+ */
 function findGroupCycle(groups: WorkflowGroup[]): string[] | null {
+  // Map each output column → the group that produces it.
+  const producerByColumn = new Map<string, string>()
+  for (const g of groups) {
+    for (const o of g.outputs) producerByColumn.set(o.columnName, g.id)
+  }
   const adjacency = new Map<string, string[]>()
   for (const g of groups) {
-    adjacency.set(g.id, g.dependencies?.workflowGroups ?? [])
+    const upstream = new Set<string>()
+    for (const depCol of g.dependencies?.columns ?? []) {
+      const producer = producerByColumn.get(depCol)
+      if (producer && producer !== g.id) upstream.add(producer)
+    }
+    adjacency.set(g.id, [...upstream])
   }
   const VISITING = 1
   const VISITED = 2
@@ -588,6 +702,75 @@ interface SplitGroupReport {
   groupId: string
   groupName: string
   actual: number[]
+}
+
+/**
+ * Cell context stored on `paused_executions.metadata` so the resume worker
+ * can route post-resume block outputs back to the same `(tableId, rowId,
+ * groupId)` cell — i.e., one logical cell execution across pause/resume
+ * cycles instead of two.
+ */
+export interface CellResumeContext {
+  tableId: string
+  tableName: string
+  rowId: string
+  groupId: string
+  workspaceId: string
+  workflowId: string
+}
+
+interface PausedMetadataPatch {
+  cellContext?: CellResumeContext
+  [key: string]: unknown
+}
+
+/**
+ * Stash the cell context on the matching `paused_executions` row. Called
+ * by the cell task right after it writes the `pending`/paused state. The
+ * pause record was written by `PauseResumeManager.persistPauseResult`
+ * before `executeWorkflow` returned, so the row exists.
+ */
+export async function stashCellContextForResume(
+  ctx: CellResumeContext & { executionId: string }
+): Promise<void> {
+  const { executionId, ...cellContext } = ctx
+  try {
+    const patch: PausedMetadataPatch = { cellContext }
+    await db
+      .update(pausedExecutions)
+      .set({
+        metadata: sql`coalesce(${pausedExecutions.metadata}, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb`,
+        updatedAt: new Date(),
+      })
+      .where(eq(pausedExecutions.executionId, executionId))
+  } catch (err) {
+    logger.error(
+      `Failed to stash cell context on paused_executions (executionId=${executionId}):`,
+      err
+    )
+  }
+}
+
+/**
+ * Returns the cell context for an execution if one was stashed at pause
+ * time. Used by the resume worker to know whether the workflow it's about
+ * to resume belongs to a table cell — and if so, where to write outputs.
+ */
+export async function findCellContextByExecutionId(
+  executionId: string
+): Promise<CellResumeContext | null> {
+  try {
+    const [row] = await db
+      .select({ metadata: pausedExecutions.metadata })
+      .from(pausedExecutions)
+      .where(eq(pausedExecutions.executionId, executionId))
+      .limit(1)
+    const meta = row?.metadata as PausedMetadataPatch | null
+    return meta?.cellContext ?? null
+  } catch (err) {
+    logger.error(`Failed to read cell context for executionId=${executionId}:`, err)
+    return null
+  }
 }
 
 /**

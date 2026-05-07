@@ -55,6 +55,25 @@ export async function writeWorkflowGroupState(
     return 'wrote'
   }
   const current = row.executions?.[groupId] as RowExecutionMetadata | undefined
+  // Stale-worker guard: only blocks writes FROM an old worker (status =
+  // running / completed / error / pending). A `queued` stamp is the scheduler
+  // claiming the cell for a brand-new run — the new executionId is supposed
+  // to overwrite whatever was there. Same for `cancelled` (authoritative).
+  // Without this carve-out, the new run's stamp gets rejected and the cell
+  // is stuck in its old state forever.
+  const isAuthoritativeNewStamp =
+    payload.executionState.status === 'queued' || payload.executionState.status === 'cancelled'
+  if (
+    !isAuthoritativeNewStamp &&
+    current &&
+    current.executionId &&
+    current.executionId !== executionId
+  ) {
+    logger.info(
+      `Skipping group write — stale worker (table=${tableId} row=${rowId} group=${groupId} mine=${executionId} active=${current.executionId})`
+    )
+    return 'skipped'
+  }
   if (
     current?.status === 'cancelled' &&
     current.executionId === executionId &&
@@ -66,11 +85,11 @@ export async function writeWorkflowGroupState(
     return 'skipped'
   }
   // Skip writing `cancelled` state with the guard — that's an authoritative
-  // write from `cancelWorkflowGroupRuns` and must always land. Cell-task
-  // writes (running/completed/error) get the SQL guard so an in-flight
-  // partial can't clobber a stop click that already committed.
-  const cancellationGuard =
-    payload.executionState.status === 'cancelled' ? undefined : { groupId, executionId }
+  // write from `cancelWorkflowGroupRuns` and must always land. New `queued`
+  // stamps from the scheduler also bypass — they ARE the new authority. Cell-
+  // task writes (running/completed/error) get the SQL guard so an in-flight
+  // partial can't clobber a stop click or a newer run that already committed.
+  const cancellationGuard = isAuthoritativeNewStamp ? undefined : { groupId, executionId }
   const result = await updateRow(
     {
       tableId,
@@ -90,6 +109,28 @@ export async function writeWorkflowGroupState(
     return 'skipped'
   }
   return 'wrote'
+}
+
+/**
+ * Flips `queued` → `running` to signal the cell task body has actually been
+ * picked up by a worker. The renderer uses the `queued` vs `running` distinction
+ * to label cells "Queued" vs "Waiting" (worker started, this block hasn't run
+ * yet) — without this marker we couldn't tell if a row was sitting in the
+ * trigger.dev queue or actively executing.
+ */
+export async function markWorkflowGroupPickedUp(
+  ctx: WriteWorkflowGroupContext,
+  prev: Pick<RowExecutionMetadata, 'workflowId' | 'jobId'>
+): Promise<'wrote' | 'skipped'> {
+  return writeWorkflowGroupState(ctx, {
+    executionState: {
+      status: 'running',
+      executionId: ctx.executionId,
+      jobId: prev.jobId,
+      workflowId: prev.workflowId,
+      error: null,
+    },
+  })
 }
 
 /** Builds the canonical `cancelled` execution state used by every cancel path.
