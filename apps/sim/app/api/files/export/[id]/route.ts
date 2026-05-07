@@ -88,6 +88,19 @@ export const GET = withRouteHandler(
 
     logger.info('Exporting markdown', { id, imageCount: imageIds.length })
 
+    if (imageIds.length === 0) {
+      const mdName = safeFilename(record.originalName)
+      const mdBytes = Buffer.from(mdContent, 'utf-8')
+      return new NextResponse(new Uint8Array(mdBytes), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${mdName}"`,
+          'Content-Length': String(mdBytes.length),
+        },
+      })
+    }
+
     const fetchResults = await Promise.allSettled(
       imageIds.map(async (imageId) => {
         const imgRecord = await getFileMetadataById(imageId)
@@ -120,19 +133,6 @@ export const GET = withRouteHandler(
       const filename = deduplicatedFilename(preferred, usedFilenames, imageId)
       usedFilenames.add(filename)
       assetMap.set(imageId, { filename, buffer })
-    }
-
-    if (imageIds.length === 0) {
-      const mdName = safeFilename(record.originalName)
-      const mdBytes = Buffer.from(mdContent, 'utf-8')
-      return new NextResponse(new Uint8Array(mdBytes), {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/markdown; charset=utf-8',
-          'Content-Disposition': `attachment; filename="${mdName}"`,
-          'Content-Length': String(mdBytes.length),
-        },
-      })
     }
 
     for (const [imageId, asset] of assetMap) {
