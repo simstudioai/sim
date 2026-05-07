@@ -4,7 +4,10 @@
  * can import it without pulling in `@sim/db` and other server-only deps.
  */
 
+import { createLogger } from '@sim/logger'
 import type { RowData, RowExecutionMetadata, RowExecutions, TableRow, WorkflowGroup } from './types'
+
+const logger = createLogger('OptimisticCascade')
 
 /**
  * True when the cell has a worker actively reserved — `queued` / `running`,
@@ -93,28 +96,38 @@ export function optimisticallyScheduleNewlyEligibleGroups(
 
   let next: RowExecutions | null = null
   for (const group of groups) {
-    // autoRun=false groups don't auto-fire on dep-fill — leave them empty.
-    if (group.autoRun === false) continue
-    if (!areGroupDepsSatisfied(group, afterRow)) continue
+    const tag = `[OptimisticCascade] row=${beforeRow.id} group=${group.id}`
+    if (group.autoRun === false) {
+      logger.debug(`${tag} → skip: autoRun=false`)
+      continue
+    }
+    if (!areGroupDepsSatisfied(group, afterRow)) {
+      logger.debug(`${tag} → skip: deps unmet on afterRow`)
+      continue
+    }
 
     const exec = beforeRow.executions?.[group.id]
-    // Don't overwrite an in-flight state.
-    if (exec?.status === 'queued' || exec?.status === 'running') continue
-    if (exec?.status === 'pending' && exec.jobId) continue
+    if (exec?.status === 'queued' || exec?.status === 'running') {
+      logger.debug(`${tag} → skip: already ${exec.status}`)
+      continue
+    }
+    if (exec?.status === 'pending' && exec.jobId) {
+      logger.debug(`${tag} → skip: pending+jobId (worker reserved)`)
+      continue
+    }
 
-    // "completed" with all outputs filled = genuinely done; don't re-fire.
-    // "completed" with any output cleared = stale; treat as never-run.
     const isStaleCompleted = exec?.status === 'completed' && !areOutputsFilled(group, afterRow)
-
-    // Whether this group could fire is the union of:
-    //   - dep-fill: deps were unmet before, now met (the classic cascade)
-    //   - output-cleared: user wiped a previously-completed output
-    //   - retry: prior run ended in error / cancelled
     const wasSatisfied = areGroupDepsSatisfied(group, beforeRow)
     const becameSatisfied = !wasSatisfied
     const isRetryable = exec?.status === 'cancelled' || exec?.status === 'error'
-    if (!becameSatisfied && !isStaleCompleted && !isRetryable && exec) continue
+    if (!becameSatisfied && !isStaleCompleted && !isRetryable && exec) {
+      logger.debug(`${tag} → skip: no fire reason (status=${exec?.status})`)
+      continue
+    }
 
+    logger.debug(
+      `${tag} → flip to pending (becameSatisfied=${becameSatisfied} stale=${isStaleCompleted} retry=${isRetryable})`
+    )
     if (next === null) next = { ...(beforeRow.executions ?? {}) }
     const pending: RowExecutionMetadata = {
       status: 'pending',

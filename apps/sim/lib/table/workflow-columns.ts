@@ -54,22 +54,45 @@ export function isGroupEligible(
 ): boolean {
   const isManualRun = opts?.isManualRun ?? false
   const mode = opts?.mode ?? 'all'
-  if (group.autoRun === false && !isManualRun) return false
+  const tag = `[Eligibility] row=${row.id} group=${group.id} manual=${isManualRun} mode=${mode}`
+
+  if (group.autoRun === false && !isManualRun) {
+    logger.debug(`${tag} → skip: autoRun=false on auto-fire`)
+    return false
+  }
 
   const exec = row.executions?.[group.id]
-  if (isExecInFlight(exec)) return false
+  if (isExecInFlight(exec)) {
+    logger.debug(`${tag} → skip: in-flight (status=${exec?.status})`)
+    return false
+  }
   const status = exec?.status
 
   const completedAndFilled = status === 'completed' && areOutputsFilled(group, row)
-  if (!isManualRun && completedAndFilled) return false
-  if (!isManualRun && (status === 'error' || status === 'cancelled')) return false
-  // `mode: 'incomplete'` (manual): re-runs only rows whose outputs are missing
-  // or whose last run failed. A genuinely completed cell (status + filled
-  // outputs) is skipped; error / cancelled remain runnable.
-  if (mode === 'incomplete' && completedAndFilled) return false
+  if (!isManualRun && completedAndFilled) {
+    logger.debug(`${tag} → skip: completed+filled on auto-fire`)
+    return false
+  }
+  // Auto-fire skips `error` to avoid infinite-retry loops on a deterministic
+  // failure. `cancelled` doesn't get the same treatment — cancellation is
+  // user-initiated, and once an upstream dep re-fires the cascade, the user
+  // almost certainly wants the chain to continue.
+  if (!isManualRun && status === 'error') {
+    logger.debug(`${tag} → skip: terminal status=error on auto-fire`)
+    return false
+  }
+  if (mode === 'incomplete' && completedAndFilled) {
+    logger.debug(`${tag} → skip: completed+filled on mode=incomplete`)
+    return false
+  }
 
-  if (isManualRun && group.autoRun === false) return true
-  return areGroupDepsSatisfied(group, row)
+  if (isManualRun && group.autoRun === false) {
+    logger.debug(`${tag} → eligible: manual on autoRun=false group (deps bypassed)`)
+    return true
+  }
+  const depsOk = areGroupDepsSatisfied(group, row)
+  logger.debug(`${tag} → ${depsOk ? 'eligible: deps satisfied' : 'skip: deps unmet'}`)
+  return depsOk
 }
 
 /**
@@ -106,6 +129,10 @@ export async function scheduleRunsForRows(
         : null
     const groups = groupIdFilter ? allGroups.filter((g) => groupIdFilter.has(g.id)) : allGroups
     if (groups.length === 0) return { triggered: 0 }
+
+    logger.debug(
+      `[Cascade] scheduleRunsForRows table=${table.id} rows=${rows.length} groups=${groups.length} manual=${opts?.isManualRun ?? false} mode=${opts?.mode ?? 'all'} scoped=${groupIdFilter ? 'yes' : 'no'}`
+    )
 
     const orderedRows = rows.length <= 1 ? rows : [...rows].sort((a, b) => a.position - b.position)
 
@@ -409,6 +436,10 @@ async function runWorkflowGroupsInternal(opts: {
   const allGroups = table.schema.workflowGroups ?? []
   const targetGroups = groupIds ? allGroups.filter((g) => groupIds.includes(g.id)) : allGroups
   if (targetGroups.length === 0) return { triggered: 0 }
+
+  logger.info(
+    `[Cascade] [${requestId}] runWorkflowColumn table=${tableId} groups=[${targetGroups.map((g) => g.id).join(',')}] rows=${rowIds ? `[${rowIds.join(',')}]` : 'all'} mode=${mode}`
+  )
 
   const filters = [eq(userTableRows.tableId, tableId), eq(userTableRows.workspaceId, workspaceId)]
   if (rowIds && rowIds.length > 0) {
