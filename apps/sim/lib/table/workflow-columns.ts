@@ -253,8 +253,8 @@ interface RunGroupCellOptions {
   executionId: string
 }
 
-/** Per-table concurrency cap. Mirrors trigger.dev's `concurrencyLimit: 10`. */
-const TABLE_CONCURRENCY_LIMIT = 10
+/** Per-table concurrency cap. Mirrors trigger.dev's `concurrencyLimit: 20`. */
+const TABLE_CONCURRENCY_LIMIT = 20
 
 async function stampQueuedOrCancel(
   queue: Awaited<ReturnType<typeof getJobQueue>>,
@@ -364,6 +364,11 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
       )
     )
   )
+  // `skipScheduler: true` — we're tearing rows down, not waking them up. The
+  // auto-fire reactor would otherwise see independent (row, group) pairs whose
+  // deps are now satisfied (because the upstream group already wrote its
+  // output before the cancel) and re-enqueue them, which is exactly what the
+  // user clicked Stop to prevent.
   await Promise.allSettled(
     mutations.map((m) =>
       updateRow(
@@ -373,6 +378,7 @@ export async function cancelWorkflowGroupRuns(tableId: string, rowId?: string): 
           data: {},
           workspaceId: table.workspaceId,
           executionsPatch: m.executionsPatch,
+          skipScheduler: true,
         },
         table,
         `wfgrp-cancel-${m.rowId}`
@@ -471,7 +477,11 @@ async function runWorkflowGroupsInternal(opts: {
 
   if (updates.length === 0) return { triggered: 0 }
 
-  await batchUpdateRows({ tableId, updates, workspaceId }, table, requestId)
+  // `skipScheduler: true` because we fire `scheduleRunsForRows` ourselves
+  // below with `isManualRun: true`. Without the skip, batchUpdateRows runs the
+  // auto-fire reactor first and any autoRun=true sibling group whose deps are
+  // satisfied would race the manual call.
+  await batchUpdateRows({ tableId, updates, workspaceId, skipScheduler: true }, table, requestId)
 
   return scheduleRunsForRows(table, clearedRows, { isManualRun: true })
 }

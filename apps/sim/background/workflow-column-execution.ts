@@ -353,10 +353,10 @@ export const workflowGroupCellTask = task({
   machine: 'medium-1x',
   retry: { maxAttempts: 1 },
   // Combined with `concurrencyKey: tableId`, caps each table's sub-queue to
-  // 10 in-flight cell jobs while letting different tables run in parallel.
+  // 20 in-flight cell jobs while letting different tables run in parallel.
   queue: {
     name: 'workflow-group-cell',
-    concurrencyLimit: 10,
+    concurrencyLimit: 20,
   },
   run: (payload: WorkflowGroupCellPayload, { signal }) =>
     executeWorkflowGroupCellJob(payload, signal),

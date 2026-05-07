@@ -12,7 +12,7 @@ import { userTableDefinitions, userTableRows, workflowExecutionLogs } from '@sim
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, count, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm'
+import { and, count, eq, gt, gte, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
@@ -1598,6 +1598,35 @@ function applyExecutionsPatch(
 }
 
 /**
+ * Builds a SQL expression that applies the given `executionsPatch` to the
+ * row's `executions` jsonb in-place — set keys for non-null values, delete
+ * keys for `null` values. Returns null when the patch is empty/missing.
+ *
+ * Why server-side: read-modify-write on the entire jsonb blob races between
+ * concurrent writers (e.g., a column edit and a manual-retry stamp), so the
+ * last writer wins for keys it didn't touch and clobbers other writers'
+ * exec updates. Patching keys at the SQL level keeps each writer's changes
+ * atomic per-key.
+ */
+function buildExecutionsSqlPatch(
+  patch: Record<string, RowExecutionMetadata | null> | undefined
+): SQL | null {
+  if (!patch) return null
+  const entries = Object.entries(patch)
+  if (entries.length === 0) return null
+
+  let expr: SQL = sql`coalesce(${userTableRows.executions}, '{}'::jsonb)`
+  for (const [gid, value] of entries) {
+    if (value === null) {
+      expr = sql`(${expr}) - ${gid}::text`
+    } else {
+      expr = sql`(${expr}) || jsonb_build_object(${gid}::text, ${JSON.stringify(value)}::jsonb)`
+    }
+  }
+  return expr
+}
+
+/**
  * Updates a single row.
  *
  * @param data - Update data
@@ -1653,26 +1682,46 @@ export async function updateRow(
   const now = new Date()
 
   // Cell-task partial writes pass `cancellationGuard` so the SQL update is a
-  // no-op when a stop click already wrote `cancelled` for this run between
-  // the in-process read and now. Without this, an in-flight `running`
-  // partial-write can land after `cancelled` and clobber it.
+  // no-op when (a) a stop click already wrote `cancelled` for this run, or
+  // (b) a newer run has taken over the cell with a different executionId. The
+  // worker is "this run's writes only land if this run is still the active
+  // run on the cell." Authoritative cancel writes from `cancelWorkflowGroupRuns`
+  // skip the guard entirely (they don't pass `cancellationGuard`).
+  //
+  // SQL-level for atomicity: an in-process read + update would race a
+  // concurrent stop or rerun. The two clauses are joined by AND because
+  // either failing means the worker is no longer authoritative.
   const guard = data.cancellationGuard
-  // The guard rejects writes only when the DB *already* shows
-  // `cancelled` + matching executionId. Wrap the JSON traversals in
-  // `IS DISTINCT FROM` so a missing `executions[groupId]` (NULL) cleanly
-  // evaluates as "different" — Postgres three-valued logic would otherwise
-  // make the whole expression NULL and the UPDATE would mistakenly become
-  // a no-op for any row that has no prior execution record.
   const whereClause = guard
     ? and(
         eq(userTableRows.id, data.rowId),
-        sql`(executions->${guard.groupId}->>'status' IS DISTINCT FROM 'cancelled' OR executions->${guard.groupId}->>'executionId' IS DISTINCT FROM ${guard.executionId})`
+        // Reject writes that would land on top of an already-`cancelled` state
+        // for this same run. Wrapped in IS DISTINCT FROM so a missing exec
+        // (NULL) cleanly evaluates as "different" rather than NULL-poisoning.
+        sql`(executions->${guard.groupId}->>'status' IS DISTINCT FROM 'cancelled' OR executions->${guard.groupId}->>'executionId' IS DISTINCT FROM ${guard.executionId})`,
+        // Reject writes from a stale worker — the cell's active run has moved
+        // on. `OR exec IS NULL` lets the worker land its first `running`
+        // stamp on a row that has no prior exec record (initial stamp from
+        // the scheduler may not have committed yet).
+        sql`(executions->${guard.groupId} IS NULL OR executions->${guard.groupId}->>'executionId' = ${guard.executionId})`
       )
     : eq(userTableRows.id, data.rowId)
 
+  // Apply the executions patch at the SQL level — we never overwrite the full
+  // executions blob, only the keys the caller explicitly patched. Without
+  // this, concurrent updateRow calls (e.g., a column edit and a manual
+  // retry's stamp) would each compute `mergedExecutions` from their own
+  // in-memory snapshot and the last writer wins, clobbering the other's
+  // exec keys. The data field still does last-writer-wins because that's
+  // the user's edit, but exec records are independently keyed by groupId.
+  const executionsExpr = buildExecutionsSqlPatch(data.executionsPatch)
   const updated = await db
     .update(userTableRows)
-    .set({ data: mergedData, executions: mergedExecutions, updatedAt: now })
+    .set({
+      data: mergedData,
+      ...(executionsExpr ? { executions: executionsExpr } : {}),
+      updatedAt: now,
+    })
     .where(whereClause)
     .returning({ id: userTableRows.id })
 
@@ -1710,7 +1759,7 @@ export async function updateRow(
   notifyTableRowUpdated(data.tableId, updatedRow)
   // Awaited (not `void`) so cell tasks dispatch their cascade before the
   // trigger.dev worker tears down on `run()` resolve.
-  await scheduleRunsForRows(table, [updatedRow])
+  if (!data.skipScheduler) await scheduleRunsForRows(table, [updatedRow])
 
   return updatedRow
 }
@@ -1928,6 +1977,7 @@ export async function batchUpdateRows(
     rowId: string
     mergedData: RowData
     mergedExecutions: RowExecutions
+    executionsPatch?: Record<string, RowExecutionMetadata | null>
   }> = []
   for (const update of data.updates) {
     const existing = existingMap.get(update.rowId)!
@@ -1944,7 +1994,12 @@ export async function batchUpdateRows(
       throw new Error(`Row ${update.rowId}: ${schemaValidation.errors.join(', ')}`)
     }
 
-    mergedUpdates.push({ rowId: update.rowId, mergedData: merged, mergedExecutions })
+    mergedUpdates.push({
+      rowId: update.rowId,
+      mergedData: merged,
+      mergedExecutions,
+      executionsPatch: update.executionsPatch,
+    })
   }
 
   const uniqueColumns = getUniqueColumns(table.schema)
@@ -1968,12 +2023,20 @@ export async function batchUpdateRows(
     await setTableTxTimeouts(trx, { statementMs: 60_000 })
     for (let i = 0; i < mergedUpdates.length; i += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
       const batch = mergedUpdates.slice(i, i + TABLE_LIMITS.UPDATE_BATCH_SIZE)
-      const updatePromises = batch.map(({ rowId, mergedData, mergedExecutions }) =>
-        trx
+      // Same as `updateRow`: patch executions at the SQL level when a patch
+      // is set, so concurrent writers don't clobber each other's keys via
+      // last-writer-wins on the full jsonb blob.
+      const updatePromises = batch.map(({ rowId, mergedData, executionsPatch }) => {
+        const executionsExpr = buildExecutionsSqlPatch(executionsPatch)
+        return trx
           .update(userTableRows)
-          .set({ data: mergedData, executions: mergedExecutions, updatedAt: now })
+          .set({
+            data: mergedData,
+            ...(executionsExpr ? { executions: executionsExpr } : {}),
+            updatedAt: now,
+          })
           .where(eq(userTableRows.id, rowId))
-      )
+      })
       await Promise.all(updatePromises)
     }
   })
@@ -2006,7 +2069,7 @@ export async function batchUpdateRows(
   // so the scheduler's later per-write notifications (pending/running) land
   // last and stick in the client cache.
   for (const row of updatedRowsForTrigger) notifyTableRowUpdated(data.tableId, row)
-  void scheduleRunsForRows(table, updatedRowsForTrigger)
+  if (!data.skipScheduler) void scheduleRunsForRows(table, updatedRowsForTrigger)
 
   return {
     affectedCount: mergedUpdates.length,
