@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { runColumnContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
@@ -29,15 +30,21 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     const access = await checkAccess(tableId, auth.userId, 'write')
     if (!access.ok) return accessError(access, requestId, tableId)
 
-    const { triggered } = await runWorkflowColumn({
+    // Dispatch in the background — large fan-outs (thousands of rows) issue
+    // sequential trigger.dev calls and would otherwise hold the HTTP response
+    // open for minutes, blocking the AI/copilot tool span and the UI mutation.
+    void runWorkflowColumn({
       tableId,
       workspaceId,
       groupIds,
       mode: runMode,
       rowIds,
       requestId,
+    }).catch((err) => {
+      logger.error(`[${requestId}] run-column dispatch failed:`, toError(err).message)
     })
-    return NextResponse.json({ success: true, data: { triggered } })
+
+    return NextResponse.json({ success: true, data: { triggered: null } })
   } catch (error) {
     if (error instanceof Error && error.message === 'Invalid workspace ID') {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })

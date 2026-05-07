@@ -56,21 +56,26 @@ export async function writeWorkflowGroupState(
   }
   const current = row.executions?.[groupId] as RowExecutionMetadata | undefined
   // Stale-worker guard: only blocks writes FROM an old worker (status =
-  // running / completed / error / pending). A `queued` stamp is the scheduler
-  // claiming the cell for a brand-new run — the new executionId is supposed
-  // to overwrite whatever was there. Same for `cancelled` (authoritative).
-  // Without this carve-out, the new run's stamp gets rejected and the cell
-  // is stuck in its old state forever.
-  const isAuthoritativeNewStamp =
-    payload.executionState.status === 'queued' || payload.executionState.status === 'cancelled'
-  if (
-    !isAuthoritativeNewStamp &&
-    current &&
-    current.executionId &&
-    current.executionId !== executionId
-  ) {
+  // running / completed / error / pending). A `queued` stamp from the
+  // scheduler can claim the cell for a brand-new run — that's the new
+  // authority. Same for `cancelled` (always authoritative, written by stop).
+  const isCancelStamp = payload.executionState.status === 'cancelled'
+  const isQueuedStamp = payload.executionState.status === 'queued'
+  const isNewQueuedStamp = isQueuedStamp && current?.executionId !== executionId
+  const bypassStaleWorker = isNewQueuedStamp || isCancelStamp
+  if (!bypassStaleWorker && current && current.executionId && current.executionId !== executionId) {
     logger.info(
       `Skipping group write — stale worker (table=${tableId} row=${rowId} group=${groupId} mine=${executionId} active=${current.executionId})`
+    )
+    return 'skipped'
+  }
+  // A late `queued` stamp for the SAME run that's already moved past queued
+  // (worker called markWorkflowGroupPickedUp before our parallel stamp landed)
+  // must NOT overwrite the further-along state. Without this, a cell can show
+  // "queued" forever while the worker is actually running.
+  if (isQueuedStamp && current?.executionId === executionId && current.status !== 'pending') {
+    logger.info(
+      `Skipping queued stamp — same run already at status=${current.status} (table=${tableId} row=${rowId} group=${groupId} executionId=${executionId})`
     )
     return 'skipped'
   }
@@ -89,7 +94,7 @@ export async function writeWorkflowGroupState(
   // stamps from the scheduler also bypass — they ARE the new authority. Cell-
   // task writes (running/completed/error) get the SQL guard so an in-flight
   // partial can't clobber a stop click or a newer run that already committed.
-  const cancellationGuard = isAuthoritativeNewStamp ? undefined : { groupId, executionId }
+  const cancellationGuard = bypassStaleWorker ? undefined : { groupId, executionId }
   const result = await updateRow(
     {
       tableId,

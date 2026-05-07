@@ -455,6 +455,7 @@ export const env = createEnv({
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED:        z.boolean().optional(),                   // Enable audit logs on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_DATA_RETENTION_ENABLED:   z.boolean().optional(),                   // Enable data retention settings on self-hosted (bypasses hosted requirements)
     NEXT_PUBLIC_DATA_DRAINS_ENABLED:      z.boolean().optional(),                   // Enable data drains on self-hosted (bypasses hosted requirements)
+    NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED: z.boolean().optional(),                   // Show the "Workflow" column type in user tables (defaults to false)
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED:     z.boolean().optional(),                   // Enable organizations on self-hosted (bypasses plan requirements)
     NEXT_PUBLIC_DISABLE_INVITATIONS:       z.boolean().optional(),                   // Disable workspace invitations globally (for self-hosted deployments)
     NEXT_PUBLIC_DISABLE_PUBLIC_API:        z.boolean().optional(),                   // Disable public API access UI toggle globally
@@ -493,6 +494,7 @@ export const env = createEnv({
     NEXT_PUBLIC_AUDIT_LOGS_ENABLED: process.env.NEXT_PUBLIC_AUDIT_LOGS_ENABLED,
     NEXT_PUBLIC_DATA_RETENTION_ENABLED: process.env.NEXT_PUBLIC_DATA_RETENTION_ENABLED,
     NEXT_PUBLIC_DATA_DRAINS_ENABLED: process.env.NEXT_PUBLIC_DATA_DRAINS_ENABLED,
+    NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED: process.env.NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED,
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED: process.env.NEXT_PUBLIC_ORGANIZATIONS_ENABLED,
     NEXT_PUBLIC_DISABLE_INVITATIONS: process.env.NEXT_PUBLIC_DISABLE_INVITATIONS,
     NEXT_PUBLIC_DISABLE_PUBLIC_API: process.env.NEXT_PUBLIC_DISABLE_PUBLIC_API,

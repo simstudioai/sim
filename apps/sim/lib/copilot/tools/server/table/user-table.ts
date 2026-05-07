@@ -1415,19 +1415,24 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const { triggered } = await runWorkflowColumn({
+          // Dispatch in the background — large fan-outs (thousands of rows)
+          // issue sequential trigger.dev calls and would otherwise hold the
+          // tool span open for minutes, blocking the chat connection.
+          void runWorkflowColumn({
             tableId: args.tableId,
             workspaceId,
             groupIds,
             mode: runMode,
             rowIds,
             requestId,
+          }).catch((err) => {
+            logger.error(`[${requestId}] run_column dispatch failed`, err)
           })
           const scopeLabel = rowIds ? `${rowIds.length} row(s) by id` : runMode
           return {
             success: true,
-            message: `Triggered ${triggered} row(s) across ${groupIds.length} column(s) (${scopeLabel})`,
-            data: { triggered },
+            message: `Started running ${groupIds.length} column(s) (${scopeLabel}). Cells will populate as workflows complete.`,
+            data: { triggered: null },
           }
         }
 
