@@ -11,11 +11,13 @@ const {
   mockBatchInsertRowsWithTx,
   mockReplaceTableRowsWithTx,
   mockAddTableColumnsWithTx,
+  mockDispatchAfterBatchInsert,
 } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockBatchInsertRowsWithTx: vi.fn(),
   mockReplaceTableRowsWithTx: vi.fn(),
   mockAddTableColumnsWithTx: vi.fn(),
+  mockDispatchAfterBatchInsert: vi.fn(),
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -44,6 +46,7 @@ vi.mock('@/lib/table/service', () => ({
   batchInsertRowsWithTx: mockBatchInsertRowsWithTx,
   replaceTableRowsWithTx: mockReplaceTableRowsWithTx,
   addTableColumnsWithTx: mockAddTableColumnsWithTx,
+  dispatchAfterBatchInsert: mockDispatchAfterBatchInsert,
 }))
 
 import { POST } from '@/app/api/table/[tableId]/import/route'
