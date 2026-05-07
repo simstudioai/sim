@@ -15,7 +15,7 @@ export const apolloAccountCreateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'hidden',
-      description: 'Apollo API key',
+      description: 'Apollo API key (master key required)',
     },
     name: {
       type: 'string',
@@ -23,23 +23,41 @@ export const apolloAccountCreateTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Company name (e.g., "Acme Corporation")',
     },
-    website_url: {
+    domain: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Company website URL',
+      description: 'Company domain without www. prefix (e.g., "acme.com")',
     },
     phone: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Company phone number',
+      description: 'Primary phone number for the account',
     },
     owner_id: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'User ID of the account owner',
+      description: 'Apollo user ID of the account owner',
+    },
+    account_stage_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Apollo ID for the account stage to assign this account to',
+    },
+    raw_address: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Corporate location (e.g., "San Francisco, CA, USA")',
+    },
+    typed_custom_fields: {
+      type: 'json',
+      required: false,
+      visibility: 'user-only',
+      description: 'Custom field values as { custom_field_id: value } map',
     },
   },
 
@@ -52,10 +70,13 @@ export const apolloAccountCreateTool: ToolConfig<
       'X-Api-Key': params.apiKey,
     }),
     body: (params: ApolloAccountCreateParams) => {
-      const body: any = { name: params.name }
-      if (params.website_url) body.website_url = params.website_url
+      const body: Record<string, unknown> = { name: params.name }
+      if (params.domain) body.domain = params.domain
       if (params.phone) body.phone = params.phone
       if (params.owner_id) body.owner_id = params.owner_id
+      if (params.account_stage_id) body.account_stage_id = params.account_stage_id
+      if (params.raw_address) body.raw_address = params.raw_address
+      if (params.typed_custom_fields) body.typed_custom_fields = params.typed_custom_fields
       return body
     },
   },
@@ -67,12 +88,13 @@ export const apolloAccountCreateTool: ToolConfig<
     }
 
     const data = await response.json()
+    const account = data.account ?? (data.id ? data : null)
 
     return {
       success: true,
       output: {
-        account: data.account ?? null,
-        created: !!data.account,
+        account,
+        created: !!account,
       },
     }
   },

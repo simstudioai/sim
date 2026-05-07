@@ -29,15 +29,19 @@ export const apolloOrganizationBulkEnrichTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.apollo.io/api/v1/organizations/bulk_enrich',
+    url: (params: ApolloOrganizationBulkEnrichParams) => {
+      const domains = params.organizations
+        .slice(0, 10)
+        .map((o) => o.domain)
+        .filter((d): d is string => Boolean(d))
+      const qs = domains.map((d) => `domains[]=${encodeURIComponent(d)}`).join('&')
+      return `https://api.apollo.io/api/v1/organizations/bulk_enrich${qs ? `?${qs}` : ''}`
+    },
     method: 'POST',
     headers: (params: ApolloOrganizationBulkEnrichParams) => ({
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
-    }),
-    body: (params: ApolloOrganizationBulkEnrichParams) => ({
-      details: params.organizations.slice(0, 10),
     }),
   },
 
@@ -48,20 +52,28 @@ export const apolloOrganizationBulkEnrichTool: ToolConfig<
     }
 
     const data = await response.json()
+    const organizations = data.organizations ?? []
 
     return {
       success: true,
       output: {
-        organizations: data.matches || [],
-        total: data.matches?.length || 0,
-        enriched: data.matches?.filter((o: any) => o).length || 0,
+        organizations,
+        total: data.total_requested_domains ?? organizations.length,
+        enriched: data.unique_enriched_records ?? organizations.length,
+        missing_records: data.missing_records ?? 0,
+        unique_domains: data.unique_domains ?? organizations.length,
       },
     }
   },
 
   outputs: {
     organizations: { type: 'json', description: 'Array of enriched organization data' },
-    total: { type: 'number', description: 'Total number of organizations processed' },
-    enriched: { type: 'number', description: 'Number of organizations successfully enriched' },
+    total: { type: 'number', description: 'Total number of domains requested' },
+    enriched: { type: 'number', description: 'Number of unique enriched records' },
+    missing_records: {
+      type: 'number',
+      description: 'Number of domains that could not be enriched',
+    },
+    unique_domains: { type: 'number', description: 'Number of unique domains processed' },
   },
 }

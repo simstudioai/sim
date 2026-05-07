@@ -21,12 +21,25 @@ export const apolloContactBulkUpdateTool: ToolConfig<
       visibility: 'hidden',
       description: 'Apollo API key (master key required)',
     },
-    contacts: {
+    contact_ids: {
       type: 'array',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Array of contacts to update (max 100). Each contact must include id field, and optionally first_name, last_name, email, title, account_id, owner_id',
+        'Array of contact IDs to update with the same values. Use either this OR contact_attributes.',
+    },
+    contact_attributes: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Either an array of per-contact updates (each with id) or a single object of attributes to apply to all contact_ids. Supported fields: owner_id, email, organization_name, title, first_name, last_name, account_id, present_raw_address, linkedin_url, typed_custom_fields',
+    },
+    async: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Force asynchronous processing. Automatically enabled for >100 contacts',
     },
   },
 
@@ -38,9 +51,26 @@ export const apolloContactBulkUpdateTool: ToolConfig<
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
     }),
-    body: (params: ApolloContactBulkUpdateParams) => ({
-      contacts: params.contacts.slice(0, 100),
-    }),
+    body: (params: ApolloContactBulkUpdateParams) => {
+      const body: Record<string, unknown> = {}
+      if (params.contact_ids && params.contact_ids.length > 0) {
+        body.contact_ids = params.contact_ids
+      }
+      if (params.contact_attributes) {
+        if (Array.isArray(params.contact_attributes)) {
+          if (params.contact_attributes.length > 0) {
+            body.contact_attributes = params.contact_attributes
+          }
+        } else if (
+          typeof params.contact_attributes === 'object' &&
+          Object.keys(params.contact_attributes).length > 0
+        ) {
+          body.contact_attributes = params.contact_attributes
+        }
+      }
+      if (params.async !== undefined) body.async = params.async
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {
@@ -54,35 +84,22 @@ export const apolloContactBulkUpdateTool: ToolConfig<
     return {
       success: true,
       output: {
-        updated_contacts: data.contacts || data.updated_contacts || [],
-        failed_contacts: data.failed_contacts || [],
-        total_submitted: data.contacts?.length || 0,
-        updated: data.updated_contacts?.length || data.contacts?.length || 0,
-        failed: data.failed_contacts?.length || 0,
+        message: data.message ?? null,
+        job_id: data.job_id ?? null,
       },
     }
   },
 
   outputs: {
-    updated_contacts: {
-      type: 'json',
-      description: 'Array of successfully updated contacts',
+    message: {
+      type: 'string',
+      description: 'Confirmation message from Apollo',
+      optional: true,
     },
-    failed_contacts: {
-      type: 'json',
-      description: 'Array of contacts that failed to update',
-    },
-    total_submitted: {
-      type: 'number',
-      description: 'Total number of contacts submitted',
-    },
-    updated: {
-      type: 'number',
-      description: 'Number of contacts successfully updated',
-    },
-    failed: {
-      type: 'number',
-      description: 'Number of contacts that failed to update',
+    job_id: {
+      type: 'string',
+      description: 'Async job ID (returned for >100 contacts)',
+      optional: true,
     },
   },
 }

@@ -41,7 +41,17 @@ export const apolloPeopleBulkEnrichTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.apollo.io/api/v1/people/bulk_match',
+    url: (params: ApolloPeopleBulkEnrichParams) => {
+      const qs = new URLSearchParams()
+      if (params.reveal_personal_emails !== undefined) {
+        qs.set('reveal_personal_emails', String(params.reveal_personal_emails))
+      }
+      if (params.reveal_phone_number !== undefined) {
+        qs.set('reveal_phone_number', String(params.reveal_phone_number))
+      }
+      const query = qs.toString()
+      return `https://api.apollo.io/api/v1/people/bulk_match${query ? `?${query}` : ''}`
+    },
     method: 'POST',
     headers: (params: ApolloPeopleBulkEnrichParams) => ({
       'Content-Type': 'application/json',
@@ -50,8 +60,6 @@ export const apolloPeopleBulkEnrichTool: ToolConfig<
     }),
     body: (params: ApolloPeopleBulkEnrichParams) => ({
       details: params.people.slice(0, 10),
-      reveal_personal_emails: params.reveal_personal_emails,
-      reveal_phone_number: params.reveal_phone_number,
     }),
   },
 
@@ -62,13 +70,14 @@ export const apolloPeopleBulkEnrichTool: ToolConfig<
     }
 
     const data = await response.json()
+    const people = data.people || data.matches || []
 
     return {
       success: true,
       output: {
-        people: data.matches || [],
-        total: data.matches?.length || 0,
-        enriched: data.matches?.filter((p: any) => p).length || 0,
+        people,
+        total: people.length,
+        enriched: people.filter((p: unknown) => p).length,
       },
     }
   },

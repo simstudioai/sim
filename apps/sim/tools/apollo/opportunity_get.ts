@@ -27,7 +27,7 @@ export const apolloOpportunityGetTool: ToolConfig<
 
   request: {
     url: (params: ApolloOpportunityGetParams) =>
-      `https://api.apollo.io/api/v1/opportunities/${params.opportunity_id}`,
+      `https://api.apollo.io/api/v1/opportunities/${params.opportunity_id.trim()}`,
     method: 'GET',
     headers: (params: ApolloOpportunityGetParams) => ({
       'Content-Type': 'application/json',

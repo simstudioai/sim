@@ -42,32 +42,74 @@ export interface ApolloContact {
 export interface ApolloAccount {
   id: string
   name: string
-  website_url?: string
-  phone?: string
-  owner_id?: string
+  domain?: string | null
+  website_url?: string | null
+  phone?: string | null
+  sanitized_phone?: string | null
+  raw_address?: string | null
+  owner_id?: string | null
+  account_stage_id?: string | null
+  existence_level?: string
+  show_intent?: boolean
+  has_intent_signal_account?: boolean
+  typed_custom_fields?: Record<string, unknown>
   created_at: string
 }
 
 export interface ApolloTask {
   id: string
-  note: string
+  user_id?: string
   contact_id?: string
   account_id?: string
+  type?: string
+  priority?: string
+  status?: string
   due_at?: string
-  completed: boolean
-  created_at: string
+  note?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface ApolloOpportunity {
   id: string
+  team_id?: string
   name: string
-  account_id: string
-  amount?: number
-  stage_id?: string
-  owner_id?: string
-  close_date?: string
-  description?: string
+  account_id?: string | null
+  owner_id?: string | null
+  salesforce_owner_id?: string | null
+  amount?: number | string | null
+  amount_in_team_currency?: number | null
+  forecasted_revenue?: number | null
+  exchange_rate_code?: string
+  exchange_rate_value?: number
+  closed_date?: string | null
+  actual_close_date?: string | null
+  description?: string | null
+  is_closed?: boolean
+  is_won?: boolean
+  stage_name?: string | null
+  opportunity_stage_id?: string | null
+  opportunity_pipeline_id?: string | null
+  source?: string
+  salesforce_id?: string | null
+  forecast_category?: string
+  deal_probability?: number
+  probability?: number | null
+  created_by_id?: string
+  stage_updated_at?: string
+  next_step?: string | null
+  next_step_date?: string | null
+  closed_lost_reason?: string | null
+  closed_won_reason?: string | null
+  last_activity_date?: string
+  existence_level?: string
+  typed_custom_fields?: Record<string, unknown>
+  opportunity_rule_config_statuses?: unknown[]
+  opportunity_contact_roles?: unknown[]
+  currency?: { name?: string; iso_code?: string; symbol?: string }
+  account?: { id?: string; name?: string; website_url?: string | null }
   created_at: string
+  updated_at?: string
 }
 
 interface ApolloBaseParams {
@@ -77,10 +119,14 @@ interface ApolloBaseParams {
 // People Search Types
 export interface ApolloPeopleSearchParams extends ApolloBaseParams {
   person_titles?: string[]
+  include_similar_titles?: boolean
   person_locations?: string[]
   person_seniorities?: string[]
   organization_ids?: string[]
   organization_names?: string[]
+  organization_locations?: string[]
+  q_organization_domains_list?: string[]
+  contact_email_status?: string[]
   q_keywords?: string
   page?: number
   per_page?: number
@@ -119,9 +165,13 @@ export interface ApolloPeopleBulkEnrichParams extends ApolloBaseParams {
   people: Array<{
     first_name?: string
     last_name?: string
-    organization_name?: string
+    name?: string
     email?: string
+    hashed_email?: string
+    organization_name?: string
     domain?: string
+    id?: string
+    linkedin_url?: string
   }>
   reveal_personal_emails?: boolean
   reveal_phone_number?: boolean
@@ -138,9 +188,12 @@ export interface ApolloPeopleBulkEnrichResponse extends ToolResponse {
 // Organization Search Types
 export interface ApolloOrganizationSearchParams extends ApolloBaseParams {
   organization_locations?: string[]
+  organization_not_locations?: string[]
   organization_num_employees_ranges?: string[]
   q_organization_keyword_tags?: string[]
   q_organization_name?: string
+  organization_ids?: string[]
+  q_organization_domains_list?: string[]
   page?: number
   per_page?: number
 }
@@ -156,23 +209,19 @@ export interface ApolloOrganizationSearchResponse extends ToolResponse {
 
 // Organization Enrichment Types
 export interface ApolloOrganizationEnrichParams extends ApolloBaseParams {
-  organization_name?: string
-  domain?: string
+  domain: string
 }
 
 export interface ApolloOrganizationEnrichResponse extends ToolResponse {
   output: {
-    organization: ApolloOrganization
+    organization: ApolloOrganization | null
     enriched: boolean
   }
 }
 
 // Bulk Organization Enrichment Types
 export interface ApolloOrganizationBulkEnrichParams extends ApolloBaseParams {
-  organizations: Array<{
-    organization_name?: string
-    domain?: string
-  }>
+  organizations: Array<{ domain: string }>
 }
 
 export interface ApolloOrganizationBulkEnrichResponse extends ToolResponse {
@@ -180,6 +229,8 @@ export interface ApolloOrganizationBulkEnrichResponse extends ToolResponse {
     organizations: ApolloOrganization[]
     total: number
     enriched: number
+    missing_records: number
+    unique_domains: number
   }
 }
 
@@ -191,6 +242,18 @@ export interface ApolloContactCreateParams extends ApolloBaseParams {
   title?: string
   account_id?: string
   owner_id?: string
+  organization_name?: string
+  website_url?: string
+  label_names?: string[]
+  contact_stage_id?: string
+  present_raw_address?: string
+  direct_phone?: string
+  corporate_phone?: string
+  mobile_phone?: string
+  home_phone?: string
+  other_phone?: string
+  typed_custom_fields?: Record<string, unknown>
+  run_dedupe?: boolean
 }
 
 export interface ApolloContactCreateResponse extends ToolResponse {
@@ -209,6 +272,17 @@ export interface ApolloContactUpdateParams extends ApolloBaseParams {
   title?: string
   account_id?: string
   owner_id?: string
+  organization_name?: string
+  website_url?: string
+  label_names?: string[]
+  contact_stage_id?: string
+  present_raw_address?: string
+  direct_phone?: string
+  corporate_phone?: string
+  mobile_phone?: string
+  home_phone?: string
+  other_phone?: string
+  typed_custom_fields?: Record<string, unknown>
 }
 
 export interface ApolloContactUpdateResponse extends ToolResponse {
@@ -221,14 +295,20 @@ export interface ApolloContactUpdateResponse extends ToolResponse {
 // Contact Bulk Create Types
 export interface ApolloContactBulkCreateParams extends ApolloBaseParams {
   contacts: Array<{
-    first_name: string
-    last_name: string
+    first_name?: string
+    last_name?: string
     email?: string
     title?: string
+    organization_name?: string
     account_id?: string
     owner_id?: string
+    contact_stage_id?: string
+    linkedin_url?: string
+    phone_numbers?: Array<{ raw_number: string; position?: number }>
+    contact_emails?: Array<{ email: string; position?: number }>
   }>
   run_dedupe?: boolean
+  append_label_names?: string[]
 }
 
 export interface ApolloContactBulkCreateResponse extends ToolResponse {
@@ -243,24 +323,15 @@ export interface ApolloContactBulkCreateResponse extends ToolResponse {
 
 // Contact Bulk Update Types
 export interface ApolloContactBulkUpdateParams extends ApolloBaseParams {
-  contacts: Array<{
-    id: string
-    first_name?: string
-    last_name?: string
-    email?: string
-    title?: string
-    account_id?: string
-    owner_id?: string
-  }>
+  contact_ids?: string[]
+  contact_attributes?: Array<{ id: string; [key: string]: unknown }> | Record<string, unknown>
+  async?: boolean
 }
 
 export interface ApolloContactBulkUpdateResponse extends ToolResponse {
   output: {
-    updated_contacts: ApolloContact[]
-    failed_contacts: Array<{ id: string; error: string }>
-    total_submitted: number
-    updated: number
-    failed: number
+    message: string | null
+    job_id: string | null
   }
 }
 
@@ -268,6 +339,9 @@ export interface ApolloContactBulkUpdateResponse extends ToolResponse {
 export interface ApolloContactSearchParams extends ApolloBaseParams {
   q_keywords?: string
   contact_stage_ids?: string[]
+  contact_label_ids?: string[]
+  sort_by_field?: string
+  sort_ascending?: boolean
   page?: number
   per_page?: number
 }
@@ -289,9 +363,12 @@ export interface ApolloContactSearchResponse extends ToolResponse {
 // Account Create Types
 export interface ApolloAccountCreateParams extends ApolloBaseParams {
   name: string
-  website_url?: string
+  domain?: string
   phone?: string
   owner_id?: string
+  account_stage_id?: string
+  raw_address?: string
+  typed_custom_fields?: Record<string, unknown>
 }
 
 export interface ApolloAccountCreateResponse extends ToolResponse {
@@ -305,9 +382,12 @@ export interface ApolloAccountCreateResponse extends ToolResponse {
 export interface ApolloAccountUpdateParams extends ApolloBaseParams {
   account_id: string
   name?: string
-  website_url?: string
+  domain?: string
   phone?: string
   owner_id?: string
+  account_stage_id?: string
+  raw_address?: string
+  typed_custom_fields?: Record<string, unknown>
 }
 
 export interface ApolloAccountUpdateResponse extends ToolResponse {
@@ -319,9 +399,11 @@ export interface ApolloAccountUpdateResponse extends ToolResponse {
 
 // Account Search Types
 export interface ApolloAccountSearchParams extends ApolloBaseParams {
-  q_keywords?: string
-  owner_id?: string
+  q_organization_name?: string
   account_stage_ids?: string[]
+  account_label_ids?: string[]
+  sort_by_field?: string
+  sort_ascending?: boolean
   page?: number
   per_page?: number
 }
@@ -337,7 +419,7 @@ export interface ApolloAccountSearchResponse extends ToolResponse {
 export interface ApolloAccountBulkCreateParams extends ApolloBaseParams {
   accounts: Array<{
     name: string
-    website_url?: string
+    domain?: string
     phone?: string
     owner_id?: string
   }>
@@ -355,63 +437,82 @@ export interface ApolloAccountBulkCreateResponse extends ToolResponse {
 
 // Account Bulk Update Types
 export interface ApolloAccountBulkUpdateParams extends ApolloBaseParams {
-  accounts: Array<{
-    id: string
-    name?: string
-    website_url?: string
-    phone?: string
-    owner_id?: string
-  }>
+  account_ids?: string[]
+  name?: string
+  owner_id?: string
+  account_attributes?: Array<{ id: string; [key: string]: unknown }>
 }
 
 export interface ApolloAccountBulkUpdateResponse extends ToolResponse {
   output: {
-    updated_accounts: ApolloAccount[]
-    failed_accounts: Array<{ id: string; error: string }>
-    total_submitted: number
-    updated: number
-    failed: number
+    message: string | null
+    account_ids: string[]
   }
 }
 
 // Sequence Add Contacts Types
 export interface ApolloSequenceAddContactsParams extends ApolloBaseParams {
   sequence_id: string
-  contact_ids: string[]
-  emailer_campaign_id?: string
-  send_email_from_user_id?: string
+  contact_ids?: string[]
+  label_names?: string[]
+  send_email_from_email_account_id: string
+  send_email_from_email_address?: string
+  sequence_no_email?: boolean
+  sequence_unverified_email?: boolean
+  sequence_job_change?: boolean
+  sequence_active_in_other_campaigns?: boolean
+  sequence_finished_in_other_campaigns?: boolean
+}
+
+export interface ApolloSequenceAddedContact {
+  id: string
+  first_name?: string
+  last_name?: string
+  email?: string
+  status?: string
+  opened_rate?: number | null
+  replied_rate?: number | null
+}
+
+export interface ApolloSequenceSkippedContact {
+  id: string
+  reason: string
 }
 
 export interface ApolloSequenceAddContactsResponse extends ToolResponse {
   output: {
-    contacts_added: string[]
+    added: ApolloSequenceAddedContact[]
+    skipped: ApolloSequenceSkippedContact[]
+    skipped_contact_ids: Record<string, string> | null
+    emailer_campaign: { id: string; name: string } | null
     sequence_id: string
     total_added: number
+    total_skipped: number
   }
 }
 
 // Task Create Types
 export interface ApolloTaskCreateParams extends ApolloBaseParams {
-  note: string
-  contact_id?: string
-  account_id?: string
-  due_at?: string
+  user_id: string
+  contact_ids: string[]
   priority?: string
-  type?: string
+  due_at: string
+  type: string
+  status: string
+  note?: string
 }
 
 export interface ApolloTaskCreateResponse extends ToolResponse {
   output: {
-    task: ApolloTask | null
+    tasks: ApolloTask[]
     created: boolean
   }
 }
 
 // Task Search Types
 export interface ApolloTaskSearchParams extends ApolloBaseParams {
-  contact_id?: string
-  account_id?: string
-  completed?: boolean
+  sort_by_field?: string
+  open_factor_names?: string[]
   page?: number
   per_page?: number
 }
@@ -426,13 +527,17 @@ export interface ApolloTaskSearchResponse extends ToolResponse {
 // Email Accounts List Types
 export interface ApolloEmailAccountsParams extends ApolloBaseParams {}
 
+export interface ApolloEmailAccount {
+  id: string
+  email: string
+  type?: string
+  active?: boolean
+  default?: boolean
+}
+
 export interface ApolloEmailAccountsResponse extends ToolResponse {
   output: {
-    email_accounts: Array<{
-      id: string
-      email: string
-      active: boolean
-    }>
+    email_accounts: ApolloEmailAccount[]
     total: number
   }
 }
@@ -440,12 +545,12 @@ export interface ApolloEmailAccountsResponse extends ToolResponse {
 // Opportunity Create Types
 export interface ApolloOpportunityCreateParams extends ApolloBaseParams {
   name: string
-  account_id: string
-  amount?: number
-  stage_id?: string
+  account_id?: string
+  amount?: string
+  opportunity_stage_id?: string
   owner_id?: string
-  close_date?: string
-  description?: string
+  closed_date?: string
+  typed_custom_fields?: Record<string, unknown>
 }
 
 export interface ApolloOpportunityCreateResponse extends ToolResponse {
@@ -457,10 +562,7 @@ export interface ApolloOpportunityCreateResponse extends ToolResponse {
 
 // Opportunity Search Types
 export interface ApolloOpportunitySearchParams extends ApolloBaseParams {
-  q_keywords?: string
-  account_ids?: string[]
-  stage_ids?: string[]
-  owner_ids?: string[]
+  sort_by_field?: string
   page?: number
   per_page?: number
 }
@@ -490,11 +592,11 @@ export interface ApolloOpportunityGetResponse extends ToolResponse {
 export interface ApolloOpportunityUpdateParams extends ApolloBaseParams {
   opportunity_id: string
   name?: string
-  amount?: number
-  stage_id?: string
+  amount?: string
+  opportunity_stage_id?: string
   owner_id?: string
-  close_date?: string
-  description?: string
+  closed_date?: string
+  typed_custom_fields?: Record<string, unknown>
 }
 
 export interface ApolloOpportunityUpdateResponse extends ToolResponse {
@@ -520,7 +622,6 @@ export interface ApolloSequence {
 // Sequence Search Types
 export interface ApolloSequenceSearchParams extends ApolloBaseParams {
   q_name?: string
-  active?: boolean
   page?: number
   per_page?: number
 }

@@ -894,7 +894,7 @@
       },
       {
         "name": "Create Task",
-        "description": "Create a new task in Apollo"
+        "description": "Create one or more tasks in Apollo (one task per contact_id, master key required)"
       },
       {
         "name": "Search Tasks",
