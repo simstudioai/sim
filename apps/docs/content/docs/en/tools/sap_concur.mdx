@@ -42,7 +42,7 @@ Connect SAP Concur via OAuth 2.0. Manage expense reports and line items, allocat
 
 ### `sap_concur_approve_expense_report`
 
-Approve an expense report as a manager (PATCH /expensereports/v4/reports/{reportId}/approve). Required body field: comment.
+Approve an expense report as a manager (PATCH /expensereports/v4/reports/\{reportId\}/approve). Required body field: comment.
 
 #### Input
 
@@ -67,7 +67,7 @@ Approve an expense report as a manager (PATCH /expensereports/v4/reports/{report
 
 ### `sap_concur_associate_attendees`
 
-Associate attendees with an expense (POST /expensereports/v4/users/{userId}/context/TRAVELER/reports/{reportId}/expenses/{expenseId}/attendees).
+Associate attendees with an expense (POST /expensereports/v4/users/\{userId\}/context/TRAVELER/reports/\{reportId\}/expenses/\{expenseId\}/attendees).
 
 #### Input
 
@@ -121,7 +121,7 @@ Create a cash advance (POST /cashadvance/v4/cashadvances).
 
 ### `sap_concur_create_expected_expense`
 
-Create an expected expense on a travel request (POST /travelrequest/v4/requests/{requestUuid}/expenses).
+Create an expected expense on a travel request (POST /travelrequest/v4/requests/\{requestUuid\}/expenses).
 
 #### Input
 
@@ -162,7 +162,7 @@ Create an expected expense on a travel request (POST /travelrequest/v4/requests/
 
 ### `sap_concur_create_expense_report`
 
-Create an expense report (POST /expensereports/v4/users/{userId}/context/{contextType}/reports — supported contexts: TRAVELER, PROXY). Required body fields: name, policyId.
+Create an expense report (POST /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports — supported contexts: TRAVELER, PROXY). Required body fields: name, policyId.
 
 #### Input
 
@@ -253,7 +253,7 @@ Create a purchase request (POST /purchaserequest/v4/purchaserequests).
 
 ### `sap_concur_create_quick_expense`
 
-Create a quick expense (POST /quickexpense/v4/users/{userId}/context/TRAVELER/quickexpenses).
+Create a quick expense (POST /quickexpense/v4/users/\{userId\}/context/TRAVELER/quickexpenses).
 
 #### Input
 
@@ -280,7 +280,7 @@ Create a quick expense (POST /quickexpense/v4/users/{userId}/context/TRAVELER/qu
 
 ### `sap_concur_create_quick_expense_with_image`
 
-Create a quick expense with an attached image (POST /quickexpense/v4/users/{userId}/context/{contextType}/quickexpenses/image).
+Create a quick expense with an attached image (POST /quickexpense/v4/users/\{userId\}/context/\{contextType\}/quickexpenses/image).
 
 #### Input
 
@@ -308,7 +308,7 @@ Create a quick expense with an attached image (POST /quickexpense/v4/users/{user
 
 ### `sap_concur_create_report_comment`
 
-Create a comment on a report (POST /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/comments).
+Create a comment on a report (POST /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/comments).
 
 #### Input
 
@@ -447,7 +447,7 @@ Create a new user identity (POST /profile/identity/v4.1/Users).
 
 ### `sap_concur_delete_expected_expense`
 
-Delete an expected expense (DELETE /travelrequest/v4/expenses/{expenseUuid}).
+Delete an expected expense (DELETE /travelrequest/v4/expenses/\{expenseUuid\}).
 
 #### Input
 
@@ -472,7 +472,7 @@ Delete an expected expense (DELETE /travelrequest/v4/expenses/{expenseUuid}).
 
 ### `sap_concur_delete_expense`
 
-Delete an expense (DELETE /expensereports/v4/reports/{reportId}/expenses/{expenseId}).
+Delete an expense (DELETE /expensereports/v4/reports/\{reportId\}/expenses/\{expenseId\}).
 
 #### Input
 
@@ -497,7 +497,7 @@ Delete an expense (DELETE /expensereports/v4/reports/{reportId}/expenses/{expens
 
 ### `sap_concur_delete_expense_report`
 
-Delete an expense report (DELETE /expensereports/v4/reports/{reportId}).
+Delete an expense report (DELETE /expensereports/v4/reports/\{reportId\}).
 
 #### Input
 
@@ -521,7 +521,7 @@ Delete an expense report (DELETE /expensereports/v4/reports/{reportId}).
 
 ### `sap_concur_delete_list_item`
 
-Delete a list item (DELETE /list/v4/items/{itemId}).
+Delete a list item (DELETE /list/v4/items/\{itemId\}).
 
 #### Input
 
@@ -545,7 +545,7 @@ Delete a list item (DELETE /list/v4/items/{itemId}).
 
 ### `sap_concur_delete_travel_request`
 
-Delete a travel request (DELETE /travelrequest/v4/requests/{requestUuid}).
+Delete a travel request (DELETE /travelrequest/v4/requests/\{requestUuid\}).
 
 #### Input
 
@@ -570,7 +570,7 @@ Delete a travel request (DELETE /travelrequest/v4/requests/{requestUuid}).
 
 ### `sap_concur_delete_user`
 
-Delete a user identity (DELETE /profile/identity/v4.1/Users/{id}).
+Delete a user identity (DELETE /profile/identity/v4.1/Users/\{id\}).
 
 #### Input
 
@@ -594,7 +594,7 @@ Delete a user identity (DELETE /profile/identity/v4.1/Users/{id}).
 
 ### `sap_concur_get_allocation`
 
-Get a single allocation (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/allocations/{allocationId}).
+Get a single allocation (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/allocations/\{allocationId\}).
 
 #### Input
 
@@ -638,7 +638,7 @@ Get a single allocation (GET /expensereports/v4/users/{userId}/context/{contextT
 
 ### `sap_concur_get_budget`
 
-Get a budget item header by ID (GET /budget/v4/budgetItemHeader/{id}).
+Get a budget item header by ID (GET /budget/v4/budgetItemHeader/\{id\}).
 
 #### Input
 
@@ -686,7 +686,7 @@ Get a budget item header by ID (GET /budget/v4/budgetItemHeader/{id}).
 
 ### `sap_concur_get_cash_advance`
 
-Get a cash advance (GET /cashadvance/v4/cashadvances/{cashadvanceId}).
+Get a cash advance (GET /cashadvance/v4/cashadvances/\{cashadvanceId\}).
 
 #### Input
 
@@ -762,7 +762,7 @@ Bulk upload up to 100 custom exchange rates (POST /exchangerate/v4/rates). Body 
 
 ### `sap_concur_get_expected_expense`
 
-Get an expected expense (GET /travelrequest/v4/expenses/{expenseUuid}).
+Get an expected expense (GET /travelrequest/v4/expenses/\{expenseUuid\}).
 
 #### Input
 
@@ -802,7 +802,7 @@ Get an expected expense (GET /travelrequest/v4/expenses/{expenseUuid}).
 
 ### `sap_concur_get_expense`
 
-Get a single expense (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}).
+Get a single expense (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}).
 
 #### Input
 
@@ -880,7 +880,7 @@ Get a single expense (GET /expensereports/v4/users/{userId}/context/{contextType
 
 ### `sap_concur_get_expense_report`
 
-Retrieve a single expense report header by id via Expense Report v4 (/expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}).
+Retrieve a single expense report header by id via Expense Report v4 (/expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}).
 
 #### Input
 
@@ -974,7 +974,7 @@ Retrieve a single expense report header by id via Expense Report v4 (/expenserep
 
 ### `sap_concur_get_itemizations`
 
-Get expense itemizations (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/itemizations).
+Get expense itemizations (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/itemizations).
 
 #### Input
 
@@ -1022,7 +1022,7 @@ Get expense itemizations (GET /expensereports/v4/users/{userId}/context/{context
 
 ### `sap_concur_get_itinerary`
 
-Get a single trip/itinerary (GET /api/travel/trip/v1.1/{tripID}).
+Get a single trip/itinerary (GET /api/travel/trip/v1.1/\{tripID\}).
 
 #### Input
 
@@ -1072,7 +1072,7 @@ Get a single trip/itinerary (GET /api/travel/trip/v1.1/{tripID}).
 
 ### `sap_concur_get_list`
 
-Get a single custom list (GET /list/v4/lists/{listId}).
+Get a single custom list (GET /list/v4/lists/\{listId\}).
 
 #### Input
 
@@ -1108,7 +1108,7 @@ Get a single custom list (GET /list/v4/lists/{listId}).
 
 ### `sap_concur_get_list_item`
 
-Get a single list item (GET /list/v4/items/{itemId}).
+Get a single list item (GET /list/v4/items/\{itemId\}).
 
 #### Input
 
@@ -1142,7 +1142,7 @@ Get a single list item (GET /list/v4/items/{itemId}).
 
 ### `sap_concur_get_purchase_request`
 
-Get a purchase request by ID (GET /purchaserequest/v4/purchaserequests/{id}).
+Get a purchase request by ID (GET /purchaserequest/v4/purchaserequests/\{id\}).
 
 #### Input
 
@@ -1178,7 +1178,7 @@ Get a purchase request by ID (GET /purchaserequest/v4/purchaserequests/{id}).
 
 ### `sap_concur_get_receipt`
 
-Get a single receipt by ID (GET /receipts/v4/{receiptId}).
+Get a single receipt by ID (GET /receipts/v4/\{receiptId\}).
 
 #### Input
 
@@ -1210,7 +1210,7 @@ Get a single receipt by ID (GET /receipts/v4/{receiptId}).
 
 ### `sap_concur_get_receipt_status`
 
-Get receipt processing status (GET /receipts/v4/status/{receiptId}).
+Get receipt processing status (GET /receipts/v4/status/\{receiptId\}).
 
 #### Input
 
@@ -1290,7 +1290,7 @@ Get a travel profile (GET /api/travelprofile/v2.0/profile). Returns the calling 
 
 ### `sap_concur_get_travel_request`
 
-Get a single travel request (GET /travelrequest/v4/requests/{requestUuid}).
+Get a single travel request (GET /travelrequest/v4/requests/\{requestUuid\}).
 
 #### Input
 
@@ -1400,7 +1400,7 @@ Get a single travel request (GET /travelrequest/v4/requests/{requestUuid}).
 
 ### `sap_concur_get_user`
 
-Get a single user by UUID (GET /profile/identity/v4.1/Users/{id}).
+Get a single user by UUID (GET /profile/identity/v4.1/Users/\{id\}).
 
 #### Input
 
@@ -1426,7 +1426,7 @@ Get a single user by UUID (GET /profile/identity/v4.1/Users/{id}).
 
 ### `sap_concur_issue_cash_advance`
 
-Issue a cash advance (POST /cashadvance/v4/cashadvances/{cashadvanceId}/issue).
+Issue a cash advance (POST /cashadvance/v4/cashadvances/\{cashadvanceId\}/issue).
 
 #### Input
 
@@ -1455,7 +1455,7 @@ Issue a cash advance (POST /cashadvance/v4/cashadvances/{cashadvanceId}/issue).
 
 ### `sap_concur_list_allocations`
 
-List allocations on an expense (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/allocations).
+List allocations on an expense (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/allocations).
 
 #### Input
 
@@ -1482,7 +1482,7 @@ List allocations on an expense (GET /expensereports/v4/users/{userId}/context/{c
 
 ### `sap_concur_list_attendee_associations`
 
-List attendees associated with an expense (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses/{expenseId}/attendees).
+List attendees associated with an expense (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/attendees).
 
 #### Input
 
@@ -1579,7 +1579,7 @@ List budget item headers (GET /budget/v4/budgetItemHeader).
 
 ### `sap_concur_list_exceptions`
 
-List exceptions on a report (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/exceptions).
+List exceptions on a report (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/exceptions).
 
 #### Input
 
@@ -1612,7 +1612,7 @@ List exceptions on a report (GET /expensereports/v4/users/{userId}/context/{cont
 
 ### `sap_concur_list_expected_expenses`
 
-List expected expenses on a travel request (GET /travelrequest/v4/requests/{requestUuid}/expenses).
+List expected expenses on a travel request (GET /travelrequest/v4/requests/\{requestUuid\}/expenses).
 
 #### Input
 
@@ -1637,7 +1637,7 @@ List expected expenses on a travel request (GET /travelrequest/v4/requests/{requ
 
 ### `sap_concur_list_expenses`
 
-List expenses on a report (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/expenses).
+List expenses on a report (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses).
 
 #### Input
 
@@ -1868,7 +1868,7 @@ List custom lists (GET /list/v4/lists).
 
 ### `sap_concur_list_list_items`
 
-List the top-level items (children) for a custom list (GET /list/v4/lists/{listId}/children).
+List the top-level items (children) for a custom list (GET /list/v4/lists/\{listId\}/children).
 
 #### Input
 
@@ -1919,7 +1919,7 @@ List the top-level items (children) for a custom list (GET /list/v4/lists/{listI
 
 ### `sap_concur_list_receipts`
 
-List receipts for a user (GET /receipts/v4/users/{userId}).
+List receipts for a user (GET /receipts/v4/users/\{userId\}).
 
 #### Input
 
@@ -1951,7 +1951,7 @@ List receipts for a user (GET /receipts/v4/users/{userId}).
 
 ### `sap_concur_list_report_comments`
 
-List comments on a report (GET /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/comments).
+List comments on a report (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/comments).
 
 #### Input
 
@@ -1991,7 +1991,7 @@ List comments on a report (GET /expensereports/v4/users/{userId}/context/{contex
 
 ### `sap_concur_list_reports_to_approve`
 
-List expense reports awaiting approval (GET /expensereports/v4/users/{userId}/context/MANAGER/reportsToApprove).
+List expense reports awaiting approval (GET /expensereports/v4/users/\{userId\}/context/MANAGER/reportsToApprove).
 
 #### Input
 
@@ -2032,7 +2032,7 @@ List expense reports awaiting approval (GET /expensereports/v4/users/{userId}/co
 
 ### `sap_concur_get_request_cash_advance`
 
-Get a single cash advance assigned to a travel request (GET /travelrequest/v4/cashadvances/{cashAdvanceUuid}).
+Get a single cash advance assigned to a travel request (GET /travelrequest/v4/cashadvances/\{cashAdvanceUuid\}).
 
 #### Input
 
@@ -2114,7 +2114,7 @@ List travel profile summaries (GET /api/travelprofile/v2.0/summary). LastModifie
 
 ### `sap_concur_list_travel_request_comments`
 
-List comments on a travel request (GET /travelrequest/v4/requests/{requestUuid}/comments).
+List comments on a travel request (GET /travelrequest/v4/requests/\{requestUuid\}/comments).
 
 #### Input
 
@@ -2250,7 +2250,7 @@ List Concur user identities (GET /profile/identity/v4.1/Users).
 
 ### `sap_concur_move_travel_request`
 
-Move a travel request through workflow (POST /travelrequest/v4/requests/{requestUuid}/{action}). Valid actions: submit, recall, cancel, approve, sendback, close, reopen.
+Move a travel request through workflow (POST /travelrequest/v4/requests/\{requestUuid\}/\{action\}). Valid actions: submit, recall, cancel, approve, sendback, close, reopen.
 
 #### Input
 
@@ -2291,7 +2291,7 @@ Move a travel request through workflow (POST /travelrequest/v4/requests/{request
 
 ### `sap_concur_recall_expense_report`
 
-Recall a submitted expense report (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/recall — supported contexts: TRAVELER, PROXY). No request body is required.
+Recall a submitted expense report (PATCH /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/recall — supported contexts: TRAVELER, PROXY). No request body is required.
 
 #### Input
 
@@ -2318,7 +2318,7 @@ Recall a submitted expense report (PATCH /expensereports/v4/users/{userId}/conte
 
 ### `sap_concur_remove_all_attendees`
 
-Remove all attendees from an expense (DELETE /expensereports/v4/users/{userId}/context/TRAVELER/reports/{reportId}/expenses/{expenseId}/attendees).
+Remove all attendees from an expense (DELETE /expensereports/v4/users/\{userId\}/context/TRAVELER/reports/\{reportId\}/expenses/\{expenseId\}/attendees).
 
 #### Input
 
@@ -2425,7 +2425,7 @@ Search users via SCIM .search endpoint (POST /profile/identity/v4.1/Users/.searc
 
 ### `sap_concur_send_back_expense_report`
 
-Send back an expense report to the employee (PATCH /expensereports/v4/reports/{reportId}/sendBack). Required body field: comment.
+Send back an expense report to the employee (PATCH /expensereports/v4/reports/\{reportId\}/sendBack). Required body field: comment.
 
 #### Input
 
@@ -2450,7 +2450,7 @@ Send back an expense report to the employee (PATCH /expensereports/v4/reports/{r
 
 ### `sap_concur_submit_expense_report`
 
-Submit an expense report into the workflow via Expense Report v4 (PATCH /expensereports/v4/users/{userId}/reports/{reportId}/submit).
+Submit an expense report into the workflow via Expense Report v4 (PATCH /expensereports/v4/users/\{userId\}/reports/\{reportId\}/submit).
 
 #### Input
 
@@ -2476,7 +2476,7 @@ Submit an expense report into the workflow via Expense Report v4 (PATCH /expense
 
 ### `sap_concur_update_allocation`
 
-Update an allocation (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/allocations/{allocationId}).
+Update an allocation (PATCH /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/allocations/\{allocationId\}).
 
 #### Input
 
@@ -2504,7 +2504,7 @@ Update an allocation (PATCH /expensereports/v4/users/{userId}/context/{contextTy
 
 ### `sap_concur_update_expected_expense`
 
-Update an expected expense (PUT /travelrequest/v4/expenses/{expenseUuid}).
+Update an expected expense (PUT /travelrequest/v4/expenses/\{expenseUuid\}).
 
 #### Input
 
@@ -2545,7 +2545,7 @@ Update an expected expense (PUT /travelrequest/v4/expenses/{expenseUuid}).
 
 ### `sap_concur_update_expense`
 
-Update an expense (PATCH /expensereports/v4/reports/{reportId}/expenses/{expenseId}).
+Update an expense (PATCH /expensereports/v4/reports/\{reportId\}/expenses/\{expenseId\}).
 
 #### Input
 
@@ -2571,7 +2571,7 @@ Update an expense (PATCH /expensereports/v4/reports/{reportId}/expenses/{expense
 
 ### `sap_concur_update_expense_report`
 
-Update an unsubmitted expense report (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId} — supported contexts: TRAVELER, PROXY). Body fields: businessPurpose, comment, customData, name, etc.
+Update an unsubmitted expense report (PATCH /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\} — supported contexts: TRAVELER, PROXY). Body fields: businessPurpose, comment, customData, name, etc.
 
 #### Input
 
@@ -2598,7 +2598,7 @@ Update an unsubmitted expense report (PATCH /expensereports/v4/users/{userId}/co
 
 ### `sap_concur_update_list_item`
 
-Update a list item (PUT /list/v4/items/{itemId}).
+Update a list item (PUT /list/v4/items/\{itemId\}).
 
 #### Input
 
@@ -2633,7 +2633,7 @@ Update a list item (PUT /list/v4/items/{itemId}).
 
 ### `sap_concur_update_travel_request`
 
-Update a travel request (PUT /travelrequest/v4/requests/{requestUuid}).
+Update a travel request (PUT /travelrequest/v4/requests/\{requestUuid\}).
 
 #### Input
 
@@ -2708,7 +2708,7 @@ Update a travel request (PUT /travelrequest/v4/requests/{requestUuid}).
 
 ### `sap_concur_update_user`
 
-Patch a user identity (PATCH /profile/identity/v4.1/Users/{id}).
+Patch a user identity (PATCH /profile/identity/v4.1/Users/\{id\}).
 
 #### Input
 
@@ -2733,7 +2733,7 @@ Patch a user identity (PATCH /profile/identity/v4.1/Users/{id}).
 
 ### `sap_concur_upload_receipt_image`
 
-Upload an image-only receipt (POST /receipts/v4/users/{userId}/image-only-receipts).
+Upload an image-only receipt (POST /receipts/v4/users/\{userId\}/image-only-receipts).
 
 #### Input
 
