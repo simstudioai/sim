@@ -2597,7 +2597,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             autoRun: {
               type: 'boolean',
               description:
-                "Optional flag for add_workflow_group and update_workflow_group. On add: when true, existing rows whose dependencies are already filled run immediately; default false stages the group silently — call run_column when ready to fire rows in bulk, or run_row to fire all groups on a specific row. On update: toggle a group's auto-fire behavior on an existing group — false stages it (no auto-runs on dep satisfaction; only manual run_cell / run_row / run_column fires rows), true re-enables auto-fire (rows whose deps fill will be scheduled). Set true on add only if the user explicitly asked to start runs immediately.",
+                "Optional flag for add_workflow_group and update_workflow_group. On add: when true, existing rows whose dependencies are already filled run immediately; default false stages the group silently — call run_column when ready to fire rows. On update: toggle a group's auto-fire behavior on an existing group — false stages it (no auto-runs on dep satisfaction; only manual run_column fires rows), true re-enables auto-fire (rows whose deps fill will be scheduled). Set true on add only if the user explicitly asked to start runs immediately.",
             },
             blockId: {
               type: 'string',
@@ -2625,18 +2625,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             dependencies: {
               type: 'object',
               description:
-                'Dependencies the workflow group requires before running a row. { columns?: string[] } lists input column names that must be filled; { workflowGroups?: string[] } lists other workflow group IDs whose outputs must complete first. Used by add_workflow_group and update_workflow_group.',
+                "Dependencies the workflow group requires before running a row. { columns?: string[] } lists input column names that must be filled. Workflow output columns count too — depend on the column produced by an upstream group, not the group itself. The dep graph is column-induced. A group can't depend on its own output columns. Used by add_workflow_group and update_workflow_group.",
               properties: {
                 columns: {
                   type: 'array',
-                  description: 'Input column names that must be filled before the group runs.',
-                  items: {
-                    type: 'string',
-                  },
-                },
-                workflowGroups: {
-                  type: 'array',
-                  description: 'Other workflow group IDs whose outputs must complete first.',
+                  description:
+                    'Input column names that must be filled before the group runs. Plain columns and upstream-group output columns are both valid here.',
                   items: {
                     type: 'string',
                   },
@@ -2665,7 +2659,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             groupId: {
               type: 'string',
               description:
-                'Workflow group ID. Required for update_workflow_group, delete_workflow_group, add_workflow_group_output, delete_workflow_group_output, run_cell.',
+                'Workflow group ID. Required for update_workflow_group, delete_workflow_group, add_workflow_group_output, delete_workflow_group_output.',
             },
             groupIds: {
               type: 'array',
@@ -2796,12 +2790,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             rowId: {
               type: 'string',
               description:
-                "Row ID. Required for get_row, update_row, delete_row, run_cell, and for cancel_table_runs when scope:'row'.",
+                "Row ID. Required for get_row, update_row, delete_row, and for cancel_table_runs when scope:'row'.",
             },
             rowIds: {
               type: 'array',
               description:
-                'Array of row IDs. Used by batch_delete_rows (rows to delete), run_row (required — rows to fan out across every runnable workflow group), and run_column (optional row scope — when omitted, runs across the whole table; when provided, only these rows are candidates and the server eligibility predicate still applies).',
+                'Array of row IDs. Used by batch_delete_rows (rows to delete) and run_column (optional row scope — when omitted, runs across the whole table; when provided, only these rows are candidates and the server eligibility predicate still applies).',
               items: {
                 type: 'string',
               },
@@ -2894,8 +2888,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'delete_workflow_group',
             'add_workflow_group_output',
             'delete_workflow_group_output',
-            'run_cell',
-            'run_row',
             'run_column',
             'cancel_table_runs',
             'list_workflow_outputs',
