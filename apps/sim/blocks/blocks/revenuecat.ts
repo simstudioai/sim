@@ -163,7 +163,6 @@ Return ONLY the numeric timestamp, no text.`,
       required: {
         field: 'operation',
         value: [
-          'create_purchase',
           'defer_google_subscription',
           'refund_google_subscription',
           'revoke_google_subscription',
@@ -219,6 +218,35 @@ Return ONLY the numeric timestamp, no text.`,
       mode: 'advanced',
     },
     {
+      id: 'introductoryPrice',
+      title: 'Introductory Price',
+      type: 'short-input',
+      placeholder: 'e.g., 0.99',
+      condition: {
+        field: 'operation',
+        value: 'create_purchase',
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'updatedAtMs',
+      title: 'Updated At (ms)',
+      type: 'short-input',
+      placeholder: 'Unix epoch ms used to resolve attribute conflicts',
+      condition: {
+        field: 'operation',
+        value: 'create_purchase',
+      },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix epoch timestamp in milliseconds based on the user's description.
+Used by RevenueCat to resolve attribute conflicts on a posted purchase.
+
+Return ONLY the numeric timestamp, no text.`,
+      },
+    },
+    {
       id: 'isRestore',
       title: 'Is Restore',
       type: 'dropdown',
@@ -263,7 +291,7 @@ Return ONLY the numeric timestamp, no text.`,
       placeholder: '{"$email": {"value": "user@example.com"}}',
       condition: {
         field: 'operation',
-        value: 'update_subscriber_attributes',
+        value: ['update_subscriber_attributes', 'create_purchase'],
       },
       required: {
         field: 'operation',
@@ -375,6 +403,12 @@ Return ONLY the numeric timestamp, no text.`,
         if (params.expiryTimeMs !== undefined && params.expiryTimeMs !== '') {
           next.expiryTimeMs = Number(params.expiryTimeMs)
         }
+        if (params.introductoryPrice !== undefined && params.introductoryPrice !== '') {
+          next.introductoryPrice = Number(params.introductoryPrice)
+        }
+        if (params.updatedAtMs !== undefined && params.updatedAtMs !== '') {
+          next.updatedAtMs = Number(params.updatedAtMs)
+        }
         return next
       },
     },
@@ -402,7 +436,16 @@ Return ONLY the numeric timestamp, no text.`,
       type: 'string',
       description: 'Payment mode (pay_as_you_go, pay_up_front, free_trial)',
     },
-    attributes: { type: 'string', description: 'JSON object of subscriber attributes' },
+    attributes: {
+      type: 'string',
+      description:
+        'JSON object of subscriber attributes (used by update_subscriber_attributes and create_purchase)',
+    },
+    introductoryPrice: { type: 'number', description: 'Introductory price for the purchase' },
+    updatedAtMs: {
+      type: 'number',
+      description: 'Unix epoch ms used by RevenueCat to resolve attribute conflicts',
+    },
     extendByDays: { type: 'number', description: 'Number of days to extend (1-365)' },
     expiryTimeMs: { type: 'number', description: 'Absolute new expiry time in ms since epoch' },
     endTimeMs: {
@@ -430,5 +473,9 @@ Return ONLY the numeric timestamp, no text.`,
     deleted: { type: 'boolean', description: 'Whether the subscriber was deleted' },
     app_user_id: { type: 'string', description: 'The app user ID' },
     updated: { type: 'boolean', description: 'Whether the attributes were updated' },
+    customer: {
+      type: 'json',
+      description: 'Customer object returned by create_purchase (when present in the response)',
+    },
   },
 }

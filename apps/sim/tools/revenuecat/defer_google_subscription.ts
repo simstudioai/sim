@@ -2,7 +2,12 @@ import type {
   DeferGoogleSubscriptionParams,
   DeferGoogleSubscriptionResponse,
 } from '@/tools/revenuecat/types'
-import { SUBSCRIBER_OUTPUT, throwIfRevenueCatError } from '@/tools/revenuecat/types'
+import {
+  extractSubscriber,
+  SUBSCRIBER_OUTPUT,
+  shapeSubscriber,
+  throwIfRevenueCatError,
+} from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const revenuecatDeferGoogleSubscriptionTool: ToolConfig<
@@ -60,12 +65,25 @@ export const revenuecatDeferGoogleSubscriptionTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      if (params.extendByDays === undefined && params.expiryTimeMs === undefined) {
+      const hasExtend = params.extendByDays !== undefined
+      const hasExpiry = params.expiryTimeMs !== undefined
+      if (!hasExtend && !hasExpiry) {
         throw new Error('Provide either extendByDays or expiryTimeMs to defer a subscription')
       }
+      if (hasExtend && hasExpiry) {
+        throw new Error(
+          'Provide only one of extendByDays or expiryTimeMs — they cannot be used together'
+        )
+      }
       const body: Record<string, unknown> = {}
-      if (params.expiryTimeMs !== undefined) body.expiry_time_ms = params.expiryTimeMs
-      else if (params.extendByDays !== undefined) body.extend_by_days = params.extendByDays
+      if (hasExpiry) body.expiry_time_ms = params.expiryTimeMs
+      else if (hasExtend) {
+        const days = params.extendByDays as number
+        if (!Number.isFinite(days) || days < 1 || days > 365) {
+          throw new Error('extendByDays must be an integer between 1 and 365')
+        }
+        body.extend_by_days = days
+      }
       return body
     },
   },
@@ -73,17 +91,10 @@ export const revenuecatDeferGoogleSubscriptionTool: ToolConfig<
   transformResponse: async (response) => {
     await throwIfRevenueCatError(response)
     const data = await response.json()
-    const subscriber = data.subscriber ?? {}
-
     return {
       success: true,
       output: {
-        subscriber: {
-          first_seen: subscriber.first_seen ?? '',
-          original_app_user_id: subscriber.original_app_user_id ?? '',
-          subscriptions: subscriber.subscriptions ?? {},
-          entitlements: subscriber.entitlements ?? {},
-        },
+        subscriber: shapeSubscriber(extractSubscriber(data)),
       },
     }
   },

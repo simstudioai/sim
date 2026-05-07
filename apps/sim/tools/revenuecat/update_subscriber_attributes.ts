@@ -2,7 +2,12 @@ import type {
   UpdateSubscriberAttributesParams,
   UpdateSubscriberAttributesResponse,
 } from '@/tools/revenuecat/types'
-import { throwIfRevenueCatError } from '@/tools/revenuecat/types'
+import {
+  extractSubscriber,
+  SUBSCRIBER_OUTPUT,
+  shapeSubscriber,
+  throwIfRevenueCatError,
+} from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const revenuecatUpdateSubscriberAttributesTool: ToolConfig<
@@ -54,11 +59,14 @@ export const revenuecatUpdateSubscriberAttributesTool: ToolConfig<
 
   transformResponse: async (response, params) => {
     await throwIfRevenueCatError(response)
+    const data = await response.json().catch(() => ({}))
+    const subscriber = shapeSubscriber(extractSubscriber(data))
     return {
       success: true,
       output: {
         updated: true,
-        app_user_id: params?.appUserId ?? '',
+        app_user_id: subscriber.original_app_user_id || (params?.appUserId ?? ''),
+        subscriber,
       },
     }
   },
@@ -71,6 +79,10 @@ export const revenuecatUpdateSubscriberAttributesTool: ToolConfig<
     app_user_id: {
       type: 'string',
       description: 'The app user ID of the updated subscriber',
+    },
+    subscriber: {
+      ...SUBSCRIBER_OUTPUT,
+      description: 'The updated subscriber object after applying the attribute changes',
     },
   },
 }

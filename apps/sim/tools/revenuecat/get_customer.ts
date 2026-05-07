@@ -1,7 +1,9 @@
 import type { CustomerResponse, GetCustomerParams } from '@/tools/revenuecat/types'
 import {
+  extractSubscriber,
   METADATA_OUTPUT_PROPERTIES,
   SUBSCRIBER_OUTPUT,
+  shapeSubscriber,
   throwIfRevenueCatError,
 } from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
@@ -40,39 +42,47 @@ export const revenuecatGetCustomerTool: ToolConfig<GetCustomerParams, CustomerRe
   transformResponse: async (response) => {
     await throwIfRevenueCatError(response)
     const data = await response.json()
-    const subscriber = data.subscriber ?? {}
-    const entitlements = subscriber.entitlements ?? {}
-    const subscriptions = subscriber.subscriptions ?? {}
-    const requestDate: string | undefined = data.request_date
-
+    const subscriberRaw = extractSubscriber(data)
+    const subscriber = shapeSubscriber(subscriberRaw)
+    const requestDate = (data?.value?.request_date ?? data?.request_date) as string | undefined
     const now = requestDate ? new Date(requestDate).getTime() : Date.now()
-    const activeEntitlements = Object.values(entitlements).filter((e: unknown) => {
-      const ent = e as Record<string, unknown>
-      if (typeof ent.is_active === 'boolean') return ent.is_active
-      const expires = ent.expires_date as string | null | undefined
-      const grace = ent.grace_period_expires_date as string | null | undefined
+
+    const isActiveByDates = (
+      expires: string | null | undefined,
+      grace: string | null | undefined,
+      refundedAt?: string | null | undefined
+    ) => {
+      if (refundedAt) return false
       if (!expires) return true
       if (new Date(expires).getTime() > now) return true
       if (grace && new Date(grace).getTime() > now) return true
       return false
+    }
+
+    const activeEntitlements = Object.values(subscriber.entitlements).filter((e) => {
+      const ent = e as Record<string, unknown>
+      return isActiveByDates(
+        ent.expires_date as string | null | undefined,
+        ent.grace_period_expires_date as string | null | undefined
+      )
     }).length
-    const activeSubscriptions = Object.keys(subscriptions).length
+
+    const activeSubscriptions = Object.values(subscriber.subscriptions).filter((s) => {
+      const sub = s as Record<string, unknown>
+      return isActiveByDates(
+        sub.expires_date as string | null | undefined,
+        sub.grace_period_expires_date as string | null | undefined,
+        sub.refunded_at as string | null | undefined
+      )
+    }).length
 
     return {
       success: true,
       output: {
-        subscriber: {
-          first_seen: subscriber.first_seen ?? '',
-          original_app_user_id: subscriber.original_app_user_id ?? '',
-          original_purchase_date: subscriber.original_purchase_date ?? null,
-          management_url: subscriber.management_url ?? null,
-          subscriptions: subscriptions,
-          entitlements: entitlements,
-          non_subscriptions: subscriber.non_subscriptions ?? {},
-        },
+        subscriber,
         metadata: {
-          app_user_id: subscriber.original_app_user_id ?? '',
-          first_seen: subscriber.first_seen ?? '',
+          app_user_id: subscriber.original_app_user_id,
+          first_seen: subscriber.first_seen,
           active_entitlements: activeEntitlements,
           active_subscriptions: activeSubscriptions,
         },

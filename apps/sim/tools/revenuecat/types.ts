@@ -76,28 +76,9 @@ export const SUBSCRIPTION_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 export const ENTITLEMENT_OUTPUT_PROPERTIES = {
-  grant_date: { type: 'string', description: 'ISO 8601 grant date', optional: true },
-  expires_date: { type: 'string', description: 'ISO 8601 expiration date', optional: true },
-  product_identifier: { type: 'string', description: 'Product identifier', optional: true },
-  is_active: { type: 'boolean', description: 'Whether the entitlement is active' },
-  will_renew: {
-    type: 'boolean',
-    description: 'Whether the entitlement will renew',
-    optional: true,
-  },
-  period_type: {
+  expires_date: {
     type: 'string',
-    description: 'Period type (normal, trial, intro, promotional)',
-    optional: true,
-  },
-  purchase_date: {
-    type: 'string',
-    description: 'ISO 8601 date of the latest purchase or renewal',
-    optional: true,
-  },
-  store: {
-    type: 'string',
-    description: 'Store the entitlement was granted from',
+    description: 'ISO 8601 expiration date (null for non-expiring entitlements)',
     optional: true,
   },
   grace_period_expires_date: {
@@ -105,14 +86,30 @@ export const ENTITLEMENT_OUTPUT_PROPERTIES = {
     description: 'ISO 8601 grace period expiration date',
     optional: true,
   },
+  product_identifier: { type: 'string', description: 'Product identifier', optional: true },
+  purchase_date: {
+    type: 'string',
+    description: 'ISO 8601 date of the latest purchase or renewal',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 export const SUBSCRIBER_OUTPUT_PROPERTIES = {
   first_seen: { type: 'string', description: 'ISO 8601 date when subscriber was first seen' },
+  last_seen: {
+    type: 'string',
+    description: 'ISO 8601 date when subscriber was last seen',
+    optional: true,
+  },
   original_app_user_id: { type: 'string', description: 'Original app user ID' },
+  original_application_version: {
+    type: 'string',
+    description: 'iOS only. First App Store version of your app the customer installed',
+    optional: true,
+  },
   original_purchase_date: {
     type: 'string',
-    description: 'ISO 8601 date of original purchase',
+    description: 'iOS only. Date the app was first purchased/downloaded',
     optional: true,
   },
   management_url: {
@@ -133,6 +130,17 @@ export const SUBSCRIBER_OUTPUT_PROPERTIES = {
   non_subscriptions: {
     type: 'object',
     description: 'Map of non-subscription product identifiers to arrays of purchase objects',
+    optional: true,
+  },
+  other_purchases: {
+    type: 'object',
+    description: 'Other purchases attached to the subscriber',
+    optional: true,
+  },
+  subscriber_attributes: {
+    type: 'object',
+    description:
+      'Custom attributes set on the subscriber. Only returned when using a secret API key',
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
@@ -185,6 +193,29 @@ export const OFFERINGS_METADATA_OUTPUT_PROPERTIES = {
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
+
+/**
+ * Several RevenueCat v1 endpoints (post receipts, update attributes, revoke promotionals,
+ * defer/refund/revoke Google subscriptions) wrap responses in `{ value: { request_date, subscriber } }`.
+ * GET customer info returns the same payload unwrapped. This helper handles both shapes.
+ */
+export function extractSubscriber(data: unknown): Record<string, unknown> {
+  if (!data || typeof data !== 'object') return {}
+  const root = data as Record<string, unknown>
+  const wrapped = root.value as Record<string, unknown> | undefined
+  const subscriber = (wrapped?.subscriber ?? root.subscriber) as Record<string, unknown> | undefined
+  return subscriber ?? {}
+}
+
+/**
+ * POST /v1/receipts may return a top-level `customer` object alongside `subscriber`.
+ * Returns null when not present (e.g., wrapped envelope responses).
+ */
+export function extractCustomer(data: unknown): Record<string, unknown> | null {
+  if (!data || typeof data !== 'object') return null
+  const customer = (data as Record<string, unknown>).customer
+  return customer && typeof customer === 'object' ? (customer as Record<string, unknown>) : null
+}
 
 /**
  * Parse a RevenueCat REST API error response into a meaningful Error.
@@ -244,12 +275,15 @@ export interface ListOfferingsParams extends RevenueCatBaseParams {
 export interface CreatePurchaseParams extends RevenueCatBaseParams {
   appUserId: string
   fetchToken: string
-  productId: string
+  productId?: string
   price?: number
   currency?: string
   isRestore?: boolean
   presentedOfferingIdentifier?: string
   paymentMode?: string
+  introductoryPrice?: number
+  attributes?: string
+  updatedAtMs?: number
   platform: string
 }
 
@@ -275,17 +309,39 @@ export interface RevokeGoogleSubscriptionParams extends RevenueCatBaseParams {
   productId: string
 }
 
+export interface RevenueCatSubscriber {
+  first_seen: string
+  last_seen: string | null
+  original_app_user_id: string
+  original_application_version: string | null
+  original_purchase_date: string | null
+  management_url: string | null
+  subscriptions: Record<string, unknown>
+  entitlements: Record<string, unknown>
+  non_subscriptions: Record<string, unknown>
+  other_purchases: Record<string, unknown>
+  subscriber_attributes: Record<string, unknown> | null
+}
+
+export function shapeSubscriber(raw: Record<string, unknown>): RevenueCatSubscriber {
+  return {
+    first_seen: (raw.first_seen as string) ?? '',
+    last_seen: (raw.last_seen as string | null) ?? null,
+    original_app_user_id: (raw.original_app_user_id as string) ?? '',
+    original_application_version: (raw.original_application_version as string | null) ?? null,
+    original_purchase_date: (raw.original_purchase_date as string | null) ?? null,
+    management_url: (raw.management_url as string | null) ?? null,
+    subscriptions: (raw.subscriptions as Record<string, unknown>) ?? {},
+    entitlements: (raw.entitlements as Record<string, unknown>) ?? {},
+    non_subscriptions: (raw.non_subscriptions as Record<string, unknown>) ?? {},
+    other_purchases: (raw.other_purchases as Record<string, unknown>) ?? {},
+    subscriber_attributes: (raw.subscriber_attributes as Record<string, unknown> | null) ?? null,
+  }
+}
+
 export interface CustomerResponse extends ToolResponse {
   output: {
-    subscriber: {
-      first_seen: string
-      original_app_user_id: string
-      original_purchase_date: string | null
-      management_url: string | null
-      subscriptions: Record<string, unknown>
-      entitlements: Record<string, unknown>
-      non_subscriptions: Record<string, unknown>
-    }
+    subscriber: RevenueCatSubscriber
     metadata: {
       app_user_id: string
       first_seen: string
@@ -304,23 +360,13 @@ export interface DeleteCustomerResponse extends ToolResponse {
 
 export interface GrantEntitlementResponse extends ToolResponse {
   output: {
-    subscriber: {
-      first_seen: string
-      original_app_user_id: string
-      subscriptions: Record<string, unknown>
-      entitlements: Record<string, unknown>
-    }
+    subscriber: RevenueCatSubscriber
   }
 }
 
 export interface RevokeEntitlementResponse extends ToolResponse {
   output: {
-    subscriber: {
-      first_seen: string
-      original_app_user_id: string
-      subscriptions: Record<string, unknown>
-      entitlements: Record<string, unknown>
-    }
+    subscriber: RevenueCatSubscriber
   }
 }
 
@@ -344,13 +390,8 @@ export interface ListOfferingsResponse extends ToolResponse {
 
 export interface CreatePurchaseResponse extends ToolResponse {
   output: {
-    subscriber: {
-      first_seen: string
-      original_app_user_id: string
-      subscriptions: Record<string, unknown>
-      entitlements: Record<string, unknown>
-      non_subscriptions: Record<string, unknown>
-    }
+    customer: Record<string, unknown> | null
+    subscriber: RevenueCatSubscriber
   }
 }
 
@@ -358,39 +399,25 @@ export interface UpdateSubscriberAttributesResponse extends ToolResponse {
   output: {
     updated: boolean
     app_user_id: string
+    subscriber: RevenueCatSubscriber
   }
 }
 
 export interface DeferGoogleSubscriptionResponse extends ToolResponse {
   output: {
-    subscriber: {
-      first_seen: string
-      original_app_user_id: string
-      subscriptions: Record<string, unknown>
-      entitlements: Record<string, unknown>
-    }
+    subscriber: RevenueCatSubscriber
   }
 }
 
 export interface RefundGoogleSubscriptionResponse extends ToolResponse {
   output: {
-    subscriber: {
-      first_seen: string
-      original_app_user_id: string
-      subscriptions: Record<string, unknown>
-      entitlements: Record<string, unknown>
-    }
+    subscriber: RevenueCatSubscriber
   }
 }
 
 export interface RevokeGoogleSubscriptionResponse extends ToolResponse {
   output: {
-    subscriber: {
-      first_seen: string
-      original_app_user_id: string
-      subscriptions: Record<string, unknown>
-      entitlements: Record<string, unknown>
-    }
+    subscriber: RevenueCatSubscriber
   }
 }
 
