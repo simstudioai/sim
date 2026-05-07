@@ -1,5 +1,10 @@
 import type { GrantEntitlementParams, GrantEntitlementResponse } from '@/tools/revenuecat/types'
-import { SUBSCRIBER_OUTPUT } from '@/tools/revenuecat/types'
+import {
+  extractSubscriber,
+  SUBSCRIBER_OUTPUT,
+  shapeSubscriber,
+  throwIfRevenueCatError,
+} from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const revenuecatGrantEntitlementTool: ToolConfig<
@@ -32,10 +37,17 @@ export const revenuecatGrantEntitlementTool: ToolConfig<
     },
     duration: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Duration of the entitlement (daily, three_day, weekly, monthly, two_month, three_month, six_month, yearly, lifetime)',
+        'Duration of the entitlement. Provide either duration or endTimeMs. One of: daily, three_day, weekly, two_week, monthly, two_month, three_month, six_month, yearly, lifetime',
+    },
+    endTimeMs: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Absolute end time in milliseconds since Unix epoch. Use instead of duration to grant the entitlement until a specific timestamp.',
     },
     startTimeMs: {
       type: 'number',
@@ -48,32 +60,31 @@ export const revenuecatGrantEntitlementTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId)}/entitlements/${encodeURIComponent(params.entitlementIdentifier)}/promotional`,
+      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId.trim())}/entitlements/${encodeURIComponent(params.entitlementIdentifier.trim())}/promotional`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: Record<string, unknown> = { duration: params.duration }
+      if (!params.duration && params.endTimeMs === undefined) {
+        throw new Error('Provide either duration or endTimeMs to grant a promotional entitlement')
+      }
+      const body: Record<string, unknown> = {}
+      if (params.endTimeMs !== undefined) body.end_time_ms = params.endTimeMs
+      else if (params.duration) body.duration = params.duration
       if (params.startTimeMs !== undefined) body.start_time_ms = params.startTimeMs
       return body
     },
   },
 
   transformResponse: async (response) => {
+    await throwIfRevenueCatError(response)
     const data = await response.json()
-    const subscriber = data.subscriber ?? {}
-
     return {
       success: true,
       output: {
-        subscriber: {
-          first_seen: subscriber.first_seen ?? '',
-          original_app_user_id: subscriber.original_app_user_id ?? '',
-          subscriptions: subscriber.subscriptions ?? {},
-          entitlements: subscriber.entitlements ?? {},
-        },
+        subscriber: shapeSubscriber(extractSubscriber(data)),
       },
     }
   },
