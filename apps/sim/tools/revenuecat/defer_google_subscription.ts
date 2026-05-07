@@ -79,7 +79,7 @@ export const revenuecatDeferGoogleSubscriptionTool: ToolConfig<
       if (hasExpiry) body.expiry_time_ms = params.expiryTimeMs
       else if (hasExtend) {
         const days = params.extendByDays as number
-        if (!Number.isFinite(days) || days < 1 || days > 365) {
+        if (!Number.isInteger(days) || days < 1 || days > 365) {
           throw new Error('extendByDays must be an integer between 1 and 365')
         }
         body.extend_by_days = days

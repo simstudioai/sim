@@ -398,12 +398,18 @@ Return ONLY the numeric timestamp, no text.`,
           next.startTimeMs = Number(params.startTimeMs)
         }
         if (params.endTimeMs !== undefined && params.endTimeMs !== '') {
-          next.endTimeMs = Number(params.endTimeMs)
-          next.duration = undefined
+          const endTimeMs = Number(params.endTimeMs)
+          if (Number.isFinite(endTimeMs)) {
+            next.endTimeMs = endTimeMs
+            next.duration = undefined
+          }
         }
         if (params.expiryTimeMs !== undefined && params.expiryTimeMs !== '') {
-          next.expiryTimeMs = Number(params.expiryTimeMs)
-          next.extendByDays = undefined
+          const expiryTimeMs = Number(params.expiryTimeMs)
+          if (Number.isFinite(expiryTimeMs)) {
+            next.expiryTimeMs = expiryTimeMs
+            next.extendByDays = undefined
+          }
         }
         if (params.introductoryPrice !== undefined && params.introductoryPrice !== '') {
           next.introductoryPrice = Number(params.introductoryPrice)
