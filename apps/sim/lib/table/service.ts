@@ -2425,6 +2425,15 @@ export async function deleteColumn(
     await trx.execute(
       sql`UPDATE user_table_rows SET data = data - ${actualName}::text WHERE table_id = ${data.tableId} AND data ? ${actualName}::text`
     )
+    // If deleting this column orphaned its parent group (last output gone),
+    // strip the group's exec entries from every row. Otherwise stale
+    // running/queued exec records linger forever and inflate the
+    // "N running" counter.
+    if (groupRemovedId) {
+      await trx.execute(
+        sql`UPDATE user_table_rows SET executions = executions - ${groupRemovedId}::text WHERE table_id = ${data.tableId} AND executions ? ${groupRemovedId}::text`
+      )
+    }
   })
 
   logger.info(`[${requestId}] Deleted column "${actualName}" from table ${data.tableId}`)
@@ -2525,6 +2534,13 @@ export async function deleteColumns(
     for (const name of namesToDelete) {
       await trx.execute(
         sql`UPDATE user_table_rows SET data = data - ${name}::text WHERE table_id = ${data.tableId} AND data ? ${name}::text`
+      )
+    }
+    // Strip exec entries for any group orphaned by these column deletes —
+    // see `deleteColumn` for rationale.
+    for (const gid of removedGroupIds) {
+      await trx.execute(
+        sql`UPDATE user_table_rows SET executions = executions - ${gid}::text WHERE table_id = ${data.tableId} AND executions ? ${gid}::text`
       )
     }
   })
@@ -2781,10 +2797,15 @@ export async function addWorkflowGroup(
   // Schedule existing rows so already-filled deps trigger immediately. Skipped
   // when the caller opted out (Mothership stages groups silently — `autoRun:
   // false` — so the AI can compose multiple changes without firing rows mid-edit).
+  // Awaited (not `void`) so the response includes the queued exec state — the
+  // client's post-mutation refetch otherwise lands before the stamps commit
+  // and the rows query polling never starts.
   if (data.autoRun !== false) {
-    void scheduleRunsForTable(updatedTable).catch((err) => {
+    try {
+      await scheduleRunsForTable(updatedTable)
+    } catch (err) {
       logger.error(`[${requestId}] Failed to schedule runs after group add:`, err)
-    })
+    }
   }
 
   return updatedTable
@@ -3068,11 +3089,14 @@ export async function updateWorkflowGroup(
 
   // autoRun toggled false → true: fire deps-satisfied rows now. Mirrors the
   // post-add scheduling path so re-enabling auto-fire doesn't require manual
-  // run clicks for rows that are already eligible.
+  // run clicks for rows that are already eligible. Awaited so the post-
+  // mutation refetch sees the queued exec stamps.
   if (group.autoRun === false && data.autoRun === true) {
-    void scheduleRunsForTable(updatedTable, { groupId: data.groupId }).catch((err) => {
+    try {
+      await scheduleRunsForTable(updatedTable, { groupId: data.groupId })
+    } catch (err) {
       logger.error(`[${requestId}] Failed to schedule runs after autoRun toggled on:`, err)
-    })
+    }
   }
 
   return updatedTable

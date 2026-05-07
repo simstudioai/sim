@@ -1186,8 +1186,13 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
     onError: (_err, _variables, context) => {
       if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    onSettled: async () => {
+      // Cancel any in-flight poll first — without this, a poll started during
+      // the mutation but lands AFTER it resolves can clobber the optimistic
+      // patch with stale data, producing a queued → cancelled → queued flicker
+      // before the authoritative refetch arrives.
+      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      await queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
     },
   })
 }

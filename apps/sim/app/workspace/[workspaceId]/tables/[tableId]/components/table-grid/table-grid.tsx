@@ -2581,11 +2581,14 @@ export function TableGrid({
   }, [rows])
 
   // Context-menu wrappers: act on `contextMenuRowIds`, then close the menu.
-  // `'incomplete'` mirrors the per-row gutter Play button — both gestures mean
-  // "fill in what's missing." Use the action bar's explicit Rerun button when
-  // re-running already-completed cells is wanted.
+  // Mirror the action bar's Play / Refresh split: Play fills empty/failed,
+  // Refresh re-runs everything (including completed cells).
   const handleRunWorkflowsOnSelection = () => {
     onRunRows(contextMenuRowIds, 'incomplete')
+    closeContextMenu()
+  }
+  const handleRefreshWorkflowsOnSelection = () => {
+    onRunRows(contextMenuRowIds, 'all')
     closeContextMenu()
   }
   const handleStopWorkflowsOnSelection = () => {
@@ -2667,6 +2670,31 @@ export function TableGrid({
     () => tableWorkflowGroups.map((g) => g.id),
     [tableWorkflowGroups]
   )
+
+  // Status mix across the (row, group) cells the context menu is acting on.
+  // Drives Run vs Refresh visibility in the dropdown — same shape the action
+  // bar uses for its selectionStats so both surfaces stay in sync.
+  const contextMenuStats = useMemo(() => {
+    let hasIncompleteOrFailed = false
+    let hasCompleted = false
+    if (contextMenuRowIds.length === 0 || tableWorkflowGroupIds.length === 0) {
+      return { hasIncompleteOrFailed, hasCompleted }
+    }
+    const rowIdSet = new Set(contextMenuRowIds)
+    for (const row of rows) {
+      if (!rowIdSet.has(row.id)) continue
+      for (const groupId of tableWorkflowGroupIds) {
+        const status = readExecution(row, groupId)?.status
+        if (status === 'queued' || status === 'running' || status === 'pending') continue
+        if (status === 'completed') hasCompleted = true
+        else hasIncompleteOrFailed = true
+        if (hasIncompleteOrFailed && hasCompleted) {
+          return { hasIncompleteOrFailed, hasCompleted }
+        }
+      }
+    }
+    return { hasIncompleteOrFailed, hasCompleted }
+  }, [contextMenuRowIds, rows, tableWorkflowGroupIds])
 
   // Run scope is derived from one of two selection sources:
   //   - checkedRows (whole-row selection) → those rows × every workflow group
@@ -3099,7 +3127,14 @@ export function TableGrid({
         canEditCell={!contextMenuIsWorkflowColumn}
         selectedRowCount={selectedRowCount}
         onRunWorkflows={
-          userPermissions.canEdit && hasWorkflowColumns ? handleRunWorkflowsOnSelection : undefined
+          userPermissions.canEdit && hasWorkflowColumns && contextMenuStats.hasIncompleteOrFailed
+            ? handleRunWorkflowsOnSelection
+            : undefined
+        }
+        onRefreshWorkflows={
+          userPermissions.canEdit && hasWorkflowColumns && contextMenuStats.hasCompleted
+            ? handleRefreshWorkflowsOnSelection
+            : undefined
         }
         onStopWorkflows={
           userPermissions.canEdit && hasWorkflowColumns ? handleStopWorkflowsOnSelection : undefined

@@ -90,7 +90,9 @@ export function TableActionBar({
         >
           <div className='pointer-events-auto flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
             <span className='px-1 text-[var(--text-secondary)] text-small'>
-              {selectedCellCount === 1 ? 'Cell' : `${selectedCellCount} cells`}
+              {selectedCellCount === 1
+                ? 'Selected 1 workflow cell'
+                : `Selected ${selectedCellCount} workflow cells`}
             </span>
 
             <div className='flex items-center gap-[5px]'>

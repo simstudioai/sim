@@ -75,8 +75,12 @@ export function resolveCellRender({
     const groupHasBlockErrors = !!(exec?.blockErrors && Object.keys(exec.blockErrors).length > 0)
 
     if (blockError) return { kind: 'block-error' }
-    if (!isNull) return { kind: 'value', text: stringifyValue(value) }
 
+    // In-flight wins over the existing value: when the group is being re-run,
+    // the current value is about to be overwritten — surface the run state so
+    // the user sees the cell is changing. Without this, a queued / running
+    // re-run on a previously-completed cell looks like nothing happened until
+    // the new value lands.
     const inFlight =
       exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending'
     if (inFlight && !(groupHasBlockErrors && !blockRunning)) {
@@ -87,11 +91,17 @@ export function resolveCellRender({
       return { kind: 'pending-upstream' }
     }
 
-    if (exec?.status === 'cancelled') return { kind: 'cancelled' }
-    if (exec?.status === 'error') return { kind: 'error' }
+    if (!isNull) return { kind: 'value', text: stringifyValue(value) }
+
+    // Waiting wins over a stale terminal state: if deps are unmet right now,
+    // the prior `cancelled` / `error` is informational at best — the cell
+    // can't actually run until the user fills the missing input. Surface the
+    // actionable state instead of the stale one.
     if (waitingOnLabels && waitingOnLabels.length > 0) {
       return { kind: 'waiting', labels: waitingOnLabels }
     }
+    if (exec?.status === 'cancelled') return { kind: 'cancelled' }
+    if (exec?.status === 'error') return { kind: 'error' }
     return { kind: 'empty' }
   }
 
