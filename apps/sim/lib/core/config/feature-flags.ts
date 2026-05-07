@@ -142,6 +142,15 @@ export const isDataRetentionEnabled = isTruthy(env.DATA_RETENTION_ENABLED)
 export const isDataDrainsEnabled = isTruthy(env.DATA_DRAINS_ENABLED)
 
 /**
+ * Are workflow output columns enabled in user tables.
+ * Defaults to false; set NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED=true to show
+ * the "Workflow" column type in the new-column dropdown.
+ */
+export const isWorkflowColumnsEnabledClient = isTruthy(
+  getEnv('NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED')
+)
+
+/**
  * Is E2B enabled for remote code execution
  */
 export const isE2bEnabled = isTruthy(env.E2B_ENABLED)

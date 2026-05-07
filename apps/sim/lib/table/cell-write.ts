@@ -63,12 +63,7 @@ export async function writeWorkflowGroupState(
   const isQueuedStamp = payload.executionState.status === 'queued'
   const isNewQueuedStamp = isQueuedStamp && current?.executionId !== executionId
   const bypassStaleWorker = isNewQueuedStamp || isCancelStamp
-  if (
-    !bypassStaleWorker &&
-    current &&
-    current.executionId &&
-    current.executionId !== executionId
-  ) {
+  if (!bypassStaleWorker && current && current.executionId && current.executionId !== executionId) {
     logger.info(
       `Skipping group write — stale worker (table=${tableId} row=${rowId} group=${groupId} mine=${executionId} active=${current.executionId})`
     )

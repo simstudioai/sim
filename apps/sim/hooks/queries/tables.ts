@@ -4,6 +4,7 @@
  * React Query hooks for managing user-defined tables.
  */
 
+import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   type InfiniteData,
@@ -68,7 +69,7 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table'
-import { optimisticallyScheduleNewlyEligibleGroups } from '@/lib/table/deps'
+import { areOutputsFilled, optimisticallyScheduleNewlyEligibleGroups } from '@/lib/table/deps'
 
 /** Short poll to surface running → completed transitions from the server without a dedicated realtime channel. */
 const ROWS_POLL_INTERVAL_WHILE_RUNNING_MS = 1500
@@ -80,14 +81,6 @@ function hasRunningGroupExecution(rows: TableRow[] | undefined): boolean {
     for (const key in executions) {
       if (isOptimisticInFlight(executions[key])) return true
     }
-  }
-  return false
-}
-
-function hasRunningGroupExecutionInPages(pages: TableRowsResponse[] | undefined): boolean {
-  if (!pages) return false
-  for (const page of pages) {
-    if (hasRunningGroupExecution(page.rows)) return true
   }
   return false
 }
@@ -293,9 +286,10 @@ export function useInfiniteTableRows({
     filter: filter ?? null,
     sort: sort ?? null,
   })
+  const queryKey = tableKeys.infiniteRows(tableId, paramsKey)
 
-  return useInfiniteQuery({
-    queryKey: tableKeys.infiniteRows(tableId, paramsKey),
+  const query = useInfiniteQuery({
+    queryKey,
     queryFn: ({ pageParam, signal }) =>
       fetchTableRows({
         workspaceId,
@@ -314,23 +308,65 @@ export function useInfiniteTableRows({
     },
     enabled: Boolean(workspaceId && tableId) && enabled,
     staleTime: 30 * 1000,
-    /**
-     * Poll while any row has a `pending` or `running` group execution.
-     * Realtime sockets push every cell write, but cross-network paths
-     * (trigger.dev workers → realtime ECS, client through CloudFront/proxy)
-     * occasionally drop events. Polling at the running cadence is the
-     * safety net so cells reach their terminal state without a refresh.
-     * No polling when nothing is running and no polling while a mutation
-     * is in flight (optimistic-update guard).
-     */
-    refetchInterval: (query) => {
-      if (queryClient.isMutating() > 0) return false
-      return hasRunningGroupExecutionInPages(query.state.data?.pages)
-        ? ROWS_POLL_INTERVAL_WHILE_RUNNING_MS
-        : false
-    },
-    refetchIntervalInBackground: false,
   })
+
+  /**
+   * Per-page polling. Built-in `refetchInterval` would refetch every loaded
+   * page on each tick — wasteful when only one page has running cells.
+   * Instead, walk pages each tick and refetch ONLY the dirty ones, splicing
+   * results back into the cache. Polling stops when no page has in-flight
+   * cells, or while a mutation is running (optimistic-update guard).
+   */
+  useEffect(() => {
+    if (!enabled || !workspaceId || !tableId) return
+    let cancelled = false
+    const tick = async () => {
+      if (cancelled) return
+      if (queryClient.isMutating() > 0) return
+      const data = queryClient.getQueryData<InfiniteData<TableRowsResponse, number>>(queryKey)
+      if (!data) return
+      const dirty: number[] = []
+      for (let i = 0; i < data.pages.length; i++) {
+        if (hasRunningGroupExecution(data.pages[i].rows)) {
+          dirty.push(data.pageParams[i] ?? i * pageSize)
+        }
+      }
+      if (dirty.length === 0) return
+      await Promise.all(
+        dirty.map(async (offset) => {
+          try {
+            const fresh = await fetchTableRows({
+              workspaceId,
+              tableId,
+              limit: pageSize,
+              offset,
+              filter,
+              sort,
+              includeTotal: offset === 0,
+            })
+            if (cancelled) return
+            queryClient.setQueryData<InfiniteData<TableRowsResponse, number>>(queryKey, (prev) => {
+              if (!prev) return prev
+              const idx = prev.pageParams.indexOf(offset)
+              if (idx === -1) return prev
+              const nextPages = prev.pages.slice()
+              nextPages[idx] = fresh
+              return { ...prev, pages: nextPages }
+            })
+          } catch {
+            // Transient fetch failure — next tick retries. Don't kill the loop.
+          }
+        })
+      )
+    }
+    const intervalId = setInterval(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
+    return () => {
+      cancelled = true
+      clearInterval(intervalId)
+    }
+  }, [enabled, workspaceId, tableId, pageSize, filter, sort, queryClient, queryKey])
+
+  return query
 }
 
 /**
@@ -1176,6 +1212,10 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
     onMutate: async ({ groupIds, runMode = 'all', rowIds }) => {
       const targetRowIds = rowIds && rowIds.length > 0 ? new Set(rowIds) : null
       const targetGroupIds = new Set(groupIds)
+      const groups =
+        queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))?.schema
+          .workflowGroups ?? []
+      const groupsById = new Map(groups.map((g) => [g.id, g]))
       const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
         if (targetRowIds && !targetRowIds.has(r.id)) return null
         const executions = r.executions ?? {}
@@ -1184,7 +1224,15 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
         for (const groupId of targetGroupIds) {
           const exec = executions[groupId] as RowExecutionMetadata | undefined
           if (isOptimisticInFlight(exec)) continue
-          if (runMode === 'incomplete' && exec?.status === 'completed') continue
+          // Mirror server eligibility for `mode: 'incomplete'`: skip cells whose
+          // outputs are filled, regardless of exec status. A cancelled/error
+          // cell with a leftover value from a prior run was rendering as filled
+          // but flipping to "queued" optimistically here even though the server
+          // would skip it.
+          if (runMode === 'incomplete') {
+            const group = groupsById.get(groupId)
+            if (group && areOutputsFilled(group, r)) continue
+          }
           next[groupId] = buildPendingExec(exec)
           changed = true
         }
