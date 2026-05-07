@@ -25,12 +25,18 @@ const logger = createLogger('WorkflowDBHelpers')
 export type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
 export type WorkflowDeploymentVersion = InferSelectModel<typeof workflowDeploymentVersion>
 
-async function lockWorkflowForUpdate(tx: DbOrTx, workflowId: string): Promise<boolean> {
-  if ('execute' in tx && typeof tx.execute === 'function') {
-    await tx.execute(sql`SELECT id FROM workflow WHERE id = ${workflowId} FOR UPDATE`)
-    return true
+function hasReturnedRows(result: unknown): boolean {
+  if (Array.isArray(result)) return result.length > 0
+
+  if (result && typeof result === 'object') {
+    const rows = 'rows' in result ? result.rows : undefined
+    if (Array.isArray(rows)) return rows.length > 0
   }
 
+  return Boolean(result)
+}
+
+async function lockWorkflowForUpdate(tx: DbOrTx, workflowId: string): Promise<boolean> {
   const query = tx.select({ id: workflow.id }).from(workflow).where(eq(workflow.id, workflowId))
 
   if ('limit' in query && typeof query.limit === 'function') {
@@ -39,12 +45,12 @@ async function lockWorkflowForUpdate(tx: DbOrTx, workflowId: string): Promise<bo
       'for' in limited && typeof limited.for === 'function'
         ? await limited.for('update')
         : await limited
-    return Array.isArray(rows) ? rows.length > 0 : true
+    return hasReturnedRows(rows)
   }
 
   const rows = await query
 
-  return Array.isArray(rows) ? rows.length > 0 : true
+  return hasReturnedRows(rows)
 }
 
 export interface WorkflowDeploymentVersionResponse {
@@ -816,7 +822,9 @@ export async function undeployWorkflow(params: {
   const { workflowId, tx } = params
 
   const executeUndeploy = async (dbCtx: DbOrTx) => {
-    await lockWorkflowForUpdate(dbCtx, workflowId)
+    if (!(await lockWorkflowForUpdate(dbCtx, workflowId))) {
+      throw new Error('Workflow not found')
+    }
 
     const deploymentVersions = await dbCtx
       .select({ id: workflowDeploymentVersion.id })

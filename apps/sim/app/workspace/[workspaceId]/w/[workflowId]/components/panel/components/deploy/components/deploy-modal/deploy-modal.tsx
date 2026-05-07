@@ -353,7 +353,7 @@ export function DeployModal({
         if (!isWorkflowStillActive(workflowId) || deployActionIdRef.current !== actionId) return
         setDeployWarnings([...(result.warnings || []), ...(syncWarning ? [syncWarning] : [])])
       } finally {
-        if (deployActionIdRef.current === actionId && isWorkflowStillActive(workflowId)) {
+        if (deployActionIdRef.current === actionId) {
           setIsFinalizingDeploy(false)
         }
       }
@@ -365,7 +365,7 @@ export function DeployModal({
       setDeployError(errorMessage)
     } finally {
       releaseDeployAction(workflowId)
-      if (deployActionIdRef.current === actionId && isWorkflowStillActive(workflowId)) {
+      if (deployActionIdRef.current === actionId) {
         setIsFinalizingDeploy(false)
       }
     }
@@ -461,7 +461,7 @@ export function DeployModal({
         if (!isWorkflowStillActive(workflowId) || deployActionIdRef.current !== actionId) return
         setDeployWarnings([...(result.warnings || []), ...(syncWarning ? [syncWarning] : [])])
       } finally {
-        if (deployActionIdRef.current === actionId && isWorkflowStillActive(workflowId)) {
+        if (deployActionIdRef.current === actionId) {
           setIsFinalizingDeploy(false)
         }
       }
@@ -473,7 +473,7 @@ export function DeployModal({
       setDeployError(errorMessage)
     } finally {
       releaseDeployAction(workflowId)
-      if (deployActionIdRef.current === actionId && isWorkflowStillActive(workflowId)) {
+      if (deployActionIdRef.current === actionId) {
         setIsFinalizingDeploy(false)
       }
     }

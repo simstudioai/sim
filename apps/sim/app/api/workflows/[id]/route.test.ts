@@ -27,8 +27,12 @@ const mockGetWorkflowById = workflowsUtilsMockFns.mockGetWorkflowById
 const mockAuthorizeWorkflowByWorkspacePermission =
   workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 const mockPerformDeleteWorkflow = workflowsOrchestrationMockFns.mockPerformDeleteWorkflow
-const mockDbUpdate = vi.fn()
-const mockDbSelect = vi.fn()
+
+const { mockDbUpdate, mockDbSelect, mockDbTransaction } = vi.hoisted(() => ({
+  mockDbUpdate: vi.fn(),
+  mockDbSelect: vi.fn(),
+  mockDbTransaction: vi.fn(),
+}))
 
 /**
  * Helper to set mock auth state consistently across getSession and hybrid auth.
@@ -65,6 +69,7 @@ vi.mock('@sim/db', () => ({
   db: {
     update: () => mockDbUpdate(),
     select: () => mockDbSelect(),
+    transaction: mockDbTransaction,
   },
   workflow: {},
 }))
@@ -80,6 +85,18 @@ describe('Workflow By ID API Route', () => {
     })
 
     mockLoadWorkflowFromNormalizedTables.mockResolvedValue(null)
+    mockDbTransaction.mockImplementation(async (callback) =>
+      callback({
+        execute: vi.fn().mockResolvedValue(undefined),
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([]),
+            }),
+          }),
+        }),
+      })
+    )
   })
 
   describe('GET /api/workflows/[id]', () => {

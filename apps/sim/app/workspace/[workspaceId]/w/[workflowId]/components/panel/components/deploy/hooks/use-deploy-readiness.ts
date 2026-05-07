@@ -134,10 +134,11 @@ export function useDeployReadiness(workflowId: string | null): DeployReadiness {
     const drained = await queue.waitForWorkflowOperations(workflowId)
     if (!drained) return false
 
+    const latestQueue = useOperationQueueStore.getState()
     const diff = useWorkflowDiffStore.getState()
     return (
-      !queue.hasOperationError &&
-      !queue.hasPendingOperations(workflowId) &&
+      !latestQueue.hasOperationError &&
+      !latestQueue.hasPendingOperations(workflowId) &&
       !diff.hasActiveDiff &&
       !diff.pendingExternalUpdates[workflowId] &&
       !diff.reconcilingWorkflows[workflowId] &&
