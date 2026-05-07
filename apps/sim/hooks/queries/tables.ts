@@ -320,49 +320,61 @@ export function useInfiniteTableRows({
   useEffect(() => {
     if (!enabled || !workspaceId || !tableId) return
     let cancelled = false
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
     const tick = async () => {
       if (cancelled) return
-      if (queryClient.isMutating() > 0) return
-      const data = queryClient.getQueryData<InfiniteData<TableRowsResponse, number>>(queryKey)
-      if (!data) return
-      const dirty: number[] = []
-      for (let i = 0; i < data.pages.length; i++) {
-        if (hasRunningGroupExecution(data.pages[i].rows)) {
-          dirty.push(data.pageParams[i] ?? i * pageSize)
+      if (queryClient.isMutating() === 0) {
+        const data = queryClient.getQueryData<InfiniteData<TableRowsResponse, number>>(queryKey)
+        const dirty: number[] = []
+        if (data) {
+          for (let i = 0; i < data.pages.length; i++) {
+            if (hasRunningGroupExecution(data.pages[i].rows)) {
+              dirty.push(data.pageParams[i] ?? i * pageSize)
+            }
+          }
+        }
+        if (dirty.length > 0) {
+          await Promise.all(
+            dirty.map(async (offset) => {
+              try {
+                const fresh = await fetchTableRows({
+                  workspaceId,
+                  tableId,
+                  limit: pageSize,
+                  offset,
+                  filter,
+                  sort,
+                  includeTotal: offset === 0,
+                })
+                if (cancelled) return
+                queryClient.setQueryData<InfiniteData<TableRowsResponse, number>>(
+                  queryKey,
+                  (prev) => {
+                    if (!prev) return prev
+                    const idx = prev.pageParams.indexOf(offset)
+                    if (idx === -1) return prev
+                    const nextPages = prev.pages.slice()
+                    nextPages[idx] = fresh
+                    return { ...prev, pages: nextPages }
+                  }
+                )
+              } catch {
+                // Transient fetch failure — next tick retries. Don't kill the loop.
+              }
+            })
+          )
         }
       }
-      if (dirty.length === 0) return
-      await Promise.all(
-        dirty.map(async (offset) => {
-          try {
-            const fresh = await fetchTableRows({
-              workspaceId,
-              tableId,
-              limit: pageSize,
-              offset,
-              filter,
-              sort,
-              includeTotal: offset === 0,
-            })
-            if (cancelled) return
-            queryClient.setQueryData<InfiniteData<TableRowsResponse, number>>(queryKey, (prev) => {
-              if (!prev) return prev
-              const idx = prev.pageParams.indexOf(offset)
-              if (idx === -1) return prev
-              const nextPages = prev.pages.slice()
-              nextPages[idx] = fresh
-              return { ...prev, pages: nextPages }
-            })
-          } catch {
-            // Transient fetch failure — next tick retries. Don't kill the loop.
-          }
-        })
-      )
+      if (cancelled) return
+      // Recursive setTimeout instead of setInterval so a slow tick can't
+      // overlap the next one — out-of-order responses would otherwise let
+      // stale data overwrite fresh.
+      timeoutId = setTimeout(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
     }
-    const intervalId = setInterval(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
+    timeoutId = setTimeout(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
     return () => {
       cancelled = true
-      clearInterval(intervalId)
+      if (timeoutId !== null) clearTimeout(timeoutId)
     }
   }, [enabled, workspaceId, tableId, pageSize, filter, sort, queryClient, queryKey])
 
