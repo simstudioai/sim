@@ -88,17 +88,12 @@ export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTask
 
     const data = await response.json().catch(() => null)
     const tasks = Array.isArray(data?.tasks) ? data.tasks : []
-    const created =
-      data === true ||
-      data?.success === true ||
-      tasks.length > 0 ||
-      (response.status >= 200 && response.status < 300)
 
     return {
       success: true,
       output: {
         tasks,
-        created,
+        created: true,
       },
     }
   },
