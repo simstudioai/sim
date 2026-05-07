@@ -36,7 +36,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       Onboarding_Plan_Assignment_Data: {
         Onboarding_Plan_Reference: wdRef('Onboarding_Plan_ID', data.onboardingPlanId),
         Person_Reference: wdRef('WID', data.workerId),
-        Action_Event_Reference: wdRef('Background_Check_ID', data.actionEventId),
+        Action_Event_Reference: wdRef('WID', data.actionEventId),
         Assignment_Effective_Moment: new Date().toISOString(),
         Active: true,
       },
