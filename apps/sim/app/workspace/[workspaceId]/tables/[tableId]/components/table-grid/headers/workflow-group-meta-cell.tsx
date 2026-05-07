@@ -327,6 +327,7 @@ export function WorkflowGroupMetaCell({
       const th = e.currentTarget as HTMLElement
       const related = e.relatedTarget as Node | null
       if (related && th.contains(related)) return
+      if (related && related instanceof Element && related.closest('th')) return
       onDragLeave?.()
     },
     [onDragLeave]

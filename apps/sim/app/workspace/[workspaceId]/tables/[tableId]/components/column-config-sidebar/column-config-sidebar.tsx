@@ -106,7 +106,11 @@ function ColumnConfigBody({
 
     try {
       if (config.mode === 'create') {
-        await addColumn.mutateAsync({ name: trimmedName, type: typeInput })
+        await addColumn.mutateAsync({
+          name: trimmedName,
+          type: typeInput,
+          ...(uniqueInput ? { unique: true } : {}),
+        })
         toast.success(`Added "${trimmedName}"`)
         onClose()
         return
