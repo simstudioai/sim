@@ -4,13 +4,16 @@
 export type PanelTab = 'copilot' | 'editor' | 'toolbar'
 
 /**
- * Panel state interface
+ * Panel state interface.
+ *
+ * @remarks
+ * The active tab is intentionally not stored here — it lives in the URL
+ * (`?panel=...`) via nuqs so a hard refresh can paint the correct tab
+ * before React hydrates.
  */
 export interface PanelState {
   panelWidth: number
   setPanelWidth: (width: number) => void
-  activeTab: PanelTab
-  setActiveTab: (tab: PanelTab) => void
   /** Whether the panel is currently being resized */
   isResizing: boolean
   /** Updates the panel resize state */

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { PublicEnvScript } from 'next-runtime-env'
+import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { BrandedLayout } from '@/components/branded-layout'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
@@ -104,7 +105,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth);
                 }
 
-                // Panel width and active tab
+                // Panel width
                 try {
                   var panelStored = localStorage.getItem('panel-state');
                   if (panelStored) {
@@ -118,14 +119,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     } else if (panelWidth > maxPanelWidth) {
                       document.documentElement.style.setProperty('--panel-width', maxPanelWidth + 'px');
                     }
-
-                    var activeTab = panelState && panelState.activeTab;
-                    if (activeTab) {
-                      document.documentElement.setAttribute('data-panel-active-tab', activeTab);
-                    }
                   }
                 } catch (e) {
                   // Fallback handled by CSS defaults
+                }
+
+                // Panel active tab — sourced from the URL so a hard refresh paints
+                // the correct tab before React hydrates (no copilot → editor flash).
+                try {
+                  var panelTab = new URLSearchParams(window.location.search).get('panel');
+                  if (panelTab === 'copilot' || panelTab === 'toolbar' || panelTab === 'editor') {
+                    document.documentElement.setAttribute('data-panel-active-tab', panelTab);
+                  } else {
+                    document.documentElement.setAttribute('data-panel-active-tab', 'copilot');
+                  }
+                } catch (e) {
+                  document.documentElement.setAttribute('data-panel-active-tab', 'copilot');
                 }
 
                 // Toolbar triggers height
@@ -258,11 +267,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         <PostHogProvider>
           <ThemeProvider>
             <QueryProvider>
-              <SessionProvider>
-                <TooltipProvider>
-                  <BrandedLayout>{children}</BrandedLayout>
-                </TooltipProvider>
-              </SessionProvider>
+              <NuqsAdapter>
+                <SessionProvider>
+                  <TooltipProvider>
+                    <BrandedLayout>{children}</BrandedLayout>
+                  </TooltipProvider>
+                </SessionProvider>
+              </NuqsAdapter>
             </QueryProvider>
           </ThemeProvider>
         </PostHogProvider>

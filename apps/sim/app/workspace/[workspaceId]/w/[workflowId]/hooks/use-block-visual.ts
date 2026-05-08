@@ -1,11 +1,14 @@
 import { useCallback, useMemo } from 'react'
+import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import { useBlockState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks'
 import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { getBlockRingStyles } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-ring-utils'
 import { useLastRunPath } from '@/stores/execution'
-import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
+import { usePanelEditorStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+const PANEL_TABS = ['copilot', 'toolbar', 'editor'] as const
 
 /**
  * Props for the useBlockVisual hook.
@@ -54,16 +57,8 @@ export function useBlockVisual({
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
 
   const isThisBlockInEditor = currentBlockId === blockId
-  const activeTabIsEditor = usePanelStore(
-    useCallback(
-      (state) => {
-        if (isPreview || isEmbedded || !isThisBlockInEditor) return false
-        return state.activeTab === 'editor'
-      },
-      [isPreview, isEmbedded, isThisBlockInEditor]
-    )
-  )
-  const isEditorOpen = !isPreview && !isEmbedded && isThisBlockInEditor && activeTabIsEditor
+  const [panelTab] = useQueryState('panel', parseAsStringLiteral(PANEL_TABS).withDefault('copilot'))
+  const isEditorOpen = !isPreview && !isEmbedded && isThisBlockInEditor && panelTab === 'editor'
 
   const lastRunPath = useLastRunPath()
   const runPathStatus = isPreview ? undefined : lastRunPath.get(blockId)

@@ -11,9 +11,10 @@ import {
   useState,
 } from 'react'
 import clsx from 'clsx'
-import { Search } from 'lucide-react'
+import { Command, Info, Option, Search } from 'lucide-react'
 import { usePostHog } from 'posthog-js/react'
-import { Button } from '@/components/emcn'
+import { Button, Tooltip } from '@/components/emcn'
+import { isMacPlatform } from '@/lib/core/utils/platform'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   getBlocksForSidebar,
@@ -313,6 +314,10 @@ export const Toolbar = memo(
     // Search state
     const [isSearchActive, setIsSearchActive] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [isMac, setIsMac] = useState<boolean | null>(null)
+    useEffect(() => {
+      setIsMac(isMacPlatform())
+    }, [])
     const [prevIsActive, setPrevIsActive] = useState(isActive)
     if (isActive !== prevIsActive) {
       setPrevIsActive(isActive)
@@ -729,14 +734,31 @@ export const Toolbar = memo(
           <h2 className='font-medium text-[var(--text-primary)] text-sm'>Toolbar</h2>
           <div className='flex shrink-0 items-center gap-2'>
             {!isSearchActive ? (
-              <Button
-                variant='ghost'
-                className='p-0'
-                aria-label='Search toolbar'
-                onClick={handleSearchClick}
-              >
-                <Search className='h-[14px] w-[14px]' />
-              </Button>
+              <>
+                {isMac !== null && (
+                  <kbd className='inline-flex items-center gap-0.5 rounded-[4px] border border-[var(--border)] bg-[var(--surface-3)] px-1 py-0.5 font-mono font-normal text-[11px] text-[var(--text-muted)] leading-none'>
+                    {isMac ? (
+                      <>
+                        <span className='flex items-center gap-0.5'>
+                          <Option className='h-[10px] w-[10px]' strokeWidth={2.5} />
+                          <Command className='h-[10px] w-[10px]' strokeWidth={2.5} />
+                        </span>
+                        <span>F</span>
+                      </>
+                    ) : (
+                      <span>Ctrl+Alt+F</span>
+                    )}
+                  </kbd>
+                )}
+                <Button
+                  variant='ghost'
+                  className='p-0'
+                  aria-label='Search toolbar'
+                  onClick={handleSearchClick}
+                >
+                  <Search className='h-[14px] w-[14px]' />
+                </Button>
+              </>
             ) : (
               <input
                 ref={searchInputRef}
@@ -762,9 +784,17 @@ export const Toolbar = memo(
           >
             <div
               ref={triggersHeaderRef}
-              className='px-2.5 pt-1.5 pb-1.5 font-medium text-[var(--text-primary)] text-small'
+              className='flex items-center gap-1.5 px-2.5 pt-1.5 pb-1.5 font-medium text-[var(--text-primary)] text-small'
             >
-              Triggers
+              <span>Triggers</span>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Info className='h-[14px] w-[14px] cursor-default text-[var(--text-muted)]' />
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top' align='start'>
+                  <p>Events that start a workflow.</p>
+                </Tooltip.Content>
+              </Tooltip.Root>
             </div>
             <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5'>
               <div ref={triggersContentRef} className='space-y-1 pb-2'>
@@ -796,9 +826,20 @@ export const Toolbar = memo(
             <div
               ref={blocksHeaderRef}
               onClick={handleBlocksHeaderClick}
-              className='cursor-pointer px-2.5 pt-1.5 pb-1.5 font-medium text-[var(--text-primary)] text-small'
+              className='flex cursor-pointer items-center gap-1.5 px-2.5 pt-1.5 pb-1.5 font-medium text-[var(--text-primary)] text-small'
             >
-              Blocks
+              <span>Blocks</span>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Info
+                    className='h-[14px] w-[14px] cursor-default text-[var(--text-muted)]'
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top' align='start'>
+                  <p>Actions that make up the steps of a workflow.</p>
+                </Tooltip.Content>
+              </Tooltip.Root>
             </div>
             <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5'>
               <div className='space-y-1 pb-2'>

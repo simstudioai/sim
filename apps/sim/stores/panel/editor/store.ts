@@ -3,9 +3,18 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { EDITOR_CONNECTIONS_HEIGHT } from '@/stores/constants'
-import { usePanelStore } from '../store'
 
 let renameCallback: (() => void) | null = null
+
+/**
+ * Asks the workflow panel to switch to the editor tab. The active tab lives
+ * in the URL via nuqs, which is React-only, so we hop through a window event
+ * that the panel component listens for.
+ */
+function requestEditorTab() {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent('panel:set-tab', { detail: 'editor' }))
+}
 
 export interface ActiveSearchTarget {
   matchId: string
@@ -63,13 +72,13 @@ export const usePanelEditorStore = create<PanelEditorState>()(
       setCurrentBlockId: (blockId) => {
         set({ currentBlockId: blockId })
         if (blockId !== null) {
-          usePanelStore.getState().setActiveTab('editor')
+          requestEditorTab()
         }
       },
       setActiveSearchTarget: (target) => {
         set({ activeSearchTarget: target })
         if (target) {
-          usePanelStore.getState().setActiveTab('editor')
+          requestEditorTab()
         }
       },
       clearCurrentBlock: () => {

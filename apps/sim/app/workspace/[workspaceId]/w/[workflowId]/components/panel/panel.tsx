@@ -6,6 +6,7 @@ import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { History, Plus } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -94,22 +95,20 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 const logger = createLogger('Panel')
 const EMPTY_COPILOT_CHATS: readonly CopilotChatListItem[] = []
 /**
- * Panel component with resizable width and tab navigation that persists across page refreshes.
+ * Panel component with resizable width and tab navigation.
  *
- * Uses a CSS-based approach to prevent hydration mismatches and flash on load:
- * 1. Width is controlled by CSS variable (--panel-width)
- * 2. Blocking script in layout.tsx sets CSS variable and data-panel-active-tab before React hydrates
- * 3. CSS rules control initial visibility based on data-panel-active-tab attribute
- * 4. React takes over visibility control after hydration completes
- * 5. Store updates CSS variable when width changes
+ * The active tab is stored in the URL (`?panel=...`) via nuqs so a hard refresh
+ * paints the correct tab before React hydrates — no copilot-then-editor flash.
+ * The blocking script in layout.tsx reads the same query param and sets
+ * `data-panel-active-tab` on `<html>`, which CSS uses to hide the inactive tabs
+ * before paint.
  *
- * This ensures server and client render identical HTML, preventing hydration errors and visual flash.
- *
- * Note: All tabs are kept mounted but hidden to preserve component state during tab switches.
- * This prevents unnecessary remounting which would trigger data reloads and reset state.
+ * All tabs stay mounted but hidden to preserve component state across switches.
  *
  * @returns Panel on the right side of the workflow
  */
+const PANEL_TABS = ['copilot', 'toolbar', 'editor'] as const
+
 interface PanelProps {
   /** Override workspaceId when rendered outside a workspace route (e.g. sandbox mode) */
   workspaceId?: string
@@ -125,14 +124,28 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
   const panelRef = useRef<HTMLElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { activeTab, setActiveTab, panelWidth, _hasHydrated, setHasHydrated } = usePanelStore(
+  const { panelWidth, _hasHydrated, setHasHydrated } = usePanelStore(
     useShallow((state) => ({
-      activeTab: state.activeTab,
-      setActiveTab: state.setActiveTab,
       panelWidth: state.panelWidth,
       _hasHydrated: state._hasHydrated,
       setHasHydrated: state.setHasHydrated,
     }))
+  )
+  const [activeTab, setActiveTabRaw] = useQueryState(
+    'panel',
+    parseAsStringLiteral(PANEL_TABS)
+      .withDefault('copilot')
+      .withOptions({ history: 'replace', clearOnDefault: true })
+  )
+  const setActiveTab = useCallback(
+    (tab: PanelTab) => {
+      void setActiveTabRaw(tab)
+      // Drop the pre-hydration data attribute once React owns visibility.
+      if (typeof document !== 'undefined') {
+        document.documentElement.removeAttribute('data-panel-active-tab')
+      }
+    },
+    [setActiveTabRaw]
   )
   const toolbarRef = useRef<{
     focusSearch: () => void
@@ -454,6 +467,17 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     window.addEventListener('mothership-send-message', handler)
     return () => window.removeEventListener('mothership-send-message', handler)
   }, [setActiveTab, copilotSendMessage])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const tab = (e as CustomEvent<PanelTab>).detail
+      if (tab === 'copilot' || tab === 'toolbar' || tab === 'editor') {
+        setActiveTab(tab)
+      }
+    }
+    window.addEventListener('panel:set-tab', handler)
+    return () => window.removeEventListener('panel:set-tab', handler)
+  }, [setActiveTab])
 
   useEffect(() => {
     if (activeTab !== 'copilot') return
