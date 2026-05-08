@@ -9,6 +9,7 @@ import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
 import { buildWorkflowSearchReplacePlan } from '@/lib/workflows/search-replace/replacements'
 import {
+  dedupeOverlappingWorkflowSearchMatches,
   getCompatibleResourceReplacementOptions,
   getWorkflowSearchCompatibleResourceMatches,
   getWorkflowSearchMatchResourceGroupKey,
@@ -197,7 +198,10 @@ export function WorkflowSearchReplace() {
   })
 
   const hydratedMatches = useMemo(
-    () => allHydratedMatches.filter((match) => workflowSearchMatchMatchesQuery(match, query)),
+    () =>
+      dedupeOverlappingWorkflowSearchMatches(
+        allHydratedMatches.filter((match) => workflowSearchMatchMatchesQuery(match, query))
+      ),
     [allHydratedMatches, query]
   )
 

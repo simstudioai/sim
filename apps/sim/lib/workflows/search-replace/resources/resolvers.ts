@@ -2,6 +2,7 @@ import type {
   WorkflowSearchMatch,
   WorkflowSearchReplacementOption,
   WorkflowSearchResourceMeta,
+  WorkflowSearchValuePath,
 } from '@/lib/workflows/search-replace/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
 
@@ -86,6 +87,74 @@ export function getWorkflowSearchCompatibleResourceMatches(
       Boolean(match.resource) &&
       getWorkflowSearchMatchResourceGroupKey(match) === activeGroupKey
   )
+}
+
+function searchValuePathKey(path: WorkflowSearchValuePath): string {
+  return path.map((segment) => `${typeof segment}:${String(segment)}`).join('/')
+}
+
+function getRangeMatchScopeKey(match: WorkflowSearchMatch): string | null {
+  if (!match.range) return null
+  if (match.target.kind !== 'subblock') return null
+  return [match.blockId, match.subBlockId, searchValuePathKey(match.valuePath)].join(':')
+}
+
+function rangesOverlap(
+  left: NonNullable<WorkflowSearchMatch['range']>,
+  right: NonNullable<WorkflowSearchMatch['range']>
+): boolean {
+  return left.start < right.end && right.start < left.end
+}
+
+function getRangeLength(match: WorkflowSearchMatch): number {
+  return match.range ? match.range.end - match.range.start : Number.POSITIVE_INFINITY
+}
+
+function shouldPreferOverlappingMatch(
+  candidate: WorkflowSearchMatch,
+  current: WorkflowSearchMatch
+): boolean {
+  const candidateLength = getRangeLength(candidate)
+  const currentLength = getRangeLength(current)
+  if (candidateLength !== currentLength) return candidateLength < currentLength
+
+  if (candidate.kind !== current.kind) {
+    if (candidate.kind !== 'text') return true
+    if (current.kind !== 'text') return false
+  }
+
+  return false
+}
+
+export function dedupeOverlappingWorkflowSearchMatches<T extends WorkflowSearchMatch>(
+  matches: T[]
+): T[] {
+  const deduped: T[] = []
+
+  for (const match of matches) {
+    const scopeKey = getRangeMatchScopeKey(match)
+    const matchRange = match.range
+    const existingIndex =
+      scopeKey && matchRange
+        ? deduped.findIndex(
+            (candidate) =>
+              getRangeMatchScopeKey(candidate) === scopeKey &&
+              candidate.range &&
+              rangesOverlap(candidate.range, matchRange)
+          )
+        : -1
+
+    if (existingIndex === -1) {
+      deduped.push(match)
+      continue
+    }
+
+    if (shouldPreferOverlappingMatch(match, deduped[existingIndex])) {
+      deduped[existingIndex] = match
+    }
+  }
+
+  return deduped
 }
 
 export function workflowSearchMatchMatchesQuery(
