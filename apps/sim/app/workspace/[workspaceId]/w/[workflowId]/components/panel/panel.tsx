@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { History, Plus } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -118,7 +118,9 @@ interface PanelProps {
 export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: PanelProps = {}) {
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const workspaceId = propWorkspaceId ?? (params.workspaceId as string)
+  const urlChatIdParam = searchParams?.get('chatId') ?? null
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
@@ -256,6 +258,21 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     [copilotChatId, copilotChatList]
   )
 
+  /**
+   * A chat is read-only on this workflow page when it doesn't natively
+   * belong to the active workflow — currently the case for Mothership
+   * chats whose `workflowId` is null but whose `resources` reference this
+   * workflow. Continuing the conversation would route through the
+   * workflow copilot agent rather than the original Mothership context,
+   * so we surface the history without the input.
+   */
+  const isCopilotChatReadOnly = useMemo(() => {
+    if (!copilotChatId || !activeWorkflowId) return false
+    const chat = copilotChatList.find((c) => c.id === copilotChatId)
+    if (!chat) return false
+    return chat.workflowId !== activeWorkflowId
+  }, [copilotChatId, copilotChatList, activeWorkflowId])
+
   const queryClient = useQueryClient()
   const loadCopilotChats = useCallback(() => {
     if (!activeWorkflowId) return
@@ -264,7 +281,10 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
   // Auto-select most recent on first list arrival per workflow, and drop a
   // selection that no longer matches anything in the current list (e.g. the
-  // chat was deleted in another tab).
+  // chat was deleted in another tab). When a `?chatId=` param is present in
+  // the URL (e.g. after clicking "Open Workflow" from a Mothership task),
+  // prefer that chat over the most recent so the original conversation is
+  // shown right away.
   const autoSelectAttemptedForRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     if (!activeWorkflowId) return
@@ -278,8 +298,12 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     if (autoSelectAttemptedForRef.current.has(activeWorkflowId)) return
     if (copilotChatList.length === 0) return
     autoSelectAttemptedForRef.current.add(activeWorkflowId)
-    setCopilotChatId(copilotChatList[0].id)
-  }, [copilotChatList, copilotChatId, activeWorkflowId, setCopilotChatId])
+    const preferred =
+      urlChatIdParam && copilotChatList.find((c) => c.id === urlChatIdParam)
+        ? urlChatIdParam
+        : copilotChatList[0].id
+    setCopilotChatId(preferred)
+  }, [copilotChatList, copilotChatId, activeWorkflowId, setCopilotChatId, urlChatIdParam])
 
   useEffect(() => {
     posthogRef.current = posthog
@@ -443,6 +467,17 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   useEffect(() => {
     setHasHydrated(true)
   }, [setHasHydrated])
+
+  /**
+   * If the workflow page was opened with `?chatId=`, surface the copilot
+   * tab so the linked conversation is visible without an extra click.
+   */
+  const chatIdParamHandledRef = useRef(false)
+  useEffect(() => {
+    if (chatIdParamHandledRef.current || !urlChatIdParam) return
+    chatIdParamHandledRef.current = true
+    setActiveTab('copilot')
+  }, [urlChatIdParam, setActiveTab])
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -890,6 +925,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   userId={session?.user?.id}
                   chatId={copilotResolvedChatId}
                   layout='copilot-view'
+                  readOnly={isCopilotChatReadOnly}
                 />
               </div>
             )}

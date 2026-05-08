@@ -211,12 +211,19 @@ export const ResourceContent = memo(function ResourceContent({
 interface ResourceActionsProps {
   workspaceId: string
   resource: MothershipResource
+  chatId?: string
 }
 
-export function ResourceActions({ workspaceId, resource }: ResourceActionsProps) {
+export function ResourceActions({ workspaceId, resource, chatId }: ResourceActionsProps) {
   switch (resource.type) {
     case 'workflow':
-      return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />
+      return (
+        <EmbeddedWorkflowActions
+          workspaceId={workspaceId}
+          workflowId={resource.id}
+          chatId={chatId}
+        />
+      )
     case 'file':
       return <EmbeddedFileActions workspaceId={workspaceId} fileId={resource.id} />
     case 'knowledgebase':
@@ -244,9 +251,14 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
 interface EmbeddedWorkflowActionsProps {
   workspaceId: string
   workflowId: string
+  chatId?: string
 }
 
-export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
+export function EmbeddedWorkflowActions({
+  workspaceId,
+  workflowId,
+  chatId,
+}: EmbeddedWorkflowActionsProps) {
   const router = useRouter()
   const { navigateToSettings } = useSettingsNavigation()
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
@@ -284,7 +296,10 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   }
 
   const handleOpenWorkflow = () => {
-    window.open(`/workspace/${workspaceId}/w/${workflowId}`, '_blank')
+    const url = chatId
+      ? `/workspace/${workspaceId}/w/${workflowId}?chatId=${encodeURIComponent(chatId)}`
+      : `/workspace/${workspaceId}/w/${workflowId}`
+    window.open(url, '_blank')
   }
 
   return (

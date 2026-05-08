@@ -117,7 +117,9 @@ export const MothershipView = memo(
             onReorderResources={onReorderResources}
             onCollapse={onCollapse}
             actions={
-              active ? <ResourceActions workspaceId={workspaceId} resource={active} /> : null
+              active ? (
+                <ResourceActions workspaceId={workspaceId} resource={active} chatId={chatId} />
+              ) : null
             }
             previewMode={isActivePreviewable ? previewMode : undefined}
             onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}

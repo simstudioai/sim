@@ -17,7 +17,11 @@ async function fetchCopilotChats(
 ): Promise<CopilotChatListItem[]> {
   try {
     const data = await requestJson(listCopilotChatsContract, { signal })
-    return data.chats.filter((c) => c.workflowId === workflowId)
+    return data.chats.filter(
+      (c) =>
+        c.workflowId === workflowId ||
+        c.resources?.some((r) => r.type === 'workflow' && r.id === workflowId)
+    )
   } catch (error) {
     if (error instanceof ApiClientError) return []
     throw error

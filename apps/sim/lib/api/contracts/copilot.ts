@@ -112,6 +112,12 @@ const copilotResourceTypeSchema = z.enum([
   'log',
 ])
 
+const copilotChatResourceSchema = z.object({
+  type: copilotResourceTypeSchema,
+  id: z.string(),
+  title: z.string(),
+})
+
 export const addCopilotChatResourceBodySchema = z.object({
   chatId: z.string(),
   resource: z.object({
@@ -301,6 +307,7 @@ export const copilotChatListItemSchema = z.object({
   workspaceId: z.string().nullable().optional(),
   activeStreamId: z.string().nullable(),
   updatedAt: z.string().nullable(),
+  resources: z.array(copilotChatResourceSchema).optional(),
 })
 export type CopilotChatListItem = z.output<typeof copilotChatListItemSchema>
 
@@ -376,12 +383,6 @@ const copilotCheckpointSchema = z.object({
   messageId: z.string().nullable().optional(),
   createdAt: z.string().nullable(),
   updatedAt: z.string().nullable(),
-})
-
-const copilotChatResourceSchema = z.object({
-  type: copilotResourceTypeSchema,
-  id: z.string(),
-  title: z.string(),
 })
 
 const copilotAvailableModelSchema = z.object({

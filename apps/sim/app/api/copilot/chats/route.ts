@@ -36,6 +36,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
         workspaceId: copilotChats.workspaceId,
         activeStreamId: copilotChats.conversationId,
         updatedAt: copilotChats.updatedAt,
+        resources: copilotChats.resources,
       })
       .from(copilotChats)
       .leftJoin(workflow, eq(copilotChats.workflowId, workflow.id))
