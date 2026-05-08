@@ -172,6 +172,12 @@ describe('indexWorkflowSearchMatches', () => {
         basicOnly: { id: 'basicOnly', type: 'short-input', value: 'visible-basic' },
         advancedOnly: { id: 'advancedOnly', type: 'short-input', value: 'hidden-advanced' },
         triggerOnly: { id: 'triggerOnly', type: 'short-input', value: 'hidden-trigger' },
+        triggerManual: { id: 'triggerManual', type: 'short-input', value: 'hidden-trigger-manual' },
+        triggerConfig: {
+          id: 'triggerConfig',
+          type: 'trigger-config',
+          value: 'visible-trigger-config',
+        },
       },
     }
     const blockConfigs = {
@@ -180,7 +186,21 @@ describe('indexWorkflowSearchMatches', () => {
         subBlocks: [
           { id: 'basicOnly', title: 'Basic', type: 'short-input', mode: 'basic' },
           { id: 'advancedOnly', title: 'Advanced', type: 'short-input', mode: 'advanced' },
-          { id: 'triggerOnly', title: 'Trigger', type: 'short-input', mode: 'trigger' },
+          {
+            id: 'triggerOnly',
+            title: 'Trigger',
+            type: 'short-input',
+            mode: 'trigger',
+            canonicalParamId: 'triggerValue',
+          },
+          {
+            id: 'triggerManual',
+            title: 'Trigger Manual',
+            type: 'short-input',
+            mode: 'trigger-advanced',
+            canonicalParamId: 'triggerValue',
+          },
+          { id: 'triggerConfig', title: 'Trigger Config', type: 'trigger-config' },
         ],
       },
     }
@@ -215,7 +235,7 @@ describe('indexWorkflowSearchMatches', () => {
     workflow.blocks['mode-1'].triggerMode = true
     const triggerMatches = indexWorkflowSearchMatches({
       workflow,
-      query: 'trigger',
+      query: 'hidden-trigger',
       mode: 'text',
       blockConfigs,
     }).filter((match) => match.blockId === 'mode-1')
@@ -229,6 +249,23 @@ describe('indexWorkflowSearchMatches', () => {
     expect(triggerMatches).toHaveLength(1)
     expect(triggerMatches[0].subBlockId).toBe('triggerOnly')
     expect(nonTriggerMatches).toEqual([])
+
+    const triggerConfigMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'trigger-config',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'mode-1')
+    const triggerManualMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'trigger-manual',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'mode-1')
+
+    expect(triggerConfigMatches).toHaveLength(1)
+    expect(triggerConfigMatches[0].subBlockId).toBe('triggerConfig')
+    expect(triggerManualMatches).toEqual([])
   })
 
   it('does not index fixed-choice dropdown values as text replacements', () => {
@@ -1288,7 +1325,7 @@ describe('indexWorkflowSearchMatches', () => {
     ])
   })
 
-  it('indexes object-valued fallback tool params by values without exposing metadata', () => {
+  it('indexes object-valued fallback tool params by leaf values', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['tool-input-1'] = {
       id: 'tool-input-1',
@@ -1329,7 +1366,7 @@ describe('indexWorkflowSearchMatches', () => {
       mode: 'text',
       blockConfigs,
     }).filter((match) => match.blockId === 'tool-input-1')
-    const metadataMatches = indexWorkflowSearchMatches({
+    const typeMatches = indexWorkflowSearchMatches({
       workflow,
       query: 'metadata-type',
       mode: 'text',
@@ -1344,7 +1381,14 @@ describe('indexWorkflowSearchMatches', () => {
         searchText: 'open customer',
       }),
     ])
-    expect(metadataMatches).toEqual([])
+    expect(typeMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'tools',
+        subBlockType: 'workflow-input-mapper',
+        valuePath: [0, 'params', 'payload', 'type'],
+        searchText: 'metadata-type',
+      }),
+    ])
   })
 
   it('indexes visible tool params ending in key', () => {

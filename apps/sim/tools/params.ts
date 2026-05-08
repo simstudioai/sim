@@ -6,6 +6,7 @@ import {
   evaluateSubBlockCondition,
   isCanonicalPair,
   isSubBlockHidden,
+  isTriggerModeSubBlock,
   resolveCanonicalMode,
   type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
@@ -1031,7 +1032,7 @@ export function getSubBlocksForToolInput(
       if (EXCLUDED_SUBBLOCK_TYPES.has(sb.type)) continue
 
       // Skip trigger-mode-only subblocks
-      if (sb.mode === 'trigger' || sb.mode === 'trigger-advanced') continue
+      if (isTriggerModeSubBlock(sb)) continue
 
       // Hide tool API key fields when running on hosted Sim or when env var is set
       if (isSubBlockHidden(sb)) continue

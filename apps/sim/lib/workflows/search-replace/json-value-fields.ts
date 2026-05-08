@@ -29,17 +29,6 @@ const SEARCHABLE_JSON_OBJECT_VALUE_FIELDS: Partial<Record<SubBlockType, string>>
   'workflow-input-mapper': 'Value',
 }
 
-const JSON_METADATA_KEYS = new Set([
-  'collapsed',
-  'fieldType',
-  'id',
-  'operator',
-  'tagName',
-  'type',
-  'variableId',
-  'variableName',
-])
-
 const SERIALIZED_SUBBLOCK_VALUE_TYPES = new Set<SubBlockType>([
   'file-upload',
   'grouped-checkbox-list',
@@ -102,10 +91,9 @@ function getObjectStringLeaves({
 
   if (!value || typeof value !== 'object') return []
 
-  return Object.entries(value).flatMap(([fieldKey, fieldValue]) => {
-    if (JSON_METADATA_KEYS.has(fieldKey)) return []
-    return getObjectStringLeaves({ value: fieldValue, path: [...path, fieldKey], fieldTitle })
-  })
+  return Object.entries(value).flatMap(([fieldKey, fieldValue]) =>
+    getObjectStringLeaves({ value: fieldValue, path: [...path, fieldKey], fieldTitle })
+  )
 }
 
 export function isSearchableJsonValueSubBlock(

@@ -102,12 +102,16 @@ function replaceCommaResourceValue(
   targetOccurrenceIndex?: number
 ): ResourceCodecReplaceResult {
   let occurrenceIndex = 0
+  let replaced = false
 
   const shouldReplace = (item: string) => {
     const currentOccurrenceIndex = occurrenceIndex
     occurrenceIndex += 1
     if (item !== rawValue) return false
-    return targetOccurrenceIndex === undefined || currentOccurrenceIndex === targetOccurrenceIndex
+    const matchesTarget =
+      targetOccurrenceIndex === undefined || currentOccurrenceIndex === targetOccurrenceIndex
+    if (matchesTarget) replaced = true
+    return matchesTarget
   }
 
   const replaceItem = (item: unknown): unknown => {
@@ -119,12 +123,26 @@ function replaceCommaResourceValue(
   if (typeof value === 'string') {
     const parts = value.split(',').map((part) => part.trim())
     if (parts.length > 1) {
-      return { success: true, nextValue: parts.map(replaceItem).join(',') }
+      const nextValue = parts.map(replaceItem).join(',')
+      if (targetOccurrenceIndex !== undefined && !replaced) {
+        return { success: false, reason: 'Target resource changed since search' }
+      }
+      return { success: true, nextValue }
     }
-    return { success: true, nextValue: shouldReplace(value) ? replacement : value }
+    const nextValue = shouldReplace(value) ? replacement : value
+    if (targetOccurrenceIndex !== undefined && !replaced) {
+      return { success: false, reason: 'Target resource changed since search' }
+    }
+    return { success: true, nextValue }
   }
 
-  if (Array.isArray(value)) return { success: true, nextValue: value.map(replaceItem) }
+  if (Array.isArray(value)) {
+    const nextValue = value.map(replaceItem)
+    if (targetOccurrenceIndex !== undefined && !replaced) {
+      return { success: false, reason: 'Target resource changed since search' }
+    }
+    return { success: true, nextValue }
+  }
 
   return { success: false, reason: 'Target resource is no longer replaceable' }
 }
@@ -210,6 +228,7 @@ const fileUploadResourceCodec: WorkflowSearchResourceCodec = {
   replace(value, rawValue, replacement, targetOccurrenceIndex) {
     const parsed = parseSerializedResourceValue(value)
     let occurrenceIndex = 0
+    let replaced = false
 
     const shouldReplace = (item: unknown) => {
       const itemKey = getFileResourceKey(item)
@@ -217,7 +236,10 @@ const fileUploadResourceCodec: WorkflowSearchResourceCodec = {
       const currentOccurrenceIndex = occurrenceIndex
       occurrenceIndex += 1
       if (itemKey !== rawValue) return false
-      return targetOccurrenceIndex === undefined || currentOccurrenceIndex === targetOccurrenceIndex
+      const matchesTarget =
+        targetOccurrenceIndex === undefined || currentOccurrenceIndex === targetOccurrenceIndex
+      if (matchesTarget) replaced = true
+      return matchesTarget
     }
 
     const replaceItem = (item: unknown): ResourceCodecReplaceResult => {
@@ -232,11 +254,17 @@ const fileUploadResourceCodec: WorkflowSearchResourceCodec = {
         if (!result.success) return result
         nextValue.push(result.nextValue)
       }
+      if (targetOccurrenceIndex !== undefined && !replaced) {
+        return { success: false, reason: 'Target resource changed since search' }
+      }
       return { success: true, nextValue: parsed.serialized ? JSON.stringify(nextValue) : nextValue }
     }
 
     const result = replaceItem(parsed.value)
     if (!result.success || !parsed.serialized) return result
+    if (targetOccurrenceIndex !== undefined && !replaced) {
+      return { success: false, reason: 'Target resource changed since search' }
+    }
     return { success: true, nextValue: JSON.stringify(result.nextValue) }
   },
 }

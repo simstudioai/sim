@@ -93,7 +93,11 @@ export interface WorkflowSearchIndexerOptions {
   readonlyReason?: string
   workspaceId?: string
   workflowId?: string
-  blockConfigs?: Record<string, { subBlocks?: SubBlockConfig[] } | undefined>
+  blockConfigs?: Record<
+    string,
+    | { subBlocks?: SubBlockConfig[]; triggers?: { enabled?: boolean }; category?: string }
+    | undefined
+  >
   credentialTypeById?: Record<string, string | undefined>
 }
 

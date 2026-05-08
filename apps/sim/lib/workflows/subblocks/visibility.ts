@@ -32,6 +32,13 @@ export interface CanonicalValueSelection {
   advancedSourceId?: string
 }
 
+interface TriggerVisibilityBlockConfig {
+  category?: string
+  triggers?: {
+    enabled?: boolean
+  }
+}
+
 export function parseDependsOn(dependsOn: SubBlockConfig['dependsOn']): {
   allFields: string[]
   anyFields: string[]
@@ -300,6 +307,38 @@ export function isSubBlockVisibleForMode(
 
   if (subBlock.mode === 'basic' && displayAdvancedOptions) return false
   if (subBlock.mode === 'advanced' && !displayAdvancedOptions) return false
+  return true
+}
+
+export function isTriggerModeSubBlock(subBlock: Pick<SubBlockConfig, 'mode'>): boolean {
+  return subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced'
+}
+
+export function isTriggerConfigSubBlock(subBlock: Pick<SubBlockConfig, 'type'>): boolean {
+  return String(subBlock.type) === 'trigger-config'
+}
+
+export function shouldUseSubBlockForTriggerModeCanonicalIndex(
+  subBlock: Pick<SubBlockConfig, 'mode' | 'type'>
+): boolean {
+  return isTriggerModeSubBlock(subBlock) || isTriggerConfigSubBlock(subBlock)
+}
+
+export function isPureTriggerBlockConfig(blockConfig?: TriggerVisibilityBlockConfig): boolean {
+  return Boolean(blockConfig?.triggers?.enabled && blockConfig.category === 'triggers')
+}
+
+export function isSubBlockVisibleForTriggerMode(
+  subBlock: Pick<SubBlockConfig, 'mode' | 'type'>,
+  displayTriggerMode: boolean,
+  blockConfig?: TriggerVisibilityBlockConfig
+): boolean {
+  if (isTriggerConfigSubBlock(subBlock)) {
+    return displayTriggerMode || isPureTriggerBlockConfig(blockConfig)
+  }
+
+  if (isTriggerModeSubBlock(subBlock)) return displayTriggerMode
+  if (displayTriggerMode) return false
   return true
 }
 

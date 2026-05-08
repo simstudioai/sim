@@ -30,9 +30,11 @@ import {
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,
+  isSubBlockVisibleForTriggerMode,
   normalizeDependencyValue,
   parseDependsOn,
   resolveDependencyValue,
+  shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { type ParsedStoredTool, parseStoredToolInputValue } from '@/lib/workflows/tool-input/types'
@@ -911,12 +913,14 @@ function isReactiveSearchSubBlockVisible({
 
 function isSearchSubBlockVisibleForMode({
   block,
+  blockConfig,
   subBlockConfig,
   subBlockValues,
   canonicalIndex,
   canonicalModes,
 }: {
   block: WorkflowSearchBlockState
+  blockConfig?: NonNullable<WorkflowSearchIndexerOptions['blockConfigs']>[string]
   subBlockConfig?: WorkflowSearchSubBlockConfig
   subBlockValues: Record<string, unknown>
   canonicalIndex: ReturnType<typeof buildCanonicalIndex>
@@ -925,11 +929,15 @@ function isSearchSubBlockVisibleForMode({
   if (!subBlockConfig) return true
 
   const displayTriggerMode = Boolean(block.triggerMode)
-  const isTriggerSubBlock =
-    subBlockConfig.mode === 'trigger' || subBlockConfig.mode === 'trigger-advanced'
-
-  if (isTriggerSubBlock) return displayTriggerMode
-  if (displayTriggerMode) return false
+  if (
+    !isSubBlockVisibleForTriggerMode(
+      subBlockConfig as SubBlockConfig,
+      displayTriggerMode,
+      blockConfig
+    )
+  ) {
+    return false
+  }
 
   return isSubBlockVisibleForMode(
     subBlockConfig as SubBlockConfig,
@@ -965,12 +973,7 @@ export function indexWorkflowSearchMatches(
     const blockConfig = blockConfigs[block.type] ?? getBlock(block.type)
     const subBlockConfigs = blockConfig?.subBlocks ?? []
     const canonicalSubBlockConfigs = block.triggerMode
-      ? subBlockConfigs.filter(
-          (subBlock) =>
-            subBlock.mode === 'trigger' ||
-            subBlock.mode === 'trigger-advanced' ||
-            subBlock.type === ('trigger-config' as SubBlockType)
-        )
+      ? subBlockConfigs.filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
       : subBlockConfigs
     const configsById = new Map(subBlockConfigs.map((subBlock) => [subBlock.id, subBlock]))
     const canonicalIndex = buildCanonicalIndex(canonicalSubBlockConfigs)
@@ -1012,6 +1015,7 @@ export function indexWorkflowSearchMatches(
       if (
         !isSearchSubBlockVisibleForMode({
           block,
+          blockConfig,
           subBlockConfig,
           subBlockValues,
           canonicalIndex,
