@@ -183,7 +183,7 @@ async function executeCode(request, executionId) {
   const externalCopies = []
 
   try {
-    isolate = new ivm.Isolate({ memoryLimit: 128 })
+    isolate = new ivm.Isolate({ memoryLimit: 256 })
     if (executionId !== undefined) activeIsolates.set(executionId, isolate)
     context = await isolate.createContext()
     const jail = context.global
@@ -398,6 +398,21 @@ async function executeCode(request, executionId) {
         }
       }
 
+      if (
+        err.message.includes('Array buffer allocation failed') ||
+        err.message.includes('memory limit')
+      ) {
+        return {
+          result: null,
+          stdout,
+          error: {
+            message:
+              'Execution exceeded memory limit (256 MB). Reduce image sizes or split the work into smaller batches.',
+            name: 'MemoryLimitError',
+          },
+        }
+      }
+
       return {
         result: null,
         stdout,
@@ -511,7 +526,7 @@ async function executeTask(request, executionId) {
   let tPhase = tStart
 
   try {
-    isolate = new ivm.Isolate({ memoryLimit: 128 })
+    isolate = new ivm.Isolate({ memoryLimit: 256 })
     if (executionId !== undefined) activeIsolates.set(executionId, isolate)
     context = await isolate.createContext()
     const jail = context.global
@@ -937,6 +952,23 @@ async function executeTask(request, executionId) {
           timings,
         }
       }
+
+      if (
+        err.message?.includes('Array buffer allocation failed') ||
+        err.message?.includes('memory limit')
+      ) {
+        return {
+          result: null,
+          stdout,
+          error: {
+            message:
+              'Execution exceeded memory limit (256 MB). Reduce image sizes or split the work into smaller batches.',
+            name: 'MemoryLimitError',
+          },
+          timings,
+        }
+      }
+
       return {
         result: null,
         stdout,
