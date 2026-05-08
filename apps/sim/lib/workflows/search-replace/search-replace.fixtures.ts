@@ -45,6 +45,60 @@ export const SEARCH_REPLACE_BLOCK_CONFIGS: Record<string, { subBlocks: SubBlockC
       { id: 'headers', title: 'Headers', type: 'table' },
     ],
   },
+  slack: {
+    subBlocks: [
+      {
+        id: 'authMethod',
+        title: 'Authentication Method',
+        type: 'dropdown',
+      },
+      {
+        id: 'credential',
+        title: 'Slack Account',
+        type: 'oauth-input',
+        serviceId: 'slack',
+        canonicalParamId: 'oauthCredential',
+        condition: { field: 'authMethod', value: 'oauth' },
+      },
+      {
+        id: 'text',
+        title: 'Message',
+        type: 'long-input',
+      },
+      {
+        id: 'channel',
+        title: 'Channel',
+        type: 'channel-selector',
+        serviceId: 'slack',
+        selectorKey: 'slack.channels',
+        dependsOn: ['credential'],
+      },
+      {
+        id: 'attachmentFiles',
+        title: 'Attachments',
+        type: 'file-upload',
+        canonicalParamId: 'files',
+        condition: { field: 'operation', value: 'send' },
+        mode: 'basic',
+      },
+    ],
+  },
+  workflow_input: {
+    subBlocks: [
+      {
+        id: 'workflowId',
+        title: 'Workflow',
+        type: 'workflow-selector',
+        selectorKey: 'sim.workflows',
+      },
+      {
+        id: 'inputMapping',
+        title: 'Inputs',
+        type: 'input-mapping',
+        dependsOn: ['workflowId'],
+      },
+    ],
+  },
 }
 
 export function createSearchReplaceWorkflowFixture(): WorkflowSearchWorkflow {

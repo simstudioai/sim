@@ -135,6 +135,26 @@ function getFileResourceKey(value: unknown): string | null {
   return typeof key === 'string' && key.trim().length > 0 ? key : null
 }
 
+function parseSerializedResourceValue(value: unknown): { value: unknown; serialized: boolean } {
+  if (typeof value !== 'string') return { value, serialized: false }
+
+  const trimmed = value.trim()
+  if (
+    !(
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))
+    )
+  ) {
+    return { value, serialized: false }
+  }
+
+  try {
+    return { value: JSON.parse(trimmed), serialized: true }
+  } catch {
+    return { value, serialized: false }
+  }
+}
+
 function parseFileReplacement(replacement: string): ResourceCodecReplaceResult {
   try {
     const parsed: unknown = JSON.parse(replacement)
@@ -164,7 +184,8 @@ const scalarResourceCodec: WorkflowSearchResourceCodec = {
 
 const fileUploadResourceCodec: WorkflowSearchResourceCodec = {
   parse({ value, kind, subBlockConfig, selectorContext }) {
-    const values = Array.isArray(value) ? value : value ? [value] : []
+    const parsed = parseSerializedResourceValue(value).value
+    const values = Array.isArray(parsed) ? parsed : parsed ? [parsed] : []
     return values.flatMap((item) => {
       const rawValue = getFileResourceKey(item)
       if (!rawValue) return []
@@ -180,11 +201,13 @@ const fileUploadResourceCodec: WorkflowSearchResourceCodec = {
     })
   },
   contains(value, rawValue) {
-    if (Array.isArray(value))
-      return value.some((item) => fileUploadResourceCodec.contains(item, rawValue))
-    return getFileResourceKey(value) === rawValue
+    const parsed = parseSerializedResourceValue(value).value
+    if (Array.isArray(parsed))
+      return parsed.some((item) => fileUploadResourceCodec.contains(item, rawValue))
+    return getFileResourceKey(parsed) === rawValue
   },
   replace(value, rawValue, replacement, targetOccurrenceIndex) {
+    const parsed = parseSerializedResourceValue(value)
     let occurrenceIndex = 0
 
     const shouldReplace = (item: unknown) => {
@@ -199,17 +222,19 @@ const fileUploadResourceCodec: WorkflowSearchResourceCodec = {
       return parseFileReplacement(replacement)
     }
 
-    if (Array.isArray(value)) {
+    if (Array.isArray(parsed.value)) {
       const nextValue: unknown[] = []
-      for (const item of value) {
+      for (const item of parsed.value) {
         const result = replaceItem(item)
         if (!result.success) return result
         nextValue.push(result.nextValue)
       }
-      return { success: true, nextValue }
+      return { success: true, nextValue: parsed.serialized ? JSON.stringify(nextValue) : nextValue }
     }
 
-    return replaceItem(value)
+    const result = replaceItem(parsed.value)
+    if (!result.success || !parsed.serialized) return result
+    return { success: true, nextValue: JSON.stringify(result.nextValue) }
   },
 }
 

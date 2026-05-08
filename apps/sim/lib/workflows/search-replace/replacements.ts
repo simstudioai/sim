@@ -40,6 +40,42 @@ function replaceRange(value: string, start: number, end: number, replacement: st
   return `${value.slice(0, start)}${replacement}${value.slice(end)}`
 }
 
+function clearDependentValues(value: unknown, paths: WorkflowSearchMatch['dependentValuePaths']) {
+  return (paths ?? []).reduce((currentValue, path) => setValueAtPath(currentValue, path, ''), value)
+}
+
+function pathStartsWith(
+  path: WorkflowSearchMatch['valuePath'],
+  prefix: WorkflowSearchMatch['valuePath']
+) {
+  return prefix.every((segment, index) => path[index] === segment)
+}
+
+function getTouchedPathsByField(matches: WorkflowSearchMatch[]) {
+  const touchedPathsByField = new Map<string, WorkflowSearchMatch['valuePath'][]>()
+  for (const match of matches) {
+    if (match.target.kind !== 'subblock') continue
+    const updateKey = `${match.blockId}:${match.subBlockId}`
+    const paths = touchedPathsByField.get(updateKey) ?? []
+    paths.push(match.valuePath)
+    touchedPathsByField.set(updateKey, paths)
+  }
+  return touchedPathsByField
+}
+
+function getDependentValuePathsToClear(
+  match: WorkflowSearchMatch,
+  touchedPathsByField: Map<string, WorkflowSearchMatch['valuePath'][]>
+) {
+  if (!match.dependentValuePaths?.length) return undefined
+  const updateKey = `${match.blockId}:${match.subBlockId}`
+  const touchedPaths = touchedPathsByField.get(updateKey) ?? []
+  return match.dependentValuePaths.filter(
+    (dependentPath) =>
+      !touchedPaths.some((touchedPath) => pathStartsWith(touchedPath, dependentPath))
+  )
+}
+
 function getReplacement(
   match: WorkflowSearchMatch,
   replacementByMatchId: Record<string, string> | undefined,
@@ -64,6 +100,7 @@ export function buildWorkflowSearchReplacePlan({
   const subflowUpdatesByField = new Map<string, WorkflowSearchReplaceSubflowUpdate>()
 
   const selectedMatches = matches.filter((match) => selectedMatchIds.has(match.id))
+  const touchedPathsByField = getTouchedPathsByField(selectedMatches)
   const orderedMatches = [...selectedMatches].sort((a, b) => {
     const blockCompare = a.blockId.localeCompare(b.blockId)
     if (blockCompare !== 0) return blockCompare
@@ -178,6 +215,7 @@ export function buildWorkflowSearchReplacePlan({
     const existingUpdate = updatesByField.get(updateKey)
     const previousValue: unknown = existingUpdate?.previousValue ?? subBlock.value
     let nextValue: unknown = existingUpdate?.nextValue ?? subBlock.value
+    const dependentValuePathsToClear = getDependentValuePathsToClear(match, touchedPathsByField)
 
     if (match.range) {
       const jsonReplacement = replaceJsonStringLeafRange({
@@ -197,6 +235,7 @@ export function buildWorkflowSearchReplacePlan({
           continue
         }
         nextValue = jsonReplacement.nextValue
+        nextValue = clearDependentValues(nextValue, dependentValuePathsToClear)
         updatesByField.set(updateKey, {
           blockId: match.blockId,
           subBlockId: match.subBlockId,
@@ -224,6 +263,7 @@ export function buildWorkflowSearchReplacePlan({
         match.valuePath,
         replaceRange(currentLeaf, match.range.start, match.range.end, replacement)
       )
+      nextValue = clearDependentValues(nextValue, dependentValuePathsToClear)
     } else {
       const currentValue = getValueAtPath(nextValue, match.valuePath)
       const valueForReplacement = match.valuePath.length === 0 ? nextValue : currentValue
@@ -249,6 +289,7 @@ export function buildWorkflowSearchReplacePlan({
         match.valuePath.length === 0
           ? replacedValue
           : setValueAtPath(nextValue, match.valuePath, replacedValue)
+      nextValue = clearDependentValues(nextValue, dependentValuePathsToClear)
     }
 
     updatesByField.set(updateKey, {

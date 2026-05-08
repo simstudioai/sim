@@ -126,6 +126,15 @@ export function getWorkflowSearchSubflowField(
   return getWorkflowSearchSubflowFields(block).find((field) => field.id === fieldId)
 }
 
+export function workflowSearchSubflowFieldMatchesExpected(
+  block: WorkflowSearchSubflowBlock,
+  fieldId: WorkflowSearchSubflowFieldId,
+  expectedValue: unknown
+): boolean {
+  const field = getWorkflowSearchSubflowField(block, fieldId)
+  return Boolean(field && String(field.value) === String(expectedValue))
+}
+
 export function parseWorkflowSearchSubflowReplacement({
   blockType,
   fieldId,

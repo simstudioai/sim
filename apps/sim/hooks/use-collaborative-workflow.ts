@@ -18,6 +18,10 @@ import { useShallow } from 'zustand/react/shallow'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
+import {
+  type WorkflowSearchSubflowFieldId,
+  workflowSearchSubflowFieldMatchesExpected,
+} from '@/lib/workflows/search-replace/subflow-fields'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { getSubBlocksDependingOnChange } from '@/blocks/utils'
@@ -1543,7 +1547,7 @@ export function useCollaborativeWorkflow() {
         subflowUpdates?: Array<{
           blockId: string
           blockType: 'loop' | 'parallel'
-          fieldId: string
+          fieldId: WorkflowSearchSubflowFieldId
           before: unknown
           after: unknown
         }>
@@ -1576,6 +1580,23 @@ export function useCollaborativeWorkflow() {
         logger.warn('Skipping batch subblock update because expected value changed', {
           blockId: staleUpdate.blockId,
           subblockId: staleUpdate.subblockId,
+        })
+        return false
+      }
+
+      const staleSubflowUpdate = undoSubflowUpdates.find((update) => {
+        const currentBlock = useWorkflowStore.getState().blocks[update.blockId]
+        if (!currentBlock || currentBlock.type !== update.blockType) return true
+        return !workflowSearchSubflowFieldMatchesExpected(
+          currentBlock,
+          update.fieldId,
+          update.before
+        )
+      })
+      if (staleSubflowUpdate) {
+        logger.warn('Skipping batch subflow update because expected value changed', {
+          blockId: staleSubflowUpdate.blockId,
+          fieldId: staleSubflowUpdate.fieldId,
         })
         return false
       }

@@ -23,7 +23,14 @@ const SEARCHABLE_JSON_ARRAY_VALUE_FIELDS: Partial<Record<SubBlockType, Record<st
 
 const SEARCHABLE_JSON_OBJECT_VALUE_FIELDS: Partial<Record<SubBlockType, string>> = {
   'input-mapping': 'Value',
+  'workflow-input-mapper': 'Value',
 }
+
+const SERIALIZED_SUBBLOCK_VALUE_TYPES = new Set<SubBlockType>([
+  'file-upload',
+  'grouped-checkbox-list',
+  'table',
+])
 
 export interface SearchableJsonStringLeaf {
   path: WorkflowSearchValuePath
@@ -67,11 +74,22 @@ export function isSearchableJsonValueSubBlock(
   | 'router-input'
   | 'knowledge-tag-filters'
   | 'document-tag-entry'
-  | 'input-mapping' {
+  | 'input-mapping'
+  | 'workflow-input-mapper' {
   return Boolean(
     subBlockType &&
       (SEARCHABLE_JSON_ARRAY_VALUE_FIELDS[subBlockType] ||
         SEARCHABLE_JSON_OBJECT_VALUE_FIELDS[subBlockType])
+  )
+}
+
+export function shouldParseSerializedSubBlockValue(
+  subBlockType: SubBlockType | undefined
+): subBlockType is SubBlockType {
+  return Boolean(
+    subBlockType &&
+      (isSearchableJsonValueSubBlock(subBlockType) ||
+        SERIALIZED_SUBBLOCK_VALUE_TYPES.has(subBlockType))
   )
 }
 
@@ -148,6 +166,32 @@ export function replaceJsonStringLeafRange({
   const { parsed, stringify } = parsedValue
 
   const currentLeaf = getValueAtPath(parsed, path)
+  if (typeof currentLeaf !== 'string') {
+    for (let prefixLength = path.length - 1; prefixLength > 0; prefixLength -= 1) {
+      const valuePrefix = path.slice(0, prefixLength)
+      const nestedValue = getValueAtPath(parsed, valuePrefix)
+      if (typeof nestedValue !== 'string') continue
+
+      const nestedResult = replaceJsonStringLeafRange({
+        value: nestedValue,
+        subBlockType,
+        path: path.slice(prefixLength),
+        range,
+        rawValue,
+        replacement,
+      })
+      if (!nestedResult.handled || !nestedResult.success) return nestedResult
+
+      return {
+        handled: true,
+        success: true,
+        nextValue: stringify
+          ? JSON.stringify(setValueAtPath(parsed, valuePrefix, nestedResult.nextValue))
+          : setValueAtPath(parsed, valuePrefix, nestedResult.nextValue),
+      }
+    }
+  }
+
   if (typeof currentLeaf !== 'string') {
     return { handled: true, success: false, reason: 'Target value is no longer text' }
   }

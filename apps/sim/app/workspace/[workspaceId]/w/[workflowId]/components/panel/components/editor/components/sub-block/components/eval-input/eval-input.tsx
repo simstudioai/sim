@@ -5,6 +5,7 @@ import { Button, Input, Textarea, Tooltip } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
+import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
@@ -30,9 +31,6 @@ interface EvalInputProps {
   disabled?: boolean
   activeSearchTarget?: ActiveSearchTarget | null
 }
-
-const WORKFLOW_SEARCH_HIGHLIGHT_CLASS =
-  'rounded-sm bg-orange-400 shadow-[3px_0_0_#fb923c,-3px_0_0_#fb923c]'
 
 // Default values
 const createDefaultMetric = (): EvalMetric => ({

@@ -73,22 +73,16 @@ export const workflowSearchReplaceKeys = {
   tableReplacementOptions: (workspaceId?: string) =>
     [...workflowSearchReplaceKeys.replacementOptions(), 'table', workspaceId ?? ''] as const,
   fileDetails: () => [...workflowSearchReplaceKeys.resourceDetails(), 'file'] as const,
-  fileDetail: (workspaceId?: string, fileKey?: string) =>
-    [...workflowSearchReplaceKeys.fileDetails(), workspaceId ?? '', fileKey ?? ''] as const,
   fileListDetails: (workspaceId?: string) =>
     [...workflowSearchReplaceKeys.fileDetails(), 'list', workspaceId ?? ''] as const,
   fileReplacementOptions: (workspaceId?: string) =>
     [...workflowSearchReplaceKeys.replacementOptions(), 'file', workspaceId ?? ''] as const,
   mcpServerDetails: () => [...workflowSearchReplaceKeys.resourceDetails(), 'mcp-server'] as const,
-  mcpServerDetail: (workspaceId?: string, serverId?: string) =>
-    [...workflowSearchReplaceKeys.mcpServerDetails(), workspaceId ?? '', serverId ?? ''] as const,
   mcpServerListDetails: (workspaceId?: string) =>
     [...workflowSearchReplaceKeys.mcpServerDetails(), 'list', workspaceId ?? ''] as const,
   mcpServerReplacementOptions: (workspaceId?: string) =>
     [...workflowSearchReplaceKeys.replacementOptions(), 'mcp-server', workspaceId ?? ''] as const,
   mcpToolDetails: () => [...workflowSearchReplaceKeys.resourceDetails(), 'mcp-tool'] as const,
-  mcpToolDetail: (workspaceId?: string, toolId?: string) =>
-    [...workflowSearchReplaceKeys.mcpToolDetails(), workspaceId ?? '', toolId ?? ''] as const,
   mcpToolListDetails: (workspaceId?: string) =>
     [...workflowSearchReplaceKeys.mcpToolDetails(), 'list', workspaceId ?? ''] as const,
   mcpToolReplacementOptions: (workspaceId?: string) =>
@@ -439,22 +433,33 @@ export function useWorkflowSearchOAuthReplacementOptions(
   })
 }
 
-export function useWorkflowSearchKnowledgeReplacementOptions(workspaceId?: string) {
+export function useWorkflowSearchKnowledgeReplacementOptions(
+  matches: WorkflowSearchMatch[],
+  workspaceId?: string
+) {
+  const knowledgeGroups = useMemo(
+    () => uniqueResourceOptionGroups(matches, 'knowledge-base'),
+    [matches]
+  )
+
   return useQueries({
     queries: [
       {
         queryKey: workflowSearchReplaceKeys.knowledgeReplacementOptions(workspaceId),
         queryFn: ({ signal }: { signal: AbortSignal }) =>
           fetchKnowledgeBases(workspaceId, 'active', signal),
-        enabled: Boolean(workspaceId),
+        enabled: Boolean(workspaceId && knowledgeGroups.length > 0),
         staleTime: 60 * 1000,
         placeholderData: (previous: KnowledgeBaseData[] | undefined) => previous,
         select: (knowledgeBases: KnowledgeBaseData[]): WorkflowSearchReplacementOption[] =>
-          knowledgeBases.map((knowledgeBase) => ({
-            kind: 'knowledge-base',
-            value: knowledgeBase.id,
-            label: knowledgeBase.name,
-          })),
+          knowledgeGroups.flatMap((match) =>
+            knowledgeBases.map((knowledgeBase) => ({
+              kind: 'knowledge-base',
+              value: knowledgeBase.id,
+              label: knowledgeBase.name,
+              resourceGroupKey: match.resource?.resourceGroupKey,
+            }))
+          ),
       },
     ],
   })

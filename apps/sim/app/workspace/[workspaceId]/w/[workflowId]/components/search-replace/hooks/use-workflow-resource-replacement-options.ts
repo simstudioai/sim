@@ -27,7 +27,7 @@ export function useWorkflowResourceReplacementOptions({
   workflowId,
 }: UseWorkflowResourceReplacementOptionsParams): WorkflowSearchReplacementOption[] {
   const oauthOptions = useWorkflowSearchOAuthReplacementOptions(matches, workspaceId, workflowId)
-  const knowledgeOptions = useWorkflowSearchKnowledgeReplacementOptions(workspaceId)
+  const knowledgeOptions = useWorkflowSearchKnowledgeReplacementOptions(matches, workspaceId)
   const selectorOptions = useWorkflowSearchSelectorReplacementOptions(matches)
   const tableOptions = useWorkflowSearchTableReplacementOptions(matches, workspaceId)
   const fileOptions = useWorkflowSearchFileReplacementOptions(matches, workspaceId)

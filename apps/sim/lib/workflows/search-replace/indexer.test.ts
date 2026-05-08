@@ -660,6 +660,255 @@ describe('indexWorkflowSearchMatches', () => {
     expect(matches.some((match) => match.valuePath.includes('schema'))).toBe(false)
   })
 
+  it('does not index hidden registry tool params inside tool input values', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'slack',
+              toolId: 'slack_message',
+              operation: 'send',
+              title: 'Slack message',
+              params: {
+                authMethod: 'oauth',
+                botToken: 'xoxb-hidden-token',
+                text: 'visible slack body',
+              },
+            },
+          ],
+        },
+      },
+    }
+
+    const hiddenMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'xoxb-hidden-token',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'tool-input-1')
+    const visibleMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'visible slack',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'tool-input-1')
+
+    expect(hiddenMatches).toEqual([])
+    expect(visibleMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'tools',
+        valuePath: [0, 'params', 'text'],
+        searchText: 'visible slack body',
+      }),
+    ])
+  })
+
+  it('indexes structured resources inside tool input params using nested subblock config', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'slack',
+              toolId: 'slack_message',
+              operation: 'send',
+              title: 'Slack message',
+              params: {
+                authMethod: 'oauth',
+                credential: 'slack-credential',
+                text: 'message with file',
+                attachmentFiles: JSON.stringify({
+                  name: 'contract.pdf',
+                  key: 'file-key-old',
+                  path: '/contract.pdf',
+                  size: 12,
+                  type: 'application/pdf',
+                }),
+              },
+            },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'contract',
+      mode: 'all',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'tool-input-1')
+
+    expect(matches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'file',
+          subBlockId: 'tools',
+          subBlockType: 'file-upload',
+          rawValue: 'file-key-old',
+          searchText: 'contract.pdf',
+          valuePath: [0, 'params', 'attachmentFiles'],
+        }),
+      ])
+    )
+  })
+
+  it('attaches selector context to selector-backed tool input params', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'slack',
+              toolId: 'slack_message',
+              operation: 'send',
+              title: 'Slack message',
+              params: {
+                authMethod: 'oauth',
+                credential: 'slack-credential',
+                channel: 'COLD',
+                text: 'message',
+              },
+            },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'COLD',
+      mode: 'resource',
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.kind === 'selector-resource')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        rawValue: 'COLD',
+        resource: expect.objectContaining({
+          selectorKey: 'slack.channels',
+          selectorContext: expect.objectContaining({
+            oauthCredential: 'slack-credential',
+            workspaceId: 'workspace-1',
+            workflowId: 'workflow-1',
+            excludeWorkflowId: 'workflow-1',
+          }),
+        }),
+      }),
+    ])
+  })
+
+  it('indexes workflow-input tool mappings by values without exposing JSON keys', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'workflow_input',
+              toolId: 'workflow_executor',
+              title: 'Workflow',
+              params: {
+                workflowId: 'workflow-old',
+                inputMapping: JSON.stringify({ customerEmail: 'old email value' }),
+              },
+            },
+          ],
+        },
+      },
+    }
+
+    const keyMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'customerEmail',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'tool-input-1')
+    const valueMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'old email',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'tool-input-1')
+
+    expect(keyMatches).toEqual([])
+    expect(valueMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'tools',
+        subBlockType: 'workflow-input-mapper',
+        valuePath: [0, 'params', 'inputMapping', 'customerEmail'],
+        searchText: 'old email value',
+      }),
+    ])
+  })
+
   it('does not index condition-hidden subblocks', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['condition-1'] = {
