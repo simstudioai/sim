@@ -24,6 +24,8 @@ const logger = createLogger('TableEventBuffer')
 const REDIS_PREFIX = 'table:stream:'
 export const TABLE_EVENT_TTL_SECONDS = 60 * 60 // 1 hour
 export const TABLE_EVENT_CAP = 5000
+/** Max events returned by a single read; the SSE route drains in chunks. */
+export const TABLE_EVENT_READ_CHUNK = 500
 
 /**
  * Atomic append: INCR the seq counter to mint a new eventId, build the entry
@@ -155,13 +157,21 @@ function appendMemory(event: TableEvent): TableEventEntry {
 function readMemory(tableId: string, afterEventId: number): TableEventsReadResult {
   pruneExpiredMemoryStreams()
   const stream = memoryTableStreams.get(tableId)
-  if (!stream) return { status: 'ok', events: [] }
+  if (!stream) {
+    // Mirror the Redis path: a non-zero afterEventId with no buffer at all
+    // means TTL expired or the stream never existed; either way the caller's
+    // cursor is stale.
+    if (afterEventId > 0) return { status: 'pruned', earliestEventId: undefined }
+    return { status: 'ok', events: [] }
+  }
   if (stream.earliestEventId !== undefined && afterEventId + 1 < stream.earliestEventId) {
     return { status: 'pruned', earliestEventId: stream.earliestEventId }
   }
   return {
     status: 'ok',
-    events: stream.events.filter((entry) => entry.eventId > afterEventId),
+    events: stream.events
+      .filter((entry) => entry.eventId > afterEventId)
+      .slice(0, TABLE_EVENT_READ_CHUNK),
   }
 }
 
@@ -239,7 +249,26 @@ export async function readTableEventsSince(
     if (earliestEventId !== undefined && afterEventId + 1 < earliestEventId) {
       return { status: 'pruned', earliestEventId }
     }
-    const raw = await redis.zrangebyscore(getEventsKey(tableId), afterEventId + 1, '+inf')
+    // Read in capped chunks so a 5000-event backlog doesn't materialize as one
+    // multi-MB Redis reply + JSON parse + SSE flush. The route loop drains
+    // chunks across ticks.
+    const raw = await redis.zrangebyscore(
+      getEventsKey(tableId),
+      afterEventId + 1,
+      '+inf',
+      'LIMIT',
+      0,
+      TABLE_EVENT_READ_CHUNK
+    )
+    if (raw.length === 0 && afterEventId > 0) {
+      // Total TTL expiry: events + meta both gone. The seq counter has the
+      // same TTL — its absence means the buffer was wiped and the caller's
+      // `afterEventId` is stale. Signal pruned so the client refetches.
+      const seqExists = await redis.exists(getSeqKey(tableId))
+      if (seqExists === 0) {
+        return { status: 'pruned', earliestEventId: undefined }
+      }
+    }
     return {
       status: 'ok',
       events: raw

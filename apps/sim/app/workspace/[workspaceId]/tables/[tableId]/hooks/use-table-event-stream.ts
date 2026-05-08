@@ -79,6 +79,12 @@ export function useTableEventStream({
       logger.info('Table event buffer pruned — full refetch', { tableId, ...payload })
       void queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
       lastEventId = typeof payload.earliestEventId === 'number' ? payload.earliestEventId : 0
+      // Close proactively so the server's close doesn't fire onerror and route
+      // through the backoff path. Reconnect immediately from the new cursor.
+      eventSource?.close()
+      eventSource = null
+      reconnectAttempt = 0
+      connect()
     }
 
     const scheduleReconnect = (): void => {
