@@ -5,11 +5,8 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  buildFilterConditions,
-  expandFolderIdsWithDescendants,
-  LogFilterParamsSchema,
-} from '@/lib/logs/filters'
+import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
+import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 
 const logger = createLogger('LogsExportAPI')
 

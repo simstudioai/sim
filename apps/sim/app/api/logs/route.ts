@@ -31,7 +31,8 @@ import { listLogsContract, type WorkflowLogSummary } from '@/lib/api/contracts/l
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildFilterConditions, expandFolderIdsWithDescendants } from '@/lib/logs/filters'
+import { buildFilterConditions } from '@/lib/logs/filters'
+import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 
 const logger = createLogger('LogsAPI')
 

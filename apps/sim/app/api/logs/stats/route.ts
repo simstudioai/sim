@@ -13,7 +13,8 @@ import { isZodError } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildFilterConditions, expandFolderIdsWithDescendants } from '@/lib/logs/filters'
+import { buildFilterConditions } from '@/lib/logs/filters'
+import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 
 const logger = createLogger('LogsStatsAPI')
 
