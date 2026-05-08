@@ -63,11 +63,12 @@ export const docxGenerateTask = defineSandboxTask<SandboxTaskInput>({
       const ext = extMap[mime];
       if (!ext) throw new Error('addImage: unsupported image type "' + mime + '". Use PNG, JPEG, GIF, BMP, or SVG.');
       if (!globalThis.Buffer) throw new Error('addImage: Buffer polyfill missing — ensure docx bundle is loaded');
-      return new globalThis.docx.ImageRun(Object.assign({
+      const { width, height, type: _t, data: _d, transformation: userTransform, ...passThrough } = opts || {};
+      return new globalThis.docx.ImageRun(Object.assign(passThrough, {
         data: globalThis.Buffer.from(base64, 'base64'),
-        transformation: { width: opts?.width ?? 200, height: opts?.height ?? 200 },
         type: ext,
-      }, opts || {}));
+        transformation: Object.assign({ width: width ?? 200, height: height ?? 200 }, userTransform || {}),
+      }));
     };
   `,
   // JSZip's browser build doesn't support nodebuffer output, so we go through
