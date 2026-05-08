@@ -659,8 +659,8 @@ function WorkflowSidebarBody({
           setNameError(nameIssue.message)
           return
         }
+        toast.error(toError(err).message)
       }
-      toast.error(toError(err).message)
     }
   }
 
