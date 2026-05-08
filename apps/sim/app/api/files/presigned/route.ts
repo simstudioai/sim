@@ -7,6 +7,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
+import { generateExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { generatePresignedUploadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
@@ -23,6 +24,7 @@ const VALID_UPLOAD_TYPES = [
   'profile-pictures',
   'mothership',
   'workspace-logos',
+  'execution',
 ] as const
 
 class PresignedUrlError extends Error {
@@ -154,6 +156,32 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         customKey,
         expirationSeconds: 3600,
         metadata: { workspaceId },
+      })
+    } else if (uploadType === 'execution') {
+      const workflowId = request.nextUrl.searchParams.get('workflowId')
+      const executionId = request.nextUrl.searchParams.get('executionId')
+      const workspaceId = request.nextUrl.searchParams.get('workspaceId')
+      if (!workflowId?.trim() || !executionId?.trim() || !workspaceId?.trim()) {
+        throw new ValidationError(
+          'workflowId, executionId, and workspaceId query parameters are required for execution uploads'
+        )
+      }
+
+      const fileValidationError = validateFileType(fileName, contentType)
+      if (fileValidationError) {
+        throw new ValidationError(fileValidationError.message)
+      }
+
+      const customKey = generateExecutionFileKey({ workspaceId, workflowId, executionId }, fileName)
+      presignedUrlResponse = await generatePresignedUploadUrl({
+        fileName,
+        contentType,
+        fileSize,
+        context: 'execution',
+        userId: sessionUserId,
+        customKey,
+        expirationSeconds: 3600,
+        metadata: { workspaceId, workflowId, executionId },
       })
     } else if (uploadType === 'workspace-logos') {
       const workspaceId = request.nextUrl.searchParams.get('workspaceId')
