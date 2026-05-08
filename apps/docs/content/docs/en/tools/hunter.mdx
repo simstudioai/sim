@@ -1,5 +1,5 @@
 ---
-title: Hunter io
+title: Hunter.io
 description: Find and verify professional email addresses
 ---
 
@@ -53,11 +53,16 @@ Returns companies matching a set of criteria using Hunter.io AI-powered search.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | List of companies matching the search criteria |
+|   ↳ `name` | string | Company name |
 |   ↳ `domain` | string | Company domain |
-|   ↳ `name` | string | Company/organization name |
-|   ↳ `headcount` | number | Company size/headcount |
-|   ↳ `technologies` | array | Technologies used by the company |
-|   ↳ `email_count` | number | Total number of email addresses found |
+|   ↳ `logo` | string | URL of the company logo |
+|   ↳ `linkedin_url` | string | LinkedIn profile URL of the company |
+|   ↳ `company_type` | string | Company type \(e.g., privately held, public company\) |
+|   ↳ `industry` | string | Industry of the company |
+|   ↳ `size` | string | Headcount range of the company |
+|   ↳ `location` | string | Headquarters location |
+|   ↳ `founded_year` | number | Year the company was founded |
+|   ↳ `crunchbase_url` | string | Crunchbase URL of the company |
 
 ### `hunter_domain_search`
 
@@ -86,8 +91,9 @@ Returns all the email addresses found using one given domain name, with sources.
 |   ↳ `first_name` | string | Person's first name |
 |   ↳ `last_name` | string | Person's last name |
 |   ↳ `position` | string | Job title/position |
+|   ↳ `position_raw` | string | Raw job title as found |
 |   ↳ `seniority` | string | Seniority level \(junior, senior, executive\) |
-|   ↳ `department` | string | Department \(executive, it, finance, management, sales, legal, support, hr, marketing, communication\) |
+|   ↳ `department` | string | Department \(executive, it, finance, management, sales, legal, support, hr, marketing, communication, education, design, health, operations\) |
 |   ↳ `linkedin` | string | LinkedIn profile URL |
 |   ↳ `twitter` | string | Twitter handle |
 |   ↳ `phone_number` | string | Phone number |
@@ -106,19 +112,7 @@ Returns all the email addresses found using one given domain name, with sources.
 | `accept_all` | boolean | Whether the server accepts all email addresses \(may cause false positives\) |
 | `pattern` | string | The email pattern used by the organization \(e.g., \{first\}, \{first\}.\{last\}\) |
 | `organization` | string | The organization/company name |
-| `description` | string | Description of the organization |
-| `industry` | string | Industry classification of the organization |
-| `twitter` | string | Twitter handle of the organization |
-| `facebook` | string | Facebook page URL of the organization |
-| `linkedin` | string | LinkedIn company page URL |
-| `instagram` | string | Instagram profile of the organization |
-| `youtube` | string | YouTube channel of the organization |
-| `technologies` | array | Technologies used by the organization |
-| `country` | string | Country where the organization is headquartered |
-| `state` | string | State/province where the organization is located |
-| `city` | string | City where the organization is located |
-| `postal_code` | string | Postal code of the organization |
-| `street` | string | Street address of the organization |
+| `linked_domains` | array | Other domains linked to the organization |
 
 ### `hunter_email_finder`
 
@@ -147,8 +141,17 @@ Finds the most likely email address for a person given their name and company do
 | `verification` | object | Email verification information |
 |   ↳ `date` | string | Date when the email was verified \(YYYY-MM-DD\) |
 |   ↳ `status` | string | Verification status \(valid, invalid, accept_all, webmail, disposable, unknown\) |
+| `first_name` | string | Person's first name |
+| `last_name` | string | Person's last name |
 | `email` | string | The found email address |
 | `score` | number | Confidence score \(0-100\) for the found email address |
+| `domain` | string | Domain that was searched |
+| `accept_all` | boolean | Whether the server accepts all email addresses \(may cause false positives\) |
+| `position` | string | Job title/position |
+| `twitter` | string | Twitter handle |
+| `linkedin_url` | string | LinkedIn profile URL |
+| `phone_number` | string | Phone number |
+| `company` | string | Company name |
 
 ### `hunter_email_verifier`
 
@@ -200,15 +203,24 @@ Enriches company data using domain name.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `company` | object | Company information |
-|   ↳ `name` | string | Company name |
-|   ↳ `domain` | string | Company domain |
-|   ↳ `industry` | string | Industry classification |
-|   ↳ `size` | string | Company size/headcount range |
-|   ↳ `country` | string | Country where the company is located |
-|   ↳ `linkedin` | string | LinkedIn company page URL |
-|   ↳ `twitter` | string | Twitter handle |
-| `person` | object | Person information \(undefined for companies_find tool\) |
+| `name` | string | Company name |
+| `domain` | string | Company domain |
+| `description` | string | Company description |
+| `industry` | string | Industry classification |
+| `sector` | string | Business sector |
+| `size` | string | Employee headcount range \(e.g., "11-50"\) |
+| `founded_year` | number | Year founded |
+| `location` | string | Headquarters location \(formatted\) |
+| `country` | string | Country \(full name\) |
+| `country_code` | string | ISO 3166-1 alpha-2 country code |
+| `state` | string | State/province |
+| `city` | string | City |
+| `linkedin` | string | LinkedIn handle \(e.g., company/hunterio\) |
+| `twitter` | string | Twitter handle |
+| `facebook` | string | Facebook handle |
+| `logo` | string | Company logo URL |
+| `phone` | string | Company phone number |
+| `tech` | array | Technologies used by the company |
 
 ### `hunter_email_count`
 

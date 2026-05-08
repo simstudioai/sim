@@ -6526,7 +6526,7 @@
   {
     "type": "hunter",
     "slug": "hunter-io",
-    "name": "Hunter io",
+    "name": "Hunter.io",
     "description": "Find and verify professional email addresses",
     "longDescription": "Integrate Hunter into the workflow. Can search domains, find email addresses, verify email addresses, discover companies, find companies, and count email addresses.",
     "bgColor": "#E0E0E0",
