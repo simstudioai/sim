@@ -622,7 +622,7 @@ export function Files() {
       const mimeType = getMimeTypeFromExtension('md')
       const blob = new Blob([''], { type: mimeType })
       const file = new File([blob], name, { type: mimeType })
-      const result = await uploadFile.mutateAsync({ workspaceId, file })
+      const result = await uploadFile.mutateAsync({ workspaceId, file, skipToast: true })
       const fileId = result.file?.id
       if (fileId) {
         justCreatedFileIdRef.current = fileId

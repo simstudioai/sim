@@ -464,6 +464,7 @@ export async function executeSetGlobalWorkflowVariables(
 
     assertWorkflowMutationNotAborted(context)
     await setWorkflowVariables(workflowId, nextVarsRecord)
+    notifyWorkflowUpdated(workflowId)
 
     recordAudit({
       actorId: context.userId,

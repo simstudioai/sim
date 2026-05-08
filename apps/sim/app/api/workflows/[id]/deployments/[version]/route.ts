@@ -15,6 +15,7 @@ const logger = createLogger('WorkflowDeploymentVersionAPI')
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+export const maxDuration = 120
 
 export const GET = withRouteHandler(
   async (

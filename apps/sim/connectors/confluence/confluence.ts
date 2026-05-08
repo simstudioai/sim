@@ -4,7 +4,7 @@ import { ConfluenceIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
-import { getConfluenceCloudId } from '@/tools/confluence/utils'
+import { getConfluenceCloudId, normalizeConfluenceDomainHost } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceConnector')
 
@@ -141,7 +141,15 @@ export const confluenceConnector: ConnectorConfig = {
   auth: {
     mode: 'oauth',
     provider: 'confluence',
-    requiredScopes: ['read:confluence-content.all', 'read:page:confluence', 'offline_access'],
+    requiredScopes: [
+      'read:confluence-content.all',
+      'read:page:confluence',
+      'read:blogpost:confluence',
+      'read:space:confluence',
+      'read:label:confluence',
+      'search:confluence',
+      'offline_access',
+    ],
   },
 
   configFields: [
@@ -205,7 +213,7 @@ export const confluenceConnector: ConnectorConfig = {
     cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    const domain = sourceConfig.domain as string
+    const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
     const spaceKey = sourceConfig.spaceKey as string
     const contentType = (sourceConfig.contentType as string) || 'page'
     const labelFilter = (sourceConfig.labelFilter as string) || ''
@@ -269,7 +277,7 @@ export const confluenceConnector: ConnectorConfig = {
     externalId: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
-    const domain = sourceConfig.domain as string
+    const domain = normalizeConfluenceDomainHost(sourceConfig.domain as string)
     let cloudId = syncContext?.cloudId as string | undefined
     if (!cloudId) {
       cloudId = await getConfluenceCloudId(domain, accessToken)

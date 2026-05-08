@@ -1,6 +1,17 @@
 'use client'
 
-import { createContext, memo, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Children,
+  cloneElement,
+  createContext,
+  isValidElement,
+  memo,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import matter from 'gray-matter'
 import { useRouter } from 'next/navigation'
 import rehypeSlug from 'rehype-slug'
@@ -10,7 +21,7 @@ import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { Checkbox, CopyCodeButton, highlight, languages, Skeleton } from '@/components/emcn'
+import { Checkbox, highlight, languages, Skeleton } from '@/components/emcn'
 import '@/components/emcn/components/code/code.css'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
@@ -473,10 +484,25 @@ function resolveSimFileUrl(src: string | undefined): string | undefined {
 }
 
 const STATIC_MARKDOWN_COMPONENTS = {
-  pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  pre: ({ children }: { children?: React.ReactNode }) => (
+    <>
+      {Children.map(children, (child) =>
+        isValidElement<Record<string, unknown>>(child)
+          ? cloneElement(child, { 'data-block': 'true' })
+          : child
+      ) ?? children}
+    </>
+  ),
   'mermaid-diagram': ({ definition }: { definition?: string }) => {
     const isStreaming = useContext(MermaidStreamingCtx)
-    return <MermaidDiagram definition={definition ?? ''} isStreaming={isStreaming} />
+    return (
+      <MermaidDiagram
+        definition={definition ?? ''}
+        isStreaming={isStreaming}
+        zoomable
+        zoomClassName='my-4 h-[420px] rounded-lg'
+      />
+    )
   },
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className='mb-3 break-words text-[14px] text-[var(--text-primary)] leading-[1.6] last:mb-0'>
@@ -531,20 +557,11 @@ const STATIC_MARKDOWN_COMPONENTS = {
       {children}
     </h6>
   ),
-  inlineCode: ({ children }: { children?: React.ReactNode }) => {
-    if (typeof children === 'string' && children.includes('\n')) {
-      return (
-        <code className='my-4 block overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface-5)] p-4 font-mono text-[var(--text-primary)] leading-[1.6]'>
-          {children}
-        </code>
-      )
-    }
-    return (
-      <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[var(--caution)]'>
-        {children}
-      </code>
-    )
-  },
+  inlineCode: ({ children }: { children?: React.ReactNode }) => (
+    <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[var(--caution)] not-italic'>
+      {children}
+    </code>
+  ),
   code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
     const langMatch = className?.match(/language-(\w+)/)
     const langRaw = langMatch?.[1] ?? ''
@@ -564,22 +581,18 @@ const STATIC_MARKDOWN_COMPONENTS = {
 
     return (
       <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
-        <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
+        <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
           <span className='text-[11px] text-[var(--text-tertiary)]'>{langRaw || 'code'}</span>
-          <CopyCodeButton
-            code={codeString}
-            className='-mr-1 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
-          />
         </div>
         <div className='code-editor-theme bg-[var(--surface-5)]'>
           {html ? (
             <pre
-              className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] leading-[1.6]'
+              className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] not-italic leading-[1.6]'
               dangerouslySetInnerHTML={{ __html: html }}
             />
           ) : (
-            <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] text-[var(--text-primary)] leading-[1.6]'>
-              <code>{codeString.trimEnd()}</code>
+            <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] text-[var(--text-primary)] not-italic leading-[1.6]'>
+              <code className='not-italic'>{codeString.trimEnd()}</code>
             </pre>
           )}
         </div>
@@ -613,12 +626,15 @@ const STATIC_MARKDOWN_COMPONENTS = {
   img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => {
     const resolvedSrc = resolveSimFileUrl(typeof src === 'string' ? src : undefined)
     return (
-      <img
-        src={resolvedSrc}
-        alt={alt ?? ''}
-        className='my-3 max-w-full rounded-md'
-        loading='lazy'
-      />
+      <ZoomablePreview className='my-3 h-[360px] rounded-md' initialScale='actual'>
+        <img
+          src={resolvedSrc}
+          alt={alt ?? ''}
+          className='max-h-full max-w-full select-none object-contain'
+          draggable={false}
+          loading='lazy'
+        />
+      </ZoomablePreview>
     )
   },
   table: ({ children }: { children?: React.ReactNode }) => (
@@ -634,7 +650,7 @@ const STATIC_MARKDOWN_COMPONENTS = {
     <tr className='border-[var(--border)] border-b last:border-b-0'>{children}</tr>
   ),
   th: ({ children }: { children?: React.ReactNode }) => (
-    <th className='px-3 py-2 text-left font-semibold text-[12px] text-[var(--text-primary)]'>
+    <th className='px-3 py-2 text-left font-semibold text-[13px] text-[var(--text-primary)]'>
       {children}
     </th>
   ),
@@ -684,20 +700,36 @@ function LiRenderer({
   const isTaskItem = typeof className === 'string' && className.includes('task-list-item')
 
   if (isTaskItem) {
+    const [checkboxChild, ...contentChildren] = Children.toArray(children)
+    const content = <span className='min-w-0 flex-1'>{contentChildren}</span>
+
     if (ctx) {
       const offset = node?.position?.start?.offset
       if (offset === undefined) {
-        return <li className='flex items-start gap-2 break-words leading-[1.6]'>{children}</li>
+        return (
+          <li className='flex items-start gap-2 break-words leading-[1.6]'>
+            {checkboxChild}
+            {content}
+          </li>
+        )
       }
       const before = ctx.contentRef.current.slice(0, offset)
       const prior = before.match(/^(\s*(?:[-*+]|\d+[.)]) +)\[([ xX])\]/gm)
       return (
         <CheckboxIndexCtx.Provider value={prior ? prior.length : 0}>
-          <li className='flex items-start gap-2 break-words leading-[1.6]'>{children}</li>
+          <li className='flex items-start gap-2 break-words leading-[1.6]'>
+            {checkboxChild}
+            {content}
+          </li>
         </CheckboxIndexCtx.Provider>
       )
     }
-    return <li className='flex items-start gap-2 break-words leading-[1.6]'>{children}</li>
+    return (
+      <li className='flex items-start gap-2 break-words leading-[1.6]'>
+        {checkboxChild}
+        {content}
+      </li>
+    )
   }
 
   return <li className='break-words leading-[1.6]'>{children}</li>

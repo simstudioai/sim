@@ -90,6 +90,37 @@ describe('redis config', () => {
       expect(mockRedisInstance.disconnect).toHaveBeenCalledWith(true)
     })
 
+    it('should drop the cached client so the next getRedisClient() builds a fresh one', async () => {
+      getRedisClient()
+      const callsBefore = MockRedisConstructor.mock.calls.length
+
+      mockRedisInstance.ping.mockRejectedValue(new Error('ETIMEDOUT'))
+      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(mockRedisInstance.disconnect).toHaveBeenCalledWith(true)
+
+      getRedisClient()
+      expect(MockRedisConstructor.mock.calls.length).toBe(callsBefore + 1)
+    })
+
+    it('should restart the PING health check against the new client', async () => {
+      getRedisClient()
+
+      mockRedisInstance.ping.mockRejectedValue(new Error('ETIMEDOUT'))
+      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(mockRedisInstance.disconnect).toHaveBeenCalledTimes(1)
+
+      getRedisClient()
+
+      await vi.advanceTimersByTimeAsync(15_000)
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(mockRedisInstance.disconnect).toHaveBeenCalledTimes(2)
+    })
+
     it('should handle listener errors gracefully without breaking health check', async () => {
       const badListener = vi.fn(() => {
         throw new Error('listener crashed')

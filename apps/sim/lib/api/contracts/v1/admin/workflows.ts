@@ -141,6 +141,7 @@ export const adminV1DeployResultSchema = z.object({
 
 export const adminV1UndeployResultSchema = z.object({
   isDeployed: z.literal(false),
+  warnings: z.array(z.string()).optional(),
 })
 
 export const adminV1ExportWorkflowsBodySchema = z.object({

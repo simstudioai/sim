@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType, CONDITION, DEFAULTS, EDGE } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
@@ -40,8 +41,8 @@ export async function evaluateConditionExpression(
       {
         code,
         timeout: CONDITION_TIMEOUT_MS,
-        envVars: ctx.environmentVariables || {},
-        workflowVariables: ctx.workflowVariables || {},
+        envVars: normalizeStringRecord(ctx.environmentVariables),
+        workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
         blockData,
         blockNameMapping,
         blockOutputSchemas,

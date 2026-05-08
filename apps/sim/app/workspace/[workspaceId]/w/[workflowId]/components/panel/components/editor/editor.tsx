@@ -16,7 +16,7 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { Button, Loader, Tooltip } from '@/components/emcn'
+import { Button, FieldDivider, Loader, Tooltip } from '@/components/emcn'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   buildCanonicalIndex,
@@ -565,9 +565,7 @@ export function Editor() {
                       )}
                     </div>
                   </div>
-                  <div className='subblock-divider px-0.5 pt-4 pb-[13px]'>
-                    <div className='h-[1.25px]' style={DASHED_DIVIDER_STYLE} />
-                  </div>
+                  <FieldDivider subblockMarker />
                 </>
               )}
               {subBlocks.length === 0 && !isWorkflowBlock ? (
@@ -634,11 +632,7 @@ export function Editor() {
                               : undefined
                           }
                         />
-                        {showDivider && (
-                          <div className='subblock-divider px-0.5 pt-4 pb-[13px]'>
-                            <div className='h-[1.25px]' style={DASHED_DIVIDER_STYLE} />
-                          </div>
-                        )}
+                        {showDivider && <FieldDivider subblockMarker />}
                       </div>
                     )
                   })}
@@ -695,9 +689,7 @@ export function Editor() {
                           }
                         />
                         {index < advancedOnlySubBlocks.length - 1 && (
-                          <div className='subblock-divider px-0.5 pt-4 pb-[13px]'>
-                            <div className='h-[1.25px]' style={DASHED_DIVIDER_STYLE} />
-                          </div>
+                          <FieldDivider subblockMarker />
                         )}
                       </div>
                     )

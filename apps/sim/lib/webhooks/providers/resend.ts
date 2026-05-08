@@ -270,6 +270,7 @@ export const resendHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Missing apiKey or externalId for Resend webhook deletion ${webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Missing Resend webhook deletion credentials')
         return
       }
 
@@ -286,11 +287,13 @@ export const resendHandler: WebhookProviderHandler = {
           `[${requestId}] Failed to delete Resend webhook (non-fatal): ${resendResponse.status}`,
           { response: responseBody }
         )
+        if (ctx.strict) throw new Error(`Failed to delete Resend webhook: ${resendResponse.status}`)
       } else {
         logger.info(`[${requestId}] Successfully deleted Resend webhook ${externalId}`)
       }
     } catch (error) {
       logger.warn(`[${requestId}] Error deleting Resend webhook (non-fatal)`, error)
+      if (ctx.strict) throw error
     }
   },
 }

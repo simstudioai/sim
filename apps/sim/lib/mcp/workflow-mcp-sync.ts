@@ -1,6 +1,7 @@
 import { db, workflowMcpServer, workflowMcpTool } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import type { DbOrTx } from '@/lib/db/types'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -46,6 +47,9 @@ interface SyncOptions {
   state?: { blocks?: Record<string, unknown> }
   /** Context for logging (e.g., 'deploy', 'revert', 'activate') */
   context?: string
+  tx?: DbOrTx
+  notify?: boolean
+  throwOnError?: boolean
 }
 
 /**
@@ -58,17 +62,27 @@ interface SyncOptions {
  * @param options.state - Optional workflow state (if not provided, loads from DB)
  * @param options.context - Optional context for log messages
  */
-export async function syncMcpToolsForWorkflow(options: SyncOptions): Promise<void> {
-  const { workflowId, requestId, state, context = 'sync' } = options
+export async function syncMcpToolsForWorkflow(
+  options: SyncOptions
+): Promise<Array<{ serverId: string }>> {
+  const {
+    workflowId,
+    requestId,
+    state,
+    context = 'sync',
+    tx = db,
+    notify = true,
+    throwOnError = false,
+  } = options
 
   try {
-    const tools = await db
+    const tools = await tx
       .select({ id: workflowMcpTool.id, serverId: workflowMcpTool.serverId })
       .from(workflowMcpTool)
       .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
 
     if (tools.length === 0) {
-      return
+      return []
     }
 
     let workflowState: { blocks?: Record<string, unknown> } | null = state ?? null
@@ -77,19 +91,19 @@ export async function syncMcpToolsForWorkflow(options: SyncOptions): Promise<voi
     }
 
     if (!hasValidStartBlockInState(workflowState as WorkflowState | null)) {
-      await db.delete(workflowMcpTool).where(eq(workflowMcpTool.workflowId, workflowId))
+      await tx.delete(workflowMcpTool).where(eq(workflowMcpTool.workflowId, workflowId))
       logger.info(
         `[${requestId}] Removed ${tools.length} MCP tool(s) - workflow has no start block (${context}): ${workflowId}`
       )
-      notifyAffectedServers(tools)
-      return
+      if (notify) notifyMcpToolServers(tools)
+      return tools
     }
 
     const parameterSchema = workflowState?.blocks
       ? generateSchemaFromBlocks(workflowState.blocks)
       : EMPTY_SCHEMA
 
-    await db
+    await tx
       .update(workflowMcpTool)
       .set({
         parameterSchema,
@@ -101,9 +115,12 @@ export async function syncMcpToolsForWorkflow(options: SyncOptions): Promise<voi
       `[${requestId}] Synced ${tools.length} MCP tool(s) for workflow (${context}): ${workflowId}`
     )
 
-    notifyAffectedServers(tools)
+    if (notify) notifyMcpToolServers(tools)
+    return tools
   } catch (error) {
     logger.error(`[${requestId}] Error syncing MCP tools (${context}):`, error)
+    if (throwOnError) throw error
+    return []
   }
 }
 
@@ -113,22 +130,28 @@ export async function syncMcpToolsForWorkflow(options: SyncOptions): Promise<voi
  */
 export async function removeMcpToolsForWorkflow(
   workflowId: string,
-  requestId: string
-): Promise<void> {
+  requestId: string,
+  tx: DbOrTx = db,
+  notify = true,
+  throwOnError = false
+): Promise<Array<{ serverId: string }>> {
   try {
-    const tools = await db
+    const tools = await tx
       .select({ id: workflowMcpTool.id, serverId: workflowMcpTool.serverId })
       .from(workflowMcpTool)
       .where(and(eq(workflowMcpTool.workflowId, workflowId), isNull(workflowMcpTool.archivedAt)))
 
-    if (tools.length === 0) return
+    if (tools.length === 0) return []
 
-    await db.delete(workflowMcpTool).where(eq(workflowMcpTool.workflowId, workflowId))
+    await tx.delete(workflowMcpTool).where(eq(workflowMcpTool.workflowId, workflowId))
     logger.info(`[${requestId}] Removed MCP tools for workflow: ${workflowId}`)
 
-    notifyAffectedServers(tools)
+    if (notify) notifyMcpToolServers(tools)
+    return tools
   } catch (error) {
     logger.error(`[${requestId}] Error removing MCP tools:`, error)
+    if (throwOnError) throw error
+    return []
   }
 }
 
@@ -136,7 +159,7 @@ export async function removeMcpToolsForWorkflow(
  * Publish pubsub events for each unique server affected by a tool change.
  * Resolves workspace IDs from the server table so callers don't need to pass them.
  */
-function notifyAffectedServers(tools: Array<{ serverId: string }>): void {
+export function notifyMcpToolServers(tools: Array<{ serverId: string }>): void {
   if (!mcpPubSub) return
 
   const uniqueServerIds = [...new Set(tools.map((t) => t.serverId))]

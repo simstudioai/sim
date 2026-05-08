@@ -2711,7 +2711,10 @@ async function generateMarkdownForBlock(
 
       if (toolInfo) {
         if (toolInfo.description && toolInfo.description !== 'No description available') {
-          toolsSection += `${toolInfo.description}\n\n`
+          const escapedToolDescription = toolInfo.description
+            .replace(/\{/g, '\\{')
+            .replace(/\}/g, '\\}')
+          toolsSection += `${escapedToolDescription}\n\n`
         }
 
         toolsSection += '#### Input\n\n'
@@ -3552,7 +3555,10 @@ function generateTriggerProviderDoc(
     const separator = i < triggers.length - 1 ? '\n---\n\n' : ''
 
     triggersSection += `### ${trigger.name}\n\n`
-    triggersSection += `${trigger.description}\n\n`
+    const escapedTriggerDescription = trigger.description
+      .replace(/\{/g, '\\{')
+      .replace(/\}/g, '\\}')
+    triggersSection += `${escapedTriggerDescription}\n\n`
     triggersSection += configSection
     triggersSection += outputSection
     triggersSection += separator

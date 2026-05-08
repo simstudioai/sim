@@ -9,6 +9,9 @@
 # bun specific
 bun-debug.log*
 
+# this repo uses bun.lock; package-lock.json files are accidental
+package-lock.json
+
 # testing
 /coverage
 /apps/**/coverage

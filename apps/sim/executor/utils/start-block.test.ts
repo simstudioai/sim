@@ -119,6 +119,167 @@ describe('start-block utilities', () => {
     expect(output.files).toEqual(files)
   })
 
+  it.concurrent('rejects inputFormat fields that collide with executor routing keys', () => {
+    const block = createBlock('start_trigger', 'start', {
+      subBlocks: {
+        inputFormat: {
+          value: [
+            { name: 'error', type: 'string' },
+            { name: 'error', type: 'string' },
+            { name: ' selectedOption ', type: 'string' },
+            { name: 'selectedRoute', type: 'string' },
+            { name: '_pauseMetadata', type: 'object' },
+          ],
+        },
+      },
+    })
+
+    const resolution = {
+      blockId: 'start',
+      block,
+      path: StartBlockPath.UNIFIED,
+    } as const
+
+    expect(() =>
+      buildStartBlockOutput({
+        resolution,
+        workflowInput: { error: false, selectedRoute: 'source' },
+      })
+    ).toThrow(
+      'Start block "block-start_trigger" cannot use reserved input format field name(s): error, selectedOption, selectedRoute, _pauseMetadata'
+    )
+  })
+
+  it.concurrent(
+    'rejects reserved top-level runtime input keys copied to unified Start output',
+    () => {
+      const block = createBlock('start_trigger', 'start')
+      const resolution = {
+        blockId: 'start',
+        block,
+        path: StartBlockPath.UNIFIED,
+      } as const
+
+      expect(() =>
+        buildStartBlockOutput({
+          resolution,
+          workflowInput: { error: 'false', payload: 'value' },
+        })
+      ).toThrow(
+        'Start block "block-start_trigger" cannot use reserved runtime input field name(s): error'
+      )
+    }
+  )
+
+  it.concurrent('rejects reserved nested API input keys copied to trigger output', () => {
+    const block = createBlock('api_trigger', 'api')
+    const resolution = {
+      blockId: 'api',
+      block,
+      path: StartBlockPath.SPLIT_API,
+    } as const
+
+    expect(() =>
+      buildStartBlockOutput({
+        resolution,
+        workflowInput: { input: { selectedRoute: 'route-1', payload: 'value' } },
+      })
+    ).toThrow(
+      'Start block "block-api_trigger" cannot use reserved runtime input field name(s): selectedRoute'
+    )
+  })
+
+  it.concurrent('allows reserved inputFormat field names on split chat trigger output', () => {
+    const block = createBlock('chat_trigger', 'chat', {
+      subBlocks: {
+        inputFormat: {
+          value: [{ name: 'error', type: 'string' }],
+        },
+      },
+    })
+    const resolution = {
+      blockId: 'chat',
+      block,
+      path: StartBlockPath.SPLIT_CHAT,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workflowInput: { input: 'hello', conversationId: 'conversation-1' },
+    })
+
+    expect(output).toEqual({ input: 'hello', conversationId: 'conversation-1' })
+  })
+
+  it.concurrent('allows reserved inputFormat field names on legacy chat starter output', () => {
+    const block = createBlock('starter', 'starter', {
+      subBlocks: {
+        startWorkflow: { value: 'chat' },
+        inputFormat: {
+          value: [{ name: 'error', type: 'string' }],
+        },
+      },
+    })
+    const resolution = {
+      blockId: 'starter',
+      block,
+      path: StartBlockPath.LEGACY_STARTER,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workflowInput: { input: 'hello' },
+    })
+
+    expect(output).toEqual({ input: 'hello' })
+  })
+
+  it.concurrent('allows reserved inputFormat field names on serialized legacy chat starter', () => {
+    const block = createBlock('starter', 'starter')
+    block.config.params = {
+      startWorkflow: 'chat',
+      inputFormat: [{ name: 'error', type: 'string' }],
+    }
+    const resolution = {
+      blockId: 'starter',
+      block,
+      path: StartBlockPath.LEGACY_STARTER,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workflowInput: { input: 'hello' },
+    })
+
+    expect(output).toEqual({ input: 'hello' })
+  })
+
+  it.concurrent('ignores malformed non-string inputFormat field names', () => {
+    const block = createBlock('start_trigger', 'start', {
+      subBlocks: {
+        inputFormat: {
+          value: [
+            { name: 123, type: 'string', value: 'ignored' },
+            { name: 'customField', type: 'string' },
+          ],
+        },
+      },
+    })
+    const resolution = {
+      blockId: 'start',
+      block,
+      path: StartBlockPath.UNIFIED,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workflowInput: { customField: 'value' },
+    })
+
+    expect(output.customField).toBe('value')
+    expect(output[123]).toBeUndefined()
+  })
+
   describe('inputFormat default values', () => {
     it.concurrent('uses default value when runtime does not provide the field', () => {
       const block = createBlock('start_trigger', 'start', {
@@ -294,6 +455,24 @@ describe('start-block utilities', () => {
   })
 
   describe('EXTERNAL_TRIGGER path', () => {
+    it.concurrent('rejects reserved runtime input keys copied to external trigger output', () => {
+      const block = createBlock('webhook', 'start')
+      const resolution = {
+        blockId: 'start',
+        block,
+        path: StartBlockPath.EXTERNAL_TRIGGER,
+      } as const
+
+      expect(() =>
+        buildStartBlockOutput({
+          resolution,
+          workflowInput: { _pauseMetadata: { contextId: 'fake-pause' }, payload: 'value' },
+        })
+      ).toThrow(
+        'Start block "block-webhook" cannot use reserved runtime input field name(s): _pauseMetadata'
+      )
+    })
+
     it.concurrent('preserves coerced types for integration trigger payload', () => {
       const block = createBlock('webhook', 'start', {
         subBlocks: {

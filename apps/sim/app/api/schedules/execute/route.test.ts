@@ -20,6 +20,7 @@ const {
   mockExecuteJobInline,
   mockFeatureFlags,
   mockEnqueue,
+  mockGetJob,
   mockStartJob,
   mockCompleteJob,
   mockMarkJobFailed,
@@ -34,6 +35,7 @@ const {
     isDev: true,
   },
   mockEnqueue: vi.fn().mockResolvedValue('job-id-1'),
+  mockGetJob: vi.fn().mockResolvedValue(null),
   mockStartJob: vi.fn().mockResolvedValue(undefined),
   mockCompleteJob: vi.fn().mockResolvedValue(undefined),
   mockMarkJobFailed: vi.fn().mockResolvedValue(undefined),
@@ -54,6 +56,7 @@ vi.mock('@/lib/core/config/feature-flags', () => mockFeatureFlags)
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({
     enqueue: mockEnqueue,
+    getJob: mockGetJob,
     startJob: mockStartJob,
     completeJob: mockCompleteJob,
     markJobFailed: mockMarkJobFailed,
@@ -69,6 +72,7 @@ vi.mock('drizzle-orm', () => ({
   ne: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'ne' })),
   lte: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'lte' })),
   lt: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'lt' })),
+  inArray: vi.fn((field: unknown, values: unknown[]) => ({ field, values, type: 'inArray' })),
   not: vi.fn((condition: unknown) => ({ type: 'not', condition })),
   isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
   or: vi.fn((...conditions: unknown[]) => ({ type: 'or', conditions })),
@@ -166,6 +170,8 @@ function createMockRequest(): NextRequest {
 describe('Scheduled Workflow Execution API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.returning.mockReset()
     resetDbChainMock()
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('test-request-id')
     workflowsUtilsMockFns.mockGetWorkflowById.mockResolvedValue({
@@ -180,6 +186,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should execute scheduled workflows with Trigger.dev disabled', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'schedule-1' }]).mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
@@ -193,6 +200,7 @@ describe('Scheduled Workflow Execution API Route', () => {
 
   it('should queue schedules to Trigger.dev when enabled', async () => {
     mockFeatureFlags.isTriggerDevEnabled = true
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'schedule-1' }]).mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
@@ -215,6 +223,9 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should execute multiple schedules in parallel', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'schedule-1' }, { id: 'schedule-2' }])
+      .mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce(MULTIPLE_SCHEDULES).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
@@ -225,7 +236,8 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should execute mothership jobs inline', async () => {
-    dbChainMockFns.returning.mockReturnValueOnce([]).mockReturnValueOnce(SINGLE_JOB)
+    dbChainMockFns.limit.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'job-1' }])
+    dbChainMockFns.returning.mockReturnValueOnce(SINGLE_JOB)
 
     const response = await GET(createMockRequest())
 
@@ -241,6 +253,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should enqueue schedule with correlation metadata via job queue', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'schedule-1' }]).mockResolvedValueOnce([])
     dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
@@ -255,6 +268,8 @@ describe('Scheduled Workflow Execution API Route', () => {
         requestId: 'test-request-id',
       }),
       expect.objectContaining({
+        jobId: expect.stringMatching(/^schedule_[0-9a-f]{32}$/),
+        concurrencyKey: expect.stringMatching(/^schedule_[0-9a-f]{32}$/),
         metadata: expect.objectContaining({
           workflowId: 'workflow-1',
           workspaceId: 'workspace-1',

@@ -12,31 +12,31 @@ export const updatePurchaseOrderTool: ToolConfig<UpdatePurchaseOrderParams, SapP
   id: 'sap_s4hana_update_purchase_order',
   name: 'SAP S/4HANA Update Purchase Order',
   description:
-    'Update fields on an A_PurchaseOrder entity in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard (unconditional) — for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
+    'Update fields on an A_PurchaseOrder header in SAP S/4HANA Cloud (API_PURCHASEORDER_PROCESS_SRV). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. Header-only — line-item changes are not supported via deep update on the header (SAP KBA 2833338); use the A_PurchaseOrderItem entity directly to modify items. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
   version: '1.0.0',
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -108,7 +108,7 @@ export const updatePurchaseOrderTool: ToolConfig<UpdatePurchaseOrderParams, SapP
       return {
         ...baseProxyBody(params),
         service: 'API_PURCHASEORDER_PROCESS_SRV',
-        path: `/A_PurchaseOrder(${quoteOdataKey(params.purchaseOrder)})`,
+        path: `/A_PurchaseOrder(${quoteOdataKey(params.purchaseOrder.trim())})`,
         method: 'MERGE',
         query: { $format: 'json' },
         body: payload,
@@ -121,7 +121,41 @@ export const updatePurchaseOrderTool: ToolConfig<UpdatePurchaseOrderParams, SapP
     status: { type: 'number', description: 'HTTP status code returned by SAP (204 on success)' },
     data: {
       type: 'json',
-      description: 'Null on 204 success, or updated A_PurchaseOrder entity if SAP returns one',
+      description:
+        'Null on 204 success, or OData v2 envelope with updated A_PurchaseOrder at output.data.d',
+      properties: {
+        d: {
+          type: 'json',
+          description: 'Updated A_PurchaseOrder entity (if returned)',
+          optional: true,
+          properties: {
+            PurchaseOrder: {
+              type: 'string',
+              description: 'Purchase order number',
+              optional: true,
+            },
+            PurchaseOrderType: {
+              type: 'string',
+              description: 'PO document type',
+              optional: true,
+            },
+            CompanyCode: { type: 'string', description: 'Company code', optional: true },
+            PurchasingGroup: { type: 'string', description: 'Purchasing group', optional: true },
+            Supplier: { type: 'string', description: 'Supplier key', optional: true },
+            NetAmount: { type: 'string', description: 'Net amount', optional: true },
+            DocumentCurrency: {
+              type: 'string',
+              description: 'Document currency',
+              optional: true,
+            },
+            LastChangeDateTime: {
+              type: 'string',
+              description: 'Last change timestamp',
+              optional: true,
+            },
+          },
+        },
+      },
     },
   },
 }

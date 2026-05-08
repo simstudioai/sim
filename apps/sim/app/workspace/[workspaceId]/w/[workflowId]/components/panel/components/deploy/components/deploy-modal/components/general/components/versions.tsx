@@ -32,6 +32,7 @@ interface VersionsProps {
   workflowId: string | null
   versions: WorkflowDeploymentVersionResponse[]
   versionsLoading: boolean
+  isPromotingVersion: boolean
   selectedVersion: number | null
   onSelectVersion: (version: number | null) => void
   onPromoteToLive: (version: number) => void
@@ -46,6 +47,7 @@ export function Versions({
   workflowId,
   versions,
   versionsLoading,
+  isPromotingVersion,
   selectedVersion,
   onSelectVersion,
   onPromoteToLive,
@@ -115,6 +117,7 @@ export function Versions({
   }
 
   const handlePromote = (version: number) => {
+    if (isPromotingVersion) return
     setOpenDropdown(null)
     onPromoteToLive(version)
   }
@@ -320,7 +323,7 @@ export function Versions({
                   onOpenChange={(open) => setOpenDropdown(open ? v.version : null)}
                 >
                   <PopoverTrigger asChild>
-                    <Button variant='ghost' className='!p-1'>
+                    <Button variant='ghost' className='!p-1' disabled={isPromotingVersion}>
                       <MoreVertical className='h-3.5 w-3.5' />
                     </Button>
                   </PopoverTrigger>

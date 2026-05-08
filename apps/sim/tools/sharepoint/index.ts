@@ -15,3 +15,5 @@ export const sharepointReadPageTool = readPageTool
 export const sharepointUpdateListItemTool = updateListItemTool
 export const sharepointAddListItemTool = addListItemTool
 export const sharepointUploadFileTool = uploadFileTool
+
+export * from '@/tools/sharepoint/types'

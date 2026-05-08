@@ -88,6 +88,8 @@ interface PausePointWithQueue {
   latestResumeEntry?: ResumeQueueEntrySummary | null
   parallelScope?: any
   loopScope?: any
+  pauseKind?: 'human' | 'time'
+  resumeAt?: string
 }
 
 interface PausedExecutionSummary {

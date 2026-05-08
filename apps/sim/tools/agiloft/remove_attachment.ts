@@ -67,7 +67,7 @@ export const agiloftRemoveAttachmentTool: ToolConfig<
 
   request: {
     url: 'https://placeholder.agiloft.com',
-    method: 'GET',
+    method: 'DELETE',
     headers: () => ({}),
   },
 
@@ -76,7 +76,7 @@ export const agiloftRemoveAttachmentTool: ToolConfig<
       params,
       (base) => ({
         url: buildRemoveAttachmentUrl(base, params),
-        method: 'GET',
+        method: 'DELETE',
       }),
       async (response) => {
         const text = await response.text()

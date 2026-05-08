@@ -13,6 +13,7 @@ import {
   normalizeValue,
   sanitizeInputFormat,
   sanitizeTools,
+  sanitizeVariable,
   sortEdges,
 } from './normalize'
 
@@ -149,6 +150,26 @@ describe('Workflow Normalization Utilities', () => {
       const obj2 = { a: 1, b: 3 }
 
       expect(normalizedStringify(obj1)).not.toBe(normalizedStringify(obj2))
+    })
+  })
+
+  describe('sanitizeVariable', () => {
+    it.concurrent('removes UI-only fields without changing persisted values', () => {
+      expect(
+        sanitizeVariable({
+          id: 'variable-a',
+          workflowId: 'workflow-a',
+          name: 'Optional payload',
+          type: 'object',
+          value: null,
+          validationError: 'invalid',
+        })
+      ).toEqual({
+        id: 'variable-a',
+        name: 'Optional payload',
+        type: 'object',
+        value: null,
+      })
     })
   })
 

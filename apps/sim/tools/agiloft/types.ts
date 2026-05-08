@@ -160,3 +160,14 @@ export interface AgiloftRemoveAttachmentResponse extends ToolResponse {
     remainingAttachments: number
   }
 }
+
+export interface AgiloftGetChoiceLineIdParams extends AgiloftBaseParams {
+  fieldName: string
+  value: string
+}
+
+export interface AgiloftGetChoiceLineIdResponse extends ToolResponse {
+  output: {
+    choiceLineId: number | null
+  }
+}

@@ -60,6 +60,7 @@ export const agiloftDeleteRecordTool: ToolConfig<AgiloftDeleteRecordParams, Agil
         (base) => ({
           url: buildDeleteRecordUrl(base, params),
           method: 'DELETE',
+          headers: { Accept: 'application/json' },
         }),
         async (response) => {
           if (!response.ok) {

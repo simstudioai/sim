@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   TerminalWindow,
   TrashOutline,
+  Upload,
   Users,
   Wrench,
 } from '@/components/emcn'
@@ -44,6 +45,7 @@ export type SettingsSection =
   | 'inbox'
   | 'admin'
   | 'data-retention'
+  | 'data-drains'
   | 'mothership'
   | 'recently-deleted'
 
@@ -80,6 +82,7 @@ const isInboxEnabled = isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED'))
 const isWhitelabelingEnabled = isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED'))
 const isAuditLogsEnabled = isTruthy(getEnv('NEXT_PUBLIC_AUDIT_LOGS_ENABLED'))
 const isDataRetentionEnabled = isTruthy(getEnv('NEXT_PUBLIC_DATA_RETENTION_ENABLED'))
+const isDataDrainsEnabled = isTruthy(getEnv('NEXT_PUBLIC_DATA_DRAINS_ENABLED'))
 
 export const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 export { isCredentialSetsEnabled }
@@ -189,6 +192,15 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isDataRetentionEnabled,
+  },
+  {
+    id: 'data-drains',
+    label: 'Data Drains',
+    icon: Upload,
+    section: 'enterprise',
+    requiresHosted: true,
+    requiresEnterprise: true,
+    selfHostedOverride: isDataDrainsEnabled,
   },
   {
     id: 'whitelabeling',

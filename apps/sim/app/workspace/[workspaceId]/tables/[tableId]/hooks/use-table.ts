@@ -1,24 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useMemo } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import type {
-  ColumnDefinition,
-  RowData,
-  RowExecutions,
-  TableDefinition,
-  TableRow,
-  WorkflowGroup,
-} from '@/lib/table'
+import { useCallback, useMemo } from 'react'
+import type { ColumnDefinition, TableDefinition, TableRow, WorkflowGroup } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
-import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
-import { tableKeys, useInfiniteTableRows, useTable as useTableQuery } from '@/hooks/queries/tables'
+import { useInfiniteTableRows, useTable as useTableQuery } from '@/hooks/queries/tables'
 import { useWorkflowStates, useWorkflows } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import type { BlockIconInfo, ColumnSourceInfo } from '../components/table/types'
+import type { BlockIconInfo, ColumnSourceInfo } from '../components/table-grid/types'
 import type { QueryOptions } from '../types'
 
 const EMPTY_COLUMNS: ColumnDefinition[] = []
@@ -61,8 +52,6 @@ export interface UseTableReturn {
   /** Pre-resolved icon + block-name info per output column name. Headers read
    *  from this map instead of each subscribing to its own workflow-state query. */
   columnSourceInfo: Map<string, ColumnSourceInfo>
-  /** `workflowId → workflow.name` lookup for cell labels and execution-detail copy. */
-  workflowNameById: Record<string, string>
 }
 
 /**
@@ -77,7 +66,6 @@ export interface UseTableReturn {
  * single hook return and re-render the world.
  */
 export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams): UseTableReturn {
-  const queryClient = useQueryClient()
   const { data: tableData, isLoading: isLoadingTable } = useTableQuery(workspaceId, tableId)
 
   const {
@@ -113,110 +101,6 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     return { hasNextPage: Boolean(result.hasNextPage) }
   }, [fetchNextPage])
 
-  // Realtime sync: merge `table-row-updated` / `table-row-deleted` socket
-  // events into the infinite-query cache so cell updates land without
-  // polling. While any mutation is in flight, defer to a stale-mark — the
-  // optimistic update guard wins until `onSettled` invalidates.
-  const { joinTable, leaveTable, onTableRowUpdated, onTableRowDeleted } = useSocket()
-  useEffect(() => {
-    if (!tableId) return
-    joinTable(tableId)
-
-    type Page = { rows: TableRow[]; totalCount: number | null }
-    type InfiniteData = { pages: Page[]; pageParams: number[] } | undefined
-
-    onTableRowUpdated((event) => {
-      if (event.tableId !== tableId) return
-      if (queryClient.isMutating() > 0) {
-        queryClient.invalidateQueries({
-          queryKey: tableKeys.rowsRoot(tableId),
-          refetchType: 'none',
-        })
-        return
-      }
-      queryClient.setQueriesData<InfiniteData>(
-        { queryKey: tableKeys.rowsRoot(tableId) },
-        (current) => {
-          if (!current) return current
-          const incoming: TableRow = {
-            id: event.rowId,
-            data: event.data as RowData,
-            executions: (event.executions as RowExecutions) ?? {},
-            position: event.position,
-            createdAt: '',
-            updatedAt:
-              typeof event.updatedAt === 'string' ? event.updatedAt : String(event.updatedAt),
-          }
-          let landed = false
-          const nextPages = current.pages.map((page) => {
-            const idx = page.rows.findIndex((r) => r.id === event.rowId)
-            if (idx === -1) return page
-            landed = true
-            const merged = {
-              ...page.rows[idx],
-              data: incoming.data,
-              executions: incoming.executions,
-              updatedAt: incoming.updatedAt,
-            }
-            const nextRows = [...page.rows]
-            nextRows[idx] = merged
-            return { ...page, rows: nextRows }
-          })
-          if (landed) return { ...current, pages: nextPages }
-          // Row not in any cached page yet — append to the last page so it
-          // shows up immediately. The next refetch will reorder by position.
-          if (current.pages.length === 0) return current
-          const lastIdx = current.pages.length - 1
-          const lastPage = current.pages[lastIdx]
-          const updatedLast: Page = {
-            ...lastPage,
-            rows: [...lastPage.rows, incoming],
-            totalCount: lastPage.totalCount === null ? null : lastPage.totalCount + 1,
-          }
-          const pagesWithAppend = [...current.pages]
-          pagesWithAppend[lastIdx] = updatedLast
-          return { ...current, pages: pagesWithAppend }
-        }
-      )
-    })
-
-    onTableRowDeleted((event) => {
-      if (event.tableId !== tableId) return
-      if (queryClient.isMutating() > 0) {
-        queryClient.invalidateQueries({
-          queryKey: tableKeys.rowsRoot(tableId),
-          refetchType: 'none',
-        })
-        return
-      }
-      queryClient.setQueriesData<InfiniteData>(
-        { queryKey: tableKeys.rowsRoot(tableId) },
-        (current) => {
-          if (!current) return current
-          let removed = false
-          const nextPages = current.pages.map((page) => {
-            const next = page.rows.filter((r) => r.id !== event.rowId)
-            if (next.length === page.rows.length) return page
-            removed = true
-            return {
-              ...page,
-              rows: next,
-              totalCount: page.totalCount === null ? null : Math.max(0, page.totalCount - 1),
-            }
-          })
-          if (!removed) return current
-          return { ...current, pages: nextPages }
-        }
-      )
-    })
-
-    return () => {
-      leaveTable()
-    }
-    // joinTable / leaveTable / on* are stable callbacks; tableId is the only real dep.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableId])
-
   const { data: workflows } = useWorkflows(workspaceId)
 
   const columns = useMemo(
@@ -251,14 +135,6 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     return map
   }, [tableWorkflowGroups, workflowStates])
 
-  const workflowNameById = useMemo(() => {
-    const map: Record<string, string> = {}
-    for (const wf of workflows ?? []) {
-      map[wf.id] = wf.name
-    }
-    return map
-  }, [workflows])
-
   return {
     tableData,
     isLoadingTable,
@@ -273,6 +149,5 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     tableWorkflowGroups,
     workflowStates,
     columnSourceInfo,
-    workflowNameById,
   }
 }

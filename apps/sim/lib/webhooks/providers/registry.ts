@@ -7,6 +7,7 @@ import { calcomHandler } from '@/lib/webhooks/providers/calcom'
 import { calendlyHandler } from '@/lib/webhooks/providers/calendly'
 import { circlebackHandler } from '@/lib/webhooks/providers/circleback'
 import { confluenceHandler } from '@/lib/webhooks/providers/confluence'
+import { emailBisonHandler } from '@/lib/webhooks/providers/emailbison'
 import { fathomHandler } from '@/lib/webhooks/providers/fathom'
 import { firefliesHandler } from '@/lib/webhooks/providers/fireflies'
 import { genericHandler } from '@/lib/webhooks/providers/generic'
@@ -55,6 +56,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   calcom: calcomHandler,
   circleback: circlebackHandler,
   confluence: confluenceHandler,
+  emailbison: emailBisonHandler,
   fireflies: firefliesHandler,
   generic: genericHandler,
   gmail: gmailHandler,

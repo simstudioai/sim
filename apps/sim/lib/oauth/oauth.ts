@@ -427,6 +427,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'x',
   },
+  atlassian: {
+    name: 'Atlassian',
+    icon: JiraIcon,
+    services: {
+      'atlassian-service-account': {
+        name: 'Atlassian Service Account',
+        description:
+          'Authenticate as an Atlassian service account using a scoped API token from admin.atlassian.com.',
+        providerId: 'atlassian-service-account',
+        icon: JiraIcon,
+        baseProviderIcon: JiraIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'atlassian-service-account',
+  },
   confluence: {
     name: 'Confluence',
     icon: ConfluenceIcon,
@@ -437,6 +454,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'confluence',
         icon: ConfluenceIcon,
         baseProviderIcon: ConfluenceIcon,
+        serviceAccountProviderId: 'atlassian-service-account',
         scopes: [
           'read:confluence-content.all',
           'read:confluence-space.summary',
@@ -489,6 +507,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'jira',
         icon: JiraIcon,
         baseProviderIcon: JiraIcon,
+        serviceAccountProviderId: 'atlassian-service-account',
         scopes: [
           'read:jira-user',
           'read:jira-work',

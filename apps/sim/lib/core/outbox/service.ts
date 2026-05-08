@@ -18,6 +18,13 @@ const BASE_BACKOFF_MS = 1000 // 1 second, doubled per attempt
 // a worker is still actively processing.
 const DEFAULT_HANDLER_TIMEOUT_MS = 90 * 1000 // 90 seconds
 
+class OutboxHandlerTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`Outbox handler timed out after ${timeoutMs}ms`)
+    this.name = 'OutboxHandlerTimeoutError'
+  }
+}
+
 /**
  * Context passed to every outbox handler. Use `eventId` as the Stripe
  * (or any external service) idempotency key so that handler retries
@@ -59,6 +66,14 @@ export interface ProcessOutboxResult {
   leaseLost: number
   reaped: number
 }
+
+export type ProcessSingleOutboxResult =
+  | 'completed'
+  | 'pending'
+  | 'dead_letter'
+  | 'lease_lost'
+  | 'not_found'
+  | 'processing'
 
 /**
  * Transactional outbox for reliable "DB write + external system" flows.
@@ -104,23 +119,25 @@ export async function enqueueOutboxEvent<T>(
  */
 export async function processOutboxEvents(
   handlers: OutboxHandlerRegistry,
-  options: { batchSize?: number } = {}
+  options: { batchSize?: number; maxRuntimeMs?: number; minRemainingMs?: number } = {}
 ): Promise<ProcessOutboxResult> {
   const batchSize = options.batchSize ?? 10
+  const deadline = options.maxRuntimeMs ? Date.now() + options.maxRuntimeMs : undefined
+  const minRemainingMs = options.minRemainingMs ?? DEFAULT_HANDLER_TIMEOUT_MS + 5000
 
   const reaped = await reapStuckProcessingRows()
-
-  const claimed = await claimBatch(batchSize)
-  if (claimed.length === 0) {
-    return { processed: 0, retried: 0, deadLettered: 0, leaseLost: 0, reaped }
-  }
 
   let processed = 0
   let retried = 0
   let deadLettered = 0
   let leaseLost = 0
 
-  for (const event of claimed) {
+  for (let i = 0; i < batchSize; i++) {
+    if (deadline && Date.now() + minRemainingMs > deadline) break
+
+    const [event] = await claimBatch(1)
+    if (!event) break
+
     const result = await runHandler(event, handlers)
     if (result === 'completed') processed++
     else if (result === 'dead_letter') deadLettered++
@@ -129,6 +146,52 @@ export async function processOutboxEvents(
   }
 
   return { processed, retried, deadLettered, leaseLost, reaped }
+}
+
+/**
+ * Process a specific outbox event immediately after its surrounding
+ * transaction commits. Safe to race with the cron worker: the claim uses
+ * `FOR UPDATE SKIP LOCKED`, and non-pending rows are left alone.
+ */
+export async function processOutboxEventById(
+  eventId: string,
+  handlers: OutboxHandlerRegistry
+): Promise<ProcessSingleOutboxResult> {
+  const now = new Date()
+  const event = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(outboxEvent)
+      .where(eq(outboxEvent.id, eventId))
+      .limit(1)
+      .for('update', { skipLocked: true })
+
+    if (!row) return null
+    if (row.status !== 'pending') return row.status as ProcessSingleOutboxResult
+    if (row.availableAt > now) return 'pending' as const
+
+    await tx
+      .update(outboxEvent)
+      .set({ status: 'processing', lockedAt: now })
+      .where(eq(outboxEvent.id, eventId))
+
+    return {
+      ...row,
+      status: 'processing' as const,
+      lockedAt: now,
+    }
+  })
+
+  if (!event) {
+    const [current] = await db
+      .select({ status: outboxEvent.status })
+      .from(outboxEvent)
+      .where(eq(outboxEvent.id, eventId))
+      .limit(1)
+    return current ? (current.status as ProcessSingleOutboxResult) : 'not_found'
+  }
+  if (typeof event === 'string') return event
+  return runHandler(event, handlers)
 }
 
 /**
@@ -249,6 +312,10 @@ async function runHandler(
     })
     return 'completed'
   } catch (error) {
+    if (error instanceof OutboxHandlerTimeoutError) {
+      return recordTimedOutAttempt(event, error.message)
+    }
+
     const nextAttempts = event.attempts + 1
     const isDead = nextAttempts >= event.maxAttempts
     const errMsg = toError(error).message
@@ -277,33 +344,134 @@ async function runHandler(
       return 'dead_letter'
     }
 
-    // Exponential backoff, capped at MAX_BACKOFF_MS.
-    const backoffMs = Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** nextAttempts)
-    const nextAvailableAt = new Date(Date.now() + backoffMs)
+    return scheduleRetry(event, errMsg)
+  }
+}
+
+async function recordTimedOutAttempt(
+  event: typeof outboxEvent.$inferSelect,
+  errMsg: string
+): Promise<'dead_letter' | 'lease_lost'> {
+  const nextAttempts = event.attempts + 1
+  const isDead = nextAttempts >= event.maxAttempts
+
+  if (isDead) {
     const updated = await updateIfLeaseHeld(event, {
       attempts: nextAttempts,
-      status: 'pending',
+      status: 'dead_letter',
       lastError: errMsg,
-      availableAt: nextAvailableAt,
+      processedAt: new Date(),
+      lockedAt: null,
+    })
+    if (!updated) return 'lease_lost'
+    logger.error('Outbox event dead-lettered after handler timeout max attempts', {
+      eventId: event.id,
+      eventType: event.eventType,
+      attempts: nextAttempts,
+      error: errMsg,
+    })
+    return 'dead_letter'
+  }
+
+  const updated = await updateProcessingIfLeaseHeld(event, {
+    attempts: nextAttempts,
+    lastError: errMsg,
+    lockedAt: new Date(),
+  })
+  if (!updated) return 'lease_lost'
+
+  logger.warn('Outbox event handler timed out; leaving lease for stuck-row reaper', {
+    eventId: event.id,
+    eventType: event.eventType,
+    attempts: nextAttempts,
+    reaperThresholdMs: STUCK_PROCESSING_THRESHOLD_MS,
+    error: errMsg,
+  })
+  return 'lease_lost'
+}
+
+async function scheduleRetry(
+  event: typeof outboxEvent.$inferSelect,
+  errMsg: string,
+  minimumBackoffMs = 0
+): Promise<'pending' | 'dead_letter' | 'lease_lost'> {
+  const nextAttempts = event.attempts + 1
+  const isDead = nextAttempts >= event.maxAttempts
+
+  if (isDead) {
+    const updated = await updateIfLeaseHeld(event, {
+      attempts: nextAttempts,
+      status: 'dead_letter',
+      lastError: errMsg,
+      processedAt: new Date(),
       lockedAt: null,
     })
     if (!updated) {
-      logger.warn('Outbox event retry-schedule skipped — lease lost', {
+      logger.warn('Outbox event dead-letter skipped — lease lost', {
         eventId: event.id,
         eventType: event.eventType,
       })
       return 'lease_lost'
     }
-    logger.warn('Outbox event failed, scheduled retry', {
+    logger.error('Outbox event dead-lettered after max attempts', {
       eventId: event.id,
       eventType: event.eventType,
       attempts: nextAttempts,
-      backoffMs,
-      nextAvailableAt: nextAvailableAt.toISOString(),
       error: errMsg,
     })
-    return 'pending'
+    return 'dead_letter'
   }
+
+  const backoffMs = Math.max(
+    minimumBackoffMs,
+    Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** nextAttempts)
+  )
+  const nextAvailableAt = new Date(Date.now() + backoffMs)
+  const updated = await updateIfLeaseHeld(event, {
+    attempts: nextAttempts,
+    status: 'pending',
+    lastError: errMsg,
+    availableAt: nextAvailableAt,
+    lockedAt: null,
+  })
+  if (!updated) {
+    logger.warn('Outbox event retry-schedule skipped — lease lost', {
+      eventId: event.id,
+      eventType: event.eventType,
+    })
+    return 'lease_lost'
+  }
+  logger.warn('Outbox event failed, scheduled retry', {
+    eventId: event.id,
+    eventType: event.eventType,
+    attempts: nextAttempts,
+    backoffMs,
+    nextAvailableAt: nextAvailableAt.toISOString(),
+    error: errMsg,
+  })
+  return 'pending'
+}
+
+async function updateProcessingIfLeaseHeld(
+  event: typeof outboxEvent.$inferSelect,
+  patch: {
+    attempts: number
+    lastError: string
+    lockedAt: Date
+  }
+): Promise<boolean> {
+  const whereClauses = [eq(outboxEvent.id, event.id), eq(outboxEvent.status, 'processing')]
+  if (event.lockedAt) {
+    whereClauses.push(eq(outboxEvent.lockedAt, event.lockedAt))
+  }
+
+  const result = await db
+    .update(outboxEvent)
+    .set(patch)
+    .where(and(...whereClauses))
+    .returning({ id: outboxEvent.id })
+
+  return result.length > 0
 }
 
 function runHandlerWithTimeout(
@@ -319,7 +487,7 @@ function runHandlerWithTimeout(
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
-      reject(new Error(`Outbox handler timed out after ${timeoutMs}ms`))
+      reject(new OutboxHandlerTimeoutError(timeoutMs))
     }, timeoutMs)
 
     handler(event.payload, context)

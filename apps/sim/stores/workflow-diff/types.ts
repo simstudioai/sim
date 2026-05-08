@@ -10,6 +10,10 @@ export interface WorkflowDiffState {
   diffAnalysis: DiffAnalysis | null
   diffMetadata: WorkflowDiff['metadata'] | null
   diffError?: string | null
+  pendingExternalUpdates: Record<string, number>
+  remoteUpdateVersions: Record<string, number>
+  reconcilingWorkflows: Record<string, boolean>
+  reconciliationErrors: Record<string, string>
   _triggerMessageId?: string | null
 }
 
@@ -37,5 +41,10 @@ export interface WorkflowDiffActions {
   acceptChanges: (options?: DiffActionOptions) => Promise<void>
   rejectChanges: (options?: DiffActionOptions) => Promise<void>
   reapplyDiffMarkers: () => void
+  markRemoteUpdateSeen: (workflowId: string) => void
+  markExternalUpdatePending: (workflowId: string) => void
+  clearExternalUpdatePending: (workflowId: string) => void
+  setWorkflowReconciliationInProgress: (workflowId: string, isReconciling: boolean) => void
+  setWorkflowReconciliationError: (workflowId: string, error: string | null) => void
   _batchedStateUpdate: (updates: Partial<WorkflowDiffState>) => void
 }

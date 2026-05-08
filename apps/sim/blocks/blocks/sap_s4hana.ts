@@ -71,6 +71,25 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
       title: '$filter',
       type: 'long-input',
       placeholder: "BusinessPartnerCategory eq '1'",
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an OData v2 $filter expression for SAP S/4HANA based on the user's request.
+
+Rules:
+- String literals are single-quoted, e.g. eq '1010'
+- Combine clauses with 'and' / 'or'
+- Common operators: eq, ne, gt, ge, lt, le
+- Date/time literals use datetime'YYYY-MM-DDTHH:MM:SS'
+- Functions: substringof('x', Field), startswith(Field, 'x'), endswith(Field, 'x')
+
+Examples:
+- BusinessPartnerCategory eq '1' and Country eq 'US'
+- CreationDate gt datetime'2024-01-01T00:00:00'
+- substringof('ACME', OrganizationBPName1)
+
+Return ONLY the $filter expression - no explanations, no extra text.`,
+        placeholder: 'Describe the filter you want (e.g., "people in the US created this year")',
+      },
       condition: {
         field: 'operation',
         value: [
@@ -405,6 +424,22 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
       placeholder: '[{"Material":"TG11","RequestedQuantity":"1"}]',
       condition: { field: 'operation', value: 'sap_s4hana_create_sales_order' },
       required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of SAP S/4HANA A_SalesOrderItem objects for a deep-insert under to_Item.
+
+Rules:
+- Output a JSON array, each element an item object
+- Common fields: Material (string), RequestedQuantity (string-decimal), RequestedQuantityUnit (e.g., "PC"), Plant (4-char), SalesOrderItemCategory
+- Numbers in OData v2 decimals are passed as strings (e.g., "5", "10.5")
+
+Examples:
+- [{"Material":"TG11","RequestedQuantity":"1"}]
+- [{"Material":"MZ-FG-M100","RequestedQuantity":"5","RequestedQuantityUnit":"PC","Plant":"1010"}]
+
+Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the items (e.g., "5 units of material TG11 from plant 1010")',
+      },
     },
     {
       id: 'salesOrderBody',
@@ -456,7 +491,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
       id: 'purchaseRequisition',
       title: 'PurchaseRequisition',
       type: 'short-input',
-      placeholder: '10000000',
+      placeholder: '0010000000',
       condition: {
         field: 'operation',
         value: ['sap_s4hana_get_purchase_requisition', 'sap_s4hana_update_purchase_requisition'],
@@ -485,7 +520,7 @@ export const SapS4HanaBlock: BlockConfig<SapProxyResponse> = {
       id: 'purchaseRequisitionBody',
       title: 'Additional Fields (JSON)',
       type: 'code',
-      placeholder: '{"PurchaseRequisitionDescription":"Office supplies"}',
+      placeholder: '{"PurReqnDescription":"Office supplies"}',
       condition: { field: 'operation', value: 'sap_s4hana_create_purchase_requisition' },
       mode: 'advanced',
     },

@@ -107,8 +107,12 @@ export const agiloftSavedSearchTool: ToolConfig<
         properties: {
           name: { type: 'string', description: 'Saved search name' },
           label: { type: 'string', description: 'Saved search display label' },
-          id: { type: 'string', description: 'Saved search database identifier' },
-          description: { type: 'string', description: 'Saved search description' },
+          id: { type: 'number', description: 'Saved search database identifier' },
+          description: {
+            type: 'string',
+            description: 'Saved search description',
+            optional: true,
+          },
         },
       },
     },

@@ -181,6 +181,7 @@ export const mondayHandler: WebhookProviderHandler = {
     const externalId = config.externalId as string | undefined
 
     if (!externalId) {
+      if (ctx.strict) throw new Error('Missing Monday externalId for webhook deletion')
       return
     }
 
@@ -189,6 +190,7 @@ export const mondayHandler: WebhookProviderHandler = {
       logger.warn(
         `[${ctx.requestId}] Invalid externalId format for Monday webhook deletion: ${externalId}`
       )
+      if (ctx.strict) throw new Error('Invalid Monday externalId for webhook deletion')
       return
     }
 
@@ -210,12 +212,14 @@ export const mondayHandler: WebhookProviderHandler = {
         `[${ctx.requestId}] Could not resolve credentials for Monday webhook deletion (non-fatal)`,
         { error: toError(error).message }
       )
+      if (ctx.strict) throw error
     }
 
     if (!accessToken) {
       logger.warn(
         `[${ctx.requestId}] No access token available for Monday webhook deletion ${externalId} (non-fatal)`
       )
+      if (ctx.strict) throw new Error('Missing Monday access token for webhook deletion')
       return
     }
 
@@ -236,6 +240,7 @@ export const mondayHandler: WebhookProviderHandler = {
         logger.warn(
           `[${ctx.requestId}] Monday API returned HTTP ${response.status} during webhook deletion for ${externalId}`
         )
+        if (ctx.strict) throw new Error(`Monday webhook deletion failed: ${response.status}`)
         return
       }
 
@@ -246,9 +251,16 @@ export const mondayHandler: WebhookProviderHandler = {
           data.errors?.map((e: { message: string }) => e.message).join(', ') ||
           data.error_message ||
           'Unknown error'
+        if (isAlreadyAbsentWebhookMessage(errorMsg)) {
+          logger.info(
+            `[${ctx.requestId}] Monday webhook ${externalId} was already absent during deletion`
+          )
+          return
+        }
         logger.warn(
           `[${ctx.requestId}] Monday webhook deletion GraphQL error for ${externalId}: ${errorMsg}`
         )
+        if (ctx.strict) throw new Error(`Monday webhook deletion failed: ${errorMsg}`)
         return
       }
 
@@ -258,11 +270,13 @@ export const mondayHandler: WebhookProviderHandler = {
         )
       } else {
         logger.warn(`[${ctx.requestId}] Monday webhook deletion returned no data for ${externalId}`)
+        if (ctx.strict) throw new Error('Monday webhook deletion returned no data')
       }
     } catch (error) {
       logger.warn(`[${ctx.requestId}] Error deleting Monday webhook ${externalId} (non-fatal)`, {
         error: toError(error).message,
       })
+      if (ctx.strict) throw error
     }
   },
 
@@ -330,4 +344,14 @@ export const mondayHandler: WebhookProviderHandler = {
     }
     return null
   },
+}
+
+function isAlreadyAbsentWebhookMessage(message: string): boolean {
+  const normalized = message.toLowerCase()
+  return (
+    normalized.includes('not found') ||
+    normalized.includes('not_found') ||
+    normalized.includes('does not exist') ||
+    normalized.includes('already deleted')
+  )
 }

@@ -214,6 +214,7 @@ export interface TraceSpan {
   tokens?: TokenInfo
   relativeStartMs?: number
   blockId?: string
+  executionOrder?: number
   input?: Record<string, unknown>
   output?: Record<string, unknown>
   childWorkflowSnapshotId?: string

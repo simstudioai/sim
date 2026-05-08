@@ -576,7 +576,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           updatedAt: '2026-04-16',
         },
         capabilities: {
-          temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
           maxOutputTokens: 128000,
           thinking: {
@@ -1600,6 +1599,21 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     models: [
+      {
+        id: 'grok-4.3',
+        pricing: {
+          input: 1.25,
+          cachedInput: 0.2,
+          output: 2.5,
+          updatedAt: '2026-05-05',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-04-30',
+        recommended: true,
+      },
       {
         id: 'grok-4-latest',
         pricing: {

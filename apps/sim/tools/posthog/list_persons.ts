@@ -1,7 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 
 export interface PostHogListPersonsParams {
-  personalApiKey: string
+  apiKey: string
   region?: 'us' | 'eu'
   projectId: string
   limit?: number
@@ -35,7 +35,7 @@ export const listPersonsTool: ToolConfig<PostHogListPersonsParams, PostHogListPe
   version: '1.0.0',
 
   params: {
-    personalApiKey: {
+    apiKey: {
       type: 'string',
       required: true,
       visibility: 'user-only',
@@ -95,7 +95,7 @@ export const listPersonsTool: ToolConfig<PostHogListPersonsParams, PostHogListPe
     },
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bearer ${params.personalApiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
   },

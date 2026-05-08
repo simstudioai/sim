@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   ExcelCellValue,
   MicrosoftExcelReadResponse,
@@ -8,15 +9,25 @@ import type {
 import {
   getItemBasePath,
   getSpreadsheetWebUrl,
+  parseGraphErrorMessage,
   trimTrailingEmptyRowsAndColumns,
 } from '@/tools/microsoft_excel/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const EXCEL_RETRY_CONFIG = {
+  enabled: true,
+  maxRetries: 3,
+  initialDelayMs: 500,
+  maxDelayMs: 30000,
+  retryIdempotentOnly: true,
+} as const
 
 export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadResponse> = {
   id: 'microsoft_excel_read',
   name: 'Read from Microsoft Excel',
   description: 'Read data from a Microsoft Excel spreadsheet',
   version: '1.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -95,6 +106,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
+    retry: EXCEL_RETRY_CONFIG,
   },
 
   transformResponse: async (response: Response, params?: MicrosoftExcelToolParams) => {
@@ -123,8 +135,10 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       })
 
       if (!rangeResp.ok) {
+        const errorText = await rangeResp.text().catch(() => '')
+        const detail = parseGraphErrorMessage(rangeResp.status, rangeResp.statusText, errorText)
         throw new Error(
-          'Invalid range provided or worksheet not found. Provide a range like "Sheet1!A1:B2" or just the sheet name to read the whole sheet'
+          `Failed to read worksheet "${firstSheetName}": ${detail}. Provide a range like "Sheet1!A1:B2" or just the sheet name to read the whole sheet.`
         )
       }
 
@@ -209,6 +223,7 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
   name: 'Read from Microsoft Excel V2',
   description: 'Read data from a specific sheet in a Microsoft Excel spreadsheet',
   version: '2.0.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -284,6 +299,7 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
+    retry: EXCEL_RETRY_CONFIG,
   },
 
   transformResponse: async (response: Response, params?: MicrosoftExcelV2ToolParams) => {

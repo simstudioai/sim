@@ -1,0 +1,1178 @@
+---
+title: Emailbison
+description: Available Emailbison triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="emailbison"
+  color="#FB7A22"
+/>
+
+Emailbison provides 17 triggers for automating workflows based on events.
+
+## Triggers
+
+### Email Bison Contact First Emailed
+
+Trigger when a contact receives their first campaign email in Email Bison
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `scheduledEmail` | object | scheduledEmail output from the tool |
+|   ↳ `id` | number | Scheduled email ID |
+|   ↳ `lead_id` | number | Lead ID |
+|   ↳ `sequence_step_id` | number | Sequence step ID |
+|   ↳ `sequence_step_order` | number | Sequence step order |
+|   ↳ `sequence_step_variant` | number | Sequence step variant |
+|   ↳ `email_subject` | string | Email subject |
+|   ↳ `email_body` | string | Email body HTML |
+|   ↳ `status` | string | Scheduled email status |
+|   ↳ `scheduled_date_est` | string | Scheduled date in EST |
+|   ↳ `scheduled_date_local` | string | Scheduled date in local timezone |
+|   ↳ `local_timezone` | string | Scheduled email local timezone |
+|   ↳ `sent_at` | string | Email sent timestamp |
+|   ↳ `opens` | number | Open count |
+|   ↳ `replies` | number | Reply count |
+|   ↳ `unique_opens` | number | Unique open count |
+|   ↳ `unique_replies` | number | Unique reply count |
+|   ↳ `interested` | string | Interested status |
+|   ↳ `raw_message_id` | string | Raw email message ID |
+| `campaignEvent` | object | campaignEvent output from the tool |
+|   ↳ `id` | number | Campaign event ID |
+|   ↳ `event_type` | string | Campaign event type |
+|   ↳ `created_at_local` | string | Campaign event local creation timestamp |
+|   ↳ `local_timezone` | string | Campaign event local timezone |
+|   ↳ `created_at` | string | Campaign event creation timestamp |
+| `lead` | object | lead output from the tool |
+|   ↳ `id` | number | Lead ID |
+|   ↳ `email` | string | Lead email address |
+|   ↳ `first_name` | string | Lead first name |
+|   ↳ `last_name` | string | Lead last name |
+|   ↳ `status` | string | Lead status |
+|   ↳ `title` | string | Lead title |
+|   ↳ `company` | string | Lead company |
+|   ↳ `custom_variables` | json | Lead custom variables |
+|   ↳ `emails_sent` | number | Lead emails sent count |
+|   ↳ `opens` | number | Lead open count |
+|   ↳ `unique_opens` | number | Lead unique open count |
+|   ↳ `replies` | number | Lead reply count |
+|   ↳ `unique_replies` | number | Lead unique reply count |
+|   ↳ `bounces` | number | Lead bounce count |
+| `campaign` | object | campaign output from the tool |
+|   ↳ `id` | number | Campaign ID |
+|   ↳ `name` | string | Campaign name |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+
+
+---
+
+### Email Bison Contact Interested
+
+Trigger when a reply is marked interested in Email Bison
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `reply` | object | reply output from the tool |
+|   ↳ `id` | number | Reply ID |
+|   ↳ `uuid` | string | Reply UUID |
+|   ↳ `email_subject` | string | Reply email subject |
+|   ↳ `interested` | boolean | Whether the reply is marked interested |
+|   ↳ `automated_reply` | boolean | Whether the reply is automated |
+|   ↳ `html_body` | string | Reply HTML body |
+|   ↳ `text_body` | string | Reply plain text body |
+|   ↳ `raw_body` | string | Raw MIME reply body |
+|   ↳ `headers` | string | Encoded raw email headers |
+|   ↳ `date_received` | string | Reply received timestamp |
+|   ↳ `from_name` | string | Reply sender name |
+|   ↳ `from_email_address` | string | Reply sender email address |
+|   ↳ `primary_to_email_address` | string | Primary recipient email address |
+|   ↳ `to` | json | Reply To recipients |
+|   ↳ `cc` | json | Reply CC recipients |
+|   ↳ `bcc` | json | Reply BCC recipients |
+|   ↳ `parent_id` | number | Parent reply ID |
+|   ↳ `reply_type` | string | Reply type |
+|   ↳ `folder` | string | Reply folder |
+|   ↳ `raw_message_id` | string | Raw email message ID |
+|   ↳ `created_at` | string | Reply creation timestamp |
+|   ↳ `updated_at` | string | Reply update timestamp |
+|   ↳ `attachments` | json | Reply attachments |
+| `campaignEvent` | object | campaignEvent output from the tool |
+|   ↳ `id` | number | Campaign event ID |
+|   ↳ `event_type` | string | Campaign event type |
+|   ↳ `created_at_local` | string | Campaign event local creation timestamp |
+|   ↳ `local_timezone` | string | Campaign event local timezone |
+|   ↳ `created_at` | string | Campaign event creation timestamp |
+| `lead` | object | lead output from the tool |
+|   ↳ `id` | number | Lead ID |
+|   ↳ `email` | string | Lead email address |
+|   ↳ `first_name` | string | Lead first name |
+|   ↳ `last_name` | string | Lead last name |
+|   ↳ `status` | string | Lead status |
+|   ↳ `title` | string | Lead title |
+|   ↳ `company` | string | Lead company |
+|   ↳ `custom_variables` | json | Lead custom variables |
+|   ↳ `emails_sent` | number | Lead emails sent count |
+|   ↳ `opens` | number | Lead open count |
+|   ↳ `unique_opens` | number | Lead unique open count |
+|   ↳ `replies` | number | Lead reply count |
+|   ↳ `unique_replies` | number | Lead unique reply count |
+|   ↳ `bounces` | number | Lead bounce count |
+| `campaign` | object | campaign output from the tool |
+|   ↳ `id` | number | Campaign ID |
+|   ↳ `name` | string | Campaign name |
+| `scheduledEmail` | object | scheduledEmail output from the tool |
+|   ↳ `id` | number | Scheduled email ID |
+|   ↳ `sequence_step_id` | number | Sequence step ID |
+|   ↳ `sequence_step_order` | number | Sequence step order |
+|   ↳ `sequence_step_variant` | number | Sequence step variant |
+|   ↳ `status` | string | Scheduled email status |
+|   ↳ `scheduled_date_est` | string | Scheduled date in EST |
+|   ↳ `scheduled_date_local` | string | Scheduled date in local timezone |
+|   ↳ `local_timezone` | string | Scheduled email local timezone |
+|   ↳ `sent_at` | string | Email sent timestamp |
+|   ↳ `opens` | number | Open count |
+|   ↳ `replies` | number | Reply count |
+|   ↳ `unique_opens` | number | Unique open count |
+|   ↳ `unique_replies` | number | Unique reply count |
+|   ↳ `interested` | string | Interested status |
+|   ↳ `raw_message_id` | string | Raw email message ID |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+
+
+---
+
+### Email Bison Contact Replied
+
+Trigger when a campaign lead replies in Email Bison
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `reply` | object | reply output from the tool |
+|   ↳ `id` | number | Reply ID |
+|   ↳ `uuid` | string | Reply UUID |
+|   ↳ `email_subject` | string | Reply email subject |
+|   ↳ `interested` | boolean | Whether the reply is marked interested |
+|   ↳ `automated_reply` | boolean | Whether the reply is automated |
+|   ↳ `html_body` | string | Reply HTML body |
+|   ↳ `text_body` | string | Reply plain text body |
+|   ↳ `raw_body` | string | Raw MIME reply body |
+|   ↳ `headers` | string | Encoded raw email headers |
+|   ↳ `date_received` | string | Reply received timestamp |
+|   ↳ `from_name` | string | Reply sender name |
+|   ↳ `from_email_address` | string | Reply sender email address |
+|   ↳ `primary_to_email_address` | string | Primary recipient email address |
+|   ↳ `to` | json | Reply To recipients |
+|   ↳ `cc` | json | Reply CC recipients |
+|   ↳ `bcc` | json | Reply BCC recipients |
+|   ↳ `parent_id` | number | Parent reply ID |
+|   ↳ `reply_type` | string | Reply type |
+|   ↳ `folder` | string | Reply folder |
+|   ↳ `raw_message_id` | string | Raw email message ID |
+|   ↳ `created_at` | string | Reply creation timestamp |
+|   ↳ `updated_at` | string | Reply update timestamp |
+|   ↳ `attachments` | json | Reply attachments |
+| `campaignEvent` | object | campaignEvent output from the tool |
+|   ↳ `id` | number | Campaign event ID |
+|   ↳ `event_type` | string | Campaign event type |
+|   ↳ `created_at_local` | string | Campaign event local creation timestamp |
+|   ↳ `local_timezone` | string | Campaign event local timezone |
+|   ↳ `created_at` | string | Campaign event creation timestamp |
+| `lead` | object | lead output from the tool |
+|   ↳ `id` | number | Lead ID |
+|   ↳ `email` | string | Lead email address |
+|   ↳ `first_name` | string | Lead first name |
+|   ↳ `last_name` | string | Lead last name |
+|   ↳ `status` | string | Lead status |
+|   ↳ `title` | string | Lead title |
+|   ↳ `company` | string | Lead company |
+|   ↳ `custom_variables` | json | Lead custom variables |
+|   ↳ `emails_sent` | number | Lead emails sent count |
+|   ↳ `opens` | number | Lead open count |
+|   ↳ `unique_opens` | number | Lead unique open count |
+|   ↳ `replies` | number | Lead reply count |
+|   ↳ `unique_replies` | number | Lead unique reply count |
+|   ↳ `bounces` | number | Lead bounce count |
+| `campaign` | object | campaign output from the tool |
+|   ↳ `id` | number | Campaign ID |
+|   ↳ `name` | string | Campaign name |
+| `scheduledEmail` | object | scheduledEmail output from the tool |
+|   ↳ `id` | number | Scheduled email ID |
+|   ↳ `sequence_step_id` | number | Sequence step ID |
+|   ↳ `sequence_step_order` | number | Sequence step order |
+|   ↳ `sequence_step_variant` | number | Sequence step variant |
+|   ↳ `status` | string | Scheduled email status |
+|   ↳ `scheduled_date_est` | string | Scheduled date in EST |
+|   ↳ `scheduled_date_local` | string | Scheduled date in local timezone |
+|   ↳ `local_timezone` | string | Scheduled email local timezone |
+|   ↳ `sent_at` | string | Email sent timestamp |
+|   ↳ `opens` | number | Open count |
+|   ↳ `replies` | number | Reply count |
+|   ↳ `unique_opens` | number | Unique open count |
+|   ↳ `unique_replies` | number | Unique reply count |
+|   ↳ `interested` | string | Interested status |
+|   ↳ `raw_message_id` | string | Raw email message ID |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+
+
+---
+
+### Email Bison Contact Unsubscribed
+
+Trigger when a contact unsubscribes in Email Bison
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `scheduledEmail` | object | scheduledEmail output from the tool |
+|   ↳ `id` | number | Scheduled email ID |
+|   ↳ `lead_id` | number | Lead ID |
+|   ↳ `sequence_step_id` | number | Sequence step ID |
+|   ↳ `sequence_step_order` | number | Sequence step order |
+|   ↳ `sequence_step_variant` | number | Sequence step variant |
+|   ↳ `email_subject` | string | Email subject |
+|   ↳ `email_body` | string | Email body HTML |
+|   ↳ `status` | string | Scheduled email status |
+|   ↳ `scheduled_date_est` | string | Scheduled date in EST |
+|   ↳ `scheduled_date_local` | string | Scheduled date in local timezone |
+|   ↳ `local_timezone` | string | Scheduled email local timezone |
+|   ↳ `sent_at` | string | Email sent timestamp |
+|   ↳ `opens` | number | Open count |
+|   ↳ `replies` | number | Reply count |
+|   ↳ `unique_opens` | number | Unique open count |
+|   ↳ `unique_replies` | number | Unique reply count |
+|   ↳ `interested` | string | Interested status |
+|   ↳ `raw_message_id` | string | Raw email message ID |
+| `campaignEvent` | object | campaignEvent output from the tool |
+|   ↳ `id` | number | Campaign event ID |
+|   ↳ `event_type` | string | Campaign event type |
+|   ↳ `created_at_local` | string | Campaign event local creation timestamp |
+|   ↳ `local_timezone` | string | Campaign event local timezone |
+|   ↳ `created_at` | string | Campaign event creation timestamp |
+| `lead` | object | lead output from the tool |
+|   ↳ `id` | number | Lead ID |
+|   ↳ `email` | string | Lead email address |
+|   ↳ `first_name` | string | Lead first name |
+|   ↳ `last_name` | string | Lead last name |
+|   ↳ `status` | string | Lead status |
+|   ↳ `title` | string | Lead title |
+|   ↳ `company` | string | Lead company |
+|   ↳ `custom_variables` | json | Lead custom variables |
+|   ↳ `emails_sent` | number | Lead emails sent count |
+|   ↳ `opens` | number | Lead open count |
+|   ↳ `unique_opens` | number | Lead unique open count |
+|   ↳ `replies` | number | Lead reply count |
+|   ↳ `unique_replies` | number | Lead unique reply count |
+|   ↳ `bounces` | number | Lead bounce count |
+| `campaign` | object | campaign output from the tool |
+|   ↳ `id` | number | Campaign ID |
+|   ↳ `name` | string | Campaign name |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+
+
+---
+
+### Email Bison Email Account Added
+
+Trigger when a sender email account is added to Email Bison
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+
+
+---
+
+### Email Bison Email Account Disconnected
+
+Trigger when a sender email account disconnects in Email Bison
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+
+
+---
+
+### Email Bison Email Account Reconnected
+
+Trigger when a sender email account reconnects in Email Bison
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+
+
+---
+
+### Email Bison Email Account Removed
+
+Trigger when a sender email account is removed from Email Bison
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+
+
+---
+
+### Email Bison Email Bounced
+
+Trigger when an Email Bison campaign email bounces
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `reply` | object | reply output from the tool |
+|   ↳ `id` | number | Reply ID |
+|   ↳ `uuid` | string | Reply UUID |
+|   ↳ `email_subject` | string | Reply email subject |
+|   ↳ `interested` | boolean | Whether the reply is marked interested |
+|   ↳ `automated_reply` | boolean | Whether the reply is automated |
+|   ↳ `html_body` | string | Reply HTML body |
+|   ↳ `text_body` | string | Reply plain text body |
+|   ↳ `raw_body` | string | Raw MIME reply body |
+|   ↳ `headers` | string | Encoded raw email headers |
+|   ↳ `date_received` | string | Reply received timestamp |
+|   ↳ `from_name` | string | Reply sender name |
+|   ↳ `from_email_address` | string | Reply sender email address |
+|   ↳ `primary_to_email_address` | string | Primary recipient email address |
+|   ↳ `to` | json | Reply To recipients |
+|   ↳ `cc` | json | Reply CC recipients |
+|   ↳ `bcc` | json | Reply BCC recipients |
+|   ↳ `parent_id` | number | Parent reply ID |
+|   ↳ `reply_type` | string | Reply type |
+|   ↳ `folder` | string | Reply folder |
+|   ↳ `raw_message_id` | string | Raw email message ID |
+|   ↳ `created_at` | string | Reply creation timestamp |
+|   ↳ `updated_at` | string | Reply update timestamp |
+|   ↳ `attachments` | json | Reply attachments |
+| `campaignEvent` | object | campaignEvent output from the tool |
+|   ↳ `id` | number | Campaign event ID |
+|   ↳ `event_type` | string | Campaign event type |
+|   ↳ `created_at_local` | string | Campaign event local creation timestamp |
+|   ↳ `local_timezone` | string | Campaign event local timezone |
+|   ↳ `created_at` | string | Campaign event creation timestamp |
+| `lead` | object | lead output from the tool |
+|   ↳ `id` | number | Lead ID |
+|   ↳ `email` | string | Lead email address |
+|   ↳ `first_name` | string | Lead first name |
+|   ↳ `last_name` | string | Lead last name |
+|   ↳ `status` | string | Lead status |
+|   ↳ `title` | string | Lead title |
+|   ↳ `company` | string | Lead company |
+|   ↳ `custom_variables` | json | Lead custom variables |
+|   ↳ `emails_sent` | number | Lead emails sent count |
+|   ↳ `opens` | number | Lead open count |
+|   ↳ `unique_opens` | number | Lead unique open count |
+|   ↳ `replies` | number | Lead reply count |
+|   ↳ `unique_replies` | number | Lead unique reply count |
+|   ↳ `bounces` | number | Lead bounce count |
+| `campaign` | object | campaign output from the tool |
+|   ↳ `id` | number | Campaign ID |
+|   ↳ `name` | string | Campaign name |
+| `scheduledEmail` | object | scheduledEmail output from the tool |
+|   ↳ `id` | number | Scheduled email ID |
+|   ↳ `sequence_step_id` | number | Sequence step ID |
+|   ↳ `sequence_step_order` | number | Sequence step order |
+|   ↳ `sequence_step_variant` | number | Sequence step variant |
+|   ↳ `status` | string | Scheduled email status |
+|   ↳ `scheduled_date_est` | string | Scheduled date in EST |
+|   ↳ `scheduled_date_local` | string | Scheduled date in local timezone |
+|   ↳ `local_timezone` | string | Scheduled email local timezone |
+|   ↳ `sent_at` | string | Email sent timestamp |
+|   ↳ `opens` | number | Open count |
+|   ↳ `replies` | number | Reply count |
+|   ↳ `unique_opens` | number | Unique open count |
+|   ↳ `unique_replies` | number | Unique reply count |
+|   ↳ `interested` | string | Interested status |
+|   ↳ `raw_message_id` | string | Raw email message ID |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+
+
+---
+
+### Email Bison Email Opened
+
+Trigger when an Email Bison campaign email is opened
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `scheduledEmail` | object | scheduledEmail output from the tool |
+|   ↳ `id` | number | Scheduled email ID |
+|   ↳ `lead_id` | number | Lead ID |
+|   ↳ `sequence_step_id` | number | Sequence step ID |
+|   ↳ `sequence_step_order` | number | Sequence step order |
+|   ↳ `sequence_step_variant` | number | Sequence step variant |
+|   ↳ `email_subject` | string | Email subject |
+|   ↳ `email_body` | string | Email body HTML |
+|   ↳ `status` | string | Scheduled email status |
+|   ↳ `scheduled_date_est` | string | Scheduled date in EST |
+|   ↳ `scheduled_date_local` | string | Scheduled date in local timezone |
+|   ↳ `local_timezone` | string | Scheduled email local timezone |
+|   ↳ `sent_at` | string | Email sent timestamp |
+|   ↳ `opens` | number | Open count |
+|   ↳ `replies` | number | Reply count |
+|   ↳ `unique_opens` | number | Unique open count |
+|   ↳ `unique_replies` | number | Unique reply count |
+|   ↳ `interested` | string | Interested status |
+|   ↳ `raw_message_id` | string | Raw email message ID |
+| `campaignEvent` | object | campaignEvent output from the tool |
+|   ↳ `id` | number | Campaign event ID |
+|   ↳ `event_type` | string | Campaign event type |
+|   ↳ `created_at_local` | string | Campaign event local creation timestamp |
+|   ↳ `local_timezone` | string | Campaign event local timezone |
+|   ↳ `created_at` | string | Campaign event creation timestamp |
+| `lead` | object | lead output from the tool |
+|   ↳ `id` | number | Lead ID |
+|   ↳ `email` | string | Lead email address |
+|   ↳ `first_name` | string | Lead first name |
+|   ↳ `last_name` | string | Lead last name |
+|   ↳ `status` | string | Lead status |
+|   ↳ `title` | string | Lead title |
+|   ↳ `company` | string | Lead company |
+|   ↳ `custom_variables` | json | Lead custom variables |
+|   ↳ `emails_sent` | number | Lead emails sent count |
+|   ↳ `opens` | number | Lead open count |
+|   ↳ `unique_opens` | number | Lead unique open count |
+|   ↳ `replies` | number | Lead reply count |
+|   ↳ `unique_replies` | number | Lead unique reply count |
+|   ↳ `bounces` | number | Lead bounce count |
+| `campaign` | object | campaign output from the tool |
+|   ↳ `id` | number | Campaign ID |
+|   ↳ `name` | string | Campaign name |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+
+
+---
+
+### Email Bison Email Sent
+
+Trigger when a campaign email is sent in Email Bison
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `scheduledEmail` | object | scheduledEmail output from the tool |
+|   ↳ `id` | number | Scheduled email ID |
+|   ↳ `lead_id` | number | Lead ID |
+|   ↳ `sequence_step_id` | number | Sequence step ID |
+|   ↳ `sequence_step_order` | number | Sequence step order |
+|   ↳ `sequence_step_variant` | number | Sequence step variant |
+|   ↳ `email_subject` | string | Email subject |
+|   ↳ `email_body` | string | Email body HTML |
+|   ↳ `status` | string | Scheduled email status |
+|   ↳ `scheduled_date_est` | string | Scheduled date in EST |
+|   ↳ `scheduled_date_local` | string | Scheduled date in local timezone |
+|   ↳ `local_timezone` | string | Scheduled email local timezone |
+|   ↳ `sent_at` | string | Email sent timestamp |
+|   ↳ `opens` | number | Open count |
+|   ↳ `replies` | number | Reply count |
+|   ↳ `unique_opens` | number | Unique open count |
+|   ↳ `unique_replies` | number | Unique reply count |
+|   ↳ `interested` | string | Interested status |
+|   ↳ `raw_message_id` | string | Raw email message ID |
+| `campaignEvent` | object | campaignEvent output from the tool |
+|   ↳ `id` | number | Campaign event ID |
+|   ↳ `event_type` | string | Campaign event type |
+|   ↳ `created_at_local` | string | Campaign event local creation timestamp |
+|   ↳ `local_timezone` | string | Campaign event local timezone |
+|   ↳ `created_at` | string | Campaign event creation timestamp |
+| `lead` | object | lead output from the tool |
+|   ↳ `id` | number | Lead ID |
+|   ↳ `email` | string | Lead email address |
+|   ↳ `first_name` | string | Lead first name |
+|   ↳ `last_name` | string | Lead last name |
+|   ↳ `status` | string | Lead status |
+|   ↳ `title` | string | Lead title |
+|   ↳ `company` | string | Lead company |
+|   ↳ `custom_variables` | json | Lead custom variables |
+|   ↳ `emails_sent` | number | Lead emails sent count |
+|   ↳ `opens` | number | Lead open count |
+|   ↳ `unique_opens` | number | Lead unique open count |
+|   ↳ `replies` | number | Lead reply count |
+|   ↳ `unique_replies` | number | Lead unique reply count |
+|   ↳ `bounces` | number | Lead bounce count |
+| `campaign` | object | campaign output from the tool |
+|   ↳ `id` | number | Campaign ID |
+|   ↳ `name` | string | Campaign name |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+
+
+---
+
+### Email Bison Manual Email Sent
+
+Trigger when a manual email is sent in Email Bison
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `reply` | object | reply output from the tool |
+|   ↳ `id` | number | Reply ID |
+|   ↳ `email_subject` | string | Reply email subject |
+|   ↳ `interested` | boolean | Whether the reply is marked interested |
+|   ↳ `automated_reply` | boolean | Whether the reply is automated |
+|   ↳ `html_body` | string | Reply HTML body |
+|   ↳ `text_body` | string | Reply plain text body |
+|   ↳ `raw_body` | string | Raw MIME reply body |
+|   ↳ `headers` | string | Encoded raw email headers |
+|   ↳ `date_received` | string | Reply received timestamp |
+|   ↳ `reply_type` | string | Reply type |
+|   ↳ `from_name` | string | Reply sender name |
+|   ↳ `from_email_address` | string | Reply sender email address |
+|   ↳ `primary_to_email_address` | string | Primary recipient email address |
+|   ↳ `to` | json | Reply To recipients |
+|   ↳ `cc` | json | Reply CC recipients |
+|   ↳ `bcc` | json | Reply BCC recipients |
+|   ↳ `parent_id` | json | Parent reply ID |
+|   ↳ `folder` | string | Reply folder |
+|   ↳ `raw_message_id` | string | Raw email message ID |
+|   ↳ `created_at` | string | Reply creation timestamp |
+|   ↳ `updated_at` | string | Reply update timestamp |
+|   ↳ `attachments` | json | Reply attachments |
+| `lead` | object | lead output from the tool |
+|   ↳ `id` | number | Lead ID |
+|   ↳ `email` | string | Lead email address |
+|   ↳ `first_name` | string | Lead first name |
+|   ↳ `last_name` | string | Lead last name |
+|   ↳ `status` | string | Lead status |
+|   ↳ `title` | string | Lead title |
+|   ↳ `company` | string | Lead company |
+|   ↳ `custom_variables` | json | Lead custom variables |
+|   ↳ `emails_sent` | number | Lead emails sent count |
+|   ↳ `opens` | number | Lead open count |
+|   ↳ `unique_opens` | number | Lead unique open count |
+|   ↳ `replies` | number | Lead reply count |
+|   ↳ `unique_replies` | number | Lead unique reply count |
+|   ↳ `bounces` | number | Lead bounce count |
+| `campaign` | object | campaign output from the tool |
+|   ↳ `id` | number | Campaign ID |
+|   ↳ `name` | string | Campaign name |
+| `scheduledEmail` | object | scheduledEmail output from the tool |
+|   ↳ `id` | number | Scheduled email ID |
+|   ↳ `sequence_step_id` | number | Sequence step ID |
+|   ↳ `sequence_step_order` | number | Sequence step order |
+|   ↳ `sequence_step_variant` | number | Sequence step variant |
+|   ↳ `status` | string | Scheduled email status |
+|   ↳ `scheduled_date_est` | string | Scheduled date in EST |
+|   ↳ `scheduled_date_local` | string | Scheduled date in local timezone |
+|   ↳ `local_timezone` | string | Scheduled email local timezone |
+|   ↳ `sent_at` | string | Email sent timestamp |
+|   ↳ `opens` | number | Open count |
+|   ↳ `replies` | number | Reply count |
+|   ↳ `unique_opens` | number | Unique open count |
+|   ↳ `unique_replies` | number | Unique reply count |
+|   ↳ `interested` | json | Interested status |
+|   ↳ `raw_message_id` | string | Raw email message ID |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+
+
+---
+
+### Email Bison Tag Attached
+
+Trigger when a custom tag is attached to a taggable in Email Bison
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `tagId` | number | Email Bison tag ID |
+| `tagName` | string | Email Bison tag name |
+| `taggableId` | number | ID of the tagged resource |
+| `taggableType` | string | Type of the tagged resource |
+
+
+---
+
+### Email Bison Tag Removed
+
+Trigger when a custom tag is removed from a taggable in Email Bison
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `tagId` | number | Email Bison tag ID |
+| `tagName` | string | Email Bison tag name |
+| `taggableId` | number | ID of the tagged resource |
+| `taggableType` | string | Type of the tagged resource |
+
+
+---
+
+### Email Bison Untracked Reply Received
+
+Trigger when Email Bison receives a reply not tied to a scheduled campaign email
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `reply` | object | reply output from the tool |
+|   ↳ `id` | number | Reply ID |
+|   ↳ `uuid` | string | Reply UUID |
+|   ↳ `email_subject` | string | Reply email subject |
+|   ↳ `interested` | boolean | Whether the reply is marked interested |
+|   ↳ `automated_reply` | boolean | Whether the reply is automated |
+|   ↳ `html_body` | string | Reply HTML body |
+|   ↳ `text_body` | string | Reply plain text body |
+|   ↳ `raw_body` | string | Raw MIME reply body |
+|   ↳ `headers` | string | Encoded raw email headers |
+|   ↳ `date_received` | string | Reply received timestamp |
+|   ↳ `from_name` | string | Reply sender name |
+|   ↳ `from_email_address` | string | Reply sender email address |
+|   ↳ `primary_to_email_address` | string | Primary recipient email address |
+|   ↳ `to` | json | Reply To recipients |
+|   ↳ `cc` | json | Reply CC recipients |
+|   ↳ `bcc` | json | Reply BCC recipients |
+|   ↳ `parent_id` | number | Parent reply ID |
+|   ↳ `reply_type` | string | Reply type |
+|   ↳ `folder` | string | Reply folder |
+|   ↳ `raw_message_id` | string | Raw email message ID |
+|   ↳ `created_at` | string | Reply creation timestamp |
+|   ↳ `updated_at` | string | Reply update timestamp |
+|   ↳ `attachments` | json | Reply attachments |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+
+
+---
+
+### Email Bison Warmup Disabled Causing Bounces
+
+Trigger when warmup is disabled for a sender email causing too many bounces
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+
+
+---
+
+### Email Bison Warmup Disabled Receiving Bounces
+
+Trigger when warmup is disabled for a sender email receiving too many bounces
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+| `apiBaseUrl` | string | Yes | Instance URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Email Bison webhook event type |
+| `eventName` | string | Human-readable Email Bison event name |
+| `instanceUrl` | string | Email Bison instance URL |
+| `workspaceId` | number | Email Bison workspace ID |
+| `workspaceName` | string | Email Bison workspace name |
+| `event` | json | Raw Email Bison event metadata object |
+| `data` | json | Raw Email Bison event data object |
+| `senderEmail` | object | senderEmail output from the tool |
+|   ↳ `id` | number | Sender email ID |
+|   ↳ `name` | string | Sender email name |
+|   ↳ `email` | string | Sender email address |
+|   ↳ `status` | string | Sender email status |
+|   ↳ `account_type` | string | Sender email connection type |
+|   ↳ `daily_limit` | number | Sender email daily limit |
+|   ↳ `emails_sent` | number | Sender email sent count |
+|   ↳ `replied` | number | Sender email replied count |
+|   ↳ `opened` | number | Sender email opened count |
+|   ↳ `unsubscribed` | number | Sender email unsubscribed count |
+|   ↳ `bounced` | number | Sender email bounced count |
+|   ↳ `unique_replies` | number | Sender email unique reply count |
+|   ↳ `unique_opens` | number | Sender email unique open count |
+|   ↳ `total_leads_contacted` | number | Sender email total leads contacted |
+|   ↳ `interested` | number | Sender email interested count |
+|   ↳ `created_at` | string | Sender email creation timestamp |
+|   ↳ `updated_at` | string | Sender email update timestamp |
+

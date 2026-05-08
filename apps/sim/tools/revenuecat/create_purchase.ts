@@ -1,5 +1,11 @@
 import type { CreatePurchaseParams, CreatePurchaseResponse } from '@/tools/revenuecat/types'
-import { SUBSCRIBER_OUTPUT } from '@/tools/revenuecat/types'
+import {
+  extractCustomer,
+  extractSubscriber,
+  SUBSCRIBER_OUTPUT,
+  shapeSubscriber,
+  throwIfRevenueCatError,
+} from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const revenuecatCreatePurchaseTool: ToolConfig<
@@ -29,38 +35,73 @@ export const revenuecatCreatePurchaseTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'The receipt token or purchase token from the store (App Store receipt, Google Play purchase token, or Stripe subscription ID)',
+        'For iOS, the base64-encoded receipt (or JWSTransaction for StoreKit2); for Android the purchase token; for Amazon the receipt; for Stripe the subscription ID or Checkout Session ID; for Roku the transaction ID; for Paddle the subscription ID or transaction ID',
     },
     productId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The product identifier for the purchase',
+      description:
+        'Apple, Google, Amazon, Roku, or Paddle product identifier or SKU. Required for Google.',
     },
     price: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'The price of the product in the currency specified',
+      description: 'Price of the product. Required if you provide a currency.',
     },
     currency: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'ISO 4217 currency code (e.g., USD, EUR)',
+      description: 'ISO 4217 currency code (e.g., USD, EUR). Required if you provide a price.',
     },
     isRestore: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whether this is a restore of a previous purchase',
+      description: 'Deprecated. Triggers configured restore behavior for shared fetch tokens.',
     },
-    platform: {
+    presentedOfferingIdentifier: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Platform of the purchase (ios, android, amazon, macos, stripe). Required for Stripe and Paddle purchases.',
+        'Identifier of the offering presented to the customer at the time of purchase. Attached to new transactions in this fetch token and exposed in ETL exports and webhooks.',
+    },
+    paymentMode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Payment mode for the introductory period. One of: pay_as_you_go, pay_up_front, free_trial. Defaults to free_trial when an introductory period is detected and no value is provided.',
+    },
+    introductoryPrice: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Introductory price paid (if any).',
+    },
+    attributes: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object of subscriber attributes to set alongside the purchase. Each key maps to {"value": string, "updated_at_ms": number}.',
+    },
+    updatedAtMs: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'UNIX epoch in milliseconds used to resolve attribute conflicts at the request level.',
+    },
+    platform: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'Platform of the purchase. One of: ios, android, amazon, macos, uikitformac, stripe, roku, paddle. Sent as the X-Platform header (required by RevenueCat).',
     },
   },
 
@@ -81,34 +122,53 @@ export const revenuecatCreatePurchaseTool: ToolConfig<
       const body: Record<string, unknown> = {
         app_user_id: params.appUserId,
         fetch_token: params.fetchToken,
-        product_id: params.productId,
       }
+      if (params.productId) body.product_id = params.productId
       if (params.price !== undefined) body.price = params.price
       if (params.currency) body.currency = params.currency
       if (params.isRestore !== undefined) body.is_restore = params.isRestore
+      if (params.presentedOfferingIdentifier) {
+        body.presented_offering_identifier = params.presentedOfferingIdentifier
+      }
+      if (params.paymentMode) body.payment_mode = params.paymentMode
+      if (params.introductoryPrice !== undefined) {
+        body.introductory_price = params.introductoryPrice
+      }
+      if (params.attributes !== undefined && params.attributes !== '') {
+        if (typeof params.attributes === 'string') {
+          try {
+            body.attributes = JSON.parse(params.attributes)
+          } catch {
+            throw new Error('attributes must be a valid JSON object')
+          }
+        } else {
+          body.attributes = params.attributes
+        }
+      }
+      if (params.updatedAtMs !== undefined) body.updated_at_ms = params.updatedAtMs
       return body
     },
   },
 
   transformResponse: async (response) => {
+    await throwIfRevenueCatError(response)
     const data = await response.json()
-    const subscriber = data.subscriber ?? {}
-
     return {
       success: true,
       output: {
-        subscriber: {
-          first_seen: subscriber.first_seen ?? '',
-          original_app_user_id: subscriber.original_app_user_id ?? '',
-          subscriptions: subscriber.subscriptions ?? {},
-          entitlements: subscriber.entitlements ?? {},
-          non_subscriptions: subscriber.non_subscriptions ?? {},
-        },
+        customer: extractCustomer(data),
+        subscriber: shapeSubscriber(extractSubscriber(data)),
       },
     }
   },
 
   outputs: {
+    customer: {
+      type: 'object',
+      description:
+        'Customer object returned at the top level of POST /v1/receipts (first_seen, last_seen, original_app_user_id, original_application_version, original_sdk_version, management_url, entitlements, original_purchase_date, request_date). Null when the response uses the `value`-wrapped envelope.',
+      optional: true,
+    },
     subscriber: {
       ...SUBSCRIBER_OUTPUT,
       description: 'The updated subscriber object after recording the purchase',

@@ -6,6 +6,7 @@ import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import {
   useChangeDetection,
   useDeployment,
+  useDeployReadiness,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { useDeployedWorkflowState, useDeploymentInfo } from '@/hooks/queries/deployments'
@@ -42,21 +43,30 @@ export function Deploy({
     isFetching: isFetchingDeployedState,
   } = useDeployedWorkflowState(activeWorkflowId, { enabled: isDeployedStateEnabled })
   const deployedState = isDeployedStateEnabled ? (deployedStateData ?? null) : null
+  const deployReadiness = useDeployReadiness(activeWorkflowId)
 
-  const { changeDetected } = useChangeDetection({
+  const { changeDetected, isChangeDetectionSettling } = useChangeDetection({
     workflowId: activeWorkflowId,
     deployedState,
     isLoadingDeployedState: isLoadingDeployedState || isFetchingDeployedState,
   })
+  const isDeploymentSettling = isChangeDetectionSettling || deployReadiness.isSyncing
 
   const { isDeploying, handleDeployClick } = useDeployment({
     workflowId: activeWorkflowId,
     isDeployed,
+    deployReadiness,
   })
 
   const isEmpty = !hasBlocks()
   const canDeploy = userPermissions.canAdmin
-  const isDisabled = disabled || isDeploying || !canDeploy || isEmpty
+  const isDisabled =
+    disabled ||
+    isDeploying ||
+    !canDeploy ||
+    isEmpty ||
+    isDeploymentSettling ||
+    (!isDeployed && deployReadiness.isBlocked)
 
   const onDeployClick = async () => {
     if (disabled || !canDeploy || !activeWorkflowId) return
@@ -80,6 +90,12 @@ export function Deploy({
     if (isDeploying) {
       return 'Deploying...'
     }
+    if (isChangeDetectionSettling) {
+      return 'Syncing deployment state...'
+    }
+    if (deployReadiness.isBlocked && !isDeployed) {
+      return deployReadiness.tooltip
+    }
     if (changeDetected) {
       return 'Update deployment'
     }
@@ -87,6 +103,19 @@ export function Deploy({
       return 'Active deployment'
     }
     return 'Deploy workflow'
+  }
+
+  const getButtonLabel = () => {
+    if (isDeployed && (changeDetected || isDeploymentSettling)) {
+      return 'Update'
+    }
+    if (changeDetected) {
+      return 'Update'
+    }
+    if (isDeployed) {
+      return 'Live'
+    }
+    return 'Deploy'
   }
 
   return (
@@ -97,13 +126,19 @@ export function Deploy({
             <Button
               className='h-[30px] gap-1.5 px-2.5'
               variant={
-                isRegistryLoading ? 'active' : changeDetected || !isDeployed ? 'tertiary' : 'active'
+                isRegistryLoading || isDeploymentSettling
+                  ? 'active'
+                  : changeDetected || !isDeployed
+                    ? 'tertiary'
+                    : 'active'
               }
               onClick={onDeployClick}
               disabled={isRegistryLoading || isDisabled}
             >
-              {isDeploying && <Loader className='h-[13px] w-[13px]' animate />}
-              {changeDetected ? 'Update' : isDeployed ? 'Live' : 'Deploy'}
+              {(isDeploying || isDeploymentSettling) && (
+                <Loader className='h-[13px] w-[13px]' animate />
+              )}
+              {getButtonLabel()}
             </Button>
           </span>
         </Tooltip.Trigger>
@@ -117,7 +152,9 @@ export function Deploy({
         isDeployed={isDeployed}
         needsRedeployment={changeDetected}
         deployedState={deployedState}
-        isLoadingDeployedState={isLoadingDeployedState}
+        isLoadingDeployedState={isLoadingDeployedState || isFetchingDeployedState}
+        deployReadiness={deployReadiness}
+        isDeploymentSettling={isDeploymentSettling}
       />
     </>
   )

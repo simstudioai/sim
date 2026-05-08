@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
-import { History, Plus, Search, Square } from 'lucide-react'
+import { History, Plus, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
@@ -33,7 +33,7 @@ import {
   PopoverTrigger,
   Trash,
 } from '@/components/emcn'
-import { Lock, Unlock, Upload } from '@/components/emcn/icons'
+import { Lock, Square, Unlock, Upload } from '@/components/emcn/icons'
 import { VariableIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -347,6 +347,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     removeFromQueue: copilotRemoveFromQueue,
     sendNow: copilotSendNow,
     editQueuedMessage: copilotEditQueuedMessage,
+    getCurrentRequestId: getCopilotCurrentRequestId,
   } = useChat(
     workspaceId,
     copilotChatId,
@@ -354,6 +355,14 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       workflowId: activeWorkflowId || undefined,
       onTitleUpdate: loadCopilotChats,
       onToolResult: handleCopilotToolResult,
+      onRequestStarted: ({ requestId, userMessageId }) => {
+        captureEvent(posthogRef.current, 'task_request_started', {
+          workspace_id: workspaceId,
+          view: 'copilot',
+          request_id: requestId,
+          user_message_id: userMessageId,
+        })
+      },
     })
   )
 
@@ -414,9 +423,10 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     captureEvent(posthogRef.current, 'task_generation_aborted', {
       workspace_id: workspaceId,
       view: 'copilot',
+      request_id: getCopilotCurrentRequestId(),
     })
     copilotStopGeneration()
-  }, [copilotStopGeneration, workspaceId])
+  }, [copilotStopGeneration, getCopilotCurrentRequestId, workspaceId])
 
   const handleCopilotSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {

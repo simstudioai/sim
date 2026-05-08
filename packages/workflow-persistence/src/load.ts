@@ -2,14 +2,15 @@ import { db, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@
 import { createLogger } from '@sim/logger'
 import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
 import { SUBFLOW_TYPES } from '@sim/workflow-types/workflow'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
-import type { NormalizedWorkflowData } from './types'
+import type { DbOrTx, NormalizedWorkflowData } from './types'
 
 const logger = createLogger('WorkflowPersistenceLoad')
 
 export interface RawNormalizedWorkflow extends NormalizedWorkflowData {
   workspaceId: string
+  blockUpdatedAtById: Record<string, Date | null>
 }
 
 /**
@@ -27,14 +28,16 @@ export interface RawNormalizedWorkflow extends NormalizedWorkflowData {
  * config on the returned object will silently diverge from the migrated block.
  */
 export async function loadWorkflowFromNormalizedTablesRaw(
-  workflowId: string
+  workflowId: string,
+  externalTx?: DbOrTx
 ): Promise<RawNormalizedWorkflow | null> {
   try {
+    const tx = externalTx ?? db
     const [blocks, edges, subflows, [workflowRow]] = await Promise.all([
-      db.select().from(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
-      db.select().from(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
-      db.select().from(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
-      db
+      tx.select().from(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
+      tx.select().from(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
+      tx.select().from(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
+      tx
         .select({ workspaceId: workflow.workspaceId })
         .from(workflow)
         .where(eq(workflow.id, workflowId))
@@ -50,6 +53,7 @@ export async function loadWorkflowFromNormalizedTablesRaw(
     }
 
     const blocksMap: Record<string, BlockState> = {}
+    const blockUpdatedAtById: Record<string, Date | null> = {}
     blocks.forEach((block) => {
       const blockData = (block.data ?? {}) as BlockState['data']
 
@@ -73,6 +77,7 @@ export async function loadWorkflowFromNormalizedTablesRaw(
       }
 
       blocksMap[block.id] = assembled
+      blockUpdatedAtById[block.id] = block.updatedAt ?? null
     })
 
     const edgesArray: Edge[] = edges.map((edge) => ({
@@ -151,6 +156,7 @@ export async function loadWorkflowFromNormalizedTablesRaw(
       parallels,
       isFromNormalizedTables: true,
       workspaceId: workflowRow.workspaceId,
+      blockUpdatedAtById,
     }
   } catch (error) {
     logger.error(`Error loading workflow ${workflowId} from normalized tables:`, error)
@@ -161,11 +167,24 @@ export async function loadWorkflowFromNormalizedTablesRaw(
 export async function persistMigratedBlocks(
   workflowId: string,
   originalBlocks: Record<string, BlockState>,
-  migratedBlocks: Record<string, BlockState>
+  migratedBlocks: Record<string, BlockState>,
+  blockUpdatedAtById: Record<string, Date | null> = {}
 ): Promise<void> {
   try {
     for (const [blockId, block] of Object.entries(migratedBlocks)) {
       if (block !== originalBlocks[blockId]) {
+        const hasExpectedUpdatedAt = Object.hasOwn(blockUpdatedAtById, blockId)
+        const expectedUpdatedAt = blockUpdatedAtById[blockId]
+        const whereClause = hasExpectedUpdatedAt
+          ? and(
+              eq(workflowBlocks.id, blockId),
+              eq(workflowBlocks.workflowId, workflowId),
+              expectedUpdatedAt === null
+                ? isNull(workflowBlocks.updatedAt)
+                : eq(workflowBlocks.updatedAt, expectedUpdatedAt)
+            )
+          : and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId))
+
         await db
           .update(workflowBlocks)
           .set({
@@ -173,7 +192,7 @@ export async function persistMigratedBlocks(
             data: block.data,
             updatedAt: new Date(),
           })
-          .where(eq(workflowBlocks.id, blockId))
+          .where(whereClause)
       }
     }
   } catch (err) {

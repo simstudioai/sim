@@ -1,9 +1,9 @@
-import { db, workflow, workflowDeploymentVersion } from '@sim/db'
+import { db, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { loadWorkflowDeploymentSnapshot } from '@/lib/workflows/persistence/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -46,25 +46,10 @@ export async function checkNeedsRedeployment(workflowId: string): Promise<boolea
 
   if (!active?.state) return false
 
-  const [normalizedData, [workflowRecord]] = await Promise.all([
-    loadWorkflowFromNormalizedTables(workflowId),
-    db
-      .select({ variables: workflow.variables })
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1),
-  ])
-  if (!normalizedData) return false
+  const currentState = await loadWorkflowDeploymentSnapshot(workflowId)
+  if (!currentState) return false
 
-  const currentState = {
-    blocks: normalizedData.blocks,
-    edges: normalizedData.edges,
-    loops: normalizedData.loops,
-    parallels: normalizedData.parallels,
-    variables: workflowRecord?.variables || {},
-  }
-
-  return hasWorkflowChanged(currentState as WorkflowState, active.state as WorkflowState)
+  return hasWorkflowChanged(currentState, active.state as WorkflowState)
 }
 
 /**

@@ -2,7 +2,6 @@
 
 import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
-import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
 import {
@@ -10,6 +9,7 @@ import {
   FileX,
   Folder as FolderIcon,
   Library,
+  Square,
   SquareArrowUpRight,
   WorkflowX,
 } from '@/components/emcn/icons'
@@ -32,6 +32,7 @@ import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/use-file-preview-sessions'
 import type {
   GenericResourceData,
   MothershipResource,
@@ -42,7 +43,7 @@ import {
   useUserPermissionsContext,
   useWorkspacePermissionsContext,
 } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
+import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/table'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
@@ -116,13 +117,19 @@ export const ResourceContent = memo(function ResourceContent({
   const disableStreamingAutoScroll = previewSession?.operation === 'patch'
   const rawPreviewText = previewSession?.previewText
   const streamingPreviewText =
-    typeof rawPreviewText === 'string' && rawPreviewText.length > 0 ? rawPreviewText : undefined
+    previewSession &&
+    typeof rawPreviewText === 'string' &&
+    hasRenderableFilePreviewContent(previewSession)
+      ? rawPreviewText
+      : undefined
   const pendingOrStreamingFilePreviewText =
-    previewSession?.fileId === resource.id && typeof rawPreviewText === 'string'
+    previewSession?.fileId === resource.id &&
+    typeof rawPreviewText === 'string' &&
+    hasRenderableFilePreviewContent(previewSession)
       ? rawPreviewText
       : undefined
 
-  if (previewSession && resource.id === 'streaming-file') {
+  if (resource.id === 'streaming-file') {
     return (
       <div className='flex h-full flex-col overflow-hidden'>
         {streamingPreviewText !== undefined ? (

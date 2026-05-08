@@ -17,26 +17,26 @@ export const getOutboundDeliveryTool: ToolConfig<GetOutboundDeliveryParams, SapP
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -111,6 +111,99 @@ export const getOutboundDeliveryTool: ToolConfig<GetOutboundDeliveryParams, SapP
   transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
-    data: { type: 'json', description: 'A_OutbDeliveryHeader entity' },
+    data: {
+      type: 'json',
+      description: 'OData v2 response envelope; entity at output.data.d',
+      properties: {
+        d: {
+          type: 'json',
+          description: 'A_OutbDeliveryHeader entity',
+          properties: {
+            DeliveryDocument: { type: 'string', description: 'Outbound delivery number' },
+            DeliveryDocumentType: { type: 'string', description: 'Delivery document type' },
+            SDDocumentCategory: {
+              type: 'string',
+              description: 'SD document category (e.g., J = outbound delivery)',
+              optional: true,
+            },
+            ShippingPoint: {
+              type: 'string',
+              description: 'Shipping point',
+              optional: true,
+            },
+            ShippingType: {
+              type: 'string',
+              description: 'Shipping type',
+              optional: true,
+            },
+            ShipToParty: {
+              type: 'string',
+              description: 'Ship-to business partner',
+              optional: true,
+            },
+            SoldToParty: {
+              type: 'string',
+              description: 'Sold-to business partner',
+              optional: true,
+            },
+            DeliveryDate: {
+              type: 'string',
+              description: 'Delivery date (Edm.DateTime)',
+              optional: true,
+            },
+            ActualGoodsMovementDate: {
+              type: 'string',
+              description: 'Actual goods issue date (Edm.DateTime)',
+              optional: true,
+            },
+            PlannedGoodsIssueDate: {
+              type: 'string',
+              description: 'Planned goods issue date (Edm.DateTime)',
+              optional: true,
+            },
+            OverallSDProcessStatus: {
+              type: 'string',
+              description: 'Overall SD process (delivery) status',
+              optional: true,
+            },
+            OverallGoodsMovementStatus: {
+              type: 'string',
+              description: 'Overall goods movement status',
+              optional: true,
+            },
+            TransactionCurrency: {
+              type: 'string',
+              description: 'Document currency',
+              optional: true,
+            },
+            DocumentDate: {
+              type: 'string',
+              description: 'Document date (Edm.DateTime)',
+              optional: true,
+            },
+            CreationDate: {
+              type: 'string',
+              description: 'Creation date (Edm.DateTime)',
+              optional: true,
+            },
+            LastChangeDate: {
+              type: 'string',
+              description: 'Last change date (Edm.DateTime)',
+              optional: true,
+            },
+            to_DeliveryDocumentItem: {
+              type: 'json',
+              description: 'Delivery items (when $expand=to_DeliveryDocumentItem)',
+              optional: true,
+            },
+            to_DeliveryDocumentPartner: {
+              type: 'json',
+              description: 'Delivery partners (when $expand=to_DeliveryDocumentPartner)',
+              optional: true,
+            },
+          },
+        },
+      },
+    },
   },
 }

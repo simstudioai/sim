@@ -26,7 +26,10 @@ import {
   validateSupabaseProjectId,
   validateWorkdayTenantUrl,
 } from '@/lib/core/security/input-validation'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import {
+  isPrivateOrReservedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
@@ -559,6 +562,147 @@ describe('sanitizeForLogging', () => {
     const input = 'This is a safe string'
     const result = sanitizeForLogging(input)
     expect(result).toBe(input)
+  })
+})
+
+describe('isPrivateOrReservedIP', () => {
+  describe('IPv4 private/reserved ranges', () => {
+    it.concurrent.each([
+      ['192.168.1.1'],
+      ['192.168.0.0'],
+      ['10.0.0.1'],
+      ['10.255.255.255'],
+      ['172.16.0.1'],
+      ['172.31.255.255'],
+      ['127.0.0.1'],
+      ['127.255.255.255'],
+      ['169.254.169.254'],
+      ['0.0.0.0'],
+      ['224.0.0.1'],
+    ])('blocks IPv4 %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
+  })
+
+  describe('IPv6 reserved ranges', () => {
+    it.concurrent.each([
+      ['::1'],
+      ['::'],
+      ['fe80::1'],
+      ['fc00::1'],
+      ['fd00::1'],
+      ['ff02::1'],
+      ['2001:db8::1'],
+    ])('blocks IPv6 %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
+  })
+
+  describe('IPv4-mapped IPv6 (::ffff:0:0/96)', () => {
+    it.concurrent.each([
+      ['::ffff:192.168.1.1'],
+      ['::ffff:127.0.0.1'],
+      ['::ffff:169.254.169.254'],
+      ['::ffff:c0a8:101'],
+      ['::ffff:0:0'],
+    ])('blocks mapped private/reserved %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
+
+    it.concurrent('allows mapped public IPv4 ::ffff:8.8.8.8', () => {
+      expect(isPrivateOrReservedIP('::ffff:8.8.8.8')).toBe(false)
+    })
+  })
+
+  describe('NAT64 (RFC 6052, 64:ff9b::/96)', () => {
+    it.concurrent('blocks NAT64-encoded private IPv4', () => {
+      expect(isPrivateOrReservedIP('64:ff9b::192.168.1.1')).toBe(true)
+    })
+  })
+
+  describe('IPv4-compatible IPv6 (::a.b.c.d, RFC 4291 §2.5.5.1, deprecated)', () => {
+    it.concurrent.each([
+      ['::c0a8:101', '192.168.1.1 (URL-normalized hex form)'],
+      ['::c0a8:0101', '192.168.1.1 (zero-padded hex form)'],
+      ['::a9fe:a9fe', '169.254.169.254 (cloud metadata)'],
+      ['::7f00:1', '127.0.0.1 (loopback)'],
+      ['::7f00:0001', '127.0.0.1 (zero-padded)'],
+      ['::a00:1', '10.0.0.1 (RFC1918)'],
+      ['::ac10:1', '172.16.0.1 (RFC1918)'],
+      ['::e000:1', '224.0.0.1 (multicast)'],
+      ['::192.168.1.1', 'dotted form ::192.168.1.1'],
+      ['::169.254.169.254', 'dotted form ::169.254.169.254'],
+      ['::127.0.0.1', 'dotted form ::127.0.0.1'],
+      ['::10.0.0.1', 'dotted form ::10.0.0.1'],
+    ])('blocks %s — %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
+
+    it.concurrent.each([
+      ['::8.8.8.8', 'dotted form embedding public IPv4'],
+      ['::808:808', 'hex form embedding 8.8.8.8'],
+      ['::0808:0808', 'zero-padded hex form embedding 8.8.8.8'],
+    ])('allows IPv4-compatible IPv6 with embedded public IPv4 %s — %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(false)
+    })
+
+    it.concurrent.each([
+      ['::ffff:1', 'embedded 255.255.0.1 (Class E reserved) via parts[6]=0xffff'],
+      ['::ffff:0', 'embedded 255.255.0.0 (Class E reserved)'],
+      ['::ffff:abcd', 'embedded 255.255.171.205 (Class E reserved)'],
+      ['::f000:1', 'embedded 240.0.0.1 (Class E reserved)'],
+    ])('blocks IPv4-compatible IPv6 with Class E embedded IPv4 %s — %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
+  })
+
+  describe('non-IPv4-compat unicast IPv6 (must not over-block)', () => {
+    it.concurrent.each([
+      ['2606:4700:4700::1111'],
+      ['2001:4860:4860::8888'],
+      ['::1:c0a8:101'],
+      ['1::c0a8:101'],
+      ['1:2:3:4:5:6:c0a8:101'],
+    ])('allows %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(false)
+    })
+  })
+
+  describe('IPv4 public addresses', () => {
+    it.concurrent.each([['8.8.8.8'], ['1.1.1.1'], ['1.0.0.1']])('allows %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(false)
+    })
+  })
+
+  describe('IPv4 alternate notations', () => {
+    it.concurrent.each([['0177.0.0.1'], ['0x7f000001']])('blocks loopback notation %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
+  })
+
+  describe('invalid input', () => {
+    it.concurrent.each([['not-an-ip'], [''], ['256.256.256.256'], ['::g']])('rejects %s', (ip) => {
+      expect(isPrivateOrReservedIP(ip)).toBe(true)
+    })
+  })
+})
+
+describe('URL hostname normalization (Node URL parser + isPrivateOrReservedIP integration)', () => {
+  it.concurrent('Node normalizes [::192.168.1.1] to [::c0a8:101] and validator blocks it', () => {
+    const url = new URL('http://[::192.168.1.1]/')
+    const cleanHostname =
+      url.hostname.startsWith('[') && url.hostname.endsWith(']')
+        ? url.hostname.slice(1, -1)
+        : url.hostname
+    expect(cleanHostname).toBe('::c0a8:101')
+    expect(isPrivateOrReservedIP(cleanHostname)).toBe(true)
+  })
+
+  it.concurrent('Node normalizes [::169.254.169.254] and validator blocks the metadata IP', () => {
+    const url = new URL('http://[::169.254.169.254]/')
+    const cleanHostname = url.hostname.slice(1, -1)
+    expect(cleanHostname).toBe('::a9fe:a9fe')
+    expect(isPrivateOrReservedIP(cleanHostname)).toBe(true)
   })
 })
 

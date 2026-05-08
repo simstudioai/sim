@@ -7,6 +7,7 @@ import { createLogger } from '@sim/logger'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
+import { isPlainRecord } from '@/lib/core/utils/records'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -278,6 +279,22 @@ export async function executeWorkflowCore(
   let processedInput = input || {}
   let deploymentVersionId: string | undefined
   let loggingStarted = false
+  const pendingLifecycleCallbacks = new Set<Promise<void>>()
+
+  const trackLifecycleCallback = (promise: Promise<void>) => {
+    pendingLifecycleCallbacks.add(promise)
+    void promise
+      .finally(() => {
+        pendingLifecycleCallbacks.delete(promise)
+      })
+      .catch(() => {})
+  }
+
+  const waitForLifecycleCallbacks = async () => {
+    while (pendingLifecycleCallbacks.size > 0) {
+      await Promise.allSettled([...pendingLifecycleCallbacks])
+    }
+  }
 
   try {
     let blocks
@@ -358,14 +375,22 @@ export async function executeWorkflowCore(
     // Check if this is a resume execution before trigger resolution
     const resumeFromSnapshot = metadata.resumeFromSnapshot === true
     const resumePendingQueue = snapshot.state?.pendingQueue
+    const resumeRemainingEdges = snapshot.state?.remainingEdges
+    const resumeTerminalNoop = metadata.resumeTerminalNoop === true
 
     let resolvedTriggerBlockId = triggerBlockId
 
-    // For resume executions, skip trigger resolution since we have a pending queue
-    if (resumeFromSnapshot && resumePendingQueue?.length) {
+    // Resume executions derive their queue from the snapshot. Even an empty
+    // queue is meaningful: a terminal pause block has no downstream work.
+    if (
+      resumeFromSnapshot &&
+      (resumePendingQueue !== undefined || resumeRemainingEdges !== undefined || resumeTerminalNoop)
+    ) {
       resolvedTriggerBlockId = undefined
       logger.info(`[${requestId}] Skipping trigger resolution for resume execution`, {
-        pendingQueueLength: resumePendingQueue.length,
+        pendingQueueLength: resumePendingQueue?.length ?? 0,
+        remainingEdgeCount: resumeRemainingEdges?.length ?? 0,
+        resumeTerminalNoop,
       })
     } else if (!triggerBlockId) {
       const executionKind =
@@ -425,7 +450,7 @@ export async function executeWorkflowCore(
       })
     }
 
-    const wrappedOnBlockComplete = async (
+    const wrappedOnBlockComplete = (
       blockId: string,
       blockName: string,
       blockType: string,
@@ -439,36 +464,47 @@ export async function executeWorkflowCore(
       iterationContext?: IterationContext,
       childWorkflowContext?: ChildWorkflowContext
     ) => {
-      try {
+      let persistenceSucceeded = false
+      const persistencePromise = (async () => {
         await loggingSession.onBlockComplete(blockId, blockName, blockType, output)
-        if (onBlockComplete) {
-          void onBlockComplete(
-            blockId,
-            blockName,
-            blockType,
-            output,
-            iterationContext,
-            childWorkflowContext
-          ).catch((error) => {
-            logger.warn(`[${requestId}] Block completion callback failed`, {
-              executionId,
-              blockId,
-              blockType,
-              error,
-            })
-          })
-        }
-      } catch (error) {
+        persistenceSucceeded = true
+      })().catch((error) => {
         logger.warn(`[${requestId}] Block completion persistence failed`, {
           executionId,
           blockId,
           blockType,
           error,
         })
-      }
+      })
+
+      const lifecyclePromise = (async () => {
+        await persistencePromise
+        if (!persistenceSucceeded || !onBlockComplete) return
+
+        try {
+          await onBlockComplete(
+            blockId,
+            blockName,
+            blockType,
+            output,
+            iterationContext,
+            childWorkflowContext
+          )
+        } catch (error) {
+          logger.warn(`[${requestId}] Block completion callback failed`, {
+            executionId,
+            blockId,
+            blockType,
+            error,
+          })
+        }
+      })()
+
+      trackLifecycleCallback(lifecyclePromise)
+      return persistencePromise
     }
 
-    const wrappedOnBlockStart = async (
+    const wrappedOnBlockStart = (
       blockId: string,
       blockName: string,
       blockType: string,
@@ -476,33 +512,44 @@ export async function executeWorkflowCore(
       iterationContext?: IterationContext,
       childWorkflowContext?: ChildWorkflowContext
     ) => {
-      try {
+      let persistenceSucceeded = false
+      const persistencePromise = (async () => {
         await loggingSession.onBlockStart(blockId, blockName, blockType, new Date().toISOString())
-        if (onBlockStart) {
-          void onBlockStart(
-            blockId,
-            blockName,
-            blockType,
-            executionOrder,
-            iterationContext,
-            childWorkflowContext
-          ).catch((error) => {
-            logger.warn(`[${requestId}] Block start callback failed`, {
-              executionId,
-              blockId,
-              blockType,
-              error,
-            })
-          })
-        }
-      } catch (error) {
+        persistenceSucceeded = true
+      })().catch((error) => {
         logger.warn(`[${requestId}] Block start persistence failed`, {
           executionId,
           blockId,
           blockType,
           error,
         })
-      }
+      })
+
+      const lifecyclePromise = (async () => {
+        await persistencePromise
+        if (!persistenceSucceeded || !onBlockStart) return
+
+        try {
+          await onBlockStart(
+            blockId,
+            blockName,
+            blockType,
+            executionOrder,
+            iterationContext,
+            childWorkflowContext
+          )
+        } catch (error) {
+          logger.warn(`[${requestId}] Block start callback failed`, {
+            executionId,
+            blockId,
+            blockType,
+            error,
+          })
+        }
+      })()
+
+      trackLifecycleCallback(lifecyclePromise)
+      return persistencePromise
     }
 
     const contextExtensions: ContextExtensions = {
@@ -535,6 +582,16 @@ export async function executeWorkflowCore(
       callChain: metadata.callChain,
     }
 
+    for (const variable of Object.values(workflowVariables)) {
+      if (
+        isPlainRecord(variable) &&
+        variable.value !== undefined &&
+        typeof variable.type === 'string'
+      ) {
+        variable.value = parseVariableValueByType(variable.value, variable.type)
+      }
+    }
+
     const executorInstance = new Executor({
       workflow: serializedWorkflow,
       envVarValues: decryptedEnvVars,
@@ -543,16 +600,6 @@ export async function executeWorkflowCore(
       contextExtensions,
     })
 
-    // Convert initial workflow variables to their native types
-    if (workflowVariables) {
-      for (const [varId, variable] of Object.entries(workflowVariables)) {
-        const v = variable as { value?: unknown; type?: string }
-        if (v.value !== undefined && v.type) {
-          v.value = parseVariableValueByType(v.value, v.type)
-        }
-      }
-    }
-
     const result = runFromBlock
       ? ((await executorInstance.executeFromBlock(
           workflowId,
@@ -560,6 +607,8 @@ export async function executeWorkflowCore(
           runFromBlock.sourceSnapshot
         )) as ExecutionResult)
       : ((await executorInstance.execute(workflowId, resolvedTriggerBlockId)) as ExecutionResult)
+
+    await waitForLifecycleCallbacks()
 
     loggingSession.setPostExecutionPromise(
       (async () => {
@@ -594,6 +643,8 @@ export async function executeWorkflowCore(
     return result
   } catch (error: unknown) {
     logger.error(`[${requestId}] Execution failed:`, error)
+
+    await waitForLifecycleCallbacks()
 
     if (!loggingStarted) {
       loggingStarted = await loggingSession.safeStart({

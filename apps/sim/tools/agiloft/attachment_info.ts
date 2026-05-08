@@ -91,9 +91,13 @@ export const agiloftAttachmentInfoTool: ToolConfig<
           for (let i = 0; i < result.length; i++) {
             const item = result[i] as Record<string, unknown>
             attachments.push({
-              position: (item.position as number) ?? i,
-              name: (item.name as string) ?? (item.filename as string) ?? '',
-              size: (item.size as number) ?? 0,
+              position: (item.filePosition as number) ?? (item.position as number) ?? i,
+              name:
+                (item.fileName as string) ??
+                (item.name as string) ??
+                (item.filename as string) ??
+                '',
+              size: (item.size as number) ?? (item.fileSize as number) ?? 0,
             })
           }
         }
