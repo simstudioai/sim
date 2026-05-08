@@ -73,6 +73,7 @@ const TRIGGER_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   lemlist: 'Lemlist',
   linear: 'Linear',
   'microsoft-teams': 'Microsoft Teams',
+  netlify: 'Netlify',
   notion: 'Notion',
   outlook: 'Outlook',
   resend: 'Resend',

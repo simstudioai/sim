@@ -9304,6 +9304,92 @@
     "tags": ["data-warehouse", "data-analytics"]
   },
   {
+    "type": "netlify",
+    "slug": "netlify",
+    "name": "Netlify",
+    "description": "Manage Netlify sites, deploys, and environment variables",
+    "longDescription": "Trigger and inspect Netlify deploys (builds), and manage account or site-scoped environment variables. Generate a Personal Access Token at https://app.netlify.com/user/applications#personal-access-tokens.",
+    "bgColor": "#00C7B7",
+    "iconName": "NetlifyIcon",
+    "docsUrl": "https://docs.sim.ai/tools/netlify",
+    "operations": [
+      {
+        "name": "List Sites",
+        "description": "List Netlify sites accessible to the authenticated user"
+      },
+      {
+        "name": "List Deploys",
+        "description": "List deploys for a Netlify site"
+      },
+      {
+        "name": "Get Deploy",
+        "description": "Get details of a specific Netlify deploy"
+      },
+      {
+        "name": "Create Deploy",
+        "description": "Trigger a new Netlify deploy by starting a build for a site (optionally from a specific branch)"
+      },
+      {
+        "name": "Cancel Deploy",
+        "description": "Cancel an in-progress Netlify deploy"
+      },
+      {
+        "name": "List Environment Variables",
+        "description": "List environment variables for an account, optionally scoped to a site"
+      },
+      {
+        "name": "Create Environment Variable",
+        "description": "Create a new environment variable for an account, optionally scoped to a site"
+      },
+      {
+        "name": "Update Environment Variable",
+        "description": "Replace an environment variable for an account, optionally scoped to a site"
+      },
+      {
+        "name": "Delete Environment Variable",
+        "description": "Delete an environment variable from an account, optionally scoped to a site"
+      }
+    ],
+    "operationCount": 9,
+    "triggers": [
+      {
+        "id": "netlify_deploy_created",
+        "name": "Netlify Deploy Created",
+        "description": "Trigger workflow when a new Netlify deploy is created (build queued)"
+      },
+      {
+        "id": "netlify_deploy_building",
+        "name": "Netlify Deploy Building",
+        "description": "Trigger workflow when Netlify starts building a deploy"
+      },
+      {
+        "id": "netlify_deploy_succeeded",
+        "name": "Netlify Deploy Succeeded",
+        "description": "Trigger workflow when a Netlify deploy completes successfully"
+      },
+      {
+        "id": "netlify_deploy_failed",
+        "name": "Netlify Deploy Failed",
+        "description": "Trigger workflow when a Netlify deploy fails"
+      },
+      {
+        "id": "netlify_deploy_locked",
+        "name": "Netlify Deploy Locked",
+        "description": "Trigger workflow when a Netlify deploy is locked to a published version"
+      },
+      {
+        "id": "netlify_deploy_unlocked",
+        "name": "Netlify Deploy Unlocked",
+        "description": "Trigger workflow when a Netlify deploy is unlocked (auto-publish resumed)"
+      }
+    ],
+    "triggerCount": 6,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["developer-tools"],
+    "tags": ["cloud", "ci-cd"]
+  },
+  {
     "type": "notion_v2",
     "slug": "notion",
     "name": "Notion",

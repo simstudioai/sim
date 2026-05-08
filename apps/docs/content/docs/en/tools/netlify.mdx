@@ -1,0 +1,294 @@
+---
+title: Netlify
+description: Manage Netlify sites, deploys, and environment variables
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="netlify"
+  color="#00C7B7"
+/>
+
+## Usage Instructions
+
+Trigger and inspect Netlify deploys (builds), and manage account or site-scoped environment variables. Generate a Personal Access Token at https://app.netlify.com/user/applications#personal-access-tokens.
+
+
+
+## Tools
+
+### `netlify_list_sites`
+
+List Netlify sites accessible to the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Netlify Personal Access Token |
+| `name` | string | No | Filter sites by name |
+| `filter` | string | No | Filter scope: all, owner, or guest |
+| `page` | number | No | Page number \(1-indexed\) |
+| `perPage` | number | No | Results per page \(max 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sites` | array | List of Netlify sites |
+|   ↳ `id` | string | Site ID |
+|   ↳ `name` | string | Site name |
+|   ↳ `url` | string | Primary site URL |
+|   ↳ `sslUrl` | string | HTTPS site URL |
+|   ↳ `adminUrl` | string | Netlify admin URL |
+|   ↳ `customDomain` | string | Custom domain |
+|   ↳ `accountId` | string | Owning account ID |
+|   ↳ `accountSlug` | string | Owning account slug |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `count` | number | Number of sites returned |
+
+### `netlify_list_deploys`
+
+List deploys for a Netlify site
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Netlify Personal Access Token |
+| `siteId` | string | Yes | Site ID or primary domain |
+| `state` | string | No | Filter by deploy state: ready, error, building, enqueued, processing, uploading, new |
+| `branch` | string | No | Filter by git branch |
+| `production` | string | No | Filter to production deploys only \("true" or "false"\) |
+| `page` | number | No | Page number \(1-indexed\) |
+| `perPage` | number | No | Results per page \(max 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deploys` | array | List of deploys |
+|   ↳ `id` | string | Deploy ID |
+|   ↳ `siteId` | string | Site ID |
+|   ↳ `state` | string | Deploy state: new, enqueued, building, uploading, processing, ready, error, retrying |
+|   ↳ `name` | string | Site name |
+|   ↳ `url` | string | Site URL |
+|   ↳ `deployUrl` | string | Unique deploy URL |
+|   ↳ `deploySslUrl` | string | Unique deploy HTTPS URL |
+|   ↳ `adminUrl` | string | Netlify admin URL |
+|   ↳ `branch` | string | Git branch |
+|   ↳ `context` | string | Deploy context: production, deploy-preview, branch-deploy |
+|   ↳ `commitRef` | string | Git commit SHA |
+|   ↳ `commitUrl` | string | Git commit URL |
+|   ↳ `errorMessage` | string | Error message if failed |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+|   ↳ `publishedAt` | string | Publish timestamp |
+| `count` | number | Number of deploys returned |
+
+### `netlify_get_deploy`
+
+Get details of a specific Netlify deploy
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Netlify Personal Access Token |
+| `deployId` | string | Yes | Deploy ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deploy ID |
+| `siteId` | string | Site ID |
+| `state` | string | Deploy state |
+| `name` | string | Site name |
+| `url` | string | Site URL |
+| `deployUrl` | string | Unique deploy URL |
+| `deploySslUrl` | string | Unique deploy HTTPS URL |
+| `adminUrl` | string | Netlify admin URL |
+| `branch` | string | Git branch |
+| `context` | string | Deploy context |
+| `commitRef` | string | Git commit SHA |
+| `commitUrl` | string | Git commit URL |
+| `errorMessage` | string | Error message if failed |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `publishedAt` | string | Publish timestamp |
+
+### `netlify_create_deploy`
+
+Trigger a new Netlify deploy by starting a build for a site (optionally from a specific branch)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Netlify Personal Access Token |
+| `siteId` | string | Yes | Site ID or primary domain to deploy |
+| `branch` | string | No | Git branch to build from \(defaults to the site’s configured production branch\) |
+| `title` | string | No | Optional human-readable label shown in the deploy log |
+| `clearCache` | string | No | Clear the build cache before deploying \("true" or "false"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Build ID |
+| `deployId` | string | Deploy ID produced by this build \(use to poll status\) |
+| `siteId` | string | Site ID |
+| `sha` | string | Git commit SHA being built |
+| `done` | boolean | Whether the build has completed |
+| `error` | string | Build error if any |
+| `createdAt` | string | Creation timestamp |
+
+### `netlify_cancel_deploy`
+
+Cancel an in-progress Netlify deploy
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Netlify Personal Access Token |
+| `deployId` | string | Yes | Deploy ID to cancel |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deploy ID |
+| `siteId` | string | Site ID |
+| `state` | string | Deploy state after cancellation |
+| `name` | string | Site name |
+| `url` | string | Site URL |
+| `deployUrl` | string | Unique deploy URL |
+| `deploySslUrl` | string | Unique deploy HTTPS URL |
+| `adminUrl` | string | Netlify admin URL |
+| `branch` | string | Git branch |
+| `context` | string | Deploy context |
+| `commitRef` | string | Git commit SHA |
+| `commitUrl` | string | Git commit URL |
+| `errorMessage` | string | Error message if failed |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `publishedAt` | string | Publish timestamp |
+
+### `netlify_list_env_vars`
+
+List environment variables for an account, optionally scoped to a site
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Netlify Personal Access Token |
+| `accountId` | string | Yes | Account ID or slug that owns the environment variables |
+| `siteId` | string | No | Optional site ID to scope variables to a specific site |
+| `contextName` | string | No | Filter by deploy context \(production, deploy-preview, branch-deploy, dev\) |
+| `scope` | string | No | Filter by scope \(builds, functions, runtime, post_processing\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envVars` | array | List of environment variables |
+|   ↳ `key` | string | Variable name |
+|   ↳ `scopes` | array | Where the variable applies \(builds, functions, runtime, post_processing\) |
+|   ↳ `values` | array | Per-context values |
+|     ↳ `id` | string | Value ID |
+|     ↳ `context` | string | Context name |
+|     ↳ `contextParameter` | string | Branch name when context is branch-deploy |
+|     ↳ `value` | string | Variable value |
+|   ↳ `isSecret` | boolean | Whether the value is secret |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `count` | number | Number of variables returned |
+
+### `netlify_create_env_var`
+
+Create a new environment variable for an account, optionally scoped to a site
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Netlify Personal Access Token |
+| `accountId` | string | Yes | Account ID or slug that owns the variable |
+| `siteId` | string | No | Optional site ID to scope the variable to a specific site |
+| `key` | string | Yes | Variable name \(e.g., DATABASE_URL\) |
+| `value` | string | Yes | Variable value |
+| `context` | string | No | Deploy context this value applies to: all, production, deploy-preview, branch-deploy, dev \(default: all\) |
+| `scopes` | string | No | Comma-separated scopes \(builds, functions, runtime, post_processing\). Defaults to all scopes |
+| `isSecret` | string | No | Mark the value as secret \("true" or "false"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envVar` | object | Created environment variable |
+|   ↳ `key` | string | Variable name |
+|   ↳ `scopes` | array | Scopes |
+|   ↳ `values` | array | Per-context values |
+|     ↳ `id` | string | Value ID |
+|     ↳ `context` | string | Context name |
+|     ↳ `contextParameter` | string | Branch name for branch-deploy context |
+|     ↳ `value` | string | Variable value |
+|   ↳ `isSecret` | boolean | Whether the value is secret |
+|   ↳ `updatedAt` | string | Last update timestamp |
+
+### `netlify_update_env_var`
+
+Replace an environment variable for an account, optionally scoped to a site
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Netlify Personal Access Token |
+| `accountId` | string | Yes | Account ID or slug that owns the variable |
+| `siteId` | string | No | Optional site ID to scope the variable to a specific site |
+| `key` | string | Yes | Variable name to update |
+| `value` | string | Yes | New variable value \(replaces all existing values\) |
+| `context` | string | No | Deploy context: all, production, deploy-preview, branch-deploy, dev \(default: all\) |
+| `scopes` | string | No | Comma-separated scopes \(builds, functions, runtime, post_processing\) |
+| `isSecret` | string | No | Mark the value as secret \("true" or "false"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envVar` | object | Updated environment variable |
+|   ↳ `key` | string | Variable name |
+|   ↳ `scopes` | array | Scopes |
+|   ↳ `values` | array | Per-context values |
+|     ↳ `id` | string | Value ID |
+|     ↳ `context` | string | Context name |
+|     ↳ `contextParameter` | string | Branch name for branch-deploy context |
+|     ↳ `value` | string | Variable value |
+|   ↳ `isSecret` | boolean | Whether the value is secret |
+|   ↳ `updatedAt` | string | Last update timestamp |
+
+### `netlify_delete_env_var`
+
+Delete an environment variable from an account, optionally scoped to a site
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Netlify Personal Access Token |
+| `accountId` | string | Yes | Account ID or slug that owns the variable |
+| `siteId` | string | No | Optional site ID to scope deletion to a specific site |
+| `key` | string | Yes | Variable name to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the environment variable was deleted |
+
+

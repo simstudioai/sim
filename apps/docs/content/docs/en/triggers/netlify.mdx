@@ -1,0 +1,229 @@
+---
+title: Netlify
+description: Available Netlify triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="netlify"
+  color="#00C7B7"
+/>
+
+Netlify provides 6 triggers for automating workflows based on events.
+
+## Triggers
+
+### Netlify Deploy Building
+
+Trigger workflow when Netlify starts building a deploy
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signatureSecret` | string | Yes | The JWS secret token set on the outgoing webhook in Netlify. Used to verify the signature of every incoming delivery. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deploy ID |
+| `siteId` | string | Site ID |
+| `state` | string | Deploy state at the time of the event \(e.g., ready, error, building\) |
+| `name` | string | Site name |
+| `url` | string | Site URL |
+| `deployUrl` | string | Unique deploy URL |
+| `deploySslUrl` | string | Unique deploy HTTPS URL |
+| `adminUrl` | string | Netlify admin URL |
+| `branch` | string | Git branch |
+| `context` | string | Deploy context: production, deploy-preview, branch-deploy |
+| `commitRef` | string | Git commit SHA |
+| `commitUrl` | string | Git commit URL |
+| `title` | string | Commit message / deploy title |
+| `errorMessage` | string | Error message when the deploy failed |
+| `createdAt` | string | Deploy creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `publishedAt` | string | Publish timestamp |
+| `payload` | json | Raw deploy payload from Netlify |
+
+
+---
+
+### Netlify Deploy Created
+
+Trigger workflow when a new Netlify deploy is created (build queued)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signatureSecret` | string | Yes | The JWS secret token set on the outgoing webhook in Netlify. Used to verify the signature of every incoming delivery. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deploy ID |
+| `siteId` | string | Site ID |
+| `state` | string | Deploy state at the time of the event \(e.g., ready, error, building\) |
+| `name` | string | Site name |
+| `url` | string | Site URL |
+| `deployUrl` | string | Unique deploy URL |
+| `deploySslUrl` | string | Unique deploy HTTPS URL |
+| `adminUrl` | string | Netlify admin URL |
+| `branch` | string | Git branch |
+| `context` | string | Deploy context: production, deploy-preview, branch-deploy |
+| `commitRef` | string | Git commit SHA |
+| `commitUrl` | string | Git commit URL |
+| `title` | string | Commit message / deploy title |
+| `errorMessage` | string | Error message when the deploy failed |
+| `createdAt` | string | Deploy creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `publishedAt` | string | Publish timestamp |
+| `payload` | json | Raw deploy payload from Netlify |
+
+
+---
+
+### Netlify Deploy Failed
+
+Trigger workflow when a Netlify deploy fails
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signatureSecret` | string | Yes | The JWS secret token set on the outgoing webhook in Netlify. Used to verify the signature of every incoming delivery. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deploy ID |
+| `siteId` | string | Site ID |
+| `state` | string | Deploy state at the time of the event \(e.g., ready, error, building\) |
+| `name` | string | Site name |
+| `url` | string | Site URL |
+| `deployUrl` | string | Unique deploy URL |
+| `deploySslUrl` | string | Unique deploy HTTPS URL |
+| `adminUrl` | string | Netlify admin URL |
+| `branch` | string | Git branch |
+| `context` | string | Deploy context: production, deploy-preview, branch-deploy |
+| `commitRef` | string | Git commit SHA |
+| `commitUrl` | string | Git commit URL |
+| `title` | string | Commit message / deploy title |
+| `errorMessage` | string | Error message when the deploy failed |
+| `createdAt` | string | Deploy creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `publishedAt` | string | Publish timestamp |
+| `payload` | json | Raw deploy payload from Netlify |
+
+
+---
+
+### Netlify Deploy Locked
+
+Trigger workflow when a Netlify deploy is locked to a published version
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signatureSecret` | string | Yes | The JWS secret token set on the outgoing webhook in Netlify. Used to verify the signature of every incoming delivery. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deploy ID |
+| `siteId` | string | Site ID |
+| `state` | string | Deploy state at the time of the event \(e.g., ready, error, building\) |
+| `name` | string | Site name |
+| `url` | string | Site URL |
+| `deployUrl` | string | Unique deploy URL |
+| `deploySslUrl` | string | Unique deploy HTTPS URL |
+| `adminUrl` | string | Netlify admin URL |
+| `branch` | string | Git branch |
+| `context` | string | Deploy context: production, deploy-preview, branch-deploy |
+| `commitRef` | string | Git commit SHA |
+| `commitUrl` | string | Git commit URL |
+| `title` | string | Commit message / deploy title |
+| `errorMessage` | string | Error message when the deploy failed |
+| `createdAt` | string | Deploy creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `publishedAt` | string | Publish timestamp |
+| `payload` | json | Raw deploy payload from Netlify |
+
+
+---
+
+### Netlify Deploy Succeeded
+
+Trigger workflow when a Netlify deploy completes successfully
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signatureSecret` | string | Yes | The JWS secret token set on the outgoing webhook in Netlify. Used to verify the signature of every incoming delivery. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deploy ID |
+| `siteId` | string | Site ID |
+| `state` | string | Deploy state at the time of the event \(e.g., ready, error, building\) |
+| `name` | string | Site name |
+| `url` | string | Site URL |
+| `deployUrl` | string | Unique deploy URL |
+| `deploySslUrl` | string | Unique deploy HTTPS URL |
+| `adminUrl` | string | Netlify admin URL |
+| `branch` | string | Git branch |
+| `context` | string | Deploy context: production, deploy-preview, branch-deploy |
+| `commitRef` | string | Git commit SHA |
+| `commitUrl` | string | Git commit URL |
+| `title` | string | Commit message / deploy title |
+| `errorMessage` | string | Error message when the deploy failed |
+| `createdAt` | string | Deploy creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `publishedAt` | string | Publish timestamp |
+| `payload` | json | Raw deploy payload from Netlify |
+
+
+---
+
+### Netlify Deploy Unlocked
+
+Trigger workflow when a Netlify deploy is unlocked (auto-publish resumed)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signatureSecret` | string | Yes | The JWS secret token set on the outgoing webhook in Netlify. Used to verify the signature of every incoming delivery. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Deploy ID |
+| `siteId` | string | Site ID |
+| `state` | string | Deploy state at the time of the event \(e.g., ready, error, building\) |
+| `name` | string | Site name |
+| `url` | string | Site URL |
+| `deployUrl` | string | Unique deploy URL |
+| `deploySslUrl` | string | Unique deploy HTTPS URL |
+| `adminUrl` | string | Netlify admin URL |
+| `branch` | string | Git branch |
+| `context` | string | Deploy context: production, deploy-preview, branch-deploy |
+| `commitRef` | string | Git commit SHA |
+| `commitUrl` | string | Git commit URL |
+| `title` | string | Commit message / deploy title |
+| `errorMessage` | string | Error message when the deploy failed |
+| `createdAt` | string | Deploy creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `publishedAt` | string | Publish timestamp |
+| `payload` | json | Raw deploy payload from Netlify |
+
