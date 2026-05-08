@@ -35,6 +35,7 @@ import {
   resolveCanonicalMode,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
+import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { parseStoredToolInputValue, type StoredTool } from '@/lib/workflows/tool-input/types'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -945,6 +946,7 @@ export function indexWorkflowSearchMatches(
     }
 
     for (const [subBlockId, subBlockState] of Object.entries(block.subBlocks ?? {})) {
+      if (isSyntheticToolSubBlockId(subBlockId)) continue
       const subBlockConfig = configsById.get(subBlockId)
       if (subBlockConfig?.hidden) continue
       if (subBlockConfig && !isSubBlockFeatureEnabled(subBlockConfig)) continue

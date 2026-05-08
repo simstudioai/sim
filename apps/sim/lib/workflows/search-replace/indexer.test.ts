@@ -786,6 +786,59 @@ describe('indexWorkflowSearchMatches', () => {
     )
   })
 
+  it('does not double index synthetic tool-input mirror subblocks', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'api',
+              toolId: 'http_request',
+              title: 'API',
+              params: {
+                url: 'Lmfap',
+              },
+            },
+          ],
+        },
+        'tools-tool-0-url': {
+          id: 'tools-tool-0-url',
+          type: 'short-input',
+          value: 'Lmfap',
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'lmf',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'tool-input-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'tools',
+        valuePath: [0, 'params', 'url'],
+        searchText: 'Lmfap',
+      }),
+    ])
+  })
+
   it('attaches selector context to selector-backed tool input params', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['tool-input-1'] = {
