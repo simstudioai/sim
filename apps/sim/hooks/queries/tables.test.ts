@@ -204,4 +204,48 @@ describe('useUpdateColumn optimistic update', () => {
 
     expect(getCache(tableKeys.detail(TABLE_ID))).toEqual(original)
   })
+
+  it('renames the corresponding row-data key when updates.name is set', async () => {
+    setCache(tableKeys.detail(TABLE_ID), {
+      id: TABLE_ID,
+      schema: { columns: [{ name: 'age', type: 'number' }] },
+    })
+    setCache(tableKeys.rowsRoot(TABLE_ID), {
+      rows: [
+        { id: 'r1', data: { age: 30 } },
+        { id: 'r2', data: { age: 40 } },
+      ],
+      totalCount: 2,
+    })
+
+    const hook = useUpdateColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+    await hook.onMutate?.({ columnName: 'age', updates: { name: 'years' } })
+
+    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(
+      tableKeys.rowsRoot(TABLE_ID)
+    )
+    expect(rows?.rows[0]?.data).toEqual({ years: 30 })
+    expect(rows?.rows[1]?.data).toEqual({ years: 40 })
+  })
+})
+
+describe('useDeleteColumn case-insensitive row cleanup', () => {
+  it('strips the row data key even when stored casing differs from the requested name', async () => {
+    setCache(tableKeys.detail(TABLE_ID), {
+      id: TABLE_ID,
+      schema: { columns: [{ name: 'Age', type: 'number' }] },
+    })
+    setCache(tableKeys.rowsRoot(TABLE_ID), {
+      rows: [{ id: 'r1', data: { Age: 30, name: 'a' } }],
+      totalCount: 1,
+    })
+
+    const hook = useDeleteColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+    await hook.onMutate?.('age')
+
+    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(
+      tableKeys.rowsRoot(TABLE_ID)
+    )
+    expect(rows?.rows[0]?.data).toEqual({ name: 'a' })
+  })
 })

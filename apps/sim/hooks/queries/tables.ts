@@ -885,11 +885,29 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
           schema: { ...previousDetail.schema, columns: nextColumns },
         })
       }
-      return { previousDetail }
+
+      const newName = (updates as { name?: string }).name
+      const rowSnapshots =
+        typeof newName === 'string' && newName.length > 0 && newName !== columnName
+          ? await snapshotAndMutateRows(queryClient, tableId, (row) => {
+              const lower = columnName.toLowerCase()
+              const matchKey = Object.keys(row.data).find((k) => k.toLowerCase() === lower)
+              if (!matchKey) return null
+              const { [matchKey]: value, ...rest } = row.data
+              return { ...row, data: { ...rest, [newName]: value } }
+            })
+          : []
+
+      return { previousDetail, rowSnapshots }
     },
     onError: (error, _vars, context) => {
       if (context?.previousDetail) {
         queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
+      if (context?.rowSnapshots) {
+        for (const [key, data] of context.rowSnapshots) {
+          queryClient.setQueryData(key, data)
+        }
       }
       // Validation errors are surfaced as inline FieldErrors by the caller.
       if (isValidationError(error)) return
@@ -1173,9 +1191,9 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
     onMutate: async (columnName) => {
       await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
 
+      const lower = columnName.toLowerCase()
       const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
       if (previousDetail) {
-        const lower = columnName.toLowerCase()
         const nextColumns = previousDetail.schema.columns.filter(
           (c) => c.name.toLowerCase() !== lower
         )
@@ -1196,14 +1214,15 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
       }
 
       const rowSnapshots = await snapshotAndMutateRows(queryClient, tableId, (row) => {
-        if (!(columnName in row.data)) return null
-        const { [columnName]: _removed, ...rest } = row.data
+        const matchKey = Object.keys(row.data).find((k) => k.toLowerCase() === lower)
+        if (!matchKey) return null
+        const { [matchKey]: _removed, ...rest } = row.data
         return { ...row, data: rest }
       })
 
       return { previousDetail, rowSnapshots }
     },
-    onError: (_err, _columnName, context) => {
+    onError: (error, _columnName, context) => {
       if (context?.previousDetail) {
         queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
       }
@@ -1212,6 +1231,8 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
           queryClient.setQueryData(key, data)
         }
       }
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
