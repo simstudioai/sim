@@ -77,9 +77,50 @@ const PLAIN_TEXT_EXCLUDED_SUBBLOCK_TYPES = new Set<SubBlockType>([
   'skill-input',
   'sort-builder',
   'time-input',
+  'file-upload',
+  'mcp-dynamic-args',
+  'slider',
+  'switch',
 ])
 
 const TEXT_VALUE_ONLY_SUBBLOCK_TYPES = new Set<SubBlockType>(['filter-builder'])
+
+const TOOL_INPUT_TEXT_EXCLUDED_LEAF_KEYS = new Set([
+  'type',
+  'toolId',
+  'customToolId',
+  'operation',
+  'usageControl',
+  'serverId',
+  'toolName',
+  'credentialId',
+  'oauthCredential',
+  'workflowId',
+])
+
+const TOOL_INPUT_TEXT_EXCLUDED_PATH_KEYS = new Set(['schema'])
+
+function looksLikeStoredSkillList(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      (item) =>
+        item &&
+        typeof item === 'object' &&
+        !Array.isArray(item) &&
+        typeof (item as Record<string, unknown>).skillId === 'string'
+    )
+  )
+}
+
+function looksLikeStructuredString(value: string): boolean {
+  const trimmed = value.trim()
+  return (
+    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  )
+}
 
 function isSearchableLeafPath(
   path: Array<string | number>,
@@ -93,6 +134,17 @@ function isSearchableLeafPath(
   if (typeof lastSegment !== 'string') return true
   if (mode === 'text' && subBlockType === 'messages-input' && lastSegment === 'role') {
     return false
+  }
+  if (mode === 'text' && subBlockType === 'tool-input') {
+    if (TOOL_INPUT_TEXT_EXCLUDED_LEAF_KEYS.has(lastSegment)) return false
+    if (lastSegment.endsWith('Id')) return false
+    if (
+      path.some(
+        (segment) => typeof segment === 'string' && TOOL_INPUT_TEXT_EXCLUDED_PATH_KEYS.has(segment)
+      )
+    ) {
+      return false
+    }
   }
   if (mode === 'text' && subBlockType && TEXT_VALUE_ONLY_SUBBLOCK_TYPES.has(subBlockType)) {
     return lastSegment === 'value'
@@ -139,10 +191,18 @@ function getTextLeaves(value: unknown, subBlockType: SubBlockType | undefined) {
   if (isSearchableJsonValueSubBlock(subBlockType)) {
     return getSearchableJsonStringLeaves(value, subBlockType)
   }
-  return getSearchableStringLeaves(value, subBlockType, 'text').map((leaf) => ({
-    ...leaf,
-    fieldTitle: getStructuredFieldTitle(subBlockType, leaf.path),
-  }))
+  if (looksLikeStoredSkillList(value)) return []
+  return getSearchableStringLeaves(value, subBlockType, 'text')
+    .filter(
+      (leaf) =>
+        subBlockType !== 'tool-input' ||
+        typeof leaf.value !== 'string' ||
+        !looksLikeStructuredString(leaf.value)
+    )
+    .map((leaf) => ({
+      ...leaf,
+      fieldTitle: getStructuredFieldTitle(subBlockType, leaf.path),
+    }))
 }
 
 interface AddTextMatchesOptions {

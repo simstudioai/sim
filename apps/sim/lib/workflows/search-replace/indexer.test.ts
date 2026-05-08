@@ -457,6 +457,160 @@ describe('indexWorkflowSearchMatches', () => {
     ])
   })
 
+  it('does not index skill-shaped values even when persisted under a legacy id', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['legacy-agent-1'] = {
+      id: 'legacy-agent-1',
+      type: 'custom',
+      name: 'Legacy Agent',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        legacySkills: {
+          id: 'legacySkills',
+          type: 'short-input',
+          value: [{ skillId: 'skill-vik-id', name: 'vik-skill' }],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'vik',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: { subBlocks: [] },
+      },
+    }).filter((match) => match.blockId === 'legacy-agent-1')
+
+    expect(matches).toEqual([])
+  })
+
+  it('does not index upload or dynamic control internals as text', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['dynamic-1'] = {
+      id: 'dynamic-1',
+      type: 'custom',
+      name: 'Dynamic Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        upload: {
+          id: 'upload',
+          type: 'file-upload',
+          value: {
+            name: 'customer.csv',
+            path: '/workspace/customer.csv',
+            key: 'storage-customer-key',
+          },
+        },
+        mcpArgs: {
+          id: 'mcpArgs',
+          type: 'mcp-dynamic-args',
+          value: { prompt: 'customer prompt' },
+        },
+        slider: {
+          id: 'slider',
+          type: 'slider',
+          value: 42,
+        },
+        enabled: {
+          id: 'enabled',
+          type: 'switch',
+          value: true,
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'customer',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [
+            { id: 'upload', title: 'Upload', type: 'file-upload' },
+            { id: 'mcpArgs', title: 'MCP Args', type: 'mcp-dynamic-args' },
+            { id: 'slider', title: 'Slider', type: 'slider' },
+            { id: 'enabled', title: 'Enabled', type: 'switch' },
+          ],
+        },
+      },
+    }).filter((match) => match.blockId === 'dynamic-1')
+
+    expect(matches).toEqual([])
+  })
+
+  it('indexes only safe user-facing paths inside tool input values', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'native',
+              toolId: 'gmail_customer_tool',
+              operation: 'send_customer_message',
+              title: 'Customer notifier',
+              params: {
+                body: 'hello customer',
+                credentialId: 'credential-customer-id',
+                inputMapping: JSON.stringify({ query: 'customer json value' }),
+              },
+              schema: {
+                description: 'customer schema text',
+              },
+            },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'customer',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'tool-input-1')
+
+    expect(matches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          subBlockId: 'tools',
+          valuePath: [0, 'title'],
+          searchText: 'Customer notifier',
+        }),
+        expect.objectContaining({
+          subBlockId: 'tools',
+          valuePath: [0, 'params', 'body'],
+          searchText: 'hello customer',
+        }),
+      ])
+    )
+    expect(matches.some((match) => match.valuePath.includes('toolId'))).toBe(false)
+    expect(matches.some((match) => match.valuePath.includes('operation'))).toBe(false)
+    expect(matches.some((match) => match.valuePath.includes('credentialId'))).toBe(false)
+    expect(matches.some((match) => match.valuePath.includes('inputMapping'))).toBe(false)
+    expect(matches.some((match) => match.valuePath.includes('schema'))).toBe(false)
+  })
+
   it('does not index condition-hidden subblocks', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['condition-1'] = {

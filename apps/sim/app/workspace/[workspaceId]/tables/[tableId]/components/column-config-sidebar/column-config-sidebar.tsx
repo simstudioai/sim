@@ -135,8 +135,6 @@ function ColumnConfigBody({
       toast.success(`Saved "${trimmedName}"`)
       onClose()
     } catch (err) {
-      // Server validation errors carry a Zod issue array on the body; surface
-      // them inline next to the offending field instead of as a raw toast.
       if (isValidationError(err)) {
         const nameIssue =
           findValidationIssue(err, ['updates', 'name']) ??
@@ -146,8 +144,8 @@ function ColumnConfigBody({
           setNameError(nameIssue.message)
           return
         }
+        toast.error(toError(err).message)
       }
-      toast.error(toError(err).message)
     }
   }
 
