@@ -24,11 +24,13 @@ export const FUNCTION_BLOCK_DISPLAY_CODE_KEY = '_runtimeDisplayCode'
 const logger = createLogger('VariableResolver')
 
 type ShellQuoteContext = 'single' | 'double' | null
-type CodeStringQuoteContext = ShellQuoteContext | 'template'
+type CodeStringQuoteContext = ShellQuoteContext | 'triple-single' | 'triple-double' | 'template'
 type CodeScanMode =
   | { type: 'normal' }
   | { type: 'single' }
   | { type: 'double' }
+  | { type: 'triple-single' }
+  | { type: 'triple-double' }
   | { type: 'template' }
   | { type: 'template-expression'; depth: number }
   | { type: 'line-comment' }
@@ -362,8 +364,8 @@ export class VariableResolver {
     if (language === 'python') {
       const expression = `globals()[${JSON.stringify(varName)}]`
       const quoteContext = this.getCodeStringQuoteContext(template, matchIndex, language)
-      if (quoteContext === 'single' || quoteContext === 'double') {
-        const quote = quoteContext === 'single' ? "'" : '"'
+      if (this.isPythonStringQuoteContext(quoteContext)) {
+        const quote = this.getCodeStringQuoteToken(quoteContext)
         return `${quote} + json.dumps(${expression}) + ${quote}`
       }
       return expression
@@ -379,10 +381,30 @@ export class VariableResolver {
       return `\${JSON.stringify(${expression})}`
     }
     if (quoteContext === 'single' || quoteContext === 'double') {
-      const quote = quoteContext === 'single' ? "'" : '"'
+      const quote = this.getCodeStringQuoteToken(quoteContext)
       return `${quote} + JSON.stringify(${expression}) + ${quote}`
     }
     return expression
+  }
+
+  private isPythonStringQuoteContext(
+    quoteContext: CodeStringQuoteContext
+  ): quoteContext is 'single' | 'double' | 'triple-single' | 'triple-double' {
+    return (
+      quoteContext === 'single' ||
+      quoteContext === 'double' ||
+      quoteContext === 'triple-single' ||
+      quoteContext === 'triple-double'
+    )
+  }
+
+  private getCodeStringQuoteToken(
+    quoteContext: 'single' | 'double' | 'triple-single' | 'triple-double'
+  ): string {
+    if (quoteContext === 'single') return "'"
+    if (quoteContext === 'double') return '"'
+    if (quoteContext === 'triple-single') return "'''"
+    return '"""'
   }
 
   private formatDisplayValueForCodeContext(
@@ -461,6 +483,15 @@ export class VariableResolver {
         continue
       }
 
+      if (mode.type === 'triple-single' || mode.type === 'triple-double') {
+        const quote = mode.type === 'triple-single' ? "'" : '"'
+        if (char === quote && next === quote && template[i + 2] === quote) {
+          modes.pop()
+          i += 2
+        }
+        continue
+      }
+
       if (mode.type === 'template') {
         if (char === '\\') {
           i++
@@ -486,6 +517,16 @@ export class VariableResolver {
         if (!isPython && char === '/' && next === '*') {
           modes.push({ type: 'block-comment' })
           i++
+          continue
+        }
+        if (isPython && char === "'" && next === "'" && template[i + 2] === "'") {
+          modes.push({ type: 'triple-single' })
+          i += 2
+          continue
+        }
+        if (isPython && char === '"' && next === '"' && template[i + 2] === '"') {
+          modes.push({ type: 'triple-double' })
+          i += 2
           continue
         }
         if (char === "'") {
@@ -527,7 +568,13 @@ export class VariableResolver {
         i++
         continue
       }
-      if (char === "'") {
+      if (isPython && char === "'" && next === "'" && template[i + 2] === "'") {
+        modes.push({ type: 'triple-single' })
+        i += 2
+      } else if (isPython && char === '"' && next === '"' && template[i + 2] === '"') {
+        modes.push({ type: 'triple-double' })
+        i += 2
+      } else if (char === "'") {
         modes.push({ type: 'single' })
       } else if (char === '"') {
         modes.push({ type: 'double' })
@@ -537,7 +584,13 @@ export class VariableResolver {
     }
 
     const mode = modes[modes.length - 1]
-    if (mode.type === 'single' || mode.type === 'double' || mode.type === 'template') {
+    if (
+      mode.type === 'single' ||
+      mode.type === 'double' ||
+      mode.type === 'triple-single' ||
+      mode.type === 'triple-double' ||
+      mode.type === 'template'
+    ) {
       return mode.type
     }
     return null
