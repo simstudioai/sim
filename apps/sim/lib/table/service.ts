@@ -14,6 +14,7 @@ import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, gt, gte, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import type { DbOrTx } from '@/lib/db/types'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import { fireTableTrigger } from './trigger'
@@ -688,13 +689,16 @@ export async function pruneStaleWorkflowGroupOutputs({
   workspaceId,
   validBlockIds,
   requestId,
+  tx,
 }: {
   workflowId: string
   workspaceId: string
   validBlockIds: Set<string>
   requestId: string
+  tx?: DbOrTx
 }): Promise<void> {
-  const tables = await db
+  const executor = tx ?? db
+  const tables = await executor
     .select({
       id: userTableDefinitions.id,
       schema: userTableDefinitions.schema,
@@ -729,7 +733,7 @@ export async function pruneStaleWorkflowGroupOutputs({
 
     if (!mutated) continue
 
-    await db
+    await executor
       .update(userTableDefinitions)
       .set({
         schema: { ...schema, workflowGroups: nextGroups },

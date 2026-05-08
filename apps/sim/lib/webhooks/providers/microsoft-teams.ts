@@ -675,6 +675,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     webhook,
     workflow,
     requestId,
+    strict,
   }: DeleteSubscriptionContext): Promise<void> {
     try {
       const config = getProviderConfig(webhook)
@@ -688,6 +689,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
 
       if (!externalSubscriptionId || !credentialId) {
         logger.info(`[${requestId}] No external subscription to delete for webhook ${webhook.id}`)
+        if (strict) throw new Error('Missing Teams subscription cleanup configuration')
         return
       }
 
@@ -703,6 +705,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Could not get access token to delete Teams subscription for webhook ${webhook.id}`
         )
+        if (strict) throw new Error('Missing Teams access token for subscription deletion')
         return
       }
 
@@ -723,12 +726,14 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Failed to delete Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}. Status: ${res.status}`
         )
+        if (strict) throw new Error(`Failed to delete Teams subscription: ${res.status}`)
       }
     } catch (error) {
       logger.error(
         `[${requestId}] Error deleting Teams subscription for webhook ${webhook.id}`,
         error
       )
+      if (strict) throw error
     }
   },
 

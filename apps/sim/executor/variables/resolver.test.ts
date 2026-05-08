@@ -66,7 +66,7 @@ describe('VariableResolver function block inputs', () => {
 
     const result = resolver.resolveInputsForFunctionBlock(ctx, 'function', undefined, block)
 
-    expect(result).toEqual({ resolvedInputs: {}, contextVariables: {} })
+    expect(result).toEqual({ resolvedInputs: {}, displayInputs: {}, contextVariables: {} })
   })
 
   it('resolves JavaScript block references through globalThis context variables', () => {
@@ -80,6 +80,7 @@ describe('VariableResolver function block inputs', () => {
     )
 
     expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
+    expect(result.displayInputs.code).toBe('return <Producer.result>')
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
@@ -94,6 +95,7 @@ describe('VariableResolver function block inputs', () => {
     )
 
     expect(result.resolvedInputs.code).toBe('return globals()["__blockRef_0"]')
+    expect(result.displayInputs.code).toBe('return <Producer.result>')
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
@@ -110,6 +112,7 @@ describe('VariableResolver function block inputs', () => {
     expect(result.resolvedInputs.code).toBe(
       'a = globals()["__blockRef_0"]\nb = globals()["__blockRef_1"]\nreturn b'
     )
+    expect(result.displayInputs.code).toBe('a = <Producer.items>\nb = <Producer.items>\nreturn b')
     expect(result.contextVariables).toEqual({
       __blockRef_0: ['a', 'b'],
       __blockRef_1: ['a', 'b'],
@@ -128,6 +131,9 @@ describe('VariableResolver function block inputs', () => {
 
     expect(result.resolvedInputs.code).toBe(
       `echo "\${__blockRef_0}"suffix && echo "\${__blockRef_1}"`
+    )
+    expect(result.displayInputs.code).toBe(
+      'echo <Producer.result>suffix && echo "<Producer.result>"'
     )
     expect(result.contextVariables).toEqual({
       __blockRef_0: 'hello world',
@@ -148,6 +154,7 @@ describe('VariableResolver function block inputs', () => {
     expect(result.resolvedInputs.code).toBe(
       `# don't confuse quote tracking\necho "\${__blockRef_0}"`
     )
+    expect(result.displayInputs.code).toBe("# don't confuse quote tracking\necho <Producer.result>")
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 })

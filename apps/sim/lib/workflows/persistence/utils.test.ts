@@ -305,6 +305,42 @@ describe('Database Helpers', () => {
     vi.resetAllMocks()
   })
 
+  describe('buildWorkflowDeploymentSnapshot', () => {
+    it('combines normalized workflow state with persisted variables', () => {
+      const snapshot = dbHelpers.buildWorkflowDeploymentSnapshot(
+        {
+          blocks: asAppBlocks({ block: createStarterBlock({ id: 'block' }) }),
+          edges: [],
+          loops: {},
+          parallels: {},
+          isFromNormalizedTables: true,
+        },
+        {
+          variable: {
+            id: 'variable',
+            name: 'threshold',
+            type: 'number',
+            value: 5,
+          },
+        }
+      )
+
+      expect(snapshot.blocks.block).toBeDefined()
+      expect(snapshot.edges).toEqual([])
+      expect(snapshot.loops).toEqual({})
+      expect(snapshot.parallels).toEqual({})
+      expect(snapshot.variables).toEqual({
+        variable: {
+          id: 'variable',
+          name: 'threshold',
+          type: 'number',
+          value: 5,
+        },
+      })
+      expect(snapshot.lastSaved).toEqual(expect.any(Number))
+    })
+  })
+
   describe('loadWorkflowFromNormalizedTables', () => {
     it('should successfully load workflow data from normalized tables', async () => {
       vi.clearAllMocks()
@@ -759,6 +795,58 @@ describe('Database Helpers', () => {
       const result = await dbHelpers.workflowExistsInNormalizedTables(mockWorkflowId)
 
       expect(result).toBe(false)
+    })
+  })
+
+  describe('workflow row locking', () => {
+    function createMissingWorkflowTx() {
+      const lockFor = vi.fn().mockResolvedValue([])
+      const limit = vi.fn(() => ({ for: lockFor }))
+      const where = vi.fn(() => ({ limit }))
+      const from = vi.fn(() => ({ where }))
+      const select = vi.fn(() => ({ from }))
+      const update = vi.fn()
+
+      return {
+        tx: {
+          execute: vi.fn().mockResolvedValue([{ id: mockWorkflowId }]),
+          select,
+          update,
+        },
+        lockFor,
+        update,
+      }
+    }
+
+    it('returns not_found when deploy cannot lock a workflow row', async () => {
+      const { tx, lockFor } = createMissingWorkflowTx()
+      mockDb.transaction = vi.fn().mockImplementation(async (callback) => callback(tx))
+
+      const result = await dbHelpers.deployWorkflow({
+        workflowId: mockWorkflowId,
+        deployedBy: 'user-123',
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Workflow not found',
+        errorCode: 'not_found',
+      })
+      expect(lockFor).toHaveBeenCalledWith('update')
+      expect(tx.execute).not.toHaveBeenCalled()
+    })
+
+    it('returns an error when undeploy cannot lock a workflow row', async () => {
+      const { tx, update } = createMissingWorkflowTx()
+      mockDb.transaction = vi.fn().mockImplementation(async (callback) => callback(tx))
+
+      const result = await dbHelpers.undeployWorkflow({ workflowId: mockWorkflowId })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Workflow not found',
+      })
+      expect(update).not.toHaveBeenCalled()
     })
   })
 

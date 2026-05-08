@@ -186,6 +186,7 @@ export const typeformHandler: WebhookProviderHandler = {
         logger.warn(
           `[${ctx.requestId}] Missing formId or apiKey for Typeform webhook deletion ${ctx.webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Missing Typeform webhook deletion credentials')
         return
       }
 
@@ -203,11 +204,15 @@ export const typeformHandler: WebhookProviderHandler = {
         logger.warn(
           `[${ctx.requestId}] Failed to delete Typeform webhook (non-fatal): ${typeformResponse.status}`
         )
+        if (ctx.strict) {
+          throw new Error(`Failed to delete Typeform webhook: ${typeformResponse.status}`)
+        }
       } else {
         logger.info(`[${ctx.requestId}] Successfully deleted Typeform webhook with tag ${tag}`)
       }
     } catch (error) {
       logger.warn(`[${ctx.requestId}] Error deleting Typeform webhook (non-fatal)`, error)
+      if (ctx.strict) throw error
     }
   },
 }

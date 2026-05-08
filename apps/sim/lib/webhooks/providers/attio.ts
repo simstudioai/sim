@@ -251,6 +251,7 @@ export const attioHandler: WebhookProviderHandler = {
     webhook: webhookRecord,
     workflow,
     requestId,
+    strict,
   }: DeleteSubscriptionContext): Promise<void> {
     try {
       const config = getProviderConfig(webhookRecord)
@@ -261,6 +262,7 @@ export const attioHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Missing externalId for Attio webhook deletion ${webhookRecord.id}, skipping cleanup`
         )
+        if (strict) throw new Error('Missing Attio externalId for webhook deletion')
         return
       }
 
@@ -268,6 +270,7 @@ export const attioHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Missing credentialId for Attio webhook deletion ${webhookRecord.id}, skipping cleanup`
         )
+        if (strict) throw new Error('Missing Attio credentialId for webhook deletion')
         return
       }
 
@@ -281,10 +284,9 @@ export const attioHandler: WebhookProviderHandler = {
         : null
 
       if (!accessToken) {
-        logger.warn(
-          `[${requestId}] Could not retrieve Attio access token. Cannot delete webhook.`,
-          { webhookId: webhookRecord.id }
-        )
+        const message = `[${requestId}] Could not retrieve Attio access token. Cannot delete webhook.`
+        logger.warn(message, { webhookId: webhookRecord.id })
+        if (strict) throw new Error(message)
         return
       }
 
@@ -301,11 +303,13 @@ export const attioHandler: WebhookProviderHandler = {
           `[${requestId}] Failed to delete Attio webhook (non-fatal): ${attioResponse.status}`,
           { response: responseBody }
         )
+        if (strict) throw new Error(`Failed to delete Attio webhook: ${attioResponse.status}`)
       } else {
         logger.info(`[${requestId}] Successfully deleted Attio webhook ${externalId}`)
       }
     } catch (error) {
       logger.warn(`[${requestId}] Error deleting Attio webhook (non-fatal)`, error)
+      if (strict) throw error
     }
   },
 

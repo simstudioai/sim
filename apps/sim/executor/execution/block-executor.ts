@@ -103,6 +103,7 @@ export class BlockExecutor {
     }
 
     let resolvedInputs: Record<string, any> = {}
+    let inputsForLog: Record<string, any> = {}
 
     const nodeMetadata = {
       ...this.buildNodeMetadata(node),
@@ -120,15 +121,20 @@ export class BlockExecutor {
       }
 
       if (block.metadata?.id === BlockType.FUNCTION) {
-        const { resolvedInputs: fnInputs, contextVariables } =
-          this.resolver.resolveInputsForFunctionBlock(ctx, node.id, block.config.params, block)
+        const {
+          resolvedInputs: fnInputs,
+          displayInputs,
+          contextVariables,
+        } = this.resolver.resolveInputsForFunctionBlock(ctx, node.id, block.config.params, block)
         resolvedInputs = { ...fnInputs, [FUNCTION_BLOCK_CONTEXT_VARS_KEY]: contextVariables }
+        inputsForLog = displayInputs
       } else {
         resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
+        inputsForLog = resolvedInputs
       }
 
       if (blockLog) {
-        blockLog.input = this.sanitizeInputsForLog(resolvedInputs)
+        blockLog.input = this.sanitizeInputsForLog(inputsForLog)
       }
     } catch (error) {
       cleanupSelfReference?.()
@@ -139,7 +145,7 @@ export class BlockExecutor {
         block,
         startTime,
         blockLog,
-        resolvedInputs,
+        inputsForLog,
         isSentinel,
         'input_resolution'
       )
@@ -212,7 +218,7 @@ export class BlockExecutor {
           ctx,
           node,
           block,
-          this.sanitizeInputsForLog(resolvedInputs),
+          this.sanitizeInputsForLog(inputsForLog),
           displayOutput,
           duration,
           blockLog.startedAt,
@@ -231,7 +237,7 @@ export class BlockExecutor {
         block,
         startTime,
         blockLog,
-        resolvedInputs,
+        inputsForLog,
         isSentinel,
         'execution'
       )
@@ -262,19 +268,18 @@ export class BlockExecutor {
     block: SerializedBlock,
     startTime: number,
     blockLog: BlockLog | undefined,
-    resolvedInputs: Record<string, any>,
+    inputsForLog: Record<string, any>,
     isSentinel: boolean,
     phase: 'input_resolution' | 'execution'
   ): Promise<NormalizedBlockOutput> {
     const endedAt = new Date().toISOString()
     const duration = performance.now() - startTime
     const errorMessage = normalizeError(error)
-    const hasResolvedInputs =
-      resolvedInputs && typeof resolvedInputs === 'object' && Object.keys(resolvedInputs).length > 0
-    const input =
-      hasResolvedInputs && resolvedInputs
-        ? resolvedInputs
-        : ((block.config?.params as Record<string, any> | undefined) ?? {})
+    const hasLogInputs =
+      inputsForLog && typeof inputsForLog === 'object' && Object.keys(inputsForLog).length > 0
+    const input = hasLogInputs
+      ? inputsForLog
+      : ((block.config?.params as Record<string, any> | undefined) ?? {})
 
     const errorOutput: NormalizedBlockOutput = {
       error: errorMessage,

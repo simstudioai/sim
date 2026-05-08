@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { runs, tasks } from '@trigger.dev/sdk'
+import { runs, type TriggerOptions, tasks } from '@trigger.dev/sdk'
 import {
   type EnqueueOptions,
   JOB_STATUS,
@@ -73,9 +73,13 @@ export class TriggerDevJobQueue implements JobQueueBackend {
         : payload
 
     const tags = buildTags(options)
-    const triggerOptions: Parameters<typeof tasks.trigger>[2] = {}
+    const triggerOptions: TriggerOptions = {}
     if (tags.length > 0) triggerOptions.tags = tags
     if (options?.concurrencyKey) triggerOptions.concurrencyKey = options.concurrencyKey
+    if (options?.jobId) {
+      triggerOptions.idempotencyKey = options.jobId
+      triggerOptions.idempotencyKeyTTL = '14d'
+    }
     const handle = await tasks.trigger(taskId, enrichedPayload, triggerOptions)
 
     logger.debug('Enqueued job via trigger.dev', { jobId: handle.id, type, taskId, tags })

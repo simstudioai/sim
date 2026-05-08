@@ -73,20 +73,23 @@ export class DatabaseJobQueue implements JobQueueBackend {
     payload: TPayload,
     options?: EnqueueOptions
   ): Promise<string> {
-    const jobId = `run_${generateId().replace(/-/g, '').slice(0, 20)}`
+    const jobId = options?.jobId ?? `run_${generateId().replace(/-/g, '').slice(0, 20)}`
     const now = new Date()
 
-    await db.insert(asyncJobs).values({
-      id: jobId,
-      type,
-      payload: payload as Record<string, unknown>,
-      status: JOB_STATUS.PENDING,
-      createdAt: now,
-      attempts: 0,
-      maxAttempts: options?.maxAttempts ?? 3,
-      metadata: (options?.metadata ?? {}) as Record<string, unknown>,
-      updatedAt: now,
-    })
+    await db
+      .insert(asyncJobs)
+      .values({
+        id: jobId,
+        type,
+        payload: payload as Record<string, unknown>,
+        status: JOB_STATUS.PENDING,
+        createdAt: now,
+        attempts: 0,
+        maxAttempts: options?.maxAttempts ?? 3,
+        metadata: (options?.metadata ?? {}) as Record<string, unknown>,
+        updatedAt: now,
+      })
+      .onConflictDoNothing()
 
     logger.debug('Enqueued job', { jobId, type })
     if (options?.runner) {

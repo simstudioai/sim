@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson, requestRaw } from '@/lib/api/client/request'
 import {
   type ActivateDeploymentVersionResponse,
@@ -69,6 +69,15 @@ export function invalidateDeploymentQueries(queryClient: QueryClient, workflowId
   ])
 }
 
+export async function refetchDeploymentBoundary(queryClient: QueryClient, workflowId: string) {
+  await invalidateDeploymentQueries(queryClient, workflowId)
+  await Promise.all([
+    queryClient.refetchQueries({ queryKey: deploymentKeys.info(workflowId) }),
+    queryClient.refetchQueries({ queryKey: deploymentKeys.deployedState(workflowId) }),
+    queryClient.refetchQueries({ queryKey: workflowKeys.state(workflowId) }),
+  ])
+}
+
 export type WorkflowDeploymentInfo = DeploymentInfoResponse & {
   deployedAt: string | null
   apiKey: string | null
@@ -109,7 +118,6 @@ export function useDeploymentInfo(
     queryFn: ({ signal }) => fetchDeploymentInfo(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
-    placeholderData: keepPreviousData,
     ...(options?.refetchOnMount !== undefined && { refetchOnMount: options.refetchOnMount }),
   })
 }
@@ -141,7 +149,6 @@ export function useDeployedWorkflowState(
     queryFn: ({ signal }) => fetchDeployedWorkflowState(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: 30 * 1000,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -171,7 +178,6 @@ export function useDeploymentVersions(workflowId: string | null, options?: { ena
     queryFn: ({ signal }) => fetchDeploymentVersions(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -205,7 +211,6 @@ export function useChatDeploymentStatus(
     queryFn: ({ signal }) => fetchChatDeploymentStatus(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -229,7 +234,6 @@ export function useChatDetail(chatId: string | null, options?: { enabled?: boole
     queryFn: ({ signal }) => fetchChatDetail(chatId!, signal),
     enabled: Boolean(chatId) && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -239,6 +243,7 @@ export function useChatDetail(chatId: string | null, options?: { enabled?: boole
  * Returns the combined result.
  */
 export function useChatDeploymentInfo(workflowId: string | null, options?: { enabled?: boolean }) {
+  const queryClient = useQueryClient()
   const statusQuery = useChatDeploymentStatus(workflowId, options)
 
   const chatId = statusQuery.data?.deployment?.id ?? null
@@ -249,10 +254,15 @@ export function useChatDeploymentInfo(workflowId: string | null, options?: { ena
 
   const refetch = useCallback(async () => {
     const statusResult = await statusQuery.refetch()
-    if (statusResult.data?.deployment?.id) {
-      await detailQuery.refetch()
+    const nextChatId = statusResult.data?.deployment?.id
+    if (nextChatId) {
+      await queryClient.fetchQuery({
+        queryKey: deploymentKeys.chatDetail(nextChatId),
+        queryFn: ({ signal }) => fetchChatDetail(nextChatId, signal),
+        staleTime: 30 * 1000,
+      })
     }
-  }, [statusQuery.refetch, detailQuery.refetch])
+  }, [queryClient, statusQuery.refetch])
 
   return {
     isLoading:
@@ -299,15 +309,10 @@ export function useDeployWorkflow() {
     onSettled: (_data, error, variables) => {
       if (error) {
         logger.error('Failed to deploy workflow', { error })
-      } else {
-        logger.info('Workflow deployed successfully', { workflowId: variables.workflowId })
+        return invalidateDeploymentQueries(queryClient, variables.workflowId)
       }
-      return Promise.all([
-        invalidateDeploymentQueries(queryClient, variables.workflowId),
-        queryClient.invalidateQueries({
-          queryKey: workflowKeys.state(variables.workflowId),
-        }),
-      ])
+      logger.info('Workflow deployed successfully', { workflowId: variables.workflowId })
+      return refetchDeploymentBoundary(queryClient, variables.workflowId)
     },
   })
 }
@@ -327,8 +332,8 @@ export function useUndeployWorkflow() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workflowId }: UndeployWorkflowVariables): Promise<void> => {
-      await requestJson(undeployWorkflowContract, {
+    mutationFn: async ({ workflowId }: UndeployWorkflowVariables) => {
+      return requestJson(undeployWorkflowContract, {
         params: { id: workflowId },
       })
     },

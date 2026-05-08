@@ -24,11 +24,19 @@ import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { invalidateDeploymentQueries } from '@/hooks/queries/deployments'
 import { useUndoRedo } from '@/hooks/use-undo-redo'
 import { useNotificationStore } from '@/stores/notifications'
-import { registerEmitFunctions, useOperationQueue } from '@/stores/operation-queue/store'
+import {
+  registerEmitFunctions,
+  useOperationQueue,
+  useOperationQueueStore,
+} from '@/stores/operation-queue/store'
 import { usePanelEditorStore } from '@/stores/panel'
 import { useCodeUndoRedoStore, useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import {
+  applyWorkflowStateToStores,
+  WORKFLOW_DIFF_SETTLED_EVENT,
+} from '@/stores/workflow-diff/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { filterNewEdges, filterValidEdges, mergeSubblockState } from '@/stores/workflows/utils'
@@ -154,6 +162,7 @@ export function useCollaborativeWorkflow() {
 
   // Track if we're applying remote changes to avoid infinite loops
   const isApplyingRemoteChange = useRef(false)
+  const reloadSequencesRef = useRef<Record<string, number>>({})
 
   const {
     addToQueue,
@@ -563,6 +572,26 @@ export function useCollaborativeWorkflow() {
     }
 
     const reloadWorkflowFromApi = async (workflowId: string, reason: string): Promise<boolean> => {
+      const reloadSequence = (reloadSequencesRef.current[workflowId] ?? 0) + 1
+      reloadSequencesRef.current[workflowId] = reloadSequence
+      const isLatestReload = () => reloadSequencesRef.current[workflowId] === reloadSequence
+      const pendingExternalUpdateAtStart =
+        useWorkflowDiffStore.getState().pendingExternalUpdates[workflowId] ?? 0
+      useWorkflowDiffStore.getState().setWorkflowReconciliationInProgress(workflowId, true)
+      const failLatestReconciliation = (message: string) => {
+        if (!isLatestReload()) return
+        const diffStore = useWorkflowDiffStore.getState()
+        if ((diffStore.pendingExternalUpdates[workflowId] ?? 0) <= pendingExternalUpdateAtStart) {
+          diffStore.clearExternalUpdatePending(workflowId)
+        }
+        diffStore.setWorkflowReconciliationInProgress(workflowId, false)
+        diffStore.setWorkflowReconciliationError(workflowId, message)
+        if ((useWorkflowDiffStore.getState().pendingExternalUpdates[workflowId] ?? 0) > 0) {
+          window.dispatchEvent(
+            new CustomEvent(WORKFLOW_DIFF_SETTLED_EVENT, { detail: { workflowId } })
+          )
+        }
+      }
       // The contract's `state` is `workflowStateSchema` (loose at the wire
       // level — `subBlocks.value` is `unknown`, optional flags omitted),
       // but downstream consumers (replaceWorkflowState, the undo/redo
@@ -579,41 +608,72 @@ export function useCollaborativeWorkflow() {
         if (wireState) {
           // double-cast-allowed: workflowStateSchema is structurally a supertype of the store's WorkflowState (subBlocks.value is `unknown`, optional booleans, etc.); the server persists store-shaped values so the runtime shape matches
           workflowState = wireState as unknown as WorkflowState
+          if (Object.hasOwn(responseData.data, 'variables')) {
+            workflowState.variables = responseData.data.variables || {}
+          }
         }
       } catch (error) {
         logger.error(`Failed to fetch workflow data after ${reason}`, { error })
+        failLatestReconciliation(
+          'Failed to sync the latest workflow changes. Refresh and try again.'
+        )
+        return false
+      }
+
+      if (!isLatestReload()) {
+        logger.debug(`Ignoring stale workflow reload after ${reason}`, { workflowId })
         return false
       }
 
       if (!workflowState) {
         logger.error(`No state found in workflow data after ${reason}`, { workflowId })
+        failLatestReconciliation('No workflow state was returned while syncing latest changes.')
+        return false
+      }
+
+      if (useWorkflowRegistry.getState().activeWorkflowId !== workflowId) {
+        logger.debug(`Ignoring workflow reload after active workflow changed`, { workflowId })
+        if (isLatestReload()) {
+          useWorkflowDiffStore.getState().setWorkflowReconciliationInProgress(workflowId, false)
+        }
+        return false
+      }
+
+      const diffStateBeforeApply = useWorkflowDiffStore.getState()
+      const pendingExternalUpdateBeforeApply =
+        diffStateBeforeApply.pendingExternalUpdates[workflowId] ?? 0
+      if (
+        diffStateBeforeApply.hasActiveDiff ||
+        pendingExternalUpdateBeforeApply > pendingExternalUpdateAtStart ||
+        useOperationQueueStore.getState().hasPendingOperations(workflowId)
+      ) {
+        logger.info(`Deferring workflow reload apply after ${reason}`, { workflowId })
+        useWorkflowDiffStore.getState().markExternalUpdatePending(workflowId)
+        if (isLatestReload()) {
+          useWorkflowDiffStore.getState().setWorkflowReconciliationInProgress(workflowId, false)
+          if (useWorkflowRegistry.getState().activeWorkflowId === workflowId) {
+            void replayPendingExternalUpdate(
+              workflowId,
+              'deferred external update after reload apply was skipped'
+            )
+          }
+        }
         return false
       }
 
       isApplyingRemoteChange.current = true
       try {
-        useWorkflowStore.getState().replaceWorkflowState({
+        const stateToApply: WorkflowState = {
           blocks: workflowState.blocks || {},
           edges: workflowState.edges || [],
           loops: workflowState.loops || {},
           parallels: workflowState.parallels || {},
           lastSaved: workflowState.lastSaved || Date.now(),
-        })
-
-        const subblockValues: Record<string, Record<string, unknown>> = {}
-        Object.entries(workflowState.blocks || {}).forEach(([blockId, block]) => {
-          subblockValues[blockId] = {}
-          Object.entries(block.subBlocks || {}).forEach(([subblockId, subblock]) => {
-            subblockValues[blockId][subblockId] = subblock?.value
-          })
-        })
-
-        useSubBlockStore.setState((state) => ({
-          workflowValues: {
-            ...state.workflowValues,
-            [workflowId]: subblockValues,
-          },
-        }))
+        }
+        if (Object.hasOwn(workflowState, 'variables')) {
+          stateToApply.variables = workflowState.variables || {}
+        }
+        applyWorkflowStateToStores(workflowId, stateToApply)
 
         const graph = {
           blocksById: workflowState.blocks || {},
@@ -630,9 +690,47 @@ export function useCollaborativeWorkflow() {
         })
 
         logger.info(`Successfully reloaded workflow state after ${reason}`, { workflowId })
+        const diffStore = useWorkflowDiffStore.getState()
+        const pendingExternalUpdate = diffStore.pendingExternalUpdates[workflowId] ?? 0
+        if (pendingExternalUpdate <= pendingExternalUpdateAtStart) {
+          diffStore.clearExternalUpdatePending(workflowId)
+        }
+        diffStore.setWorkflowReconciliationError(workflowId, null)
         return true
       } finally {
         isApplyingRemoteChange.current = false
+        if (isLatestReload()) {
+          useWorkflowDiffStore.getState().setWorkflowReconciliationInProgress(workflowId, false)
+          if (useWorkflowRegistry.getState().activeWorkflowId === workflowId) {
+            void replayPendingExternalUpdate(
+              workflowId,
+              'deferred external update after reconciliation'
+            )
+          }
+        }
+      }
+    }
+
+    const replayPendingExternalUpdate = async (workflowId: string, reason: string) => {
+      const diffStore = useWorkflowDiffStore.getState()
+      if (
+        useWorkflowRegistry.getState().activeWorkflowId !== workflowId ||
+        diffStore.hasActiveDiff ||
+        diffStore.reconcilingWorkflows[workflowId] ||
+        !diffStore.pendingExternalUpdates[workflowId]
+      ) {
+        return
+      }
+
+      const queueStore = useOperationQueueStore.getState()
+      if (queueStore.hasPendingOperations(workflowId)) {
+        return
+      }
+
+      try {
+        await reloadWorkflowFromApi(workflowId, reason)
+      } catch (error) {
+        logger.error(`Error reloading workflow state after ${reason}:`, error)
       }
     }
 
@@ -641,6 +739,7 @@ export function useCollaborativeWorkflow() {
       logger.info(`Workflow ${workflowId} has been reverted to deployed state`)
 
       if (activeWorkflowId !== workflowId) return
+      useWorkflowDiffStore.getState().markRemoteUpdateSeen(workflowId)
 
       try {
         await reloadWorkflowFromApi(workflowId, 'revert')
@@ -655,17 +754,63 @@ export function useCollaborativeWorkflow() {
 
       if (activeWorkflowId !== workflowId) return
 
-      const { hasActiveDiff } = useWorkflowDiffStore.getState()
+      const diffStore = useWorkflowDiffStore.getState()
+      const { hasActiveDiff } = diffStore
       if (hasActiveDiff) {
-        logger.info('Skipping workflow-updated: active diff in progress', { workflowId })
+        logger.info('Deferring workflow-updated: active diff in progress', { workflowId })
+        diffStore.markExternalUpdatePending(workflowId)
         return
       }
 
+      if (diffStore.reconcilingWorkflows[workflowId]) {
+        logger.info('Deferring workflow-updated: workflow reconciliation is in progress', {
+          workflowId,
+        })
+        diffStore.markExternalUpdatePending(workflowId)
+        return
+      }
+
+      const operationQueue = useOperationQueueStore.getState()
+      if (operationQueue.hasPendingOperations(workflowId)) {
+        logger.info('Deferring workflow-updated: local operations are still pending', {
+          workflowId,
+        })
+        diffStore.markExternalUpdatePending(workflowId)
+        void operationQueue.waitForWorkflowOperations(workflowId).then((ready) => {
+          if (!ready) {
+            const latestQueue = useOperationQueueStore.getState()
+            if (latestQueue.hasPendingOperations(workflowId) && !latestQueue.hasOperationError) {
+              return
+            }
+            const diffStore = useWorkflowDiffStore.getState()
+            diffStore.clearExternalUpdatePending(workflowId)
+            diffStore.setWorkflowReconciliationError(
+              workflowId,
+              'Failed to save local workflow changes before syncing external updates.'
+            )
+            return
+          }
+          void replayPendingExternalUpdate(workflowId, 'deferred external update after local save')
+        })
+        return
+      }
+
+      diffStore.markRemoteUpdateSeen(workflowId)
       try {
         await reloadWorkflowFromApi(workflowId, 'external update')
       } catch (error) {
         logger.error('Error reloading workflow state after external update:', error)
       }
+    }
+
+    const handleDiffSettled = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ workflowId?: string }>
+      const workflowId = customEvent.detail?.workflowId
+      if (!workflowId || activeWorkflowId !== workflowId) return
+      const diffStore = useWorkflowDiffStore.getState()
+      if (!diffStore.pendingExternalUpdates[workflowId]) return
+
+      await replayPendingExternalUpdate(workflowId, 'deferred external update')
     }
 
     const handleWorkflowDeployed = (data: any) => {
@@ -681,6 +826,12 @@ export function useCollaborativeWorkflow() {
       const { operationId } = data
       logger.debug('Operation confirmed', { operationId })
       confirmOperation(operationId)
+      if (activeWorkflowId) {
+        void replayPendingExternalUpdate(
+          activeWorkflowId,
+          'deferred external update after operation confirm'
+        )
+      }
     }
 
     const handleOperationFailed = (data: any) => {
@@ -699,6 +850,18 @@ export function useCollaborativeWorkflow() {
     onWorkflowDeployed(handleWorkflowDeployed)
     onOperationConfirmed(handleOperationConfirmed)
     onOperationFailed(handleOperationFailed)
+    window.addEventListener(WORKFLOW_DIFF_SETTLED_EVENT, handleDiffSettled)
+
+    if (activeWorkflowId) {
+      void replayPendingExternalUpdate(
+        activeWorkflowId,
+        'pending external update after workflow activation'
+      )
+    }
+
+    return () => {
+      window.removeEventListener(WORKFLOW_DIFF_SETTLED_EVENT, handleDiffSettled)
+    }
   }, [
     onWorkflowOperation,
     onSubblockUpdate,

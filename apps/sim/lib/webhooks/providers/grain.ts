@@ -215,6 +215,7 @@ export const grainHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Missing apiKey for Grain webhook deletion ${webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Missing Grain apiKey for webhook deletion')
         return
       }
 
@@ -222,6 +223,7 @@ export const grainHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Missing externalId for Grain webhook deletion ${webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Missing Grain externalId for webhook deletion')
         return
       }
 
@@ -241,11 +243,13 @@ export const grainHandler: WebhookProviderHandler = {
           `[${requestId}] Failed to delete Grain webhook (non-fatal): ${grainResponse.status}`,
           { response: responseBody }
         )
+        if (ctx.strict) throw new Error(`Failed to delete Grain webhook: ${grainResponse.status}`)
       } else {
         logger.info(`[${requestId}] Successfully deleted Grain webhook ${externalId}`)
       }
     } catch (error) {
       logger.warn(`[${requestId}] Error deleting Grain webhook (non-fatal)`, error)
+      if (ctx.strict) throw error
     }
   },
 }
