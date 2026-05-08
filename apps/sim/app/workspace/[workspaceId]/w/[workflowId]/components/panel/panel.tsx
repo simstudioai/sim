@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
-import { History, Plus, Search } from 'lucide-react'
+import { History, Plus } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
@@ -86,7 +86,6 @@ import { useVariablesModalStore } from '@/stores/variables/modal'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { captureBaselineSnapshot } from '@/stores/workflow-diff/utils'
-import { useWorkflowSearchReplaceStore } from '@/stores/workflow-search-replace/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -609,8 +608,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const hasValidationErrors = false // TODO: Add validation logic if needed
   const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled = !isExecuting && (isWorkflowBlocked || (!canRun && !isLoadingPermissions))
-  const openWorkflowSearchReplace = useWorkflowSearchReplaceStore((state) => state.open)
-
   /**
    * Register global keyboard shortcuts using the central commands registry.
    *
@@ -677,10 +674,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   <DropdownMenuItem onSelect={() => setVariablesOpen(!isVariablesOpen)}>
                     <VariableIcon />
                     Variables
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={openWorkflowSearchReplace}>
-                    <Search />
-                    Search and replace
                   </DropdownMenuItem>
                   {userPermissions.canAdmin && !isSnapshotView && (
                     <DropdownMenuItem
