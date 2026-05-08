@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
-import { workflowSearchMatchMatchesQuery } from '@/lib/workflows/search-replace/resource-resolvers'
+import { workflowSearchMatchMatchesQuery } from '@/lib/workflows/search-replace/resources'
 import {
   createSearchReplaceWorkflowFixture,
   SEARCH_REPLACE_BLOCK_CONFIGS,

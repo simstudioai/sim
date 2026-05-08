@@ -9,7 +9,7 @@ import {
   matchesSearchText,
   parseInlineReferences,
   parseStructuredResourceReferences,
-} from '@/lib/workflows/search-replace/reference-registry'
+} from '@/lib/workflows/search-replace/resources'
 import { getWorkflowSearchSubflowFields } from '@/lib/workflows/search-replace/subflow-fields'
 import type {
   WorkflowSearchBlockState,

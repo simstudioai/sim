@@ -505,6 +505,60 @@ describe('buildWorkflowSearchReplacePlan', () => {
     ])
   })
 
+  it('rejects invalid file upload replacement payloads', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['file-upload-1'] = {
+      id: 'file-upload-1',
+      type: 'custom',
+      name: 'File Upload Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        file: {
+          id: 'file',
+          type: 'file-upload',
+          value: {
+            name: 'old.csv',
+            path: '/workspace/ws-1/old-key',
+            key: 'old-key',
+          },
+        },
+      },
+    }
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: {
+        subBlocks: [{ id: 'file', title: 'File', type: 'file-upload' }],
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'old',
+      mode: 'resource',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'file-upload-1')
+
+    const plan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches,
+      selectedMatchIds: new Set(matches.map((match) => match.id)),
+      defaultReplacement: '"not-a-file-object"',
+      resourceReplacementOptions: [
+        { kind: 'file', value: '"not-a-file-object"', label: 'Invalid file' },
+      ],
+    })
+
+    expect(plan.updates).toEqual([])
+    expect(plan.conflicts).toEqual([
+      {
+        matchId: matches[0].id,
+        reason: 'Replacement file is no longer valid',
+      },
+    ])
+  })
+
   it('rejects invalid subflow iteration replacements', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['parallel-1'] = {

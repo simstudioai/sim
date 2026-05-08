@@ -20,7 +20,7 @@ import {
 } from '@/lib/api/contracts/workspace-files'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import type { Credential } from '@/lib/oauth'
-import { stableStringifyWorkflowSearchValue } from '@/lib/workflows/search-replace/resource-resolvers'
+import { stableStringifyWorkflowSearchValue } from '@/lib/workflows/search-replace/resources'
 import type {
   WorkflowSearchMatch,
   WorkflowSearchReplacementOption,

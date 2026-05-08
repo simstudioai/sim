@@ -1,5 +1,10 @@
 import { replaceJsonStringLeafRange } from '@/lib/workflows/search-replace/json-value-fields'
-import { getWorkflowSearchReplacementIssue } from '@/lib/workflows/search-replace/replacement-validation'
+import {
+  getWorkflowSearchReplacementIssue,
+  normalizeWorkflowSearchResourceReplacement,
+  replaceWorkflowSearchResourceValue,
+  workflowSearchResourceValueContains,
+} from '@/lib/workflows/search-replace/resources'
 import {
   getWorkflowSearchSubflowField,
   parseWorkflowSearchSubflowReplacement,
@@ -28,94 +33,11 @@ interface BuildWorkflowSearchReplacePlanParams {
 }
 
 function normalizeReplacement(match: WorkflowSearchMatch, replacement: string): string {
-  if (match.kind === 'environment') {
-    const trimmed = replacement.trim()
-    if (trimmed.startsWith('{{') && trimmed.endsWith('}}')) return trimmed
-    return `{{${trimmed}}}`
-  }
-  return replacement
+  return normalizeWorkflowSearchResourceReplacement(match, replacement)
 }
 
 function replaceRange(value: string, start: number, end: number, replacement: string): string {
   return `${value.slice(0, start)}${replacement}${value.slice(end)}`
-}
-
-function replaceStructuredValue(
-  value: unknown,
-  rawValue: string,
-  replacement: string,
-  targetOccurrenceIndex?: number
-): unknown {
-  let occurrenceIndex = 0
-
-  const shouldReplace = (item: string) => {
-    if (item !== rawValue) return false
-    const currentOccurrenceIndex = occurrenceIndex
-    occurrenceIndex += 1
-    return targetOccurrenceIndex === undefined || currentOccurrenceIndex === targetOccurrenceIndex
-  }
-
-  if (typeof value === 'string') {
-    const parts = value.split(',').map((part) => part.trim())
-    if (parts.length > 1) {
-      return parts.map((part) => (shouldReplace(part) ? replacement : part)).join(',')
-    }
-    return shouldReplace(value) ? replacement : value
-  }
-
-  if (Array.isArray(value)) {
-    const replaceItem = (item: unknown): unknown => {
-      if (typeof item === 'string') {
-        return shouldReplace(item) ? replacement : item
-      }
-      if (Array.isArray(item)) return item.map(replaceItem)
-      if (item && typeof item === 'object') {
-        const record = item as Record<string, unknown>
-        const resourceKey = record.key ?? record.path ?? record.name
-        if (typeof resourceKey === 'string' && shouldReplace(resourceKey)) {
-          try {
-            return JSON.parse(replacement)
-          } catch {
-            return item
-          }
-        }
-      }
-      return item
-    }
-
-    return value.map(replaceItem)
-  }
-
-  if (value && typeof value === 'object') {
-    const record = value as Record<string, unknown>
-    const resourceKey = record.key ?? record.path ?? record.name
-    if (typeof resourceKey === 'string' && shouldReplace(resourceKey)) {
-      try {
-        return JSON.parse(replacement)
-      } catch {
-        return value
-      }
-    }
-  }
-
-  return value
-}
-
-function structuredValueContains(value: unknown, rawValue: string): boolean {
-  if (typeof value === 'string') {
-    return value
-      .split(',')
-      .map((part) => part.trim())
-      .includes(rawValue)
-  }
-  if (Array.isArray(value)) {
-    return value.some((item) => structuredValueContains(item, rawValue))
-  }
-  if (value && typeof value === 'object') {
-    const record = value as Record<string, unknown>
-    return [record.key, record.path, record.name].some((candidate) => candidate === rawValue)
-  }
-  return false
 }
 
 function getReplacement(
@@ -305,17 +227,24 @@ export function buildWorkflowSearchReplacePlan({
     } else {
       const currentValue = getValueAtPath(nextValue, match.valuePath)
       const valueForReplacement = match.valuePath.length === 0 ? nextValue : currentValue
-      if (!structuredValueContains(valueForReplacement, match.rawValue)) {
+      if (!workflowSearchResourceValueContains(match, valueForReplacement)) {
         conflicts.push({ matchId: match.id, reason: 'Target resource changed since search' })
         continue
       }
 
-      const replacedValue = replaceStructuredValue(
+      const resourceReplacement = replaceWorkflowSearchResourceValue(
+        match,
         valueForReplacement,
-        match.rawValue,
-        replacement,
-        match.structuredOccurrenceIndex
+        replacement
       )
+      if (!resourceReplacement.success) {
+        conflicts.push({
+          matchId: match.id,
+          reason: resourceReplacement.reason ?? 'Target resource is no longer replaceable',
+        })
+        continue
+      }
+      const replacedValue = resourceReplacement.nextValue
       nextValue =
         match.valuePath.length === 0
           ? replacedValue

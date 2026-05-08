@@ -7,17 +7,15 @@ import { Button, Input } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
-import {
-  getCompatibleResourceReplacementOptions,
-  getWorkflowSearchReplacementIssue,
-  isConstrainedResourceMatch,
-} from '@/lib/workflows/search-replace/replacement-validation'
 import { buildWorkflowSearchReplacePlan } from '@/lib/workflows/search-replace/replacements'
 import {
+  getCompatibleResourceReplacementOptions,
   getWorkflowSearchCompatibleResourceMatches,
   getWorkflowSearchMatchResourceGroupKey,
+  getWorkflowSearchReplacementIssue,
+  isConstrainedResourceMatch,
   workflowSearchMatchMatchesQuery,
-} from '@/lib/workflows/search-replace/resource-resolvers'
+} from '@/lib/workflows/search-replace/resources'
 import { getWorkflowSearchBlocks } from '@/lib/workflows/search-replace/state'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import type { WorkflowSearchReplaceSubflowUpdate } from '@/lib/workflows/search-replace/types'

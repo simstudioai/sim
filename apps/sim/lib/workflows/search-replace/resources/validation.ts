@@ -1,46 +1,16 @@
-import { replacementOptionMatchesResourceMatch } from '@/lib/workflows/search-replace/resource-resolvers'
+import {
+  getWorkflowSearchResourceKindLabel,
+  isConstrainedWorkflowSearchResourceKind,
+  normalizeWorkflowSearchResourceReplacement,
+} from '@/lib/workflows/search-replace/resources/registry'
+import { replacementOptionMatchesResourceMatch } from '@/lib/workflows/search-replace/resources/resolvers'
 import type {
   WorkflowSearchMatch,
-  WorkflowSearchMatchKind,
   WorkflowSearchReplacementOption,
 } from '@/lib/workflows/search-replace/types'
 
-const CONSTRAINED_RESOURCE_KINDS = new Set<WorkflowSearchMatchKind>([
-  'environment',
-  'oauth-credential',
-  'knowledge-base',
-  'knowledge-document',
-  'workflow',
-  'mcp-server',
-  'mcp-tool',
-  'table',
-  'file',
-  'selector-resource',
-])
-
-const RESOURCE_KIND_LABELS: Partial<Record<WorkflowSearchMatchKind, string>> = {
-  environment: 'environment variable',
-  'oauth-credential': 'OAuth credential',
-  'knowledge-base': 'knowledge base',
-  'knowledge-document': 'knowledge document',
-  workflow: 'workflow',
-  'mcp-server': 'MCP server',
-  'mcp-tool': 'MCP tool',
-  table: 'table',
-  file: 'file',
-  'selector-resource': 'selector resource',
-}
-
 export function isConstrainedResourceMatch(match: WorkflowSearchMatch): boolean {
-  return CONSTRAINED_RESOURCE_KINDS.has(match.kind)
-}
-
-function normalizeResourceReplacement(match: WorkflowSearchMatch, replacement: string): string {
-  if (match.kind !== 'environment') return replacement
-
-  const trimmed = replacement.trim()
-  if (trimmed.startsWith('{{') && trimmed.endsWith('}}')) return trimmed
-  return `{{${trimmed}}}`
+  return isConstrainedWorkflowSearchResourceKind(match.kind)
 }
 
 export function getCompatibleResourceReplacementOptions(
@@ -81,7 +51,7 @@ export function getWorkflowSearchReplacementIssue({
   }
 
   const [firstMatch] = constrainedMatches
-  const normalizedReplacement = normalizeResourceReplacement(firstMatch, replacement)
+  const normalizedReplacement = normalizeWorkflowSearchResourceReplacement(firstMatch, replacement)
   const compatibleOptions = getCompatibleResourceReplacementOptions(
     constrainedMatches,
     resourceOptions
@@ -92,6 +62,6 @@ export function getWorkflowSearchReplacementIssue({
 
   if (hasResolvableReplacement) return null
 
-  const label = RESOURCE_KIND_LABELS[firstMatch.kind] ?? 'resource'
+  const label = getWorkflowSearchResourceKindLabel(firstMatch.kind)
   return `Choose a valid ${label} replacement.`
 }

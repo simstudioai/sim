@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { getWorkflowSearchMatchResourceGroupKey } from '@/lib/workflows/search-replace/resource-resolvers'
+import { getWorkflowSearchMatchResourceGroupKey } from '@/lib/workflows/search-replace/resources'
 import type { WorkflowSearchMatch } from '@/lib/workflows/search-replace/types'
 import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import {
