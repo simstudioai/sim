@@ -43,6 +43,10 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
     close_date: 'closed_date',
     stage_id: 'opportunity_stage_id',
     note: 'task_notes',
+    description: '_removed_description',
+    account_ids: '_removed_account_ids',
+    stage_ids: '_removed_stage_ids',
+    owner_ids: '_removed_owner_ids',
   },
   rippling: {
     action: '_removed_action',
