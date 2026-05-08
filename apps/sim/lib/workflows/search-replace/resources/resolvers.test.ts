@@ -69,6 +69,32 @@ describe('dedupeOverlappingWorkflowSearchMatches', () => {
     ])
   })
 
+  it('uses kind priority rather than iteration order for equal-span non-text matches', () => {
+    const workflowReferenceMatch = createMatch({
+      id: 'workflow-reference',
+      kind: 'workflow-reference',
+      rawValue: '{{API_KEY}}',
+      searchText: 'API_KEY',
+      range: { start: 0, end: 11 },
+      resource: { kind: 'workflow-reference', token: '{{API_KEY}}', key: 'API_KEY' },
+    })
+    const environmentMatch = createMatch({
+      id: 'environment',
+      kind: 'environment',
+      rawValue: '{{API_KEY}}',
+      searchText: 'API_KEY',
+      range: { start: 0, end: 11 },
+      resource: { kind: 'environment', token: '{{API_KEY}}', key: 'API_KEY' },
+    })
+
+    expect(
+      dedupeOverlappingWorkflowSearchMatches([workflowReferenceMatch, environmentMatch])
+    ).toEqual([workflowReferenceMatch])
+    expect(
+      dedupeOverlappingWorkflowSearchMatches([environmentMatch, workflowReferenceMatch])
+    ).toEqual([workflowReferenceMatch])
+  })
+
   it('does not collapse matches from different fields', () => {
     const firstMatch = createMatch({
       id: 'first',

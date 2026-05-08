@@ -1,10 +1,26 @@
 import type {
   WorkflowSearchMatch,
+  WorkflowSearchMatchKind,
   WorkflowSearchReplacementOption,
   WorkflowSearchResourceMeta,
   WorkflowSearchValuePath,
 } from '@/lib/workflows/search-replace/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
+
+const OVERLAPPING_MATCH_KIND_PRIORITY: Record<WorkflowSearchMatchKind, number> = {
+  text: 0,
+  environment: 1,
+  'workflow-reference': 2,
+  'oauth-credential': 3,
+  'knowledge-base': 3,
+  'knowledge-document': 3,
+  workflow: 3,
+  'mcp-server': 3,
+  'mcp-tool': 3,
+  table: 3,
+  file: 3,
+  'selector-resource': 3,
+}
 
 export function stableStringifyWorkflowSearchValue(value: unknown): string {
   if (!value || typeof value !== 'object') return JSON.stringify(value)
@@ -118,10 +134,9 @@ function shouldPreferOverlappingMatch(
   const currentLength = getRangeLength(current)
   if (candidateLength !== currentLength) return candidateLength < currentLength
 
-  if (candidate.kind !== current.kind) {
-    if (candidate.kind !== 'text') return true
-    if (current.kind !== 'text') return false
-  }
+  const candidatePriority = OVERLAPPING_MATCH_KIND_PRIORITY[candidate.kind]
+  const currentPriority = OVERLAPPING_MATCH_KIND_PRIORITY[current.kind]
+  if (candidatePriority !== currentPriority) return candidatePriority > currentPriority
 
   return false
 }
