@@ -95,7 +95,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
       title: 'Min Likelihood',
       type: 'short-input',
       placeholder: '6',
-      condition: { field: 'operation', value: ['pdl_person_enrich', 'pdl_person_identify'] },
+      condition: { field: 'operation', value: 'pdl_person_enrich' },
       mode: 'advanced',
     },
 
@@ -178,14 +178,14 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
       title: 'Ticker',
       type: 'short-input',
       placeholder: 'AAPL',
-      condition: { field: 'operation', value: ['pdl_company_enrich', 'pdl_clean_company'] },
+      condition: { field: 'operation', value: 'pdl_company_enrich' },
       mode: 'advanced',
     },
     {
       id: 'pdl_id',
       title: 'PDL Company ID',
       type: 'short-input',
-      condition: { field: 'operation', value: ['pdl_company_enrich', 'pdl_clean_company'] },
+      condition: { field: 'operation', value: 'pdl_company_enrich' },
       mode: 'advanced',
     },
     {
@@ -193,7 +193,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
       title: 'Location',
       type: 'short-input',
       placeholder: 'San Francisco, CA',
-      condition: { field: 'operation', value: ['pdl_company_enrich', 'pdl_clean_company'] },
+      condition: { field: 'operation', value: 'pdl_company_enrich' },
       mode: 'advanced',
     },
 
