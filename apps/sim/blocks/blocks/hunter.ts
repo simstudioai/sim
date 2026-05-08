@@ -373,7 +373,7 @@ Return ONLY the search query text - no explanations.`,
     results: {
       type: 'array',
       description:
-        'Companies matching the search (name, domain, logo, linkedin_url, company_type, industry, size, location, founded_year, crunchbase_url)',
+        'Companies matching the search (domain, organization, personal_emails, generic_emails, total_emails)',
     },
     // Companies Find (flattened)
     name: { type: 'string', description: 'Company name (companies-find, discover)' },

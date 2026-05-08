@@ -153,35 +153,16 @@ export const SENIORITY_OUTPUT: OutputProperty = {
 }
 
 /**
- * Output definition for discover result company objects
+ * Output definition for discover result company objects.
+ * Hunter Discover returns minimal info per company — use Domain Search or
+ * Company Enrichment for richer data on a specific result.
  */
 export const DISCOVER_RESULT_OUTPUT_PROPERTIES = {
-  name: { type: 'string', description: 'Company name' },
   domain: { type: 'string', description: 'Company domain' },
-  logo: { type: 'string', description: 'URL of the company logo', optional: true },
-  linkedin_url: {
-    type: 'string',
-    description: 'LinkedIn profile URL of the company',
-    optional: true,
-  },
-  company_type: {
-    type: 'string',
-    description: 'Company type (e.g., privately held, public company)',
-    optional: true,
-  },
-  industry: { type: 'string', description: 'Industry of the company', optional: true },
-  size: { type: 'string', description: 'Headcount range of the company', optional: true },
-  location: { type: 'string', description: 'Headquarters location', optional: true },
-  founded_year: {
-    type: 'number',
-    description: 'Year the company was founded',
-    optional: true,
-  },
-  crunchbase_url: {
-    type: 'string',
-    description: 'Crunchbase URL of the company',
-    optional: true,
-  },
+  organization: { type: 'string', description: 'Organization name' },
+  personal_emails: { type: 'number', description: 'Count of personal emails' },
+  generic_emails: { type: 'number', description: 'Count of generic (role-based) emails' },
+  total_emails: { type: 'number', description: 'Total emails found for the company' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -211,16 +192,11 @@ export interface HunterDiscoverParams extends HunterBaseParams {
 }
 
 export interface HunterDiscoverResult {
-  name: string
   domain: string
-  logo: string | null
-  linkedin_url: string | null
-  company_type: string | null
-  industry: string | null
-  size: string | null
-  location: string | null
-  founded_year: number | null
-  crunchbase_url: string | null
+  organization: string
+  personal_emails: number
+  generic_emails: number
+  total_emails: number
 }
 
 export interface HunterDiscoverResponse extends ToolResponse {

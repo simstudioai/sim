@@ -137,46 +137,46 @@ describe('hunter email_finder', () => {
 describe('hunter discover', () => {
   const transform = discoverTool.transformResponse!
 
-  it('maps companies array (not data.data)', async () => {
+  it('maps documented data array shape', async () => {
     const result = await transform(
       respond({
-        companies: [
+        data: [
           {
-            name: 'Stripe',
-            domain: 'stripe.com',
-            logo: 'https://logo.png',
-            linkedin_url: 'https://linkedin.com/company/stripe',
-            company_type: 'Privately Held',
-            meta: {
-              industry: 'Fintech',
-              size: '1000+',
-              location: 'San Francisco, CA',
-              founded_year: 2010,
-              crunchbase_url: 'https://crunchbase.com/org/stripe',
-            },
+            domain: 'hunter.io',
+            organization: 'Hunter',
+            emails_count: { personal: 23, generic: 5, total: 28 },
           },
         ],
       })
     )
 
-    expect(result.output.results).toHaveLength(1)
-    expect(result.output.results[0]).toEqual({
-      name: 'Stripe',
-      domain: 'stripe.com',
-      logo: 'https://logo.png',
-      linkedin_url: 'https://linkedin.com/company/stripe',
-      company_type: 'Privately Held',
-      industry: 'Fintech',
-      size: '1000+',
-      location: 'San Francisco, CA',
-      founded_year: 2010,
-      crunchbase_url: 'https://crunchbase.com/org/stripe',
-    })
+    expect(result.output.results).toEqual([
+      {
+        domain: 'hunter.io',
+        organization: 'Hunter',
+        personal_emails: 23,
+        generic_emails: 5,
+        total_emails: 28,
+      },
+    ])
   })
 
-  it('returns empty array when companies is missing', async () => {
+  it('returns empty array when data is missing', async () => {
     const result = await transform(respond({}))
     expect(result.output.results).toEqual([])
+  })
+
+  it('falls back to zero counts when emails_count is missing', async () => {
+    const result = await transform(
+      respond({ data: [{ domain: 'acme.com', organization: 'Acme' }] })
+    )
+    expect(result.output.results[0]).toEqual({
+      domain: 'acme.com',
+      organization: 'Acme',
+      personal_emails: 0,
+      generic_emails: 0,
+      total_emails: 0,
+    })
   })
 
   it('throws when no search params provided', () => {
@@ -184,13 +184,13 @@ describe('hunter discover', () => {
     expect(() => buildUrl({ apiKey: 'k' })).toThrow(/At least one search parameter/)
   })
 
-  it('wraps headcount in include array', () => {
+  it('builds body per docs (headcount as plain array, technology wrapped)', () => {
     const buildBody = discoverTool.request.body as (
       p: Record<string, unknown>
     ) => Record<string, unknown>
     const body = buildBody({ apiKey: 'k', headcount: '11-50', technology: 'react' })
     expect(body).toEqual({
-      headcount: { include: ['11-50'] },
+      headcount: ['11-50'],
       technology: { include: ['react'] },
     })
   })
@@ -241,6 +241,16 @@ describe('hunter companies_find', () => {
       phone: '+1-555',
       tech: ['react', 'node'],
     })
+  })
+
+  it('prefers employeesRange and coerces numeric employees', async () => {
+    const rangeResult = await transform(
+      respond({ data: { metrics: { employees: 5432, employeesRange: '1001-5000' } } })
+    )
+    expect(rangeResult.output.size).toBe('1001-5000')
+
+    const numericResult = await transform(respond({ data: { metrics: { employees: 5432 } } }))
+    expect(numericResult.output.size).toBe('5432')
   })
 
   it('survives missing nested objects', async () => {

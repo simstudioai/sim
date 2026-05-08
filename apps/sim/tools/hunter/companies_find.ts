@@ -48,7 +48,9 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
         description: c.description ?? '',
         industry: c.category?.industry ?? '',
         sector: c.category?.sector ?? '',
-        size: c.metrics?.employees ?? '',
+        size:
+          c.metrics?.employeesRange ??
+          (c.metrics?.employees != null ? String(c.metrics.employees) : ''),
         founded_year: c.foundedYear ?? null,
         location: c.location ?? '',
         country: c.geo?.country ?? '',
