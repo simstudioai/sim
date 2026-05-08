@@ -331,9 +331,11 @@ export function useUploadWorkspaceFile() {
     },
     onError: (error, variables) => {
       logger.error('Failed to upload file:', error)
-      toast.error(`Failed to upload "${variables.file.name}": ${error.message}`, {
-        duration: 5000,
-      })
+      if (!variables.skipToast) {
+        toast.error(`Failed to upload "${variables.file.name}": ${error.message}`, {
+          duration: 5000,
+        })
+      }
     },
   })
 }

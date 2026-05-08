@@ -167,6 +167,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
+      const permission = await getUserEntityPermissions(sessionUserId, 'workspace', workspaceId)
+      if (permission !== 'write' && permission !== 'admin') {
+        return NextResponse.json(
+          { error: 'Write or Admin access required for execution uploads' },
+          { status: 403 }
+        )
+      }
+
       const fileValidationError = validateFileType(fileName, contentType)
       if (fileValidationError) {
         throw new ValidationError(fileValidationError.message)
@@ -192,9 +200,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       const permission = await getUserEntityPermissions(sessionUserId, 'workspace', workspaceId)
-      if (permission !== 'write' && permission !== 'admin') {
+      if (permission !== 'admin') {
         return NextResponse.json(
-          { error: 'Write or Admin access required for workspace logo uploads' },
+          { error: 'Admin access required for workspace logo uploads' },
           { status: 403 }
         )
       }
