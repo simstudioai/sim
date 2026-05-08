@@ -1429,6 +1429,13 @@
       "when": 1778024401275,
       "tag": "0204_powerful_medusa",
       "breakpoints": true
+    },
+    {
+      "idx": 205,
+      "version": "7",
+      "when": 1778227725805,
+      "tag": "0205_funny_sleepwalker",
+      "breakpoints": true
     }
   ]
 }

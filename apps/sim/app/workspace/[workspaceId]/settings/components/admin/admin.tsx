@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Badge, Button, Input as EmcnInput, Label, Skeleton, Switch } from '@/components/emcn'
+import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -16,6 +17,12 @@ import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/gen
 import { useImportWorkflow } from '@/hooks/queries/workflows'
 
 const PAGE_SIZE = 20 as const
+
+const ENV_OPTIONS: { id: MothershipEnvironment; label: string }[] = [
+  { id: 'dev', label: 'Dev' },
+  { id: 'staging', label: 'Staging' },
+  { id: 'prod', label: 'Prod' },
+]
 
 export function Admin() {
   const params = useParams()
@@ -62,6 +69,18 @@ export function Admin() {
       await updateSetting.mutateAsync({ key: 'superUserModeEnabled', value: checked })
     }
   }
+
+  const handleMothershipEnvironmentChange = useCallback(
+    async (nextEnvironment: MothershipEnvironment) => {
+      if (nextEnvironment !== settings?.mothershipEnvironment && !updateSetting.isPending) {
+        await updateSetting.mutateAsync({
+          key: 'mothershipEnvironment',
+          value: nextEnvironment,
+        })
+      }
+    },
+    [settings?.mothershipEnvironment, updateSetting]
+  )
 
   const handleImport = () => {
     if (!workflowId.trim()) return
@@ -119,13 +138,45 @@ export function Admin() {
   ])
   return (
     <div className='flex h-full flex-col gap-6'>
-      <div className='flex items-center justify-between'>
-        <Label htmlFor='super-user-mode'>Super admin mode</Label>
-        <Switch
-          id='super-user-mode'
-          checked={settings?.superUserModeEnabled ?? false}
-          onCheckedChange={handleSuperUserModeToggle}
-        />
+      <div className='flex flex-col gap-4'>
+        <div className='flex items-center justify-between'>
+          <Label htmlFor='super-user-mode'>Super admin mode</Label>
+          <Switch
+            id='super-user-mode'
+            checked={settings?.superUserModeEnabled ?? false}
+            disabled={updateSetting.isPending}
+            onCheckedChange={handleSuperUserModeToggle}
+          />
+        </div>
+
+        {settings?.superUserModeEnabled && (
+          <div className='flex items-center justify-between gap-3'>
+            <div className='flex flex-col gap-1'>
+              <Label className='text-[var(--text-primary)] text-sm'>Mothership Environment</Label>
+              <p className='text-[var(--text-secondary)] text-xs'>
+                Controls which Copilot backend this admin session talks to.
+              </p>
+            </div>
+            <div className='flex gap-1'>
+              {ENV_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type='button'
+                  onClick={() => handleMothershipEnvironmentChange(opt.id)}
+                  disabled={updateSetting.isPending}
+                  className={cn(
+                    'rounded-md px-3 py-1 font-medium text-sm transition-colors',
+                    (settings?.mothershipEnvironment ?? 'prod') === opt.id
+                      ? 'bg-[var(--surface-hover)] text-[var(--text-primary)]'
+                      : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className='h-px bg-[var(--border-secondary)]' />

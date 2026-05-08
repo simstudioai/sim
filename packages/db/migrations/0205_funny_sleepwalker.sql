@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "mothership_environment" text DEFAULT 'prod' NOT NULL;

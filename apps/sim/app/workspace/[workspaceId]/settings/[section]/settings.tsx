@@ -31,7 +31,6 @@ import {
 import { AuditLogsSkeleton } from '@/ee/audit-logs/components/audit-logs-skeleton'
 import { DataDrainsSkeleton } from '@/ee/data-drains/components/data-drains-skeleton'
 import { DataRetentionSkeleton } from '@/ee/data-retention/components/data-retention-skeleton'
-import { useGeneralSettings } from '@/hooks/queries/general-settings'
 
 /**
  * Generic skeleton fallback for sections without a dedicated skeleton.
@@ -147,13 +146,6 @@ const Admin = dynamic(
     import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then((m) => m.Admin),
   { loading: () => <AdminSkeleton /> }
 )
-const Mothership = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/mothership/mothership').then(
-      (m) => m.Mothership
-    ),
-  { loading: () => <SettingsSectionSkeleton /> }
-)
 const RecentlyDeleted = dynamic(
   () =>
     import(
@@ -200,11 +192,9 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const searchParams = useSearchParams()
   const mcpServerId = searchParams.get('mcpServerId')
   const { data: session, isPending: sessionLoading } = useSession()
-  const { data: generalSettings, isLoading: generalSettingsLoading } = useGeneralSettings()
   const posthog = usePostHog()
 
   const isAdminRole = session?.user?.role === 'admin'
-  const isEffectiveSuperUser = isAdminRole && (generalSettings?.superUserModeEnabled ?? false)
   const effectiveSection =
     !isBillingEnabled && (section === 'subscription' || section === 'organization')
       ? 'general'
@@ -212,12 +202,11 @@ export function SettingsPage({ section }: SettingsPageProps) {
         ? 'general'
         : section === 'admin' && !sessionLoading && !isAdminRole
           ? 'general'
-          : section === 'mothership' &&
-              !sessionLoading &&
-              !generalSettingsLoading &&
-              !isEffectiveSuperUser
-            ? 'general'
-            : section
+          : section === 'mothership' && !sessionLoading && isAdminRole
+            ? 'admin'
+            : section === 'mothership' && !sessionLoading && !isAdminRole
+              ? 'general'
+              : section
 
   const label =
     allNavigationItems.find((item) => item.id === effectiveSection)?.label ?? effectiveSection
@@ -258,7 +247,6 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'inbox' && <Inbox />}
       {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
       {effectiveSection === 'admin' && <Admin />}
-      {effectiveSection === 'mothership' && <Mothership />}
     </div>
   )
 }
