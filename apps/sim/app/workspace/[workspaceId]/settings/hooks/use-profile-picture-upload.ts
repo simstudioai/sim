@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import type { StorageContext } from '@/lib/uploads/shared/types'
 
 const logger = createLogger('ProfilePictureUpload')
@@ -10,8 +11,47 @@ interface UseProfilePictureUploadProps {
   onUpload?: (url: string | null) => void
   onError?: (error: string) => void
   currentImage?: string | null
-  context?: StorageContext
+  context?: 'profile-pictures' | 'workspace-logos'
   workspaceId?: string
+}
+
+/**
+ * Server-proxied fallback used only when cloud storage isn't configured (local dev).
+ * Production always takes the presigned PUT path.
+ */
+async function uploadViaApiFallback(
+  file: File,
+  context: StorageContext,
+  workspaceId?: string
+): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('context', context)
+  if (workspaceId) {
+    formData.append('workspaceId', workspaceId)
+  }
+
+  // boundary-raw-fetch: local-dev fallback when cloud storage is not configured; multipart upload incompatible with requestJson
+  const response = await fetch('/api/files/upload', { method: 'POST', body: formData })
+  if (!response.ok) {
+    const errorData = (await response.json().catch(() => ({}))) as {
+      message?: string
+      error?: string
+    }
+    throw new Error(
+      errorData.message || errorData.error || `Failed to upload file: ${response.status}`
+    )
+  }
+  const data = (await response.json()) as {
+    fileInfo?: { path?: string }
+    path?: string
+    url?: string
+  }
+  const publicUrl = data.fileInfo?.path ?? data.path ?? data.url
+  if (!publicUrl) {
+    throw new Error('Invalid upload response: missing path')
+  }
+  return publicUrl
 }
 
 /**
@@ -64,33 +104,27 @@ export function useProfilePictureUpload({
 
   const uploadFileToServer = useCallback(
     async (file: File): Promise<string> => {
+      const presignedEndpoint =
+        context === 'workspace-logos' && workspaceId
+          ? `/api/files/presigned?type=workspace-logos&workspaceId=${encodeURIComponent(workspaceId)}`
+          : `/api/files/presigned?type=${context}`
+
       try {
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('context', context)
-        if (workspaceId) {
-          formData.append('workspaceId', workspaceId)
-        }
-
-        // boundary-raw-fetch: multipart/form-data upload (FileUpload boundary), incompatible with requestJson which JSON-stringifies bodies
-        const response = await fetch('/api/files/upload', {
-          method: 'POST',
-          body: formData,
+        const result = await runUploadStrategy({
+          file,
+          workspaceId: workspaceId ?? '',
+          context,
+          presignedEndpoint,
         })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: response.statusText }))
-          throw new Error(
-            errorData.message || errorData.error || `Failed to upload file: ${response.status}`
-          )
-        }
-
-        const data = await response.json()
-        const publicUrl = data.fileInfo?.path || data.path || data.url
-        logger.info(`Profile picture uploaded successfully via server upload: ${publicUrl}`)
-        return publicUrl
+        logger.info(`${context} uploaded successfully: ${result.path}`)
+        return result.path
       } catch (error) {
-        throw new Error(error instanceof Error ? error.message : 'Failed to upload profile picture')
+        if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
+          const publicUrl = await uploadViaApiFallback(file, context, workspaceId)
+          logger.info(`${context} uploaded successfully via API fallback: ${publicUrl}`)
+          return publicUrl
+        }
+        throw error
       }
     },
     [context, workspaceId]

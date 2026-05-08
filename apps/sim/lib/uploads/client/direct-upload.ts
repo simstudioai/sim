@@ -303,7 +303,7 @@ const uploadViaPresignedPut = (opts: UploadViaPutOptions): Promise<void> => {
 interface MultipartUploadOptions {
   file: File
   workspaceId: string
-  context: 'workspace' | 'knowledge-base' | 'mothership'
+  context: 'workspace' | 'knowledge-base' | 'mothership' | 'profile-pictures' | 'workspace-logos'
   signal?: AbortSignal
   onProgress?: (event: UploadProgressEvent) => void
 }
@@ -517,7 +517,7 @@ const uploadViaMultipart = async (
 export interface RunUploadStrategyOptions {
   file: File
   workspaceId: string
-  context: 'workspace' | 'knowledge-base' | 'mothership'
+  context: 'workspace' | 'knowledge-base' | 'mothership' | 'profile-pictures' | 'workspace-logos'
   /** Endpoint to mint a presigned PUT URL. Required unless `presignedOverride` is provided. */
   presignedEndpoint?: string
   /** Pre-fetched presigned data (e.g. from a batch endpoint). Skips per-file fetch. */

@@ -322,6 +322,7 @@ export const validUploadTypes = [
   'copilot',
   'profile-pictures',
   'mothership',
+  'workspace-logos',
 ] as const
 
 export const uploadTypeSchema = z.enum(validUploadTypes)

@@ -22,6 +22,7 @@ const VALID_UPLOAD_TYPES = [
   'copilot',
   'profile-pictures',
   'mothership',
+  'workspace-logos',
 ] as const
 
 class PresignedUrlError extends Error {
@@ -151,6 +152,37 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         context: 'mothership',
         userId: sessionUserId,
         customKey,
+        expirationSeconds: 3600,
+        metadata: { workspaceId },
+      })
+    } else if (uploadType === 'workspace-logos') {
+      const workspaceId = request.nextUrl.searchParams.get('workspaceId')
+      if (!workspaceId?.trim()) {
+        throw new ValidationError(
+          'workspaceId query parameter is required for workspace-logos uploads'
+        )
+      }
+
+      const permission = await getUserEntityPermissions(sessionUserId, 'workspace', workspaceId)
+      if (permission === null) {
+        return NextResponse.json(
+          { error: 'Insufficient permissions for workspace' },
+          { status: 403 }
+        )
+      }
+
+      if (!isImageFileType(contentType)) {
+        throw new ValidationError(
+          'Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for workspace logo uploads'
+        )
+      }
+
+      presignedUrlResponse = await generatePresignedUploadUrl({
+        fileName,
+        contentType,
+        fileSize,
+        context: 'workspace-logos',
+        userId: sessionUserId,
         expirationSeconds: 3600,
         metadata: { workspaceId },
       })
