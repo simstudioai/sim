@@ -54,13 +54,16 @@ export function isNetlifyEventMatch(triggerId: string, state: string | undefined
 
 /**
  * Generates HTML setup instructions shown inside the trigger config panel.
+ * Netlify outgoing webhooks are configured manually in the Netlify dashboard;
+ * Sim verifies inbound deliveries using the JWS secret token the user provides.
  */
 export function netlifySetupInstructions(eventLabel: string): string {
   const instructions = [
-    'Generate a Personal Access Token at <strong>User settings → Applications → Personal access tokens</strong> (<a href="https://app.netlify.com/user/applications#personal-access-tokens" target="_blank" rel="noreferrer">direct link</a>) and paste it above.',
-    'Enter the target <strong>Site ID</strong> (or primary domain) of the Netlify site to listen on.',
-    `<strong>Deploy</strong> the workflow — Sim will automatically register an outgoing webhook in Netlify for <strong>${eventLabel}</strong> events on the chosen site.`,
-    'The webhook is automatically removed from Netlify when you delete this trigger or undeploy the workflow.',
+    'Copy the <strong>Webhook URL</strong> above.',
+    'In Netlify open <strong>Site settings → Build &amp; deploy → Deploy notifications → Add notification → Outgoing webhook</strong>.',
+    `Paste the URL, choose <strong>${eventLabel}</strong> as the event to listen for, generate a <strong>JWS secret token</strong>, and save the notification.`,
+    'Paste that same JWS secret into the <strong>Signature Secret</strong> field above, then <strong>Deploy</strong> the workflow.',
+    'Remove the notification in Netlify when you delete this trigger — Sim does not manage the webhook on your behalf.',
   ]
 
   return instructions
@@ -73,28 +76,21 @@ export function netlifySetupInstructions(eventLabel: string): string {
 
 /**
  * Netlify-specific extra fields exposed in trigger configuration.
+ * The signature secret is the JWS secret token the user configures on the
+ * outgoing webhook in Netlify; we use it to verify inbound deliveries.
  */
 export function buildNetlifyExtraFields(triggerId: string): SubBlockConfig[] {
   return [
     {
-      id: 'apiKey',
-      title: 'Access Token',
+      id: 'signatureSecret',
+      title: 'Signature Secret',
       type: 'short-input' as const,
-      placeholder: 'Enter your Netlify Personal Access Token',
-      description: 'Required to register and remove the webhook in Netlify.',
+      placeholder: 'Paste the JWS secret token configured in Netlify',
+      description:
+        'The JWS secret token set on the outgoing webhook in Netlify. Used to verify the signature of every incoming delivery.',
       password: true,
       required: true,
       paramVisibility: 'user-only',
-      mode: 'trigger' as const,
-      condition: { field: 'selectedTriggerId', value: triggerId },
-    },
-    {
-      id: 'siteId',
-      title: 'Site ID',
-      type: 'short-input' as const,
-      placeholder: 'Site ID or primary domain (e.g., 0d3a9d2f-... or my-site.netlify.app)',
-      description: 'The Netlify site whose deploys will trigger this workflow.',
-      required: true,
       mode: 'trigger' as const,
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
