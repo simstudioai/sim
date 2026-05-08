@@ -162,7 +162,7 @@ export async function expandFolderIdsWithDescendants(
   const expanded = new Set<string>(seedIds)
   const queue = [...seedIds]
   while (queue.length > 0) {
-    const current = queue.shift() as string
+    const current = queue.pop() as string
     const children = childrenByParent.get(current)
     if (!children) continue
     for (const childId of children) {
