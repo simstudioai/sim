@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { uploadViaApiFallback } from '@/lib/uploads/client/api-fallback'
 import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
-import type { StorageContext } from '@/lib/uploads/shared/types'
 
 const logger = createLogger('ProfilePictureUpload')
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
@@ -13,45 +13,6 @@ interface UseProfilePictureUploadProps {
   currentImage?: string | null
   context?: 'profile-pictures' | 'workspace-logos'
   workspaceId?: string
-}
-
-/**
- * Server-proxied fallback used only when cloud storage isn't configured (local dev).
- * Production always takes the presigned PUT path.
- */
-async function uploadViaApiFallback(
-  file: File,
-  context: StorageContext,
-  workspaceId?: string
-): Promise<string> {
-  const formData = new FormData()
-  formData.append('file', file)
-  formData.append('context', context)
-  if (workspaceId) {
-    formData.append('workspaceId', workspaceId)
-  }
-
-  // boundary-raw-fetch: local-dev fallback when cloud storage is not configured; multipart upload incompatible with requestJson
-  const response = await fetch('/api/files/upload', { method: 'POST', body: formData })
-  if (!response.ok) {
-    const errorData = (await response.json().catch(() => ({}))) as {
-      message?: string
-      error?: string
-    }
-    throw new Error(
-      errorData.message || errorData.error || `Failed to upload file: ${response.status}`
-    )
-  }
-  const data = (await response.json()) as {
-    fileInfo?: { path?: string }
-    path?: string
-    url?: string
-  }
-  const publicUrl = data.fileInfo?.path ?? data.path ?? data.url
-  if (!publicUrl) {
-    throw new Error('Invalid upload response: missing path')
-  }
-  return publicUrl
 }
 
 /**
@@ -120,9 +81,9 @@ export function useProfilePictureUpload({
         return result.path
       } catch (error) {
         if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
-          const publicUrl = await uploadViaApiFallback(file, context, workspaceId)
-          logger.info(`${context} uploaded successfully via API fallback: ${publicUrl}`)
-          return publicUrl
+          const { path } = await uploadViaApiFallback(file, context, workspaceId)
+          logger.info(`${context} uploaded successfully via API fallback: ${path}`)
+          return path
         }
         throw error
       }

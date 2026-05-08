@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toast } from '@/components/emcn'
+import { uploadViaApiFallback } from '@/lib/uploads/client/api-fallback'
 import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import { resolveFileType } from '@/lib/uploads/utils/file-utils'
 
@@ -50,44 +51,6 @@ interface UseFileAttachmentsProps {
   workspaceId?: string
   disabled?: boolean
   isLoading?: boolean
-}
-
-/**
- * Server-proxied fallback used only when cloud storage isn't configured (local dev).
- * Production always takes the presigned PUT path.
- */
-async function uploadViaApiFallback(
-  file: File,
-  workspaceId: string
-): Promise<{ path: string; key: string }> {
-  const formData = new FormData()
-  formData.append('file', file)
-  formData.append('context', 'mothership')
-  formData.append('workspaceId', workspaceId)
-
-  // boundary-raw-fetch: local-dev fallback when cloud storage is not configured; multipart upload incompatible with requestJson
-  const response = await fetch('/api/files/upload', { method: 'POST', body: formData })
-  if (!response.ok) {
-    const errorData = (await response.json().catch(() => ({}))) as {
-      message?: string
-      error?: string
-    }
-    throw new Error(
-      errorData.message || errorData.error || `Failed to upload file: ${response.status}`
-    )
-  }
-  const data = (await response.json()) as {
-    fileInfo?: { path?: string; key?: string }
-    path?: string
-    key?: string
-    url?: string
-  }
-  const path = data.fileInfo?.path ?? data.path ?? data.url
-  const key = data.fileInfo?.key ?? data.key
-  if (!path || !key) {
-    throw new Error('Invalid upload response: missing path or key')
-  }
-  return { path, key }
 }
 
 /**
@@ -193,7 +156,11 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
               })
             } catch (error) {
               if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
-                result = await uploadViaApiFallback(file, workspaceId)
+                const fallback = await uploadViaApiFallback(file, 'mothership', workspaceId)
+                if (!fallback.key) {
+                  throw new Error('Invalid upload response: missing key')
+                }
+                result = { path: fallback.path, key: fallback.key }
               } else {
                 throw error
               }

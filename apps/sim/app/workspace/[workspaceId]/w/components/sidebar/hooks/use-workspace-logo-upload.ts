@@ -1,39 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { uploadViaApiFallback } from '@/lib/uploads/client/api-fallback'
 import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 
 const logger = createLogger('WorkspaceLogoUpload')
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp']
-
-async function uploadViaApiFallback(file: File, workspaceId: string): Promise<string> {
-  const formData = new FormData()
-  formData.append('file', file)
-  formData.append('context', 'workspace-logos')
-  formData.append('workspaceId', workspaceId)
-
-  // boundary-raw-fetch: local-dev fallback when cloud storage is not configured; multipart upload incompatible with requestJson
-  const response = await fetch('/api/files/upload', { method: 'POST', body: formData })
-  if (!response.ok) {
-    const errorData = (await response.json().catch(() => ({}))) as {
-      message?: string
-      error?: string
-    }
-    throw new Error(
-      errorData.message || errorData.error || `Failed to upload file: ${response.status}`
-    )
-  }
-  const data = (await response.json()) as {
-    fileInfo?: { path?: string }
-    path?: string
-    url?: string
-  }
-  const publicUrl = data.fileInfo?.path ?? data.path ?? data.url
-  if (!publicUrl) {
-    throw new Error('Invalid upload response: missing path')
-  }
-  return publicUrl
-}
 
 interface UseWorkspaceLogoUploadProps {
   workspaceId?: string
@@ -108,9 +80,9 @@ export function useWorkspaceLogoUpload({
       return result.path
     } catch (error) {
       if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
-        const publicUrl = await uploadViaApiFallback(file, targetWorkspaceId)
-        logger.info(`Workspace logo uploaded via API fallback: ${publicUrl}`)
-        return publicUrl
+        const { path } = await uploadViaApiFallback(file, 'workspace-logos', targetWorkspaceId)
+        logger.info(`Workspace logo uploaded via API fallback: ${path}`)
+        return path
       }
       throw error
     }

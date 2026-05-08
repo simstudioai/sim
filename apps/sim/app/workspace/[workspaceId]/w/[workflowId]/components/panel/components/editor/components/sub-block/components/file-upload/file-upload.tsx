@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
@@ -12,7 +13,11 @@ import { fileDeleteContract } from '@/lib/api/contracts/storage-transfer'
 import { cn } from '@/lib/core/utils/cn'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import { useUploadWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import {
+  useUploadWorkspaceFile,
+  useWorkspaceFiles,
+  workspaceFilesKeys,
+} from '@/hooks/queries/workspace-files'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -166,6 +171,7 @@ export function FileUpload({
   } = useWorkspaceFiles(isPreview ? '' : workspaceId)
 
   const uploadFileMutation = useUploadWorkspaceFile()
+  const queryClient = useQueryClient()
 
   const value = isPreview ? previewValue : storeValue
 
@@ -316,6 +322,7 @@ export function FileUpload({
             workspaceId,
             file,
             skipToast: true,
+            skipInvalidation: true,
           })
 
           uploadedFiles.push({
@@ -345,6 +352,7 @@ export function FileUpload({
 
         if (workspaceId) {
           void refetchWorkspaceFiles()
+          void queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
         }
 
         if (uploadedFiles.length === 1) {
