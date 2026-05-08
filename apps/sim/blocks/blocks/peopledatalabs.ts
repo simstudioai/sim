@@ -411,82 +411,95 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
       },
       params: (params) => {
         const result: Record<string, unknown> = { ...params }
+        const op = params.operation
 
-        if (params.company_profile !== undefined) {
-          result.profile = params.company_profile
-          result.company_profile = undefined
+        // Strip alternate-operation aliases so stale values from prior operations
+        // can't leak into the current request.
+        result.company_profile = undefined
+        result.company_location = undefined
+        result.autocomplete_size = undefined
+        result.identify_locality = undefined
+        result.identify_region = undefined
+        result.identify_country = undefined
+        result.identify_postal_code = undefined
+        result.identify_birth_date = undefined
+        result.bulk_person_requests = undefined
+        result.bulk_person_required = undefined
+        result.bulk_company_requests = undefined
+        result.bulk_company_required = undefined
+        result.clean_location_input = undefined
+        result.school_name = undefined
+        result.school_website = undefined
+        result.school_profile = undefined
+
+        // Company Enrich uses company_* aliases for shared fields (profile, location)
+        if (op === 'pdl_company_enrich') {
+          if (params.company_profile !== undefined) result.profile = params.company_profile
+          if (params.company_location !== undefined) result.location = params.company_location
         }
-        if (params.company_location !== undefined) {
-          result.location = params.company_location
-          result.company_location = undefined
+        // Company Cleaner only accepts profile (LinkedIn URL) of the company aliases
+        if (op === 'pdl_clean_company') {
+          if (params.company_profile !== undefined) result.profile = params.company_profile
         }
-        if (params.autocomplete_size !== undefined) {
-          result.size = Number(params.autocomplete_size)
-          result.autocomplete_size = undefined
-        }
-        if (params.size !== undefined) {
+
+        // Autocomplete: use autocomplete_size, ignore stale search size
+        if (op === 'pdl_autocomplete') {
+          if (params.autocomplete_size !== undefined) {
+            result.size = Number(params.autocomplete_size)
+          } else {
+            result.size = undefined
+          }
+        } else if (params.size !== undefined) {
           result.size = Number(params.size)
         }
-        if (params.min_likelihood !== undefined) {
-          result.min_likelihood = Number(params.min_likelihood)
+
+        // min_likelihood is only honored by enrich endpoints
+        if (op === 'pdl_person_enrich' || op === 'pdl_company_enrich') {
+          if (params.min_likelihood !== undefined) {
+            result.min_likelihood = Number(params.min_likelihood)
+          }
+        } else {
+          result.min_likelihood = undefined
         }
 
-        // Person Identify field renames
-        if (params.identify_locality !== undefined) {
-          result.locality = params.identify_locality
-          result.identify_locality = undefined
-        }
-        if (params.identify_region !== undefined) {
-          result.region = params.identify_region
-          result.identify_region = undefined
-        }
-        if (params.identify_country !== undefined) {
-          result.country = params.identify_country
-          result.identify_country = undefined
-        }
-        if (params.identify_postal_code !== undefined) {
-          result.postal_code = params.identify_postal_code
-          result.identify_postal_code = undefined
-        }
-        if (params.identify_birth_date !== undefined) {
-          result.birth_date = params.identify_birth_date
-          result.identify_birth_date = undefined
+        if (op === 'pdl_person_identify') {
+          if (params.identify_locality !== undefined) result.locality = params.identify_locality
+          if (params.identify_region !== undefined) result.region = params.identify_region
+          if (params.identify_country !== undefined) result.country = params.identify_country
+          if (params.identify_postal_code !== undefined) {
+            result.postal_code = params.identify_postal_code
+          }
+          if (params.identify_birth_date !== undefined) {
+            result.birth_date = params.identify_birth_date
+          }
         }
 
-        // Bulk renames
-        if (params.bulk_person_requests !== undefined) {
-          result.requests = params.bulk_person_requests
-          result.bulk_person_requests = undefined
-        }
-        if (params.bulk_person_required !== undefined) {
-          result.required = params.bulk_person_required
-          result.bulk_person_required = undefined
-        }
-        if (params.bulk_company_requests !== undefined) {
-          result.requests = params.bulk_company_requests
-          result.bulk_company_requests = undefined
-        }
-        if (params.bulk_company_required !== undefined) {
-          result.required = params.bulk_company_required
-          result.bulk_company_required = undefined
+        if (op === 'pdl_bulk_person_enrich') {
+          if (params.bulk_person_requests !== undefined) {
+            result.requests = params.bulk_person_requests
+          }
+          if (params.bulk_person_required !== undefined) {
+            result.required = params.bulk_person_required
+          }
+        } else if (op === 'pdl_bulk_company_enrich') {
+          if (params.bulk_company_requests !== undefined) {
+            result.requests = params.bulk_company_requests
+          }
+          if (params.bulk_company_required !== undefined) {
+            result.required = params.bulk_company_required
+          }
         }
 
-        // Cleaner renames
-        if (params.clean_location_input !== undefined) {
-          result.location = params.clean_location_input
-          result.clean_location_input = undefined
+        if (op === 'pdl_clean_location') {
+          if (params.clean_location_input !== undefined) {
+            result.location = params.clean_location_input
+          }
         }
-        if (params.school_name !== undefined) {
-          result.name = params.school_name
-          result.school_name = undefined
-        }
-        if (params.school_website !== undefined) {
-          result.website = params.school_website
-          result.school_website = undefined
-        }
-        if (params.school_profile !== undefined) {
-          result.profile = params.school_profile
-          result.school_profile = undefined
+
+        if (op === 'pdl_clean_school') {
+          if (params.school_name !== undefined) result.name = params.school_name
+          if (params.school_website !== undefined) result.website = params.school_website
+          if (params.school_profile !== undefined) result.profile = params.school_profile
         }
 
         return result
