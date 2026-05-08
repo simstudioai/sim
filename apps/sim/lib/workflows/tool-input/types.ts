@@ -27,7 +27,11 @@ export interface StoredTool {
   usageControl?: 'auto' | 'force' | 'none'
 }
 
-export function parseStoredToolInputValue(value: unknown): StoredTool[] {
+export interface ParsedStoredTool extends Omit<StoredTool, 'params'> {
+  params?: Record<string, unknown>
+}
+
+export function parseStoredToolInputValue(value: unknown): ParsedStoredTool[] {
   if (!Array.isArray(value)) return []
 
   return value.flatMap((tool) => {
@@ -37,11 +41,7 @@ export function parseStoredToolInputValue(value: unknown): StoredTool[] {
 
     const params =
       record.params && typeof record.params === 'object' && !Array.isArray(record.params)
-        ? Object.fromEntries(
-            Object.entries(record.params as Record<string, unknown>).flatMap(([key, item]) =>
-              typeof item === 'string' ? [[key, item]] : []
-            )
-          )
+        ? (record.params as Record<string, unknown>)
         : undefined
 
     return [

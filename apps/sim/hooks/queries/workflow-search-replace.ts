@@ -568,6 +568,23 @@ export function useWorkflowSearchMcpServerReplacementOptions(
   })
 }
 
+export function buildWorkflowSearchMcpToolReplacementOptions(
+  toolGroups: WorkflowSearchMatch[],
+  tools: DiscoverMcpToolsResponse['data']['tools']
+): WorkflowSearchReplacementOption[] {
+  return toolGroups.flatMap((match) => {
+    const serverId = match.resource?.selectorContext?.mcpServerId
+    return tools
+      .filter((tool) => !serverId || tool.serverId === serverId)
+      .map((tool) => ({
+        kind: 'mcp-tool',
+        value: createMcpToolId(tool.serverId, tool.name),
+        label: `${tool.serverName}: ${tool.name}`,
+        resourceGroupKey: match.resource?.resourceGroupKey,
+      }))
+  })
+}
+
 export function useWorkflowSearchMcpToolReplacementOptions(
   matches: WorkflowSearchMatch[],
   workspaceId?: string
@@ -586,14 +603,7 @@ export function useWorkflowSearchMcpToolReplacementOptions(
         enabled: Boolean(workspaceId && toolGroups.length > 0),
         staleTime: 60 * 1000,
         select: (response: DiscoverMcpToolsResponse): WorkflowSearchReplacementOption[] =>
-          toolGroups.flatMap((match) =>
-            response.data.tools.map((tool) => ({
-              kind: 'mcp-tool',
-              value: createMcpToolId(tool.serverId, tool.name),
-              label: `${tool.serverName}: ${tool.name}`,
-              resourceGroupKey: match.resource?.resourceGroupKey,
-            }))
-          ),
+          buildWorkflowSearchMcpToolReplacementOptions(toolGroups, response.data.tools),
       },
     ],
   })

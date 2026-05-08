@@ -125,6 +125,32 @@ describe('buildWorkflowSearchReplacePlan', () => {
     expect(plan.updates[0].nextValue).toBe('kb-new,kb-old,kb-second')
   })
 
+  it('replaces a selected duplicate structured resource when duplicates are separated', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['knowledge-1'].subBlocks.knowledgeBaseIds.value = 'kb-old,kb-second,kb-old'
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'kb-old',
+      mode: 'resource',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    }).filter((match) => match.kind === 'knowledge-base')
+
+    const plan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches,
+      selectedMatchIds: new Set([matches[1].id]),
+      defaultReplacement: 'kb-new',
+      resourceReplacementOptions: [
+        { kind: 'knowledge-base', value: 'kb-new', label: 'New Knowledge Base' },
+      ],
+    })
+
+    expect(plan.conflicts).toEqual([])
+    expect(plan.updates).toHaveLength(1)
+    expect(plan.updates[0].nextValue).toBe('kb-old,kb-second,kb-new')
+  })
+
   it('replaces all compatible knowledge base references across blocks', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['knowledge-2'] = {
@@ -350,9 +376,16 @@ describe('buildWorkflowSearchReplacePlan', () => {
       },
       {
         name: 'second.pdf',
-        key: 'file-key-old',
+        key: 'file-key-other',
         path: '/second.pdf',
         size: 14,
+        type: 'application/pdf',
+      },
+      {
+        name: 'third.pdf',
+        key: 'file-key-old',
+        path: '/third.pdf',
+        size: 16,
         type: 'application/pdf',
       },
     ]
@@ -415,7 +448,11 @@ describe('buildWorkflowSearchReplacePlan', () => {
     const nextTools = plan.updates[0].nextValue as Array<{ params: { attachmentFiles: string } }>
 
     expect(plan.conflicts).toEqual([])
-    expect(JSON.parse(nextTools[0].params.attachmentFiles)).toEqual([files[0], replacementFile])
+    expect(JSON.parse(nextTools[0].params.attachmentFiles)).toEqual([
+      files[0],
+      files[1],
+      replacementFile,
+    ])
   })
 
   it('clears nested tool-input dependents when replacing a parent resource', () => {
@@ -617,6 +654,216 @@ describe('buildWorkflowSearchReplacePlan', () => {
     expect(JSON.parse(nextTools[0].params.inputMapping)).toEqual({
       customerEmail: 'new email value',
     })
+  })
+
+  it('replaces object-valued fallback tool params without changing metadata', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'mcp',
+              title: 'MCP tool',
+              params: {
+                payload: {
+                  type: 'metadata-type',
+                  filter: { status: 'old customer' },
+                },
+              },
+            },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'old',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'tool-input-1')
+    const plan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches,
+      selectedMatchIds: new Set(matches.map((match) => match.id)),
+      defaultReplacement: 'new',
+    })
+    const nextTools = plan.updates[0].nextValue as Array<{
+      params: { payload: { type: string; filter: { status: string } } }
+    }>
+
+    expect(plan.conflicts).toEqual([])
+    expect(nextTools[0].params.payload).toEqual({
+      type: 'metadata-type',
+      filter: { status: 'new customer' },
+    })
+  })
+
+  it('replaces serialized JSON fallback tool param values without changing keys', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'mcp',
+              title: 'MCP tool',
+              params: {
+                payload: JSON.stringify({ customer: { name: 'old customer' } }),
+              },
+            },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'old',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'tool-input-1')
+    const plan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches,
+      selectedMatchIds: new Set(matches.map((match) => match.id)),
+      defaultReplacement: 'new',
+    })
+    const nextTools = plan.updates[0].nextValue as Array<{ params: { payload: string } }>
+
+    expect(plan.conflicts).toEqual([])
+    expect(JSON.parse(nextTools[0].params.payload)).toEqual({
+      customer: { name: 'new customer' },
+    })
+  })
+
+  it('replaces stringified variables-input values without changing metadata', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['variables-1'] = {
+      id: 'variables-1',
+      type: 'custom',
+      name: 'Variables',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        assignments: {
+          id: 'assignments',
+          type: 'variables-input',
+          value: JSON.stringify([
+            {
+              id: 'assignment-id',
+              variableId: 'variable-id',
+              variableName: 'customer',
+              type: 'string',
+              value: 'old customer',
+              isExisting: true,
+            },
+          ]),
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'old',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'assignments', title: 'Variables', type: 'variables-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'variables-1')
+
+    const plan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches,
+      selectedMatchIds: new Set(matches.map((match) => match.id)),
+      defaultReplacement: 'new',
+    })
+    const nextAssignments = JSON.parse(plan.updates[0].nextValue as string)
+
+    expect(plan.conflicts).toEqual([])
+    expect(nextAssignments).toEqual([
+      {
+        id: 'assignment-id',
+        variableId: 'variable-id',
+        variableName: 'customer',
+        type: 'string',
+        value: 'new customer',
+        isExisting: true,
+      },
+    ])
+  })
+
+  it('replaces stringified table cell values without changing row metadata', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['table-1'] = {
+      id: 'table-1',
+      type: 'custom',
+      name: 'Table',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        rows: {
+          id: 'rows',
+          type: 'table',
+          value: JSON.stringify([{ id: 'row-id', cells: { Name: 'old customer' } }]),
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'old',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'rows', title: 'Rows', type: 'table', columns: ['Name'] }],
+        },
+      },
+    }).filter((match) => match.blockId === 'table-1')
+
+    const plan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches,
+      selectedMatchIds: new Set(matches.map((match) => match.id)),
+      defaultReplacement: 'new',
+    })
+    const nextRows = JSON.parse(plan.updates[0].nextValue as string)
+
+    expect(plan.conflicts).toEqual([])
+    expect(nextRows).toEqual([{ id: 'row-id', cells: { Name: 'new customer' } }])
   })
 
   it('allows replacing text matches with an empty string', () => {

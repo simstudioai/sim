@@ -71,7 +71,8 @@ function createResourceMeta({
     providerId: subBlockConfig.serviceId,
     serviceId: subBlockConfig.serviceId,
     selectorKey: subBlockConfig.selectorKey,
-    selectorContext: subBlockConfig.selectorKey ? selectorContext : undefined,
+    selectorContext:
+      selectorContext && Object.keys(selectorContext).length > 0 ? selectorContext : undefined,
     requiredScopes: subBlockConfig.requiredScopes,
     key: rawValue,
   }
@@ -103,9 +104,9 @@ function replaceCommaResourceValue(
   let occurrenceIndex = 0
 
   const shouldReplace = (item: string) => {
-    if (item !== rawValue) return false
     const currentOccurrenceIndex = occurrenceIndex
     occurrenceIndex += 1
+    if (item !== rawValue) return false
     return targetOccurrenceIndex === undefined || currentOccurrenceIndex === targetOccurrenceIndex
   }
 
@@ -211,9 +212,11 @@ const fileUploadResourceCodec: WorkflowSearchResourceCodec = {
     let occurrenceIndex = 0
 
     const shouldReplace = (item: unknown) => {
-      if (getFileResourceKey(item) !== rawValue) return false
+      const itemKey = getFileResourceKey(item)
+      if (!itemKey) return false
       const currentOccurrenceIndex = occurrenceIndex
       occurrenceIndex += 1
+      if (itemKey !== rawValue) return false
       return targetOccurrenceIndex === undefined || currentOccurrenceIndex === targetOccurrenceIndex
     }
 

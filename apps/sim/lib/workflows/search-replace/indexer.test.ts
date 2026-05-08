@@ -117,6 +117,120 @@ describe('indexWorkflowSearchMatches', () => {
     expect(matches.some((match) => match.valuePath.join('.') === '0.type')).toBe(false)
   })
 
+  it('does not index evaluator type metadata', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['evaluator-1'] = {
+      id: 'evaluator-1',
+      type: 'custom',
+      name: 'Evaluator',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        metrics: {
+          id: 'metrics',
+          type: 'eval-input',
+          value: [
+            {
+              id: 'metric-1',
+              name: 'Accuracy',
+              type: 'score-kind',
+              description: 'Factual correctness',
+            },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'score-kind',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'metrics', title: 'Metrics', type: 'eval-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'evaluator-1')
+
+    expect(matches).toEqual([])
+  })
+
+  it('uses the same mode visibility as the editor', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['mode-1'] = {
+      id: 'mode-1',
+      type: 'custom',
+      name: 'Mode Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      advancedMode: false,
+      triggerMode: false,
+      outputs: {},
+      subBlocks: {
+        basicOnly: { id: 'basicOnly', type: 'short-input', value: 'visible-basic' },
+        advancedOnly: { id: 'advancedOnly', type: 'short-input', value: 'hidden-advanced' },
+        triggerOnly: { id: 'triggerOnly', type: 'short-input', value: 'hidden-trigger' },
+      },
+    }
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: {
+        subBlocks: [
+          { id: 'basicOnly', title: 'Basic', type: 'short-input', mode: 'basic' },
+          { id: 'advancedOnly', title: 'Advanced', type: 'short-input', mode: 'advanced' },
+          { id: 'triggerOnly', title: 'Trigger', type: 'short-input', mode: 'trigger' },
+        ],
+      },
+    }
+
+    expect(
+      indexWorkflowSearchMatches({
+        workflow,
+        query: 'hidden',
+        mode: 'text',
+        blockConfigs,
+      }).filter((match) => match.blockId === 'mode-1')
+    ).toEqual([])
+
+    workflow.blocks['mode-1'].advancedMode = true
+    const advancedMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'advanced',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'mode-1')
+    const basicMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'basic',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'mode-1')
+
+    expect(advancedMatches).toHaveLength(1)
+    expect(advancedMatches[0].subBlockId).toBe('advancedOnly')
+    expect(basicMatches).toEqual([])
+
+    workflow.blocks['mode-1'].triggerMode = true
+    const triggerMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'trigger',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'mode-1')
+    const nonTriggerMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'advanced',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'mode-1')
+
+    expect(triggerMatches).toHaveLength(1)
+    expect(triggerMatches[0].subBlockId).toBe('triggerOnly')
+    expect(nonTriggerMatches).toEqual([])
+  })
+
   it('does not index fixed-choice dropdown values as text replacements', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['dropdown-1'] = {
@@ -170,6 +284,43 @@ describe('indexWorkflowSearchMatches', () => {
     })
 
     expect(matches.filter((match) => match.blockId === 'dropdown-1')).toEqual([])
+  })
+
+  it('does not index display-only subblocks that render from config', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['display-1'] = {
+      id: 'display-1',
+      type: 'custom',
+      name: 'Display',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        help: { id: 'help', type: 'text', value: 'stored shadow text' },
+        scheduleInfo: { id: 'scheduleInfo', type: 'schedule-info', value: 'stored schedule text' },
+        modal: { id: 'modal', type: 'modal', value: 'stored modal text' },
+        webhook: { id: 'webhook', type: 'webhook-config', value: 'stored webhook text' },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'stored',
+      mode: 'all',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [
+            { id: 'help', title: 'Help', type: 'text', defaultValue: 'Rendered help' },
+            { id: 'scheduleInfo', title: 'Schedule', type: 'schedule-info' },
+            { id: 'modal', title: 'Modal', type: 'modal' },
+            { id: 'webhook', title: 'Webhook', type: 'webhook-config' },
+          ],
+        },
+      },
+    }).filter((match) => match.blockId === 'display-1')
+
+    expect(matches).toEqual([])
   })
 
   it('indexes only value fields for JSON-backed knowledge tag subblocks', () => {
@@ -259,6 +410,118 @@ describe('indexWorkflowSearchMatches', () => {
     )
     expect(tagNameMatches).toEqual([])
     expect(typeMatches).toEqual([])
+  })
+
+  it('indexes only assignment values for stringified variables input', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['variables-1'] = {
+      id: 'variables-1',
+      type: 'custom',
+      name: 'Variables',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        assignments: {
+          id: 'assignments',
+          type: 'variables-input',
+          value: JSON.stringify([
+            {
+              id: 'assignment-needle-id',
+              variableId: 'variable-needle-id',
+              variableName: 'needleVariable',
+              type: 'string',
+              value: 'safe needle value',
+              isExisting: true,
+            },
+          ]),
+        },
+      },
+    }
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: {
+        subBlocks: [{ id: 'assignments', title: 'Variables', type: 'variables-input' }],
+      },
+    }
+
+    const valueMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'needle value',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'variables-1')
+    const metadataMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'variable-needle-id',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'variables-1')
+    const variableNameMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'needleVariable',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'variables-1')
+
+    expect(valueMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'assignments',
+        valuePath: [0, 'value'],
+        fieldTitle: 'Value',
+        searchText: 'safe needle value',
+      }),
+    ])
+    expect(metadataMatches).toEqual([])
+    expect(variableNameMatches).toEqual([])
+  })
+
+  it('indexes table cells from stringified table values without exposing row metadata', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['table-1'] = {
+      id: 'table-1',
+      type: 'custom',
+      name: 'Table',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        rows: {
+          id: 'rows',
+          type: 'table',
+          value: JSON.stringify([{ id: 'row-needle-id', cells: { Name: 'Acme needle' } }]),
+        },
+      },
+    }
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: {
+        subBlocks: [{ id: 'rows', title: 'Rows', type: 'table', columns: ['Name'] }],
+      },
+    }
+
+    const cellMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'needle',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'table-1')
+    const metadataMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'row-needle-id',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'table-1')
+
+    expect(cellMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'rows',
+        valuePath: [0, 'cells', 'Name'],
+        fieldTitle: 'Name',
+        searchText: 'Acme needle',
+      }),
+    ])
+    expect(metadataMatches).toEqual([])
   })
 
   it('indexes only editable branch values for JSON-backed condition and router subblocks', () => {
@@ -656,11 +919,18 @@ describe('indexWorkflowSearchMatches', () => {
     expect(matches.some((match) => match.valuePath.includes('toolId'))).toBe(false)
     expect(matches.some((match) => match.valuePath.includes('operation'))).toBe(false)
     expect(matches.some((match) => match.valuePath.includes('credentialId'))).toBe(false)
-    expect(matches.some((match) => match.valuePath.includes('inputMapping'))).toBe(false)
+    expect(matches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          valuePath: [0, 'params', 'inputMapping', 'query'],
+          searchText: 'customer json value',
+        }),
+      ])
+    )
     expect(matches.some((match) => match.valuePath.includes('schema'))).toBe(false)
   })
 
-  it('does not index hidden registry tool params inside tool input values', () => {
+  it('indexes explicit secret tool params for intentional replacement', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['tool-input-1'] = {
       id: 'tool-input-1',
@@ -713,7 +983,13 @@ describe('indexWorkflowSearchMatches', () => {
       },
     }).filter((match) => match.blockId === 'tool-input-1')
 
-    expect(hiddenMatches).toEqual([])
+    expect(hiddenMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'tools',
+        valuePath: [0, 'params', 'botToken'],
+        searchText: 'xoxb-hidden-token',
+      }),
+    ])
     expect(visibleMatches).toEqual([
       expect.objectContaining({
         subBlockId: 'tools',
@@ -958,6 +1234,271 @@ describe('indexWorkflowSearchMatches', () => {
         subBlockType: 'workflow-input-mapper',
         valuePath: [0, 'params', 'inputMapping', 'customerEmail'],
         searchText: 'old email value',
+      }),
+    ])
+  })
+
+  it('indexes object-backed workflow-input tool mappings by values', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'workflow_input',
+              toolId: 'workflow_executor',
+              title: 'Workflow',
+              params: {
+                workflowId: 'workflow-old',
+                inputMapping: { customerEmail: 'object email value' },
+              },
+            },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'object email',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'tool-input-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'tools',
+        subBlockType: 'workflow-input-mapper',
+        valuePath: [0, 'params', 'inputMapping', 'customerEmail'],
+        searchText: 'object email value',
+      }),
+    ])
+  })
+
+  it('indexes object-valued fallback tool params by values without exposing metadata', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'mcp',
+              title: 'MCP tool',
+              params: {
+                payload: {
+                  type: 'metadata-type',
+                  filter: { status: 'open customer' },
+                },
+              },
+            },
+          ],
+        },
+      },
+    }
+
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: {
+        subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+      },
+    }
+    const valueMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'open customer',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'tool-input-1')
+    const metadataMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'metadata-type',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'tool-input-1')
+
+    expect(valueMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'tools',
+        subBlockType: 'workflow-input-mapper',
+        valuePath: [0, 'params', 'payload', 'filter', 'status'],
+        searchText: 'open customer',
+      }),
+    ])
+    expect(metadataMatches).toEqual([])
+  })
+
+  it('indexes visible tool params ending in key', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'custom-tool',
+              title: 'Custom issue tool',
+              params: {
+                issueKey: 'PROJ-123',
+              },
+            },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'PROJ',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'tool-input-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'tools',
+        valuePath: [0, 'params', 'issueKey'],
+        searchText: 'PROJ-123',
+      }),
+    ])
+  })
+
+  it('indexes nested JSON object fallback tool params by values without exposing keys', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'mcp',
+              toolId: 'server-tool',
+              title: 'MCP tool',
+              params: {
+                payload: JSON.stringify({ customer: { name: 'Acme Corp' } }),
+              },
+            },
+          ],
+        },
+      },
+    }
+
+    const valueMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'Acme',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'tool-input-1')
+    const keyMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'customer',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'tool-input-1')
+
+    expect(valueMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'tools',
+        subBlockType: 'workflow-input-mapper',
+        valuePath: [0, 'params', 'payload', 'customer', 'name'],
+        searchText: 'Acme Corp',
+      }),
+    ])
+    expect(keyMatches).toEqual([])
+  })
+
+  it('scopes MCP tool resources to the selected server', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['mcp-1'] = {
+      id: 'mcp-1',
+      type: 'mcp',
+      name: 'MCP',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        server: {
+          id: 'server',
+          type: 'mcp-server-selector',
+          value: 'server-a',
+        },
+        tool: {
+          id: 'tool',
+          type: 'mcp-tool-selector',
+          value: 'server-a-search',
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'search',
+      mode: 'resource',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        mcp: {
+          subBlocks: [
+            { id: 'server', title: 'Server', type: 'mcp-server-selector' },
+            { id: 'tool', title: 'Tool', type: 'mcp-tool-selector', dependsOn: ['server'] },
+          ],
+        },
+      },
+    }).filter((match) => match.kind === 'mcp-tool')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        rawValue: 'server-a-search',
+        resource: expect.objectContaining({
+          selectorContext: expect.objectContaining({ mcpServerId: 'server-a' }),
+        }),
       }),
     ])
   })

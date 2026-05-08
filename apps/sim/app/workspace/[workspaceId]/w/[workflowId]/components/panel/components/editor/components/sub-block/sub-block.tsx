@@ -671,6 +671,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             wandControlRef={wandControlRef}
             hideInternalWand={true}
+            isSearchHighlighted={isSearchHighlighted}
           />
         )
 

@@ -27,16 +27,15 @@ import {
   buildSubBlockValues,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
-  isCanonicalPair,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
+  isSubBlockVisibleForMode,
   normalizeDependencyValue,
   parseDependsOn,
-  resolveCanonicalMode,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
-import { parseStoredToolInputValue, type StoredTool } from '@/lib/workflows/tool-input/types'
+import { type ParsedStoredTool, parseStoredToolInputValue } from '@/lib/workflows/tool-input/types'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { isReference } from '@/executor/constants'
@@ -45,7 +44,6 @@ import {
   getSubBlocksForToolInput,
   getToolIdForOperation,
   getToolParametersConfig,
-  isPasswordParameter,
   type ToolParameterConfig,
 } from '@/tools/params'
 
@@ -99,8 +97,19 @@ const PLAIN_TEXT_EXCLUDED_SUBBLOCK_TYPES = new Set<SubBlockType>([
   'time-input',
   'file-upload',
   'mcp-dynamic-args',
+  'modal',
+  'schedule-info',
   'slider',
   'switch',
+  'text',
+  'webhook-config',
+])
+
+const DISPLAY_ONLY_SUBBLOCK_TYPES = new Set<SubBlockType>([
+  'modal',
+  'schedule-info',
+  'text',
+  'webhook-config',
 ])
 
 const TEXT_VALUE_ONLY_SUBBLOCK_TYPES = new Set<SubBlockType>(['filter-builder', 'variables-input'])
@@ -144,6 +153,26 @@ function looksLikeStructuredString(value: string): boolean {
   )
 }
 
+function getFallbackToolParamType(value: unknown, paramType?: string): SubBlockType {
+  if (paramType === 'object') return 'workflow-input-mapper'
+  if (value && typeof value === 'object' && !Array.isArray(value)) return 'workflow-input-mapper'
+  if (typeof value !== 'string') return DEFAULT_SUBBLOCK_TYPE as SubBlockType
+
+  const trimmed = value.trim()
+  if (!(trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+    return DEFAULT_SUBBLOCK_TYPE as SubBlockType
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(trimmed)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return 'workflow-input-mapper'
+    }
+  } catch {}
+
+  return DEFAULT_SUBBLOCK_TYPE as SubBlockType
+}
+
 function isSearchableLeafPath(
   path: Array<string | number>,
   subBlockType: SubBlockType | undefined,
@@ -173,7 +202,9 @@ function isSearchableLeafPath(
   }
   if (
     mode === 'text' &&
-    (subBlockType === 'input-format' || subBlockType === 'response-format') &&
+    (subBlockType === 'input-format' ||
+      subBlockType === 'response-format' ||
+      subBlockType === 'eval-input') &&
     lastSegment === 'type'
   ) {
     return false
@@ -243,8 +274,9 @@ function scopeToolCanonicalModes(
   return scoped
 }
 
-function parseToolParamValue(value: string | undefined, subBlockType: SubBlockType): unknown {
-  if (!value) return ''
+function parseToolParamValue(value: unknown, subBlockType: SubBlockType): unknown {
+  if (value === undefined || value === null) return ''
+  if (typeof value !== 'string') return value
   if (!shouldParseSerializedSubBlockValue(subBlockType)) {
     return value
   }
@@ -367,7 +399,7 @@ function buildToolInputSearchConfig(param: ToolParameterConfig): WorkflowSearchS
   return {
     id: param.id,
     title: uiComponent?.title ?? param.id,
-    type: (uiComponent?.type ?? DEFAULT_SUBBLOCK_TYPE) as SubBlockType,
+    type: (uiComponent?.type ?? getFallbackToolParamType(undefined, param.type)) as SubBlockType,
     placeholder: uiComponent?.placeholder,
     condition: uiComponent?.condition as SubBlockConfig['condition'],
     serviceId: uiComponent?.serviceId,
@@ -383,7 +415,6 @@ function buildToolInputSearchConfig(param: ToolParameterConfig): WorkflowSearchS
 
 function isVisibleToolParameter(param: ToolParameterConfig, values: Record<string, unknown>) {
   if (param.visibility === 'hidden' || param.visibility === 'llm-only') return false
-  if (isPasswordParameter(param.id)) return false
   const condition = param.uiComponent?.condition
   return (
     !condition ||
@@ -397,7 +428,7 @@ function getToolInputParamConfigs({
   credentialTypeById,
   blockConfigs,
 }: {
-  tool: StoredTool
+  tool: ParsedStoredTool
   parentCanonicalModes?: CanonicalModeOverrides
   credentialTypeById?: Record<string, string | undefined>
   blockConfigs?: WorkflowSearchIndexerOptions['blockConfigs']
@@ -412,25 +443,32 @@ function getToolInputParamConfigs({
     tool.type !== 'custom-tool' && tool.type !== 'mcp'
       ? getToolIdForOperation(tool.type, tool.operation) || tool.toolId
       : tool.toolId
-  const values = { operation: tool.operation, ...(tool.params ?? {}) }
+  const toolParamValues = tool.params ?? {}
+  const values = { operation: tool.operation, ...toolParamValues }
   const genericFallback = () =>
-    Object.entries(tool.params ?? {})
+    Object.entries(toolParamValues)
       .filter(([paramId, value]) => {
         if (TOOL_INPUT_TEXT_EXCLUDED_LEAF_KEYS.has(paramId)) return false
         if (paramId.endsWith('Id')) return false
-        if (isPasswordParameter(paramId)) return false
-        return !looksLikeStructuredString(value)
+        return (
+          typeof value !== 'string' ||
+          !looksLikeStructuredString(value) ||
+          value.trim().startsWith('{')
+        )
       })
-      .map(([paramId, value]) => ({
-        paramId,
-        config: {
-          id: paramId,
-          title: paramId,
-          type: DEFAULT_SUBBLOCK_TYPE as SubBlockType,
-          condition: undefined,
-        },
-        value,
-      }))
+      .map(([paramId, value]) => {
+        const type = getFallbackToolParamType(value)
+        return {
+          paramId,
+          config: {
+            id: paramId,
+            title: paramId,
+            type,
+            condition: undefined,
+          },
+          value: parseToolParamValue(value, type),
+        }
+      })
 
   if (!toolId) return genericFallback()
 
@@ -463,15 +501,16 @@ function getToolInputParamConfigs({
         return {
           paramId: param.id,
           config,
-          value: parseToolParamValue(tool.params?.[param.id], config.type),
-          selectorContext: config.selectorKey
-            ? buildSelectorContext({
-                subBlockConfig: config,
-                subBlockValues: values,
-                canonicalIndex: fallbackCanonicalIndex,
-                canonicalModes: scopedCanonicalModes,
-              })
-            : undefined,
+          value: parseToolParamValue(toolParamValues[param.id], config.type),
+          selectorContext:
+            config.selectorKey || config.dependsOn
+              ? buildSelectorContext({
+                  subBlockConfig: config,
+                  subBlockValues: values,
+                  canonicalIndex: fallbackCanonicalIndex,
+                  canonicalModes: scopedCanonicalModes,
+                })
+              : undefined,
         }
       })
   }
@@ -514,16 +553,17 @@ function getToolInputParamConfigs({
   const subBlockParams = visibleSubBlocks.map((config) => ({
     paramId: config.id,
     config,
-    value: parseToolParamValue(tool.params?.[config.id], config.type),
+    value: parseToolParamValue(toolParamValues[config.id], config.type),
     dependentValuePaths: getDependentValuePaths(config.id),
-    selectorContext: config.selectorKey
-      ? buildSelectorContext({
-          subBlockConfig: config,
-          subBlockValues: values,
-          canonicalIndex: toolCanonicalIndex,
-          canonicalModes: scopedCanonicalModes,
-        })
-      : undefined,
+    selectorContext:
+      config.selectorKey || config.dependsOn
+        ? buildSelectorContext({
+            subBlockConfig: config,
+            subBlockValues: values,
+            canonicalIndex: toolCanonicalIndex,
+            canonicalModes: scopedCanonicalModes,
+          })
+        : undefined,
   }))
   const uncoveredParams = displayParams
     .filter((param) => !coveredParamIds.has(param.id) && isVisibleToolParameter(param, values))
@@ -532,21 +572,20 @@ function getToolInputParamConfigs({
       return {
         paramId: param.id,
         config,
-        value: parseToolParamValue(tool.params?.[param.id], config.type),
-        selectorContext: config.selectorKey
-          ? buildSelectorContext({
-              subBlockConfig: config,
-              subBlockValues: values,
-              canonicalIndex: toolCanonicalIndex,
-              canonicalModes: scopedCanonicalModes,
-            })
-          : undefined,
+        value: parseToolParamValue(toolParamValues[param.id], config.type),
+        selectorContext:
+          config.selectorKey || config.dependsOn
+            ? buildSelectorContext({
+                subBlockConfig: config,
+                subBlockValues: values,
+                canonicalIndex: toolCanonicalIndex,
+                canonicalModes: scopedCanonicalModes,
+              })
+            : undefined,
       }
     })
 
-  return [...subBlockParams, ...uncoveredParams].filter(
-    ({ paramId, config }) => !isPasswordParameter(paramId) && !config.password
-  )
+  return [...subBlockParams, ...uncoveredParams]
 }
 
 function buildSelectorContext({
@@ -585,6 +624,10 @@ function buildSelectorContext({
     if (isReference(stringValue)) continue
 
     const canonicalKey = canonicalIndex.canonicalIdBySubBlockId[subBlockId] ?? subBlockId
+    if (subBlockConfig?.type === 'mcp-tool-selector' && canonicalKey === 'server') {
+      context.mcpServerId = stringValue
+      continue
+    }
     if (SELECTOR_CONTEXT_FIELDS.has(canonicalKey as keyof SelectorContext)) {
       context[canonicalKey as keyof SelectorContext] = stringValue
     }
@@ -838,30 +881,6 @@ function getSearchCanonicalModes(
   return (data as { canonicalModes?: CanonicalModeOverrides }).canonicalModes
 }
 
-function isActiveCanonicalSearchSubBlock({
-  subBlockId,
-  subBlockConfig,
-  subBlockValues,
-  canonicalIndex,
-  canonicalModes,
-}: {
-  subBlockId: string
-  subBlockConfig?: SubBlockConfig
-  subBlockValues: Record<string, unknown>
-  canonicalIndex: ReturnType<typeof buildCanonicalIndex>
-  canonicalModes?: CanonicalModeOverrides
-}): boolean {
-  if (!subBlockConfig) return true
-
-  const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockId]
-  const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
-  if (!group || !isCanonicalPair(group)) return true
-
-  const activeMode = resolveCanonicalMode(group, subBlockValues, canonicalModes)
-  if (activeMode === 'advanced') return group.advancedIds.includes(subBlockId)
-  return group.basicId === subBlockId
-}
-
 function isReactiveSearchSubBlockVisible({
   subBlockConfig,
   subBlockValues,
@@ -890,6 +909,37 @@ function isReactiveSearchSubBlockVisible({
   return credentialTypeById?.[watchedCredentialId] === reactiveCondition.requiredType
 }
 
+function isSearchSubBlockVisibleForMode({
+  block,
+  subBlockConfig,
+  subBlockValues,
+  canonicalIndex,
+  canonicalModes,
+}: {
+  block: WorkflowSearchBlockState
+  subBlockConfig?: WorkflowSearchSubBlockConfig
+  subBlockValues: Record<string, unknown>
+  canonicalIndex: ReturnType<typeof buildCanonicalIndex>
+  canonicalModes?: CanonicalModeOverrides
+}): boolean {
+  if (!subBlockConfig) return true
+
+  const displayTriggerMode = Boolean(block.triggerMode)
+  const isTriggerSubBlock =
+    subBlockConfig.mode === 'trigger' || subBlockConfig.mode === 'trigger-advanced'
+
+  if (isTriggerSubBlock) return displayTriggerMode
+  if (displayTriggerMode) return false
+
+  return isSubBlockVisibleForMode(
+    subBlockConfig as SubBlockConfig,
+    Boolean(block.advancedMode),
+    canonicalIndex,
+    subBlockValues,
+    canonicalModes
+  )
+}
+
 export function indexWorkflowSearchMatches(
   options: WorkflowSearchIndexerOptions
 ): WorkflowSearchMatch[] {
@@ -914,8 +964,16 @@ export function indexWorkflowSearchMatches(
   for (const block of Object.values(workflow.blocks)) {
     const blockConfig = blockConfigs[block.type] ?? getBlock(block.type)
     const subBlockConfigs = blockConfig?.subBlocks ?? []
+    const canonicalSubBlockConfigs = block.triggerMode
+      ? subBlockConfigs.filter(
+          (subBlock) =>
+            subBlock.mode === 'trigger' ||
+            subBlock.mode === 'trigger-advanced' ||
+            subBlock.type === ('trigger-config' as SubBlockType)
+        )
+      : subBlockConfigs
     const configsById = new Map(subBlockConfigs.map((subBlock) => [subBlock.id, subBlock]))
-    const canonicalIndex = buildCanonicalIndex(subBlockConfigs)
+    const canonicalIndex = buildCanonicalIndex(canonicalSubBlockConfigs)
     const subBlockValues = buildSubBlockValues(block.subBlocks ?? {})
     const canonicalModes = getSearchCanonicalModes(block)
     const protectedByLock = isWorkflowBlockProtected(block.id, workflow.blocks)
@@ -952,8 +1010,8 @@ export function indexWorkflowSearchMatches(
       if (subBlockConfig && !isSubBlockFeatureEnabled(subBlockConfig)) continue
       if (subBlockConfig && isSubBlockHidden(subBlockConfig)) continue
       if (
-        !isActiveCanonicalSearchSubBlock({
-          subBlockId,
+        !isSearchSubBlockVisibleForMode({
+          block,
           subBlockConfig,
           subBlockValues,
           canonicalIndex,
@@ -986,6 +1044,7 @@ export function indexWorkflowSearchMatches(
         subBlockId
       const value = subBlockState?.value
       const subBlockType = subBlockConfig?.type ?? subBlockState.type
+      if (DISPLAY_ONLY_SUBBLOCK_TYPES.has(subBlockType)) continue
       const resourceSubBlockConfig = subBlockConfig ?? { type: subBlockType }
       const structuredResourceKind = getResourceKindForSubBlock(resourceSubBlockConfig)
 
@@ -1087,16 +1146,17 @@ export function indexWorkflowSearchMatches(
         })
       }
 
-      const selectorContext = subBlockConfig?.selectorKey
-        ? buildSearchSelectorContext({
-            block,
-            subBlockConfig,
-            subBlockValues,
-            canonicalIndex,
-            workspaceId,
-            workflowId,
-          })
-        : undefined
+      const selectorContext =
+        subBlockConfig?.selectorKey || subBlockConfig?.dependsOn
+          ? buildSearchSelectorContext({
+              block,
+              subBlockConfig,
+              subBlockValues,
+              canonicalIndex,
+              workspaceId,
+              workflowId,
+            })
+          : undefined
       const structuredReferences = parseStructuredResourceReferences(
         value,
         resourceSubBlockConfig,

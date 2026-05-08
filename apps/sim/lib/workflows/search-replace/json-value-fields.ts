@@ -19,12 +19,26 @@ const SEARCHABLE_JSON_ARRAY_VALUE_FIELDS: Partial<Record<SubBlockType, Record<st
   'document-tag-entry': {
     value: 'Value',
   },
+  'variables-input': {
+    value: 'Value',
+  },
 }
 
 const SEARCHABLE_JSON_OBJECT_VALUE_FIELDS: Partial<Record<SubBlockType, string>> = {
   'input-mapping': 'Value',
   'workflow-input-mapper': 'Value',
 }
+
+const JSON_METADATA_KEYS = new Set([
+  'collapsed',
+  'fieldType',
+  'id',
+  'operator',
+  'tagName',
+  'type',
+  'variableId',
+  'variableName',
+])
 
 const SERIALIZED_SUBBLOCK_VALUE_TYPES = new Set<SubBlockType>([
   'file-upload',
@@ -67,6 +81,33 @@ function getParsedValue(value: unknown): { parsed: unknown; stringify: boolean }
   return null
 }
 
+function getObjectStringLeaves({
+  value,
+  path = [],
+  fieldTitle,
+}: {
+  value: unknown
+  path?: WorkflowSearchValuePath
+  fieldTitle: string
+}): SearchableJsonStringLeaf[] {
+  if (typeof value === 'string' && value.length > 0) {
+    return [{ path, value, originalValue: value, fieldTitle }]
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) =>
+      getObjectStringLeaves({ value: item, path: [...path, index], fieldTitle })
+    )
+  }
+
+  if (!value || typeof value !== 'object') return []
+
+  return Object.entries(value).flatMap(([fieldKey, fieldValue]) => {
+    if (JSON_METADATA_KEYS.has(fieldKey)) return []
+    return getObjectStringLeaves({ value: fieldValue, path: [...path, fieldKey], fieldTitle })
+  })
+}
+
 export function isSearchableJsonValueSubBlock(
   subBlockType: SubBlockType | undefined
 ): subBlockType is
@@ -74,11 +115,14 @@ export function isSearchableJsonValueSubBlock(
   | 'router-input'
   | 'knowledge-tag-filters'
   | 'document-tag-entry'
+  | 'variables-input'
   | 'input-mapping'
-  | 'workflow-input-mapper' {
+  | 'workflow-input-mapper'
+  | 'table' {
   return Boolean(
     subBlockType &&
-      (SEARCHABLE_JSON_ARRAY_VALUE_FIELDS[subBlockType] ||
+      (subBlockType === 'table' ||
+        SEARCHABLE_JSON_ARRAY_VALUE_FIELDS[subBlockType] ||
         SEARCHABLE_JSON_OBJECT_VALUE_FIELDS[subBlockType])
   )
 }
@@ -100,6 +144,27 @@ export function getSearchableJsonStringLeaves(
   const parsedValue = getParsedValue(value)
   if (!parsedValue) return []
   const { parsed } = parsedValue
+
+  if (subBlockType === 'table') {
+    if (!Array.isArray(parsed)) return []
+    return parsed.flatMap((row, rowIndex) => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return []
+      const cells = (row as Record<string, unknown>).cells
+      if (!cells || typeof cells !== 'object' || Array.isArray(cells)) return []
+      return Object.entries(cells).flatMap(([column, cellValue]) =>
+        typeof cellValue === 'string' && cellValue.length > 0
+          ? [
+              {
+                path: [rowIndex, 'cells', column],
+                value: cellValue,
+                originalValue: cellValue,
+                fieldTitle: column,
+              },
+            ]
+          : []
+      )
+    })
+  }
 
   const arrayFieldTitles = subBlockType
     ? SEARCHABLE_JSON_ARRAY_VALUE_FIELDS[subBlockType]
@@ -123,18 +188,7 @@ export function getSearchableJsonStringLeaves(
     : undefined
   if (objectFieldTitle) {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
-    return Object.entries(parsed).flatMap(([fieldKey, fieldValue]) =>
-      typeof fieldValue === 'string' && fieldValue.length > 0
-        ? [
-            {
-              path: [fieldKey],
-              value: fieldValue,
-              originalValue: fieldValue,
-              fieldTitle: objectFieldTitle,
-            },
-          ]
-        : []
-    )
+    return getObjectStringLeaves({ value: parsed, fieldTitle: objectFieldTitle })
   }
 
   return []
