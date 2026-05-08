@@ -12,6 +12,7 @@ export interface GetMothershipBaseURLOptions {
 }
 
 const ENVIRONMENT_URLS: Record<MothershipEnvironment, string | undefined> = {
+  // env vars
   dev: env.COPILOT_DEV_URL,
   staging: env.COPILOT_STAGING_URL,
   prod: env.COPILOT_PROD_URL,
