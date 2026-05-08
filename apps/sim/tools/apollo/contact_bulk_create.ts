@@ -26,7 +26,13 @@ export const apolloContactBulkCreateTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Array of contacts to create (max 100). Each contact should include first_name, last_name, and optionally email, title, account_id, owner_id',
+        'Array of contacts to create (max 100). Each contact may include first_name, last_name, email, title, organization_name, account_id, owner_id, contact_stage_id, linkedin_url, phone (single string) or phone_numbers (array of {raw_number, position}), contact_emails, typed_custom_fields, and CRM IDs (salesforce_contact_id, hubspot_id, team_id) for cross-system matching',
+    },
+    append_label_names: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Label names to add to all contacts in this request (e.g., ["Hot Lead"])',
     },
     run_dedupe: {
       type: 'boolean',
@@ -46,11 +52,14 @@ export const apolloContactBulkCreateTool: ToolConfig<
       'X-Api-Key': params.apiKey,
     }),
     body: (params: ApolloContactBulkCreateParams) => {
-      const body: any = {
+      const body: Record<string, unknown> = {
         contacts: params.contacts.slice(0, 100),
       }
       if (params.run_dedupe !== undefined) {
         body.run_dedupe = params.run_dedupe
+      }
+      if (params.append_label_names && params.append_label_names.length > 0) {
+        body.append_label_names = params.append_label_names
       }
       return body
     },
@@ -63,15 +72,17 @@ export const apolloContactBulkCreateTool: ToolConfig<
     }
 
     const data = await response.json()
+    const createdContacts = data.created_contacts || data.contacts || []
+    const existingContacts = data.existing_contacts || []
 
     return {
       success: true,
       output: {
-        created_contacts: data.contacts || data.created_contacts || [],
-        existing_contacts: data.existing_contacts || [],
-        total_submitted: data.contacts?.length || 0,
-        created: data.created_contacts?.length || data.contacts?.length || 0,
-        existing: data.existing_contacts?.length || 0,
+        created_contacts: createdContacts,
+        existing_contacts: existingContacts,
+        total_submitted: createdContacts.length + existingContacts.length,
+        created: createdContacts.length,
+        existing: existingContacts.length,
       },
     }
   },

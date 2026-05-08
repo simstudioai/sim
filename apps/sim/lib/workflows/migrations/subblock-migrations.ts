@@ -40,6 +40,16 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
     expandApplicationFormDefinition: '_removed_expandApplicationFormDefinition',
     expandSurveyFormDefinitions: '_removed_expandSurveyFormDefinitions',
   },
+  apollo: {
+    contact_ids_bulk: 'contacts',
+    account_ids_bulk: 'accounts',
+    close_date: 'closed_date',
+    stage_id: 'opportunity_stage_id',
+    note: 'task_notes',
+    description: '_removed_description',
+    stage_ids: '_removed_stage_ids',
+    owner_ids: '_removed_owner_ids',
+  },
   rippling: {
     action: '_removed_action',
     candidateDepartment: '_removed_candidateDepartment',

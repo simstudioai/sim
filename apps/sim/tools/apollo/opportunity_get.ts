@@ -27,7 +27,7 @@ export const apolloOpportunityGetTool: ToolConfig<
 
   request: {
     url: (params: ApolloOpportunityGetParams) =>
-      `https://api.apollo.io/api/v1/opportunities/${params.opportunity_id}`,
+      `https://api.apollo.io/api/v1/opportunities/${params.opportunity_id.trim()}`,
     method: 'GET',
     headers: (params: ApolloOpportunityGetParams) => ({
       'Content-Type': 'application/json',
@@ -47,14 +47,18 @@ export const apolloOpportunityGetTool: ToolConfig<
     return {
       success: true,
       output: {
-        opportunity: data.opportunity || {},
+        opportunity: data.opportunity ?? null,
         found: !!data.opportunity,
       },
     }
   },
 
   outputs: {
-    opportunity: { type: 'json', description: 'Complete opportunity data from Apollo' },
+    opportunity: {
+      type: 'json',
+      description: 'Complete opportunity data from Apollo',
+      optional: true,
+    },
     found: { type: 'boolean', description: 'Whether the opportunity was found' },
   },
 }
