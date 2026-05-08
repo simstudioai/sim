@@ -1,0 +1,70 @@
+---
+title: People Data Labs
+description: Enrich and search people and companies
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="peopledatalabs"
+  color="#4831C3"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+## Description
+
+[People Data Labs](https://www.peopledatalabs.com/) is a person and company data provider with a global dataset of 3B+ person profiles and 25M+ company records. The Sim block exposes the core REST endpoints so agents can enrich a single contact, look up a company, or run dataset-wide search queries.
+
+Use this block to:
+- **Person Enrich** — resolve a single person by email, phone, LinkedIn URL, or name + company/location, and pull back their work history, contact info, and skills.
+- **Person Search** — run SQL or Elasticsearch DSL queries against the person dataset to build prospect lists or audience segments.
+- **Company Enrich** — resolve a single company by name, website, ticker, LinkedIn URL, or PDL ID, and pull back firmographics.
+- **Company Search** — query the company dataset with SQL or Elasticsearch DSL.
+- **Autocomplete** — get suggested values for fields like `title`, `skill`, `industry`, or `location` to build well-formed search queries.
+
+Authentication uses an API key passed as the `X-Api-Key` header. Get a key from the [PDL dashboard](https://dashboard.peopledatalabs.com/).
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Enrich a single person or company with People Data Labs, or search the global person and company datasets with SQL or Elasticsearch DSL. Useful for sales enrichment, contact lookup, and CRM hygiene.
+
+
+
+## Tools
+
+### `pdl_person_enrich`
+
+
+### `pdl_person_identify`
+
+
+### `pdl_person_search`
+
+
+### `pdl_bulk_person_enrich`
+
+
+### `pdl_company_enrich`
+
+
+### `pdl_company_search`
+
+
+### `pdl_bulk_company_enrich`
+
+
+### `pdl_clean_company`
+
+
+### `pdl_clean_location`
+
+
+### `pdl_clean_school`
+
+
+### `pdl_autocomplete`
+
+
+
