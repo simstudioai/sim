@@ -32,17 +32,12 @@ export const pdfGenerateTask = defineSandboxTask<SandboxTaskInput>({
       if (!dataUri || typeof dataUri !== 'string') {
         throw new Error('embedImage: dataUri must be a non-empty string');
       }
-      if (dataUri.length > _MAX_IMG_B64) {
-        throw new Error(
-          'embedImage: image exceeds the 6 MB embed limit (~8 MB base64). Use a smaller/compressed image.'
-        );
-      }
       const comma = dataUri.indexOf(',');
       if (comma === -1) throw new Error('embedImage: invalid data URI (no comma separator)');
       const header = dataUri.slice(0, comma);
       const base64 = dataUri.slice(comma + 1);
-      const binary = globalThis.Buffer ? globalThis.Buffer.from(base64, 'base64') : null;
-      if (!binary) throw new Error('Buffer polyfill missing');
+      if (!globalThis.Buffer) throw new Error('embedImage: Buffer polyfill missing');
+      const binary = globalThis.Buffer.from(base64, 'base64');
       const mime = header.split(';')[0].split(':')[1] || '';
       // image/jpg is non-standard but tolerated; the canonical MIME is image/jpeg
       if (mime === 'image/png') return globalThis.pdf.embedPng(binary);

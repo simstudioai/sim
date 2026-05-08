@@ -398,6 +398,21 @@ async function executeCode(request, executionId) {
         }
       }
 
+      if (
+        err.message.includes('Array buffer allocation failed') ||
+        err.message.includes('memory limit')
+      ) {
+        return {
+          result: null,
+          stdout,
+          error: {
+            message:
+              'Execution exceeded memory limit (256 MB). Reduce image sizes or split the work into smaller batches.',
+            name: 'MemoryLimitError',
+          },
+        }
+      }
+
       return {
         result: null,
         stdout,
@@ -937,6 +952,23 @@ async function executeTask(request, executionId) {
           timings,
         }
       }
+
+      if (
+        err.message?.includes('Array buffer allocation failed') ||
+        err.message?.includes('memory limit')
+      ) {
+        return {
+          result: null,
+          stdout,
+          error: {
+            message:
+              'Execution exceeded memory limit (256 MB). Reduce image sizes or split the work into smaller batches.',
+            name: 'MemoryLimitError',
+          },
+          timings,
+        }
+      }
+
       return {
         result: null,
         stdout,

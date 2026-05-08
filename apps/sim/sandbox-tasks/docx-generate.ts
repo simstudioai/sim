@@ -53,6 +53,9 @@ export const docxGenerateTask = defineSandboxTask<SandboxTaskInput>({
      *   new docx.Paragraph({ children: [await addImage('abc123', { width: 200, height: 100 })] })
      */
     globalThis.addImage = async function addImage(fileId, opts) {
+      if (!opts || opts.width == null || opts.height == null) {
+        throw new Error('addImage: opts must include width and height (in pixels)');
+      }
       const dataUri = await globalThis.getFileBase64(fileId);
       const comma = dataUri.indexOf(',');
       if (comma === -1) throw new Error('addImage: invalid data URI (no comma separator)');
@@ -63,11 +66,11 @@ export const docxGenerateTask = defineSandboxTask<SandboxTaskInput>({
       const ext = extMap[mime];
       if (!ext) throw new Error('addImage: unsupported image type "' + mime + '". Use PNG, JPEG, GIF, BMP, or SVG.');
       if (!globalThis.Buffer) throw new Error('addImage: Buffer polyfill missing — ensure docx bundle is loaded');
-      const { width, height, type: _t, data: _d, transformation: userTransform, ...passThrough } = opts || {};
+      const { width, height, type: _t, data: _d, transformation: userTransform, ...passThrough } = opts;
       return new globalThis.docx.ImageRun(Object.assign(passThrough, {
         data: globalThis.Buffer.from(base64, 'base64'),
         type: ext,
-        transformation: Object.assign({ width: width ?? 200, height: height ?? 200 }, userTransform || {}),
+        transformation: Object.assign({ width, height }, userTransform || {}),
       }));
     };
   `,
