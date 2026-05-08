@@ -15,11 +15,13 @@ import {
   EDGES_OPERATIONS,
   OPERATION_TARGETS,
   SUBBLOCK_OPERATIONS,
+  SUBFLOW_OPERATIONS,
   UNDO_REDO_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
 import type { Edge } from 'reactflow'
 import { useSession } from '@/lib/auth/auth-client'
 import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-operations'
+import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import { useOperationQueue } from '@/stores/operation-queue/store'
 import {
   type BatchAddBlocksOperation,
@@ -458,8 +460,11 @@ export function useUndoRedo() {
   )
 
   const recordBatchUpdateSubblocks = useCallback(
-    (updates: BatchUpdateSubblocksOperation['data']['updates']) => {
-      if (!activeWorkflowId || updates.length === 0) return
+    (
+      updates: BatchUpdateSubblocksOperation['data']['updates'],
+      subflowUpdates: NonNullable<BatchUpdateSubblocksOperation['data']['subflowUpdates']> = []
+    ) => {
+      if (!activeWorkflowId || (updates.length === 0 && subflowUpdates.length === 0)) return
 
       const operation: BatchUpdateSubblocksOperation = {
         id: generateId(),
@@ -467,7 +472,7 @@ export function useUndoRedo() {
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
         userId,
-        data: { updates },
+        data: { updates, subflowUpdates },
       }
 
       const inverse: BatchUpdateSubblocksOperation = {
@@ -483,12 +488,22 @@ export function useUndoRedo() {
             before: update.after,
             after: update.before,
           })),
+          subflowUpdates: subflowUpdates.map((update) => ({
+            blockId: update.blockId,
+            blockType: update.blockType,
+            fieldId: update.fieldId,
+            before: update.after,
+            after: update.before,
+          })),
         },
       }
 
       const entry = createOperationEntry(operation, inverse)
       useUndoRedoStore.getState().push(activeWorkflowId, userId, entry)
-      logger.debug('Recorded batch subblock update', { count: updates.length })
+      logger.debug('Recorded batch field update', {
+        subblockCount: updates.length,
+        subflowCount: subflowUpdates.length,
+      })
     },
     [activeWorkflowId, userId]
   )
@@ -523,6 +538,129 @@ export function useUndoRedo() {
       })
     },
     [activeWorkflowId, addToQueue, userId]
+  )
+
+  const applySubflowUndoRedoUpdate = useCallback(
+    (update: NonNullable<BatchUpdateSubblocksOperation['data']['subflowUpdates']>[number]) => {
+      if (!activeWorkflowId) return
+
+      const currentBlock = useWorkflowStore.getState().blocks[update.blockId]
+      if (!currentBlock || currentBlock.type !== update.blockType) return
+
+      const childNodes = Object.values(useWorkflowStore.getState().blocks)
+        .filter((block) => block.data?.parentId === update.blockId)
+        .map((block) => block.id)
+
+      if (update.blockType === 'loop') {
+        const loopType = currentBlock.data?.loopType || 'for'
+        const currentCollection = currentBlock.data?.collection || ''
+        const currentWhileCondition = currentBlock.data?.whileCondition || ''
+        const currentDoWhileCondition = currentBlock.data?.doWhileCondition || ''
+        const currentIterations = currentBlock.data?.count || 5
+        const nextIterations = Number.parseInt(String(update.after), 10)
+
+        const config: Record<string, unknown> = {
+          id: update.blockId,
+          nodes: childNodes,
+          iterations:
+            update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations
+              ? nextIterations
+              : currentIterations,
+          loopType,
+          forEachItems:
+            update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items
+              ? update.after
+              : currentCollection,
+          whileCondition:
+            update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.condition && loopType !== 'doWhile'
+              ? update.after
+              : currentWhileCondition,
+          doWhileCondition:
+            update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.condition && loopType === 'doWhile'
+              ? update.after
+              : currentDoWhileCondition,
+        }
+
+        addToQueue({
+          id: generateId(),
+          operation: {
+            operation: SUBFLOW_OPERATIONS.UPDATE,
+            target: OPERATION_TARGETS.SUBFLOW,
+            payload: { id: update.blockId, type: 'loop', config },
+          },
+          workflowId: activeWorkflowId,
+          userId,
+        })
+
+        if (update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations) {
+          if (!Number.isNaN(nextIterations)) {
+            useWorkflowStore.getState().updateLoopCount(update.blockId, nextIterations)
+          }
+          return
+        }
+
+        if (update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.condition) {
+          if (loopType === 'doWhile') {
+            useWorkflowStore
+              .getState()
+              .setLoopDoWhileCondition(update.blockId, String(update.after))
+          } else {
+            useWorkflowStore.getState().setLoopWhileCondition(update.blockId, String(update.after))
+          }
+          return
+        }
+
+        useWorkflowStore.getState().setLoopForEachItems(update.blockId, String(update.after))
+        return
+      }
+
+      const currentCount = currentBlock.data?.count || 5
+      const currentParallelType = currentBlock.data?.parallelType || 'count'
+      const currentDistribution = currentBlock.data?.collection || ''
+      const nextCount = Number.parseInt(String(update.after), 10)
+      const config = {
+        id: update.blockId,
+        nodes: childNodes,
+        count:
+          update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations
+            ? nextCount
+            : currentCount,
+        distribution:
+          update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items
+            ? update.after
+            : currentDistribution,
+        parallelType: currentParallelType,
+      }
+
+      addToQueue({
+        id: generateId(),
+        operation: {
+          operation: SUBFLOW_OPERATIONS.UPDATE,
+          target: OPERATION_TARGETS.SUBFLOW,
+          payload: { id: update.blockId, type: 'parallel', config },
+        },
+        workflowId: activeWorkflowId,
+        userId,
+      })
+
+      if (update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations) {
+        if (!Number.isNaN(nextCount)) {
+          useWorkflowStore.getState().updateParallelCount(update.blockId, nextCount)
+        }
+        return
+      }
+
+      useWorkflowStore.getState().updateParallelCollection(update.blockId, String(update.after))
+    },
+    [activeWorkflowId, addToQueue, userId]
+  )
+
+  const applyBatchFieldUndoRedo = useCallback(
+    (operation: BatchUpdateSubblocksOperation) => {
+      applyBatchSubblockUndoRedo(operation.data.updates)
+      operation.data.subflowUpdates?.forEach(applySubflowUndoRedoUpdate)
+    },
+    [applyBatchSubblockUndoRedo, applySubflowUndoRedoUpdate]
   )
 
   const undo = useCallback(async () => {
@@ -976,7 +1114,7 @@ export function useUndoRedo() {
         }
         case UNDO_REDO_OPERATIONS.BATCH_UPDATE_SUBBLOCKS: {
           const subblockOp = entry.inverse as BatchUpdateSubblocksOperation
-          applyBatchSubblockUndoRedo(subblockOp.data.updates)
+          applyBatchFieldUndoRedo(subblockOp)
           break
         }
         case UNDO_REDO_OPERATIONS.APPLY_DIFF: {
@@ -1152,7 +1290,7 @@ export function useUndoRedo() {
 
       logger.info('Undo operation', { type: entry.operation.type, workflowId: activeWorkflowId })
     })
-  }, [activeWorkflowId, userId, addToQueue, applyBatchSubblockUndoRedo])
+  }, [activeWorkflowId, userId, addToQueue, applyBatchFieldUndoRedo])
 
   const redo = useCallback(async () => {
     if (!activeWorkflowId || !userId) return
@@ -1608,7 +1746,7 @@ export function useUndoRedo() {
         }
         case UNDO_REDO_OPERATIONS.BATCH_UPDATE_SUBBLOCKS: {
           const subblockOp = entry.operation as BatchUpdateSubblocksOperation
-          applyBatchSubblockUndoRedo(subblockOp.data.updates)
+          applyBatchFieldUndoRedo(subblockOp)
           break
         }
         case UNDO_REDO_OPERATIONS.APPLY_DIFF: {
@@ -1782,7 +1920,7 @@ export function useUndoRedo() {
         userId,
       })
     })
-  }, [activeWorkflowId, userId, addToQueue, applyBatchSubblockUndoRedo])
+  }, [activeWorkflowId, userId, addToQueue, applyBatchFieldUndoRedo])
 
   const getStackSizes = useCallback(() => {
     if (!activeWorkflowId) return { undoSize: 0, redoSize: 0 }

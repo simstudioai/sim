@@ -189,6 +189,13 @@ export function createInverseOperation(operation: Operation): Operation {
             before: update.after,
             after: update.before,
           })),
+          subflowUpdates: op.data.subflowUpdates?.map((update) => ({
+            blockId: update.blockId,
+            blockType: update.blockType,
+            fieldId: update.fieldId,
+            before: update.after,
+            after: update.before,
+          })),
         },
       } as BatchUpdateSubblocksOperation
     }

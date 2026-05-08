@@ -411,6 +411,15 @@ describe('createInverseOperation', () => {
             after: 'new',
           },
         ],
+        subflowUpdates: [
+          {
+            blockId: 'loop-1',
+            blockType: 'loop',
+            fieldId: 'subflowIterations',
+            before: 2,
+            after: 3,
+          },
+        ],
       },
     }
 
@@ -423,6 +432,15 @@ describe('createInverseOperation', () => {
             subBlockId: 'prompt',
             before: 'new',
             after: 'old',
+          },
+        ],
+        subflowUpdates: [
+          {
+            blockId: 'loop-1',
+            blockType: 'loop',
+            fieldId: 'subflowIterations',
+            before: 3,
+            after: 2,
           },
         ],
       },

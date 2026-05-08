@@ -114,6 +114,13 @@ export interface BatchUpdateSubblocksOperation extends BaseOperation {
       before: unknown
       after: unknown
     }>
+    subflowUpdates?: Array<{
+      blockId: string
+      blockType: 'loop' | 'parallel'
+      fieldId: string
+      before: unknown
+      after: unknown
+    }>
   }
 }
 

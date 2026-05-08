@@ -1,9 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { getWorkflowSearchBlocks } from '@/lib/workflows/search-replace/state'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 describe('getWorkflowSearchBlocks', () => {
@@ -21,19 +20,13 @@ describe('getWorkflowSearchBlocks', () => {
     },
   } as Record<string, BlockState>
 
-  beforeEach(() => {
-    useSubBlockStore.setState({ workflowValues: {} })
-  })
-
   it('uses merged live subblock values for normal workflow search', () => {
-    useSubBlockStore.getState().setWorkflowValues('workflow-1', {
-      block1: { code: 'Hello' },
-    })
-
     const result = getWorkflowSearchBlocks({
       blocks,
-      workflowId: 'workflow-1',
       isSnapshotView: false,
+      subblockValues: {
+        block1: { code: 'Hello' },
+      },
     })
 
     expect(result.block1.subBlocks.code.value).toBe('Hello')
@@ -42,8 +35,10 @@ describe('getWorkflowSearchBlocks', () => {
   it('does not merge snapshot blocks', () => {
     const result = getWorkflowSearchBlocks({
       blocks,
-      workflowId: 'workflow-1',
       isSnapshotView: true,
+      subblockValues: {
+        block1: { code: 'Hello' },
+      },
     })
 
     expect(result).toBe(blocks)

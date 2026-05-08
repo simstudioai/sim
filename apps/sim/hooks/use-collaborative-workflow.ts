@@ -1537,9 +1537,24 @@ export function useCollaborativeWorkflow() {
         subblockId: string
         value: unknown
         expectedValue?: unknown
-      }>
+      }>,
+      options: {
+        subflowUpdates?: Array<{
+          blockId: string
+          blockType: 'loop' | 'parallel'
+          fieldId: string
+          before: unknown
+          after: unknown
+        }>
+      } = {}
     ) => {
-      if (isApplyingRemoteChange.current || updates.length === 0) return false
+      const undoSubflowUpdates = options.subflowUpdates ?? []
+      if (
+        isApplyingRemoteChange.current ||
+        (updates.length === 0 && undoSubflowUpdates.length === 0)
+      ) {
+        return false
+      }
 
       if (isBaselineDiffView) {
         logger.debug('Skipping collaborative batch subblock update while viewing baseline diff')
@@ -1551,24 +1566,26 @@ export function useCollaborativeWorkflow() {
         return false
       }
 
-      updates.forEach((update) => {
-        useSubBlockStore.getState().setValue(update.blockId, update.subblockId, update.value)
-        useWorkflowStore
-          .getState()
-          .syncDynamicHandleSubblockValue(update.blockId, update.subblockId, update.value)
-      })
+      if (updates.length > 0) {
+        updates.forEach((update) => {
+          useSubBlockStore.getState().setValue(update.blockId, update.subblockId, update.value)
+          useWorkflowStore
+            .getState()
+            .syncDynamicHandleSubblockValue(update.blockId, update.subblockId, update.value)
+        })
 
-      const operationId = generateId()
-      addToQueue({
-        id: operationId,
-        operation: {
-          operation: SUBBLOCK_OPERATIONS.BATCH_UPDATE,
-          target: OPERATION_TARGETS.SUBBLOCK,
-          payload: { updates },
-        },
-        workflowId: activeWorkflowId,
-        userId: session?.user?.id || 'unknown',
-      })
+        const operationId = generateId()
+        addToQueue({
+          id: operationId,
+          operation: {
+            operation: SUBBLOCK_OPERATIONS.BATCH_UPDATE,
+            target: OPERATION_TARGETS.SUBBLOCK,
+            payload: { updates },
+          },
+          workflowId: activeWorkflowId,
+          userId: session?.user?.id || 'unknown',
+        })
+      }
 
       undoRedo.recordBatchUpdateSubblocks(
         updates.map((update) => ({
@@ -1576,7 +1593,8 @@ export function useCollaborativeWorkflow() {
           subBlockId: update.subblockId,
           before: update.expectedValue,
           after: update.value,
-        }))
+        })),
+        undoSubflowUpdates
       )
 
       return true

@@ -1,4 +1,5 @@
 import type { SubBlockType } from '@sim/workflow-types/blocks'
+import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
 import {
   getResourceKindForSubBlock,
   matchesSearchText,
@@ -18,24 +19,6 @@ import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
-
-function hasLockedAncestor(
-  block: WorkflowSearchBlockState,
-  blocks: Record<string, WorkflowSearchBlockState>
-): boolean {
-  let parentId = block.data?.parentId
-  const visited = new Set<string>()
-
-  while (parentId && !visited.has(parentId)) {
-    visited.add(parentId)
-    const parent = blocks[parentId]
-    if (!parent) return false
-    if (parent.locked) return true
-    parentId = parent.data?.parentId
-  }
-
-  return false
-}
 
 function normalizeForSearch(value: string, caseSensitive: boolean): string {
   return caseSensitive ? value : value.toLowerCase()
@@ -219,7 +202,7 @@ export function indexWorkflowSearchMatches(
       workspaceId,
       workflowId,
     })
-    const protectedByLock = Boolean(block.locked || hasLockedAncestor(block, workflow.blocks))
+    const protectedByLock = isWorkflowBlockProtected(block.id, workflow.blocks)
     const editable = !protectedByLock && !isReadOnly
 
     if (mode !== 'resource') {

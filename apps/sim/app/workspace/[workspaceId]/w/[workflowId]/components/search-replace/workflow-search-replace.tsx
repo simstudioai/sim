@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, ChevronUp, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Input } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
 import {
@@ -140,10 +141,10 @@ export function WorkflowSearchReplace() {
     () =>
       getWorkflowSearchBlocks({
         blocks: currentWorkflow.blocks,
-        workflowId,
         isSnapshotView: currentWorkflow.isSnapshotView,
+        subblockValues: workflowSubblockValues,
       }),
-    [currentWorkflow.blocks, currentWorkflow.isSnapshotView, workflowId, workflowSubblockValues]
+    [currentWorkflow.blocks, currentWorkflow.isSnapshotView, workflowSubblockValues]
   )
 
   const matches = useMemo(
@@ -394,8 +395,15 @@ export function WorkflowSearchReplace() {
         return
       }
 
-      const applied =
-        batchUpdates.length === 0 ? true : collaborativeBatchSetSubblockValues(batchUpdates)
+      const applied = collaborativeBatchSetSubblockValues(batchUpdates, {
+        subflowUpdates: plan.subflowUpdates.map((update) => ({
+          blockId: update.blockId,
+          blockType: update.blockType,
+          fieldId: update.fieldId,
+          before: update.previousValue,
+          after: update.nextValue,
+        })),
+      })
       if (!applied) {
         addNotification({
           level: 'error',
@@ -435,7 +443,7 @@ export function WorkflowSearchReplace() {
       : `${activeMatchIndex >= 0 ? activeMatchIndex + 1 : 1} of ${hydratedMatches.length}`
   return (
     <div
-      className='fixed z-30 flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
+      className='fixed z-[var(--z-dropdown)] flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -471,7 +479,7 @@ export function WorkflowSearchReplace() {
           onClick={() => setIsReplaceExpanded((expanded) => !expanded)}
         >
           <ChevronRight
-            className={`h-4 w-4 transition-transform ${isReplaceExpanded ? 'rotate-90' : ''}`}
+            className={cn('h-4 w-4 transition-transform', isReplaceExpanded && 'rotate-90')}
           />
         </Button>
         <Input
