@@ -60,6 +60,9 @@ export const pptxGenerateTask = defineSandboxTask<SandboxTaskInput>({
     };
   `,
   finalize: `
+    if (!globalThis.pptx) {
+      throw new Error('No presentation found. Do not overwrite globalThis.pptx — call globalThis.pptx.addSlide() directly.');
+    }
     const bytes = await globalThis.pptx.write({ outputType: 'uint8array' });
     return bytes;
   `,

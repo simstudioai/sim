@@ -182,7 +182,8 @@ function parseDocxStyles(
       type,
       ...(basedOnMatch && { basedOn: basedOnMatch[1] }),
       ...(szMatch && { fontSize: Math.round(Number.parseInt(szMatch[1]) / 2) }),
-      ...(/<w:b\b(?:\s[^/]*)?\/?>/.test(block) && !/<w:b w:val="0"/.test(block) && { bold: true }),
+      ...(/<w:b\b(?:\s[^/]*)?\/?>/.test(block) &&
+        !/<w:b\b[^>]*\bw:val=["'](0|false)["']/.test(block) && { bold: true }),
       ...(colorMatch && { color: colorMatch[1].toUpperCase() }),
       ...(font && { font }),
       ...(themeFont && { themeFont }),
@@ -212,7 +213,8 @@ function parseDocxStyles(
   // Target paragraph styles (character styles excluded — generation works at paragraph level)
   const targetIds: string[] = ['Normal', 'BodyText', 'Body Text', 'Title', 'Subtitle']
   for (const id of styleMap.keys()) {
-    if (id.startsWith('Heading') && !targetIds.includes(id)) targetIds.push(id)
+    // Match both 'Heading1' (Office) and 'heading1' (LibreOffice) style IDs
+    if (/^[Hh]eading\d/.test(id) && !targetIds.includes(id)) targetIds.push(id)
   }
 
   const styles: NonNullable<DocumentStyleSummary['styles']> = []
@@ -299,19 +301,23 @@ async function extractPdfStyle(buffer: Buffer): Promise<DocumentStyleSummary | n
       } catch {}
     }
 
-    // Normalize to unique font family names by stripping weight/style suffixes.
-    // PostScript names encode style as hyphenated suffixes (Poppins-Bold, Arial-BoldMT).
-    // BoldMT must precede Bold so the combined suffix is consumed in one pass.
+    // Normalize to unique font family names by stripping PostScript weight/style suffixes.
+    // Apply the strip in a loop to handle compound suffixes (e.g. SemiBoldItalic, LightOblique).
+    // BoldMT must precede Bold, Oblique must precede the simple form, etc.
+    const SUFFIX_RX =
+      /[-]?(BoldMT|BoldOblique|BoldItalic|SemiBoldItalic|ExtraBoldItalic|LightItalic|LightOblique|MediumItalic|Regular|ExtraBold|SemiBold|Medium|Black|Light|Bold|Italic|Oblique|Condensed|Expanded|MT)$/i
     const familyNames = [
       ...new Set(
-        [...rawFontNames].map((name) =>
-          name
-            .replace(
-              /[-]?(BoldMT|BoldItalic|Regular|Bold|Italic|Light|Medium|SemiBold|ExtraBold|Black|Oblique|Condensed|Expanded|MT)$/i,
-              ''
-            )
-            .trim()
-        )
+        [...rawFontNames].map((name) => {
+          let n = name
+          // Strip up to 3 suffix components to handle compound PostScript names
+          for (let i = 0; i < 3; i++) {
+            const stripped = n.replace(SUFFIX_RX, '').trim()
+            if (stripped === n) break
+            n = stripped
+          }
+          return n
+        })
       ),
     ].filter(Boolean)
 
