@@ -52,8 +52,11 @@ export const pptxGenerateTask = defineSandboxTask<SandboxTaskInput>({
      * Example: await addImage(slide, 'abc123', { x: 0.5, y: 1, w: 2, h: 1 });
      */
     globalThis.addImage = async function addImage(slide, fileId, opts) {
+      if (!opts || opts.x == null || opts.y == null || opts.w == null || opts.h == null) {
+        throw new Error('addImage: opts must include x, y, w, and h (in inches)');
+      }
       const data = await globalThis.getFileBase64(fileId);
-      slide.addImage(Object.assign({}, opts || {}, { data }));
+      slide.addImage(Object.assign({}, opts, { data }));
     };
   `,
   finalize: `
