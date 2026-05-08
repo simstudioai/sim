@@ -42,6 +42,12 @@ export const companySearchTool: ToolConfig<PdlCompanySearchParams, PdlCompanySea
       visibility: 'user-or-llm',
       description: 'Pagination token returned from a prior response',
     },
+    titlecase: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Return name fields in title case',
+    },
   },
 
   request: {
@@ -64,12 +70,18 @@ export const companySearchTool: ToolConfig<PdlCompanySearchParams, PdlCompanySea
       }
       if (params.size !== undefined) body.size = Number(params.size)
       if (params.scroll_token) body.scroll_token = params.scroll_token
+      if (params.titlecase !== undefined) body.titlecase = params.titlecase
       return body
     },
   },
 
   transformResponse: async (response: Response) => {
     const data = (await response.json()) as Record<string, unknown>
+    const status = (data.status as number) ?? response.status
+
+    if (status === 404) {
+      return { success: true, output: { total: 0, scroll_token: null, results: [] } }
+    }
 
     if (!response.ok) {
       const error = (data.error as { message?: string })?.message

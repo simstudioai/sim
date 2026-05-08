@@ -145,6 +145,12 @@ export const personIdentifyTool: ToolConfig<PdlPersonIdentifyParams, PdlPersonId
       visibility: 'user-or-llm',
       description: 'Include `matched_on` for each match',
     },
+    titlecase: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Return name fields in title case',
+    },
   },
 
   request: {
@@ -170,6 +176,7 @@ export const personIdentifyTool: ToolConfig<PdlPersonIdentifyParams, PdlPersonId
         birth_date: params.birth_date,
         data_include: params.data_include,
         include_if_matched: params.include_if_matched,
+        titlecase: params.titlecase,
       })
       return `https://api.peopledatalabs.com/v5/person/identify${qs}`
     },

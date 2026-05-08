@@ -89,6 +89,12 @@ export const personEnrichTool: ToolConfig<PdlPersonEnrichParams, PdlPersonEnrich
       visibility: 'user-or-llm',
       description: 'Required-fields expression (e.g., "emails AND job_title")',
     },
+    titlecase: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Return name fields in title case',
+    },
   },
 
   request: {
@@ -106,6 +112,7 @@ export const personEnrichTool: ToolConfig<PdlPersonEnrichParams, PdlPersonEnrich
         location: params.location,
         min_likelihood: params.min_likelihood,
         required: params.required,
+        titlecase: params.titlecase,
       })
       return `https://api.peopledatalabs.com/v5/person/enrich${qs}`
     },

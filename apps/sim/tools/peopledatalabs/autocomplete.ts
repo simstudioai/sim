@@ -45,6 +45,12 @@ export const autocompleteTool: ToolConfig<PdlAutocompleteParams, PdlAutocomplete
       visibility: 'user-or-llm',
       description: 'Number of suggestions to return (1-100, default 10)',
     },
+    titlecase: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Return name fields in title case',
+    },
   },
 
   request: {
@@ -53,6 +59,7 @@ export const autocompleteTool: ToolConfig<PdlAutocompleteParams, PdlAutocomplete
         field: params.field,
         text: params.text,
         size: params.size,
+        titlecase: params.titlecase,
       })
       return `https://api.peopledatalabs.com/v5/autocomplete${qs}`
     },

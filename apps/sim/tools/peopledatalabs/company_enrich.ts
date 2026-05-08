@@ -83,6 +83,12 @@ export const companyEnrichTool: ToolConfig<PdlCompanyEnrichParams, PdlCompanyEnr
       visibility: 'user-or-llm',
       description: 'Required-fields expression',
     },
+    titlecase: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Return name fields in title case',
+    },
   },
 
   request: {
@@ -99,6 +105,7 @@ export const companyEnrichTool: ToolConfig<PdlCompanyEnrichParams, PdlCompanyEnr
         country: params.country,
         min_likelihood: params.min_likelihood,
         required: params.required,
+        titlecase: params.titlecase,
       })
       return `https://api.peopledatalabs.com/v5/company/enrich${qs}`
     },
