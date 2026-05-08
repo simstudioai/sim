@@ -316,7 +316,13 @@ export const fileDeleteBodySchema = z
   .passthrough()
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024
-export const validUploadTypes = ['knowledge-base', 'chat', 'copilot', 'profile-pictures'] as const
+export const validUploadTypes = [
+  'knowledge-base',
+  'chat',
+  'copilot',
+  'profile-pictures',
+  'mothership',
+] as const
 
 export const uploadTypeSchema = z.enum(validUploadTypes)
 
