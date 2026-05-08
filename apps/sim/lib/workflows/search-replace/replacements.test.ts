@@ -180,6 +180,32 @@ describe('buildWorkflowSearchReplacePlan', () => {
     ])
   })
 
+  it('replaces duplicate structured resources with blank comma segments consistently', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['knowledge-1'].subBlocks.knowledgeBaseIds.value = 'kb-old,,kb-second,kb-old'
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'kb-old',
+      mode: 'resource',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    }).filter((match) => match.kind === 'knowledge-base')
+
+    const plan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches,
+      selectedMatchIds: new Set([matches[1].id]),
+      defaultReplacement: 'kb-new',
+      resourceReplacementOptions: [
+        { kind: 'knowledge-base', value: 'kb-new', label: 'New Knowledge Base' },
+      ],
+    })
+
+    expect(plan.conflicts).toEqual([])
+    expect(plan.updates).toHaveLength(1)
+    expect(plan.updates[0].nextValue).toBe('kb-old,,kb-second,kb-new')
+  })
+
   it('replaces all compatible knowledge base references across blocks', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['knowledge-2'] = {
@@ -561,6 +587,101 @@ describe('buildWorkflowSearchReplacePlan', () => {
           credential: 'slack-credential',
           text: 'message with files',
           attachmentFiles: JSON.stringify([files[0], files[1]]),
+        },
+      },
+    ]
+
+    const replacementFile = {
+      name: 'replacement.pdf',
+      key: 'file-key-new',
+      path: '/replacement.pdf',
+      size: 24,
+      type: 'application/pdf',
+    }
+    const plan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches,
+      selectedMatchIds: new Set([matches[1].id]),
+      defaultReplacement: JSON.stringify(replacementFile),
+      resourceReplacementOptions: [
+        { kind: 'file', value: JSON.stringify(replacementFile), label: replacementFile.name },
+      ],
+    })
+
+    expect(plan.updates).toEqual([])
+    expect(plan.conflicts).toEqual([
+      { matchId: matches[1].id, reason: 'Target resource changed since search' },
+    ])
+  })
+
+  it('conflicts when a selected duplicate file occurrence becomes a single file object', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    const firstFile = {
+      name: 'first.pdf',
+      key: 'file-key-old',
+      path: '/first.pdf',
+      size: 12,
+      type: 'application/pdf',
+    }
+    const secondFile = {
+      name: 'second.pdf',
+      key: 'file-key-old',
+      path: '/second.pdf',
+      size: 14,
+      type: 'application/pdf',
+    }
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'slack',
+              toolId: 'slack_message',
+              operation: 'send',
+              title: 'Slack message',
+              params: {
+                authMethod: 'oauth',
+                credential: 'slack-credential',
+                text: 'message with files',
+                attachmentFiles: [firstFile, secondFile],
+              },
+            },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'file-key-old',
+      mode: 'resource',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+      },
+    }).filter((match) => match.kind === 'file')
+
+    workflow.blocks['tool-input-1'].subBlocks.tools.value = [
+      {
+        type: 'slack',
+        toolId: 'slack_message',
+        operation: 'send',
+        title: 'Slack message',
+        params: {
+          authMethod: 'oauth',
+          credential: 'slack-credential',
+          text: 'message with files',
+          attachmentFiles: firstFile,
         },
       },
     ]

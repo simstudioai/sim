@@ -105,6 +105,7 @@ function replaceCommaResourceValue(
   let replaced = false
 
   const shouldReplace = (item: string) => {
+    if (!item) return false
     const currentOccurrenceIndex = occurrenceIndex
     occurrenceIndex += 1
     if (item !== rawValue) return false
@@ -261,10 +262,11 @@ const fileUploadResourceCodec: WorkflowSearchResourceCodec = {
     }
 
     const result = replaceItem(parsed.value)
-    if (!result.success || !parsed.serialized) return result
+    if (!result.success) return result
     if (targetOccurrenceIndex !== undefined && !replaced) {
       return { success: false, reason: 'Target resource changed since search' }
     }
+    if (!parsed.serialized) return result
     return { success: true, nextValue: JSON.stringify(result.nextValue) }
   },
 }
