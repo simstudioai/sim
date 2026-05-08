@@ -1,3 +1,4 @@
+import { env, envNumber } from '@/lib/core/config/env'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
@@ -11,7 +12,7 @@ import type { SerializedBlock } from '@/serializer/types'
 const CANCELLATION_CHECK_INTERVAL_MS = 500
 
 /** Threshold below which we hold the wait in-process; above, we suspend via PauseMetadata. */
-const INPROCESS_MAX_MS = 5 * 60 * 1000
+const inprocessMaxMs = (): number => envNumber(env.WAIT_INPROCESS_MAX_MS, 5 * 60 * 1000)
 
 /** Hard ceiling on configurable wait duration. */
 const MAX_WAIT_MS = 30 * 24 * 60 * 60 * 1000
@@ -91,7 +92,7 @@ function isWaitUnit(value: string): value is WaitUnit {
 /**
  * Handler for Wait blocks that pause workflow execution for a time delay.
  *
- * Waits up to {@link INPROCESS_MAX_MS} are held in-process via an interruptible sleep.
+ * Waits up to `WAIT_INPROCESS_MAX_MS` (default 5 minutes) are held in-process via an interruptible sleep.
  * Longer waits suspend the workflow by returning {@link PauseMetadata} with
  * `pauseKind: 'time'`; the cron-driven resume poller (see `/api/resume/poll`) picks
  * the execution back up once `resumeAt` is reached.
@@ -140,7 +141,7 @@ export class WaitBlockHandler implements BlockHandler {
       throw new Error('Wait time exceeds maximum of 30 days')
     }
 
-    if (waitMs <= INPROCESS_MAX_MS) {
+    if (waitMs <= inprocessMaxMs()) {
       const completed = await sleep(waitMs, {
         signal: ctx.abortSignal,
         executionId: ctx.executionId,
