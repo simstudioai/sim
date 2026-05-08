@@ -72,7 +72,7 @@ export function useTableEventStream({
     let reconnectAttempt = 0
 
     const applyCell = (event: Extract<TableEvent, { kind: 'cell' }>): void => {
-      const { rowId, groupId, status, executionId, jobId, error, outputs } = event
+      const { rowId, groupId, status, executionId, jobId, error, outputs, runningBlockIds, blockErrors } = event
       void snapshotAndMutateRows(
         queryClient,
         tableId,
@@ -86,6 +86,8 @@ export function useTableEventStream({
             // Preserve workflowId from cache; SSE payload doesn't carry it.
             workflowId: prevExec?.workflowId ?? '',
             error: error ?? null,
+            ...(runningBlockIds ? { runningBlockIds } : {}),
+            ...(blockErrors ? { blockErrors } : {}),
           }
           const nextExecutions: RowExecutions = {
             ...(row.executions ?? {}),

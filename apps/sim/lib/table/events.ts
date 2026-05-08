@@ -89,6 +89,14 @@ export interface TableEvent {
    * already has these in hand from the same updateRow call that wrote DB.
    */
   outputs?: Record<string, unknown>
+  /**
+   * Block-level metadata the renderer reads to distinguish "running" (some
+   * block actively executing) from "pending-upstream" (run started but this
+   * column's block hasn't fired yet). The worker fills these on partial
+   * writes; without them the cell stays on the amber Pending pill.
+   */
+  runningBlockIds?: string[]
+  blockErrors?: Record<string, string>
 }
 
 export interface TableEventEntry {
