@@ -74,7 +74,7 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
       if (params.account_attributes) {
         if (Array.isArray(params.account_attributes)) {
           if (params.account_attributes.length > 0) {
-            body.account_attributes = params.account_attributes
+            body.account_attributes = params.account_attributes.slice(0, 1000)
           }
         } else if (
           typeof params.account_attributes === 'object' &&
