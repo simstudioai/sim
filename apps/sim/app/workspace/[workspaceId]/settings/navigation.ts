@@ -224,5 +224,6 @@ export const allNavigationItems: NavigationItem[] = [
     icon: Server,
     section: 'superuser',
     requiresAdminRole: true,
+    requiresSuperUser: true,
   },
 ]

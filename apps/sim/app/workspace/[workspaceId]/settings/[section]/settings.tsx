@@ -31,6 +31,7 @@ import {
 import { AuditLogsSkeleton } from '@/ee/audit-logs/components/audit-logs-skeleton'
 import { DataDrainsSkeleton } from '@/ee/data-drains/components/data-drains-skeleton'
 import { DataRetentionSkeleton } from '@/ee/data-retention/components/data-retention-skeleton'
+import { useGeneralSettings } from '@/hooks/queries/general-settings'
 
 /**
  * Generic skeleton fallback for sections without a dedicated skeleton.
@@ -199,9 +200,11 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const searchParams = useSearchParams()
   const mcpServerId = searchParams.get('mcpServerId')
   const { data: session, isPending: sessionLoading } = useSession()
+  const { data: generalSettings, isLoading: generalSettingsLoading } = useGeneralSettings()
   const posthog = usePostHog()
 
   const isAdminRole = session?.user?.role === 'admin'
+  const isEffectiveSuperUser = isAdminRole && (generalSettings?.superUserModeEnabled ?? false)
   const effectiveSection =
     !isBillingEnabled && (section === 'subscription' || section === 'organization')
       ? 'general'
@@ -209,7 +212,10 @@ export function SettingsPage({ section }: SettingsPageProps) {
         ? 'general'
         : section === 'admin' && !sessionLoading && !isAdminRole
           ? 'general'
-          : section === 'mothership' && !sessionLoading && !isAdminRole
+          : section === 'mothership' &&
+              !sessionLoading &&
+              !generalSettingsLoading &&
+              !isEffectiveSuperUser
             ? 'general'
             : section
 

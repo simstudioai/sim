@@ -109,6 +109,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       requestChatTitle({
         message: titleInput,
         model: 'claude-opus-4-6',
+        userId,
       })
         .then(async (title) => {
           if (title && chatId) {

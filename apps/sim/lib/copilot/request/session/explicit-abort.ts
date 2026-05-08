@@ -1,8 +1,8 @@
 import type { Context } from '@opentelemetry/api'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { AbortReason } from '@/lib/copilot/request/session/abort'
+import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
 
 export const DEFAULT_EXPLICIT_ABORT_TIMEOUT_MS = 3000
@@ -36,7 +36,8 @@ export async function requestExplicitStreamAbort(params: {
   )
 
   try {
-    const response = await fetchGo(`${SIM_AGENT_API_URL}/api/streams/explicit-abort`, {
+    const mothershipBaseURL = await getMothershipBaseURL({ userId })
+    const response = await fetchGo(`${mothershipBaseURL}/api/streams/explicit-abort`, {
       method: 'POST',
       headers,
       signal: controller.signal,

@@ -3,9 +3,9 @@
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { snapshotAndMutateRows, tableKeys } from '@/hooks/queries/tables'
-import type { TableEvent, TableEventEntry } from '@/lib/table/events'
 import type { RowData, RowExecutionMetadata, RowExecutions } from '@/lib/table'
+import type { TableEvent, TableEventEntry } from '@/lib/table/events'
+import { snapshotAndMutateRows, tableKeys } from '@/hooks/queries/tables'
 
 const logger = createLogger('useTableEventStream')
 
@@ -66,9 +66,7 @@ export function useTableEventStream({
             ...(row.executions ?? {}),
             [groupId]: nextExec,
           }
-          const nextData: RowData = outputs
-            ? ({ ...row.data, ...outputs } as RowData)
-            : row.data
+          const nextData: RowData = outputs ? ({ ...row.data, ...outputs } as RowData) : row.data
           return { ...row, executions: nextExecutions, data: nextData }
         },
         { cancelInFlight: false }

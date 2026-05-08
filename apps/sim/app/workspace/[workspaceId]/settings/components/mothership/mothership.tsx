@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Badge, Button, Input as EmcnInput, Label, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import {
   type MothershipEnv,
   useGenerateLicense,
@@ -62,22 +63,58 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export function Mothership() {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
-  const [environment, setEnvironment] = useState<MothershipEnv>('dev')
+  const { data: settings, isLoading: settingsLoading } = useGeneralSettings()
+  const updateSetting = useUpdateGeneralSetting()
+  const environment = settings?.mothershipEnvironment ?? 'prod'
   const defaults = useMemo(() => defaultTimeRange(), [])
   const [start, setStart] = useState(defaults.start)
   const [end, setEnd] = useState(defaults.end)
 
+  const handleEnvironmentChange = useCallback(
+    async (nextEnvironment: MothershipEnv) => {
+      if (nextEnvironment !== settings?.mothershipEnvironment && !updateSetting.isPending) {
+        await updateSetting.mutateAsync({
+          key: 'mothershipEnvironment',
+          value: nextEnvironment,
+        })
+      }
+    },
+    [settings?.mothershipEnvironment, updateSetting]
+  )
+
+  if (settingsLoading) {
+    return (
+      <div className='flex h-full flex-col gap-5'>
+        <Skeleton className='h-[32px] w-[320px] rounded-md' />
+        <Skeleton className='h-[40px] w-full rounded-md' />
+        <Skeleton className='h-[120px] w-full rounded-md' />
+      </div>
+    )
+  }
+
+  if (!settings?.superUserModeEnabled) {
+    return (
+      <div className='flex h-full flex-col gap-3'>
+        <p className='font-medium text-[var(--text-primary)] text-sm'>Super admin mode is off</p>
+        <p className='text-[var(--text-secondary)] text-sm'>
+          Enable Super admin mode in Admin settings to view Mothership controls and change the
+          Mothership environment.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className='flex h-full flex-col gap-5'>
-      {/* Environment selector */}
-      <div className='flex items-center gap-2'>
-        <Label className='text-[var(--text-secondary)] text-sm'>Environment</Label>
+      <div className='flex items-center gap-3'>
+        <Label className='text-[var(--text-secondary)] text-sm'>Mothership Environment</Label>
         <div className='flex gap-1'>
           {ENV_OPTIONS.map((opt) => (
             <button
               key={opt.id}
               type='button'
-              onClick={() => setEnvironment(opt.id)}
+              onClick={() => handleEnvironmentChange(opt.id)}
+              disabled={updateSetting.isPending}
               className={cn(
                 'rounded-md px-3 py-1 font-medium text-sm transition-colors',
                 environment === opt.id

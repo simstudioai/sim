@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   getUserSettingsContract,
+  type MothershipEnvironment,
   type UserSettingsApi,
   updateUserSettingsContract,
 } from '@/lib/api/contracts'
@@ -26,6 +27,7 @@ export interface GeneralSettings {
   autoConnect: boolean
   showTrainingControls: boolean
   superUserModeEnabled: boolean
+  mothershipEnvironment: MothershipEnvironment
   theme: 'light' | 'dark' | 'system'
   telemetryEnabled: boolean
   billingUsageNotificationsEnabled: boolean
@@ -43,6 +45,7 @@ export function mapGeneralSettingsResponse(data: UserSettingsApi): GeneralSettin
     autoConnect: data.autoConnect,
     showTrainingControls: data.showTrainingControls,
     superUserModeEnabled: data.superUserModeEnabled,
+    mothershipEnvironment: data.mothershipEnvironment,
     theme: data.theme,
     telemetryEnabled: data.telemetryEnabled,
     billingUsageNotificationsEnabled: data.billingUsageNotificationsEnabled,
