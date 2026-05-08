@@ -1807,6 +1807,17 @@ import {
   neo4jUpdateTool,
 } from '@/tools/neo4j'
 import {
+  netlifyCancelDeployTool,
+  netlifyCreateDeployTool,
+  netlifyCreateEnvVarTool,
+  netlifyDeleteEnvVarTool,
+  netlifyGetDeployTool,
+  netlifyListDeploysTool,
+  netlifyListEnvVarsTool,
+  netlifyListSitesTool,
+  netlifyUpdateEnvVarTool,
+} from '@/tools/netlify'
+import {
   notionAddDatabaseRowTool,
   notionAddDatabaseRowV2Tool,
   notionCreateDatabaseTool,
@@ -4567,6 +4578,16 @@ export const tools: Record<string, ToolConfig> = {
   trello_update_card: trelloUpdateCardTool,
   trello_get_actions: trelloGetActionsTool,
   trello_add_comment: trelloAddCommentTool,
+  // Netlify
+  netlify_list_sites: netlifyListSitesTool,
+  netlify_list_deploys: netlifyListDeploysTool,
+  netlify_get_deploy: netlifyGetDeployTool,
+  netlify_create_deploy: netlifyCreateDeployTool,
+  netlify_cancel_deploy: netlifyCancelDeployTool,
+  netlify_list_env_vars: netlifyListEnvVarsTool,
+  netlify_create_env_var: netlifyCreateEnvVarTool,
+  netlify_update_env_var: netlifyUpdateEnvVarTool,
+  netlify_delete_env_var: netlifyDeleteEnvVarTool,
   // Vercel - Deployments
   vercel_list_deployments: vercelListDeploymentsTool,
   vercel_get_deployment: vercelGetDeploymentTool,

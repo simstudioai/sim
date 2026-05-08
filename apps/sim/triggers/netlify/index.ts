@@ -1,0 +1,6 @@
+export { netlifyDeployBuildingTrigger } from './deploy_building'
+export { netlifyDeployCreatedTrigger } from './deploy_created'
+export { netlifyDeployFailedTrigger } from './deploy_failed'
+export { netlifyDeployLockedTrigger } from './deploy_locked'
+export { netlifyDeploySucceededTrigger } from './deploy_succeeded'
+export { netlifyDeployUnlockedTrigger } from './deploy_unlocked'

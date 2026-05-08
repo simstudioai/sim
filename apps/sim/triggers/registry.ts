@@ -261,6 +261,14 @@ import {
   mondayUpdateCreatedTrigger,
 } from '@/triggers/monday'
 import {
+  netlifyDeployBuildingTrigger,
+  netlifyDeployCreatedTrigger,
+  netlifyDeployFailedTrigger,
+  netlifyDeployLockedTrigger,
+  netlifyDeploySucceededTrigger,
+  netlifyDeployUnlockedTrigger,
+} from '@/triggers/netlify'
+import {
   notionCommentCreatedTrigger,
   notionDatabaseCreatedTrigger,
   notionDatabaseDeletedTrigger,
@@ -563,6 +571,12 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   whatsapp_webhook: whatsappWebhookTrigger,
   google_forms_webhook: googleFormsWebhookTrigger,
   twilio_voice_webhook: twilioVoiceWebhookTrigger,
+  netlify_deploy_created: netlifyDeployCreatedTrigger,
+  netlify_deploy_building: netlifyDeployBuildingTrigger,
+  netlify_deploy_succeeded: netlifyDeploySucceededTrigger,
+  netlify_deploy_failed: netlifyDeployFailedTrigger,
+  netlify_deploy_locked: netlifyDeployLockedTrigger,
+  netlify_deploy_unlocked: netlifyDeployUnlockedTrigger,
   vercel_deployment_created: vercelDeploymentCreatedTrigger,
   vercel_deployment_ready: vercelDeploymentReadyTrigger,
   vercel_deployment_error: vercelDeploymentErrorTrigger,

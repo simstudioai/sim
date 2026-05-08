@@ -26,6 +26,7 @@ import { lemlistHandler } from '@/lib/webhooks/providers/lemlist'
 import { linearHandler } from '@/lib/webhooks/providers/linear'
 import { microsoftTeamsHandler } from '@/lib/webhooks/providers/microsoft-teams'
 import { mondayHandler } from '@/lib/webhooks/providers/monday'
+import { netlifyHandler } from '@/lib/webhooks/providers/netlify'
 import { notionHandler } from '@/lib/webhooks/providers/notion'
 import { outlookHandler } from '@/lib/webhooks/providers/outlook'
 import { resendHandler } from '@/lib/webhooks/providers/resend'
@@ -88,6 +89,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   twilio: twilioHandler,
   twilio_voice: twilioVoiceHandler,
   typeform: typeformHandler,
+  netlify: netlifyHandler,
   vercel: vercelHandler,
   webflow: webflowHandler,
   whatsapp: whatsappHandler,

@@ -138,6 +138,7 @@ import { MongoDBBlock } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
 import { Neo4jBlock } from '@/blocks/blocks/neo4j'
+import { NetlifyBlock } from '@/blocks/blocks/netlify'
 import { NoteBlock } from '@/blocks/blocks/note'
 import { NotionBlock, NotionV2Block } from '@/blocks/blocks/notion'
 import { ObsidianBlock } from '@/blocks/blocks/obsidian'
@@ -388,6 +389,7 @@ export const registry: Record<string, BlockConfig> = {
   mothership: MothershipBlock,
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
+  netlify: NetlifyBlock,
   note: NoteBlock,
   notion: NotionBlock,
   notion_v2: NotionV2Block,
