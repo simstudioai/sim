@@ -209,6 +209,7 @@ export interface PdlPersonEnrichParams {
   phone?: string
   profile?: string
   lid?: string
+  name?: string
   first_name?: string
   last_name?: string
   company?: string

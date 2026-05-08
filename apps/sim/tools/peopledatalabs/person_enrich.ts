@@ -41,6 +41,12 @@ export const personEnrichTool: ToolConfig<PdlPersonEnrichParams, PdlPersonEnrich
       visibility: 'user-or-llm',
       description: 'LinkedIn numeric ID',
     },
+    name: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Full name (use as an alternative to first_name + last_name)',
+    },
     first_name: {
       type: 'string',
       required: false,
@@ -92,6 +98,7 @@ export const personEnrichTool: ToolConfig<PdlPersonEnrichParams, PdlPersonEnrich
         phone: params.phone,
         profile: params.profile,
         lid: params.lid,
+        name: params.name,
         first_name: params.first_name,
         last_name: params.last_name,
         company: params.company,
