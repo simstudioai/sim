@@ -438,6 +438,30 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
         body: { workspaceId, column },
       })
     },
+    onMutate: async (column) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        const exists = previousDetail.schema.columns.some(
+          (c) => c.name.toLowerCase() === column.name.toLowerCase()
+        )
+        if (!exists) {
+          queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+            ...previousDetail,
+            schema: {
+              ...previousDetail.schema,
+              columns: [...previousDetail.schema.columns, column],
+            },
+          })
+        }
+      }
+      return { previousDetail }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
+    },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
     },
@@ -457,7 +481,39 @@ export function useRenameTable(workspaceId: string) {
         body: { workspaceId, name },
       })
     },
-    onError: (error) => {
+    onMutate: async ({ tableId, name }) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) }),
+        queryClient.cancelQueries({ queryKey: tableKeys.lists() }),
+      ])
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previousDetail,
+          name,
+        })
+      }
+      const listSnapshots = queryClient.getQueriesData<TableDefinition[]>({
+        queryKey: tableKeys.lists(),
+      })
+      for (const [key, data] of listSnapshots) {
+        if (!data) continue
+        queryClient.setQueryData<TableDefinition[]>(
+          key,
+          data.map((t) => (t.id === tableId ? { ...t, name } : t))
+        )
+      }
+      return { previousDetail, listSnapshots, tableId }
+    },
+    onError: (error, _vars, context) => {
+      if (context?.previousDetail && context.tableId) {
+        queryClient.setQueryData(tableKeys.detail(context.tableId), context.previousDetail)
+      }
+      if (context?.listSnapshots) {
+        for (const [key, data] of context.listSnapshots) {
+          queryClient.setQueryData(key, data)
+        }
+      }
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
@@ -479,6 +535,27 @@ export function useDeleteTable(workspaceId: string) {
         params: { tableId },
         query: { workspaceId },
       })
+    },
+    onMutate: async (tableId) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.lists() })
+      const listSnapshots = queryClient.getQueriesData<TableDefinition[]>({
+        queryKey: tableKeys.lists(),
+      })
+      for (const [key, data] of listSnapshots) {
+        if (!data) continue
+        queryClient.setQueryData<TableDefinition[]>(
+          key,
+          data.filter((t) => t.id !== tableId)
+        )
+      }
+      return { listSnapshots }
+    },
+    onError: (_err, _tableId, context) => {
+      if (context?.listSnapshots) {
+        for (const [key, data] of context.listSnapshots) {
+          queryClient.setQueryData(key, data)
+        }
+      }
     },
     onSettled: (_data, _error, tableId) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -733,6 +810,13 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
         body: { workspaceId },
       })
     },
+    onMutate: async (rowId) => {
+      const snapshots = await snapshotAndFilterRows(queryClient, tableId, new Set([rowId]))
+      return { snapshots }
+    },
+    onError: (_err, _rowId, context) => {
+      if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
+    },
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
     },
@@ -770,6 +854,13 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
 
       return { deletedRowIds }
     },
+    onMutate: async (rowIds) => {
+      const snapshots = await snapshotAndFilterRows(queryClient, tableId, new Set(rowIds))
+      return { snapshots }
+    },
+    onError: (_err, _rowIds, context) => {
+      if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
+    },
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
     },
@@ -791,7 +882,25 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
         body: { workspaceId, columnName, updates },
       })
     },
-    onError: (error) => {
+    onMutate: async ({ columnName, updates }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        const lower = columnName.toLowerCase()
+        const nextColumns = previousDetail.schema.columns.map((c) =>
+          c.name.toLowerCase() === lower ? { ...c, ...updates } : c
+        )
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previousDetail,
+          schema: { ...previousDetail.schema, columns: nextColumns },
+        })
+      }
+      return { previousDetail }
+    },
+    onError: (error, _vars, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
@@ -1069,6 +1178,47 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
         body: { workspaceId, columnName },
       })
     },
+    onMutate: async (columnName) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        const lower = columnName.toLowerCase()
+        const nextColumns = previousDetail.schema.columns.filter(
+          (c) => c.name.toLowerCase() !== lower
+        )
+        const prevWidths = previousDetail.metadata?.columnWidths
+        const nextMetadata = prevWidths
+          ? {
+              ...previousDetail.metadata,
+              columnWidths: Object.fromEntries(
+                Object.entries(prevWidths).filter(([k]) => k.toLowerCase() !== lower)
+              ),
+            }
+          : previousDetail.metadata
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previousDetail,
+          schema: { ...previousDetail.schema, columns: nextColumns },
+          metadata: nextMetadata,
+        })
+      }
+
+      const rowSnapshots = await snapshotAndMutateRows(queryClient, tableId, (row) => {
+        if (!(columnName in row.data)) return null
+        const { [columnName]: _removed, ...rest } = row.data
+        return { ...row, data: rest }
+      })
+
+      return { previousDetail, rowSnapshots }
+    },
+    onError: (_err, _columnName, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
+      if (context?.rowSnapshots) {
+        restoreCachedWorkflowCells(queryClient, context.rowSnapshots)
+      }
+    },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
     },
@@ -1159,6 +1309,56 @@ export async function snapshotAndMutateRows(
   return snapshots
 }
 
+/**
+ * Removes rows whose `id` is in `rowIds` from every cached row-list under
+ * `tableId`, decrements `totalCount`, and snapshots originals for rollback.
+ * Mirrors `snapshotAndMutateRows`'s handling of both cache shapes.
+ */
+async function snapshotAndFilterRows(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tableId: string,
+  rowIds: ReadonlySet<string>
+): Promise<RowsCacheSnapshots> {
+  await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+  const matching = queryClient.getQueriesData<RowsCacheEntry>({
+    queryKey: tableKeys.rowsRoot(tableId),
+  })
+  const snapshots: RowsCacheSnapshots = []
+  for (const [key, data] of matching) {
+    if (!data) continue
+    if (isInfiniteRowsCache(data)) {
+      let removed = 0
+      const nextPages = data.pages.map((page) => {
+        const filtered = page.rows.filter((r) => !rowIds.has(r.id))
+        if (filtered.length === page.rows.length) return page
+        removed += page.rows.length - filtered.length
+        return { ...page, rows: filtered }
+      })
+      if (removed === 0) continue
+      const firstPage = nextPages[0]
+      if (firstPage && firstPage.totalCount !== null && firstPage.totalCount !== undefined) {
+        nextPages[0] = { ...firstPage, totalCount: Math.max(0, firstPage.totalCount - removed) }
+      }
+      snapshots.push([key, data])
+      queryClient.setQueryData<InfiniteRowsCache>(key, { ...data, pages: nextPages })
+      continue
+    }
+    const filtered = data.rows.filter((r) => !rowIds.has(r.id))
+    if (filtered.length === data.rows.length) continue
+    const removed = data.rows.length - filtered.length
+    snapshots.push([key, data])
+    queryClient.setQueryData<TableRowsResponse>(key, {
+      ...data,
+      rows: filtered,
+      totalCount:
+        data.totalCount === null || data.totalCount === undefined
+          ? data.totalCount
+          : Math.max(0, data.totalCount - removed),
+    })
+  }
+  return snapshots
+}
+
 export function restoreCachedWorkflowCells(
   queryClient: ReturnType<typeof useQueryClient>,
   snapshots: RowsCacheSnapshots
@@ -1230,6 +1430,32 @@ export function useAddWorkflowGroup({ workspaceId, tableId }: RowMutationContext
         body: { workspaceId, group, outputColumns },
       })
     },
+    onMutate: async ({ group, outputColumns }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        const existingNames = new Set(
+          previousDetail.schema.columns.map((c) => c.name.toLowerCase())
+        )
+        const newColumns = outputColumns
+          .filter((c) => !existingNames.has(c.name.toLowerCase()))
+          .map((c) => ({ ...c, workflowGroupId: group.id }))
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previousDetail,
+          schema: {
+            ...previousDetail.schema,
+            columns: [...previousDetail.schema.columns, ...newColumns],
+            workflowGroups: [...(previousDetail.schema.workflowGroups ?? []), group],
+          },
+        })
+      }
+      return { previousDetail }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
+    },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
     },
@@ -1254,6 +1480,54 @@ export function useUpdateWorkflowGroup({ workspaceId, tableId }: RowMutationCont
         body: { workspaceId, ...vars },
       })
     },
+    onMutate: async (vars) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        const existingGroups = previousDetail.schema.workflowGroups ?? []
+        const target = existingGroups.find((g) => g.id === vars.groupId)
+        if (target) {
+          const nextGroup: WorkflowGroup = {
+            ...target,
+            ...(vars.workflowId !== undefined ? { workflowId: vars.workflowId } : {}),
+            ...(vars.name !== undefined ? { name: vars.name } : {}),
+            ...(vars.dependencies !== undefined ? { dependencies: vars.dependencies } : {}),
+            ...(vars.outputs !== undefined ? { outputs: vars.outputs } : {}),
+          }
+          const nextGroups = existingGroups.map((g) => (g.id === vars.groupId ? nextGroup : g))
+
+          let nextColumns = previousDetail.schema.columns
+          if (vars.outputs !== undefined) {
+            const keepNames = new Set(vars.outputs.map((o) => o.columnName.toLowerCase()))
+            nextColumns = nextColumns.filter(
+              (c) => c.workflowGroupId !== vars.groupId || keepNames.has(c.name.toLowerCase())
+            )
+          }
+          if (vars.newOutputColumns && vars.newOutputColumns.length > 0) {
+            const existingNames = new Set(nextColumns.map((c) => c.name.toLowerCase()))
+            const newCols = vars.newOutputColumns
+              .filter((c) => !existingNames.has(c.name.toLowerCase()))
+              .map((c) => ({ ...c, workflowGroupId: vars.groupId }))
+            nextColumns = [...nextColumns, ...newCols]
+          }
+
+          queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+            ...previousDetail,
+            schema: {
+              ...previousDetail.schema,
+              columns: nextColumns,
+              workflowGroups: nextGroups,
+            },
+          })
+        }
+      }
+      return { previousDetail }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
+    },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
@@ -1273,6 +1547,40 @@ export function useDeleteWorkflowGroup({ workspaceId, tableId }: RowMutationCont
         params: { tableId },
         body: { workspaceId, groupId },
       })
+    },
+    onMutate: async ({ groupId }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        const nextGroups = (previousDetail.schema.workflowGroups ?? []).filter(
+          (g) => g.id !== groupId
+        )
+        const nextColumns = previousDetail.schema.columns.filter(
+          (c) => c.workflowGroupId !== groupId
+        )
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previousDetail,
+          schema: {
+            ...previousDetail.schema,
+            columns: nextColumns,
+            workflowGroups: nextGroups,
+          },
+        })
+      }
+      const rowSnapshots = await snapshotAndMutateRows(queryClient, tableId, (row) => {
+        if (!row.executions || !(groupId in row.executions)) return null
+        const { [groupId]: _removed, ...restExec } = row.executions
+        return { ...row, executions: restExec }
+      })
+      return { previousDetail, rowSnapshots }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
+      if (context?.rowSnapshots) {
+        restoreCachedWorkflowCells(queryClient, context.rowSnapshots)
+      }
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)

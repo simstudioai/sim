@@ -113,6 +113,45 @@ function parseOptionalSchema<S extends ApiSchema | undefined>(
   return schema.parse(value) as EmptySchemaOutput<S>
 }
 
+/**
+ * Wraps the four contract-input parses (params/query/body/headers) so a Zod
+ * failure becomes an `ApiClientError` with a user-friendly `message` instead
+ * of a raw `ZodError` whose `.message` is the JSON-stringified issues array.
+ */
+function parseClientInputs<C extends AnyApiRouteContract>(
+  contract: C,
+  input: ApiClientRequest<C>
+): {
+  params: unknown
+  query: unknown
+  body: unknown
+  headers: unknown
+} {
+  try {
+    return {
+      params: parseOptionalSchema(contract.params, input.params),
+      query: parseOptionalSchema(contract.query, input.query),
+      body: parseOptionalSchema(contract.body, input.body),
+      headers: parseOptionalSchema(contract.headers, input.headers),
+    }
+  } catch (error) {
+    if (isSchemaValidationError(error)) {
+      const issues = (
+        error as { issues: Array<{ message?: string; path?: Array<string | number> }> }
+      ).issues
+      const first = issues[0]
+      const message = first?.message || 'Invalid input'
+      throw new ApiClientError({
+        status: 0,
+        message,
+        body: { error: message, details: issues },
+        code: 'client_validation_error',
+      })
+    }
+    throw error
+  }
+}
+
 async function readResponseBody(response: Response): Promise<{ parsed: unknown; raw?: string }> {
   const text = await response.text()
   if (!text) return { parsed: undefined }
@@ -159,10 +198,12 @@ export async function requestJson<C extends AnyApiRouteContract>(
     throw new Error(`Contract ${contract.method} ${contract.path} does not declare a JSON response`)
   }
 
-  const parsedParams = parseOptionalSchema(contract.params, input.params)
-  const parsedQuery = parseOptionalSchema(contract.query, input.query)
-  const parsedBody = parseOptionalSchema(contract.body, input.body)
-  const parsedHeaders = parseOptionalSchema(contract.headers, input.headers)
+  const {
+    params: parsedParams,
+    query: parsedQuery,
+    body: parsedBody,
+    headers: parsedHeaders,
+  } = parseClientInputs(contract, input)
 
   const url = appendQuery(replacePathParams(contract.path, parsedParams), parsedQuery)
   const hasBody = parsedBody !== undefined && contract.method !== 'GET'
@@ -205,10 +246,12 @@ export async function requestRaw<C extends AnyApiRouteContract>(
   input: ApiClientRequest<C>,
   options: ApiRawRequestOptions = {}
 ): Promise<Response> {
-  const parsedParams = parseOptionalSchema(contract.params, input.params)
-  const parsedQuery = parseOptionalSchema(contract.query, input.query)
-  const parsedBody = parseOptionalSchema(contract.body, input.body)
-  const parsedHeaders = parseOptionalSchema(contract.headers, input.headers)
+  const {
+    params: parsedParams,
+    query: parsedQuery,
+    body: parsedBody,
+    headers: parsedHeaders,
+  } = parseClientInputs(contract, input)
 
   const url = appendQuery(replacePathParams(contract.path, parsedParams), parsedQuery)
   const hasBody = parsedBody !== undefined && contract.method !== 'GET'
