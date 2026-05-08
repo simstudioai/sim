@@ -1,5 +1,4 @@
 import type { HunterEnrichmentParams, HunterEnrichmentResponse } from '@/tools/hunter/types'
-import { COMPANY_OUTPUT } from '@/tools/hunter/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichmentResponse> = {
@@ -39,32 +38,57 @@ export const companiesFindTool: ToolConfig<HunterEnrichmentParams, HunterEnrichm
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+    const c = data.data ?? {}
 
     return {
       success: true,
       output: {
-        person: undefined,
-        company: data.data
-          ? {
-              name: data.data.name || '',
-              domain: data.data.domain || '',
-              industry: data.data.industry || '',
-              size: data.data.size || '',
-              country: data.data.country || '',
-              linkedin: data.data.linkedin || '',
-              twitter: data.data.twitter || '',
-            }
-          : undefined,
+        name: c.name ?? '',
+        domain: c.domain ?? '',
+        description: c.description ?? '',
+        industry: c.category?.industry ?? '',
+        sector: c.category?.sector ?? '',
+        size:
+          c.metrics?.employeesRange ??
+          (c.metrics?.employees != null ? String(c.metrics.employees) : ''),
+        founded_year: c.foundedYear ?? null,
+        location: c.location ?? '',
+        country: c.geo?.country ?? '',
+        country_code: c.geo?.countryCode ?? '',
+        state: c.geo?.state ?? '',
+        city: c.geo?.city ?? '',
+        linkedin: c.linkedin?.handle ?? '',
+        twitter: c.twitter?.handle ?? '',
+        facebook: c.facebook?.handle ?? '',
+        logo: c.logo ?? '',
+        phone: c.phone ?? '',
+        tech: c.tech ?? [],
       },
     }
   },
 
   outputs: {
-    person: {
-      type: 'object',
-      description: 'Person information (undefined for companies_find tool)',
-      optional: true,
+    name: { type: 'string', description: 'Company name' },
+    domain: { type: 'string', description: 'Company domain' },
+    description: { type: 'string', description: 'Company description' },
+    industry: { type: 'string', description: 'Industry classification' },
+    sector: { type: 'string', description: 'Business sector' },
+    size: { type: 'string', description: 'Employee headcount range (e.g., "11-50")' },
+    founded_year: { type: 'number', description: 'Year founded', optional: true },
+    location: { type: 'string', description: 'Headquarters location (formatted)' },
+    country: { type: 'string', description: 'Country (full name)' },
+    country_code: { type: 'string', description: 'ISO 3166-1 alpha-2 country code' },
+    state: { type: 'string', description: 'State/province' },
+    city: { type: 'string', description: 'City' },
+    linkedin: { type: 'string', description: 'LinkedIn handle (e.g., company/hunterio)' },
+    twitter: { type: 'string', description: 'Twitter handle' },
+    facebook: { type: 'string', description: 'Facebook handle' },
+    logo: { type: 'string', description: 'Company logo URL' },
+    phone: { type: 'string', description: 'Company phone number' },
+    tech: {
+      type: 'array',
+      description: 'Technologies used by the company',
+      items: { type: 'string', description: 'Technology name' },
     },
-    company: COMPANY_OUTPUT,
   },
 }

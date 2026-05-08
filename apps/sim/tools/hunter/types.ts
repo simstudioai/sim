@@ -71,14 +71,20 @@ export const EMAIL_OUTPUT_PROPERTIES = {
     type: 'number',
     description: 'Probability score (0-100) that the email is correct',
   },
-  first_name: { type: 'string', description: "Person's first name" },
-  last_name: { type: 'string', description: "Person's last name" },
-  position: { type: 'string', description: 'Job title/position' },
-  seniority: { type: 'string', description: 'Seniority level (junior, senior, executive)' },
+  first_name: { type: 'string', description: "Person's first name", optional: true },
+  last_name: { type: 'string', description: "Person's last name", optional: true },
+  position: { type: 'string', description: 'Job title/position', optional: true },
+  position_raw: { type: 'string', description: 'Raw job title as found', optional: true },
+  seniority: {
+    type: 'string',
+    description: 'Seniority level (junior, senior, executive)',
+    optional: true,
+  },
   department: {
     type: 'string',
     description:
-      'Department (executive, it, finance, management, sales, legal, support, hr, marketing, communication)',
+      'Department (executive, it, finance, management, sales, legal, support, hr, marketing, communication, education, design, health, operations)',
+    optional: true,
   },
   linkedin: { type: 'string', description: 'LinkedIn profile URL', optional: true },
   twitter: { type: 'string', description: 'Twitter handle', optional: true },
@@ -147,36 +153,16 @@ export const SENIORITY_OUTPUT: OutputProperty = {
 }
 
 /**
- * Output definition for emails_count object in discover results
- */
-export const EMAILS_COUNT_OUTPUT_PROPERTIES = {
-  personal: { type: 'number', description: 'Number of personal email addresses' },
-  generic: { type: 'number', description: 'Number of generic/role-based email addresses' },
-  total: { type: 'number', description: 'Total number of email addresses' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete emails_count object output definition
- */
-export const EMAILS_COUNT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Email count breakdown',
-  properties: EMAILS_COUNT_OUTPUT_PROPERTIES,
-}
-
-/**
- * Output definition for discover result company objects
+ * Output definition for discover result company objects.
+ * Hunter Discover returns minimal info per company — use Domain Search or
+ * Company Enrichment for richer data on a specific result.
  */
 export const DISCOVER_RESULT_OUTPUT_PROPERTIES = {
   domain: { type: 'string', description: 'Company domain' },
-  name: { type: 'string', description: 'Company/organization name' },
-  headcount: { type: 'number', description: 'Company size/headcount', optional: true },
-  technologies: {
-    type: 'array',
-    description: 'Technologies used by the company',
-    items: { type: 'string', description: 'Technology name' },
-  },
-  email_count: { type: 'number', description: 'Total number of email addresses found' },
+  organization: { type: 'string', description: 'Organization name' },
+  personal_emails: { type: 'number', description: 'Count of personal emails' },
+  generic_emails: { type: 'number', description: 'Count of generic (role-based) emails' },
+  total_emails: { type: 'number', description: 'Total emails found for the company' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -189,28 +175,6 @@ export const DISCOVER_RESULTS_OUTPUT: OutputProperty = {
     type: 'object',
     properties: DISCOVER_RESULT_OUTPUT_PROPERTIES,
   },
-}
-
-/**
- * Output definition for company enrichment objects
- */
-export const COMPANY_OUTPUT_PROPERTIES = {
-  name: { type: 'string', description: 'Company name' },
-  domain: { type: 'string', description: 'Company domain' },
-  industry: { type: 'string', description: 'Industry classification' },
-  size: { type: 'string', description: 'Company size/headcount range' },
-  country: { type: 'string', description: 'Country where the company is located' },
-  linkedin: { type: 'string', description: 'LinkedIn company page URL', optional: true },
-  twitter: { type: 'string', description: 'Twitter handle', optional: true },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete company object output definition
- */
-export const COMPANY_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Company information',
-  properties: COMPANY_OUTPUT_PROPERTIES,
 }
 
 // Common parameters for all Hunter.io tools
@@ -229,10 +193,10 @@ export interface HunterDiscoverParams extends HunterBaseParams {
 
 export interface HunterDiscoverResult {
   domain: string
-  name: string
-  headcount?: number
-  technologies?: string[]
-  email_count?: number
+  organization: string
+  personal_emails: number
+  generic_emails: number
+  total_emails: number
 }
 
 export interface HunterDiscoverResponse extends ToolResponse {
@@ -262,16 +226,17 @@ export interface HunterEmail {
     last_seen_on: string
     still_on_page: boolean
   }>
-  first_name: string
-  last_name: string
-  position: string
-  seniority: string
-  department: string
-  linkedin: string
-  twitter: string
-  phone_number: string
+  first_name: string | null
+  last_name: string | null
+  position: string | null
+  position_raw: string | null
+  seniority: string | null
+  department: string | null
+  linkedin: string | null
+  twitter: string | null
+  phone_number: string | null
   verification: {
-    date: string
+    date: string | null
     status: string
   }
 }
@@ -284,19 +249,7 @@ export interface HunterDomainSearchResponse extends ToolResponse {
     accept_all: boolean
     pattern: string
     organization: string
-    description: string
-    industry: string
-    twitter: string
-    facebook: string
-    linkedin: string
-    instagram: string
-    youtube: string
-    technologies: string[]
-    country: string
-    state: string
-    city: string
-    postal_code: string
-    street: string
+    linked_domains: string[]
     emails: HunterEmail[]
   }
 }
@@ -311,8 +264,17 @@ export interface HunterEmailFinderParams extends HunterBaseParams {
 
 export interface HunterEmailFinderResponse extends ToolResponse {
   output: {
+    first_name: string
+    last_name: string
     email: string
     score: number
+    domain: string
+    accept_all: boolean
+    position: string | null
+    twitter: string | null
+    linkedin_url: string | null
+    phone_number: string | null
+    company: string | null
     sources: Array<{
       domain: string
       uri: string
@@ -321,7 +283,7 @@ export interface HunterEmailFinderResponse extends ToolResponse {
       still_on_page: boolean
     }>
     verification: {
-      date: string
+      date: string | null
       status: string
     }
   }
@@ -366,26 +328,24 @@ export interface HunterEnrichmentParams extends HunterBaseParams {
 
 export interface HunterEnrichmentResponse extends ToolResponse {
   output: {
-    person?: {
-      first_name: string
-      last_name: string
-      email: string
-      position: string
-      seniority: string
-      department: string
-      linkedin: string
-      twitter: string
-      phone_number: string
-    }
-    company?: {
-      name: string
-      domain: string
-      industry: string
-      size: string
-      country: string
-      linkedin: string
-      twitter: string
-    }
+    name: string
+    domain: string
+    description: string
+    industry: string
+    sector: string
+    size: string
+    founded_year: number | null
+    location: string
+    country: string
+    country_code: string
+    state: string
+    city: string
+    linkedin: string
+    twitter: string
+    facebook: string
+    logo: string
+    phone: string
+    tech: string[]
   }
 }
 
