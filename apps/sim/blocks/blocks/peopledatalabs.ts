@@ -432,13 +432,31 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
         result.school_website = undefined
         result.school_profile = undefined
 
-        // Company Enrich uses company_* aliases for shared fields (profile, location)
+        // Clear shared target fields and repopulate them per-operation. The raw
+        // `profile`/`location`/`name`/`website` subBlocks are scoped to specific
+        // operations in the UI, but their values persist when the user switches
+        // operations — without this reset, e.g. a person LinkedIn URL would
+        // leak into a Company Enrich request as the company profile.
+        result.profile = undefined
+        result.location = undefined
+        result.name = undefined
+        result.website = undefined
+
+        if (op === 'pdl_person_enrich' || op === 'pdl_person_identify') {
+          if (params.profile !== undefined) result.profile = params.profile
+        }
+        if (op === 'pdl_person_enrich') {
+          if (params.location !== undefined) result.location = params.location
+        }
         if (op === 'pdl_company_enrich') {
+          if (params.name !== undefined) result.name = params.name
+          if (params.website !== undefined) result.website = params.website
           if (params.company_profile !== undefined) result.profile = params.company_profile
           if (params.company_location !== undefined) result.location = params.company_location
         }
-        // Company Cleaner only accepts profile (LinkedIn URL) of the company aliases
         if (op === 'pdl_clean_company') {
+          if (params.name !== undefined) result.name = params.name
+          if (params.website !== undefined) result.website = params.website
           if (params.company_profile !== undefined) result.profile = params.company_profile
         }
 
