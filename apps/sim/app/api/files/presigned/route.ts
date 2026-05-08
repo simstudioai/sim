@@ -134,9 +134,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       const permission = await getUserEntityPermissions(sessionUserId, 'workspace', workspaceId)
-      if (permission === null) {
+      if (permission !== 'write' && permission !== 'admin') {
         return NextResponse.json(
-          { error: 'Insufficient permissions for workspace' },
+          { error: 'Write or Admin access required for mothership uploads' },
           { status: 403 }
         )
       }
@@ -192,9 +192,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       const permission = await getUserEntityPermissions(sessionUserId, 'workspace', workspaceId)
-      if (permission === null) {
+      if (permission !== 'write' && permission !== 'admin') {
         return NextResponse.json(
-          { error: 'Insufficient permissions for workspace' },
+          { error: 'Write or Admin access required for workspace logo uploads' },
           { status: 403 }
         )
       }

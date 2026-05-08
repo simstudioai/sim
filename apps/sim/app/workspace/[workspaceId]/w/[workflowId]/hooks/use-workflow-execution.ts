@@ -513,6 +513,8 @@ export function useWorkflowExecution() {
                       file: fileData.file,
                       workspaceId,
                       context: 'execution',
+                      workflowId: activeWorkflowId,
+                      executionId,
                       presignedEndpoint,
                     })
                     uploadedFiles.push({
