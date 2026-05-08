@@ -3,7 +3,7 @@ import { pausedExecutions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, asc, eq, isNotNull, lte } from 'drizzle-orm'
+import { and, asc, inArray, isNotNull, lte } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
@@ -62,7 +62,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .from(pausedExecutions)
       .where(
         and(
-          eq(pausedExecutions.status, 'paused'),
+          // 'partially_resumed' rows occur when a chained-pause workflow advanced past
+          // an earlier wait — e.g. wait1 → agent → wait2 — and now wait2's time pause
+          // is the one waiting for the cron. Include it alongside fresh 'paused' rows.
+          inArray(pausedExecutions.status, ['paused', 'partially_resumed']),
           isNotNull(pausedExecutions.nextResumeAt),
           lte(pausedExecutions.nextResumeAt, now)
         )
