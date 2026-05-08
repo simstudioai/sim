@@ -485,6 +485,10 @@ export function useAddTableColumn({ workspaceId, tableId }: RowMutationContext) 
         body: { workspaceId, column },
       })
     },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
     },
