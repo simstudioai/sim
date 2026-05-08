@@ -135,8 +135,6 @@ function ColumnConfigBody({
       toast.success(`Saved "${trimmedName}"`)
       onClose()
     } catch (err) {
-      // Server validation errors carry a Zod issue array on the body; surface
-      // them inline next to the offending field instead of as a raw toast.
       if (isValidationError(err)) {
         const nameIssue =
           findValidationIssue(err, ['updates', 'name']) ??
@@ -146,14 +144,14 @@ function ColumnConfigBody({
           setNameError(nameIssue.message)
           return
         }
+        toast.error(toError(err).message)
       }
-      toast.error(toError(err).message)
     }
   }
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2'>
+      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
         <h2 className='font-medium text-[var(--text-primary)] text-small'>Configure column</h2>
         <Button
           variant='ghost'

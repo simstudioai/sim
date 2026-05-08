@@ -7,17 +7,15 @@ import { Button, Input } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
-import {
-  getCompatibleResourceReplacementOptions,
-  getWorkflowSearchReplacementIssue,
-  isConstrainedResourceMatch,
-} from '@/lib/workflows/search-replace/replacement-validation'
 import { buildWorkflowSearchReplacePlan } from '@/lib/workflows/search-replace/replacements'
 import {
+  getCompatibleResourceReplacementOptions,
   getWorkflowSearchCompatibleResourceMatches,
   getWorkflowSearchMatchResourceGroupKey,
+  getWorkflowSearchReplacementIssue,
+  isConstrainedResourceMatch,
   workflowSearchMatchMatchesQuery,
-} from '@/lib/workflows/search-replace/resource-resolvers'
+} from '@/lib/workflows/search-replace/resources'
 import { getWorkflowSearchBlocks } from '@/lib/workflows/search-replace/state'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import type { WorkflowSearchReplaceSubflowUpdate } from '@/lib/workflows/search-replace/types'
@@ -33,6 +31,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/float'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { getBlock } from '@/blocks'
+import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
@@ -127,6 +126,7 @@ export function WorkflowSearchReplace() {
     setReplacement,
     setActiveMatchId,
   } = useWorkflowSearchReplaceStore()
+  const { data: workspaceCredentials } = useWorkspaceCredentials({ workspaceId, enabled: isOpen })
 
   useRegisterGlobalCommands([
     createCommand({
@@ -151,6 +151,14 @@ export function WorkflowSearchReplace() {
     [currentWorkflow.blocks, currentWorkflow.isSnapshotView, workflowSubblockValues]
   )
 
+  const credentialTypeById = useMemo(
+    () =>
+      Object.fromEntries(
+        (workspaceCredentials ?? []).map((credential) => [credential.id, credential.type])
+      ),
+    [workspaceCredentials]
+  )
+
   const matches = useMemo(
     () =>
       indexWorkflowSearchMatches({
@@ -163,9 +171,11 @@ export function WorkflowSearchReplace() {
         readonlyReason,
         workspaceId,
         workflowId,
+        credentialTypeById,
       }),
     [
       currentWorkflow.isSnapshotView,
+      credentialTypeById,
       query,
       readonlyReason,
       searchBlocks,
@@ -481,7 +491,7 @@ export function WorkflowSearchReplace() {
         onMouseDown={handleMouseDown}
       >
         <div className='flex min-w-0 items-center'>
-          <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
+          <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
             Search and replace
           </span>
         </div>
@@ -490,8 +500,8 @@ export function WorkflowSearchReplace() {
           onMouseDown={(event) => event.stopPropagation()}
         >
           <span className='text-[var(--text-muted)] text-xs'>{matchCountLabel}</span>
-          <Button variant='ghost' className='!p-1.5 -m-1.5' onClick={close}>
-            <X className='h-[16px] w-[16px]' />
+          <Button variant='ghost' className='h-[26px] w-[26px] p-0' onClick={close}>
+            <X className='h-[14px] w-[14px]' />
           </Button>
         </div>
       </div>
@@ -504,7 +514,10 @@ export function WorkflowSearchReplace() {
           onClick={() => setIsReplaceExpanded((expanded) => !expanded)}
         >
           <ChevronRight
-            className={cn('h-4 w-4 transition-transform', isReplaceExpanded && 'rotate-90')}
+            className={cn(
+              'h-[14px] w-[14px] text-[var(--text-icon)] transition-transform',
+              isReplaceExpanded && 'rotate-90'
+            )}
           />
         </Button>
         <Input
@@ -524,7 +537,7 @@ export function WorkflowSearchReplace() {
           disabled={hydratedMatches.length === 0}
           onClick={() => handleMoveActiveMatch(-1)}
         >
-          <ChevronUp className='h-4 w-4' />
+          <ChevronUp className='h-[14px] w-[14px] text-[var(--text-icon)]' />
         </Button>
         <Button
           variant='ghost'
@@ -532,7 +545,7 @@ export function WorkflowSearchReplace() {
           disabled={hydratedMatches.length === 0}
           onClick={() => handleMoveActiveMatch(1)}
         >
-          <ChevronDown className='h-4 w-4' />
+          <ChevronDown className='h-[14px] w-[14px] text-[var(--text-icon)]' />
         </Button>
 
         {isReplaceExpanded && (

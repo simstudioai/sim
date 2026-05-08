@@ -24,6 +24,7 @@ import {
   hasAdvancedValues,
   isCanonicalPair,
   resolveCanonicalMode,
+  shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -47,7 +48,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
-import type { SubBlockType } from '@/blocks/types'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap, useWorkflowState } from '@/hooks/queries/workflows'
@@ -154,12 +154,7 @@ export function Editor() {
   const subBlocksForCanonical = useMemo(() => {
     const subBlocks = blockConfig?.subBlocks || []
     if (!triggerMode) return subBlocks
-    return subBlocks.filter(
-      (subBlock) =>
-        subBlock.mode === 'trigger' ||
-        subBlock.mode === 'trigger-advanced' ||
-        subBlock.type === ('trigger-config' as SubBlockType)
-    )
+    return subBlocks.filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
   }, [blockConfig?.subBlocks, triggerMode])
 
   const canonicalIndex = useMemo(
@@ -625,6 +620,7 @@ export function Editor() {
                               activeSearchTarget.canonicalSubBlockId ===
                                 (subBlock.canonicalParamId ?? subBlock.id))
                           }
+                          activeSearchTarget={activeSearchTarget}
                           canonicalToggle={
                             isCanonicalSwap && canonicalMode && canonicalId
                               ? {
@@ -699,6 +695,7 @@ export function Editor() {
                               activeSearchTarget.canonicalSubBlockId ===
                                 (subBlock.canonicalParamId ?? subBlock.id))
                           }
+                          activeSearchTarget={activeSearchTarget}
                         />
                         {index < advancedOnlySubBlocks.length - 1 && (
                           <FieldDivider subblockMarker />

@@ -6,9 +6,13 @@ import type {
 import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import {
   flattenWorkflowSearchReplacementOptions,
+  useWorkflowSearchFileReplacementOptions,
   useWorkflowSearchKnowledgeReplacementOptions,
+  useWorkflowSearchMcpServerReplacementOptions,
+  useWorkflowSearchMcpToolReplacementOptions,
   useWorkflowSearchOAuthReplacementOptions,
   useWorkflowSearchSelectorReplacementOptions,
+  useWorkflowSearchTableReplacementOptions,
 } from '@/hooks/queries/workflow-search-replace'
 
 interface UseWorkflowResourceReplacementOptionsParams {
@@ -23,8 +27,12 @@ export function useWorkflowResourceReplacementOptions({
   workflowId,
 }: UseWorkflowResourceReplacementOptionsParams): WorkflowSearchReplacementOption[] {
   const oauthOptions = useWorkflowSearchOAuthReplacementOptions(matches, workspaceId, workflowId)
-  const knowledgeOptions = useWorkflowSearchKnowledgeReplacementOptions(workspaceId)
+  const knowledgeOptions = useWorkflowSearchKnowledgeReplacementOptions(matches, workspaceId)
   const selectorOptions = useWorkflowSearchSelectorReplacementOptions(matches)
+  const tableOptions = useWorkflowSearchTableReplacementOptions(matches, workspaceId)
+  const fileOptions = useWorkflowSearchFileReplacementOptions(matches, workspaceId)
+  const mcpServerOptions = useWorkflowSearchMcpServerReplacementOptions(matches, workspaceId)
+  const mcpToolOptions = useWorkflowSearchMcpToolReplacementOptions(matches, workspaceId)
   const { data: personalEnvironment } = usePersonalEnvironment()
   const { data: workspaceEnvironment } = useWorkspaceEnvironment(workspaceId ?? '')
 
@@ -46,6 +54,20 @@ export function useWorkflowResourceReplacementOptions({
       ...flattenWorkflowSearchReplacementOptions(oauthOptions),
       ...flattenWorkflowSearchReplacementOptions(knowledgeOptions),
       ...flattenWorkflowSearchReplacementOptions(selectorOptions),
+      ...flattenWorkflowSearchReplacementOptions(tableOptions),
+      ...flattenWorkflowSearchReplacementOptions(fileOptions),
+      ...flattenWorkflowSearchReplacementOptions(mcpServerOptions),
+      ...flattenWorkflowSearchReplacementOptions(mcpToolOptions),
     ]
-  }, [knowledgeOptions, oauthOptions, personalEnvironment, selectorOptions, workspaceEnvironment])
+  }, [
+    fileOptions,
+    knowledgeOptions,
+    mcpServerOptions,
+    mcpToolOptions,
+    oauthOptions,
+    personalEnvironment,
+    selectorOptions,
+    tableOptions,
+    workspaceEnvironment,
+  ])
 }

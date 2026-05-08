@@ -54,6 +54,8 @@ import { MODAL_REGISTRY } from '@/app/workspace/[workspaceId]/w/[workflowId]/com
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
+import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '../constants'
 
 const SLACK_OVERRIDES: SelectorOverrides = {
   transformContext: (context, deps) => {
@@ -72,7 +74,17 @@ const FOLDER_OVERRIDES: SelectorOverrides = {
   },
 }
 
-const WORKFLOW_SEARCH_CURRENT_MATCH_CLASS = 'rounded-md bg-orange-400 px-1 py-0.5'
+function hasNestedWorkflowSearchHighlight(
+  config: SubBlockConfig,
+  activeSearchTarget?: ActiveSearchTarget | null
+) {
+  if (!activeSearchTarget || activeSearchTarget.valuePath.length === 0) return false
+  return (
+    config.type === 'input-format' ||
+    config.type === 'response-format' ||
+    config.type === 'eval-input'
+  )
+}
 
 /**
  * Interface for wand control handlers exposed by sub-block inputs
@@ -106,6 +118,7 @@ interface SubBlockProps {
   /** Provides sibling values for dependency resolution in non-preview contexts (e.g. tool-input) */
   dependencyContext?: Record<string, unknown>
   isSearchHighlighted?: boolean
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -253,7 +266,7 @@ const renderLabel = (
     <div className='flex items-center justify-between gap-1.5 pl-0.5'>
       <Label className='flex items-baseline gap-1.5 whitespace-nowrap'>
         {isSearchHighlighted ? (
-          <mark className={WORKFLOW_SEARCH_CURRENT_MATCH_CLASS}>{config.title}</mark>
+          <mark className={WORKFLOW_SEARCH_HIGHLIGHT_CLASS}>{config.title}</mark>
         ) : (
           config.title
         )}
@@ -445,6 +458,7 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
     canonicalToggleEqual &&
     prevProps.labelSuffix === nextProps.labelSuffix &&
     prevProps.isSearchHighlighted === nextProps.isSearchHighlighted &&
+    prevProps.activeSearchTarget === nextProps.activeSearchTarget &&
     prevProps.dependencyContext === nextProps.dependencyContext
   )
 }
@@ -462,6 +476,7 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
  * @param labelSuffix - Additional content rendered after the label text
  * @param dependencyContext - Sibling values for dependency resolution in non-preview contexts (e.g. tool-input)
  * @param isSearchHighlighted - Whether workflow search should highlight this field
+ * @param activeSearchTarget - Active workflow search target for nested field highlighting
  */
 function SubBlockComponent({
   blockId,
@@ -474,6 +489,7 @@ function SubBlockComponent({
   labelSuffix,
   dependencyContext,
   isSearchHighlighted,
+  activeSearchTarget,
 }: SubBlockProps): JSX.Element {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -655,6 +671,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             wandControlRef={wandControlRef}
             hideInternalWand={true}
+            isSearchHighlighted={isSearchHighlighted}
           />
         )
 
@@ -886,6 +903,7 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
+            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1014,6 +1032,7 @@ function SubBlockComponent({
             disabled={isDisabled}
             config={config}
             showValue={true}
+            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1049,6 +1068,7 @@ function SubBlockComponent({
             previewValue={previewValue}
             config={config}
             disabled={isDisabled}
+            activeSearchTarget={activeSearchTarget}
           />
         )
 
@@ -1175,6 +1195,9 @@ function SubBlockComponent({
     }
   }
 
+  const highlightParentLabel =
+    isSearchHighlighted && !hasNestedWorkflowSearchHighlight(config, activeSearchTarget)
+
   return (
     <div
       onMouseDown={handleMouseDown}
@@ -1208,7 +1231,7 @@ function SubBlockComponent({
           onCopy: handleCopy,
         },
         labelSuffix,
-        isSearchHighlighted,
+        highlightParentLabel,
         externalLink
       )}
       {renderInput()}

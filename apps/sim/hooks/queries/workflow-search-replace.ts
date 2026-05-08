@@ -1,8 +1,29 @@
 import { useMemo } from 'react'
-import { useQueries } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
 import type { KnowledgeBaseData } from '@/lib/api/contracts/knowledge'
+import {
+  type DiscoverMcpToolsResponse,
+  discoverMcpToolsContract,
+  type ListMcpServersResponse,
+  listMcpServersContract,
+} from '@/lib/api/contracts/mcp'
+import {
+  type GetTableResponse,
+  getTableContract,
+  type ListTablesResponse,
+  listTablesContract,
+} from '@/lib/api/contracts/tables'
+import {
+  type ListWorkspaceFilesResponse,
+  listWorkspaceFilesContract,
+} from '@/lib/api/contracts/workspace-files'
+import { createMcpToolId } from '@/lib/mcp/shared'
 import type { Credential } from '@/lib/oauth'
-import { stableStringifyWorkflowSearchValue } from '@/lib/workflows/search-replace/resource-resolvers'
+import {
+  getWorkflowSearchMatchResourceGroupKey,
+  stableStringifyWorkflowSearchValue,
+} from '@/lib/workflows/search-replace/resources'
 import type {
   WorkflowSearchMatch,
   WorkflowSearchReplacementOption,
@@ -46,6 +67,26 @@ export const workflowSearchReplaceKeys = {
   knowledgeDetails: () => [...workflowSearchReplaceKeys.resourceDetails(), 'knowledge'] as const,
   knowledgeDetail: (knowledgeBaseId?: string) =>
     [...workflowSearchReplaceKeys.knowledgeDetails(), knowledgeBaseId ?? ''] as const,
+  tableDetails: () => [...workflowSearchReplaceKeys.resourceDetails(), 'table'] as const,
+  tableDetail: (workspaceId?: string, tableId?: string) =>
+    [...workflowSearchReplaceKeys.tableDetails(), workspaceId ?? '', tableId ?? ''] as const,
+  tableReplacementOptions: (workspaceId?: string) =>
+    [...workflowSearchReplaceKeys.replacementOptions(), 'table', workspaceId ?? ''] as const,
+  fileDetails: () => [...workflowSearchReplaceKeys.resourceDetails(), 'file'] as const,
+  fileListDetails: (workspaceId?: string) =>
+    [...workflowSearchReplaceKeys.fileDetails(), 'list', workspaceId ?? ''] as const,
+  fileReplacementOptions: (workspaceId?: string) =>
+    [...workflowSearchReplaceKeys.replacementOptions(), 'file', workspaceId ?? ''] as const,
+  mcpServerDetails: () => [...workflowSearchReplaceKeys.resourceDetails(), 'mcp-server'] as const,
+  mcpServerListDetails: (workspaceId?: string) =>
+    [...workflowSearchReplaceKeys.mcpServerDetails(), 'list', workspaceId ?? ''] as const,
+  mcpServerReplacementOptions: (workspaceId?: string) =>
+    [...workflowSearchReplaceKeys.replacementOptions(), 'mcp-server', workspaceId ?? ''] as const,
+  mcpToolDetails: () => [...workflowSearchReplaceKeys.resourceDetails(), 'mcp-tool'] as const,
+  mcpToolListDetails: (workspaceId?: string) =>
+    [...workflowSearchReplaceKeys.mcpToolDetails(), 'list', workspaceId ?? ''] as const,
+  mcpToolReplacementOptions: (workspaceId?: string) =>
+    [...workflowSearchReplaceKeys.replacementOptions(), 'mcp-tool', workspaceId ?? ''] as const,
   knowledgeReplacementOptions: (workspaceId?: string) =>
     [...workflowSearchReplaceKeys.replacementOptions(), 'knowledge', workspaceId ?? ''] as const,
   selectorDetails: () => [...workflowSearchReplaceKeys.resourceDetails(), 'selector'] as const,
@@ -107,6 +148,22 @@ function uniqueSelectorOptionGroups(matches: WorkflowSearchMatch[]): WorkflowSea
   })
 }
 
+function uniqueResourceOptionGroups(
+  matches: WorkflowSearchMatch[],
+  kind: WorkflowSearchMatch['kind'],
+  predicate?: (match: WorkflowSearchMatch) => boolean
+): WorkflowSearchMatch[] {
+  const seen = new Set<string>()
+  return matches.filter((match) => {
+    if (match.kind !== kind || predicate?.(match) === false) return false
+
+    const key = getWorkflowSearchMatchResourceGroupKey(match)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 export function useWorkflowSearchOAuthCredentialDetails(
   matches: WorkflowSearchMatch[],
   workflowId?: string
@@ -152,6 +209,154 @@ export function useWorkflowSearchKnowledgeBaseDetails(matches: WorkflowSearchMat
       }),
     })),
   })
+}
+
+export function useWorkflowSearchTableDetails(
+  matches: WorkflowSearchMatch[],
+  workspaceId?: string
+) {
+  const tableMatches = useMemo(() => uniqueMatches(matches, 'table'), [matches])
+
+  return useQueries({
+    queries: tableMatches.map((match) => ({
+      queryKey: workflowSearchReplaceKeys.tableDetail(workspaceId, match.rawValue),
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        requestJson(getTableContract, {
+          params: { tableId: match.rawValue },
+          query: { workspaceId: workspaceId as string },
+          signal,
+        }),
+      enabled: Boolean(workspaceId && match.rawValue),
+      staleTime: 60 * 1000,
+      select: (response: GetTableResponse): WorkflowSearchResolvedResource => ({
+        matchRawValue: match.rawValue,
+        resourceGroupKey: match.resource?.resourceGroupKey,
+        label: response.data.table.name,
+        resolved: true,
+        inaccessible: false,
+      }),
+    })),
+  })
+}
+
+export function useWorkflowSearchFileDetails(matches: WorkflowSearchMatch[], workspaceId?: string) {
+  const fileMatches = useMemo(
+    () =>
+      uniqueMatches(
+        matches.filter((match) => !match.resource?.selectorKey),
+        'file'
+      ),
+    [matches]
+  )
+
+  const filesQuery = useQuery({
+    queryKey: workflowSearchReplaceKeys.fileListDetails(workspaceId),
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      requestJson(listWorkspaceFilesContract, {
+        params: { id: workspaceId as string },
+        query: { scope: 'active' },
+        signal,
+      }),
+    enabled: Boolean(workspaceId && fileMatches.length > 0),
+    staleTime: 60 * 1000,
+  })
+
+  return useMemo(
+    () =>
+      fileMatches.map((match) => {
+        const file = filesQuery.data?.files.find((item) =>
+          [item.id, item.key, item.path, item.name].includes(match.rawValue)
+        )
+        return {
+          data: filesQuery.data
+            ? {
+                matchRawValue: match.rawValue,
+                resourceGroupKey: match.resource?.resourceGroupKey,
+                label: file?.name ?? match.rawValue,
+                resolved: Boolean(file),
+                inaccessible: false,
+              }
+            : undefined,
+        }
+      }),
+    [fileMatches, filesQuery.data]
+  )
+}
+
+export function useWorkflowSearchMcpServerDetails(
+  matches: WorkflowSearchMatch[],
+  workspaceId?: string
+) {
+  const serverMatches = useMemo(() => uniqueMatches(matches, 'mcp-server'), [matches])
+
+  const serversQuery = useQuery({
+    queryKey: workflowSearchReplaceKeys.mcpServerListDetails(workspaceId),
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      requestJson(listMcpServersContract, {
+        query: { workspaceId: workspaceId as string },
+        signal,
+      }),
+    enabled: Boolean(workspaceId && serverMatches.length > 0),
+    staleTime: 60 * 1000,
+  })
+
+  return useMemo(
+    () =>
+      serverMatches.map((match) => {
+        const server = serversQuery.data?.data.servers.find((item) => item.id === match.rawValue)
+        return {
+          data: serversQuery.data
+            ? {
+                matchRawValue: match.rawValue,
+                resourceGroupKey: match.resource?.resourceGroupKey,
+                label: server?.name ?? match.rawValue,
+                resolved: Boolean(server),
+                inaccessible: false,
+              }
+            : undefined,
+        }
+      }),
+    [serverMatches, serversQuery.data]
+  )
+}
+
+export function useWorkflowSearchMcpToolDetails(
+  matches: WorkflowSearchMatch[],
+  workspaceId?: string
+) {
+  const toolMatches = useMemo(() => uniqueMatches(matches, 'mcp-tool'), [matches])
+
+  const toolsQuery = useQuery({
+    queryKey: workflowSearchReplaceKeys.mcpToolListDetails(workspaceId),
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      requestJson(discoverMcpToolsContract, {
+        query: { workspaceId: workspaceId as string },
+        signal,
+      }),
+    enabled: Boolean(workspaceId && toolMatches.length > 0),
+    staleTime: 60 * 1000,
+  })
+
+  return useMemo(
+    () =>
+      toolMatches.map((match) => {
+        const tool = toolsQuery.data?.data.tools.find(
+          (item) => createMcpToolId(item.serverId, item.name) === match.rawValue
+        )
+        return {
+          data: toolsQuery.data
+            ? {
+                matchRawValue: match.rawValue,
+                resourceGroupKey: match.resource?.resourceGroupKey,
+                label: tool ? `${tool.serverName}: ${tool.name}` : match.rawValue,
+                resolved: Boolean(tool),
+                inaccessible: false,
+              }
+            : undefined,
+        }
+      }),
+    [toolMatches, toolsQuery.data]
+  )
 }
 
 export function useWorkflowSearchSelectorDetails(matches: WorkflowSearchMatch[]) {
@@ -228,22 +433,177 @@ export function useWorkflowSearchOAuthReplacementOptions(
   })
 }
 
-export function useWorkflowSearchKnowledgeReplacementOptions(workspaceId?: string) {
+export function useWorkflowSearchKnowledgeReplacementOptions(
+  matches: WorkflowSearchMatch[],
+  workspaceId?: string
+) {
+  const knowledgeGroups = useMemo(
+    () => uniqueResourceOptionGroups(matches, 'knowledge-base'),
+    [matches]
+  )
+
   return useQueries({
     queries: [
       {
         queryKey: workflowSearchReplaceKeys.knowledgeReplacementOptions(workspaceId),
         queryFn: ({ signal }: { signal: AbortSignal }) =>
           fetchKnowledgeBases(workspaceId, 'active', signal),
-        enabled: Boolean(workspaceId),
+        enabled: Boolean(workspaceId && knowledgeGroups.length > 0),
         staleTime: 60 * 1000,
         placeholderData: (previous: KnowledgeBaseData[] | undefined) => previous,
         select: (knowledgeBases: KnowledgeBaseData[]): WorkflowSearchReplacementOption[] =>
-          knowledgeBases.map((knowledgeBase) => ({
-            kind: 'knowledge-base',
-            value: knowledgeBase.id,
-            label: knowledgeBase.name,
-          })),
+          knowledgeGroups.flatMap((match) =>
+            knowledgeBases.map((knowledgeBase) => ({
+              kind: 'knowledge-base',
+              value: knowledgeBase.id,
+              label: knowledgeBase.name,
+              resourceGroupKey: match.resource?.resourceGroupKey,
+            }))
+          ),
+      },
+    ],
+  })
+}
+
+export function useWorkflowSearchTableReplacementOptions(
+  matches: WorkflowSearchMatch[],
+  workspaceId?: string
+) {
+  const tableGroups = useMemo(() => uniqueResourceOptionGroups(matches, 'table'), [matches])
+
+  return useQueries({
+    queries: [
+      {
+        queryKey: workflowSearchReplaceKeys.tableReplacementOptions(workspaceId),
+        queryFn: ({ signal }: { signal: AbortSignal }) =>
+          requestJson(listTablesContract, {
+            query: { workspaceId: workspaceId as string, scope: 'active' },
+            signal,
+          }),
+        enabled: Boolean(workspaceId && tableGroups.length > 0),
+        staleTime: 60 * 1000,
+        select: (response: ListTablesResponse): WorkflowSearchReplacementOption[] =>
+          tableGroups.flatMap((match) =>
+            response.data.tables.map((table) => ({
+              kind: 'table',
+              value: table.id,
+              label: table.name,
+              resourceGroupKey: match.resource?.resourceGroupKey,
+            }))
+          ),
+      },
+    ],
+  })
+}
+
+export function useWorkflowSearchFileReplacementOptions(
+  matches: WorkflowSearchMatch[],
+  workspaceId?: string
+) {
+  const fileGroups = useMemo(
+    () => uniqueResourceOptionGroups(matches, 'file', (match) => !match.resource?.selectorKey),
+    [matches]
+  )
+
+  return useQueries({
+    queries: [
+      {
+        queryKey: workflowSearchReplaceKeys.fileReplacementOptions(workspaceId),
+        queryFn: ({ signal }: { signal: AbortSignal }) =>
+          requestJson(listWorkspaceFilesContract, {
+            params: { id: workspaceId as string },
+            query: { scope: 'active' },
+            signal,
+          }),
+        enabled: Boolean(workspaceId && fileGroups.length > 0),
+        staleTime: 60 * 1000,
+        select: (response: ListWorkspaceFilesResponse): WorkflowSearchReplacementOption[] =>
+          fileGroups.flatMap((match) =>
+            response.files.map((file) => ({
+              kind: 'file',
+              value: JSON.stringify({
+                name: file.name,
+                path: file.path,
+                key: file.key,
+                size: file.size,
+                type: file.type,
+              }),
+              label: file.name,
+              resourceGroupKey: match.resource?.resourceGroupKey,
+            }))
+          ),
+      },
+    ],
+  })
+}
+
+export function useWorkflowSearchMcpServerReplacementOptions(
+  matches: WorkflowSearchMatch[],
+  workspaceId?: string
+) {
+  const serverGroups = useMemo(() => uniqueResourceOptionGroups(matches, 'mcp-server'), [matches])
+
+  return useQueries({
+    queries: [
+      {
+        queryKey: workflowSearchReplaceKeys.mcpServerReplacementOptions(workspaceId),
+        queryFn: ({ signal }: { signal: AbortSignal }) =>
+          requestJson(listMcpServersContract, {
+            query: { workspaceId: workspaceId as string },
+            signal,
+          }),
+        enabled: Boolean(workspaceId && serverGroups.length > 0),
+        staleTime: 60 * 1000,
+        select: (response: ListMcpServersResponse): WorkflowSearchReplacementOption[] =>
+          serverGroups.flatMap((match) =>
+            response.data.servers.map((server) => ({
+              kind: 'mcp-server',
+              value: server.id,
+              label: server.name,
+              resourceGroupKey: match.resource?.resourceGroupKey,
+            }))
+          ),
+      },
+    ],
+  })
+}
+
+export function buildWorkflowSearchMcpToolReplacementOptions(
+  toolGroups: WorkflowSearchMatch[],
+  tools: DiscoverMcpToolsResponse['data']['tools']
+): WorkflowSearchReplacementOption[] {
+  return toolGroups.flatMap((match) => {
+    const serverId = match.resource?.selectorContext?.mcpServerId
+    return tools
+      .filter((tool) => !serverId || tool.serverId === serverId)
+      .map((tool) => ({
+        kind: 'mcp-tool',
+        value: createMcpToolId(tool.serverId, tool.name),
+        label: `${tool.serverName}: ${tool.name}`,
+        resourceGroupKey: match.resource?.resourceGroupKey,
+      }))
+  })
+}
+
+export function useWorkflowSearchMcpToolReplacementOptions(
+  matches: WorkflowSearchMatch[],
+  workspaceId?: string
+) {
+  const toolGroups = useMemo(() => uniqueResourceOptionGroups(matches, 'mcp-tool'), [matches])
+
+  return useQueries({
+    queries: [
+      {
+        queryKey: workflowSearchReplaceKeys.mcpToolReplacementOptions(workspaceId),
+        queryFn: ({ signal }: { signal: AbortSignal }) =>
+          requestJson(discoverMcpToolsContract, {
+            query: { workspaceId: workspaceId as string },
+            signal,
+          }),
+        enabled: Boolean(workspaceId && toolGroups.length > 0),
+        staleTime: 60 * 1000,
+        select: (response: DiscoverMcpToolsResponse): WorkflowSearchReplacementOption[] =>
+          buildWorkflowSearchMcpToolReplacementOptions(toolGroups, response.data.tools),
       },
     ],
   })

@@ -1,4 +1,10 @@
-import { getWorkflowSearchReplacementIssue } from '@/lib/workflows/search-replace/replacement-validation'
+import { replaceJsonStringLeafRange } from '@/lib/workflows/search-replace/json-value-fields'
+import {
+  getWorkflowSearchReplacementIssue,
+  normalizeWorkflowSearchResourceReplacement,
+  replaceWorkflowSearchResourceValue,
+  workflowSearchResourceValueContains,
+} from '@/lib/workflows/search-replace/resources'
 import {
   getWorkflowSearchSubflowField,
   parseWorkflowSearchSubflowReplacement,
@@ -27,67 +33,47 @@ interface BuildWorkflowSearchReplacePlanParams {
 }
 
 function normalizeReplacement(match: WorkflowSearchMatch, replacement: string): string {
-  if (match.kind === 'environment') {
-    const trimmed = replacement.trim()
-    if (trimmed.startsWith('{{') && trimmed.endsWith('}}')) return trimmed
-    return `{{${trimmed}}}`
-  }
-  return replacement
+  return normalizeWorkflowSearchResourceReplacement(match, replacement)
 }
 
 function replaceRange(value: string, start: number, end: number, replacement: string): string {
   return `${value.slice(0, start)}${replacement}${value.slice(end)}`
 }
 
-function replaceStructuredValue(
-  value: unknown,
-  rawValue: string,
-  replacement: string,
-  targetOccurrenceIndex?: number
-): unknown {
-  let occurrenceIndex = 0
-
-  const shouldReplace = (item: string) => {
-    if (item !== rawValue) return false
-    const currentOccurrenceIndex = occurrenceIndex
-    occurrenceIndex += 1
-    return targetOccurrenceIndex === undefined || currentOccurrenceIndex === targetOccurrenceIndex
-  }
-
-  if (typeof value === 'string') {
-    const parts = value.split(',').map((part) => part.trim())
-    if (parts.length > 1) {
-      return parts.map((part) => (shouldReplace(part) ? replacement : part)).join(',')
-    }
-    return shouldReplace(value) ? replacement : value
-  }
-
-  if (Array.isArray(value)) {
-    const replaceItem = (item: unknown): unknown => {
-      if (typeof item === 'string') {
-        return shouldReplace(item) ? replacement : item
-      }
-      if (Array.isArray(item)) return item.map(replaceItem)
-      return item
-    }
-
-    return value.map(replaceItem)
-  }
-
-  return value
+function clearDependentValues(value: unknown, paths: WorkflowSearchMatch['dependentValuePaths']) {
+  return (paths ?? []).reduce((currentValue, path) => setValueAtPath(currentValue, path, ''), value)
 }
 
-function structuredValueContains(value: unknown, rawValue: string): boolean {
-  if (typeof value === 'string') {
-    return value
-      .split(',')
-      .map((part) => part.trim())
-      .includes(rawValue)
+function pathStartsWith(
+  path: WorkflowSearchMatch['valuePath'],
+  prefix: WorkflowSearchMatch['valuePath']
+) {
+  return prefix.every((segment, index) => path[index] === segment)
+}
+
+function getTouchedPathsByField(matches: WorkflowSearchMatch[]) {
+  const touchedPathsByField = new Map<string, WorkflowSearchMatch['valuePath'][]>()
+  for (const match of matches) {
+    if (match.target.kind !== 'subblock') continue
+    const updateKey = `${match.blockId}:${match.subBlockId}`
+    const paths = touchedPathsByField.get(updateKey) ?? []
+    paths.push(match.valuePath)
+    touchedPathsByField.set(updateKey, paths)
   }
-  if (Array.isArray(value)) {
-    return value.some((item) => structuredValueContains(item, rawValue))
-  }
-  return false
+  return touchedPathsByField
+}
+
+function getDependentValuePathsToClear(
+  match: WorkflowSearchMatch,
+  touchedPathsByField: Map<string, WorkflowSearchMatch['valuePath'][]>
+) {
+  if (!match.dependentValuePaths?.length) return undefined
+  const updateKey = `${match.blockId}:${match.subBlockId}`
+  const touchedPaths = touchedPathsByField.get(updateKey) ?? []
+  return match.dependentValuePaths.filter(
+    (dependentPath) =>
+      !touchedPaths.some((touchedPath) => pathStartsWith(touchedPath, dependentPath))
+  )
 }
 
 function getReplacement(
@@ -114,6 +100,7 @@ export function buildWorkflowSearchReplacePlan({
   const subflowUpdatesByField = new Map<string, WorkflowSearchReplaceSubflowUpdate>()
 
   const selectedMatches = matches.filter((match) => selectedMatchIds.has(match.id))
+  const touchedPathsByField = getTouchedPathsByField(selectedMatches)
   const orderedMatches = [...selectedMatches].sort((a, b) => {
     const blockCompare = a.blockId.localeCompare(b.blockId)
     if (blockCompare !== 0) return blockCompare
@@ -228,8 +215,37 @@ export function buildWorkflowSearchReplacePlan({
     const existingUpdate = updatesByField.get(updateKey)
     const previousValue: unknown = existingUpdate?.previousValue ?? subBlock.value
     let nextValue: unknown = existingUpdate?.nextValue ?? subBlock.value
+    const dependentValuePathsToClear = getDependentValuePathsToClear(match, touchedPathsByField)
 
     if (match.range) {
+      const jsonReplacement = replaceJsonStringLeafRange({
+        value: nextValue,
+        subBlockType: match.subBlockType,
+        path: match.valuePath,
+        range: match.range,
+        rawValue: match.rawValue,
+        replacement,
+      })
+      if (jsonReplacement.handled) {
+        if (!jsonReplacement.success) {
+          conflicts.push({
+            matchId: match.id,
+            reason: jsonReplacement.reason ?? 'Target value is no longer text',
+          })
+          continue
+        }
+        nextValue = jsonReplacement.nextValue
+        nextValue = clearDependentValues(nextValue, dependentValuePathsToClear)
+        updatesByField.set(updateKey, {
+          blockId: match.blockId,
+          subBlockId: match.subBlockId,
+          previousValue,
+          nextValue,
+          matchIds: [...(existingUpdate?.matchIds ?? []), match.id],
+        })
+        continue
+      }
+
       const currentLeaf = getValueAtPath(nextValue, match.valuePath)
       if (typeof currentLeaf !== 'string') {
         conflicts.push({ matchId: match.id, reason: 'Target value is no longer text' })
@@ -247,24 +263,33 @@ export function buildWorkflowSearchReplacePlan({
         match.valuePath,
         replaceRange(currentLeaf, match.range.start, match.range.end, replacement)
       )
+      nextValue = clearDependentValues(nextValue, dependentValuePathsToClear)
     } else {
       const currentValue = getValueAtPath(nextValue, match.valuePath)
       const valueForReplacement = match.valuePath.length === 0 ? nextValue : currentValue
-      if (!structuredValueContains(valueForReplacement, match.rawValue)) {
+      if (!workflowSearchResourceValueContains(match, valueForReplacement)) {
         conflicts.push({ matchId: match.id, reason: 'Target resource changed since search' })
         continue
       }
 
-      const replacedValue = replaceStructuredValue(
+      const resourceReplacement = replaceWorkflowSearchResourceValue(
+        match,
         valueForReplacement,
-        match.rawValue,
-        replacement,
-        match.structuredOccurrenceIndex
+        replacement
       )
+      if (!resourceReplacement.success) {
+        conflicts.push({
+          matchId: match.id,
+          reason: resourceReplacement.reason ?? 'Target resource is no longer replaceable',
+        })
+        continue
+      }
+      const replacedValue = resourceReplacement.nextValue
       nextValue =
         match.valuePath.length === 0
           ? replacedValue
           : setValueAtPath(nextValue, match.valuePath, replacedValue)
+      nextValue = clearDependentValues(nextValue, dependentValuePathsToClear)
     }
 
     updatesByField.set(updateKey, {

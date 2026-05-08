@@ -62,6 +62,7 @@ export interface WorkflowSearchMatch {
   searchText: string
   range?: WorkflowSearchRange
   structuredOccurrenceIndex?: number
+  dependentValuePaths?: WorkflowSearchValuePath[]
   resource?: WorkflowSearchResourceMeta
   editable: boolean
   navigable: boolean
@@ -92,22 +93,12 @@ export interface WorkflowSearchIndexerOptions {
   readonlyReason?: string
   workspaceId?: string
   workflowId?: string
-  blockConfigs?: Record<string, { subBlocks?: SubBlockConfig[] } | undefined>
-}
-
-export interface IndexedSubBlockContext {
-  block: WorkflowSearchBlockState
-  blockConfig?: { subBlocks?: SubBlockConfig[] }
-  subBlockConfig?: SubBlockConfig
-  subBlockId: string
-  canonicalSubBlockId: string
-  protected: boolean
-  isSnapshotView?: boolean
-}
-
-export interface WorkflowSearchReplacementTarget {
-  matchId: string
-  replacement: string
+  blockConfigs?: Record<
+    string,
+    | { subBlocks?: SubBlockConfig[]; triggers?: { enabled?: boolean }; category?: string }
+    | undefined
+  >
+  credentialTypeById?: Record<string, string | undefined>
 }
 
 export interface WorkflowSearchReplacementOption {

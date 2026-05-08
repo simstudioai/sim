@@ -6,10 +6,15 @@ import {
   evaluateSubBlockCondition,
   isCanonicalPair,
   isSubBlockHidden,
+  isTriggerModeSubBlock,
   resolveCanonicalMode,
   type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
-import type { SubBlockConfig as BlockSubBlockConfig, GenerationType } from '@/blocks/types'
+import type {
+  BlockConfig as AppBlockConfig,
+  SubBlockConfig as BlockSubBlockConfig,
+  GenerationType,
+} from '@/blocks/types'
 import { safeAssign } from '@/tools/safe-assign'
 import { isEmptyTagValue } from '@/tools/shared/tags'
 import type { OAuthConfig, ParameterVisibility, ToolConfig } from '@/tools/types'
@@ -49,6 +54,7 @@ export interface UIComponentConfig {
   title?: string
   value?: unknown
   serviceId?: string
+  selectorKey?: BlockSubBlockConfig['selectorKey']
   requiredScopes?: string[]
   mimeType?: string
   columns?: string[]
@@ -104,10 +110,7 @@ export interface SubBlockConfig {
   dependsOn?: string[]
 }
 
-export interface BlockConfig {
-  type: string
-  subBlocks?: SubBlockConfig[]
-}
+type ToolInputBlockConfig = Pick<AppBlockConfig, 'type' | 'subBlocks' | 'tools'>
 
 export interface SchemaProperty {
   type: string
@@ -157,15 +160,15 @@ export interface ToolWithParameters {
   optionalParameters: ToolParameterConfig[] // Nice to have, shown to user
 }
 
-let blockConfigCache: Record<string, BlockConfig> | null = null
+let blockConfigCache: Record<string, ToolInputBlockConfig> | null = null
 
-function getBlockConfigurations(): Record<string, BlockConfig> {
+function getBlockConfigurations(): Record<string, ToolInputBlockConfig> {
   if (!blockConfigCache) {
     try {
       const { getAllBlocks } = require('@/blocks')
       const allBlocks = getAllBlocks()
       blockConfigCache = {}
-      allBlocks.forEach((block: BlockConfig) => {
+      allBlocks.forEach((block: AppBlockConfig) => {
         blockConfigCache![block.type] = block
       })
     } catch (error) {
@@ -176,13 +179,39 @@ function getBlockConfigurations(): Record<string, BlockConfig> {
   return blockConfigCache
 }
 
+/**
+ * Gets the correct tool ID for a block operation.
+ */
+export function getToolIdForOperation(blockType: string, operation?: string): string | undefined {
+  const block = getBlockConfigurations()[blockType]
+  if (!block?.tools?.access) return undefined
+
+  if (block.tools.access.length === 1) {
+    return block.tools.access[0]
+  }
+
+  if (operation && block.tools.config?.tool) {
+    try {
+      return block.tools.config.tool({ operation })
+    } catch (error) {
+      logger.error('Error selecting tool for operation:', error)
+    }
+  }
+
+  if (operation && block.tools.access.includes(operation)) {
+    return operation
+  }
+
+  return block.tools.access[0]
+}
+
 function resolveSubBlockForParam(
   paramId: string,
-  subBlocks: SubBlockConfig[],
+  subBlocks: BlockSubBlockConfig[],
   valuesWithOperation: Record<string, unknown>,
   paramType: string
 ): BlockSubBlockConfig | undefined {
-  const blockSubBlocks = subBlocks as BlockSubBlockConfig[]
+  const blockSubBlocks = subBlocks
 
   // First pass: find subblock with matching condition
   let fallbackMatch: BlockSubBlockConfig | undefined
@@ -252,6 +281,7 @@ export function getToolParametersConfig(
           uiComponent: {
             type: 'workflow-selector',
             placeholder: 'Select workflow to execute',
+            selectorKey: 'sim.workflows',
           },
         },
         {
@@ -268,6 +298,7 @@ export function getToolParametersConfig(
               value: '',
               not: true, // Show when workflowId is not empty
             },
+            dependsOn: ['workflowId'],
           },
         },
       ]
@@ -286,7 +317,7 @@ export function getToolParametersConfig(
     }
 
     // Get block configuration for UI component information
-    let blockConfig: BlockConfig | null = null
+    let blockConfig: ToolInputBlockConfig | null = null
     if (blockType) {
       const blockConfigs = getBlockConfigurations()
       blockConfig = blockConfigs[blockType] || null
@@ -337,6 +368,7 @@ export function getToolParametersConfig(
               title: subBlock.title,
               value: subBlock.value,
               serviceId: subBlock.serviceId,
+              selectorKey: subBlock.selectorKey,
               requiredScopes: subBlock.requiredScopes,
               mimeType: subBlock.mimeType,
               columns: subBlock.columns,
@@ -955,7 +987,8 @@ export function getSubBlocksForToolInput(
   toolId: string,
   blockType: string,
   currentValues?: Record<string, unknown>,
-  canonicalModeOverrides?: CanonicalModeOverrides
+  canonicalModeOverrides?: CanonicalModeOverrides,
+  blockConfigOverride?: Pick<ToolInputBlockConfig, 'subBlocks'>
 ): SubBlocksForToolInput | null {
   try {
     const toolConfig = getTool(toolId)
@@ -965,7 +998,7 @@ export function getSubBlocksForToolInput(
     }
 
     const blockConfigs = getBlockConfigurations()
-    const blockConfig = blockConfigs[blockType]
+    const blockConfig = blockConfigOverride ?? blockConfigs[blockType]
     if (!blockConfig?.subBlocks?.length) {
       return null
     }
@@ -999,7 +1032,7 @@ export function getSubBlocksForToolInput(
       if (EXCLUDED_SUBBLOCK_TYPES.has(sb.type)) continue
 
       // Skip trigger-mode-only subblocks
-      if (sb.mode === 'trigger' || sb.mode === 'trigger-advanced') continue
+      if (isTriggerModeSubBlock(sb)) continue
 
       // Hide tool API key fields when running on hosted Sim or when env var is set
       if (isSubBlockHidden(sb)) continue

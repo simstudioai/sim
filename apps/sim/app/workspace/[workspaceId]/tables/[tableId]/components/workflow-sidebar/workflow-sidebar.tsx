@@ -659,8 +659,8 @@ function WorkflowSidebarBody({
           setNameError(nameIssue.message)
           return
         }
+        toast.error(toError(err).message)
       }
-      toast.error(toError(err).message)
     }
   }
 
@@ -678,7 +678,7 @@ function WorkflowSidebarBody({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2'>
+      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
         <h2 className='font-medium text-[var(--text-primary)] text-small'>
           {titleByMode[config.mode]}
         </h2>

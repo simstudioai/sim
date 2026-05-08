@@ -1,11 +1,16 @@
 import { useMemo } from 'react'
-import { getWorkflowSearchMatchResourceGroupKey } from '@/lib/workflows/search-replace/resource-resolvers'
+import { getWorkflowSearchMatchResourceGroupKey } from '@/lib/workflows/search-replace/resources'
 import type { WorkflowSearchMatch } from '@/lib/workflows/search-replace/types'
 import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import {
+  useWorkflowSearchFileDetails,
   useWorkflowSearchKnowledgeBaseDetails,
+  useWorkflowSearchMcpServerDetails,
+  useWorkflowSearchMcpToolDetails,
   useWorkflowSearchOAuthCredentialDetails,
   useWorkflowSearchSelectorDetails,
+  useWorkflowSearchTableDetails,
+  type WorkflowSearchResolvedResource,
 } from '@/hooks/queries/workflow-search-replace'
 
 export interface HydratedWorkflowSearchMatch extends WorkflowSearchMatch {
@@ -28,6 +33,10 @@ export function useWorkflowSearchReferenceHydration({
   const oauthDetails = useWorkflowSearchOAuthCredentialDetails(matches, workflowId)
   const knowledgeDetails = useWorkflowSearchKnowledgeBaseDetails(matches)
   const selectorDetails = useWorkflowSearchSelectorDetails(matches)
+  const tableDetails = useWorkflowSearchTableDetails(matches, workspaceId)
+  const fileDetails = useWorkflowSearchFileDetails(matches, workspaceId)
+  const mcpServerDetails = useWorkflowSearchMcpServerDetails(matches, workspaceId)
+  const mcpToolDetails = useWorkflowSearchMcpToolDetails(matches, workspaceId)
   const { data: personalEnvironment } = usePersonalEnvironment()
   const { data: workspaceEnvironment } = useWorkspaceEnvironment(workspaceId ?? '')
 
@@ -41,7 +50,7 @@ export function useWorkflowSearchReferenceHydration({
       { label: string; resolved: boolean; inaccessible: boolean }
     >()
 
-    const setResolvedLabel = (query: (typeof oauthDetails)[number]) => {
+    const setResolvedLabel = (query: { data?: WorkflowSearchResolvedResource }) => {
       if (!query.data) return
       const value = {
         label: query.data.label,
@@ -60,6 +69,10 @@ export function useWorkflowSearchReferenceHydration({
     oauthDetails.forEach(setResolvedLabel)
     knowledgeDetails.forEach(setResolvedLabel)
     selectorDetails.forEach(setResolvedLabel)
+    tableDetails.forEach(setResolvedLabel)
+    fileDetails.forEach(setResolvedLabel)
+    mcpServerDetails.forEach(setResolvedLabel)
+    mcpToolDetails.forEach(setResolvedLabel)
 
     const personalKeys = new Set(Object.keys(personalEnvironment ?? {}))
     const workspaceKeys = new Set(Object.keys(workspaceEnvironment?.workspace ?? {}))
@@ -96,11 +109,15 @@ export function useWorkflowSearchReferenceHydration({
       }
     })
   }, [
+    fileDetails,
     knowledgeDetails,
     matches,
+    mcpServerDetails,
+    mcpToolDetails,
     oauthDetails,
     personalEnvironment,
     selectorDetails,
+    tableDetails,
     workspaceEnvironment,
   ])
 }

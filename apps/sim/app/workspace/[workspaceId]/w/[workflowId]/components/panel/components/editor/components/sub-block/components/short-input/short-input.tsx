@@ -46,6 +46,8 @@ interface ShortInputProps {
   wandControlRef?: React.MutableRefObject<WandControlHandlers | null>
   /** Whether to hide the internal wand button (controlled by parent) */
   hideInternalWand?: boolean
+  /** Whether workflow search is actively highlighting this input */
+  isSearchHighlighted?: boolean
 }
 
 /**
@@ -74,6 +76,7 @@ export const ShortInput = memo(function ShortInput({
   useWebhookUrl = false,
   wandControlRef,
   hideInternalWand = false,
+  isSearchHighlighted = false,
 }: ShortInputProps) {
   const [localContent, setLocalContent] = useState<string>('')
   const [isFocused, setIsFocused] = useState(false)
@@ -332,16 +335,15 @@ export const ShortInput = memo(function ShortInput({
                 ? webhookManagement.webhookUrl
                 : ctrlValue
 
-            const displayValue =
-              password && !isFocused ? '•'.repeat(actualValue?.length ?? 0) : actualValue
+            const shouldMask = password && !isFocused && !isSearchHighlighted
+            const displayValue = shouldMask ? '•'.repeat(actualValue?.length ?? 0) : actualValue
 
-            const formattedText =
-              password && !isFocused
-                ? '•'.repeat(actualValue?.length ?? 0)
-                : formatDisplayText(actualValue, {
-                    accessiblePrefixes,
-                    highlightAll: !accessiblePrefixes,
-                  })
+            const formattedText = shouldMask
+              ? '•'.repeat(actualValue?.length ?? 0)
+              : formatDisplayText(actualValue, {
+                  accessiblePrefixes,
+                  highlightAll: !accessiblePrefixes,
+                })
 
             return (
               <>

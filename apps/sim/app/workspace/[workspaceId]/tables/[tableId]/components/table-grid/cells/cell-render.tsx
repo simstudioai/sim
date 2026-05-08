@@ -208,7 +208,11 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
     case 'boolean':
       return (
         <div
-          className={cn('flex min-h-[20px] items-center justify-center', isEditing && 'invisible')}
+          data-boolean-cell-toggle
+          className={cn(
+            'flex min-h-[20px] w-full items-center justify-center',
+            isEditing && 'invisible'
+          )}
         >
           <Checkbox size='sm' checked={kind.checked} className='pointer-events-none' />
         </div>
