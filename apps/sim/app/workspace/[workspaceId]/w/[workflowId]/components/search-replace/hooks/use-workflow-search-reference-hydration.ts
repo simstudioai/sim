@@ -10,6 +10,7 @@ import {
   useWorkflowSearchOAuthCredentialDetails,
   useWorkflowSearchSelectorDetails,
   useWorkflowSearchTableDetails,
+  type WorkflowSearchResolvedResource,
 } from '@/hooks/queries/workflow-search-replace'
 
 export interface HydratedWorkflowSearchMatch extends WorkflowSearchMatch {
@@ -49,7 +50,7 @@ export function useWorkflowSearchReferenceHydration({
       { label: string; resolved: boolean; inaccessible: boolean }
     >()
 
-    const setResolvedLabel = (query: (typeof oauthDetails)[number]) => {
+    const setResolvedLabel = (query: { data?: WorkflowSearchResolvedResource }) => {
       if (!query.data) return
       const value = {
         label: query.data.label,

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '@/lib/api/contracts/types'
+import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 
 export const workspaceFileScopeSchema = z.enum(['active', 'archived', 'all'])
 
@@ -58,6 +58,7 @@ export const listWorkspaceFilesContract = defineRouteContract({
     }),
   },
 })
+export type ListWorkspaceFilesResponse = ContractJsonResponse<typeof listWorkspaceFilesContract>
 
 export const renameWorkspaceFileContract = defineRouteContract({
   method: 'PATCH',

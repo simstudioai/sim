@@ -488,6 +488,55 @@ describe('indexWorkflowSearchMatches', () => {
     expect(matches).toEqual([])
   })
 
+  it('indexes only editable variable assignment values as text', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['variables-1'] = {
+      id: 'variables-1',
+      type: 'variables',
+      name: 'Variables',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        variables: {
+          id: 'variables',
+          type: 'variables-input',
+          value: [
+            {
+              id: 'assignment-needle-id',
+              variableId: 'variable-needle-id',
+              variableName: 'needleVariable',
+              type: 'string',
+              value: 'needle assignment value',
+              isExisting: true,
+            },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'needle',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        variables: {
+          subBlocks: [{ id: 'variables', title: 'Variable Assignments', type: 'variables-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'variables-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'variables',
+        valuePath: [0, 'value'],
+        searchText: 'needle assignment value',
+        editable: true,
+      }),
+    ])
+  })
+
   it('does not index upload or dynamic control internals as text', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['dynamic-1'] = {
@@ -1216,6 +1265,71 @@ describe('indexWorkflowSearchMatches', () => {
         }),
       }),
     ])
+  })
+
+  it('builds selector context from declared dependencies instead of sibling selectors', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['spreadsheet-1'] = {
+      id: 'spreadsheet-1',
+      type: 'custom',
+      name: 'Spreadsheet Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        spreadsheetSelector: {
+          id: 'spreadsheetSelector',
+          type: 'file-selector',
+          value: 'spreadsheet-1',
+        },
+        sheetSelector: {
+          id: 'sheetSelector',
+          type: 'sheet-selector',
+          value: 'sheet-1',
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      mode: 'resource',
+      includeResourceMatchesWithoutQuery: true,
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [
+            {
+              id: 'spreadsheetSelector',
+              title: 'Spreadsheet',
+              type: 'file-selector',
+              canonicalParamId: 'spreadsheetId',
+              selectorKey: 'google.drive',
+            },
+            {
+              id: 'sheetSelector',
+              title: 'Sheet',
+              type: 'sheet-selector',
+              selectorKey: 'google.sheets',
+              dependsOn: ['spreadsheetSelector'],
+            },
+          ],
+        },
+      },
+    }).filter((match) => match.blockId === 'spreadsheet-1')
+
+    const spreadsheetMatch = matches.find((match) => match.subBlockId === 'spreadsheetSelector')
+    const sheetMatch = matches.find((match) => match.subBlockId === 'sheetSelector')
+
+    expect(spreadsheetMatch?.resource?.selectorContext).not.toHaveProperty('spreadsheetId')
+    expect(sheetMatch?.resource?.selectorContext).toEqual(
+      expect.objectContaining({
+        spreadsheetId: 'spreadsheet-1',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+      })
+    )
   })
 
   it('captures selector context for selector-backed resources', () => {

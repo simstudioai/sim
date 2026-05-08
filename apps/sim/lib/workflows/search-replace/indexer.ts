@@ -21,12 +21,17 @@ import { pathToKey, walkStringValues } from '@/lib/workflows/search-replace/valu
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import {
   buildCanonicalIndex,
+  buildSubBlockValues,
   evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
+  normalizeDependencyValue,
+  parseDependsOn,
+  resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
+import { isReference } from '@/executor/constants'
 import type { SelectorContext } from '@/hooks/selectors/types'
 
 function normalizeForSearch(value: string, caseSensitive: boolean): string {
@@ -83,7 +88,7 @@ const PLAIN_TEXT_EXCLUDED_SUBBLOCK_TYPES = new Set<SubBlockType>([
   'switch',
 ])
 
-const TEXT_VALUE_ONLY_SUBBLOCK_TYPES = new Set<SubBlockType>(['filter-builder'])
+const TEXT_VALUE_ONLY_SUBBLOCK_TYPES = new Set<SubBlockType>(['filter-builder', 'variables-input'])
 
 const TOOL_INPUT_TEXT_EXCLUDED_LEAF_KEYS = new Set([
   'type',
@@ -289,12 +294,16 @@ function addTextMatches({
 
 function buildSearchSelectorContext({
   block,
-  subBlockConfigs,
+  subBlockConfig,
+  subBlockValues,
+  canonicalIndex,
   workspaceId,
   workflowId,
 }: {
   block: WorkflowSearchBlockState
-  subBlockConfigs: SubBlockConfig[]
+  subBlockConfig?: SubBlockConfig
+  subBlockValues: Record<string, unknown>
+  canonicalIndex: ReturnType<typeof buildCanonicalIndex>
   workspaceId?: string
   workflowId?: string
 }): SelectorContext {
@@ -305,12 +314,18 @@ function buildSearchSelectorContext({
     context.excludeWorkflowId = workflowId
   }
 
-  const canonicalIndex = buildCanonicalIndex(subBlockConfigs)
-  for (const [subBlockId, subBlock] of Object.entries(block.subBlocks ?? {})) {
-    const value = subBlock?.value
+  if (subBlockConfig?.mimeType) context.mimeType = subBlockConfig.mimeType
+
+  const { allDependsOnFields } = parseDependsOn(subBlockConfig?.dependsOn)
+
+  for (const subBlockId of allDependsOnFields) {
+    const value = normalizeDependencyValue(
+      resolveDependencyValue(subBlockId, subBlockValues, canonicalIndex, block.data?.canonicalModes)
+    )
     if (value === null || value === undefined) continue
     const stringValue = typeof value === 'string' ? value : String(value)
     if (!stringValue) continue
+    if (isReference(stringValue)) continue
 
     const canonicalKey = canonicalIndex.canonicalIdBySubBlockId[subBlockId] ?? subBlockId
     if (SELECTOR_CONTEXT_FIELDS.has(canonicalKey as keyof SelectorContext)) {
@@ -346,15 +361,7 @@ export function indexWorkflowSearchMatches(
     const subBlockConfigs = blockConfig?.subBlocks ?? []
     const configsById = new Map(subBlockConfigs.map((subBlock) => [subBlock.id, subBlock]))
     const canonicalIndex = buildCanonicalIndex(subBlockConfigs)
-    const subBlockValues = Object.fromEntries(
-      Object.entries(block.subBlocks ?? {}).map(([id, subBlock]) => [id, subBlock?.value])
-    )
-    const selectorContext = buildSearchSelectorContext({
-      block,
-      subBlockConfigs,
-      workspaceId,
-      workflowId,
-    })
+    const subBlockValues = buildSubBlockValues(block.subBlocks ?? {})
     const protectedByLock = isWorkflowBlockProtected(block.id, workflow.blocks)
     const editable = !protectedByLock && !isReadOnly
 
@@ -400,12 +407,11 @@ export function indexWorkflowSearchMatches(
         subBlockId
       const value = subBlockState?.value
       const subBlockType = subBlockConfig?.type ?? subBlockState.type
-      const textLeaves = getTextLeaves(value, subBlockType)
-      const referenceLeaves = getSearchableStringLeaves(value, subBlockType, 'reference')
       const resourceSubBlockConfig = subBlockConfig ?? { type: subBlockType }
       const structuredResourceKind = getResourceKindForSubBlock(resourceSubBlockConfig)
 
       if (mode !== 'resource' && !structuredResourceKind) {
+        const textLeaves = getTextLeaves(value, subBlockType)
         for (const leaf of textLeaves) {
           const leafEditable = editable && typeof leaf.originalValue === 'string'
           addTextMatches({
@@ -435,6 +441,7 @@ export function indexWorkflowSearchMatches(
 
       if (mode === 'text' || !resourceQueryEnabled) continue
 
+      const referenceLeaves = getSearchableStringLeaves(value, subBlockType, 'reference')
       for (const leaf of referenceLeaves) {
         const inlineReferences = parseInlineReferences(leaf.value)
         inlineReferences.forEach((reference, referenceIndex) => {
@@ -477,6 +484,16 @@ export function indexWorkflowSearchMatches(
         })
       }
 
+      const selectorContext = subBlockConfig?.selectorKey
+        ? buildSearchSelectorContext({
+            block,
+            subBlockConfig,
+            subBlockValues,
+            canonicalIndex,
+            workspaceId,
+            workflowId,
+          })
+        : undefined
       const structuredReferences = parseStructuredResourceReferences(
         value,
         resourceSubBlockConfig,

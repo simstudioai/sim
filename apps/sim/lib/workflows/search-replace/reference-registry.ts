@@ -44,7 +44,6 @@ const RESOURCE_KIND_BY_SUBBLOCK_TYPE: Partial<
   'sheet-selector': 'selector-resource',
   'folder-selector': 'selector-resource',
   'project-selector': 'selector-resource',
-  'variables-input': 'selector-resource',
 }
 
 export function getResourceKindForSubBlock(

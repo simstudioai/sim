@@ -32,6 +32,47 @@ export interface CanonicalValueSelection {
   advancedSourceId?: string
 }
 
+export function parseDependsOn(dependsOn: SubBlockConfig['dependsOn']): {
+  allFields: string[]
+  anyFields: string[]
+  allDependsOnFields: string[]
+} {
+  if (!dependsOn) {
+    return { allFields: [], anyFields: [], allDependsOnFields: [] }
+  }
+
+  if (Array.isArray(dependsOn)) {
+    return { allFields: dependsOn, anyFields: [], allDependsOnFields: dependsOn }
+  }
+
+  const allFields = dependsOn.all || []
+  const anyFields = dependsOn.any || []
+  return {
+    allFields,
+    anyFields,
+    allDependsOnFields: [...allFields, ...anyFields],
+  }
+}
+
+export function normalizeDependencyValue(rawValue: unknown): unknown {
+  if (rawValue === null || rawValue === undefined) return null
+
+  if (typeof rawValue === 'object') {
+    if (Array.isArray(rawValue)) {
+      if (rawValue.length === 0) return null
+      return rawValue.map((item) => normalizeDependencyValue(item))
+    }
+
+    const record = rawValue as Record<string, unknown>
+    if ('value' in record) return normalizeDependencyValue(record.value)
+    if ('id' in record) return record.id
+
+    return record
+  }
+
+  return rawValue
+}
+
 /**
  * Build a flat map of subblock values keyed by subblock id.
  */

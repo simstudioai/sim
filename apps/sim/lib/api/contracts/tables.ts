@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '@/lib/api/contracts/types'
+import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import type {
   CsvHeaderMapping,
   Filter,
@@ -330,6 +330,7 @@ export const listTablesContract = defineRouteContract({
     ),
   },
 })
+export type ListTablesResponse = ContractJsonResponse<typeof listTablesContract>
 
 export const createTableContract = defineRouteContract({
   method: 'POST',
@@ -356,6 +357,7 @@ export const getTableContract = defineRouteContract({
     schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),
   },
 })
+export type GetTableResponse = ContractJsonResponse<typeof getTableContract>
 
 export const renameTableContract = defineRouteContract({
   method: 'PATCH',
