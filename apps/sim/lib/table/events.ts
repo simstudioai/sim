@@ -66,13 +66,7 @@ function getMetaKey(tableId: string) {
   return `${REDIS_PREFIX}${tableId}:meta`
 }
 
-export type TableCellStatus =
-  | 'pending'
-  | 'queued'
-  | 'running'
-  | 'completed'
-  | 'cancelled'
-  | 'error'
+export type TableCellStatus = 'pending' | 'queued' | 'running' | 'completed' | 'cancelled' | 'error'
 
 export interface TableEvent {
   kind: 'cell'
