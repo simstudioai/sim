@@ -299,7 +299,7 @@ export function EmbeddedWorkflowActions({
     const url = chatId
       ? `/workspace/${workspaceId}/w/${workflowId}?chatId=${encodeURIComponent(chatId)}`
       : `/workspace/${workspaceId}/w/${workflowId}`
-    window.open(url, '_blank')
+    router.push(url)
   }
 
   return (
