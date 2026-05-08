@@ -152,7 +152,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
 
     // Company Enrich fields
     {
-      id: 'name',
+      id: 'company_name',
       title: 'Company Name',
       type: 'short-input',
       placeholder: 'Acme Inc',
@@ -433,7 +433,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
         result.school_profile = undefined
 
         // Clear shared target fields and repopulate them per-operation. The raw
-        // `profile`/`location`/`name`/`website` subBlocks are scoped to specific
+        // `profile`/`location`/`website` subBlocks are scoped to specific
         // operations in the UI, but their values persist when the user switches
         // operations — without this reset, e.g. a person LinkedIn URL would
         // leak into a Company Enrich request as the company profile.
@@ -441,6 +441,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
         result.location = undefined
         result.name = undefined
         result.website = undefined
+        result.company_name = undefined
 
         if (op === 'pdl_person_enrich' || op === 'pdl_person_identify') {
           if (params.profile !== undefined) result.profile = params.profile
@@ -448,13 +449,15 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
           if (params.name !== undefined) result.name = params.name
         }
         if (op === 'pdl_company_enrich') {
-          if (params.name !== undefined) result.name = params.name
+          if (params.company_name !== undefined) result.name = params.company_name
+          else if (params.name !== undefined) result.name = params.name
           if (params.website !== undefined) result.website = params.website
           if (params.company_profile !== undefined) result.profile = params.company_profile
           if (params.company_location !== undefined) result.location = params.company_location
         }
         if (op === 'pdl_clean_company') {
-          if (params.name !== undefined) result.name = params.name
+          if (params.company_name !== undefined) result.name = params.company_name
+          else if (params.name !== undefined) result.name = params.name
           if (params.website !== undefined) result.website = params.website
           if (params.company_profile !== undefined) result.profile = params.company_profile
         }
