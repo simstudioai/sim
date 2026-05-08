@@ -75,9 +75,12 @@ export const pdfGenerateTask = defineSandboxTask<SandboxTaskInput>({
      * Example: await drawImage(page, 'abc123', { x: 50, y: 700, width: 200, height: 100 });
      */
     globalThis.drawImage = async function drawImage(page, fileId, opts) {
+      if (!opts || opts.x == null || opts.y == null || opts.width == null || opts.height == null) {
+        throw new Error('drawImage: opts must include x, y, width, and height (in points)');
+      }
       const dataUri = await globalThis.getFileBase64(fileId);
       const img = await globalThis.embedImage(dataUri);
-      page.drawImage(img, opts || {});
+      page.drawImage(img, opts);
     };
   `,
   finalize: `
