@@ -217,6 +217,7 @@ export interface PdlPersonEnrichParams {
   location?: string
   min_likelihood?: number
   required?: string
+  titlecase?: boolean
 }
 
 export interface PdlPersonEnrichResponse extends ToolResponse {
@@ -234,6 +235,7 @@ export interface PdlPersonSearchParams {
   size?: number
   scroll_token?: string
   dataset?: string
+  titlecase?: boolean
 }
 
 export interface PdlPersonSearchResponse extends ToolResponse {
@@ -257,6 +259,7 @@ export interface PdlCompanyEnrichParams {
   country?: string
   min_likelihood?: number
   required?: string
+  titlecase?: boolean
 }
 
 export interface PdlCompanyEnrichResponse extends ToolResponse {
@@ -273,6 +276,7 @@ export interface PdlCompanySearchParams {
   query?: string
   size?: number
   scroll_token?: string
+  titlecase?: boolean
 }
 
 export interface PdlCompanySearchResponse extends ToolResponse {
@@ -288,6 +292,7 @@ export interface PdlAutocompleteParams {
   field: string
   text?: string
   size?: number
+  titlecase?: boolean
 }
 
 export interface PdlAutocompleteSuggestion {
@@ -364,6 +369,7 @@ export interface PdlPersonIdentifyParams {
   birth_date?: string
   data_include?: string
   include_if_matched?: boolean
+  titlecase?: boolean
 }
 
 export interface PdlPersonIdentifyMatch {

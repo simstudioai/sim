@@ -64,6 +64,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
       id: 'first_name',
       title: 'First Name',
       type: 'short-input',
+      placeholder: 'Jane',
       condition: { field: 'operation', value: ['pdl_person_enrich', 'pdl_person_identify'] },
       mode: 'advanced',
     },
@@ -71,6 +72,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
       id: 'last_name',
       title: 'Last Name',
       type: 'short-input',
+      placeholder: 'Doe',
       condition: { field: 'operation', value: ['pdl_person_enrich', 'pdl_person_identify'] },
       mode: 'advanced',
     },
@@ -185,6 +187,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
       id: 'pdl_id',
       title: 'PDL Company ID',
       type: 'short-input',
+      placeholder: 'people-data-labs',
       condition: { field: 'operation', value: 'pdl_company_enrich' },
       mode: 'advanced',
     },
@@ -268,6 +271,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
       id: 'identify_postal_code',
       title: 'Postal Code',
       type: 'short-input',
+      placeholder: '94103',
       condition: { field: 'operation', value: 'pdl_person_identify' },
       mode: 'advanced',
     },
@@ -363,6 +367,25 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
       type: 'short-input',
       placeholder: 'https://linkedin.com/school/stanford-university',
       condition: { field: 'operation', value: 'pdl_clean_school' },
+      mode: 'advanced',
+    },
+
+    // Title case (shared by Person Enrich/Identify/Search, Company Enrich, Autocomplete)
+    {
+      id: 'titlecase',
+      title: 'Title Case Names',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: [
+          'pdl_person_enrich',
+          'pdl_person_identify',
+          'pdl_person_search',
+          'pdl_company_enrich',
+          'pdl_company_search',
+          'pdl_autocomplete',
+        ],
+      },
       mode: 'advanced',
     },
 
@@ -488,6 +511,18 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
           result.min_likelihood = undefined
         }
 
+        // titlecase is honored by enrich/identify/search/autocomplete; clear it for others
+        if (
+          op !== 'pdl_person_enrich' &&
+          op !== 'pdl_person_identify' &&
+          op !== 'pdl_person_search' &&
+          op !== 'pdl_company_enrich' &&
+          op !== 'pdl_company_search' &&
+          op !== 'pdl_autocomplete'
+        ) {
+          result.titlecase = undefined
+        }
+
         if (op === 'pdl_person_identify') {
           if (params.identify_locality !== undefined) result.locality = params.identify_locality
           if (params.identify_region !== undefined) result.region = params.identify_region
@@ -575,6 +610,8 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
     // Bulk
     requests: { type: 'string', description: 'JSON array of bulk request objects' },
     required: { type: 'string', description: 'Required-fields expression for bulk' },
+    // Shared
+    titlecase: { type: 'boolean', description: 'Return name fields in title case' },
   },
 
   outputs: {
