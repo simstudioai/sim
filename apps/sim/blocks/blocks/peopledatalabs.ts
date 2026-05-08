@@ -444,8 +444,6 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
 
         if (op === 'pdl_person_enrich' || op === 'pdl_person_identify') {
           if (params.profile !== undefined) result.profile = params.profile
-        }
-        if (op === 'pdl_person_enrich') {
           if (params.location !== undefined) result.location = params.location
         }
         if (op === 'pdl_company_enrich') {
