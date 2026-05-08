@@ -1,3 +1,4 @@
+import { replaceJsonStringLeafRange } from '@/lib/workflows/search-replace/json-value-fields'
 import { getWorkflowSearchReplacementIssue } from '@/lib/workflows/search-replace/replacement-validation'
 import {
   getWorkflowSearchSubflowField,
@@ -230,6 +231,33 @@ export function buildWorkflowSearchReplacePlan({
     let nextValue: unknown = existingUpdate?.nextValue ?? subBlock.value
 
     if (match.range) {
+      const jsonReplacement = replaceJsonStringLeafRange({
+        value: nextValue,
+        subBlockType: match.subBlockType,
+        path: match.valuePath,
+        range: match.range,
+        rawValue: match.rawValue,
+        replacement,
+      })
+      if (jsonReplacement.handled) {
+        if (!jsonReplacement.success) {
+          conflicts.push({
+            matchId: match.id,
+            reason: jsonReplacement.reason ?? 'Target value is no longer text',
+          })
+          continue
+        }
+        nextValue = jsonReplacement.nextValue
+        updatesByField.set(updateKey, {
+          blockId: match.blockId,
+          subBlockId: match.subBlockId,
+          previousValue,
+          nextValue,
+          matchIds: [...(existingUpdate?.matchIds ?? []), match.id],
+        })
+        continue
+      }
+
       const currentLeaf = getValueAtPath(nextValue, match.valuePath)
       if (typeof currentLeaf !== 'string') {
         conflicts.push({ matchId: match.id, reason: 'Target value is no longer text' })

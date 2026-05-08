@@ -60,6 +60,652 @@ describe('indexWorkflowSearchMatches', () => {
     expect(objectMatches).toEqual([])
   })
 
+  it('indexes input format fields by visible nested field labels', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['start-1'] = {
+      id: 'start-1',
+      type: 'start_trigger',
+      name: 'Start',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        inputFormat: {
+          id: 'inputFormat',
+          type: 'input-format',
+          value: [
+            {
+              id: 'internal-field-id',
+              name: 'customerInput',
+              type: 'string',
+              description: 'Incoming payload',
+              value: 'sample',
+              collapsed: false,
+            },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'in',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        start_trigger: {
+          subBlocks: [{ id: 'inputFormat', title: 'Inputs', type: 'input-format' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'start-1')
+
+    expect(matches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          valuePath: [0, 'name'],
+          fieldTitle: 'Name',
+          searchText: 'customerInput',
+        }),
+        expect.objectContaining({
+          valuePath: [0, 'description'],
+          fieldTitle: 'Description',
+          searchText: 'Incoming payload',
+        }),
+      ])
+    )
+    expect(matches.some((match) => match.rawValue === 'internal-field-id')).toBe(false)
+    expect(matches.some((match) => match.valuePath.join('.') === '0.type')).toBe(false)
+  })
+
+  it('does not index fixed-choice dropdown values as text replacements', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['dropdown-1'] = {
+      id: 'dropdown-1',
+      type: 'custom',
+      name: 'Dropdown Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        operation: {
+          id: 'operation',
+          type: 'dropdown',
+          value: 'send_email',
+        },
+        flags: {
+          id: 'flags',
+          type: 'dropdown',
+          value: ['read', 'unread'],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'send',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [
+            {
+              id: 'operation',
+              title: 'Operation',
+              type: 'dropdown',
+              options: [{ label: 'Send Email', id: 'send_email' }],
+            },
+            {
+              id: 'flags',
+              title: 'Flags',
+              type: 'dropdown',
+              multiSelect: true,
+              options: [
+                { label: 'Read', id: 'read' },
+                { label: 'Unread', id: 'unread' },
+              ],
+            },
+          ],
+        },
+      },
+    })
+
+    expect(matches.filter((match) => match.blockId === 'dropdown-1')).toEqual([])
+  })
+
+  it('indexes only value fields for JSON-backed knowledge tag subblocks', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tag-block-1'] = {
+      id: 'tag-block-1',
+      type: 'custom',
+      name: 'Tag Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        tagFilters: {
+          id: 'tagFilters',
+          type: 'knowledge-tag-filters',
+          value: JSON.stringify([
+            {
+              id: 'filter-open',
+              tagName: 'Status',
+              fieldType: 'text',
+              operator: 'eq',
+              tagValue: 'open ticket',
+              valueTo: 'closed ticket',
+              collapsed: false,
+            },
+          ]),
+        },
+        documentTags: {
+          id: 'documentTags',
+          type: 'document-tag-entry',
+          value: JSON.stringify([
+            {
+              id: 'tag-open',
+              tagName: 'Priority',
+              fieldType: 'text',
+              value: 'open escalation',
+              collapsed: false,
+            },
+          ]),
+        },
+      },
+    }
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: {
+        subBlocks: [
+          { id: 'tagFilters', title: 'Tag Filters', type: 'knowledge-tag-filters' },
+          { id: 'documentTags', title: 'Document Tags', type: 'document-tag-entry' },
+        ],
+      },
+    }
+
+    const valueMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'open',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'tag-block-1')
+    const tagNameMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'Status',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'tag-block-1')
+    const typeMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'text',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'tag-block-1')
+
+    expect(valueMatches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          subBlockId: 'tagFilters',
+          valuePath: [0, 'tagValue'],
+          fieldTitle: 'Value',
+          searchText: 'open ticket',
+        }),
+        expect.objectContaining({
+          subBlockId: 'documentTags',
+          valuePath: [0, 'value'],
+          fieldTitle: 'Value',
+          searchText: 'open escalation',
+        }),
+      ])
+    )
+    expect(tagNameMatches).toEqual([])
+    expect(typeMatches).toEqual([])
+  })
+
+  it('indexes only editable branch values for JSON-backed condition and router subblocks', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['branch-1'] = {
+      id: 'branch-1',
+      type: 'custom',
+      name: 'Branch Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        conditions: {
+          id: 'conditions',
+          type: 'condition-input',
+          value: JSON.stringify([
+            {
+              id: 'branch-hidden-id',
+              title: 'branch hidden title',
+              value: 'branch visible value',
+              showTags: false,
+            },
+          ]),
+        },
+        routes: {
+          id: 'routes',
+          type: 'router-input',
+          value: JSON.stringify([
+            {
+              id: 'route-hidden-id',
+              title: 'route hidden title',
+              value: 'route visible value',
+              showTags: false,
+            },
+          ]),
+        },
+      },
+    }
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: {
+        subBlocks: [
+          { id: 'conditions', title: 'Conditions', type: 'condition-input' },
+          { id: 'routes', title: 'Routes', type: 'router-input' },
+        ],
+      },
+    }
+
+    const visibleMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'visible',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'branch-1')
+    const hiddenMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'hidden',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'branch-1')
+
+    expect(visibleMatches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          subBlockId: 'conditions',
+          valuePath: [0, 'value'],
+          fieldTitle: 'Condition',
+        }),
+        expect.objectContaining({
+          subBlockId: 'routes',
+          valuePath: [0, 'value'],
+          fieldTitle: 'Route',
+        }),
+      ])
+    )
+    expect(hiddenMatches).toEqual([])
+  })
+
+  it('does not index non-editable builder enums or message metadata', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['structured-1'] = {
+      id: 'structured-1',
+      type: 'custom',
+      name: 'Structured Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        messages: {
+          id: 'messages',
+          type: 'messages-input',
+          value: [{ role: 'user', content: 'user visible content' }],
+        },
+        filters: {
+          id: 'filters',
+          type: 'filter-builder',
+          value: [
+            {
+              id: 'filter-1',
+              column: 'status',
+              operator: 'contains',
+              value: 'contains visible value',
+              logicalOperator: 'and',
+            },
+          ],
+        },
+        sorts: {
+          id: 'sorts',
+          type: 'sort-builder',
+          value: [{ id: 'sort-1', column: 'status', direction: 'asc' }],
+        },
+        skills: {
+          id: 'skills',
+          type: 'skill-input',
+          value: [{ skillId: 'skill-hidden-id', name: 'Skill Hidden Name' }],
+        },
+        runAt: {
+          id: 'runAt',
+          type: 'time-input',
+          value: '12:30',
+        },
+        mapping: {
+          id: 'mapping',
+          type: 'input-mapping',
+          value: { childInput: 'mapped visible value' },
+        },
+      },
+    }
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: {
+        subBlocks: [
+          { id: 'messages', title: 'Messages', type: 'messages-input' },
+          { id: 'filters', title: 'Filters', type: 'filter-builder' },
+          { id: 'sorts', title: 'Sorts', type: 'sort-builder' },
+          { id: 'skills', title: 'Skills', type: 'skill-input' },
+          { id: 'runAt', title: 'Run At', type: 'time-input' },
+          { id: 'mapping', title: 'Input Mapping', type: 'input-mapping' },
+        ],
+      },
+    }
+
+    const containsMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'contains',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'structured-1')
+    const userMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'user',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'structured-1')
+    const excludedMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'hidden',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'structured-1')
+    const timeMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: '12',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'structured-1')
+    const mappingMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'mapped',
+      mode: 'text',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'structured-1')
+
+    expect(containsMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'filters',
+        valuePath: [0, 'value'],
+        searchText: 'contains visible value',
+      }),
+    ])
+    expect(userMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'messages',
+        valuePath: [0, 'content'],
+        searchText: 'user visible content',
+      }),
+    ])
+    expect(excludedMatches).toEqual([])
+    expect(timeMatches).toEqual([])
+    expect(mappingMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'mapping',
+        valuePath: ['childInput'],
+        searchText: 'mapped visible value',
+      }),
+    ])
+  })
+
+  it('does not index condition-hidden subblocks', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['condition-1'] = {
+      id: 'condition-1',
+      type: 'custom',
+      name: 'Conditional Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        operation: {
+          id: 'operation',
+          type: 'dropdown',
+          value: 'send',
+        },
+        hiddenBody: {
+          id: 'hiddenBody',
+          type: 'long-input',
+          value: 'invisible content',
+        },
+        visibleBody: {
+          id: 'visibleBody',
+          type: 'long-input',
+          value: 'visible content',
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'content',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [
+            { id: 'operation', title: 'Operation', type: 'dropdown' },
+            {
+              id: 'hiddenBody',
+              title: 'Hidden Body',
+              type: 'long-input',
+              condition: { field: 'operation', value: 'receive' },
+            },
+            {
+              id: 'visibleBody',
+              title: 'Visible Body',
+              type: 'long-input',
+              condition: { field: 'operation', value: 'send' },
+            },
+          ],
+        },
+      },
+    }).filter((match) => match.blockId === 'condition-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'visibleBody',
+        fieldTitle: 'Visible Body',
+      }),
+    ])
+  })
+
+  it('does not index hidden generated subblocks', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['evaluator-1'] = {
+      id: 'evaluator-1',
+      type: 'evaluator',
+      name: 'Evaluator',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        systemPrompt: {
+          id: 'systemPrompt',
+          type: 'code',
+          value: 'Generated content should not be searchable',
+        },
+        content: {
+          id: 'content',
+          type: 'long-input',
+          value: 'Visible content should be searchable',
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'content',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        evaluator: {
+          subBlocks: [
+            { id: 'systemPrompt', title: 'System Prompt', type: 'code', hidden: true },
+            { id: 'content', title: 'Content', type: 'long-input' },
+          ],
+        },
+      },
+    })
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        blockId: 'evaluator-1',
+        subBlockId: 'content',
+        fieldTitle: 'Content',
+      }),
+    ])
+  })
+
+  it('indexes editable combobox text and still finds inline references', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['combobox-1'] = {
+      id: 'combobox-1',
+      type: 'custom',
+      name: 'Combobox Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        model: {
+          id: 'model',
+          type: 'combobox',
+          value: 'claude-sonnet-4-6',
+        },
+        dynamicModel: {
+          id: 'dynamicModel',
+          type: 'combobox',
+          value: '<start.model>',
+        },
+      },
+    }
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: {
+        subBlocks: [
+          {
+            id: 'model',
+            title: 'Model',
+            type: 'combobox',
+            options: [{ label: 'Claude Sonnet', id: 'claude-sonnet-4-6' }],
+          },
+          {
+            id: 'dynamicModel',
+            title: 'Dynamic Model',
+            type: 'combobox',
+            options: [{ label: 'Claude Sonnet', id: 'claude-sonnet-4-6' }],
+          },
+        ],
+      },
+    }
+
+    const textMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'claude',
+      mode: 'text',
+      blockConfigs,
+    })
+    const referenceMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'start.model',
+      mode: 'resource',
+      blockConfigs,
+    })
+
+    expect(textMatches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          blockId: 'combobox-1',
+          subBlockId: 'model',
+          kind: 'text',
+          rawValue: 'claude',
+          editable: true,
+        }),
+      ])
+    )
+    expect(referenceMatches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          blockId: 'combobox-1',
+          subBlockId: 'dynamicModel',
+          kind: 'workflow-reference',
+          rawValue: '<start.model>',
+        }),
+      ])
+    )
+  })
+
+  it('indexes evaluator metrics by visible nested field labels', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['evaluator-1'] = {
+      id: 'evaluator-1',
+      type: 'evaluator',
+      name: 'Evaluator',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        metrics: {
+          id: 'metrics',
+          type: 'eval-input',
+          value: [
+            {
+              id: 'metric-internal-id',
+              name: 'Accuracy',
+              description: 'Score factual correctness',
+              range: { min: 0, max: 10 },
+            },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: '10',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        evaluator: {
+          subBlocks: [{ id: 'metrics', title: 'Evaluation Metrics', type: 'eval-input' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'evaluator-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        valuePath: [0, 'range', 'max'],
+        fieldTitle: 'Max Value',
+        searchText: '10',
+        editable: false,
+        reason: 'Only text values can be replaced',
+      }),
+    ])
+
+    const idMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'metric-internal-id',
+      mode: 'text',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        evaluator: {
+          subBlocks: [{ id: 'metrics', title: 'Evaluation Metrics', type: 'eval-input' }],
+        },
+      },
+    })
+
+    expect(idMatches).toEqual([])
+  })
+
   it('indexes non-string scalar values as searchable but not editable', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['api-1'].subBlocks.body.value = { count: 2, enabled: true }

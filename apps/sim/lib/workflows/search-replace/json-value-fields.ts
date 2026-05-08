@@ -1,0 +1,168 @@
+import type { SubBlockType } from '@sim/workflow-types/blocks'
+import type {
+  WorkflowSearchRange,
+  WorkflowSearchValuePath,
+} from '@/lib/workflows/search-replace/types'
+import { getValueAtPath, setValueAtPath } from '@/lib/workflows/search-replace/value-walker'
+
+const SEARCHABLE_JSON_ARRAY_VALUE_FIELDS: Partial<Record<SubBlockType, Record<string, string>>> = {
+  'condition-input': {
+    value: 'Condition',
+  },
+  'router-input': {
+    value: 'Route',
+  },
+  'knowledge-tag-filters': {
+    tagValue: 'Value',
+    valueTo: 'Value To',
+  },
+  'document-tag-entry': {
+    value: 'Value',
+  },
+}
+
+const SEARCHABLE_JSON_OBJECT_VALUE_FIELDS: Partial<Record<SubBlockType, string>> = {
+  'input-mapping': 'Value',
+}
+
+export interface SearchableJsonStringLeaf {
+  path: WorkflowSearchValuePath
+  value: string
+  originalValue: string
+  fieldTitle: string
+}
+
+export interface JsonStringLeafReplacementResult {
+  handled: boolean
+  success: boolean
+  nextValue?: unknown
+  reason?: string
+}
+
+function parseJsonValue(value: string): unknown | null {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+function getParsedValue(value: unknown): { parsed: unknown; stringify: boolean } | null {
+  if (typeof value === 'string') {
+    const parsed = parseJsonValue(value)
+    return parsed === null ? null : { parsed, stringify: true }
+  }
+
+  if (value && typeof value === 'object') {
+    return { parsed: value, stringify: false }
+  }
+
+  return null
+}
+
+export function isSearchableJsonValueSubBlock(
+  subBlockType: SubBlockType | undefined
+): subBlockType is
+  | 'condition-input'
+  | 'router-input'
+  | 'knowledge-tag-filters'
+  | 'document-tag-entry'
+  | 'input-mapping' {
+  return Boolean(
+    subBlockType &&
+      (SEARCHABLE_JSON_ARRAY_VALUE_FIELDS[subBlockType] ||
+        SEARCHABLE_JSON_OBJECT_VALUE_FIELDS[subBlockType])
+  )
+}
+
+export function getSearchableJsonStringLeaves(
+  value: unknown,
+  subBlockType: SubBlockType | undefined
+): SearchableJsonStringLeaf[] {
+  const parsedValue = getParsedValue(value)
+  if (!parsedValue) return []
+  const { parsed } = parsedValue
+
+  const arrayFieldTitles = subBlockType
+    ? SEARCHABLE_JSON_ARRAY_VALUE_FIELDS[subBlockType]
+    : undefined
+  if (arrayFieldTitles) {
+    if (!Array.isArray(parsed)) return []
+
+    return parsed.flatMap((row, index) => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return []
+      return Object.entries(arrayFieldTitles).flatMap(([fieldKey, fieldTitle]) => {
+        const fieldValue = (row as Record<string, unknown>)[fieldKey]
+        return typeof fieldValue === 'string' && fieldValue.length > 0
+          ? [{ path: [index, fieldKey], value: fieldValue, originalValue: fieldValue, fieldTitle }]
+          : []
+      })
+    })
+  }
+
+  const objectFieldTitle = subBlockType
+    ? SEARCHABLE_JSON_OBJECT_VALUE_FIELDS[subBlockType]
+    : undefined
+  if (objectFieldTitle) {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
+    return Object.entries(parsed).flatMap(([fieldKey, fieldValue]) =>
+      typeof fieldValue === 'string' && fieldValue.length > 0
+        ? [
+            {
+              path: [fieldKey],
+              value: fieldValue,
+              originalValue: fieldValue,
+              fieldTitle: objectFieldTitle,
+            },
+          ]
+        : []
+    )
+  }
+
+  return []
+}
+
+export function replaceJsonStringLeafRange({
+  value,
+  subBlockType,
+  path,
+  range,
+  rawValue,
+  replacement,
+}: {
+  value: unknown
+  subBlockType: SubBlockType | undefined
+  path: WorkflowSearchValuePath
+  range: WorkflowSearchRange
+  rawValue: string
+  replacement: string
+}): JsonStringLeafReplacementResult {
+  if (!isSearchableJsonValueSubBlock(subBlockType)) {
+    return { handled: false, success: false }
+  }
+
+  const parsedValue = getParsedValue(value)
+  if (!parsedValue) {
+    return { handled: true, success: false, reason: 'Target JSON is no longer valid' }
+  }
+  const { parsed, stringify } = parsedValue
+
+  const currentLeaf = getValueAtPath(parsed, path)
+  if (typeof currentLeaf !== 'string') {
+    return { handled: true, success: false, reason: 'Target value is no longer text' }
+  }
+
+  const currentRawValue = currentLeaf.slice(range.start, range.end)
+  if (currentRawValue !== rawValue) {
+    return { handled: true, success: false, reason: 'Target text changed since search' }
+  }
+
+  const nextLeaf = `${currentLeaf.slice(0, range.start)}${replacement}${currentLeaf.slice(range.end)}`
+  return {
+    handled: true,
+    success: true,
+    nextValue: stringify
+      ? JSON.stringify(setValueAtPath(parsed, path, nextLeaf))
+      : setValueAtPath(parsed, path, nextLeaf),
+  }
+}

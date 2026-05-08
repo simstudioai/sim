@@ -625,6 +625,7 @@ export function Editor() {
                               activeSearchTarget.canonicalSubBlockId ===
                                 (subBlock.canonicalParamId ?? subBlock.id))
                           }
+                          activeSearchTarget={activeSearchTarget}
                           canonicalToggle={
                             isCanonicalSwap && canonicalMode && canonicalId
                               ? {
@@ -699,6 +700,7 @@ export function Editor() {
                               activeSearchTarget.canonicalSubBlockId ===
                                 (subBlock.canonicalParamId ?? subBlock.id))
                           }
+                          activeSearchTarget={activeSearchTarget}
                         />
                         {index < advancedOnlySubBlocks.length - 1 && (
                           <FieldDivider subblockMarker />

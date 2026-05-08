@@ -10,6 +10,7 @@ import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface EvalMetric {
   id: string
@@ -27,7 +28,11 @@ interface EvalInputProps {
   isPreview?: boolean
   previewValue?: EvalMetric[] | null
   disabled?: boolean
+  activeSearchTarget?: ActiveSearchTarget | null
 }
+
+const WORKFLOW_SEARCH_HIGHLIGHT_CLASS =
+  'rounded-sm bg-orange-400 shadow-[3px_0_0_#fb923c,-3px_0_0_#fb923c]'
 
 // Default values
 const createDefaultMetric = (): EvalMetric => ({
@@ -43,6 +48,7 @@ export function EvalInput({
   isPreview = false,
   previewValue,
   disabled = false,
+  activeSearchTarget,
 }: EvalInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<EvalMetric[]>(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
@@ -66,6 +72,17 @@ export function EvalInput({
 
   const defaultMetric = useMemo(() => createDefaultMetric(), [])
   const metrics: EvalMetric[] = value || [defaultMetric]
+
+  const isNestedSearchHighlighted = (metricIndex: number, metricPath: Array<string | number>) =>
+    activeSearchTarget?.subBlockId === subBlockId &&
+    activeSearchTarget.valuePath[0] === metricIndex &&
+    metricPath.every((segment, index) => activeSearchTarget.valuePath[index + 1] === segment)
+
+  const renderFieldLabel = (label: string, highlighted: boolean) => (
+    <Label className='text-small'>
+      {highlighted ? <mark className={WORKFLOW_SEARCH_HIGHLIGHT_CLASS}>{label}</mark> : label}
+    </Label>
+  )
 
   const addMetric = () => {
     if (isPreview || disabled) return
@@ -176,7 +193,7 @@ export function EvalInput({
 
           <div className='flex flex-col gap-2 border-[var(--border-1)] px-2.5 pt-1.5 pb-2.5'>
             <div key={`name-${metric.id}`} className='flex flex-col gap-1.5'>
-              <Label className='text-small'>Name</Label>
+              {renderFieldLabel('Name', isNestedSearchHighlighted(index, ['name']))}
               <Input
                 name='name'
                 value={metric.name}
@@ -187,7 +204,7 @@ export function EvalInput({
             </div>
 
             <div key={`description-${metric.id}`} className='flex flex-col gap-1.5'>
-              <Label className='text-small'>Description</Label>
+              {renderFieldLabel('Description', isNestedSearchHighlighted(index, ['description']))}
               <div className='relative'>
                 {(() => {
                   const fieldState = inputController.fieldHelpers.getFieldState(metric.id)
@@ -259,7 +276,7 @@ export function EvalInput({
 
             <div key={`range-${metric.id}`} className='grid grid-cols-2 gap-2'>
               <div className='flex flex-col gap-1.5'>
-                <Label className='text-small'>Min Value</Label>
+                {renderFieldLabel('Min Value', isNestedSearchHighlighted(index, ['range', 'min']))}
                 <Input
                   type='text'
                   value={metric.range.min}
@@ -272,7 +289,7 @@ export function EvalInput({
                 />
               </div>
               <div className='flex flex-col gap-1.5'>
-                <Label className='text-small'>Max Value</Label>
+                {renderFieldLabel('Max Value', isNestedSearchHighlighted(index, ['range', 'max']))}
                 <Input
                   type='text'
                   value={metric.range.max}

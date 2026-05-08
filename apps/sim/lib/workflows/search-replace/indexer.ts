@@ -1,6 +1,10 @@
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
 import {
+  getSearchableJsonStringLeaves,
+  isSearchableJsonValueSubBlock,
+} from '@/lib/workflows/search-replace/json-value-fields'
+import {
   getResourceKindForSubBlock,
   matchesSearchText,
   parseInlineReferences,
@@ -15,7 +19,12 @@ import type {
 } from '@/lib/workflows/search-replace/types'
 import { pathToKey, walkStringValues } from '@/lib/workflows/search-replace/value-walker'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
-import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
+import {
+  buildCanonicalIndex,
+  evaluateSubBlockCondition,
+  isSubBlockFeatureEnabled,
+  isSubBlockHidden,
+} from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
@@ -48,14 +57,92 @@ function createMatchId(parts: Array<string | number | undefined>): string {
 
 const STRUCTURED_METADATA_LEAF_KEYS = new Set(['id', 'collapsed'])
 
-function isSearchableLeafPath(path: Array<string | number>): boolean {
+const INPUT_FORMAT_FIELD_TITLES: Record<string, string> = {
+  name: 'Name',
+  description: 'Description',
+  value: 'Value',
+}
+
+const EVAL_INPUT_FIELD_TITLES: Record<string, string> = {
+  name: 'Name',
+  description: 'Description',
+  min: 'Min Value',
+  max: 'Max Value',
+}
+
+const PLAIN_TEXT_EXCLUDED_SUBBLOCK_TYPES = new Set<SubBlockType>([
+  'dropdown',
+  'checkbox-list',
+  'grouped-checkbox-list',
+  'skill-input',
+  'sort-builder',
+  'time-input',
+])
+
+const TEXT_VALUE_ONLY_SUBBLOCK_TYPES = new Set<SubBlockType>(['filter-builder'])
+
+function isSearchableLeafPath(
+  path: Array<string | number>,
+  subBlockType: SubBlockType | undefined,
+  mode: 'text' | 'reference'
+): boolean {
+  if (mode === 'text' && subBlockType && PLAIN_TEXT_EXCLUDED_SUBBLOCK_TYPES.has(subBlockType)) {
+    return false
+  }
   const lastSegment = path.at(-1)
   if (typeof lastSegment !== 'string') return true
+  if (mode === 'text' && subBlockType === 'messages-input' && lastSegment === 'role') {
+    return false
+  }
+  if (mode === 'text' && subBlockType && TEXT_VALUE_ONLY_SUBBLOCK_TYPES.has(subBlockType)) {
+    return lastSegment === 'value'
+  }
+  if (
+    mode === 'text' &&
+    (subBlockType === 'input-format' || subBlockType === 'response-format') &&
+    lastSegment === 'type'
+  ) {
+    return false
+  }
   return !STRUCTURED_METADATA_LEAF_KEYS.has(lastSegment)
 }
 
-function getSearchableStringLeaves(value: unknown) {
-  return walkStringValues(value).filter((leaf) => isSearchableLeafPath(leaf.path))
+function getSearchableStringLeaves(
+  value: unknown,
+  subBlockType: SubBlockType | undefined,
+  mode: 'text' | 'reference'
+) {
+  return walkStringValues(value).filter((leaf) =>
+    isSearchableLeafPath(leaf.path, subBlockType, mode)
+  )
+}
+
+function getStructuredFieldTitle(
+  subBlockType: SubBlockType | undefined,
+  path: WorkflowSearchValuePath
+) {
+  const lastSegment = path.at(-1)
+  if (typeof lastSegment !== 'string') return undefined
+
+  if (subBlockType === 'input-format' || subBlockType === 'response-format') {
+    return INPUT_FORMAT_FIELD_TITLES[lastSegment]
+  }
+
+  if (subBlockType === 'eval-input') {
+    return EVAL_INPUT_FIELD_TITLES[lastSegment]
+  }
+
+  return undefined
+}
+
+function getTextLeaves(value: unknown, subBlockType: SubBlockType | undefined) {
+  if (isSearchableJsonValueSubBlock(subBlockType)) {
+    return getSearchableJsonStringLeaves(value, subBlockType)
+  }
+  return getSearchableStringLeaves(value, subBlockType, 'text').map((leaf) => ({
+    ...leaf,
+    fieldTitle: getStructuredFieldTitle(subBlockType, leaf.path),
+  }))
 }
 
 interface AddTextMatchesOptions {
@@ -196,6 +283,9 @@ export function indexWorkflowSearchMatches(
     const subBlockConfigs = blockConfig?.subBlocks ?? []
     const configsById = new Map(subBlockConfigs.map((subBlock) => [subBlock.id, subBlock]))
     const canonicalIndex = buildCanonicalIndex(subBlockConfigs)
+    const subBlockValues = Object.fromEntries(
+      Object.entries(block.subBlocks ?? {}).map(([id, subBlock]) => [id, subBlock?.value])
+    )
     const selectorContext = buildSearchSelectorContext({
       block,
       subBlockConfigs,
@@ -231,16 +321,28 @@ export function indexWorkflowSearchMatches(
 
     for (const [subBlockId, subBlockState] of Object.entries(block.subBlocks ?? {})) {
       const subBlockConfig = configsById.get(subBlockId)
+      if (subBlockConfig?.hidden) continue
+      if (subBlockConfig && !isSubBlockFeatureEnabled(subBlockConfig)) continue
+      if (subBlockConfig && isSubBlockHidden(subBlockConfig)) continue
+      if (
+        subBlockConfig?.condition &&
+        !evaluateSubBlockCondition(subBlockConfig.condition, subBlockValues)
+      ) {
+        continue
+      }
+
       const canonicalSubBlockId =
         canonicalIndex.canonicalIdBySubBlockId[subBlockId] ??
         subBlockConfig?.canonicalParamId ??
         subBlockId
       const value = subBlockState?.value
-      const stringLeaves = getSearchableStringLeaves(value)
+      const subBlockType = subBlockConfig?.type ?? subBlockState.type
+      const textLeaves = getTextLeaves(value, subBlockType)
+      const referenceLeaves = getSearchableStringLeaves(value, subBlockType, 'reference')
       const structuredResourceKind = getResourceKindForSubBlock(subBlockConfig)
 
       if (mode !== 'resource' && !structuredResourceKind) {
-        for (const leaf of stringLeaves) {
+        for (const leaf of textLeaves) {
           const leafEditable = editable && typeof leaf.originalValue === 'string'
           addTextMatches({
             matches,
@@ -248,8 +350,8 @@ export function indexWorkflowSearchMatches(
             block,
             subBlockId,
             canonicalSubBlockId,
-            subBlockType: subBlockConfig?.type ?? subBlockState.type,
-            fieldTitle: subBlockConfig?.title,
+            subBlockType,
+            fieldTitle: leaf.fieldTitle ?? subBlockConfig?.title,
             value: leaf.value,
             valuePath: leaf.path,
             target: { kind: 'subblock' },
@@ -269,7 +371,7 @@ export function indexWorkflowSearchMatches(
 
       if (mode === 'text' || !resourceQueryEnabled) continue
 
-      for (const leaf of stringLeaves) {
+      for (const leaf of referenceLeaves) {
         const inlineReferences = parseInlineReferences(leaf.value)
         inlineReferences.forEach((reference, referenceIndex) => {
           const searchable = `${reference.rawValue} ${reference.searchText}`
