@@ -42,12 +42,6 @@ export const companySearchTool: ToolConfig<PdlCompanySearchParams, PdlCompanySea
       visibility: 'user-or-llm',
       description: 'Pagination token returned from a prior response',
     },
-    dataset: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Dataset filter (e.g., all)',
-    },
   },
 
   request: {
@@ -70,7 +64,6 @@ export const companySearchTool: ToolConfig<PdlCompanySearchParams, PdlCompanySea
       }
       if (params.size !== undefined) body.size = Number(params.size)
       if (params.scroll_token) body.scroll_token = params.scroll_token
-      if (params.dataset) body.dataset = params.dataset
       return body
     },
   },

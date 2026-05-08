@@ -182,6 +182,11 @@ export const personIdentifyTool: ToolConfig<PdlPersonIdentifyParams, PdlPersonId
 
   transformResponse: async (response: Response) => {
     const data = (await response.json()) as Record<string, unknown>
+    const status = (data.status as number) ?? response.status
+
+    if (status === 404) {
+      return { success: true, output: { matches: [] } }
+    }
 
     if (!response.ok) {
       const error = (data.error as { message?: string })?.message

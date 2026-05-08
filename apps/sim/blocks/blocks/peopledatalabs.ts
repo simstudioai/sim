@@ -95,7 +95,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
       title: 'Min Likelihood',
       type: 'short-input',
       placeholder: '6',
-      condition: { field: 'operation', value: 'pdl_person_enrich' },
+      condition: { field: 'operation', value: ['pdl_person_enrich', 'pdl_company_enrich'] },
       mode: 'advanced',
     },
 

@@ -112,12 +112,11 @@ export function projectLocation(
     name: (r.name as string) ?? undefined,
     locality: (r.locality as string) ?? undefined,
     region: (r.region as string) ?? undefined,
+    subregion: (r.subregion as string) ?? undefined,
     country: (r.country as string) ?? undefined,
     continent: (r.continent as string) ?? undefined,
     type: (r.type as string) ?? undefined,
     geo: (r.geo as string) ?? undefined,
-    latitude: (r.latitude as number) ?? undefined,
-    longitude: (r.longitude as number) ?? undefined,
   }
 }
 
@@ -136,10 +135,13 @@ export function projectSchool(raw: Record<string, unknown> | null | undefined): 
     linkedin_id: (r.linkedin_id as string) ?? undefined,
     facebook_url: (r.facebook_url as string) ?? undefined,
     twitter_url: (r.twitter_url as string) ?? undefined,
+    domain: (r.domain as string) ?? undefined,
     location_name: (r.location_name as string) ?? (location.name as string) ?? undefined,
     location_locality:
       (r.location_locality as string) ?? (location.locality as string) ?? undefined,
     location_region: (r.location_region as string) ?? (location.region as string) ?? undefined,
     location_country: (r.location_country as string) ?? (location.country as string) ?? undefined,
+    location_continent:
+      (r.location_continent as string) ?? (location.continent as string) ?? undefined,
   }
 }

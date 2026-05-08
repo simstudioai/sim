@@ -272,7 +272,6 @@ export interface PdlCompanySearchParams {
   query?: string
   size?: number
   scroll_token?: string
-  dataset?: string
 }
 
 export interface PdlCompanySearchResponse extends ToolResponse {
@@ -401,24 +400,22 @@ export const PDL_LOCATION_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Normalized location name', optional: true },
   locality: { type: 'string', description: 'City', optional: true },
   region: { type: 'string', description: 'State/region', optional: true },
+  subregion: { type: 'string', description: 'Subregion (e.g., county)', optional: true },
   country: { type: 'string', description: 'Country', optional: true },
   continent: { type: 'string', description: 'Continent', optional: true },
   type: { type: 'string', description: 'Location type', optional: true },
   geo: { type: 'string', description: 'Latitude,longitude string', optional: true },
-  latitude: { type: 'number', description: 'Latitude', optional: true },
-  longitude: { type: 'number', description: 'Longitude', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
 export interface PdlLocationRecord {
   name?: string
   locality?: string
   region?: string
+  subregion?: string
   country?: string
   continent?: string
   type?: string
   geo?: string
-  latitude?: number
-  longitude?: number
 }
 
 export interface PdlCleanLocationResponse extends ToolResponse {
@@ -448,10 +445,12 @@ export const PDL_SCHOOL_OUTPUT_PROPERTIES = {
   linkedin_id: { type: 'string', description: 'LinkedIn ID', optional: true },
   facebook_url: { type: 'string', description: 'Facebook URL', optional: true },
   twitter_url: { type: 'string', description: 'Twitter URL', optional: true },
+  domain: { type: 'string', description: 'School domain', optional: true },
   location_name: { type: 'string', description: 'Location name', optional: true },
   location_locality: { type: 'string', description: 'City', optional: true },
   location_region: { type: 'string', description: 'State/region', optional: true },
   location_country: { type: 'string', description: 'Country', optional: true },
+  location_continent: { type: 'string', description: 'Continent', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
 export interface PdlSchoolRecord {
@@ -463,10 +462,12 @@ export interface PdlSchoolRecord {
   linkedin_id?: string
   facebook_url?: string
   twitter_url?: string
+  domain?: string
   location_name?: string
   location_locality?: string
   location_region?: string
   location_country?: string
+  location_continent?: string
 }
 
 export interface PdlCleanSchoolResponse extends ToolResponse {
