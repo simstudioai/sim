@@ -53,7 +53,7 @@ export const pptxGenerateTask = defineSandboxTask<SandboxTaskInput>({
      */
     globalThis.addImage = async function addImage(slide, fileId, opts) {
       const data = await globalThis.getFileBase64(fileId);
-      slide.addImage(Object.assign({ data }, opts || {}));
+      slide.addImage(Object.assign({}, opts || {}, { data }));
     };
   `,
   finalize: `
