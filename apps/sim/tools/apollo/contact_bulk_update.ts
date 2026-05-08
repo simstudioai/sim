@@ -54,12 +54,12 @@ export const apolloContactBulkUpdateTool: ToolConfig<
     body: (params: ApolloContactBulkUpdateParams) => {
       const body: Record<string, unknown> = {}
       if (params.contact_ids && params.contact_ids.length > 0) {
-        body.contact_ids = params.contact_ids
+        body.contact_ids = params.contact_ids.slice(0, 100)
       }
       if (params.contact_attributes) {
         if (Array.isArray(params.contact_attributes)) {
           if (params.contact_attributes.length > 0) {
-            body.contact_attributes = params.contact_attributes
+            body.contact_attributes = params.contact_attributes.slice(0, 100)
           }
         } else if (
           typeof params.contact_attributes === 'object' &&

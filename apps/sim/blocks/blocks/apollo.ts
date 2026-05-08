@@ -466,7 +466,10 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
       id: 'async',
       title: 'Force Asynchronous Processing',
       type: 'switch',
-      condition: { field: 'operation', value: 'contact_bulk_update' },
+      condition: {
+        field: 'operation',
+        value: ['contact_bulk_update', 'account_bulk_update'],
+      },
       mode: 'advanced',
     },
     {
