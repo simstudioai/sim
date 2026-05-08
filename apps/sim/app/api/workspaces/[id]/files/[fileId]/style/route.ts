@@ -20,16 +20,18 @@ const logger = createLogger('WorkspaceFileStyleAPI')
  * OOXML files return theme colors, font pair, and named styles.
  * PDF files return page dimensions and embedded font names.
  */
+const MAX_STYLE_FILE_BYTES = 100 * 1024 * 1024 // 100 MB
+
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {
-    const parsed = await parseRequest(workspaceFileStyleContract, request, context)
-    if (!parsed.success) return parsed.response
-    const { id: workspaceId, fileId } = parsed.data.params
-
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const parsed = await parseRequest(workspaceFileStyleContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id: workspaceId, fileId } = parsed.data.params
 
     const membership = await verifyWorkspaceMembership(session.user.id, workspaceId)
     if (!membership) {
@@ -50,6 +52,13 @@ export const GET = withRouteHandler(
     }
     const ext: 'docx' | 'pptx' | 'pdf' = rawExt
 
+    if (fileRecord.size > MAX_STYLE_FILE_BYTES) {
+      return NextResponse.json(
+        { error: 'File is too large for style extraction (limit: 100 MB)' },
+        { status: 422 }
+      )
+    }
+
     let buffer: Buffer
     try {
       buffer = await fetchWorkspaceFileBuffer(fileRecord)
@@ -66,7 +75,7 @@ export const GET = withRouteHandler(
       return NextResponse.json(
         {
           error:
-            'File is not a compiled binary document — style extraction requires an uploaded or compiled .docx/.pptx file',
+            'Could not extract style — file may be encrypted, corrupt, image-only, or contain no parseable style information',
         },
         { status: 422 }
       )

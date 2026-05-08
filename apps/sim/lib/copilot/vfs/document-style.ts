@@ -49,6 +49,12 @@ export interface DocumentStyleSummary {
   }
   /** Embedded font names extracted from page resource dictionaries — pdf only */
   fonts?: string[]
+  /** Number of slides — pptx only */
+  slideCount?: number
+  /** Slide aspect ratio — pptx only */
+  aspectRatio?: '16:9' | '4:3' | 'custom'
+  /** Slide master background hex color (no #) — pptx only, absent when background is transparent/image */
+  background?: string
 }
 
 function attr(xml: string, name: string): string {
@@ -326,6 +332,43 @@ async function extractPdfStyle(buffer: Buffer): Promise<DocumentStyleSummary | n
   }
 }
 
+function parsePptxPresentation(xml: string): {
+  slideCount: number
+  aspectRatio: '16:9' | '4:3' | 'custom'
+} {
+  // Count sldId elements inside sldIdLst
+  const sldIdLst = between(xml, '<p:sldIdLst>', '</p:sldIdLst>')
+  const slideCount = (sldIdLst.match(/<p:sldId\b/g) ?? []).length
+
+  // Slide size in EMU — 1 inch = 914400 EMU
+  const sldSzMatch = /<p:sldSz\b[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/.exec(xml)
+  let aspectRatio: '16:9' | '4:3' | 'custom' = 'custom'
+  if (sldSzMatch) {
+    const cx = Number.parseInt(sldSzMatch[1])
+    const cy = Number.parseInt(sldSzMatch[2])
+    const ratio = cx / cy
+    // 16:9 ≈ 1.7778 (covers both 9144000×5143500 and 12192000×6858000)
+    // 4:3  ≈ 1.3333 (9144000×6858000 or 10×7.5 inches)
+    if (Math.abs(ratio - 16 / 9) < 0.01) aspectRatio = '16:9'
+    else if (Math.abs(ratio - 4 / 3) < 0.01) aspectRatio = '4:3'
+  }
+
+  return { slideCount, aspectRatio }
+}
+
+function parseSlideMasterBackground(xml: string): string | undefined {
+  // Look for a solid fill color in the slide master background
+  const bgBlock = between(xml, '<p:bg>', '</p:bg>')
+  if (!bgBlock) return undefined
+  // solidFill with srgbClr
+  const srgbMatch = /<a:srgbClr\b[^>]*\bval="([A-Fa-f0-9]{6})"/.exec(bgBlock)
+  if (srgbMatch) return srgbMatch[1].toUpperCase()
+  // solidFill with sysClr fallback
+  const sysMatch = /<a:sysClr\b[^>]*\blastClr="([A-Fa-f0-9]{6})"/.exec(bgBlock)
+  if (sysMatch) return sysMatch[1].toUpperCase()
+  return undefined
+}
+
 /**
  * Extract a compact style summary from a binary document buffer.
  * Supports .docx and .pptx (OOXML/ZIP) and .pdf.
@@ -371,6 +414,22 @@ export async function extractDocumentStyle(
       }
       // If there's neither a theme nor any styles, there's nothing useful to return
       if (!theme && !summary.styles?.length) return null
+    }
+
+    if (ext === 'pptx') {
+      const presFile = zip.file('ppt/presentation.xml')
+      if (presFile) {
+        const { slideCount, aspectRatio } = parsePptxPresentation(await presFile.async('string'))
+        if (slideCount > 0) summary.slideCount = slideCount
+        summary.aspectRatio = aspectRatio
+      }
+      const masterFile =
+        zip.file('ppt/slideMasters/slideMaster1.xml') ??
+        zip.file('ppt/slidemaster/slidemaster1.xml')
+      if (masterFile) {
+        const bg = parseSlideMasterBackground(await masterFile.async('string'))
+        if (bg) summary.background = bg
+      }
     }
 
     return summary
