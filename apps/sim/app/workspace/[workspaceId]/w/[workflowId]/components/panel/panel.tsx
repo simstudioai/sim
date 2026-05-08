@@ -46,7 +46,11 @@ import { captureEvent } from '@/lib/posthog/client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components'
-import { getWorkflowCopilotUseChatOptions, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
+import {
+  getMothershipUseChatOptions,
+  getWorkflowCopilotUseChatOptions,
+  useChat,
+} from '@/app/workspace/[workspaceId]/home/hooks'
 import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -252,26 +256,23 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   )
   const [isCopilotHistoryOpen, setIsCopilotHistoryOpen] = useState(false)
 
-  const copilotChatTitle = useMemo(
-    () =>
-      copilotChatId ? (copilotChatList.find((c) => c.id === copilotChatId)?.title ?? null) : null,
+  const selectedCopilotChat = useMemo(
+    () => (copilotChatId ? (copilotChatList.find((c) => c.id === copilotChatId) ?? null) : null),
     [copilotChatId, copilotChatList]
   )
+  const copilotChatTitle = selectedCopilotChat?.title ?? null
 
   /**
-   * A chat is read-only on this workflow page when it doesn't natively
-   * belong to the active workflow — currently the case for Mothership
-   * chats whose `workflowId` is null but whose `resources` reference this
-   * workflow. Continuing the conversation would route through the
-   * workflow copilot agent rather than the original Mothership context,
-   * so we surface the history without the input.
+   * A selected chat is "foreign" to this workflow when it was started in
+   * Mothership (`type === 'mothership'`) but ended up referencing this
+   * workflow via `resources`. We keep the conversation continuable by
+   * routing sends through the Mothership branch — i.e. the request goes
+   * out without `workflowId`, so the server uses the broader Mothership
+   * agent surface that originally produced the chat. The trade-off is
+   * that resources spawned during continuation only show up in the
+   * Mothership view; this panel shows the conversation only.
    */
-  const isCopilotChatReadOnly = useMemo(() => {
-    if (!copilotChatId || !activeWorkflowId) return false
-    const chat = copilotChatList.find((c) => c.id === copilotChatId)
-    if (!chat) return false
-    return chat.workflowId !== activeWorkflowId
-  }, [copilotChatId, copilotChatList, activeWorkflowId])
+  const isMothershipChat = selectedCopilotChat?.type === 'mothership'
 
   const queryClient = useQueryClient()
   const loadCopilotChats = useCallback(() => {
@@ -359,6 +360,40 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     [activeWorkflowId]
   )
 
+  const handleCopilotRequestStarted = useCallback(
+    ({ requestId, userMessageId }: { requestId: string; userMessageId: string }) => {
+      captureEvent(posthogRef.current, 'task_request_started', {
+        workspace_id: workspaceId,
+        view: 'copilot',
+        request_id: requestId,
+        user_message_id: userMessageId,
+      })
+    },
+    [workspaceId]
+  )
+
+  const copilotChatOptions = useMemo(
+    () =>
+      isMothershipChat
+        ? getMothershipUseChatOptions({
+            onStreamEnd: loadCopilotChats,
+            onRequestStarted: handleCopilotRequestStarted,
+          })
+        : getWorkflowCopilotUseChatOptions({
+            workflowId: activeWorkflowId || undefined,
+            onTitleUpdate: loadCopilotChats,
+            onToolResult: handleCopilotToolResult,
+            onRequestStarted: handleCopilotRequestStarted,
+          }),
+    [
+      isMothershipChat,
+      activeWorkflowId,
+      loadCopilotChats,
+      handleCopilotToolResult,
+      handleCopilotRequestStarted,
+    ]
+  )
+
   const {
     messages: copilotMessages,
     isSending: copilotIsSending,
@@ -371,23 +406,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     sendNow: copilotSendNow,
     editQueuedMessage: copilotEditQueuedMessage,
     getCurrentRequestId: getCopilotCurrentRequestId,
-  } = useChat(
-    workspaceId,
-    copilotChatId,
-    getWorkflowCopilotUseChatOptions({
-      workflowId: activeWorkflowId || undefined,
-      onTitleUpdate: loadCopilotChats,
-      onToolResult: handleCopilotToolResult,
-      onRequestStarted: ({ requestId, userMessageId }) => {
-        captureEvent(posthogRef.current, 'task_request_started', {
-          workspace_id: workspaceId,
-          view: 'copilot',
-          request_id: requestId,
-          user_message_id: userMessageId,
-        })
-      },
-    })
-  )
+  } = useChat(workspaceId, copilotChatId, copilotChatOptions)
 
   const handleCopilotNewChat = useCallback(() => {
     if (!activeWorkflowId || !workspaceId) return
@@ -925,7 +944,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   userId={session?.user?.id}
                   chatId={copilotResolvedChatId}
                   layout='copilot-view'
-                  readOnly={isCopilotChatReadOnly}
                 />
               </div>
             )}

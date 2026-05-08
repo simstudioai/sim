@@ -307,6 +307,7 @@ export const copilotChatListItemSchema = z.object({
   workspaceId: z.string().nullable().optional(),
   activeStreamId: z.string().nullable(),
   updatedAt: z.string().nullable(),
+  type: z.enum(['mothership', 'copilot']).optional(),
   resources: z.array(copilotChatResourceSchema).optional(),
 })
 export type CopilotChatListItem = z.output<typeof copilotChatListItemSchema>

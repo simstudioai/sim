@@ -52,13 +52,6 @@ interface MothershipChatProps {
   animateInput?: boolean
   onInputAnimationEnd?: () => void
   className?: string
-  /**
-   * When true, hides the input footer so the conversation is shown as
-   * read-only history. Used when a chat is surfaced outside the context
-   * where it can be safely continued (e.g. a Mothership chat opened from
-   * a workflow page).
-   */
-  readOnly?: boolean
 }
 
 const LAYOUT_STYLES = {
@@ -107,7 +100,6 @@ export function MothershipChat({
   animateInput = false,
   onInputAnimationEnd,
   className,
-  readOnly = false,
 }: MothershipChatProps) {
   const styles = LAYOUT_STYLES[layout]
   const isStreamActive = isSending || isReconnecting
@@ -235,34 +227,32 @@ export function MothershipChat({
         )}
       </div>
 
-      {!readOnly && (
-        <div
-          className={cn(styles.footer, animateInput && 'animate-slide-in-bottom')}
-          onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
-        >
-          <div className={styles.footerInner}>
-            <QueuedMessages
-              messageQueue={messageQueue}
-              onRemove={onRemoveQueuedMessage}
-              onSendNow={onSendQueuedMessage}
-              onEdit={handleEditQueued}
-            />
-            <UserInput
-              ref={userInputRef}
-              onSubmit={onSubmit}
-              isSending={isStreamActive}
-              onStopGeneration={onStopGeneration}
-              isInitialView={false}
-              userId={userId}
-              onContextAdd={onContextAdd}
-              onContextRemove={onContextRemove}
-              onSendQueuedHead={handleSendQueuedHead}
-              onEditQueuedTail={handleEditQueuedTail}
-              draftScopeKey={draftScopeKey}
-            />
-          </div>
+      <div
+        className={cn(styles.footer, animateInput && 'animate-slide-in-bottom')}
+        onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
+      >
+        <div className={styles.footerInner}>
+          <QueuedMessages
+            messageQueue={messageQueue}
+            onRemove={onRemoveQueuedMessage}
+            onSendNow={onSendQueuedMessage}
+            onEdit={handleEditQueued}
+          />
+          <UserInput
+            ref={userInputRef}
+            onSubmit={onSubmit}
+            isSending={isStreamActive}
+            onStopGeneration={onStopGeneration}
+            isInitialView={false}
+            userId={userId}
+            onContextAdd={onContextAdd}
+            onContextRemove={onContextRemove}
+            onSendQueuedHead={handleSendQueuedHead}
+            onEditQueuedTail={handleEditQueuedTail}
+            draftScopeKey={draftScopeKey}
+          />
         </div>
-      )}
+      </div>
     </div>
   )
 }
