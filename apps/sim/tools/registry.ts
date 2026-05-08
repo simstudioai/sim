@@ -1902,6 +1902,19 @@ import {
   pagerdutyUpdateIncidentTool,
 } from '@/tools/pagerduty'
 import { parallelDeepResearchTool, parallelExtractTool, parallelSearchTool } from '@/tools/parallel'
+import {
+  pdlAutocompleteTool,
+  pdlBulkCompanyEnrichTool,
+  pdlBulkPersonEnrichTool,
+  pdlCleanCompanyTool,
+  pdlCleanLocationTool,
+  pdlCleanSchoolTool,
+  pdlCompanyEnrichTool,
+  pdlCompanySearchTool,
+  pdlPersonEnrichTool,
+  pdlPersonIdentifyTool,
+  pdlPersonSearchTool,
+} from '@/tools/peopledatalabs'
 import { perplexityChatTool, perplexitySearchTool } from '@/tools/perplexity'
 import {
   pineconeFetchTool,
@@ -4423,6 +4436,17 @@ export const tools: Record<string, ToolConfig> = {
   google_slides_create_table: googleSlidesCreateTableTool,
   google_slides_create_shape: googleSlidesCreateShapeTool,
   google_slides_insert_text: googleSlidesInsertTextTool,
+  pdl_person_enrich: pdlPersonEnrichTool,
+  pdl_person_search: pdlPersonSearchTool,
+  pdl_person_identify: pdlPersonIdentifyTool,
+  pdl_bulk_person_enrich: pdlBulkPersonEnrichTool,
+  pdl_company_enrich: pdlCompanyEnrichTool,
+  pdl_company_search: pdlCompanySearchTool,
+  pdl_bulk_company_enrich: pdlBulkCompanyEnrichTool,
+  pdl_clean_company: pdlCleanCompanyTool,
+  pdl_clean_location: pdlCleanLocationTool,
+  pdl_clean_school: pdlCleanSchoolTool,
+  pdl_autocomplete: pdlAutocompleteTool,
   perplexity_chat: perplexityChatTool,
   perplexity_search: perplexitySearchTool,
   profound_bot_logs: profoundBotLogsTool,

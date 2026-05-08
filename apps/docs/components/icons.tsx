@@ -895,6 +895,24 @@ export function YouTubeIcon(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
+export function PeopleDataLabsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      width='1em'
+      height='1em'
+      viewBox='0 0 99.92 90.06'
+      xmlns='http://www.w3.org/2000/svg'
+      {...props}
+    >
+      <path
+        fill='currentColor'
+        fillRule='evenodd'
+        d='M99.91,57.77l-3.2-24.4c0-.7-.4-1.3-.8-1.8l-20-21.3c-.5-.5-1.1-.8-1.8-1L29.21.07c-1.1-.2-2.2,0-2.9.8L1.01,24.07c-.9.8-1.2,2-.9,3.1l6,23.4c.3,1.2,1.3,2.1,2.5,2.4l9.9,2,11.3,6.6h0l11.9,6.5,14.9,20.6c.8,1.1,2.2,1.6,3.5,1.3l8.1-1.9c1.4-.3,2.5-1.6,2.5-3l.3-6.8,27.4-17.4c1.1-.7,1.6-1.9,1.5-3.1ZM90.31,35.17l2.1,16.3-40.2-26.8,20.4-8.4,17.7,18.8v.1ZM31.11,7.17l31.2,6.3-18.4,7.5h0l-16.8,7.3s4-21.1,4-21.1ZM12.01,47.07l-5-19.6,16.5-15.1-3.9,20.7c-.3,1.4.4,2.7,1.6,3.4l30.1,16.6-31-4.4-8.3-1.7v.1ZM60.81,83.17l-14-19.4c-.3-.4-.7-.7-1.1-1l-9.8-5.4,29,4.1-.4,14.7-.2,6-3.5.8v.2ZM83.01,62.97l-11.7,7.4.3-11.5c0-1.2-.6-2.3-1.7-2.9l-39.8-21.9,14.8-6.4,45.7,30.4-7.7,4.9h.1Z'
+      />
+    </svg>
+  )
+}
+
 export function PerplexityIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg width='1em' height='1em' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' {...props}>

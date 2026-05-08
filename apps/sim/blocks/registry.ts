@@ -148,6 +148,7 @@ import { OpenAIBlock } from '@/blocks/blocks/openai'
 import { OutlookBlock } from '@/blocks/blocks/outlook'
 import { PagerDutyBlock } from '@/blocks/blocks/pagerduty'
 import { ParallelBlock } from '@/blocks/blocks/parallel'
+import { PeopleDataLabsBlock } from '@/blocks/blocks/peopledatalabs'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock } from '@/blocks/blocks/pipedrive'
@@ -399,6 +400,7 @@ export const registry: Record<string, BlockConfig> = {
   outlook: OutlookBlock,
   pagerduty: PagerDutyBlock,
   parallel_ai: ParallelBlock,
+  peopledatalabs: PeopleDataLabsBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
