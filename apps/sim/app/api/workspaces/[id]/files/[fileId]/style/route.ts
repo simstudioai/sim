@@ -72,11 +72,7 @@ export const GET = withRouteHandler(
       )
     }
 
-    logger.info('Extracted style summary via API', {
-      fileId,
-      format: ext,
-      themeName: summary.theme?.name,
-    })
+    logger.info('Extracted style summary via API', { fileId, format: ext })
 
     return NextResponse.json(summary, {
       headers: { 'Cache-Control': 'private, max-age=300' },

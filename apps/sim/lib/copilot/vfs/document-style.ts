@@ -17,15 +17,12 @@ interface ThemeColors {
   accent4: string
   accent5: string
   accent6: string
-  hlink: string
-  folHlink: string
 }
 
 export interface DocumentStyleSummary {
   format: 'docx' | 'pptx' | 'pdf'
   /** OOXML theme — present for pptx; present for docx when theme1.xml exists; absent for pdf */
   theme?: {
-    name: string
     colors: Partial<ThemeColors>
     fonts: { major: string; minor: string }
   }
@@ -44,11 +41,11 @@ export interface DocumentStyleSummary {
     fontSize?: number
     font?: string
   }
-  /** Page dimensions in points — pdf only */
+  /** Page dimensions — pdf only. widthPt/heightPt present only when preset is 'custom' */
   pageSize?: {
-    widthPt: number
-    heightPt: number
     preset: 'A4' | 'letter' | 'custom'
+    widthPt?: number
+    heightPt?: number
   }
   /** Embedded font names extracted from page resource dictionaries — pdf only */
   fonts?: string[]
@@ -85,7 +82,6 @@ function parseFontScheme(xml: string): { major: string; minor: string } {
 }
 
 function parseThemeXml(xml: string): NonNullable<DocumentStyleSummary['theme']> {
-  const clrSchemeMatch = /<a:clrScheme[^>]*name="([^"]*)"/.exec(xml)
   const slots: Array<keyof ThemeColors> = [
     'dk1',
     'lt1',
@@ -97,15 +93,13 @@ function parseThemeXml(xml: string): NonNullable<DocumentStyleSummary['theme']> 
     'accent4',
     'accent5',
     'accent6',
-    'hlink',
-    'folHlink',
   ]
   const colors: Partial<ThemeColors> = {}
   for (const slot of slots) {
     const hex = parseColorSlot(xml, slot)
     if (hex) colors[slot] = hex
   }
-  return { name: clrSchemeMatch?.[1] ?? '', colors, fonts: parseFontScheme(xml) }
+  return { colors, fonts: parseFontScheme(xml) }
 }
 
 type StyleRaw = {
@@ -209,15 +203,8 @@ function parseDocxStyles(
     }
   }
 
-  // Target styles: fixed set + all Heading* styles found in the document
-  const targetIds: string[] = [
-    'Normal',
-    'DefaultParagraphFont',
-    'BodyText',
-    'Body Text',
-    'Title',
-    'Subtitle',
-  ]
+  // Target paragraph styles (character styles excluded — generation works at paragraph level)
+  const targetIds: string[] = ['Normal', 'BodyText', 'Body Text', 'Title', 'Subtitle']
   for (const id of styleMap.keys()) {
     if (id.startsWith('Heading') && !targetIds.includes(id)) targetIds.push(id)
   }
@@ -228,7 +215,7 @@ function parseDocxStyles(
     if (seen.has(id)) continue
     seen.add(id)
     const resolved = resolveInheritance(id)
-    if (!resolved) continue
+    if (!resolved || resolved.type !== 'paragraph') continue
 
     // Deferred theme font resolution (only reached when themeFonts was unavailable during parse)
     let resolvedFont = resolved.font
@@ -275,7 +262,7 @@ async function extractPdfStyle(buffer: Buffer): Promise<DocumentStyleSummary | n
     else if (Math.abs(widthPt - 612) < 5 && Math.abs(heightPt - 792) < 5) preset = 'letter'
 
     // Font names from page resource dictionaries (first 10 pages to bound cost)
-    const fontNamesSet = new Set<string>()
+    const rawFontNames = new Set<string>()
     const pagesToScan = Math.min(pages.length, 10)
     for (let i = 0; i < pagesToScan; i++) {
       try {
@@ -300,20 +287,38 @@ async function extractPdfStyle(buffer: Buffer): Promise<DocumentStyleSummary | n
               .toString()
               .replace(/^\//, '')
               .replace(/^[A-Z]{6}\+/, '')
-            if (raw) fontNamesSet.add(raw)
+            if (raw) rawFontNames.add(raw)
           } catch {}
         }
       } catch {}
     }
 
+    // Normalize to unique font family names by stripping weight/style suffixes.
+    // PostScript names encode style as hyphenated suffixes (Poppins-Bold, Arial-BoldMT).
+    // BoldMT must precede Bold so the combined suffix is consumed in one pass.
+    const familyNames = [
+      ...new Set(
+        [...rawFontNames].map((name) =>
+          name
+            .replace(
+              /[-]?(BoldMT|BoldItalic|Regular|Bold|Italic|Light|Medium|SemiBold|ExtraBold|Black|Oblique|Condensed|Expanded|MT)$/i,
+              ''
+            )
+            .trim()
+        )
+      ),
+    ].filter(Boolean)
+
+    // Omit exact dimensions when the preset already encodes the page size
+    const pageSize: DocumentStyleSummary['pageSize'] =
+      preset === 'custom'
+        ? { widthPt: Math.round(widthPt), heightPt: Math.round(heightPt), preset }
+        : { preset }
+
     return {
       format: 'pdf',
-      pageSize: {
-        widthPt: Math.round(widthPt),
-        heightPt: Math.round(heightPt),
-        preset,
-      },
-      fonts: [...fontNamesSet],
+      pageSize,
+      ...(familyNames.length > 0 && { fonts: familyNames }),
     }
   } catch (err) {
     logger.warn('Failed to extract PDF style', { error: toError(err).message })
