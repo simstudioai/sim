@@ -872,7 +872,25 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
         body: { workspaceId, columnName, updates },
       })
     },
-    onError: (error) => {
+    onMutate: async ({ columnName, updates }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        const lower = columnName.toLowerCase()
+        const nextColumns = previousDetail.schema.columns.map((c) =>
+          c.name.toLowerCase() === lower ? { ...c, ...updates } : c
+        )
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previousDetail,
+          schema: { ...previousDetail.schema, columns: nextColumns },
+        })
+      }
+      return { previousDetail }
+    },
+    onError: (error, _vars, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
       // Validation errors are surfaced as inline FieldErrors by the caller.
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
@@ -1151,6 +1169,49 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
         params: { tableId },
         body: { workspaceId, columnName },
       })
+    },
+    onMutate: async (columnName) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        const lower = columnName.toLowerCase()
+        const nextColumns = previousDetail.schema.columns.filter(
+          (c) => c.name.toLowerCase() !== lower
+        )
+        const prevWidths = previousDetail.metadata?.columnWidths
+        const nextMetadata = prevWidths
+          ? {
+              ...previousDetail.metadata,
+              columnWidths: Object.fromEntries(
+                Object.entries(prevWidths).filter(([k]) => k.toLowerCase() !== lower)
+              ),
+            }
+          : previousDetail.metadata
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previousDetail,
+          schema: { ...previousDetail.schema, columns: nextColumns },
+          metadata: nextMetadata,
+        })
+      }
+
+      const rowSnapshots = await snapshotAndMutateRows(queryClient, tableId, (row) => {
+        if (!(columnName in row.data)) return null
+        const { [columnName]: _removed, ...rest } = row.data
+        return { ...row, data: rest }
+      })
+
+      return { previousDetail, rowSnapshots }
+    },
+    onError: (_err, _columnName, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
+      if (context?.rowSnapshots) {
+        for (const [key, data] of context.rowSnapshots) {
+          queryClient.setQueryData(key, data)
+        }
+      }
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
