@@ -151,6 +151,22 @@ export const NetlifyBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Results per page (max 100)',
+      condition: { field: 'operation', value: ['list_sites', 'list_deploys'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'page',
+      title: 'Page',
+      type: 'short-input',
+      placeholder: 'Page number (1-indexed)',
+      condition: { field: 'operation', value: ['list_sites', 'list_deploys'] },
+      mode: 'advanced',
+    },
+    {
       id: 'deployBranch',
       title: 'Branch',
       type: 'short-input',
@@ -299,8 +315,17 @@ export const NetlifyBlock: BlockConfig = {
           envContext,
           envScopes,
           envIsSecret,
+          limit,
+          page,
           ...rest
         } = params
+
+        const limitNum = limit ? Number(limit) : undefined
+        const pageNum = page ? Number(page) : undefined
+        const paginationParams = {
+          ...(limitNum && !Number.isNaN(limitNum) ? { perPage: limitNum } : {}),
+          ...(pageNum && !Number.isNaN(pageNum) ? { page: pageNum } : {}),
+        }
 
         const base = { ...rest, apiKey }
 
@@ -310,6 +335,7 @@ export const NetlifyBlock: BlockConfig = {
               ...base,
               ...(siteName ? { name: siteName } : {}),
               ...(sitesFilter ? { filter: sitesFilter } : {}),
+              ...paginationParams,
             }
           case 'list_deploys':
             return {
@@ -317,6 +343,7 @@ export const NetlifyBlock: BlockConfig = {
               ...(branchFilter ? { branch: branchFilter } : {}),
               ...(stateFilter ? { state: stateFilter } : {}),
               ...(productionFilter ? { production: productionFilter } : {}),
+              ...paginationParams,
             }
           case 'create_deploy':
             return {
@@ -373,6 +400,8 @@ export const NetlifyBlock: BlockConfig = {
     envContext: { type: 'string', description: 'Deploy context for the value' },
     envScopes: { type: 'string', description: 'Comma-separated scopes' },
     envIsSecret: { type: 'string', description: 'Mark the value as secret' },
+    limit: { type: 'string', description: 'Results per page for list operations' },
+    page: { type: 'string', description: 'Page number for list operations' },
   },
   outputs: {
     sites: {
@@ -397,7 +426,15 @@ export const NetlifyBlock: BlockConfig = {
     },
     id: {
       type: 'string',
-      description: 'Resource ID',
+      description: 'Resource ID (deploy ID for deploy ops; build ID for create_deploy)',
+      condition: {
+        field: 'operation',
+        value: ['get_deploy', 'cancel_deploy', 'create_deploy'],
+      },
+    },
+    siteId: {
+      type: 'string',
+      description: 'Site ID',
       condition: {
         field: 'operation',
         value: ['get_deploy', 'cancel_deploy', 'create_deploy'],
@@ -413,9 +450,39 @@ export const NetlifyBlock: BlockConfig = {
       description: 'Unique deploy URL',
       condition: { field: 'operation', value: ['get_deploy', 'cancel_deploy'] },
     },
+    deploySslUrl: {
+      type: 'string',
+      description: 'Unique deploy HTTPS URL',
+      condition: { field: 'operation', value: ['get_deploy', 'cancel_deploy'] },
+    },
+    branch: {
+      type: 'string',
+      description: 'Git branch the deploy was built from',
+      condition: { field: 'operation', value: ['get_deploy', 'cancel_deploy'] },
+    },
+    commitRef: {
+      type: 'string',
+      description: 'Git commit SHA',
+      condition: { field: 'operation', value: ['get_deploy', 'cancel_deploy'] },
+    },
+    errorMessage: {
+      type: 'string',
+      description: 'Error message when the deploy failed',
+      condition: { field: 'operation', value: ['get_deploy', 'cancel_deploy'] },
+    },
     deployId: {
       type: 'string',
       description: 'Deploy ID produced by a build',
+      condition: { field: 'operation', value: 'create_deploy' },
+    },
+    sha: {
+      type: 'string',
+      description: 'Git commit SHA being built',
+      condition: { field: 'operation', value: 'create_deploy' },
+    },
+    done: {
+      type: 'boolean',
+      description: 'Whether the build has completed',
       condition: { field: 'operation', value: 'create_deploy' },
     },
     deleted: {
