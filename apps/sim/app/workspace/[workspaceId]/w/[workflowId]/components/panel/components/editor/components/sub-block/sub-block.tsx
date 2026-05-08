@@ -54,6 +54,7 @@ import { MODAL_REGISTRY } from '@/app/workspace/[workspaceId]/w/[workflowId]/com
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
+import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '../constants'
 
 const SLACK_OVERRIDES: SelectorOverrides = {
   transformContext: (context, deps) => {
@@ -71,9 +72,6 @@ const FOLDER_OVERRIDES: SelectorOverrides = {
     return isGmail && !isCopyDest ? 'INBOX' : null
   },
 }
-
-const WORKFLOW_SEARCH_HIGHLIGHT_CLASS =
-  'rounded-sm bg-orange-400 shadow-[3px_0_0_#fb923c,-3px_0_0_#fb923c]'
 
 /**
  * Interface for wand control handlers exposed by sub-block inputs

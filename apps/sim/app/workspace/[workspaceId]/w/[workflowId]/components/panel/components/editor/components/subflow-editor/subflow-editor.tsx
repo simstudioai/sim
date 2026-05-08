@@ -10,9 +10,7 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { ConnectedBlock } from '../../hooks/use-block-connections'
 import { useSubflowEditor } from '../../hooks/use-subflow-editor'
 import { ConnectionBlocks } from '../connection-blocks'
-
-const WORKFLOW_SEARCH_HIGHLIGHT_CLASS =
-  'rounded-sm bg-orange-400 shadow-[3px_0_0_#fb923c,-3px_0_0_#fb923c]'
+import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '../constants'
 
 interface SubflowEditorProps {
   currentBlock: BlockState
