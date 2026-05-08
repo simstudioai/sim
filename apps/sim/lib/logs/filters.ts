@@ -1,5 +1,6 @@
-import { workflow, workflowExecutionLogs } from '@sim/db/schema'
-import { and, eq, gt, gte, inArray, lt, lte, ne, type SQL, sql } from 'drizzle-orm'
+import { db } from '@sim/db'
+import { workflow, workflowExecutionLogs, workflowFolder } from '@sim/db/schema'
+import { and, eq, gt, gte, inArray, isNull, lt, lte, ne, type SQL, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
@@ -126,6 +127,53 @@ function buildWorkflowIdsCondition(workflowIds: string): SQL | undefined {
     return inArray(workflow.id, ids)
   }
   return undefined
+}
+
+/**
+ * Expands a CSV of selected folder IDs to include every descendant folder in the
+ * workspace, so that filtering by a parent folder also matches workflows that
+ * live in nested subfolders.
+ *
+ * Returns the original CSV when there are no descendants (or when the input is
+ * empty / undefined). Unknown IDs are preserved so the caller's `inArray` check
+ * behaves the same as today (matches nothing).
+ */
+export async function expandFolderIdsWithDescendants(
+  workspaceId: string,
+  folderIdsCsv: string | undefined
+): Promise<string | undefined> {
+  if (!folderIdsCsv) return folderIdsCsv
+  const seedIds = folderIdsCsv.split(',').filter(Boolean)
+  if (seedIds.length === 0) return folderIdsCsv
+
+  const rows = await db
+    .select({ id: workflowFolder.id, parentId: workflowFolder.parentId })
+    .from(workflowFolder)
+    .where(and(eq(workflowFolder.workspaceId, workspaceId), isNull(workflowFolder.archivedAt)))
+
+  const childrenByParent = new Map<string, string[]>()
+  for (const row of rows) {
+    if (!row.parentId) continue
+    const list = childrenByParent.get(row.parentId)
+    if (list) list.push(row.id)
+    else childrenByParent.set(row.parentId, [row.id])
+  }
+
+  const expanded = new Set<string>(seedIds)
+  const queue = [...seedIds]
+  while (queue.length > 0) {
+    const current = queue.shift() as string
+    const children = childrenByParent.get(current)
+    if (!children) continue
+    for (const childId of children) {
+      if (!expanded.has(childId)) {
+        expanded.add(childId)
+        queue.push(childId)
+      }
+    }
+  }
+
+  return Array.from(expanded).join(',')
 }
 
 function buildFolderIdsCondition(folderIds: string): SQL | undefined {

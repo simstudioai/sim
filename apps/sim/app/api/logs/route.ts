@@ -31,7 +31,7 @@ import { listLogsContract, type WorkflowLogSummary } from '@/lib/api/contracts/l
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildFilterConditions } from '@/lib/logs/filters'
+import { buildFilterConditions, expandFolderIdsWithDescendants } from '@/lib/logs/filters'
 
 const logger = createLogger('LogsAPI')
 
@@ -160,6 +160,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         levelConditions.length === 1 ? levelConditions[0] : or(...levelConditions)!
       )
     }
+  }
+
+  if (params.folderIds) {
+    params.folderIds = await expandFolderIdsWithDescendants(params.workspaceId, params.folderIds)
   }
 
   const commonFilters = buildFilterConditions(params, { useSimpleLevelFilter: false })
