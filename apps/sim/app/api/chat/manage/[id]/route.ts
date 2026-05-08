@@ -126,10 +126,6 @@ export const PATCH = withRouteHandler(
         }
       }
 
-      if (workflowId && workflowId !== existingChat[0].workflowId) {
-        return createErrorResponse('Changing a chat deployment workflow is not supported', 400)
-      }
-
       let encryptedPassword
 
       if (password) {

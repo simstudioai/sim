@@ -1,9 +1,26 @@
 import type {
   WorkflowSearchMatch,
+  WorkflowSearchMatchKind,
   WorkflowSearchReplacementOption,
   WorkflowSearchResourceMeta,
+  WorkflowSearchValuePath,
 } from '@/lib/workflows/search-replace/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
+
+const OVERLAPPING_MATCH_KIND_PRIORITY: Record<WorkflowSearchMatchKind, number> = {
+  text: 0,
+  environment: 1,
+  'workflow-reference': 2,
+  'oauth-credential': 3,
+  'knowledge-base': 3,
+  'knowledge-document': 3,
+  workflow: 3,
+  'mcp-server': 3,
+  'mcp-tool': 3,
+  table: 3,
+  file: 3,
+  'selector-resource': 3,
+}
 
 export function stableStringifyWorkflowSearchValue(value: unknown): string {
   if (!value || typeof value !== 'object') return JSON.stringify(value)
@@ -86,6 +103,73 @@ export function getWorkflowSearchCompatibleResourceMatches(
       Boolean(match.resource) &&
       getWorkflowSearchMatchResourceGroupKey(match) === activeGroupKey
   )
+}
+
+function searchValuePathKey(path: WorkflowSearchValuePath): string {
+  return path.map((segment) => `${typeof segment}:${String(segment)}`).join('/')
+}
+
+function getRangeMatchScopeKey(match: WorkflowSearchMatch): string | null {
+  if (!match.range) return null
+  if (match.target.kind !== 'subblock') return null
+  return [match.blockId, match.subBlockId, searchValuePathKey(match.valuePath)].join(':')
+}
+
+function rangesOverlap(
+  left: NonNullable<WorkflowSearchMatch['range']>,
+  right: NonNullable<WorkflowSearchMatch['range']>
+): boolean {
+  return left.start < right.end && right.start < left.end
+}
+
+function getRangeLength(match: WorkflowSearchMatch): number {
+  return match.range ? match.range.end - match.range.start : Number.POSITIVE_INFINITY
+}
+
+function shouldPreferOverlappingMatch(
+  candidate: WorkflowSearchMatch,
+  current: WorkflowSearchMatch
+): boolean {
+  const candidateLength = getRangeLength(candidate)
+  const currentLength = getRangeLength(current)
+  if (candidateLength !== currentLength) return candidateLength < currentLength
+
+  const candidatePriority = OVERLAPPING_MATCH_KIND_PRIORITY[candidate.kind]
+  const currentPriority = OVERLAPPING_MATCH_KIND_PRIORITY[current.kind]
+  if (candidatePriority !== currentPriority) return candidatePriority > currentPriority
+
+  return false
+}
+
+export function dedupeOverlappingWorkflowSearchMatches<T extends WorkflowSearchMatch>(
+  matches: T[]
+): T[] {
+  const deduped: T[] = []
+
+  for (const match of matches) {
+    const scopeKey = getRangeMatchScopeKey(match)
+    const matchRange = match.range
+    const existingIndex =
+      scopeKey && matchRange
+        ? deduped.findIndex(
+            (candidate) =>
+              getRangeMatchScopeKey(candidate) === scopeKey &&
+              candidate.range &&
+              rangesOverlap(candidate.range, matchRange)
+          )
+        : -1
+
+    if (existingIndex === -1) {
+      deduped.push(match)
+      continue
+    }
+
+    if (shouldPreferOverlappingMatch(match, deduped[existingIndex])) {
+      deduped[existingIndex] = match
+    }
+  }
+
+  return deduped
 }
 
 export function workflowSearchMatchMatchesQuery(
