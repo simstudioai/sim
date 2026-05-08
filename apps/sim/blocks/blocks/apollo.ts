@@ -1077,9 +1077,8 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
         if (params.operation === 'contact_bulk_update') {
           const { ids, attributes } = splitBulkUpdateInput(parsedParams.contacts)
           if (attributes) {
-            const merged = ids ? [...attributes, ...ids.map((id) => ({ id }))] : attributes
             if (parsedParams.contact_attributes === undefined) {
-              parsedParams.contact_attributes = merged
+              parsedParams.contact_attributes = attributes
             }
           } else if (ids && parsedParams.contact_ids === undefined) {
             parsedParams.contact_ids = ids
@@ -1090,9 +1089,8 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
         if (params.operation === 'account_bulk_update') {
           const { ids, attributes } = splitBulkUpdateInput(parsedParams.accounts)
           if (attributes) {
-            const merged = ids ? [...attributes, ...ids.map((id) => ({ id }))] : attributes
             if (parsedParams.account_attributes === undefined) {
-              parsedParams.account_attributes = merged
+              parsedParams.account_attributes = attributes
             }
           } else if (ids && parsedParams.account_ids === undefined) {
             parsedParams.account_ids = ids
