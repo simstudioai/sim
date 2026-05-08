@@ -285,8 +285,11 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   // chat was deleted in another tab). When a `?chatId=` param is present in
   // the URL (e.g. after clicking "Open Workflow" from a Mothership task),
   // prefer that chat over the most recent so the original conversation is
-  // shown right away.
+  // shown right away. The URL param is honored once per distinct value so
+  // returning to a workflow with a fresh `?chatId=` re-applies it instead of
+  // being shadowed by the once-per-workflow auto-select guard.
   const autoSelectAttemptedForRef = useRef<Set<string>>(new Set())
+  const consumedUrlChatIdRef = useRef<string | null>(null)
   useEffect(() => {
     if (!activeWorkflowId) return
 
@@ -295,15 +298,22 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       return
     }
 
+    if (
+      urlChatIdParam &&
+      consumedUrlChatIdRef.current !== urlChatIdParam &&
+      copilotChatList.find((c) => c.id === urlChatIdParam)
+    ) {
+      consumedUrlChatIdRef.current = urlChatIdParam
+      autoSelectAttemptedForRef.current.add(activeWorkflowId)
+      setCopilotChatId(urlChatIdParam)
+      return
+    }
+
     if (copilotChatId) return
     if (autoSelectAttemptedForRef.current.has(activeWorkflowId)) return
     if (copilotChatList.length === 0) return
     autoSelectAttemptedForRef.current.add(activeWorkflowId)
-    const preferred =
-      urlChatIdParam && copilotChatList.find((c) => c.id === urlChatIdParam)
-        ? urlChatIdParam
-        : copilotChatList[0].id
-    setCopilotChatId(preferred)
+    setCopilotChatId(copilotChatList[0].id)
   }, [copilotChatList, copilotChatId, activeWorkflowId, setCopilotChatId, urlChatIdParam])
 
   useEffect(() => {
@@ -490,11 +500,14 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   /**
    * If the workflow page was opened with `?chatId=`, surface the copilot
    * tab so the linked conversation is visible without an extra click.
+   * Re-applies whenever the param changes so returning to a workflow with
+   * a fresh `?chatId=` switches the tab again.
    */
-  const chatIdParamHandledRef = useRef(false)
+  const handledTabSwitchForChatIdRef = useRef<string | null>(null)
   useEffect(() => {
-    if (chatIdParamHandledRef.current || !urlChatIdParam) return
-    chatIdParamHandledRef.current = true
+    if (!urlChatIdParam) return
+    if (handledTabSwitchForChatIdRef.current === urlChatIdParam) return
+    handledTabSwitchForChatIdRef.current = urlChatIdParam
     setActiveTab('copilot')
   }, [urlChatIdParam, setActiveTab])
 
