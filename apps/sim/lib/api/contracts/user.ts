@@ -61,7 +61,7 @@ export const userSettingsEmailPreferencesSchema = z.object({
   unsubscribeNotifications: z.boolean().optional(),
 })
 
-export const mothershipEnvironmentSchema = z.enum(['dev', 'staging', 'prod'])
+export const mothershipEnvironmentSchema = z.enum(['default', 'dev', 'staging', 'prod'])
 export type MothershipEnvironment = z.infer<typeof mothershipEnvironmentSchema>
 
 export const userSettingsSchema = z.object({
@@ -72,7 +72,7 @@ export const userSettingsSchema = z.object({
   billingUsageNotificationsEnabled: z.boolean().default(true),
   showTrainingControls: z.boolean().default(false),
   superUserModeEnabled: z.boolean().default(false),
-  mothershipEnvironment: mothershipEnvironmentSchema.default('prod'),
+  mothershipEnvironment: mothershipEnvironmentSchema.default('default'),
   errorNotificationsEnabled: z.boolean().default(true),
   snapToGridSize: z.number().min(0).max(50).default(0),
   showActionBar: z.boolean().default(true),

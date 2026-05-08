@@ -11,7 +11,9 @@ export interface GetMothershipBaseURLOptions {
   fallbackUrl?: string | null
 }
 
-const ENVIRONMENT_URLS: Record<MothershipEnvironment, string | undefined> = {
+type ConcreteMothershipEnvironment = Exclude<MothershipEnvironment, 'default'>
+
+const ENVIRONMENT_URLS: Record<ConcreteMothershipEnvironment, string | undefined> = {
   // env vars
   dev: env.COPILOT_DEV_URL,
   staging: env.COPILOT_STAGING_URL,
@@ -24,6 +26,7 @@ function normalizeUrl(url: string | undefined): string | null {
 }
 
 function getConfiguredEnvironmentUrl(environment: MothershipEnvironment): string | null {
+  if (environment === 'default') return null
   return normalizeUrl(ENVIRONMENT_URLS[environment])
 }
 
@@ -59,7 +62,7 @@ export async function getMothershipBaseURL(
   if (!effectiveSuperUser) return defaultUrl
 
   const parsedEnvironment = mothershipEnvironmentSchema.safeParse(row.mothershipEnvironment)
-  const environment = parsedEnvironment.success ? parsedEnvironment.data : 'prod'
+  const environment = parsedEnvironment.success ? parsedEnvironment.data : 'default'
 
   return getConfiguredEnvironmentUrl(environment) ?? defaultUrl
 }

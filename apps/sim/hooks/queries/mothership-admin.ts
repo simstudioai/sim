@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 
-export type MothershipEnv = 'dev' | 'staging' | 'prod'
+export type MothershipEnv = 'default' | 'dev' | 'staging' | 'prod'
 
 const BASE = '/api/admin/mothership'
 

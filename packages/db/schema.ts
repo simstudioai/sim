@@ -495,7 +495,7 @@ export const settings = pgTable('settings', {
   // UI preferences
   showTrainingControls: boolean('show_training_controls').notNull().default(false),
   superUserModeEnabled: boolean('super_user_mode_enabled').notNull().default(true),
-  mothershipEnvironment: text('mothership_environment').notNull().default('prod'),
+  mothershipEnvironment: text('mothership_environment').notNull().default('default'),
 
   // Notification preferences
   errorNotificationsEnabled: boolean('error_notifications_enabled').notNull().default(true),

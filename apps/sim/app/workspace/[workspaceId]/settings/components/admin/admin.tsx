@@ -2,7 +2,15 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Badge, Button, Input as EmcnInput, Label, Skeleton, Switch } from '@/components/emcn'
+import {
+  Badge,
+  Button,
+  Combobox,
+  Input as EmcnInput,
+  Label,
+  Skeleton,
+  Switch,
+} from '@/components/emcn'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
@@ -18,10 +26,11 @@ import { useImportWorkflow } from '@/hooks/queries/workflows'
 
 const PAGE_SIZE = 20 as const
 
-const ENV_OPTIONS: { id: MothershipEnvironment; label: string }[] = [
-  { id: 'dev', label: 'Dev' },
-  { id: 'staging', label: 'Staging' },
-  { id: 'prod', label: 'Prod' },
+const MOTHERSHIP_ENV_OPTIONS: { value: MothershipEnvironment; label: string }[] = [
+  { value: 'default', label: 'Default' },
+  { value: 'dev', label: 'Dev' },
+  { value: 'staging', label: 'Staging' },
+  { value: 'prod', label: 'Prod' },
 ]
 
 export function Admin() {
@@ -154,26 +163,22 @@ export function Admin() {
             <div className='flex flex-col gap-1'>
               <Label className='text-[var(--text-primary)] text-sm'>Mothership Environment</Label>
               <p className='text-[var(--text-secondary)] text-xs'>
-                Controls which Copilot backend this admin session talks to.
+                Default uses the configured Sim agent URL.
               </p>
             </div>
-            <div className='flex gap-1'>
-              {ENV_OPTIONS.map((opt) => (
-                <button
-                  key={opt.id}
-                  type='button'
-                  onClick={() => handleMothershipEnvironmentChange(opt.id)}
-                  disabled={updateSetting.isPending}
-                  className={cn(
-                    'rounded-md px-3 py-1 font-medium text-sm transition-colors',
-                    (settings?.mothershipEnvironment ?? 'prod') === opt.id
-                      ? 'bg-[var(--surface-hover)] text-[var(--text-primary)]'
-                      : 'text-[var(--text-tertiary)] hover-hover:hover:text-[var(--text-secondary)]'
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
+            <div className='w-[160px]'>
+              <Combobox
+                size='sm'
+                align='end'
+                dropdownWidth={160}
+                value={settings?.mothershipEnvironment ?? 'default'}
+                onChange={(value) =>
+                  handleMothershipEnvironmentChange(value as MothershipEnvironment)
+                }
+                placeholder='Select environment'
+                disabled={updateSetting.isPending}
+                options={MOTHERSHIP_ENV_OPTIONS}
+              />
             </div>
           </div>
         )}

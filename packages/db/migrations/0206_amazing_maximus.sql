@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ALTER COLUMN "mothership_environment" SET DEFAULT 'default';

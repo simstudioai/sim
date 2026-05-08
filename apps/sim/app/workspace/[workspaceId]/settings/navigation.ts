@@ -218,4 +218,11 @@ export const allNavigationItems: NavigationItem[] = [
     section: 'superuser',
     requiresAdminRole: true,
   },
+  {
+    id: 'mothership',
+    label: 'Mothership',
+    icon: Server,
+    section: 'superuser',
+    requiresAdminRole: true,
+  },
 ]
