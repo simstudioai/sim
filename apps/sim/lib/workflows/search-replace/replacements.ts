@@ -1,9 +1,14 @@
 import { getWorkflowSearchReplacementIssue } from '@/lib/workflows/search-replace/replacement-validation'
+import {
+  getWorkflowSearchSubflowField,
+  parseWorkflowSearchSubflowReplacement,
+} from '@/lib/workflows/search-replace/subflow-fields'
 import type {
   WorkflowSearchBlockState,
   WorkflowSearchMatch,
   WorkflowSearchReplacementOption,
   WorkflowSearchReplacePlan,
+  WorkflowSearchReplaceSubflowUpdate,
   WorkflowSearchReplaceUpdate,
 } from '@/lib/workflows/search-replace/types'
 import {
@@ -34,21 +39,39 @@ function replaceRange(value: string, start: number, end: number, replacement: st
   return `${value.slice(0, start)}${replacement}${value.slice(end)}`
 }
 
-function replaceStructuredValue(value: unknown, rawValue: string, replacement: string): unknown {
+function replaceStructuredValue(
+  value: unknown,
+  rawValue: string,
+  replacement: string,
+  targetOccurrenceIndex?: number
+): unknown {
+  let occurrenceIndex = 0
+
+  const shouldReplace = (item: string) => {
+    if (item !== rawValue) return false
+    const currentOccurrenceIndex = occurrenceIndex
+    occurrenceIndex += 1
+    return targetOccurrenceIndex === undefined || currentOccurrenceIndex === targetOccurrenceIndex
+  }
+
   if (typeof value === 'string') {
     const parts = value.split(',').map((part) => part.trim())
     if (parts.length > 1) {
-      return parts.map((part) => (part === rawValue ? replacement : part)).join(',')
+      return parts.map((part) => (shouldReplace(part) ? replacement : part)).join(',')
     }
-    return value === rawValue ? replacement : value
+    return shouldReplace(value) ? replacement : value
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) =>
-      typeof item === 'string' && item === rawValue
-        ? replacement
-        : replaceStructuredValue(item, rawValue, replacement)
-    )
+    const replaceItem = (item: unknown): unknown => {
+      if (typeof item === 'string') {
+        return shouldReplace(item) ? replacement : item
+      }
+      if (Array.isArray(item)) return item.map(replaceItem)
+      return item
+    }
+
+    return value.map(replaceItem)
   }
 
   return value
@@ -88,6 +111,7 @@ export function buildWorkflowSearchReplacePlan({
   const skipped: WorkflowSearchReplacePlan['skipped'] = []
   const conflicts: WorkflowSearchReplacePlan['conflicts'] = []
   const updatesByField = new Map<string, WorkflowSearchReplaceUpdate>()
+  const subflowUpdatesByField = new Map<string, WorkflowSearchReplaceSubflowUpdate>()
 
   const selectedMatches = matches.filter((match) => selectedMatchIds.has(match.id))
   const orderedMatches = [...selectedMatches].sort((a, b) => {
@@ -97,6 +121,9 @@ export function buildWorkflowSearchReplacePlan({
     if (subBlockCompare !== 0) return subBlockCompare
     const pathCompare = pathToKey(a.valuePath).localeCompare(pathToKey(b.valuePath))
     if (pathCompare !== 0) return pathCompare
+    const occurrenceCompare =
+      (b.structuredOccurrenceIndex ?? 0) - (a.structuredOccurrenceIndex ?? 0)
+    if (occurrenceCompare !== 0) return occurrenceCompare
     return (b.range?.start ?? 0) - (a.range?.start ?? 0)
   })
 
@@ -123,8 +150,76 @@ export function buildWorkflowSearchReplacePlan({
     }
 
     const block = blocks[match.blockId]
+    if (!block) {
+      conflicts.push({ matchId: match.id, reason: 'Block no longer exists' })
+      continue
+    }
+
+    if (match.target.kind === 'subflow') {
+      if (block.type !== 'loop' && block.type !== 'parallel') {
+        conflicts.push({ matchId: match.id, reason: 'Subflow block no longer exists' })
+        continue
+      }
+
+      const currentField = getWorkflowSearchSubflowField(block, match.target.fieldId)
+      if (!currentField) {
+        conflicts.push({ matchId: match.id, reason: 'Subflow field is no longer available' })
+        continue
+      }
+
+      if (!currentField.editable) {
+        conflicts.push({
+          matchId: match.id,
+          reason: currentField.reason ?? 'Subflow field is not editable',
+        })
+        continue
+      }
+
+      const updateKey = `${match.blockId}:${match.target.fieldId}`
+      const existingUpdate = subflowUpdatesByField.get(updateKey)
+      const previousValue = existingUpdate?.previousValue ?? currentField.value
+      const currentValue = String(existingUpdate?.nextValue ?? currentField.value)
+
+      if (!match.range) {
+        conflicts.push({ matchId: match.id, reason: 'Subflow target is no longer text' })
+        continue
+      }
+
+      const currentRawValue = currentValue.slice(match.range.start, match.range.end)
+      if (currentRawValue !== match.rawValue) {
+        conflicts.push({ matchId: match.id, reason: 'Subflow target changed since search' })
+        continue
+      }
+
+      const nextTextValue = replaceRange(
+        currentValue,
+        match.range.start,
+        match.range.end,
+        replacement
+      )
+      const parsedReplacement = parseWorkflowSearchSubflowReplacement({
+        blockType: block.type,
+        fieldId: match.target.fieldId,
+        replacement: nextTextValue,
+      })
+      if (!parsedReplacement.success) {
+        conflicts.push({ matchId: match.id, reason: parsedReplacement.reason })
+        continue
+      }
+
+      subflowUpdatesByField.set(updateKey, {
+        blockId: match.blockId,
+        blockType: block.type,
+        fieldId: match.target.fieldId,
+        previousValue,
+        nextValue: parsedReplacement.value,
+        matchIds: [...(existingUpdate?.matchIds ?? []), match.id],
+      })
+      continue
+    }
+
     const subBlock = block?.subBlocks?.[match.subBlockId]
-    if (!block || !subBlock) {
+    if (!subBlock) {
       conflicts.push({ matchId: match.id, reason: 'Block or subblock no longer exists' })
       continue
     }
@@ -160,7 +255,12 @@ export function buildWorkflowSearchReplacePlan({
         continue
       }
 
-      const replacedValue = replaceStructuredValue(valueForReplacement, match.rawValue, replacement)
+      const replacedValue = replaceStructuredValue(
+        valueForReplacement,
+        match.rawValue,
+        replacement,
+        match.structuredOccurrenceIndex
+      )
       nextValue =
         match.valuePath.length === 0
           ? replacedValue
@@ -177,13 +277,18 @@ export function buildWorkflowSearchReplacePlan({
   }
 
   if (conflicts.length > 0) {
-    return { updates: [], skipped, conflicts }
+    return { updates: [], subflowUpdates: [], skipped, conflicts }
   }
 
   return {
     updates: [...updatesByField.values()].filter(
       (update) => update.previousValue !== update.nextValue
     ),
+    subflowUpdates: [...subflowUpdatesByField.values()].filter((update) => {
+      if (typeof update.nextValue === 'number')
+        return String(update.nextValue) !== update.previousValue
+      return update.nextValue !== update.previousValue
+    }),
     skipped,
     conflicts,
   }

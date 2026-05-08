@@ -8,6 +8,7 @@ import {
   createSearchReplaceWorkflowFixture,
   SEARCH_REPLACE_BLOCK_CONFIGS,
 } from '@/lib/workflows/search-replace/search-replace.fixtures'
+import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 
 describe('buildWorkflowSearchReplacePlan', () => {
   it('replaces selected text ranges across blocks without touching unselected matches', () => {
@@ -98,6 +99,32 @@ describe('buildWorkflowSearchReplacePlan', () => {
     expect(plan.updates[0].nextValue).toBe('kb-new,kb-second')
   })
 
+  it('replaces only the selected duplicate structured resource occurrence', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['knowledge-1'].subBlocks.knowledgeBaseIds.value = 'kb-old,kb-old,kb-second'
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'kb-old',
+      mode: 'resource',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    }).filter((match) => match.kind === 'knowledge-base')
+
+    const plan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches,
+      selectedMatchIds: new Set([matches[0].id]),
+      defaultReplacement: 'kb-new',
+      resourceReplacementOptions: [
+        { kind: 'knowledge-base', value: 'kb-new', label: 'New Knowledge Base' },
+      ],
+    })
+
+    expect(plan.conflicts).toEqual([])
+    expect(plan.updates).toHaveLength(1)
+    expect(plan.updates[0].nextValue).toBe('kb-new,kb-old,kb-second')
+  })
+
   it('replaces all compatible knowledge base references across blocks', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['knowledge-2'] = {
@@ -138,6 +165,122 @@ describe('buildWorkflowSearchReplacePlan', () => {
         expect.objectContaining({ blockId: 'knowledge-2', nextValue: 'kb-new' }),
       ])
     )
+  })
+
+  it('replaces loop and parallel subflow editor values', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['parallel-1'] = {
+      id: 'parallel-1',
+      type: 'parallel',
+      name: 'Parallel 1',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {},
+      data: {
+        parallelType: 'count',
+        count: 20,
+      },
+    }
+    workflow.blocks['loop-1'] = {
+      id: 'loop-1',
+      type: 'loop',
+      name: 'Loop 1',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {},
+      data: {
+        loopType: 'forEach',
+        collection: "['item-2']",
+      },
+    }
+
+    const countMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: '20',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    }).filter((match) => match.target.kind === 'subflow')
+    const collectionMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'item-2',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    }).filter((match) => match.target.kind === 'subflow')
+
+    const countPlan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches: countMatches,
+      selectedMatchIds: new Set(countMatches.map((match) => match.id)),
+      defaultReplacement: '3',
+    })
+    const collectionPlan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches: collectionMatches,
+      selectedMatchIds: new Set(collectionMatches.map((match) => match.id)),
+      defaultReplacement: 'item-3',
+    })
+
+    expect(countPlan.conflicts).toEqual([])
+    expect(countPlan.subflowUpdates).toEqual([
+      expect.objectContaining({
+        blockId: 'parallel-1',
+        blockType: 'parallel',
+        fieldId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations,
+        previousValue: '20',
+        nextValue: 3,
+      }),
+    ])
+    expect(collectionPlan.conflicts).toEqual([])
+    expect(collectionPlan.subflowUpdates).toEqual([
+      expect.objectContaining({
+        blockId: 'loop-1',
+        blockType: 'loop',
+        fieldId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items,
+        previousValue: "['item-2']",
+        nextValue: "['item-3']",
+      }),
+    ])
+  })
+
+  it('rejects invalid subflow iteration replacements', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['parallel-1'] = {
+      id: 'parallel-1',
+      type: 'parallel',
+      name: 'Parallel 1',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {},
+      data: {
+        parallelType: 'count',
+        count: 2,
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: '2',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    }).filter((match) => match.target.kind === 'subflow')
+
+    const plan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches,
+      selectedMatchIds: new Set(matches.map((match) => match.id)),
+      defaultReplacement: '25',
+    })
+
+    expect(plan.subflowUpdates).toEqual([])
+    expect(plan.conflicts).toEqual([
+      {
+        matchId: matches[0].id,
+        reason: 'Subflow iteration count must be between 1 and 20',
+      },
+    ])
   })
 
   it('rejects structured resource replacements that are not resolvable options', () => {

@@ -167,11 +167,23 @@ export function Editor() {
     [subBlocksForCanonical]
   )
   const canonicalModeOverrides = currentBlock?.data?.canonicalModes
+  const activeSearchTargetNeedsAdvanced = useMemo(() => {
+    if (!activeSearchTarget || activeSearchTarget.blockId !== currentBlockId) return false
+
+    return subBlocksForCanonical.some(
+      (subBlock) =>
+        subBlock.mode === 'advanced' &&
+        (activeSearchTarget.subBlockId === subBlock.id ||
+          activeSearchTarget.canonicalSubBlockId === (subBlock.canonicalParamId ?? subBlock.id))
+    )
+  }, [activeSearchTarget, currentBlockId, subBlocksForCanonical])
   const advancedValuesPresent = useMemo(
     () => hasAdvancedValues(subBlocksForCanonical, blockSubBlockValues, canonicalIndex),
     [subBlocksForCanonical, blockSubBlockValues, canonicalIndex]
   )
-  const displayAdvancedOptions = canEditBlock ? advancedMode : advancedMode || advancedValuesPresent
+  const displayAdvancedOptions = canEditBlock
+    ? advancedMode || activeSearchTargetNeedsAdvanced
+    : advancedMode || advancedValuesPresent || activeSearchTargetNeedsAdvanced
 
   const hasAdvancedOnlyFields = useMemo(() => {
     for (const subBlock of subBlocksForCanonical) {

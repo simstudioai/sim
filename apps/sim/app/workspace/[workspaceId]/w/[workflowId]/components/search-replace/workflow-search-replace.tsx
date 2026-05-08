@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, ChevronUp, Search, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Input } from '@/components/emcn'
 import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
@@ -17,6 +17,8 @@ import {
   workflowSearchMatchMatchesQuery,
 } from '@/lib/workflows/search-replace/resource-resolvers'
 import { getWorkflowSearchBlocks } from '@/lib/workflows/search-replace/state'
+import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
+import type { WorkflowSearchReplaceSubflowUpdate } from '@/lib/workflows/search-replace/types'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -29,6 +31,9 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/float'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { getBlock } from '@/blocks'
+import { useFolderMap } from '@/hooks/queries/folders'
+import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
+import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { usePanelEditorStore } from '@/stores/panel'
@@ -37,8 +42,8 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const SEARCH_PANEL_WIDTH = 360
-const SEARCH_PANEL_COLLAPSED_HEIGHT = 104
-const SEARCH_PANEL_EXPANDED_HEIGHT = 190
+const SEARCH_PANEL_COLLAPSED_HEIGHT = 82
+const SEARCH_PANEL_EXPANDED_HEIGHT = 156
 
 function getDefaultSearchPanelPosition() {
   if (typeof window === 'undefined') return { x: 100, y: 100 }
@@ -83,9 +88,23 @@ export function WorkflowSearchReplace() {
   const workflowSubblockValues = useSubBlockStore((state) =>
     workflowId ? state.workflowValues[workflowId] : undefined
   )
+  const { data: workflows = {} } = useWorkflowMap(workspaceId)
+  const { data: folders = {} } = useFolderMap(workspaceId)
+  const workflowMetadata = workflowId ? workflows[workflowId] : undefined
+  const workflowLocked = isWorkflowEffectivelyLocked(workflowMetadata, folders)
+  const searchReadOnly = currentWorkflow.isSnapshotView || workflowLocked
+  const readonlyReason = currentWorkflow.isSnapshotView
+    ? 'Snapshot view is readonly'
+    : workflowLocked
+      ? 'Workflow is locked'
+      : undefined
   const userPermissions = useUserPermissionsContext()
   const addNotification = useNotificationStore((state) => state.addNotification)
-  const { collaborativeBatchSetSubblockValues } = useCollaborativeWorkflow()
+  const {
+    collaborativeBatchSetSubblockValues,
+    collaborativeUpdateIterationCollection,
+    collaborativeUpdateIterationCount,
+  } = useCollaborativeWorkflow()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [isApplying, setIsApplying] = useState(false)
   const [isReplaceExpanded, setIsReplaceExpanded] = useState(false)
@@ -135,10 +154,20 @@ export function WorkflowSearchReplace() {
         mode: 'all',
         includeResourceMatchesWithoutQuery: true,
         isSnapshotView: currentWorkflow.isSnapshotView,
+        isReadOnly: searchReadOnly,
+        readonlyReason,
         workspaceId,
         workflowId,
       }),
-    [currentWorkflow.isSnapshotView, query, searchBlocks, workspaceId, workflowId]
+    [
+      currentWorkflow.isSnapshotView,
+      query,
+      readonlyReason,
+      searchBlocks,
+      searchReadOnly,
+      workspaceId,
+      workflowId,
+    ]
   )
 
   const allHydratedMatches = useWorkflowSearchReferenceHydration({
@@ -158,7 +187,10 @@ export function WorkflowSearchReplace() {
   )
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) {
+      usePanelEditorStore.getState().setActiveSearchTarget(null)
+      return
+    }
     searchInputRef.current?.focus()
     searchInputRef.current?.select()
   }, [isOpen])
@@ -212,8 +244,17 @@ export function WorkflowSearchReplace() {
     if (isConstrainedResourceMatch(activeMatch)) {
       return getWorkflowSearchCompatibleResourceMatches(activeMatch, hydratedMatches)
     }
+    if (activeMatch.kind === 'workflow-reference') {
+      return hydratedMatches.filter(
+        (match) => match.kind === 'workflow-reference' && match.editable
+      )
+    }
 
-    return hydratedMatches.filter((match) => match.kind === 'text' && match.editable)
+    if (activeMatch.kind === 'text') {
+      return hydratedMatches.filter((match) => match.kind === 'text' && match.editable)
+    }
+
+    return []
   }, [activeMatch, hydratedMatches])
   const eligibleMatchIds = useMemo(
     () => replaceAllTargetMatches.map((match) => match.id),
@@ -241,6 +282,24 @@ export function WorkflowSearchReplace() {
           resourceOptions,
         })
       : 'No replaceable matches.'
+
+  const applySubflowUpdate = useCallback(
+    (update: WorkflowSearchReplaceSubflowUpdate) => {
+      if (update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations) {
+        if (typeof update.nextValue !== 'number') return
+        collaborativeUpdateIterationCount(update.blockId, update.blockType, update.nextValue)
+        return
+      }
+
+      collaborativeUpdateIterationCollection(
+        update.blockId,
+        update.blockType,
+        String(update.nextValue)
+      )
+    },
+    [collaborativeUpdateIterationCollection, collaborativeUpdateIterationCount]
+  )
+
   useEffect(() => {
     if (!isOpen) return
 
@@ -265,7 +324,7 @@ export function WorkflowSearchReplace() {
   }
 
   const handleApply = (matchIds: string[]) => {
-    if (!workflowId || isApplying) return
+    if (!workflowId || isApplying || searchReadOnly) return
     setIsApplying(true)
 
     try {
@@ -326,7 +385,7 @@ export function WorkflowSearchReplace() {
         }
       }
 
-      if (batchUpdates.length === 0) {
+      if (batchUpdates.length === 0 && plan.subflowUpdates.length === 0) {
         addNotification({
           level: 'info',
           message: 'No eligible matches to replace.',
@@ -335,7 +394,8 @@ export function WorkflowSearchReplace() {
         return
       }
 
-      const applied = collaborativeBatchSetSubblockValues(batchUpdates)
+      const applied =
+        batchUpdates.length === 0 ? true : collaborativeBatchSetSubblockValues(batchUpdates)
       if (!applied) {
         addNotification({
           level: 'error',
@@ -345,9 +405,14 @@ export function WorkflowSearchReplace() {
         return
       }
 
+      for (const update of plan.subflowUpdates) {
+        applySubflowUpdate(update)
+      }
+
+      const replacedCount = plan.updates.length + plan.subflowUpdates.length
       addNotification({
         level: 'info',
-        message: `Replaced ${plan.updates.length} field${plan.updates.length === 1 ? '' : 's'}.`,
+        message: `Replaced ${replacedCount} field${replacedCount === 1 ? '' : 's'}.`,
         workflowId,
       })
     } finally {
@@ -382,8 +447,7 @@ export function WorkflowSearchReplace() {
         className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >
-        <div className='flex min-w-0 items-center gap-2'>
-          <Search className='h-4 w-4 shrink-0' />
+        <div className='flex min-w-0 items-center'>
           <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
             Search and replace
           </span>
@@ -392,7 +456,7 @@ export function WorkflowSearchReplace() {
           className='flex shrink-0 items-center gap-2'
           onMouseDown={(event) => event.stopPropagation()}
         >
-          <span className='text-muted-foreground text-xs'>{matchCountLabel}</span>
+          <span className='text-[var(--text-muted)] text-xs'>{matchCountLabel}</span>
           <Button variant='ghost' className='!p-1.5 -m-1.5' onClick={close}>
             <X className='h-[16px] w-[16px]' />
           </Button>
@@ -445,7 +509,7 @@ export function WorkflowSearchReplace() {
               compatibleResourceOptions={compatibleResourceOptions}
               usesResourceReplacement={usesResourceReplacement}
               eligibleCount={eligibleMatchIds.length}
-              disabled={!userPermissions.canEdit || currentWorkflow.isSnapshotView}
+              disabled={!userPermissions.canEdit || searchReadOnly}
               isApplying={isApplying}
               canReplaceActive={Boolean(
                 activeMatch?.editable && hasReplacement && !activeReplacementIssue

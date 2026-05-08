@@ -3,6 +3,7 @@ import type { WorkflowSearchValuePath } from '@/lib/workflows/search-replace/typ
 export interface WalkedStringValue {
   path: WorkflowSearchValuePath
   value: string
+  originalValue: unknown
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -14,11 +15,11 @@ export function walkStringValues(
   path: WorkflowSearchValuePath = []
 ): WalkedStringValue[] {
   if (typeof value === 'string') {
-    return value.length > 0 ? [{ path, value }] : []
+    return value.length > 0 ? [{ path, value, originalValue: value }] : []
   }
 
   if (typeof value === 'number' || typeof value === 'boolean') {
-    return [{ path, value: String(value) }]
+    return [{ path, value: String(value), originalValue: value }]
   }
 
   if (Array.isArray(value)) {

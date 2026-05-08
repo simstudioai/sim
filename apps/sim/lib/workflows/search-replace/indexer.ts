@@ -4,10 +4,7 @@ import {
   parseInlineReferences,
   parseStructuredResourceReferences,
 } from '@/lib/workflows/search-replace/reference-registry'
-import {
-  WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS,
-  type WorkflowSearchSubflowFieldId,
-} from '@/lib/workflows/search-replace/subflow-fields'
+import { getWorkflowSearchSubflowFields } from '@/lib/workflows/search-replace/subflow-fields'
 import type {
   WorkflowSearchBlockState,
   WorkflowSearchIndexerOptions,
@@ -78,13 +75,6 @@ function getSearchableStringLeaves(value: unknown) {
   return walkStringValues(value).filter((leaf) => isSearchableLeafPath(leaf.path))
 }
 
-interface SubflowSearchField {
-  subBlockId: WorkflowSearchSubflowFieldId
-  title: string
-  type: SubBlockType
-  value: string
-}
-
 interface AddTextMatchesOptions {
   matches: WorkflowSearchMatch[]
   idPrefix: string
@@ -95,6 +85,7 @@ interface AddTextMatchesOptions {
   fieldTitle?: string
   value: string
   valuePath: WorkflowSearchValuePath
+  target: WorkflowSearchMatch['target']
   query?: string
   caseSensitive: boolean
   editable: boolean
@@ -126,6 +117,7 @@ function addTextMatches({
   fieldTitle,
   value,
   valuePath,
+  target,
   query,
   caseSensitive,
   editable,
@@ -152,6 +144,7 @@ function addTextMatches({
       subBlockType,
       fieldTitle,
       valuePath,
+      target,
       kind: 'text',
       rawValue: value.slice(range.start, range.end),
       searchText: value,
@@ -162,75 +155,6 @@ function addTextMatches({
       reason: getReadonlyReason({ editable, isSnapshotView, readonlyReason }),
     })
   })
-}
-
-function getSubflowSearchFields(block: WorkflowSearchBlockState): SubflowSearchField[] {
-  if (block.type === 'loop') {
-    const loopType = block.data?.loopType ?? 'for'
-    const fields: SubflowSearchField[] = [
-      {
-        subBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type,
-        title: 'Loop Type',
-        type: 'combobox',
-        value: loopType,
-      },
-    ]
-
-    if (loopType === 'for') {
-      fields.push({
-        subBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations,
-        title: 'Loop Iterations',
-        type: 'short-input',
-        value: String(block.data?.count ?? 5),
-      })
-    } else if (loopType === 'forEach') {
-      fields.push({
-        subBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items,
-        title: 'Collection Items',
-        type: 'code',
-        value: String(block.data?.collection ?? ''),
-      })
-    } else {
-      fields.push({
-        subBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.condition,
-        title: 'While Condition',
-        type: 'code',
-        value: String(
-          loopType === 'doWhile'
-            ? (block.data?.doWhileCondition ?? '')
-            : (block.data?.whileCondition ?? '')
-        ),
-      })
-    }
-
-    return fields
-  }
-
-  if (block.type === 'parallel') {
-    const parallelType = block.data?.parallelType ?? 'count'
-    return [
-      {
-        subBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type,
-        title: 'Parallel Type',
-        type: 'combobox',
-        value: parallelType,
-      },
-      {
-        subBlockId:
-          parallelType === 'count'
-            ? WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations
-            : WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items,
-        title: parallelType === 'count' ? 'Parallel Iterations' : 'Parallel Items',
-        type: parallelType === 'count' ? 'short-input' : 'code',
-        value:
-          parallelType === 'count'
-            ? String(block.data?.count ?? 5)
-            : String(block.data?.collection ?? ''),
-      },
-    ]
-  }
-
-  return []
 }
 
 function buildSearchSelectorContext({
@@ -274,6 +198,8 @@ export function indexWorkflowSearchMatches(
     caseSensitive = false,
     includeResourceMatchesWithoutQuery = false,
     isSnapshotView = false,
+    isReadOnly = isSnapshotView,
+    readonlyReason,
     workspaceId,
     workflowId,
     blockConfigs = {},
@@ -294,28 +220,28 @@ export function indexWorkflowSearchMatches(
       workflowId,
     })
     const protectedByLock = Boolean(block.locked || hasLockedAncestor(block, workflow.blocks))
-    const editable = !protectedByLock && !isSnapshotView
+    const editable = !protectedByLock && !isReadOnly
 
     if (mode !== 'resource') {
-      for (const field of getSubflowSearchFields(block)) {
+      for (const field of getWorkflowSearchSubflowFields(block)) {
+        const fieldEditable = editable && field.editable
         addTextMatches({
           matches,
           idPrefix: 'subflow-text',
           block,
-          subBlockId: field.subBlockId,
-          canonicalSubBlockId: field.subBlockId,
+          subBlockId: field.id,
+          canonicalSubBlockId: field.id,
           subBlockType: field.type,
           fieldTitle: field.title,
           value: field.value,
           valuePath: [],
+          target: { kind: 'subflow', fieldId: field.id },
           query,
           caseSensitive,
-          editable: false,
+          editable: fieldEditable,
           protectedByLock,
           isSnapshotView,
-          readonlyReason: editable
-            ? 'Subflow settings are edited from the block sidebar'
-            : undefined,
+          readonlyReason: fieldEditable ? undefined : !editable ? readonlyReason : field.reason,
         })
       }
     }
@@ -331,6 +257,7 @@ export function indexWorkflowSearchMatches(
 
       if (mode !== 'resource') {
         for (const leaf of stringLeaves) {
+          const leafEditable = editable && typeof leaf.originalValue === 'string'
           addTextMatches({
             matches,
             idPrefix: 'text',
@@ -341,11 +268,17 @@ export function indexWorkflowSearchMatches(
             fieldTitle: subBlockConfig?.title,
             value: leaf.value,
             valuePath: leaf.path,
+            target: { kind: 'subblock' },
             query,
             caseSensitive,
-            editable,
+            editable: leafEditable,
             protectedByLock,
             isSnapshotView,
+            readonlyReason: leafEditable
+              ? undefined
+              : typeof leaf.originalValue === 'string'
+                ? readonlyReason
+                : 'Only text values can be replaced',
           })
         }
       }
@@ -380,6 +313,7 @@ export function indexWorkflowSearchMatches(
             subBlockType: subBlockConfig?.type ?? subBlockState.type,
             fieldTitle: subBlockConfig?.title,
             valuePath: leaf.path,
+            target: { kind: 'subblock' },
             kind: reference.kind,
             rawValue: reference.rawValue,
             searchText: reference.searchText,
@@ -388,11 +322,7 @@ export function indexWorkflowSearchMatches(
             editable,
             navigable: true,
             protected: protectedByLock,
-            reason: editable
-              ? undefined
-              : isSnapshotView
-                ? 'Snapshot view is readonly'
-                : 'Block is locked',
+            reason: getReadonlyReason({ editable, isSnapshotView, readonlyReason }),
           })
         })
       }
@@ -427,18 +357,16 @@ export function indexWorkflowSearchMatches(
           subBlockType: subBlockConfig?.type ?? subBlockState.type,
           fieldTitle: subBlockConfig?.title,
           valuePath: [],
+          target: { kind: 'subblock' },
           kind: reference.kind,
           rawValue: reference.rawValue,
           searchText: reference.searchText,
+          structuredOccurrenceIndex: referenceIndex,
           resource: reference.resource,
           editable,
           navigable: true,
           protected: protectedByLock,
-          reason: editable
-            ? undefined
-            : isSnapshotView
-              ? 'Snapshot view is readonly'
-              : 'Block is locked',
+          reason: getReadonlyReason({ editable, isSnapshotView, readonlyReason }),
         })
       })
     }

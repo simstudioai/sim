@@ -41,7 +41,7 @@ export function ReplacementControls({
             }))}
             value={replacement}
             onChange={onReplacementChange}
-            placeholder='Choose replacement resource...'
+            placeholder='Choose replacement...'
             searchable
             searchPlaceholder='Search resources...'
             emptyMessage='No valid replacements available'
@@ -58,7 +58,7 @@ export function ReplacementControls({
       </div>
 
       <div className='flex items-center justify-between gap-2'>
-        <span className='text-muted-foreground text-xs'>
+        <span className='text-[var(--text-muted)] text-xs'>
           {eligibleCount} replaceable match{eligibleCount === 1 ? '' : 'es'}
         </span>
         <div className='flex gap-1.5'>

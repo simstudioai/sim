@@ -44,6 +44,27 @@ describe('indexWorkflowSearchMatches', () => {
     expect(matches).toEqual([])
   })
 
+  it('indexes non-string scalar values as searchable but not editable', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['api-1'].subBlocks.body.value = { count: 2, enabled: true }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: '2',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    }).filter((match) => match.blockId === 'api-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        valuePath: ['count'],
+        rawValue: '2',
+        editable: false,
+        reason: 'Only text values can be replaced',
+      }),
+    ])
+  })
+
   it('indexes loop and parallel editor settings for navigation', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['parallel-1'] = {
@@ -93,7 +114,11 @@ describe('indexWorkflowSearchMatches', () => {
           subBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations,
           canonicalSubBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations,
           fieldTitle: 'Parallel Iterations',
-          editable: false,
+          editable: true,
+          target: {
+            kind: 'subflow',
+            fieldId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations,
+          },
         }),
       ])
     )
@@ -104,7 +129,11 @@ describe('indexWorkflowSearchMatches', () => {
           subBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items,
           canonicalSubBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items,
           fieldTitle: 'Collection Items',
-          editable: false,
+          editable: true,
+          target: {
+            kind: 'subflow',
+            fieldId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items,
+          },
         }),
       ])
     )
@@ -234,5 +263,21 @@ describe('indexWorkflowSearchMatches', () => {
 
     expect(matches.every((match) => !match.editable)).toBe(true)
     expect(matches.every((match) => match.reason === 'Snapshot view is readonly')).toBe(true)
+  })
+
+  it('marks readonly workflow matches as searchable but not editable', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'email',
+      mode: 'text',
+      isReadOnly: true,
+      readonlyReason: 'Workflow is locked',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
+
+    expect(matches.every((match) => !match.editable)).toBe(true)
+    expect(matches.every((match) => match.reason === 'Workflow is locked')).toBe(true)
   })
 })

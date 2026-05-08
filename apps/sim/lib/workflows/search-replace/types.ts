@@ -1,4 +1,8 @@
 import type { SubBlockType } from '@sim/workflow-types/blocks'
+import type {
+  WorkflowSearchSubflowEditableValue,
+  WorkflowSearchSubflowFieldId,
+} from '@/lib/workflows/search-replace/subflow-fields'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
 import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
@@ -38,6 +42,10 @@ export interface WorkflowSearchResourceMeta {
   key?: string
 }
 
+export type WorkflowSearchTarget =
+  | { kind: 'subblock' }
+  | { kind: 'subflow'; fieldId: WorkflowSearchSubflowFieldId }
+
 export interface WorkflowSearchMatch {
   id: string
   blockId: string
@@ -48,10 +56,12 @@ export interface WorkflowSearchMatch {
   subBlockType: SubBlockType
   fieldTitle?: string
   valuePath: WorkflowSearchValuePath
+  target: WorkflowSearchTarget
   kind: WorkflowSearchMatchKind
   rawValue: string
   searchText: string
   range?: WorkflowSearchRange
+  structuredOccurrenceIndex?: number
   resource?: WorkflowSearchResourceMeta
   editable: boolean
   navigable: boolean
@@ -78,6 +88,8 @@ export interface WorkflowSearchIndexerOptions {
   caseSensitive?: boolean
   includeResourceMatchesWithoutQuery?: boolean
   isSnapshotView?: boolean
+  isReadOnly?: boolean
+  readonlyReason?: string
   workspaceId?: string
   workflowId?: string
   blockConfigs?: Record<string, { subBlocks?: SubBlockConfig[] } | undefined>
@@ -117,6 +129,15 @@ export interface WorkflowSearchReplaceUpdate {
   matchIds: string[]
 }
 
+export interface WorkflowSearchReplaceSubflowUpdate {
+  blockId: string
+  blockType: 'loop' | 'parallel'
+  fieldId: WorkflowSearchSubflowFieldId
+  previousValue: string
+  nextValue: WorkflowSearchSubflowEditableValue
+  matchIds: string[]
+}
+
 export interface WorkflowSearchReplaceSkipped {
   matchId: string
   reason: string
@@ -124,6 +145,7 @@ export interface WorkflowSearchReplaceSkipped {
 
 export interface WorkflowSearchReplacePlan {
   updates: WorkflowSearchReplaceUpdate[]
+  subflowUpdates: WorkflowSearchReplaceSubflowUpdate[]
   skipped: WorkflowSearchReplaceSkipped[]
   conflicts: WorkflowSearchReplaceSkipped[]
 }
