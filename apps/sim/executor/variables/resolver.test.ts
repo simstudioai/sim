@@ -201,6 +201,25 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
+  it('ignores escaped triple-double quotes before later Python block references', () => {
+    const { block, ctx, resolver } = createResolver('python')
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'prompt = """Escaped delimiter: \\"\\"\\"\nSummary: <Producer.result>\n"""' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      'prompt = """Escaped delimiter: \\"\\"\\"\nSummary: """ + json.dumps(globals()["__blockRef_0"]) + """\n"""'
+    )
+    expect(result.displayInputs.code).toBe(
+      'prompt = """Escaped delimiter: \\"\\"\\"\nSummary: "hello world"\n"""'
+    )
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
   it('breaks Python triple-single-quoted strings around block references', () => {
     const { block, ctx, resolver } = createResolver('python')
 

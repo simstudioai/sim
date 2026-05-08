@@ -485,6 +485,10 @@ export class VariableResolver {
 
       if (mode.type === 'triple-single' || mode.type === 'triple-double') {
         const quote = mode.type === 'triple-single' ? "'" : '"'
+        if (char === '\\') {
+          i++
+          continue
+        }
         if (char === quote && next === quote && template[i + 2] === quote) {
           modes.pop()
           i += 2
