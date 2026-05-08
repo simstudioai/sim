@@ -887,7 +887,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                     ),
                     li: ({ children }) => <li className='leading-[1.4rem]'>{children}</li>,
                     inlineCode: ({ children }) => (
-                      <code className='rounded bg-muted px-1.5 py-0.5 font-mono text-[var(--caution)] text-xs'>
+                      <code className='whitespace-normal rounded bg-muted px-1.5 py-0.5 font-mono text-[var(--caution)] not-italic'>
                         {children}
                       </code>
                     ),
