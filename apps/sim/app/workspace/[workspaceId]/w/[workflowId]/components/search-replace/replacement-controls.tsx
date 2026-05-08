@@ -32,30 +32,28 @@ export function ReplacementControls({
 }: ReplacementControlsProps) {
   return (
     <div className='space-y-2'>
-      <div className='space-y-1.5'>
-        {usesResourceReplacement ? (
-          <Combobox
-            options={compatibleResourceOptions.map((option) => ({
-              label: option.label,
-              value: option.value,
-            }))}
-            value={replacement}
-            onChange={onReplacementChange}
-            placeholder='Choose replacement...'
-            searchable
-            searchPlaceholder='Search resources...'
-            emptyMessage='No valid replacements available'
-            disabled={disabled || compatibleResourceOptions.length === 0}
-          />
-        ) : (
-          <Input
-            value={replacement}
-            placeholder='Replace'
-            disabled={disabled}
-            onChange={(event) => onReplacementChange(event.target.value)}
-          />
-        )}
-      </div>
+      {usesResourceReplacement ? (
+        <Combobox
+          options={compatibleResourceOptions.map((option) => ({
+            label: option.label,
+            value: option.value,
+          }))}
+          value={replacement}
+          onChange={onReplacementChange}
+          placeholder='Choose replacement...'
+          searchable
+          searchPlaceholder='Search resources...'
+          emptyMessage='No valid replacements available'
+          disabled={disabled || compatibleResourceOptions.length === 0}
+        />
+      ) : (
+        <Input
+          value={replacement}
+          placeholder='Replace'
+          disabled={disabled}
+          onChange={(event) => onReplacementChange(event.target.value)}
+        />
+      )}
 
       <div className='flex items-center justify-between gap-2'>
         <span className='text-[var(--text-muted)] text-xs'>

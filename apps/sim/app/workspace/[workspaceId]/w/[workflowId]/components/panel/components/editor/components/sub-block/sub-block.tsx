@@ -72,7 +72,8 @@ const FOLDER_OVERRIDES: SelectorOverrides = {
   },
 }
 
-const WORKFLOW_SEARCH_CURRENT_MATCH_CLASS = 'rounded-md bg-orange-400 px-1 py-0.5'
+const WORKFLOW_SEARCH_HIGHLIGHT_CLASS =
+  'rounded-sm bg-orange-400 shadow-[3px_0_0_#fb923c,-3px_0_0_#fb923c]'
 
 /**
  * Interface for wand control handlers exposed by sub-block inputs
@@ -253,7 +254,7 @@ const renderLabel = (
     <div className='flex items-center justify-between gap-1.5 pl-0.5'>
       <Label className='flex items-baseline gap-1.5 whitespace-nowrap'>
         {isSearchHighlighted ? (
-          <mark className={WORKFLOW_SEARCH_CURRENT_MATCH_CLASS}>{config.title}</mark>
+          <mark className={WORKFLOW_SEARCH_HIGHLIGHT_CLASS}>{config.title}</mark>
         ) : (
           config.title
         )}

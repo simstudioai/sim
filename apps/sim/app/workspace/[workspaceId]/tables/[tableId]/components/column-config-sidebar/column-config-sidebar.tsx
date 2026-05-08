@@ -153,7 +153,7 @@ function ColumnConfigBody({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2'>
+      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
         <h2 className='font-medium text-[var(--text-primary)] text-small'>Configure column</h2>
         <Button
           variant='ghost'

@@ -481,7 +481,7 @@ export function WorkflowSearchReplace() {
         onMouseDown={handleMouseDown}
       >
         <div className='flex min-w-0 items-center'>
-          <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
+          <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
             Search and replace
           </span>
         </div>
@@ -490,8 +490,8 @@ export function WorkflowSearchReplace() {
           onMouseDown={(event) => event.stopPropagation()}
         >
           <span className='text-[var(--text-muted)] text-xs'>{matchCountLabel}</span>
-          <Button variant='ghost' className='!p-1.5 -m-1.5' onClick={close}>
-            <X className='h-[16px] w-[16px]' />
+          <Button variant='ghost' className='h-[26px] w-[26px] p-0' onClick={close}>
+            <X className='h-[14px] w-[14px]' />
           </Button>
         </div>
       </div>
@@ -504,7 +504,10 @@ export function WorkflowSearchReplace() {
           onClick={() => setIsReplaceExpanded((expanded) => !expanded)}
         >
           <ChevronRight
-            className={cn('h-4 w-4 transition-transform', isReplaceExpanded && 'rotate-90')}
+            className={cn(
+              'h-[14px] w-[14px] text-[var(--text-icon)] transition-transform',
+              isReplaceExpanded && 'rotate-90'
+            )}
           />
         </Button>
         <Input
@@ -524,7 +527,7 @@ export function WorkflowSearchReplace() {
           disabled={hydratedMatches.length === 0}
           onClick={() => handleMoveActiveMatch(-1)}
         >
-          <ChevronUp className='h-4 w-4' />
+          <ChevronUp className='h-[14px] w-[14px] text-[var(--text-icon)]' />
         </Button>
         <Button
           variant='ghost'
@@ -532,7 +535,7 @@ export function WorkflowSearchReplace() {
           disabled={hydratedMatches.length === 0}
           onClick={() => handleMoveActiveMatch(1)}
         >
-          <ChevronDown className='h-4 w-4' />
+          <ChevronDown className='h-[14px] w-[14px] text-[var(--text-icon)]' />
         </Button>
 
         {isReplaceExpanded && (

@@ -11,7 +11,8 @@ import type { ConnectedBlock } from '../../hooks/use-block-connections'
 import { useSubflowEditor } from '../../hooks/use-subflow-editor'
 import { ConnectionBlocks } from '../connection-blocks'
 
-const WORKFLOW_SEARCH_CURRENT_MATCH_CLASS = 'rounded-md bg-orange-400 px-1 py-0.5'
+const WORKFLOW_SEARCH_HIGHLIGHT_CLASS =
+  'rounded-sm bg-orange-400 shadow-[3px_0_0_#fb923c,-3px_0_0_#fb923c]'
 
 interface SubflowEditorProps {
   currentBlock: BlockState
@@ -93,7 +94,7 @@ export function SubflowEditor({
           >
             <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               {isTypeHighlighted ? (
-                <mark className={WORKFLOW_SEARCH_CURRENT_MATCH_CLASS}>
+                <mark className={WORKFLOW_SEARCH_HIGHLIGHT_CLASS}>
                   {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
                 </mark>
               ) : currentBlock.type === 'loop' ? (
@@ -128,7 +129,7 @@ export function SubflowEditor({
           >
             <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               {isConfigHighlighted ? (
-                <mark className={WORKFLOW_SEARCH_CURRENT_MATCH_CLASS}>
+                <mark className={WORKFLOW_SEARCH_HIGHLIGHT_CLASS}>
                   {isCountMode
                     ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
                     : isConditionMode

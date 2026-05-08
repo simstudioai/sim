@@ -92,25 +92,18 @@ function rowSelectionCoversAll(sel: RowSelection, rows: TableRowType[]): boolean
 
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
-// Wide enough to host the row-number + per-row run button side by side.
-// Single-digit row numbers (rows 1–9) and multi-digit need to render with
-// the play button at the same x-position so the column doesn't reflow
-// row-by-row.
-//
-// Bucketed by the table's plan-derived `maxRows`, not the live count: a small
-// table sized for ≤9,999 always renders the narrow gutter; an enterprise
-// table sized up to 9,999,999 always renders the wide one. The gutter never
-// changes width as rows are added.
-//
-// Tables without workflow columns drop the per-row run button (~28px), so
-// the gutter shrinks accordingly.
-const CHECKBOX_COL_WIDTH_SMALL_WITH_RUN = 48
-const CHECKBOX_COL_WIDTH_SMALL_NUMBER_ONLY = 32
-const CHECKBOX_COL_WIDTH_LARGE_WITH_RUN = 68
-const CHECKBOX_COL_WIDTH_LARGE_NUMBER_ONLY = 52
-/** Bucket boundary: tables sized for >9,999 rows get the wide gutter. */
-const LARGE_ROW_NUMBER_THRESHOLD = 10000
 const ADD_COL_WIDTH = 120
+
+/** Returns sticky row-number column dimensions sized to the digit count of `maxRows`. */
+function checkboxColLayout(
+  maxRows: number,
+  hasWorkflowCols: boolean
+): { colWidth: number; numDivWidth: number } {
+  const digits = maxRows > 0 ? Math.floor(Math.log10(maxRows)) + 1 : 1
+  const numDivWidth = Math.max(20, digits * 8 + 4)
+  const colWidth = Math.max(32, numDivWidth + 8) + (hasWorkflowCols ? 16 : 0)
+  return { colWidth, numDivWidth }
+}
 const SKELETON_COL_COUNT = 4
 const SKELETON_ROW_COUNT = 10
 const ROW_HEIGHT_ESTIMATE = 35
@@ -128,7 +121,7 @@ const CELL_HEADER_CHECKBOX =
 const CELL_CONTENT =
   'relative flex h-[22px] min-w-0 items-center overflow-clip text-ellipsis whitespace-nowrap text-small'
 const SELECTION_OVERLAY =
-  'pointer-events-none absolute -top-px -right-px -bottom-px -left-px z-[5] border-[2px] border-[var(--selection)]'
+  'pointer-events-none absolute -top-px -right-px -bottom-px z-[5] border-[2px] border-[var(--selection)]'
 
 /**
  * Snapshot of grid selection state the wrapper needs to render `<TableActionBar>`.
@@ -452,22 +445,10 @@ export function TableGrid({
   }, [columns, columnOrder, tableWorkflowGroups])
 
   const hasWorkflowColumns = columns.some((c) => !!c.workflowGroupId)
-  /**
-   * The sticky left column hosts the row number / checkbox always, plus a
-   * per-row run button only when the table has workflow columns. Width is
-   * picked from the table's plan-derived `maxRows` so a free-tier table
-   * (≤9,999) gets the narrow gutter and an enterprise table (up to
-   * 9,999,999) gets the wide one. Bucketed, not continuous, so the gutter
-   * never reflows as rows are added.
-   */
-  const isLargeRowCountTable = (tableData?.maxRows ?? 0) >= LARGE_ROW_NUMBER_THRESHOLD
-  const checkboxColWidth = isLargeRowCountTable
-    ? hasWorkflowColumns
-      ? CHECKBOX_COL_WIDTH_LARGE_WITH_RUN
-      : CHECKBOX_COL_WIDTH_LARGE_NUMBER_ONLY
-    : hasWorkflowColumns
-      ? CHECKBOX_COL_WIDTH_SMALL_WITH_RUN
-      : CHECKBOX_COL_WIDTH_SMALL_NUMBER_ONLY
+  const { colWidth: checkboxColWidth, numDivWidth } = checkboxColLayout(
+    tableData?.maxRows ?? 0,
+    hasWorkflowColumns
+  )
 
   const headerGroups = useMemo(
     () => buildHeaderGroups(displayColumns, tableWorkflowGroups),
@@ -3053,7 +3034,7 @@ export function TableGrid({
                         onRowToggle={handleRowToggle}
                         runningCount={runningByRowId.get(row.id) ?? 0}
                         hasWorkflowColumns={hasWorkflowColumns}
-                        isLargeRowCountTable={isLargeRowCountTable}
+                        numDivWidth={numDivWidth}
                         onStopRow={onStopRow}
                         onRunRow={handleRunRow}
                         workflowGroups={tableWorkflowGroups}
@@ -3178,8 +3159,8 @@ interface DataRowProps {
   runningCount: number
   /** Whether the table has at least one workflow column — controls whether a run/stop icon is rendered. */
   hasWorkflowColumns: boolean
-  /** True for tables sized for >9,999 rows; widens the row-number slot to fit 5–7 digit numbers. */
-  isLargeRowCountTable: boolean
+  /** Width of the row-number inner div in px, derived from the table's maxRows digit count. */
+  numDivWidth: number
   onStopRow: (rowId: string) => void
   onRunRow: (rowId: string) => void
   /**
@@ -3239,7 +3220,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.onRowToggle !== next.onRowToggle ||
     prev.runningCount !== next.runningCount ||
     prev.hasWorkflowColumns !== next.hasWorkflowColumns ||
-    prev.isLargeRowCountTable !== next.isLargeRowCountTable ||
+    prev.numDivWidth !== next.numDivWidth ||
     prev.onStopRow !== next.onStopRow ||
     prev.onRunRow !== next.onRunRow ||
     prev.workflowGroups !== next.workflowGroups
@@ -3281,7 +3262,7 @@ const DataRow = React.memo(function DataRow({
   onRowToggle,
   runningCount,
   hasWorkflowColumns,
-  isLargeRowCountTable,
+  numDivWidth,
   onStopRow,
   onRunRow,
   workflowGroups,
@@ -3313,12 +3294,15 @@ const DataRow = React.memo(function DataRow({
   return (
     <tr onContextMenu={(e) => onContextMenu(e, row)}>
       <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
-        <div className='flex items-center justify-between gap-1'>
+        <div
+          className={cn(
+            'flex items-center gap-1',
+            hasWorkflowColumns ? 'justify-between' : 'justify-center'
+          )}
+        >
           <div
-            className={cn(
-              'group/checkbox flex h-[20px] shrink-0 items-center justify-end',
-              isLargeRowCountTable ? 'w-[40px]' : 'w-[20px]'
-            )}
+            className='group/checkbox flex h-[20px] shrink-0 items-center justify-center'
+            style={{ width: numDivWidth }}
             onMouseDown={(e) => {
               if (e.button !== 0) return
               onRowToggle(rowIndex, e.shiftKey)
@@ -3326,7 +3310,7 @@ const DataRow = React.memo(function DataRow({
           >
             <span
               className={cn(
-                'text-right text-[var(--text-tertiary)] text-xs tabular-nums',
+                'text-center text-[var(--text-tertiary)] text-xs tabular-nums',
                 isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
               )}
             >
@@ -3409,7 +3393,8 @@ const DataRow = React.memo(function DataRow({
             {isHighlighted && (isMultiCell || isRowChecked) && (
               <div
                 className={cn(
-                  '-top-px -right-px -bottom-px -left-px pointer-events-none absolute z-[4]',
+                  '-top-px -right-px -bottom-px pointer-events-none absolute z-[4]',
+                  colIndex === 0 ? 'left-0' : '-left-px',
                   SELECTION_TINT_BG,
                   isFirstRow && isTopEdge && 'top-0',
                   isTopEdge && 'border-t border-t-[var(--selection)]',
@@ -3419,7 +3404,15 @@ const DataRow = React.memo(function DataRow({
                 )}
               />
             )}
-            {isAnchor && <div className={cn(SELECTION_OVERLAY, isFirstRow && 'top-0')} />}
+            {isAnchor && (
+              <div
+                className={cn(
+                  SELECTION_OVERLAY,
+                  colIndex === 0 ? 'left-0' : '-left-px',
+                  isFirstRow && 'top-0'
+                )}
+              />
+            )}
             <div className={CELL_CONTENT}>
               <CellContent
                 value={
