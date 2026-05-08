@@ -38,6 +38,7 @@ const RESOURCE_KIND_BY_SUBBLOCK_TYPE: Partial<
   'mcp-tool-selector': 'mcp-tool',
   'table-selector': 'table',
   'file-selector': 'file',
+  'file-upload': 'file',
   'channel-selector': 'selector-resource',
   'user-selector': 'selector-resource',
   'sheet-selector': 'selector-resource',
@@ -110,13 +111,55 @@ function splitStructuredValue(value: unknown): string[] {
   return []
 }
 
+function getUploadedFileResourceKey(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  const key = record.key ?? record.path ?? record.name
+  return typeof key === 'string' && key.trim().length > 0 ? key : null
+}
+
+function parseFileUploadReferences(
+  value: unknown,
+  subBlockConfig: Pick<SubBlockConfig, 'type' | 'serviceId' | 'selectorKey' | 'requiredScopes'>,
+  selectorContext?: SelectorContext
+): StructuredResourceReference[] {
+  const values = Array.isArray(value) ? value : value ? [value] : []
+  return values.flatMap((item) => {
+    const rawValue = getUploadedFileResourceKey(item)
+    if (!rawValue) return []
+    const name = (item as Record<string, unknown>).name
+    const resource: WorkflowSearchResourceMeta = {
+      kind: 'file',
+      providerId: subBlockConfig.serviceId,
+      serviceId: subBlockConfig.serviceId,
+      selectorKey: subBlockConfig.selectorKey,
+      selectorContext: subBlockConfig.selectorKey ? selectorContext : undefined,
+      requiredScopes: subBlockConfig.requiredScopes,
+      key: rawValue,
+    }
+    resource.resourceGroupKey = buildWorkflowSearchResourceGroupKey(resource)
+
+    return [
+      {
+        kind: 'file' as const,
+        rawValue,
+        searchText: typeof name === 'string' ? name : rawValue,
+        resource,
+      },
+    ]
+  })
+}
+
 export function parseStructuredResourceReferences(
   value: unknown,
-  subBlockConfig?: SubBlockConfig,
+  subBlockConfig?: Pick<SubBlockConfig, 'type' | 'serviceId' | 'selectorKey' | 'requiredScopes'>,
   selectorContext?: SelectorContext
 ): StructuredResourceReference[] {
   const kind = getResourceKindForSubBlock(subBlockConfig)
   if (!kind) return []
+  if (subBlockConfig?.type === 'file-upload') {
+    return parseFileUploadReferences(value, subBlockConfig, selectorContext)
+  }
 
   const values = splitStructuredValue(value)
   return values.map((rawValue) => {

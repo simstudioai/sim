@@ -300,7 +300,10 @@ function buildSearchSelectorContext({
 }): SelectorContext {
   const context: SelectorContext = {}
   if (workspaceId) context.workspaceId = workspaceId
-  if (workflowId) context.workflowId = workflowId
+  if (workflowId) {
+    context.workflowId = workflowId
+    context.excludeWorkflowId = workflowId
+  }
 
   const canonicalIndex = buildCanonicalIndex(subBlockConfigs)
   for (const [subBlockId, subBlock] of Object.entries(block.subBlocks ?? {})) {
@@ -399,7 +402,8 @@ export function indexWorkflowSearchMatches(
       const subBlockType = subBlockConfig?.type ?? subBlockState.type
       const textLeaves = getTextLeaves(value, subBlockType)
       const referenceLeaves = getSearchableStringLeaves(value, subBlockType, 'reference')
-      const structuredResourceKind = getResourceKindForSubBlock(subBlockConfig)
+      const resourceSubBlockConfig = subBlockConfig ?? { type: subBlockType }
+      const structuredResourceKind = getResourceKindForSubBlock(resourceSubBlockConfig)
 
       if (mode !== 'resource' && !structuredResourceKind) {
         for (const leaf of textLeaves) {
@@ -475,7 +479,7 @@ export function indexWorkflowSearchMatches(
 
       const structuredReferences = parseStructuredResourceReferences(
         value,
-        subBlockConfig,
+        resourceSubBlockConfig,
         selectorContext
       )
       structuredReferences.forEach((reference, referenceIndex) => {

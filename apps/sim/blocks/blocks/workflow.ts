@@ -14,6 +14,7 @@ export const WorkflowBlock: BlockConfig = {
       id: 'workflowId',
       title: 'Select Workflow',
       type: 'workflow-selector',
+      selectorKey: 'sim.workflows',
       placeholder: 'Search workflows...',
       required: true,
     },

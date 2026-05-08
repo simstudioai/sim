@@ -69,10 +69,33 @@ function replaceStructuredValue(
         return shouldReplace(item) ? replacement : item
       }
       if (Array.isArray(item)) return item.map(replaceItem)
+      if (item && typeof item === 'object') {
+        const record = item as Record<string, unknown>
+        const resourceKey = record.key ?? record.path ?? record.name
+        if (typeof resourceKey === 'string' && shouldReplace(resourceKey)) {
+          try {
+            return JSON.parse(replacement)
+          } catch {
+            return item
+          }
+        }
+      }
       return item
     }
 
     return value.map(replaceItem)
+  }
+
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    const resourceKey = record.key ?? record.path ?? record.name
+    if (typeof resourceKey === 'string' && shouldReplace(resourceKey)) {
+      try {
+        return JSON.parse(replacement)
+      } catch {
+        return value
+      }
+    }
   }
 
   return value
@@ -87,6 +110,10 @@ function structuredValueContains(value: unknown, rawValue: string): boolean {
   }
   if (Array.isArray(value)) {
     return value.some((item) => structuredValueContains(item, rawValue))
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    return [record.key, record.path, record.name].some((candidate) => candidate === rawValue)
   }
   return false
 }

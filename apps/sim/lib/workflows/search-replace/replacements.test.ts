@@ -442,6 +442,69 @@ describe('buildWorkflowSearchReplacePlan', () => {
     ])
   })
 
+  it('replaces workspace file upload resources with the selected file object', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['file-upload-1'] = {
+      id: 'file-upload-1',
+      type: 'custom',
+      name: 'File Upload Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        file: {
+          id: 'file',
+          type: 'file-upload',
+          value: {
+            name: 'old.csv',
+            path: '/workspace/ws-1/old-key',
+            key: 'old-key',
+            size: 42,
+            type: 'text/csv',
+          },
+        },
+      },
+    }
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: {
+        subBlocks: [{ id: 'file', title: 'File', type: 'file-upload' }],
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'old',
+      mode: 'resource',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'file-upload-1')
+    const replacementFile = {
+      name: 'new.csv',
+      path: '/workspace/ws-1/new-key',
+      key: 'new-key',
+      size: 84,
+      type: 'text/csv',
+    }
+
+    const plan = buildWorkflowSearchReplacePlan({
+      blocks: workflow.blocks,
+      matches,
+      selectedMatchIds: new Set(matches.map((match) => match.id)),
+      defaultReplacement: JSON.stringify(replacementFile),
+      resourceReplacementOptions: [
+        { kind: 'file', value: JSON.stringify(replacementFile), label: 'new.csv' },
+      ],
+    })
+
+    expect(plan.conflicts).toEqual([])
+    expect(plan.updates).toEqual([
+      expect.objectContaining({
+        subBlockId: 'file',
+        nextValue: replacementFile,
+      }),
+    ])
+  })
+
   it('rejects invalid subflow iteration replacements', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['parallel-1'] = {

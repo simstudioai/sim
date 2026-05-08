@@ -1083,6 +1083,141 @@ describe('indexWorkflowSearchMatches', () => {
     ).toBe(true)
   })
 
+  it('keeps selector-like legacy state out of plain text matches when config is missing', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['legacy-resource-1'] = {
+      id: 'legacy-resource-1',
+      type: 'unknown_block',
+      name: 'Legacy Resource',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        knowledgeBaseIds: {
+          id: 'knowledgeBaseIds',
+          type: 'knowledge-base-selector',
+          value: 'kb-legacy',
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'kb',
+      mode: 'all',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    }).filter((match) => match.blockId === 'legacy-resource-1')
+
+    expect(matches.some((match) => match.kind === 'text')).toBe(false)
+    expect(matches).toEqual([
+      expect.objectContaining({
+        kind: 'knowledge-base',
+        rawValue: 'kb-legacy',
+      }),
+    ])
+  })
+
+  it('indexes workspace file uploads as resource matches by visible file name', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['file-upload-1'] = {
+      id: 'file-upload-1',
+      type: 'custom',
+      name: 'File Upload Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        file: {
+          id: 'file',
+          type: 'file-upload',
+          value: {
+            name: 'violet_polaris.csv',
+            path: '/workspace/ws-1/violet-key',
+            key: 'violet-key',
+            size: 42,
+            type: 'text/csv',
+          },
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'violet',
+      mode: 'all',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'file', title: 'File', type: 'file-upload' }],
+        },
+      },
+    }).filter((match) => match.blockId === 'file-upload-1')
+
+    expect(matches.some((match) => match.kind === 'text')).toBe(false)
+    expect(matches).toEqual([
+      expect.objectContaining({
+        kind: 'file',
+        rawValue: 'violet-key',
+        searchText: 'violet_polaris.csv',
+      }),
+    ])
+  })
+
+  it('attaches selector context for workflow selectors', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['workflow-1'] = {
+      id: 'workflow-1',
+      type: 'workflow',
+      name: 'Workflow Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        workflowId: {
+          id: 'workflowId',
+          type: 'workflow-selector',
+          value: 'child-workflow-1',
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'child',
+      mode: 'resource',
+      workspaceId: 'workspace-1',
+      workflowId: 'current-workflow-1',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        workflow: {
+          subBlocks: [
+            {
+              id: 'workflowId',
+              title: 'Select Workflow',
+              type: 'workflow-selector',
+              selectorKey: 'sim.workflows',
+            },
+          ],
+        },
+      },
+    }).filter((match) => match.blockId === 'workflow-1')
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        kind: 'workflow',
+        rawValue: 'child-workflow-1',
+        resource: expect.objectContaining({
+          selectorKey: 'sim.workflows',
+          selectorContext: expect.objectContaining({
+            workspaceId: 'workspace-1',
+            workflowId: 'current-workflow-1',
+            excludeWorkflowId: 'current-workflow-1',
+          }),
+        }),
+      }),
+    ])
+  })
+
   it('captures selector context for selector-backed resources', () => {
     const workflow = createSearchReplaceWorkflowFixture()
 
