@@ -140,10 +140,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const setActiveTab = useCallback(
     (tab: PanelTab) => {
       void setActiveTabRaw(tab)
-      // Drop the pre-hydration data attribute once React owns visibility.
-      if (typeof document !== 'undefined') {
-        document.documentElement.removeAttribute('data-panel-active-tab')
-      }
     },
     [setActiveTabRaw]
   )
@@ -455,6 +451,12 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
    */
   useEffect(() => {
     setHasHydrated(true)
+    // The blocking script in layout.tsx pins this attribute pre-hydration to
+    // hide inactive tabs via CSS. Once React owns visibility, drop it so the
+    // CSS `!important` rules don't fight React's className-based toggling.
+    if (typeof document !== 'undefined') {
+      document.documentElement.removeAttribute('data-panel-active-tab')
+    }
   }, [setHasHydrated])
 
   useEffect(() => {
