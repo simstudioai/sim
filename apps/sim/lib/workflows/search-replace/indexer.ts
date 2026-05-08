@@ -1,5 +1,6 @@
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import {
+  getResourceKindForSubBlock,
   matchesSearchText,
   parseInlineReferences,
   parseStructuredResourceReferences,
@@ -66,8 +67,7 @@ const STRUCTURED_METADATA_LEAF_KEYS = new Set(['id', 'collapsed'])
 
 function isSearchableLeafPath(path: Array<string | number>): boolean {
   const lastSegment = path.at(-1)
-  const parentSegment = path.at(-2)
-  if (typeof parentSegment !== 'number' || typeof lastSegment !== 'string') return true
+  if (typeof lastSegment !== 'string') return true
   return !STRUCTURED_METADATA_LEAF_KEYS.has(lastSegment)
 }
 
@@ -254,8 +254,9 @@ export function indexWorkflowSearchMatches(
         subBlockId
       const value = subBlockState?.value
       const stringLeaves = getSearchableStringLeaves(value)
+      const structuredResourceKind = getResourceKindForSubBlock(subBlockConfig)
 
-      if (mode !== 'resource') {
+      if (mode !== 'resource' && !structuredResourceKind) {
         for (const leaf of stringLeaves) {
           const leafEditable = editable && typeof leaf.originalValue === 'string'
           addTextMatches({

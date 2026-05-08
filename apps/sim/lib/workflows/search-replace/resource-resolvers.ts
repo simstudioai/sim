@@ -98,17 +98,11 @@ export function workflowSearchMatchMatchesQuery(
   if (match.kind === 'text') return true
 
   const normalize = (value: string) => (caseSensitive ? value : value.toLowerCase())
-  const searchable = [
-    match.displayLabel,
-    match.rawValue,
-    match.searchText,
-    match.fieldTitle,
-    match.blockName,
-    match.resource?.kind,
-    match.resource?.selectorKey,
-  ]
-    .filter(Boolean)
-    .join(' ')
+  const searchable =
+    match.resource?.kind === 'workflow-reference' || match.resource?.kind === 'environment'
+      ? [match.displayLabel, match.rawValue, match.searchText, match.fieldTitle, match.blockName]
+      : [match.displayLabel, match.fieldTitle, match.blockName]
+  const searchableText = searchable.filter(Boolean).join(' ')
 
-  return normalize(searchable).includes(normalize(trimmedQuery))
+  return normalize(searchableText).includes(normalize(trimmedQuery))
 }

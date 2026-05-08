@@ -34,14 +34,30 @@ describe('indexWorkflowSearchMatches', () => {
   it('does not index internal row metadata in structured subblock values', () => {
     const workflow = createSearchReplaceWorkflowFixture()
 
-    const matches = indexWorkflowSearchMatches({
+    const rowMatches = indexWorkflowSearchMatches({
       workflow,
       query: 'row-1',
       mode: 'text',
       blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
     })
+    workflow.blocks['api-1'].subBlocks.body.value = {
+      filtersById: {
+        'filter-1': {
+          id: 'filter-2',
+          collapsed: false,
+          value: '',
+        },
+      },
+    }
+    const objectMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'filter-2',
+      mode: 'text',
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
 
-    expect(matches).toEqual([])
+    expect(rowMatches).toEqual([])
+    expect(objectMatches).toEqual([])
   })
 
   it('indexes non-string scalar values as searchable but not editable', () => {
@@ -206,6 +222,63 @@ describe('indexWorkflowSearchMatches', () => {
       workflowSearchMatchMatchesQuery(
         { ...knowledgeMatch!, displayLabel: 'Test LMFAO' },
         'Test LMFAO'
+      )
+    ).toBe(true)
+  })
+
+  it('does not match opaque structured resource ids during display-label filtering', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['knowledge-1'].subBlocks.knowledgeBaseIds.value = 'kb-2-opaque-id'
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: '2',
+      mode: 'all',
+      includeResourceMatchesWithoutQuery: true,
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
+    const knowledgeMatch = matches.find(
+      (match) => match.kind === 'knowledge-base' && match.rawValue === 'kb-2-opaque-id'
+    )
+
+    expect(knowledgeMatch).toBeDefined()
+    expect(
+      workflowSearchMatchMatchesQuery({ ...knowledgeMatch!, displayLabel: 'Support Articles' }, '2')
+    ).toBe(false)
+    expect(
+      workflowSearchMatchMatchesQuery(
+        { ...knowledgeMatch!, displayLabel: 'Support Articles 2' },
+        '2'
+      )
+    ).toBe(true)
+  })
+
+  it('does not index structured resource ids as plain text matches', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['knowledge-1'].subBlocks.knowledgeBaseIds.value = 'kb-2-opaque-id'
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: '2',
+      mode: 'all',
+      includeResourceMatchesWithoutQuery: true,
+      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+    })
+
+    expect(
+      matches.some(
+        (match) =>
+          match.kind === 'text' &&
+          match.blockId === 'knowledge-1' &&
+          match.subBlockId === 'knowledgeBaseIds'
+      )
+    ).toBe(false)
+    expect(
+      matches.some(
+        (match) =>
+          match.kind === 'knowledge-base' &&
+          match.blockId === 'knowledge-1' &&
+          match.subBlockId === 'knowledgeBaseIds'
       )
     ).toBe(true)
   })
