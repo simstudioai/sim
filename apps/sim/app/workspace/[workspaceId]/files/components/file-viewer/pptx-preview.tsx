@@ -258,9 +258,6 @@ export const PptxPreview = memo(function PptxPreview({
   return (
     <div className='flex-1 overflow-y-auto bg-[var(--surface-1)] p-[24px]'>
       <div className='mx-auto flex max-w-[960px] flex-col gap-[16px]'>
-        <p className='text-center text-[11px] text-[var(--text-3)]'>
-          Preview is approximate — download to view in PowerPoint or Keynote for exact rendering.
-        </p>
         {slides.map((src, i) => (
           <img
             key={i}
