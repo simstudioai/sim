@@ -94,11 +94,14 @@ export const netlifyHandler: WebhookProviderHandler = {
   },
 
   extractIdempotencyId(body: unknown) {
-    const id = (body as Record<string, unknown>)?.id
+    const obj = body as Record<string, unknown> | undefined
+    const id = obj?.id
     if (id === undefined || id === null || id === '') {
       return null
     }
-    return `netlify:${String(id)}`
+    const state = typeof obj?.state === 'string' ? obj.state : ''
+    const locked = obj?.locked === true ? '1' : '0'
+    return `netlify:${String(id)}:${state}:${locked}`
   },
 
   async formatInput(ctx: FormatInputContext): Promise<FormatInputResult> {
