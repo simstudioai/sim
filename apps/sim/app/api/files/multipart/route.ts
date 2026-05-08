@@ -158,6 +158,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               { status: 413 }
             )
           }
+        } else if (context === 'mothership') {
+          const { generateWorkspaceFileKey } = await import(
+            '@/lib/uploads/contexts/workspace/workspace-file-manager'
+          )
+          customKey = generateWorkspaceFileKey(workspaceId, fileName)
+        } else if (context === 'execution') {
+          const workflowId = (data as { workflowId?: unknown }).workflowId
+          const executionId = (data as { executionId?: unknown }).executionId
+          if (typeof workflowId !== 'string' || !workflowId.trim()) {
+            return NextResponse.json(
+              { error: 'workflowId is required for execution uploads' },
+              { status: 400 }
+            )
+          }
+          if (typeof executionId !== 'string' || !executionId.trim()) {
+            return NextResponse.json(
+              { error: 'executionId is required for execution uploads' },
+              { status: 400 }
+            )
+          }
+          const { generateExecutionFileKey } = await import(
+            '@/lib/uploads/contexts/execution/utils'
+          )
+          customKey = generateExecutionFileKey({ workspaceId, workflowId, executionId }, fileName)
         }
 
         let uploadId: string

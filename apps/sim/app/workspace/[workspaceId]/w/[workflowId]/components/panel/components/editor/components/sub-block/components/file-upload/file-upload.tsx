@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
@@ -12,7 +13,11 @@ import { fileDeleteContract } from '@/lib/api/contracts/storage-transfer'
 import { cn } from '@/lib/core/utils/cn'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import {
+  useUploadWorkspaceFile,
+  useWorkspaceFiles,
+  workspaceFilesKeys,
+} from '@/hooks/queries/workspace-files'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -165,6 +170,9 @@ export function FileUpload({
     refetch: refetchWorkspaceFiles,
   } = useWorkspaceFiles(isPreview ? '' : workspaceId)
 
+  const uploadFileMutation = useUploadWorkspaceFile()
+  const queryClient = useQueryClient()
+
   const value = isPreview ? previewValue : storeValue
 
   /**
@@ -310,58 +318,25 @@ export function FileUpload({
 
       for (const file of validFiles) {
         try {
-          const formData = new FormData()
-          formData.append('file', file)
-          formData.append('context', 'workspace')
-
-          if (workspaceId) {
-            formData.append('workspaceId', workspaceId)
-          }
-
-          // boundary-raw-fetch: multipart/form-data upload (FileUpload boundary), incompatible with requestJson which JSON-stringifies bodies
-          const response = await fetch('/api/files/upload', {
-            method: 'POST',
-            body: formData,
+          const data = await uploadFileMutation.mutateAsync({
+            workspaceId,
+            file,
+            skipToast: true,
+            skipInvalidation: true,
           })
 
-          const data = await response.json()
-
-          if (!response.ok) {
-            const errorMessage =
-              data.message || data.error || `Failed to upload file: ${response.status}`
-            uploadErrors.push(`${file.name}: ${errorMessage}`)
-
-            setUploadError(errorMessage)
-
-            if (data.isDuplicate || response.status === 409) {
-              setTimeout(() => setUploadError(null), 5000)
-            }
-            continue
-          }
-
-          if (data.success === false) {
-            const errorMessage = data.error || 'Upload failed'
-            uploadErrors.push(`${file.name}: ${errorMessage}`)
-
-            setUploadError(errorMessage)
-
-            if (data.isDuplicate) {
-              setTimeout(() => setUploadError(null), 5000)
-            }
-            continue
-          }
-
           uploadedFiles.push({
-            name: file.name,
-            path: data.file?.url || data.url, // Workspace: data.file.url, Non-workspace: data.url
-            key: data.file?.key || data.key, // Storage key for proper file access
-            size: file.size,
-            type: file.type,
+            name: data.file.name,
+            path: data.file.url,
+            key: data.file.key,
+            size: data.file.size,
+            type: data.file.type,
           })
         } catch (error) {
           logger.error(`Error uploading ${file.name}:`, error)
           const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           uploadErrors.push(`${file.name}: ${errorMessage}`)
+          setUploadError(errorMessage)
         }
       }
 
@@ -377,6 +352,7 @@ export function FileUpload({
 
         if (workspaceId) {
           void refetchWorkspaceFiles()
+          void queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
         }
 
         if (uploadedFiles.length === 1) {
