@@ -19,6 +19,7 @@ import type {
   ChatMessage,
   ChatMessageAttachment,
   ChatMessageContext,
+  ContentBlock,
   FileAttachmentForApi,
   MothershipResource,
   QueuedMessage,
@@ -80,6 +81,8 @@ const LAYOUT_STYLES = {
   },
 } as const
 
+const EMPTY_BLOCKS: ContentBlock[] = []
+
 interface UserMessageRowProps {
   content: string
   contexts?: ChatMessageContext[]
@@ -133,7 +136,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   onOptionSelect,
   onWorkspaceResourceSelect,
 }: AssistantMessageRowProps) {
-  const blocks = message.contentBlocks ?? []
+  const blocks = message.contentBlocks ?? EMPTY_BLOCKS
   const hasAnyBlocks = blocks.length > 0
   const trimmedContent = message.content?.trim() ?? ''
 
