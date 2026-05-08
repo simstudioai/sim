@@ -872,7 +872,43 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
         body: { workspaceId, columnName, updates },
       })
     },
-    onError: (error) => {
+    onMutate: async ({ columnName, updates }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        const lower = columnName.toLowerCase()
+        const nextColumns = previousDetail.schema.columns.map((c) =>
+          c.name.toLowerCase() === lower ? { ...c, ...updates } : c
+        )
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previousDetail,
+          schema: { ...previousDetail.schema, columns: nextColumns },
+        })
+      }
+
+      const newName = (updates as { name?: string }).name
+      const rowSnapshots =
+        typeof newName === 'string' && newName.length > 0 && newName !== columnName
+          ? await snapshotAndMutateRows(queryClient, tableId, (row) => {
+              const lower = columnName.toLowerCase()
+              const matchKey = Object.keys(row.data).find((k) => k.toLowerCase() === lower)
+              if (!matchKey) return null
+              const { [matchKey]: value, ...rest } = row.data
+              return { ...row, data: { ...rest, [newName]: value } }
+            })
+          : []
+
+      return { previousDetail, rowSnapshots }
+    },
+    onError: (error, _vars, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
+      if (context?.rowSnapshots) {
+        for (const [key, data] of context.rowSnapshots) {
+          queryClient.setQueryData(key, data)
+        }
+      }
       // Validation errors are surfaced as inline FieldErrors by the caller.
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
@@ -1151,6 +1187,52 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
         params: { tableId },
         body: { workspaceId, columnName },
       })
+    },
+    onMutate: async (columnName) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.detail(tableId) })
+
+      const lower = columnName.toLowerCase()
+      const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
+      if (previousDetail) {
+        const nextColumns = previousDetail.schema.columns.filter(
+          (c) => c.name.toLowerCase() !== lower
+        )
+        const prevWidths = previousDetail.metadata?.columnWidths
+        const nextMetadata = prevWidths
+          ? {
+              ...previousDetail.metadata,
+              columnWidths: Object.fromEntries(
+                Object.entries(prevWidths).filter(([k]) => k.toLowerCase() !== lower)
+              ),
+            }
+          : previousDetail.metadata
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
+          ...previousDetail,
+          schema: { ...previousDetail.schema, columns: nextColumns },
+          metadata: nextMetadata,
+        })
+      }
+
+      const rowSnapshots = await snapshotAndMutateRows(queryClient, tableId, (row) => {
+        const matchKey = Object.keys(row.data).find((k) => k.toLowerCase() === lower)
+        if (!matchKey) return null
+        const { [matchKey]: _removed, ...rest } = row.data
+        return { ...row, data: rest }
+      })
+
+      return { previousDetail, rowSnapshots }
+    },
+    onError: (error, _columnName, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tableKeys.detail(tableId), context.previousDetail)
+      }
+      if (context?.rowSnapshots) {
+        for (const [key, data] of context.rowSnapshots) {
+          queryClient.setQueryData(key, data)
+        }
+      }
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
