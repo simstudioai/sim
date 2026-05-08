@@ -55,8 +55,9 @@ export const docxGenerateTask = defineSandboxTask<SandboxTaskInput>({
     globalThis.addImage = async function addImage(fileId, opts) {
       const dataUri = await globalThis.getFileBase64(fileId);
       const comma = dataUri.indexOf(',');
-      const header = comma !== -1 ? dataUri.slice(0, comma) : '';
-      const base64 = comma !== -1 ? dataUri.slice(comma + 1) : dataUri;
+      if (comma === -1) throw new Error('addImage: invalid data URI (no comma separator)');
+      const header = dataUri.slice(0, comma);
+      const base64 = dataUri.slice(comma + 1);
       const mime = header.split(';')[0].replace('data:', '') || 'image/png';
       const extMap = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/gif': 'gif', 'image/bmp': 'bmp', 'image/svg+xml': 'svg' };
       const ext = extMap[mime];
