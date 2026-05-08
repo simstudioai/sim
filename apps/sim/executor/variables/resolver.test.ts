@@ -99,6 +99,57 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
+  it('breaks JavaScript string literals around quoted block references', () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: "const rawEmail = '<Producer.result>';\nreturn rawEmail" },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      "const rawEmail = '' + JSON.stringify(globalThis[\"__blockRef_0\"]) + '';\nreturn rawEmail"
+    )
+    expect(result.displayInputs.code).toBe('const rawEmail = \'"hello world"\';\nreturn rawEmail')
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
+  it('uses template interpolation for JavaScript template literal block references', () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'return `value: <Producer.result>`' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      'return `value: ${JSON.stringify(globalThis["__blockRef_0"])}`'
+    )
+    expect(result.displayInputs.code).toBe('return `value: "hello world"`')
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
+  it('breaks Python string literals around quoted block references', () => {
+    const { block, ctx, resolver } = createResolver('python')
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: "raw_email = '<Producer.result>'\nreturn raw_email" },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      "raw_email = '' + json.dumps(globals()[\"__blockRef_0\"]) + ''\nreturn raw_email"
+    )
+    expect(result.displayInputs.code).toBe('raw_email = \'"hello world"\'\nreturn raw_email')
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
   it('uses separate Python context variables for repeated mutable references', () => {
     const { block, ctx, resolver } = createResolver('python')
 

@@ -24,6 +24,7 @@ export const FUNCTION_BLOCK_DISPLAY_CODE_KEY = '_runtimeDisplayCode'
 const logger = createLogger('VariableResolver')
 
 type ShellQuoteContext = 'single' | 'double' | null
+type CodeStringQuoteContext = ShellQuoteContext | 'template'
 
 export class VariableResolver {
   private resolvers: Resolver[]
@@ -351,14 +352,29 @@ export class VariableResolver {
     value: unknown
   ): string {
     if (language === 'python') {
-      return `globals()[${JSON.stringify(varName)}]`
+      const expression = `globals()[${JSON.stringify(varName)}]`
+      const quoteContext = this.getCodeStringQuoteContext(template, matchIndex)
+      if (quoteContext === 'single' || quoteContext === 'double') {
+        const quote = quoteContext === 'single' ? "'" : '"'
+        return `${quote} + json.dumps(${expression}) + ${quote}`
+      }
+      return expression
     }
 
     if (language === 'shell') {
       return this.formatShellContextVariableReference(varName, template, matchIndex, value)
     }
 
-    return `globalThis[${JSON.stringify(varName)}]`
+    const expression = `globalThis[${JSON.stringify(varName)}]`
+    const quoteContext = this.getCodeStringQuoteContext(template, matchIndex)
+    if (quoteContext === 'template') {
+      return `\${JSON.stringify(${expression})}`
+    }
+    if (quoteContext === 'single' || quoteContext === 'double') {
+      const quote = quoteContext === 'single' ? "'" : '"'
+      return `${quote} + JSON.stringify(${expression}) + ${quote}`
+    }
+    return expression
   }
 
   private formatDisplayValueForCodeContext(
@@ -395,6 +411,27 @@ export class VariableResolver {
       return String(value)
     }
     return JSON.stringify(value)
+  }
+
+  private getCodeStringQuoteContext(template: string, index: number): CodeStringQuoteContext {
+    let quoteContext: CodeStringQuoteContext = null
+
+    for (let i = 0; i < index; i++) {
+      const char = template[i]
+      if (quoteContext !== null && char === '\\') {
+        i++
+        continue
+      }
+      if (char === "'" && quoteContext !== 'double' && quoteContext !== 'template') {
+        quoteContext = quoteContext === 'single' ? null : 'single'
+      } else if (char === '"' && quoteContext !== 'single' && quoteContext !== 'template') {
+        quoteContext = quoteContext === 'double' ? null : 'double'
+      } else if (char === '`' && quoteContext !== 'single' && quoteContext !== 'double') {
+        quoteContext = quoteContext === 'template' ? null : 'template'
+      }
+    }
+
+    return quoteContext
   }
 
   private formatShellContextVariableReference(
