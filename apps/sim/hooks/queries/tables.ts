@@ -4,7 +4,7 @@
  * React Query hooks for managing user-defined tables.
  */
 
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   type InfiniteData,
@@ -70,20 +70,6 @@ import type {
   WorkflowGroupOutput,
 } from '@/lib/table'
 import { areOutputsFilled, optimisticallyScheduleNewlyEligibleGroups } from '@/lib/table/deps'
-
-/** Short poll to surface running → completed transitions from the server without a dedicated realtime channel. */
-const ROWS_POLL_INTERVAL_WHILE_RUNNING_MS = 1500
-
-function hasRunningGroupExecution(rows: TableRow[] | undefined): boolean {
-  if (!rows) return false
-  for (const row of rows) {
-    const executions = row.executions ?? {}
-    for (const key in executions) {
-      if (isOptimisticInFlight(executions[key])) return true
-    }
-  }
-  return false
-}
 
 /**
  * Shallow-equality on the fields the renderer reads from a row. Row data is
@@ -326,13 +312,6 @@ export function useTableRows({
     enabled: Boolean(workspaceId && tableId) && enabled,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
-    refetchInterval: (query) => {
-      if (queryClient.isMutating() > 0) return false
-      return hasRunningGroupExecution(query.state.data?.rows)
-        ? ROWS_POLL_INTERVAL_WHILE_RUNNING_MS
-        : false
-    },
-    refetchIntervalInBackground: false,
   })
 }
 
@@ -359,7 +338,7 @@ export function useInfiniteTableRows({
   })
   const queryKey = useMemo(() => tableKeys.infiniteRows(tableId, paramsKey), [tableId, paramsKey])
 
-  const query = useInfiniteQuery({
+  return useInfiniteQuery({
     queryKey,
     queryFn: ({ pageParam, signal }) =>
       fetchTableRows({
@@ -380,78 +359,6 @@ export function useInfiniteTableRows({
     enabled: Boolean(workspaceId && tableId) && enabled,
     staleTime: 30 * 1000,
   })
-
-  /**
-   * Per-page polling. Built-in `refetchInterval` would refetch every loaded
-   * page on each tick — wasteful when only one page has running cells.
-   * Instead, walk pages each tick and refetch ONLY the dirty ones, splicing
-   * results back into the cache. Polling stops when no page has in-flight
-   * cells, or while a mutation is running (optimistic-update guard).
-   */
-  useEffect(() => {
-    if (!enabled || !workspaceId || !tableId) return
-    let cancelled = false
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
-    const tick = async () => {
-      if (cancelled) return
-      if (queryClient.isMutating() === 0) {
-        const data = queryClient.getQueryData<InfiniteData<TableRowsResponse, number>>(queryKey)
-        const dirty: number[] = []
-        if (data) {
-          for (let i = 0; i < data.pages.length; i++) {
-            if (hasRunningGroupExecution(data.pages[i].rows)) {
-              dirty.push(data.pageParams[i] ?? i * pageSize)
-            }
-          }
-        }
-        if (dirty.length > 0) {
-          await Promise.all(
-            dirty.map(async (offset) => {
-              try {
-                const fresh = await fetchTableRows({
-                  workspaceId,
-                  tableId,
-                  limit: pageSize,
-                  offset,
-                  filter,
-                  sort,
-                  includeTotal: offset === 0,
-                })
-                if (cancelled) return
-                queryClient.setQueryData<InfiniteData<TableRowsResponse, number>>(
-                  queryKey,
-                  (prev) => {
-                    if (!prev) return prev
-                    const idx = prev.pageParams.indexOf(offset)
-                    if (idx === -1) return prev
-                    const merged = mergePagePreservingIdentity(prev.pages[idx], fresh)
-                    if (merged === prev.pages[idx]) return prev
-                    const nextPages = prev.pages.slice()
-                    nextPages[idx] = merged
-                    return { ...prev, pages: nextPages }
-                  }
-                )
-              } catch {
-                // Transient fetch failure — next tick retries. Don't kill the loop.
-              }
-            })
-          )
-        }
-      }
-      if (cancelled) return
-      // Recursive setTimeout instead of setInterval so a slow tick can't
-      // overlap the next one — out-of-order responses would otherwise let
-      // stale data overwrite fresh.
-      timeoutId = setTimeout(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
-    }
-    timeoutId = setTimeout(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
-    return () => {
-      cancelled = true
-      if (timeoutId !== null) clearTimeout(timeoutId)
-    }
-  }, [enabled, workspaceId, tableId, pageSize, filter, sort, queryClient, queryKey])
-
-  return query
 }
 
 /**

@@ -10,6 +10,8 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { appendTableEvent } from '@/lib/table/events'
 import type { RowData, RowExecutionMetadata, RowExecutions, WorkflowGroup } from '@/lib/table/types'
 
 const logger = createLogger('WorkflowCellWrite')
@@ -113,6 +115,30 @@ export async function writeWorkflowGroupState(
     )
     return 'skipped'
   }
+
+  // Append to the table event buffer so live SSE consumers see the
+  // transition. Fire-and-forget — appendTableEvent never throws, but the
+  // try/catch is defensive: a Redis blip must not fail a successful DB write.
+  try {
+    const dataPatch = payload.dataPatch
+    const hasOutputs = dataPatch && Object.keys(dataPatch).length > 0
+    void appendTableEvent({
+      kind: 'cell',
+      tableId,
+      rowId,
+      groupId,
+      status: payload.executionState.status,
+      executionId: payload.executionState.executionId ?? null,
+      jobId: payload.executionState.jobId ?? null,
+      error: payload.executionState.error ?? null,
+      ...(hasOutputs ? { outputs: dataPatch } : {}),
+    })
+  } catch (err) {
+    logger.warn(`appendTableEvent failed for table=${tableId} row=${rowId} group=${groupId}`, {
+      error: toError(err).message,
+    })
+  }
+
   return 'wrote'
 }
 
