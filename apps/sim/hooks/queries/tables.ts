@@ -225,7 +225,6 @@ export function useTableRows({
   includeTotal,
   enabled = true,
 }: TableRowsParams & { enabled?: boolean }) {
-  const queryClient = useQueryClient()
   const paramsKey = JSON.stringify({
     limit,
     offset,
@@ -259,7 +258,6 @@ export function useInfiniteTableRows({
   sort,
   enabled = true,
 }: InfiniteTableRowsParams) {
-  const queryClient = useQueryClient()
   const paramsKey = JSON.stringify({
     pageSize,
     filter: filter ?? null,
@@ -1022,18 +1020,18 @@ function isInfiniteRowsCache(value: unknown): value is InfiniteRowsCache {
 }
 
 /**
- * Walks every cached row-list under `tableId`, applies `transform` to each row,
- * and snapshots the originals for rollback.
+ * Walks every cached query under `rowsRoot(tableId)` and applies `transform`
+ * to each row. Handles both cache shapes — the single-page `TableRowsResponse`
+ * and the infinite-query `{ pages, pageParams }`. `transform(row)` returns
+ * the next row to write, or `null` to leave it.
  *
- * Handles both cache shapes: the single-page `TableRowsResponse` and the
- * infinite-query `{ pages, pageParams }`. `transform(row)` returns the next
- * row to write, or `null` to leave it. The common pattern is "matching cells
- * flip state, others are skipped".
+ * Returns the list of `[queryKey, prior data]` entries so optimistic-update
+ * callers can roll back. SSE patchers can ignore the return value.
+ *
+ * `cancelInFlight` defaults to true (the optimistic-update contract) but SSE
+ * patchers pass `false` so live cell updates don't kick the row query off the
+ * network.
  */
-/** Walks every cached query under `rowsRoot(tableId)` and applies `transform`
- *  to each row. Transform returns the new row or `null` to skip. Returns the
- *  list of [queryKey, prior data] entries so optimistic-update callers can
- *  roll back. SSE patchers can ignore the return value. */
 export async function snapshotAndMutateRows(
   queryClient: ReturnType<typeof useQueryClient>,
   tableId: string,
