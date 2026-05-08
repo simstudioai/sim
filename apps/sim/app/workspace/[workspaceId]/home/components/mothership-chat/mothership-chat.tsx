@@ -1,6 +1,6 @@
 'use client'
 
-import { useLayoutEffect, useRef } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
@@ -17,6 +17,9 @@ import {
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
 import type {
   ChatMessage,
+  ChatMessageAttachment,
+  ChatMessageContext,
+  ContentBlock,
   FileAttachmentForApi,
   MothershipResource,
   QueuedMessage,
@@ -78,6 +81,100 @@ const LAYOUT_STYLES = {
   },
 } as const
 
+const EMPTY_BLOCKS: ContentBlock[] = []
+
+interface UserMessageRowProps {
+  content: string
+  contexts?: ChatMessageContext[]
+  attachments?: ChatMessageAttachment[]
+  rowClassName: string
+  bubbleClassName: string
+  attachmentWidthClassName: string
+}
+
+const UserMessageRow = memo(function UserMessageRow({
+  content,
+  contexts,
+  attachments,
+  rowClassName,
+  bubbleClassName,
+  attachmentWidthClassName,
+}: UserMessageRowProps) {
+  const hasAttachments = Boolean(attachments?.length)
+  return (
+    <div className={rowClassName}>
+      {hasAttachments && (
+        <ChatMessageAttachments
+          attachments={attachments ?? []}
+          align='end'
+          className={attachmentWidthClassName}
+        />
+      )}
+      <div className={bubbleClassName}>
+        <UserMessageContent content={content} contexts={contexts} />
+      </div>
+    </div>
+  )
+})
+
+interface AssistantMessageRowProps {
+  message: ChatMessage
+  isStreaming: boolean
+  precedingUserContent?: string
+  chatId?: string
+  rowClassName: string
+  onOptionSelect?: (id: string) => void
+  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+}
+
+const AssistantMessageRow = memo(function AssistantMessageRow({
+  message,
+  isStreaming,
+  precedingUserContent,
+  chatId,
+  rowClassName,
+  onOptionSelect,
+  onWorkspaceResourceSelect,
+}: AssistantMessageRowProps) {
+  const blocks = message.contentBlocks ?? EMPTY_BLOCKS
+  const hasAnyBlocks = blocks.length > 0
+  const trimmedContent = message.content?.trim() ?? ''
+
+  if (!hasAnyBlocks && !trimmedContent && isStreaming) {
+    return <PendingTagIndicator />
+  }
+
+  const hasRenderableAssistant = assistantMessageHasRenderableContent(blocks, message.content ?? '')
+  if (!hasRenderableAssistant && !trimmedContent && !isStreaming) {
+    return null
+  }
+
+  const showActions = !isStreaming && (message.content || hasAnyBlocks)
+
+  return (
+    <div className={rowClassName}>
+      <MessageContent
+        blocks={blocks}
+        fallbackContent={message.content}
+        isStreaming={isStreaming}
+        onOptionSelect={onOptionSelect}
+        onWorkspaceResourceSelect={onWorkspaceResourceSelect}
+      />
+      {showActions && (
+        <div className='mt-2.5'>
+          <MessageActions
+            content={message.content}
+            chatId={chatId}
+            userQuery={precedingUserContent}
+            requestId={message.requestId}
+            messageId={message.id}
+          />
+        </div>
+      )}
+    </div>
+  )
+})
+
 export function MothershipChat({
   messages,
   isSending,
@@ -111,16 +208,30 @@ export function MothershipChat({
   const { staged: stagedMessages, isStaging } = useProgressiveList(messages, stagingKey)
   const stagedMessageCount = stagedMessages.length
   const stagedOffset = messages.length - stagedMessages.length
-  const precedingUserContentByIndex: Array<string | undefined> = []
-  let lastUserContent: string | undefined
-  for (const [index, message] of messages.entries()) {
-    precedingUserContentByIndex[index] = lastUserContent
-    if (message.role === 'user') {
-      lastUserContent = message.content
+  const precedingUserContentByIndex = useMemo(() => {
+    const out: Array<string | undefined> = []
+    let lastUserContent: string | undefined
+    for (const [index, message] of messages.entries()) {
+      out[index] = lastUserContent
+      if (message.role === 'user') lastUserContent = message.content
     }
-  }
+    return out
+  }, [messages])
   const initialScrollDoneRef = useRef(false)
   const userInputRef = useRef<UserInputHandle>(null)
+
+  const onSubmitRef = useRef(onSubmit)
+  const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
+  useEffect(() => {
+    onSubmitRef.current = onSubmit
+    onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
+  }, [onSubmit, onWorkspaceResourceSelect])
+  const stableOnOptionSelect = useCallback((id: string) => {
+    onSubmitRef.current(id)
+  }, [])
+  const stableOnWorkspaceResourceSelect = useCallback((resource: MothershipResource) => {
+    onWorkspaceResourceSelectRef.current?.(resource)
+  }, [])
 
   function handleSendQueuedHead() {
     const topMessage = messageQueue[0]
@@ -164,63 +275,31 @@ export function MothershipChat({
             {stagedMessages.map((msg, localIndex) => {
               const index = stagedOffset + localIndex
               if (msg.role === 'user') {
-                const hasAttachments = Boolean(msg.attachments?.length)
                 return (
-                  <div key={msg.id} className={styles.userRow}>
-                    {hasAttachments && (
-                      <ChatMessageAttachments
-                        attachments={msg.attachments ?? []}
-                        align='end'
-                        className={styles.attachmentWidth}
-                      />
-                    )}
-                    <div className={styles.userBubble}>
-                      <UserMessageContent content={msg.content} contexts={msg.contexts} />
-                    </div>
-                  </div>
+                  <UserMessageRow
+                    key={msg.id}
+                    content={msg.content}
+                    contexts={msg.contexts}
+                    attachments={msg.attachments}
+                    rowClassName={styles.userRow}
+                    bubbleClassName={styles.userBubble}
+                    attachmentWidthClassName={styles.attachmentWidth}
+                  />
                 )
               }
 
-              const hasAnyBlocks = Boolean(msg.contentBlocks?.length)
-              const hasRenderableAssistant = assistantMessageHasRenderableContent(
-                msg.contentBlocks ?? [],
-                msg.content ?? ''
-              )
-              const isLastAssistant = index === messages.length - 1
-              const isThisStreaming = isStreamActive && isLastAssistant
-
-              if (!hasAnyBlocks && !msg.content?.trim() && isThisStreaming) {
-                return <PendingTagIndicator key={msg.id} />
-              }
-
-              if (!hasRenderableAssistant && !msg.content?.trim() && !isThisStreaming) {
-                return null
-              }
-
-              const isLastMessage = index === messages.length - 1
-              const precedingUserContent = precedingUserContentByIndex[index]
-
+              const isLast = index === messages.length - 1
               return (
-                <div key={msg.id} className={styles.assistantRow}>
-                  <MessageContent
-                    blocks={msg.contentBlocks || []}
-                    fallbackContent={msg.content}
-                    isStreaming={isThisStreaming}
-                    onOptionSelect={isLastMessage ? onSubmit : undefined}
-                    onWorkspaceResourceSelect={onWorkspaceResourceSelect}
-                  />
-                  {!isThisStreaming && (msg.content || msg.contentBlocks?.length) && (
-                    <div className='mt-2.5'>
-                      <MessageActions
-                        content={msg.content}
-                        chatId={chatId}
-                        userQuery={precedingUserContent}
-                        requestId={msg.requestId}
-                        messageId={msg.id}
-                      />
-                    </div>
-                  )}
-                </div>
+                <AssistantMessageRow
+                  key={msg.id}
+                  message={msg}
+                  isStreaming={isStreamActive && isLast}
+                  precedingUserContent={precedingUserContentByIndex[index]}
+                  chatId={chatId}
+                  rowClassName={styles.assistantRow}
+                  onOptionSelect={isLast ? stableOnOptionSelect : undefined}
+                  onWorkspaceResourceSelect={stableOnWorkspaceResourceSelect}
+                />
               )
             })}
           </div>
