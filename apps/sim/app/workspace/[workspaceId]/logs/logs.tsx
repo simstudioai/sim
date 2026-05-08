@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { formatDuration } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
+import { parseAsString, useQueryState } from 'nuqs'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Bell,
@@ -280,10 +281,9 @@ export default function Logs() {
     selectedLogId: null,
     isSidebarOpen: false,
   })
-  const [pendingExecutionId, setPendingExecutionId] = useState<string | null>(() =>
-    typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search).get('executionId')
-      : null
+  const [executionIdParam, setExecutionIdParam] = useQueryState(
+    'executionId',
+    parseAsString.withOptions({ history: 'replace' })
   )
 
   const [searchQuery, setSearchQuery] = useState(() => {
@@ -299,6 +299,7 @@ export default function Logs() {
   const logsRef = useRef<WorkflowLogSummary[]>([])
   const selectedLogIndexRef = useRef(-1)
   const selectedLogIdRef = useRef<string | null>(null)
+  const isSidebarOpenRef = useRef(false)
   const shouldScrollIntoViewRef = useRef(false)
   const logsRefetchRef = useRef<() => void>(() => {})
   const activeLogRefetchRef = useRef<() => void>(() => {})
@@ -412,6 +413,7 @@ export default function Logs() {
   logsRef.current = logs
   selectedLogIndexRef.current = selectedLogIndex
   selectedLogIdRef.current = selectedLogId
+  isSidebarOpenRef.current = isSidebarOpen
   logsRefetchRef.current = logsQuery.refetch
   activeLogRefetchRef.current = selectedDetailQuery.refetch
   logsQueryRef.current = {
@@ -420,18 +422,26 @@ export default function Logs() {
     fetchNextPage: logsQuery.fetchNextPage,
   }
 
-  const deepLinkQuery = useLogByExecutionId(workspaceId, pendingExecutionId)
+  const deepLinkQuery = useLogByExecutionId(workspaceId, executionIdParam)
+  const prevExecutionIdParamRef = useRef<string | null>(executionIdParam)
 
   useEffect(() => {
-    if (!pendingExecutionId) return
-    const resolvedId = deepLinkQuery.data?.id
-    if (resolvedId) {
-      dispatch({ type: 'TOGGLE_LOG', logId: resolvedId })
-      setPendingExecutionId(null)
-    } else if (deepLinkQuery.isError) {
-      setPendingExecutionId(null)
+    const prev = prevExecutionIdParamRef.current
+    prevExecutionIdParamRef.current = executionIdParam
+
+    if (!executionIdParam) {
+      if (prev && isSidebarOpenRef.current) {
+        dispatch({ type: 'CLOSE_SIDEBAR' })
+      }
+      return
     }
-  }, [pendingExecutionId, deepLinkQuery.data, deepLinkQuery.isError])
+    const resolvedId = deepLinkQuery.data?.id
+    if (resolvedId && resolvedId !== selectedLogIdRef.current) {
+      dispatch({ type: 'TOGGLE_LOG', logId: resolvedId })
+    } else if (deepLinkQuery.isError) {
+      setExecutionIdParam(null)
+    }
+  }, [executionIdParam, deepLinkQuery.data, deepLinkQuery.isError, setExecutionIdParam])
 
   useEffect(() => {
     const timers = refreshTimersRef.current
@@ -445,31 +455,50 @@ export default function Logs() {
     setStoreSearchQuery(debouncedSearchQuery)
   }, [debouncedSearchQuery, setStoreSearchQuery])
 
-  const handleLogClick = useCallback((rowId: string) => {
-    dispatch({ type: 'TOGGLE_LOG', logId: rowId })
-  }, [])
+  const handleLogClick = useCallback(
+    (rowId: string) => {
+      const isClosing = selectedLogIdRef.current === rowId && isSidebarOpenRef.current
+      dispatch({ type: 'TOGGLE_LOG', logId: rowId })
+      if (isClosing) {
+        setExecutionIdParam(null)
+      } else {
+        const log = logsRef.current.find((l) => l.id === rowId)
+        setExecutionIdParam(log?.executionId ?? null)
+      }
+    },
+    [setExecutionIdParam]
+  )
 
   const handleNavigateNext = useCallback(() => {
     const idx = selectedLogIndexRef.current
     const currentLogs = logsRef.current
     if (idx >= 0 && idx < currentLogs.length - 1) {
+      const next = currentLogs[idx + 1]
       shouldScrollIntoViewRef.current = true
-      dispatch({ type: 'SELECT_LOG', logId: currentLogs[idx + 1].id })
+      dispatch({ type: 'SELECT_LOG', logId: next.id })
+      if (isSidebarOpenRef.current) {
+        setExecutionIdParam(next.executionId ?? null)
+      }
     }
-  }, [])
+  }, [setExecutionIdParam])
 
   const handleNavigatePrev = useCallback(() => {
     const idx = selectedLogIndexRef.current
     if (idx > 0) {
+      const prev = logsRef.current[idx - 1]
       shouldScrollIntoViewRef.current = true
-      dispatch({ type: 'SELECT_LOG', logId: logsRef.current[idx - 1].id })
+      dispatch({ type: 'SELECT_LOG', logId: prev.id })
+      if (isSidebarOpenRef.current) {
+        setExecutionIdParam(prev.executionId ?? null)
+      }
     }
-  }, [])
+  }, [setExecutionIdParam])
 
   const handleCloseSidebar = useCallback(() => {
     dispatch({ type: 'CLOSE_SIDEBAR' })
+    setExecutionIdParam(null)
     activeLogTabRef.current = 'overview'
-  }, [])
+  }, [setExecutionIdParam])
 
   const handleActiveTabChange = useCallback((tab: string) => {
     activeLogTabRef.current = tab
@@ -722,13 +751,20 @@ export default function Logs() {
 
       if (e.key === 'Enter' && selectedLogIdRef.current) {
         e.preventDefault()
+        const willOpen = !isSidebarOpenRef.current
         dispatch({ type: 'TOGGLE_SIDEBAR' })
+        if (willOpen) {
+          const log = logsRef.current.find((l) => l.id === selectedLogIdRef.current)
+          setExecutionIdParam(log?.executionId ?? null)
+        } else {
+          setExecutionIdParam(null)
+        }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleNavigateNext, handleNavigatePrev])
+  }, [handleNavigateNext, handleNavigatePrev, setExecutionIdParam])
 
   const handleCloseContextMenu = useCallback(() => setContextMenuOpen(false), [])
   const handleOpenNotificationSettings = useCallback(() => setIsNotificationSettingsOpen(true), [])

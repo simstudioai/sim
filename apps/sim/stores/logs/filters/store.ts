@@ -19,6 +19,17 @@ const updateURL = (params: URLSearchParams) => {
   window.history.replaceState({}, '', url)
 }
 
+const FILTER_PARAM_KEYS = [
+  'timeRange',
+  'startDate',
+  'endDate',
+  'level',
+  'workflowIds',
+  'folderIds',
+  'triggers',
+  'search',
+] as const
+
 const DEFAULT_TIME_RANGE: TimeRange = 'All time'
 
 const parseTimeRangeFromURL = (value: string | null): TimeRange => {
@@ -274,7 +285,10 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   syncWithURL: () => {
     const { timeRange, startDate, endDate, level, workflowIds, folderIds, triggers, searchQuery } =
       get()
-    const params = new URLSearchParams()
+    const params = getSearchParams()
+    for (const key of FILTER_PARAM_KEYS) {
+      params.delete(key)
+    }
 
     if (timeRange !== DEFAULT_TIME_RANGE) {
       params.set('timeRange', timeRangeToURL(timeRange))

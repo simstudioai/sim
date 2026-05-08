@@ -20,7 +20,7 @@ import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persiste
 import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { Versions } from './components'
+import { Logs, Versions } from './components'
 
 const logger = createLogger('GeneralDeploy')
 
@@ -226,6 +226,13 @@ export function GeneralDeploy({
             onPromoteToLive={handlePromoteToLive}
             onLoadDeployment={handleLoadDeployment}
           />
+        </div>
+
+        <div>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+            Logs
+          </Label>
+          <Logs workflowId={workflowId} />
         </div>
       </div>
 
