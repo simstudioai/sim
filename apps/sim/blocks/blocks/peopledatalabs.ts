@@ -515,13 +515,18 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
         if (op === 'pdl_clean_location') {
           if (params.clean_location_input !== undefined) {
             result.location = params.clean_location_input
+          } else if (params.location !== undefined) {
+            result.location = params.location
           }
         }
 
         if (op === 'pdl_clean_school') {
           if (params.school_name !== undefined) result.name = params.school_name
+          else if (params.name !== undefined) result.name = params.name
           if (params.school_website !== undefined) result.website = params.school_website
+          else if (params.website !== undefined) result.website = params.website
           if (params.school_profile !== undefined) result.profile = params.school_profile
+          else if (params.profile !== undefined) result.profile = params.profile
         }
 
         return result
