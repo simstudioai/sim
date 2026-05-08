@@ -99,6 +99,11 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
           'Apollo account bulk update with object-form account_attributes requires account_ids to identify which accounts to update.'
         )
       }
+      if (body.account_ids && Array.isArray(body.account_attributes)) {
+        throw new Error(
+          'Apollo account bulk update cannot combine account_ids with array-form account_attributes. Use account_ids with name/owner_id (or object-form account_attributes), or use array-form account_attributes alone (each entry carries its own id).'
+        )
+      }
       if (params.async !== undefined) body.async = params.async
       return body
     },
