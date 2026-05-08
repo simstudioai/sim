@@ -58,11 +58,13 @@ export const docxGenerateTask = defineSandboxTask<SandboxTaskInput>({
       const header = comma !== -1 ? dataUri.slice(0, comma) : '';
       const base64 = comma !== -1 ? dataUri.slice(comma + 1) : dataUri;
       const mime = header.split(';')[0].replace('data:', '') || 'image/png';
-      const ext = mime.includes('png') ? 'png' : mime.includes('gif') ? 'gif' : mime.includes('bmp') ? 'bmp' : 'jpg';
+      const extMap = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/gif': 'gif', 'image/bmp': 'bmp', 'image/svg+xml': 'svg' };
+      const ext = extMap[mime];
+      if (!ext) throw new Error('addImage: unsupported image type "' + mime + '". Use PNG, JPEG, GIF, BMP, or SVG.');
       if (!globalThis.Buffer) throw new Error('addImage: Buffer polyfill missing — ensure docx bundle is loaded');
       return new globalThis.docx.ImageRun(Object.assign({
         data: globalThis.Buffer.from(base64, 'base64'),
-        transformation: { width: (opts && opts.width) || 200, height: (opts && opts.height) || 200 },
+        transformation: { width: opts?.width ?? 200, height: opts?.height ?? 200 },
         type: ext,
       }, opts || {}));
     };
