@@ -201,6 +201,17 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
       },
       mode: 'advanced',
     },
+    {
+      id: 'webhook_url',
+      title: 'Phone Reveal Webhook URL',
+      type: 'short-input',
+      placeholder: 'https://your-app.com/apollo-phone-webhook',
+      condition: {
+        field: 'operation',
+        value: ['people_enrich', 'people_bulk_enrich'],
+      },
+      mode: 'advanced',
+    },
 
     // Bulk Enrich Fields
     {
