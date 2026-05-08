@@ -460,15 +460,17 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
           if (params.company_profile !== undefined) result.profile = params.company_profile
         }
 
-        // Autocomplete: use autocomplete_size, ignore stale search size
+        // `size` is shared by search and autocomplete subBlocks; reset and
+        // repopulate per-operation so a stale search size can't bleed into an
+        // autocomplete request (or vice versa) or into operations that don't
+        // accept `size` at all.
+        result.size = undefined
         if (op === 'pdl_autocomplete') {
           if (params.autocomplete_size !== undefined) {
             result.size = Number(params.autocomplete_size)
-          } else {
-            result.size = undefined
           }
-        } else if (params.size !== undefined) {
-          result.size = Number(params.size)
+        } else if (op === 'pdl_person_search' || op === 'pdl_company_search') {
+          if (params.size !== undefined) result.size = Number(params.size)
         }
 
         // min_likelihood is only honored by enrich endpoints
