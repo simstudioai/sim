@@ -228,6 +228,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
       type: 'short-input',
       placeholder: 'engin',
       condition: { field: 'operation', value: 'pdl_autocomplete' },
+      required: { field: 'operation', value: 'pdl_autocomplete' },
     },
     {
       id: 'autocomplete_size',
@@ -453,13 +454,16 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
           else if (params.name !== undefined) result.name = params.name
           if (params.website !== undefined) result.website = params.website
           if (params.company_profile !== undefined) result.profile = params.company_profile
+          else if (params.profile !== undefined) result.profile = params.profile
           if (params.company_location !== undefined) result.location = params.company_location
+          else if (params.location !== undefined) result.location = params.location
         }
         if (op === 'pdl_clean_company') {
           if (params.company_name !== undefined) result.name = params.company_name
           else if (params.name !== undefined) result.name = params.name
           if (params.website !== undefined) result.website = params.website
           if (params.company_profile !== undefined) result.profile = params.company_profile
+          else if (params.profile !== undefined) result.profile = params.profile
         }
 
         // `size` is shared by search and autocomplete subBlocks; reset and
