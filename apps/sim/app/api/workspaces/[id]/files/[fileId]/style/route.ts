@@ -16,9 +16,9 @@ const logger = createLogger('WorkspaceFileStyleAPI')
 
 /**
  * GET /api/workspaces/[id]/files/[fileId]/style
- * Extract a compact JSON style summary from an uploaded .docx or .pptx file.
- * Uses OOXML theme XML to return theme colors, font pair, and named styles.
- * Only works on binary OOXML files (ZIP format) — not on JS source files.
+ * Extract a compact JSON style summary from an uploaded .docx, .pptx, or .pdf file.
+ * OOXML files return theme colors, font pair, and named styles.
+ * PDF files return page dimensions and embedded font names.
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {
@@ -42,13 +42,13 @@ export const GET = withRouteHandler(
     }
 
     const rawExt = fileRecord.name.split('.').pop()?.toLowerCase()
-    if (rawExt !== 'docx' && rawExt !== 'pptx') {
+    if (rawExt !== 'docx' && rawExt !== 'pptx' && rawExt !== 'pdf') {
       return NextResponse.json(
-        { error: 'Style extraction only supports .docx and .pptx files' },
+        { error: 'Style extraction supports .docx, .pptx, and .pdf files' },
         { status: 422 }
       )
     }
-    const ext: 'docx' | 'pptx' = rawExt
+    const ext: 'docx' | 'pptx' | 'pdf' = rawExt
 
     let buffer: Buffer
     try {
@@ -75,7 +75,7 @@ export const GET = withRouteHandler(
     logger.info('Extracted style summary via API', {
       fileId,
       format: ext,
-      themeName: summary.theme.name,
+      themeName: summary.theme?.name,
     })
 
     return NextResponse.json(summary, {
