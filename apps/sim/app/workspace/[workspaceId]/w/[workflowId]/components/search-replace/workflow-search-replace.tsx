@@ -15,6 +15,7 @@ import {
 import { buildWorkflowSearchReplacePlan } from '@/lib/workflows/search-replace/replacements'
 import {
   getWorkflowSearchCompatibleResourceMatches,
+  getWorkflowSearchMatchResourceGroupKey,
   workflowSearchMatchMatchesQuery,
 } from '@/lib/workflows/search-replace/resource-resolvers'
 import { getWorkflowSearchBlocks } from '@/lib/workflows/search-replace/state'
@@ -109,11 +110,14 @@ export function WorkflowSearchReplace() {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [isApplying, setIsApplying] = useState(false)
   const [isReplaceExpanded, setIsReplaceExpanded] = useState(false)
+  const [resourceReplacementByContext, setResourceReplacementByContext] = useState<
+    Record<string, string>
+  >({})
 
   const {
     isOpen,
     query,
-    replacement,
+    replacement: textReplacement,
     activeMatchId,
     position,
     close,
@@ -263,6 +267,27 @@ export function WorkflowSearchReplace() {
   )
   const controlTargetMatches = activeMatch ? [activeMatch] : []
   const usesResourceReplacement = controlTargetMatches.some(isConstrainedResourceMatch)
+  const resourceReplacementContextKey =
+    activeMatch && isConstrainedResourceMatch(activeMatch)
+      ? getWorkflowSearchMatchResourceGroupKey(activeMatch)
+      : null
+  const replacement = resourceReplacementContextKey
+    ? (resourceReplacementByContext[resourceReplacementContextKey] ?? '')
+    : textReplacement
+  const handleReplacementChange = useCallback(
+    (nextReplacement: string) => {
+      if (!resourceReplacementContextKey) {
+        setReplacement(nextReplacement)
+        return
+      }
+
+      setResourceReplacementByContext((current) => ({
+        ...current,
+        [resourceReplacementContextKey]: nextReplacement,
+      }))
+    },
+    [resourceReplacementContextKey, setReplacement]
+  )
   const compatibleResourceOptions = useMemo(
     () => getCompatibleResourceReplacementOptions(controlTargetMatches, resourceOptions),
     [controlTargetMatches, resourceOptions]
@@ -525,7 +550,7 @@ export function WorkflowSearchReplace() {
               canReplaceAll={Boolean(
                 eligibleMatchIds.length > 0 && hasReplacement && !allReplacementIssue
               )}
-              onReplacementChange={setReplacement}
+              onReplacementChange={handleReplacementChange}
               onReplaceActive={handleReplaceActive}
               onReplaceAll={handleReplaceAll}
             />
