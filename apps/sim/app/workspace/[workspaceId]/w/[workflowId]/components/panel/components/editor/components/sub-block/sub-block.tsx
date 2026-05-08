@@ -72,6 +72,8 @@ const FOLDER_OVERRIDES: SelectorOverrides = {
   },
 }
 
+const WORKFLOW_SEARCH_CURRENT_MATCH_CLASS = 'rounded-md bg-orange-400 px-1 py-0.5'
+
 /**
  * Interface for wand control handlers exposed by sub-block inputs
  */
@@ -103,6 +105,7 @@ interface SubBlockProps {
   labelSuffix?: React.ReactNode
   /** Provides sibling values for dependency resolution in non-preview contexts (e.g. tool-input) */
   dependencyContext?: Record<string, unknown>
+  isSearchHighlighted?: boolean
 }
 
 /**
@@ -229,6 +232,7 @@ const renderLabel = (
     onCopy: () => void
   },
   labelSuffix?: React.ReactNode,
+  isSearchHighlighted?: boolean,
   externalLink?: {
     show: boolean
     onClick: () => void
@@ -248,7 +252,11 @@ const renderLabel = (
   return (
     <div className='flex items-center justify-between gap-1.5 pl-0.5'>
       <Label className='flex items-baseline gap-1.5 whitespace-nowrap'>
-        {config.title}
+        {isSearchHighlighted ? (
+          <mark className={WORKFLOW_SEARCH_CURRENT_MATCH_CLASS}>{config.title}</mark>
+        ) : (
+          config.title
+        )}
         {required && <span className='ml-0.5'>*</span>}
         {labelSuffix}
         {config.type === 'code' &&
@@ -436,6 +444,7 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
     prevProps.allowExpandInPreview === nextProps.allowExpandInPreview &&
     canonicalToggleEqual &&
     prevProps.labelSuffix === nextProps.labelSuffix &&
+    prevProps.isSearchHighlighted === nextProps.isSearchHighlighted &&
     prevProps.dependencyContext === nextProps.dependencyContext
   )
 }
@@ -452,6 +461,7 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
  * @param canonicalToggle - Metadata and handlers for the basic/advanced mode toggle
  * @param labelSuffix - Additional content rendered after the label text
  * @param dependencyContext - Sibling values for dependency resolution in non-preview contexts (e.g. tool-input)
+ * @param isSearchHighlighted - Whether workflow search should highlight this field
  */
 function SubBlockComponent({
   blockId,
@@ -463,6 +473,7 @@ function SubBlockComponent({
   canonicalToggle,
   labelSuffix,
   dependencyContext,
+  isSearchHighlighted,
 }: SubBlockProps): JSX.Element {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -1165,7 +1176,12 @@ function SubBlockComponent({
   }
 
   return (
-    <div onMouseDown={handleMouseDown} className='subblock-content flex flex-col gap-2.5'>
+    <div
+      onMouseDown={handleMouseDown}
+      data-workflow-search-subblock-id={config.id}
+      data-workflow-search-canonical-id={config.canonicalParamId ?? config.id}
+      className='subblock-content flex flex-col gap-2.5'
+    >
       {renderLabel(
         config,
         isValidJson,
@@ -1192,6 +1208,7 @@ function SubBlockComponent({
           onCopy: handleCopy,
         },
         labelSuffix,
+        isSearchHighlighted,
         externalLink
       )}
       {renderInput()}

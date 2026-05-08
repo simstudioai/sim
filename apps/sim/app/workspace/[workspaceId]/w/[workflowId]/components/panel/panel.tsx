@@ -608,12 +608,11 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const hasValidationErrors = false // TODO: Add validation logic if needed
   const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled = !isExecuting && (isWorkflowBlocked || (!canRun && !isLoadingPermissions))
-
   /**
    * Register global keyboard shortcuts using the central commands registry.
    *
    * - Mod+Enter: Run / cancel workflow (matches the Run button behavior)
-   * - Mod+F: Focus Toolbar tab and search input
+   * - Mod+Alt+F: Focus Toolbar tab and search input
    */
   useRegisterGlobalCommands(() =>
     createCommands([

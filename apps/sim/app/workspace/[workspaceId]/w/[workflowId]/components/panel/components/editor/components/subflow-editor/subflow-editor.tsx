@@ -3,11 +3,15 @@
 import { ChevronUp } from 'lucide-react'
 import SimpleCodeEditor from 'react-simple-code-editor'
 import { Code as CodeEditor, Combobox, getCodeEditorProps, Input, Label } from '@/components/emcn'
+import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { ConnectedBlock } from '../../hooks/use-block-connections'
 import { useSubflowEditor } from '../../hooks/use-subflow-editor'
 import { ConnectionBlocks } from '../connection-blocks'
+
+const WORKFLOW_SEARCH_CURRENT_MATCH_CLASS = 'rounded-md bg-orange-400 px-1 py-0.5'
 
 interface SubflowEditorProps {
   currentBlock: BlockState
@@ -21,6 +25,7 @@ interface SubflowEditorProps {
   toggleConnectionsCollapsed: () => void
   userCanEdit: boolean
   isConnectionsAtMinHeight: boolean
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -41,6 +46,7 @@ export function SubflowEditor({
   toggleConnectionsCollapsed,
   userCanEdit,
   isConnectionsAtMinHeight,
+  activeSearchTarget,
 }: SubflowEditorProps) {
   const {
     subflowConfig,
@@ -64,15 +70,37 @@ export function SubflowEditor({
 
   if (!subflowConfig) return null
 
+  const configSearchFieldId = isCountMode
+    ? WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations
+    : isConditionMode
+      ? WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.condition
+      : WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items
+  const isSearchHighlighted = (fieldId: string) =>
+    activeSearchTarget?.blockId === currentBlockId &&
+    (activeSearchTarget.subBlockId === fieldId ||
+      activeSearchTarget.canonicalSubBlockId === fieldId)
+  const isTypeHighlighted = isSearchHighlighted(WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type)
+  const isConfigHighlighted = isSearchHighlighted(configSearchFieldId)
+
   return (
     <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
-      {/* Subflow Editor Section */}
       <div ref={subBlocksRef} className='subblocks-section flex flex-1 flex-col overflow-hidden'>
         <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-[9px] pb-2'>
-          {/* Type Selection */}
-          <div>
+          <div
+            data-workflow-search-subblock-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type}
+            data-workflow-search-canonical-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type}
+            className='rounded-md'
+          >
             <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-              {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
+              {isTypeHighlighted ? (
+                <mark className={WORKFLOW_SEARCH_CURRENT_MATCH_CLASS}>
+                  {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
+                </mark>
+              ) : currentBlock.type === 'loop' ? (
+                'Loop Type'
+              ) : (
+                'Parallel Type'
+              )}
             </Label>
             <Combobox
               options={typeOptions}
@@ -83,7 +111,6 @@ export function SubflowEditor({
             />
           </div>
 
-          {/* Dashed Line Separator */}
           <div className='px-0.5 pt-4 pb-2.5'>
             <div
               className='h-[1.25px]'
@@ -94,14 +121,27 @@ export function SubflowEditor({
             />
           </div>
 
-          {/* Configuration */}
-          <div>
+          <div
+            data-workflow-search-subblock-id={configSearchFieldId}
+            data-workflow-search-canonical-id={configSearchFieldId}
+            className='rounded-md'
+          >
             <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-              {isCountMode
-                ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
-                : isConditionMode
-                  ? 'While Condition'
-                  : `${currentBlock.type === 'loop' ? 'Collection' : 'Parallel'} Items`}
+              {isConfigHighlighted ? (
+                <mark className={WORKFLOW_SEARCH_CURRENT_MATCH_CLASS}>
+                  {isCountMode
+                    ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
+                    : isConditionMode
+                      ? 'While Condition'
+                      : `${currentBlock.type === 'loop' ? 'Collection' : 'Parallel'} Items`}
+                </mark>
+              ) : isCountMode ? (
+                `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
+              ) : isConditionMode ? (
+                'While Condition'
+              ) : (
+                `${currentBlock.type === 'loop' ? 'Collection' : 'Parallel'} Items`
+              )}
             </Label>
 
             {isCountMode ? (
@@ -115,7 +155,7 @@ export function SubflowEditor({
                   disabled={!userCanEdit}
                   className='mb-1'
                 />
-                <div className='text-micro text-muted-foreground'>
+                <div className='text-[var(--text-muted)] text-micro'>
                   Enter a number between 1 and {subflowConfig.maxIterations}
                 </div>
               </div>
@@ -161,7 +201,6 @@ export function SubflowEditor({
         </div>
       </div>
 
-      {/* Connections Section - Only show when there are connections */}
       {hasIncomingConnections && (
         <div
           className={
@@ -170,7 +209,6 @@ export function SubflowEditor({
           }
           style={{ height: `${connectionsHeight}px` }}
         >
-          {/* Resize Handle */}
           <div className='relative'>
             <div
               className='absolute top-[-4px] right-0 left-0 z-30 h-[8px] cursor-ns-resize'
@@ -178,7 +216,6 @@ export function SubflowEditor({
             />
           </div>
 
-          {/* Connections Header with Chevron */}
           <div
             className='flex flex-shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
             onClick={toggleConnectionsCollapsed}
@@ -201,7 +238,6 @@ export function SubflowEditor({
             <div className='font-medium text-[var(--text-primary)] text-small'>Connections</div>
           </div>
 
-          {/* Connections Content - Always visible */}
           <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
             <ConnectionBlocks connections={incomingConnections} currentBlockId={currentBlock.id} />
           </div>

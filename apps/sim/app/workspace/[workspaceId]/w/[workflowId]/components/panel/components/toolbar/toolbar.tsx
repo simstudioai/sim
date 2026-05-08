@@ -474,7 +474,7 @@ export const Toolbar = memo(
      *
      * If the search query is empty, deactivate search mode to show the search icon again.
      * If there's a query, keep search mode active so ArrowUp/Down navigation continues
-     * to work after focus moves into the triggers/blocks list (e.g. when initiated via Mod+F).
+     * to work after focus moves into the triggers/blocks list (e.g. when initiated via toolbar search shortcut).
      */
     const handleSearchBlur = () => {
       if (!searchQuery.trim()) {
@@ -581,8 +581,8 @@ export const Toolbar = memo(
      * - Within blocks: linear navigation
      * - ArrowUp from first trigger: moves focus back to search input
      *
-     * This is designed to work seamlessly when the toolbar is opened via the
-     * Mod+F shortcut, and to take precedence over other global ArrowUp/Down
+     * This is designed to work seamlessly when the toolbar search shortcut opens it,
+     * and to take precedence over other global ArrowUp/Down
      * handlers (e.g. terminal navigation) while the toolbar tab is active.
      */
     useEffect(() => {

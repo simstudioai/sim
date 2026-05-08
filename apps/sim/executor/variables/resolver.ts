@@ -18,6 +18,8 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 /** Key used to carry pre-resolved context variables through the inputs map. */
 export const FUNCTION_BLOCK_CONTEXT_VARS_KEY = '_runtimeContextVars'
+/** Key used to carry display-resolved code through the function execution path. */
+export const FUNCTION_BLOCK_DISPLAY_CODE_KEY = '_runtimeDisplayCode'
 
 const logger = createLogger('VariableResolver')
 
@@ -292,7 +294,12 @@ export class VariableResolver {
             index,
             effectiveValue
           )
-          displayResult += match
+          displayResult += this.formatDisplayValueForCodeContext(
+            effectiveValue,
+            language,
+            template,
+            index
+          )
           return replacement
         }
 
@@ -352,6 +359,42 @@ export class VariableResolver {
     }
 
     return `globalThis[${JSON.stringify(varName)}]`
+  }
+
+  private formatDisplayValueForCodeContext(
+    value: unknown,
+    language: string | undefined,
+    template: string,
+    matchIndex: number
+  ): string {
+    if (language === 'shell') {
+      return this.formatShellDisplayValue(value, template, matchIndex)
+    }
+
+    return this.blockResolver.formatValueForBlock(value, BlockType.FUNCTION, language)
+  }
+
+  private formatShellDisplayValue(value: unknown, template: string, matchIndex: number): string {
+    const text = this.stringifyShellDisplayValue(value)
+    const quoteContext = this.getShellQuoteContext(template, matchIndex)
+    if (quoteContext === 'double') {
+      return text.replace(/["\\$`]/g, '\\$&')
+    }
+
+    return `"${text.replace(/["\\$`]/g, '\\$&')}"`
+  }
+
+  private stringifyShellDisplayValue(value: unknown): string {
+    if (value === null || value === undefined) {
+      return ''
+    }
+    if (typeof value === 'string') {
+      return value
+    }
+    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+      return String(value)
+    }
+    return JSON.stringify(value)
   }
 
   private formatShellContextVariableReference(

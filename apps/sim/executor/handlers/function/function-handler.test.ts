@@ -3,7 +3,10 @@ import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { BlockType } from '@/executor/constants'
 import { FunctionBlockHandler } from '@/executor/handlers/function/function-handler'
 import type { ExecutionContext } from '@/executor/types'
-import { FUNCTION_BLOCK_CONTEXT_VARS_KEY } from '@/executor/variables/resolver'
+import {
+  FUNCTION_BLOCK_CONTEXT_VARS_KEY,
+  FUNCTION_BLOCK_DISPLAY_CODE_KEY,
+} from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
@@ -196,11 +199,12 @@ describe('FunctionBlockHandler', () => {
     )
   })
 
-  it('should pass original function code for error display after reference resolution', async () => {
+  it('should pass display-resolved function code for error display', async () => {
     mockBlock.config.params = { code: 'retur <start.reqerror>' }
 
     await handler.execute(mockContext, mockBlock, {
       code: 'retur globalThis["__blockRef_0"]',
+      [FUNCTION_BLOCK_DISPLAY_CODE_KEY]: 'retur "value"',
       [FUNCTION_BLOCK_CONTEXT_VARS_KEY]: { __blockRef_0: 'value' },
     })
 
@@ -208,7 +212,7 @@ describe('FunctionBlockHandler', () => {
       'function_execute',
       expect.objectContaining({
         code: 'retur globalThis["__blockRef_0"]',
-        sourceCode: 'retur <start.reqerror>',
+        sourceCode: 'retur "value"',
       }),
       false,
       mockContext

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Loader, Tooltip } from '@/components/emcn'
+import { Button, Tooltip } from '@/components/emcn'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,
@@ -65,11 +65,15 @@ export function Deploy({
     isDeploying ||
     !canDeploy ||
     isEmpty ||
-    isDeploymentSettling ||
-    (!isDeployed && deployReadiness.isBlocked)
+    (!isDeployed && deployReadiness.isBlocked && !deployReadiness.isSyncing)
 
   const onDeployClick = async () => {
     if (disabled || !canDeploy || !activeWorkflowId) return
+
+    if (isDeploymentSettling) {
+      setIsModalOpen(true)
+      return
+    }
 
     const result = await handleDeployClick()
     if (result.shouldOpenModal) {
@@ -106,9 +110,6 @@ export function Deploy({
   }
 
   const getButtonLabel = () => {
-    if (isDeployed && (changeDetected || isDeploymentSettling)) {
-      return 'Update'
-    }
     if (changeDetected) {
       return 'Update'
     }
@@ -126,18 +127,11 @@ export function Deploy({
             <Button
               className='h-[30px] gap-1.5 px-2.5'
               variant={
-                isRegistryLoading || isDeploymentSettling
-                  ? 'active'
-                  : changeDetected || !isDeployed
-                    ? 'tertiary'
-                    : 'active'
+                isRegistryLoading ? 'active' : changeDetected || !isDeployed ? 'tertiary' : 'active'
               }
               onClick={onDeployClick}
               disabled={isRegistryLoading || isDisabled}
             >
-              {(isDeploying || isDeploymentSettling) && (
-                <Loader className='h-[13px] w-[13px]' animate />
-              )}
               {getButtonLabel()}
             </Button>
           </span>

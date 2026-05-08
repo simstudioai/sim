@@ -1050,13 +1050,12 @@ export function DeployModal({
 
 interface StatusBadgeProps {
   isWarning: boolean
-  isSyncing?: boolean
 }
 
-function StatusBadge({ isWarning, isSyncing = false }: StatusBadgeProps) {
-  const label = isSyncing ? 'Syncing changes' : isWarning ? 'Update deployment' : 'Live'
+function StatusBadge({ isWarning }: StatusBadgeProps) {
+  const label = isWarning ? 'Update deployment' : 'Live'
   return (
-    <Badge variant={isSyncing || isWarning ? 'amber' : 'green'} size='lg' dot>
+    <Badge variant={isWarning ? 'amber' : 'green'} size='lg' dot>
       {label}
     </Badge>
   )
@@ -1111,7 +1110,7 @@ function GeneralFooter({
   const isDeployBlocked =
     deployReadiness.isBlocked || isDeploymentSettling || isSubmitting || isUndeploying
   const blockedMessage =
-    deployReadiness.isBlocked && !isDeploymentSettling && !isSubmitting && !isUndeploying
+    deployReadiness.isBlocked && !deployReadiness.isSyncing && !isSubmitting && !isUndeploying
       ? deployReadiness.tooltip
       : null
   const deployActionLoading = isSubmitting || isDeploymentSettling
@@ -1133,7 +1132,7 @@ function GeneralFooter({
   return (
     <ModalFooter className='items-center justify-between'>
       <div className='flex min-w-0 flex-col gap-1'>
-        <StatusBadge isWarning={needsRedeployment} isSyncing={isDeploymentSettling} />
+        <StatusBadge isWarning={needsRedeployment} />
         {blockedMessage && (
           <div className='max-w-[300px] text-muted-foreground text-xs'>{blockedMessage}</div>
         )}

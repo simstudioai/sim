@@ -35,6 +35,7 @@ import { BlockMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/componen
 import { CanvasMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/canvas-menu'
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
+import { WorkflowSearchReplace } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/workflow-search-replace'
 import type { SubflowNodeData } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
 import { WorkflowControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
 import {
@@ -97,6 +98,7 @@ import { usePanelEditorStore } from '@/stores/panel'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesModalStore } from '@/stores/variables/modal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { useWorkflowSearchReplaceStore } from '@/stores/workflow-search-replace/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { getUniqueBlockName, prepareBlockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -964,6 +966,56 @@ const WorkflowContent = React.memo(
       copyBlocks(blockIds)
     }, [contextMenuBlocks, copyBlocks])
 
+    const notifyProtectedBlockRemoval = useCallback(
+      (protectedIds: string[], allProtected: boolean) => {
+        if (protectedIds.length === 0) return false
+
+        if (allProtected) {
+          addNotification({
+            level: 'info',
+            message: 'Cannot delete locked blocks or blocks inside locked containers',
+            workflowId: activeWorkflowId || undefined,
+          })
+          return true
+        }
+
+        addNotification({
+          level: 'info',
+          message: `Skipped ${protectedIds.length} protected block(s)`,
+          workflowId: activeWorkflowId || undefined,
+        })
+        return false
+      },
+      [activeWorkflowId, addNotification]
+    )
+
+    const removeBlocksWithProtection = useCallback(
+      (blockIds: string[]) => {
+        const { deletableIds, protectedIds, allProtected } = filterProtectedBlocks(blockIds, blocks)
+        if (notifyProtectedBlockRemoval(protectedIds, allProtected)) return []
+
+        if (deletableIds.length > 0) {
+          collaborativeBatchRemoveBlocks(deletableIds)
+        }
+
+        return deletableIds
+      },
+      [blocks, collaborativeBatchRemoveBlocks, notifyProtectedBlockRemoval]
+    )
+
+    const cutBlocksWithProtection = useCallback(
+      (blockIds: string[]) => {
+        const { deletableIds, protectedIds, allProtected } = filterProtectedBlocks(blockIds, blocks)
+        if (notifyProtectedBlockRemoval(protectedIds, allProtected)) return
+
+        if (deletableIds.length > 0) {
+          copyBlocks(deletableIds)
+          collaborativeBatchRemoveBlocks(deletableIds)
+        }
+      },
+      [blocks, collaborativeBatchRemoveBlocks, copyBlocks, notifyProtectedBlockRemoval]
+    )
+
     /**
      * Executes a paste operation with validation and selection handling.
      * Consolidates shared logic for context paste, duplicate, and keyboard paste.
@@ -1164,35 +1216,13 @@ const WorkflowContent = React.memo(
       executePasteOperation('duplicate', DEFAULT_PASTE_OFFSET)
     }, [contextMenuBlocks, copyBlocks, executePasteOperation])
 
-    const handleContextDelete = useCallback(() => {
-      const blockIds = contextMenuBlocks.map((b) => b.id)
-      const { deletableIds, protectedIds, allProtected } = filterProtectedBlocks(blockIds, blocks)
+    const handleContextCut = useCallback(() => {
+      cutBlocksWithProtection(contextMenuBlocks.map((b) => b.id))
+    }, [contextMenuBlocks, cutBlocksWithProtection])
 
-      if (protectedIds.length > 0) {
-        if (allProtected) {
-          addNotification({
-            level: 'info',
-            message: 'Cannot delete locked blocks or blocks inside locked containers',
-            workflowId: activeWorkflowId || undefined,
-          })
-          return
-        }
-        addNotification({
-          level: 'info',
-          message: `Skipped ${protectedIds.length} protected block(s)`,
-          workflowId: activeWorkflowId || undefined,
-        })
-      }
-      if (deletableIds.length > 0) {
-        collaborativeBatchRemoveBlocks(deletableIds)
-      }
-    }, [
-      contextMenuBlocks,
-      collaborativeBatchRemoveBlocks,
-      addNotification,
-      activeWorkflowId,
-      blocks,
-    ])
+    const handleContextDelete = useCallback(() => {
+      removeBlocksWithProtection(contextMenuBlocks.map((b) => b.id))
+    }, [contextMenuBlocks, removeBlocksWithProtection])
 
     const handleContextToggleEnabled = useCallback(() => {
       const blockIds = contextMenuBlocks.map((block) => block.id)
@@ -1415,6 +1445,10 @@ const WorkflowContent = React.memo(
       router.push(`/workspace/${workspaceId}/logs?workflowIds=${workflowIdParam}`)
     }, [router, workspaceId, workflowIdParam])
 
+    const handleContextOpenSearchReplace = useCallback(() => {
+      useWorkflowSearchReplaceStore.getState().open()
+    }, [])
+
     const handleContextToggleVariables = useCallback(() => {
       const { isOpen, setIsOpen } = useVariablesModalStore.getState()
       setIsOpen(!isOpen)
@@ -1466,6 +1500,19 @@ const WorkflowContent = React.memo(
               copyBlocks([currentBlockId])
             }
           }
+        } else if ((event.ctrlKey || event.metaKey) && event.key === 'x') {
+          const selection = window.getSelection()
+          const hasTextSelection = selection && selection.toString().length > 0
+
+          if (hasTextSelection || !effectivePermissions.canEdit) {
+            return
+          }
+
+          const selectedNodes = getNodes().filter((node) => node.selected)
+          if (selectedNodes.length > 0) {
+            event.preventDefault()
+            cutBlocksWithProtection(selectedNodes.map((node) => node.id))
+          }
         } else if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
           if (effectivePermissions.canEdit && hasClipboard()) {
             event.preventDefault()
@@ -1486,6 +1533,7 @@ const WorkflowContent = React.memo(
       redo,
       getNodes,
       copyBlocks,
+      cutBlocksWithProtection,
       hasClipboard,
       effectivePermissions.canEdit,
       clipboard,
@@ -4171,6 +4219,7 @@ const WorkflowContent = React.memo(
                       onClose={closeContextMenu}
                       selectedBlocks={contextMenuBlocks}
                       onCopy={handleContextCopy}
+                      onCut={handleContextCut}
                       onPaste={handleContextPaste}
                       onDuplicate={handleContextDuplicate}
                       onDelete={handleContextDelete}
@@ -4213,6 +4262,7 @@ const WorkflowContent = React.memo(
                       onAutoLayout={handleAutoLayout}
                       onFitToView={() => fitViewToBounds({ padding: 0.1, duration: 300 })}
                       onOpenLogs={handleContextOpenLogs}
+                      onOpenSearchReplace={handleContextOpenSearchReplace}
                       onToggleVariables={handleContextToggleVariables}
                       onToggleChat={handleContextToggleChat}
                       isVariablesOpen={isVariablesOpen}
@@ -4233,6 +4283,7 @@ const WorkflowContent = React.memo(
             )}
 
             <Notifications embedded={embedded} />
+            {!embedded && <WorkflowSearchReplace />}
 
             {!embedded && isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
               <CommandList />

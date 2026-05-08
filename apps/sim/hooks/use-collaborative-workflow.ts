@@ -237,6 +237,29 @@ export function useCollaborativeWorkflow() {
               break
             }
           }
+        } else if (target === OPERATION_TARGETS.SUBBLOCK) {
+          switch (operation) {
+            case SUBBLOCK_OPERATIONS.BATCH_UPDATE: {
+              const { updates } = payload
+              if (Array.isArray(updates)) {
+                updates.forEach(
+                  (update: { blockId: string; subblockId: string; value: unknown }) => {
+                    useSubBlockStore
+                      .getState()
+                      .setValue(update.blockId, update.subblockId, update.value)
+                    useWorkflowStore
+                      .getState()
+                      .syncDynamicHandleSubblockValue(
+                        update.blockId,
+                        update.subblockId,
+                        update.value
+                      )
+                  }
+                )
+              }
+              break
+            }
+          }
         } else if (target === OPERATION_TARGETS.EDGES) {
           switch (operation) {
             case EDGES_OPERATIONS.BATCH_REMOVE_EDGES: {
@@ -1507,6 +1530,78 @@ export function useCollaborativeWorkflow() {
     [activeWorkflowId, addToQueue, session?.user?.id, isBaselineDiffView]
   )
 
+  const collaborativeBatchSetSubblockValues = useCallback(
+    (
+      updates: Array<{
+        blockId: string
+        subblockId: string
+        value: unknown
+        expectedValue?: unknown
+      }>,
+      options: {
+        subflowUpdates?: Array<{
+          blockId: string
+          blockType: 'loop' | 'parallel'
+          fieldId: string
+          before: unknown
+          after: unknown
+        }>
+      } = {}
+    ) => {
+      const undoSubflowUpdates = options.subflowUpdates ?? []
+      if (
+        isApplyingRemoteChange.current ||
+        (updates.length === 0 && undoSubflowUpdates.length === 0)
+      ) {
+        return false
+      }
+
+      if (isBaselineDiffView) {
+        logger.debug('Skipping collaborative batch subblock update while viewing baseline diff')
+        return false
+      }
+
+      if (!activeWorkflowId) {
+        logger.debug('Skipping batch subblock update - no active workflow')
+        return false
+      }
+
+      if (updates.length > 0) {
+        updates.forEach((update) => {
+          useSubBlockStore.getState().setValue(update.blockId, update.subblockId, update.value)
+          useWorkflowStore
+            .getState()
+            .syncDynamicHandleSubblockValue(update.blockId, update.subblockId, update.value)
+        })
+
+        const operationId = generateId()
+        addToQueue({
+          id: operationId,
+          operation: {
+            operation: SUBBLOCK_OPERATIONS.BATCH_UPDATE,
+            target: OPERATION_TARGETS.SUBBLOCK,
+            payload: { updates },
+          },
+          workflowId: activeWorkflowId,
+          userId: session?.user?.id || 'unknown',
+        })
+      }
+
+      undoRedo.recordBatchUpdateSubblocks(
+        updates.map((update) => ({
+          blockId: update.blockId,
+          subBlockId: update.subblockId,
+          before: update.expectedValue,
+          after: update.value,
+        })),
+        undoSubflowUpdates
+      )
+
+      return true
+    },
+    [activeWorkflowId, addToQueue, isBaselineDiffView, session?.user?.id, undoRedo]
+  )
+
   // Immediate tag selection (uses queue but processes immediately, no debouncing)
   const collaborativeSetTagSelection = useCallback(
     (blockId: string, subblockId: string, value: string) => {
@@ -1996,6 +2091,7 @@ export function useCollaborativeWorkflow() {
     collaborativeBatchAddEdges,
     collaborativeBatchRemoveEdges,
     collaborativeSetSubblockValue,
+    collaborativeBatchSetSubblockValues,
     collaborativeSetTagSelection,
 
     // Collaborative variable operations

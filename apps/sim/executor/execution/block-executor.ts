@@ -47,6 +47,7 @@ import { isJSONString } from '@/executor/utils/json'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import {
   FUNCTION_BLOCK_CONTEXT_VARS_KEY,
+  FUNCTION_BLOCK_DISPLAY_CODE_KEY,
   type VariableResolver,
 } from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
@@ -126,7 +127,13 @@ export class BlockExecutor {
           displayInputs,
           contextVariables,
         } = this.resolver.resolveInputsForFunctionBlock(ctx, node.id, block.config.params, block)
-        resolvedInputs = { ...fnInputs, [FUNCTION_BLOCK_CONTEXT_VARS_KEY]: contextVariables }
+        resolvedInputs = {
+          ...fnInputs,
+          [FUNCTION_BLOCK_CONTEXT_VARS_KEY]: contextVariables,
+          ...(displayInputs.code !== undefined
+            ? { [FUNCTION_BLOCK_DISPLAY_CODE_KEY]: displayInputs.code }
+            : {}),
+        }
         inputsForLog = displayInputs
       } else {
         resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
@@ -446,7 +453,8 @@ export class BlockExecutor {
       if (
         SYSTEM_SUBBLOCK_IDS.includes(key) ||
         key === 'triggerMode' ||
-        key === FUNCTION_BLOCK_CONTEXT_VARS_KEY
+        key === FUNCTION_BLOCK_CONTEXT_VARS_KEY ||
+        key === FUNCTION_BLOCK_DISPLAY_CODE_KEY
       ) {
         continue
       }
