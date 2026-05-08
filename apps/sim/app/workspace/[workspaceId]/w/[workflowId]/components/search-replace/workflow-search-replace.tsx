@@ -31,6 +31,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/float'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { getBlock } from '@/blocks'
+import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
@@ -125,6 +126,7 @@ export function WorkflowSearchReplace() {
     setReplacement,
     setActiveMatchId,
   } = useWorkflowSearchReplaceStore()
+  const { data: workspaceCredentials } = useWorkspaceCredentials({ workspaceId, enabled: isOpen })
 
   useRegisterGlobalCommands([
     createCommand({
@@ -149,6 +151,14 @@ export function WorkflowSearchReplace() {
     [currentWorkflow.blocks, currentWorkflow.isSnapshotView, workflowSubblockValues]
   )
 
+  const credentialTypeById = useMemo(
+    () =>
+      Object.fromEntries(
+        (workspaceCredentials ?? []).map((credential) => [credential.id, credential.type])
+      ),
+    [workspaceCredentials]
+  )
+
   const matches = useMemo(
     () =>
       indexWorkflowSearchMatches({
@@ -161,9 +171,11 @@ export function WorkflowSearchReplace() {
         readonlyReason,
         workspaceId,
         workflowId,
+        credentialTypeById,
       }),
     [
       currentWorkflow.isSnapshotView,
+      credentialTypeById,
       query,
       readonlyReason,
       searchBlocks,

@@ -22,11 +22,14 @@ import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
+  type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  isCanonicalPair,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   normalizeDependencyValue,
   parseDependsOn,
+  resolveCanonicalMode,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
@@ -320,7 +323,12 @@ function buildSearchSelectorContext({
 
   for (const subBlockId of allDependsOnFields) {
     const value = normalizeDependencyValue(
-      resolveDependencyValue(subBlockId, subBlockValues, canonicalIndex, block.data?.canonicalModes)
+      resolveDependencyValue(
+        subBlockId,
+        subBlockValues,
+        canonicalIndex,
+        getSearchCanonicalModes(block)
+      )
     )
     if (value === null || value === undefined) continue
     const stringValue = typeof value === 'string' ? value : String(value)
@@ -334,6 +342,71 @@ function buildSearchSelectorContext({
   }
 
   return context
+}
+
+function getSearchCanonicalModes(
+  block: WorkflowSearchBlockState
+): CanonicalModeOverrides | undefined {
+  const data = block.data
+  if (!data || typeof data !== 'object') return undefined
+  return (data as { canonicalModes?: CanonicalModeOverrides }).canonicalModes
+}
+
+function isActiveCanonicalSearchSubBlock({
+  subBlockId,
+  subBlockConfig,
+  subBlockValues,
+  canonicalIndex,
+  canonicalModes,
+}: {
+  subBlockId: string
+  subBlockConfig?: SubBlockConfig
+  subBlockValues: Record<string, unknown>
+  canonicalIndex: ReturnType<typeof buildCanonicalIndex>
+  canonicalModes?: CanonicalModeOverrides
+}): boolean {
+  if (!subBlockConfig) return true
+
+  const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockId]
+  const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+  if (!group || !isCanonicalPair(group)) return true
+
+  const activeMode = resolveCanonicalMode(group, subBlockValues, canonicalModes)
+  if (activeMode === 'advanced') return group.advancedIds.includes(subBlockId)
+  return group.basicId === subBlockId
+}
+
+function isReactiveSearchSubBlockVisible({
+  block,
+  subBlockConfig,
+  subBlockValues,
+  canonicalIndex,
+  credentialTypeById,
+}: {
+  block: WorkflowSearchBlockState
+  subBlockConfig?: SubBlockConfig
+  subBlockValues: Record<string, unknown>
+  canonicalIndex: ReturnType<typeof buildCanonicalIndex>
+  credentialTypeById?: Record<string, string | undefined>
+}): boolean {
+  const reactiveCondition = subBlockConfig?.reactiveCondition
+  if (!reactiveCondition) return true
+
+  const watchedCredentialId = reactiveCondition.watchFields
+    .map((field) =>
+      normalizeDependencyValue(
+        resolveDependencyValue(
+          field,
+          subBlockValues,
+          canonicalIndex,
+          getSearchCanonicalModes(block)
+        )
+      )
+    )
+    .find((value): value is string => typeof value === 'string' && value.length > 0)
+
+  if (!watchedCredentialId || isReference(watchedCredentialId)) return false
+  return credentialTypeById?.[watchedCredentialId] === reactiveCondition.requiredType
 }
 
 export function indexWorkflowSearchMatches(
@@ -351,6 +424,7 @@ export function indexWorkflowSearchMatches(
     workspaceId,
     workflowId,
     blockConfigs = {},
+    credentialTypeById,
   } = options
 
   const matches: WorkflowSearchMatch[] = []
@@ -362,6 +436,7 @@ export function indexWorkflowSearchMatches(
     const configsById = new Map(subBlockConfigs.map((subBlock) => [subBlock.id, subBlock]))
     const canonicalIndex = buildCanonicalIndex(subBlockConfigs)
     const subBlockValues = buildSubBlockValues(block.subBlocks ?? {})
+    const canonicalModes = getSearchCanonicalModes(block)
     const protectedByLock = isWorkflowBlockProtected(block.id, workflow.blocks)
     const editable = !protectedByLock && !isReadOnly
 
@@ -394,6 +469,28 @@ export function indexWorkflowSearchMatches(
       if (subBlockConfig?.hidden) continue
       if (subBlockConfig && !isSubBlockFeatureEnabled(subBlockConfig)) continue
       if (subBlockConfig && isSubBlockHidden(subBlockConfig)) continue
+      if (
+        !isActiveCanonicalSearchSubBlock({
+          subBlockId,
+          subBlockConfig,
+          subBlockValues,
+          canonicalIndex,
+          canonicalModes,
+        })
+      ) {
+        continue
+      }
+      if (
+        !isReactiveSearchSubBlockVisible({
+          block,
+          subBlockConfig,
+          subBlockValues,
+          canonicalIndex,
+          credentialTypeById,
+        })
+      ) {
+        continue
+      }
       if (
         subBlockConfig?.condition &&
         !evaluateSubBlockCondition(subBlockConfig.condition, subBlockValues)

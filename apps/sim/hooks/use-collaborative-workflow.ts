@@ -12,6 +12,7 @@ import {
 } from '@sim/realtime-protocol/constants'
 import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
+import { isEqual } from 'es-toolkit'
 import type { Edge } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import { requestJson } from '@/lib/api/client/request'
@@ -1563,6 +1564,19 @@ export function useCollaborativeWorkflow() {
 
       if (!activeWorkflowId) {
         logger.debug('Skipping batch subblock update - no active workflow')
+        return false
+      }
+
+      const staleUpdate = updates.find((update) => {
+        if (!Object.hasOwn(update, 'expectedValue')) return false
+        const currentValue = useSubBlockStore.getState().getValue(update.blockId, update.subblockId)
+        return !isEqual(currentValue, update.expectedValue)
+      })
+      if (staleUpdate) {
+        logger.warn('Skipping batch subblock update because expected value changed', {
+          blockId: staleUpdate.blockId,
+          subblockId: staleUpdate.subblockId,
+        })
         return false
       }
 

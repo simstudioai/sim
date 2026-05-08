@@ -769,6 +769,145 @@ describe('indexWorkflowSearchMatches', () => {
     ])
   })
 
+  it('indexes only the active member of a canonical basic/advanced pair', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['canonical-1'] = {
+      id: 'canonical-1',
+      type: 'custom',
+      name: 'Canonical Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      data: {
+        canonicalModes: { file: 'advanced' },
+      },
+      subBlocks: {
+        fileSelector: {
+          id: 'fileSelector',
+          type: 'file-selector',
+          value: 'basic-file-id',
+        },
+        fileReference: {
+          id: 'fileReference',
+          type: 'short-input',
+          value: 'advanced-file-reference',
+        },
+      },
+    }
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: {
+        subBlocks: [
+          {
+            id: 'fileSelector',
+            title: 'File',
+            type: 'file-selector',
+            canonicalParamId: 'file',
+            mode: 'basic',
+          },
+          {
+            id: 'fileReference',
+            title: 'File',
+            type: 'short-input',
+            canonicalParamId: 'file',
+            mode: 'advanced',
+          },
+        ],
+      },
+    }
+
+    const basicMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'basic-file-id',
+      mode: 'all',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'canonical-1')
+    const advancedMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'advanced-file',
+      mode: 'all',
+      blockConfigs,
+    }).filter((match) => match.blockId === 'canonical-1')
+
+    expect(basicMatches).toEqual([])
+    expect(advancedMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'fileReference',
+        canonicalSubBlockId: 'file',
+        kind: 'text',
+      }),
+    ])
+  })
+
+  it('indexes reactive credential-type fields only when their credential type matches', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['reactive-1'] = {
+      id: 'reactive-1',
+      type: 'custom',
+      name: 'Reactive Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      subBlocks: {
+        credential: {
+          id: 'credential',
+          type: 'oauth-input',
+          value: 'credential-1',
+        },
+        impersonateUserEmail: {
+          id: 'impersonateUserEmail',
+          type: 'short-input',
+          value: 'service-account-user@example.com',
+        },
+      },
+    }
+    const blockConfigs = {
+      ...SEARCH_REPLACE_BLOCK_CONFIGS,
+      custom: {
+        subBlocks: [
+          {
+            id: 'credential',
+            title: 'Google Account',
+            type: 'oauth-input',
+            canonicalParamId: 'oauthCredential',
+          },
+          {
+            id: 'impersonateUserEmail',
+            title: 'Impersonated Account',
+            type: 'short-input',
+            reactiveCondition: {
+              watchFields: ['oauthCredential'],
+              requiredType: 'service_account',
+            },
+          },
+        ],
+      },
+    }
+
+    const hiddenMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'service-account-user',
+      mode: 'text',
+      blockConfigs,
+      credentialTypeById: { 'credential-1': 'oauth' },
+    }).filter((match) => match.blockId === 'reactive-1')
+    const visibleMatches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'service-account-user',
+      mode: 'text',
+      blockConfigs,
+      credentialTypeById: { 'credential-1': 'service_account' },
+    }).filter((match) => match.blockId === 'reactive-1')
+
+    expect(hiddenMatches).toEqual([])
+    expect(visibleMatches).toEqual([
+      expect.objectContaining({
+        subBlockId: 'impersonateUserEmail',
+        fieldTitle: 'Impersonated Account',
+      }),
+    ])
+  })
+
   it('indexes editable combobox text and still finds inline references', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['combobox-1'] = {

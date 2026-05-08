@@ -93,6 +93,7 @@ export interface WorkflowSearchIndexerOptions {
   workspaceId?: string
   workflowId?: string
   blockConfigs?: Record<string, { subBlocks?: SubBlockConfig[] } | undefined>
+  credentialTypeById?: Record<string, string | undefined>
 }
 
 export interface IndexedSubBlockContext {
