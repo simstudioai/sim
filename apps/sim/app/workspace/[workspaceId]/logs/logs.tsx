@@ -436,7 +436,7 @@ export default function Logs() {
       return
     }
     const resolvedId = deepLinkQuery.data?.id
-    if (resolvedId && resolvedId !== selectedLogIdRef.current) {
+    if (resolvedId && (resolvedId !== selectedLogIdRef.current || !isSidebarOpenRef.current)) {
       dispatch({ type: 'TOGGLE_LOG', logId: resolvedId })
     } else if (deepLinkQuery.isError) {
       setExecutionIdParam(null)

@@ -9,15 +9,13 @@ import { Badge, buttonVariants, Loader } from '@/components/emcn'
 import type { WorkflowLogSummary } from '@/lib/api/contracts/logs'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
+import { getDisplayStatus, StatusBadge, TriggerBadge } from '@/lib/logs/status'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   DELETED_WORKFLOW_COLOR,
   DELETED_WORKFLOW_LABEL,
   formatDate,
-  getDisplayStatus,
   LOG_COLUMNS,
-  StatusBadge,
-  TriggerBadge,
 } from '@/app/workspace/[workspaceId]/logs/utils'
 
 const LOG_ROW_HEIGHT = 44 as const

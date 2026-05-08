@@ -26,6 +26,7 @@ import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { getDisplayStatus, StatusBadge, TriggerBadge } from '@/lib/logs/status'
 import type { TraceSpan } from '@/lib/logs/types'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
@@ -38,9 +39,6 @@ import {
   DELETED_WORKFLOW_COLOR,
   DELETED_WORKFLOW_LABEL,
   formatDate,
-  getDisplayStatus,
-  StatusBadge,
-  TriggerBadge,
 } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { usePermissionConfig } from '@/hooks/use-permission-config'

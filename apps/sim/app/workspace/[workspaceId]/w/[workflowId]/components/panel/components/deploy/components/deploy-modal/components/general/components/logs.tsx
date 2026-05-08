@@ -6,12 +6,8 @@ import clsx from 'clsx'
 import { useParams, useRouter } from 'next/navigation'
 import { Skeleton } from '@/components/emcn'
 import type { WorkflowLogSummary } from '@/lib/api/contracts/logs'
+import { getDisplayStatus, StatusBadge, TriggerBadge } from '@/lib/logs/status'
 import { type LogFilters, useLogsList } from '@/hooks/queries/logs'
-import {
-  getDisplayStatus,
-  StatusBadge,
-  TriggerBadge,
-} from '@/app/workspace/[workspaceId]/logs/utils'
 
 const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-caption'
 const ROW_TEXT_CLASS = 'font-medium text-[var(--text-primary)] text-caption'
@@ -87,7 +83,7 @@ export function Logs({ workflowId }: LogsProps) {
           </div>
         </div>
         <div className='bg-[var(--surface-2)]'>
-          {[0, 1, 2].map((i) => (
+          {Array.from({ length: LOGS_LIMIT }, (_, i) => i).map((i) => (
             <div key={i} className='flex h-[36px] items-center px-4'>
               <div className={clsx(COLUMN_WIDTHS.STATUS, COLUMN_BASE_CLASS, 'min-w-0 pr-2')}>
                 <Skeleton className='h-[18px] w-[60px] rounded-sm' />
