@@ -25,6 +25,14 @@ const logger = createLogger('VariableResolver')
 
 type ShellQuoteContext = 'single' | 'double' | null
 type CodeStringQuoteContext = ShellQuoteContext | 'template'
+type CodeScanMode =
+  | { type: 'normal' }
+  | { type: 'single' }
+  | { type: 'double' }
+  | { type: 'template' }
+  | { type: 'template-expression'; depth: number }
+  | { type: 'line-comment' }
+  | { type: 'block-comment' }
 
 export class VariableResolver {
   private resolvers: Resolver[]
@@ -353,7 +361,7 @@ export class VariableResolver {
   ): string {
     if (language === 'python') {
       const expression = `globals()[${JSON.stringify(varName)}]`
-      const quoteContext = this.getCodeStringQuoteContext(template, matchIndex)
+      const quoteContext = this.getCodeStringQuoteContext(template, matchIndex, language)
       if (quoteContext === 'single' || quoteContext === 'double') {
         const quote = quoteContext === 'single' ? "'" : '"'
         return `${quote} + json.dumps(${expression}) + ${quote}`
@@ -366,7 +374,7 @@ export class VariableResolver {
     }
 
     const expression = `globalThis[${JSON.stringify(varName)}]`
-    const quoteContext = this.getCodeStringQuoteContext(template, matchIndex)
+    const quoteContext = this.getCodeStringQuoteContext(template, matchIndex, language)
     if (quoteContext === 'template') {
       return `\${JSON.stringify(${expression})}`
     }
@@ -413,25 +421,126 @@ export class VariableResolver {
     return JSON.stringify(value)
   }
 
-  private getCodeStringQuoteContext(template: string, index: number): CodeStringQuoteContext {
-    let quoteContext: CodeStringQuoteContext = null
+  private getCodeStringQuoteContext(
+    template: string,
+    index: number,
+    language: string | undefined
+  ): CodeStringQuoteContext {
+    const isPython = language === 'python'
+    const modes: CodeScanMode[] = [{ type: 'normal' }]
 
     for (let i = 0; i < index; i++) {
       const char = template[i]
-      if (quoteContext !== null && char === '\\') {
+      const next = template[i + 1]
+      const mode = modes[modes.length - 1]
+
+      if (mode.type === 'line-comment') {
+        if (char === '\n') {
+          modes.pop()
+        }
+        continue
+      }
+
+      if (mode.type === 'block-comment') {
+        if (char === '*' && next === '/') {
+          modes.pop()
+          i++
+        }
+        continue
+      }
+
+      if (mode.type === 'single' || mode.type === 'double') {
+        const quote = mode.type === 'single' ? "'" : '"'
+        if (char === '\\') {
+          i++
+          continue
+        }
+        if (char === quote || char === '\n') {
+          modes.pop()
+        }
+        continue
+      }
+
+      if (mode.type === 'template') {
+        if (char === '\\') {
+          i++
+          continue
+        }
+        if (char === '`') {
+          modes.pop()
+          continue
+        }
+        if (char === '$' && next === '{') {
+          modes.push({ type: 'template-expression', depth: 1 })
+          i++
+        }
+        continue
+      }
+
+      if (mode.type === 'template-expression') {
+        if (!isPython && char === '/' && next === '/') {
+          modes.push({ type: 'line-comment' })
+          i++
+          continue
+        }
+        if (!isPython && char === '/' && next === '*') {
+          modes.push({ type: 'block-comment' })
+          i++
+          continue
+        }
+        if (char === "'") {
+          modes.push({ type: 'single' })
+          continue
+        }
+        if (char === '"') {
+          modes.push({ type: 'double' })
+          continue
+        }
+        if (!isPython && char === '`') {
+          modes.push({ type: 'template' })
+          continue
+        }
+        if (char === '{') {
+          mode.depth += 1
+          continue
+        }
+        if (char === '}') {
+          mode.depth -= 1
+          if (mode.depth === 0) {
+            modes.pop()
+          }
+        }
+        continue
+      }
+
+      if (isPython && char === '#') {
+        modes.push({ type: 'line-comment' })
+        continue
+      }
+      if (!isPython && char === '/' && next === '/') {
+        modes.push({ type: 'line-comment' })
         i++
         continue
       }
-      if (char === "'" && quoteContext !== 'double' && quoteContext !== 'template') {
-        quoteContext = quoteContext === 'single' ? null : 'single'
-      } else if (char === '"' && quoteContext !== 'single' && quoteContext !== 'template') {
-        quoteContext = quoteContext === 'double' ? null : 'double'
-      } else if (char === '`' && quoteContext !== 'single' && quoteContext !== 'double') {
-        quoteContext = quoteContext === 'template' ? null : 'template'
+      if (!isPython && char === '/' && next === '*') {
+        modes.push({ type: 'block-comment' })
+        i++
+        continue
+      }
+      if (char === "'") {
+        modes.push({ type: 'single' })
+      } else if (char === '"') {
+        modes.push({ type: 'double' })
+      } else if (!isPython && char === '`') {
+        modes.push({ type: 'template' })
       }
     }
 
-    return quoteContext
+    const mode = modes[modes.length - 1]
+    if (mode.type === 'single' || mode.type === 'double' || mode.type === 'template') {
+      return mode.type
+    }
+    return null
   }
 
   private formatShellContextVariableReference(
