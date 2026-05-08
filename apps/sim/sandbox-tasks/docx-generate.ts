@@ -15,9 +15,56 @@ export const docxGenerateTask = defineSandboxTask<SandboxTaskInput>({
     globalThis.addSection = (section) => {
       globalThis.__docxSections.push(section);
     };
-    globalThis.getFileBase64 = async (fileId) => {
+
+    // Page geometry constants (twips, 1 twip = 1/1440 inch) for US Letter
+    globalThis.PAGE_W    = 12240;  // 8.5"
+    globalThis.PAGE_H    = 15840;  // 11"
+    globalThis.MARGIN    = 1440;   // 1" margins
+    globalThis.CONTENT_W = 9360;   // PAGE_W - 2 * MARGIN
+
+    // 6 MB raw ≈ 8 MB base64; reject above this to avoid sandbox OOM.
+    const _MAX_IMG_B64 = 8 * 1024 * 1024;
+
+    /**
+     * getFileBase64(fileId) — load a workspace file as a full data URI string.
+     * Returns the complete "data:image/png;base64,..." string.
+     * Use addImage() rather than passing this directly to ImageRun.
+     */
+    globalThis.getFileBase64 = async function getFileBase64(fileId) {
+      if (!fileId || typeof fileId !== 'string') {
+        throw new Error('getFileBase64: fileId must be a non-empty string');
+      }
       const res = await globalThis.__brokers.workspaceFile({ fileId });
+      if (!res || !res.dataUri) {
+        throw new Error('getFileBase64: broker returned no data for file ' + fileId);
+      }
+      if (res.dataUri.length > _MAX_IMG_B64) {
+        throw new Error(
+          'getFileBase64: image exceeds the 6 MB embed limit (~8 MB base64). Use a smaller/compressed image.'
+        );
+      }
       return res.dataUri;
+    };
+
+    /**
+     * addImage(fileId, opts) — fetch a workspace file and return a docx.ImageRun.
+     * Required opts: width, height (pixels or EMUs via transformation option).
+     * Example:
+     *   new docx.Paragraph({ children: [await addImage('abc123', { width: 200, height: 100 })] })
+     */
+    globalThis.addImage = async function addImage(fileId, opts) {
+      const dataUri = await globalThis.getFileBase64(fileId);
+      const comma = dataUri.indexOf(',');
+      const header = comma !== -1 ? dataUri.slice(0, comma) : '';
+      const base64 = comma !== -1 ? dataUri.slice(comma + 1) : dataUri;
+      const mime = header.split(';')[0].replace('data:', '') || 'image/png';
+      const ext = mime.includes('png') ? 'png' : mime.includes('gif') ? 'gif' : mime.includes('bmp') ? 'bmp' : 'jpg';
+      if (!globalThis.Buffer) throw new Error('addImage: Buffer polyfill missing — ensure docx bundle is loaded');
+      return new globalThis.docx.ImageRun(Object.assign({
+        data: globalThis.Buffer.from(base64, 'base64'),
+        transformation: { width: (opts && opts.width) || 200, height: (opts && opts.height) || 200 },
+        type: ext,
+      }, opts || {}));
     };
   `,
   // JSZip's browser build doesn't support nodebuffer output, so we go through
