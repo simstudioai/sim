@@ -50,7 +50,7 @@ import {
 } from './components'
 import { COLUMN_SIDEBAR_WIDTH } from './components/table-grid/constants'
 import { COLUMN_TYPE_ICONS } from './components/table-grid/headers'
-import { useTable } from './hooks'
+import { useTable, useTableEventStream } from './hooks'
 import type { QueryOptions } from './types'
 import { generateColumnName } from './utils'
 
@@ -116,6 +116,8 @@ export function Table({
   const router = useRouter()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
+
+  useTableEventStream({ tableId, workspaceId })
 
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)

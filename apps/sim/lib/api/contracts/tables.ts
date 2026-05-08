@@ -912,3 +912,21 @@ export type RunColumnBodyInput = z.input<typeof runColumnBodySchema>
 /** Shared `runMode` union — used by every UI / hook / Mothership site that
  *  builds a run-column payload. Single source of truth for the literal pair. */
 export type RunMode = NonNullable<RunColumnBodyInput['runMode']>
+
+export const tableEventStreamQuerySchema = z.object({
+  from: z.preprocess((value) => {
+    if (typeof value !== 'string') return 0
+    const parsed = Number.parseInt(value, 10)
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
+  }, z.number().int().min(0)),
+})
+
+export const tableEventStreamContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/events/stream',
+  params: tableIdParamsSchema,
+  query: tableEventStreamQuerySchema,
+  response: {
+    mode: 'stream',
+  },
+})

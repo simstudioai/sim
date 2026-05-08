@@ -10,6 +10,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { appendTableEvent } from '@/lib/table/events'
 import type { RowData, RowExecutionMetadata, RowExecutions, WorkflowGroup } from '@/lib/table/types'
 
 const logger = createLogger('WorkflowCellWrite')
@@ -113,6 +114,25 @@ export async function writeWorkflowGroupState(
     )
     return 'skipped'
   }
+
+  const dataPatch = payload.dataPatch
+  const hasOutputs = dataPatch && Object.keys(dataPatch).length > 0
+  const runningBlockIds = payload.executionState.runningBlockIds
+  const blockErrors = payload.executionState.blockErrors
+  void appendTableEvent({
+    kind: 'cell',
+    tableId,
+    rowId,
+    groupId,
+    status: payload.executionState.status,
+    executionId: payload.executionState.executionId ?? null,
+    jobId: payload.executionState.jobId ?? null,
+    error: payload.executionState.error ?? null,
+    ...(hasOutputs ? { outputs: dataPatch } : {}),
+    ...(runningBlockIds && runningBlockIds.length > 0 ? { runningBlockIds } : {}),
+    ...(blockErrors && Object.keys(blockErrors).length > 0 ? { blockErrors } : {}),
+  })
+
   return 'wrote'
 }
 

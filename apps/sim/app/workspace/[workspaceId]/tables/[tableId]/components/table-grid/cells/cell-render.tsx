@@ -76,22 +76,26 @@ export function resolveCellRender({
 
     if (blockError) return { kind: 'block-error' }
 
-    // In-flight wins over the existing value: when the group is being re-run,
-    // the current value is about to be overwritten — surface the run state so
-    // the user sees the cell is changing. Without this, a queued / running
-    // re-run on a previously-completed cell looks like nothing happened until
-    // the new value lands.
+    // Active re-run of THIS column wins over its prior value — the value is
+    // about to be overwritten and the user should see the cell is changing.
     const inFlight =
       exec?.status === 'running' || exec?.status === 'queued' || exec?.status === 'pending'
+    if (inFlight && blockRunning) return { kind: 'running' }
+
+    // Value wins over `pending-upstream`: once this column's output has
+    // landed, the cell is done from the user's perspective — even if the
+    // group is still running other blocks downstream. Without this, mid-run
+    // partial-write events (`status: 'running'` carrying outputs but tagging
+    // a different block as running) would flip a finished column back to the
+    // amber Pending pill until the terminal `completed` event arrives.
+    if (!isNull) return { kind: 'value', text: stringifyValue(value) }
+
     if (inFlight && !(groupHasBlockErrors && !blockRunning)) {
-      if (blockRunning) return { kind: 'running' }
       if (exec?.status === 'queued' || exec?.status === 'pending') return { kind: 'queued' }
-      // `running` with this block not in `runningBlockIds` = upstream block
-      // still going; surface as the amber Pending pill per logs convention.
+      // `running` with this block not in `runningBlockIds` and no value yet =
+      // upstream block still going; surface as the amber Pending pill.
       return { kind: 'pending-upstream' }
     }
-
-    if (!isNull) return { kind: 'value', text: stringifyValue(value) }
 
     // Waiting wins over a stale terminal state: if deps are unmet right now,
     // the prior `cancelled` / `error` is informational at best — the cell

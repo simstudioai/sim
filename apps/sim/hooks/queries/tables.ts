@@ -4,7 +4,7 @@
  * React Query hooks for managing user-defined tables.
  */
 
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   type InfiniteData,
@@ -70,91 +70,6 @@ import type {
   WorkflowGroupOutput,
 } from '@/lib/table'
 import { areOutputsFilled, optimisticallyScheduleNewlyEligibleGroups } from '@/lib/table/deps'
-
-/** Short poll to surface running → completed transitions from the server without a dedicated realtime channel. */
-const ROWS_POLL_INTERVAL_WHILE_RUNNING_MS = 1500
-
-function hasRunningGroupExecution(rows: TableRow[] | undefined): boolean {
-  if (!rows) return false
-  for (const row of rows) {
-    const executions = row.executions ?? {}
-    for (const key in executions) {
-      if (isOptimisticInFlight(executions[key])) return true
-    }
-  }
-  return false
-}
-
-/**
- * Shallow-equality on the fields the renderer reads from a row. Row data is
- * also shallow-compared — workflow output cells are scalars, so `===` per key
- * suffices. `executions` is a per-group exec metadata object; we compare each
- * group's `(status, jobId, executionId, error)` tuple. Any deeper drift forces
- * a fresh row reference, which is the safe default.
- */
-function rowEqual(a: TableRow, b: TableRow): boolean {
-  if (a === b) return true
-  if (a.position !== b.position) return false
-  const aData = a.data ?? {}
-  const bData = b.data ?? {}
-  const aDataKeys = Object.keys(aData)
-  if (aDataKeys.length !== Object.keys(bData).length) return false
-  for (const k of aDataKeys) {
-    if (aData[k] !== bData[k]) return false
-  }
-  const aExec = a.executions ?? {}
-  const bExec = b.executions ?? {}
-  const aExecKeys = Object.keys(aExec)
-  if (aExecKeys.length !== Object.keys(bExec).length) return false
-  for (const k of aExecKeys) {
-    const ax = aExec[k]
-    const bx = bExec[k]
-    if (ax === bx) continue
-    if (!ax || !bx) return false
-    if (
-      ax.status !== bx.status ||
-      ax.jobId !== bx.jobId ||
-      ax.executionId !== bx.executionId ||
-      ax.error !== bx.error
-    ) {
-      return false
-    }
-  }
-  return true
-}
-
-/**
- * Replaces `prev.rows` element-by-element with `fresh.rows`, but reuses the
- * `prev` reference for any row that hasn't changed. Memoized `<DataRow>`
- * children short-circuit on row-identity, so a poll tick that arrives with
- * 1000 rows but only flips the status of 5 only re-renders those 5 instead
- * of every row in the page.
- */
-function mergePagePreservingIdentity(
-  prev: TableRowsResponse,
-  fresh: TableRowsResponse
-): TableRowsResponse {
-  if (prev.rows === fresh.rows) return prev
-  const oldById = new Map(prev.rows.map((r) => [r.id, r]))
-  let changed = false
-  const merged = fresh.rows.map((freshRow) => {
-    const old = oldById.get(freshRow.id)
-    if (old && rowEqual(old, freshRow)) return old
-    changed = true
-    return freshRow
-  })
-  if (!changed && merged.length === prev.rows.length) {
-    let identical = true
-    for (let i = 0; i < merged.length; i++) {
-      if (merged[i] !== prev.rows[i]) {
-        identical = false
-        break
-      }
-    }
-    if (identical && prev.totalCount === fresh.totalCount) return prev
-  }
-  return { ...fresh, rows: merged }
-}
 
 const logger = createLogger('TableQueries')
 
@@ -310,7 +225,6 @@ export function useTableRows({
   includeTotal,
   enabled = true,
 }: TableRowsParams & { enabled?: boolean }) {
-  const queryClient = useQueryClient()
   const paramsKey = JSON.stringify({
     limit,
     offset,
@@ -326,13 +240,6 @@ export function useTableRows({
     enabled: Boolean(workspaceId && tableId) && enabled,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
-    refetchInterval: (query) => {
-      if (queryClient.isMutating() > 0) return false
-      return hasRunningGroupExecution(query.state.data?.rows)
-        ? ROWS_POLL_INTERVAL_WHILE_RUNNING_MS
-        : false
-    },
-    refetchIntervalInBackground: false,
   })
 }
 
@@ -351,7 +258,6 @@ export function useInfiniteTableRows({
   sort,
   enabled = true,
 }: InfiniteTableRowsParams) {
-  const queryClient = useQueryClient()
   const paramsKey = JSON.stringify({
     pageSize,
     filter: filter ?? null,
@@ -359,7 +265,7 @@ export function useInfiniteTableRows({
   })
   const queryKey = useMemo(() => tableKeys.infiniteRows(tableId, paramsKey), [tableId, paramsKey])
 
-  const query = useInfiniteQuery({
+  return useInfiniteQuery({
     queryKey,
     queryFn: ({ pageParam, signal }) =>
       fetchTableRows({
@@ -380,78 +286,6 @@ export function useInfiniteTableRows({
     enabled: Boolean(workspaceId && tableId) && enabled,
     staleTime: 30 * 1000,
   })
-
-  /**
-   * Per-page polling. Built-in `refetchInterval` would refetch every loaded
-   * page on each tick — wasteful when only one page has running cells.
-   * Instead, walk pages each tick and refetch ONLY the dirty ones, splicing
-   * results back into the cache. Polling stops when no page has in-flight
-   * cells, or while a mutation is running (optimistic-update guard).
-   */
-  useEffect(() => {
-    if (!enabled || !workspaceId || !tableId) return
-    let cancelled = false
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
-    const tick = async () => {
-      if (cancelled) return
-      if (queryClient.isMutating() === 0) {
-        const data = queryClient.getQueryData<InfiniteData<TableRowsResponse, number>>(queryKey)
-        const dirty: number[] = []
-        if (data) {
-          for (let i = 0; i < data.pages.length; i++) {
-            if (hasRunningGroupExecution(data.pages[i].rows)) {
-              dirty.push(data.pageParams[i] ?? i * pageSize)
-            }
-          }
-        }
-        if (dirty.length > 0) {
-          await Promise.all(
-            dirty.map(async (offset) => {
-              try {
-                const fresh = await fetchTableRows({
-                  workspaceId,
-                  tableId,
-                  limit: pageSize,
-                  offset,
-                  filter,
-                  sort,
-                  includeTotal: offset === 0,
-                })
-                if (cancelled) return
-                queryClient.setQueryData<InfiniteData<TableRowsResponse, number>>(
-                  queryKey,
-                  (prev) => {
-                    if (!prev) return prev
-                    const idx = prev.pageParams.indexOf(offset)
-                    if (idx === -1) return prev
-                    const merged = mergePagePreservingIdentity(prev.pages[idx], fresh)
-                    if (merged === prev.pages[idx]) return prev
-                    const nextPages = prev.pages.slice()
-                    nextPages[idx] = merged
-                    return { ...prev, pages: nextPages }
-                  }
-                )
-              } catch {
-                // Transient fetch failure — next tick retries. Don't kill the loop.
-              }
-            })
-          )
-        }
-      }
-      if (cancelled) return
-      // Recursive setTimeout instead of setInterval so a slow tick can't
-      // overlap the next one — out-of-order responses would otherwise let
-      // stale data overwrite fresh.
-      timeoutId = setTimeout(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
-    }
-    timeoutId = setTimeout(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
-    return () => {
-      cancelled = true
-      if (timeoutId !== null) clearTimeout(timeoutId)
-    }
-  }, [enabled, workspaceId, tableId, pageSize, filter, sort, queryClient, queryKey])
-
-  return query
 }
 
 /**
@@ -1268,20 +1102,27 @@ function isInfiniteRowsCache(value: unknown): value is InfiniteRowsCache {
 }
 
 /**
- * Walks every cached row-list under `tableId`, applies `transform` to each row,
- * and snapshots the originals for rollback.
+ * Walks every cached query under `rowsRoot(tableId)` and applies `transform`
+ * to each row. Handles both cache shapes — the single-page `TableRowsResponse`
+ * and the infinite-query `{ pages, pageParams }`. `transform(row)` returns
+ * the next row to write, or `null` to leave it.
  *
- * Handles both cache shapes: the single-page `TableRowsResponse` and the
- * infinite-query `{ pages, pageParams }`. `transform(row)` returns the next
- * row to write, or `null` to leave it. The common pattern is "matching cells
- * flip state, others are skipped".
+ * Returns the list of `[queryKey, prior data]` entries so optimistic-update
+ * callers can roll back. SSE patchers can ignore the return value.
+ *
+ * `cancelInFlight` defaults to true (the optimistic-update contract) but SSE
+ * patchers pass `false` so live cell updates don't kick the row query off the
+ * network.
  */
 export async function snapshotAndMutateRows(
   queryClient: ReturnType<typeof useQueryClient>,
   tableId: string,
-  transform: (row: TableRow) => TableRow | null
+  transform: (row: TableRow) => TableRow | null,
+  options?: { cancelInFlight?: boolean }
 ): Promise<RowsCacheSnapshots> {
-  await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+  if (options?.cancelInFlight !== false) {
+    await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+  }
   const matching = queryClient.getQueriesData<RowsCacheEntry>({
     queryKey: tableKeys.rowsRoot(tableId),
   })
@@ -1411,14 +1252,9 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
     onError: (_err, _variables, context) => {
       if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
     },
-    onSettled: async () => {
-      // Cancel any in-flight poll first — without this, a poll started during
-      // the mutation but lands AFTER it resolves can clobber the optimistic
-      // patch with stale data, producing a queued → cancelled → queued flicker
-      // before the authoritative refetch arrives.
-      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-      await queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
-    },
+    // No reconciliation here — useTableEventStream is the source of truth for
+    // post-mutation cache state, and a refetch would race its incremental
+    // patches.
   })
 }
 
