@@ -1090,7 +1090,6 @@ export function useUploadCsvToTable() {
     },
     onError: (error) => {
       logger.error('Failed to upload CSV:', error)
-      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -1167,7 +1166,6 @@ export function useImportCsvIntoTable() {
     },
     onError: (error) => {
       logger.error('Failed to import CSV into table:', error)
-      toast.error(error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
       if (!variables) return
