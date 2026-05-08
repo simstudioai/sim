@@ -9,7 +9,6 @@ import type { StorageContext } from '@/lib/uploads/config'
 import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { generatePresignedUploadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
-import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -142,13 +141,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const fileValidationError = validateFileType(fileName, contentType)
       if (fileValidationError) {
         throw new ValidationError(fileValidationError.message)
-      }
-
-      if (fileSize > MAX_WORKSPACE_FILE_SIZE) {
-        return NextResponse.json(
-          { error: `File size exceeds maximum of ${MAX_WORKSPACE_FILE_SIZE} bytes` },
-          { status: 413 }
-        )
       }
 
       const customKey = generateWorkspaceFileKey(workspaceId, fileName)
