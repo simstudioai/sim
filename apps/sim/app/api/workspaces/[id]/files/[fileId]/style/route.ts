@@ -16,20 +16,22 @@ const logger = createLogger('WorkspaceFileStyleAPI')
 
 /**
  * GET /api/workspaces/[id]/files/[fileId]/style
- * Extract a compact JSON style summary from an uploaded .docx or .pptx file.
- * Uses OOXML theme XML to return theme colors, font pair, and named styles.
- * Only works on binary OOXML files (ZIP format) — not on JS source files.
+ * Extract a compact JSON style summary from an uploaded .docx, .pptx, or .pdf file.
+ * OOXML files return theme colors, font pair, and named styles.
+ * PDF files return page dimensions and embedded font names.
  */
+const MAX_STYLE_FILE_BYTES = 100 * 1024 * 1024 // 100 MB
+
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string; fileId: string }> }) => {
-    const parsed = await parseRequest(workspaceFileStyleContract, request, context)
-    if (!parsed.success) return parsed.response
-    const { id: workspaceId, fileId } = parsed.data.params
-
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const parsed = await parseRequest(workspaceFileStyleContract, request, context)
+    if (!parsed.success) return parsed.response
+    const { id: workspaceId, fileId } = parsed.data.params
 
     const membership = await verifyWorkspaceMembership(session.user.id, workspaceId)
     if (!membership) {
@@ -42,13 +44,20 @@ export const GET = withRouteHandler(
     }
 
     const rawExt = fileRecord.name.split('.').pop()?.toLowerCase()
-    if (rawExt !== 'docx' && rawExt !== 'pptx') {
+    if (rawExt !== 'docx' && rawExt !== 'pptx' && rawExt !== 'pdf') {
       return NextResponse.json(
-        { error: 'Style extraction only supports .docx and .pptx files' },
+        { error: 'Style extraction supports .docx, .pptx, and .pdf files' },
         { status: 422 }
       )
     }
-    const ext: 'docx' | 'pptx' = rawExt
+    const ext: 'docx' | 'pptx' | 'pdf' = rawExt
+
+    if (fileRecord.size > MAX_STYLE_FILE_BYTES) {
+      return NextResponse.json(
+        { error: 'File is too large for style extraction (limit: 100 MB)' },
+        { status: 422 }
+      )
+    }
 
     let buffer: Buffer
     try {
@@ -66,17 +75,13 @@ export const GET = withRouteHandler(
       return NextResponse.json(
         {
           error:
-            'File is not a compiled binary document — style extraction requires an uploaded or compiled .docx/.pptx file',
+            'Could not extract style — file may be encrypted, corrupt, image-only, or contain no parseable style information',
         },
         { status: 422 }
       )
     }
 
-    logger.info('Extracted style summary via API', {
-      fileId,
-      format: ext,
-      themeName: summary.theme.name,
-    })
+    logger.info('Extracted style summary via API', { fileId, format: ext })
 
     return NextResponse.json(summary, {
       headers: { 'Cache-Control': 'private, max-age=300' },

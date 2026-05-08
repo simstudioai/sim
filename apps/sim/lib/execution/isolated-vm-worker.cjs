@@ -376,6 +376,24 @@ async function executeCode(request, executionId) {
         stack: err.stack,
       }
 
+      // OOM check must run before the isDisposed guard: isolate OOM auto-disposes
+      // the isolate (isDisposed becomes true), so the cancel branch would fire first
+      // and mask the real cause. Message-based detection disambiguates the two.
+      if (
+        err.message.includes('Array buffer allocation failed') ||
+        err.message.includes('memory limit')
+      ) {
+        return {
+          result: null,
+          stdout,
+          error: {
+            message:
+              'Execution exceeded memory limit (256 MB). Reduce image sizes or split the work into smaller batches.',
+            name: 'MemoryLimitError',
+          },
+        }
+      }
+
       // Host sent a `cancel` IPC which called `isolate.dispose()`. Any
       // in-flight compileScript/run then throws; detect that authoritatively
       // via the isolate flag rather than fuzzy-matching the error message.
@@ -394,21 +412,6 @@ async function executeCode(request, executionId) {
           error: {
             message: `Execution timed out after ${timeoutMs}ms`,
             name: 'TimeoutError',
-          },
-        }
-      }
-
-      if (
-        err.message.includes('Array buffer allocation failed') ||
-        err.message.includes('memory limit')
-      ) {
-        return {
-          result: null,
-          stdout,
-          error: {
-            message:
-              'Execution exceeded memory limit (256 MB). Reduce image sizes or split the work into smaller batches.',
-            name: 'MemoryLimitError',
           },
         }
       }
@@ -930,6 +933,25 @@ async function executeTask(request, executionId) {
     timings.total = Date.now() - tStart
     if (err instanceof Error) {
       const errorInfo = { message: err.message, name: err.name, stack: err.stack }
+      // OOM check must run before the isDisposed guard: isolate OOM auto-disposes
+      // the isolate (isDisposed becomes true), so the cancel branch would fire first
+      // and mask the real cause. Message-based detection disambiguates the two.
+      if (
+        err.message?.includes('Array buffer allocation failed') ||
+        err.message?.includes('memory limit')
+      ) {
+        return {
+          result: null,
+          stdout,
+          error: {
+            message:
+              'Execution exceeded memory limit (256 MB). Reduce image sizes or split the work into smaller batches.',
+            name: 'MemoryLimitError',
+          },
+          timings,
+        }
+      }
+
       // Cancellation: host sent `cancel` IPC which called `isolate.dispose()`.
       // Detect authoritatively via the isolate flag so we don't depend on
       // isolated-vm's internal error wording.
@@ -948,22 +970,6 @@ async function executeTask(request, executionId) {
           error: {
             message: `Execution timed out after ${timeoutMs}ms`,
             name: 'TimeoutError',
-          },
-          timings,
-        }
-      }
-
-      if (
-        err.message?.includes('Array buffer allocation failed') ||
-        err.message?.includes('memory limit')
-      ) {
-        return {
-          result: null,
-          stdout,
-          error: {
-            message:
-              'Execution exceeded memory limit (256 MB). Reduce image sizes or split the work into smaller batches.',
-            name: 'MemoryLimitError',
           },
           timings,
         }
