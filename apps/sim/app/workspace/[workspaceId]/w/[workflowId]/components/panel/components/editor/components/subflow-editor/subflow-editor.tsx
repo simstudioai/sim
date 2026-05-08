@@ -3,7 +3,6 @@
 import { ChevronUp } from 'lucide-react'
 import SimpleCodeEditor from 'react-simple-code-editor'
 import { Code as CodeEditor, Combobox, getCodeEditorProps, Input, Label } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
@@ -11,6 +10,8 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { ConnectedBlock } from '../../hooks/use-block-connections'
 import { useSubflowEditor } from '../../hooks/use-subflow-editor'
 import { ConnectionBlocks } from '../connection-blocks'
+
+const WORKFLOW_SEARCH_CURRENT_MATCH_CLASS = 'rounded-md bg-orange-400 px-1 py-0.5'
 
 interface SubflowEditorProps {
   currentBlock: BlockState
@@ -88,13 +89,18 @@ export function SubflowEditor({
           <div
             data-workflow-search-subblock-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type}
             data-workflow-search-canonical-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type}
-            className={cn(
-              'rounded-md transition-colors',
-              isTypeHighlighted && 'bg-[var(--surface-3)] p-2 ring-1 ring-[var(--border-1)]'
-            )}
+            className='rounded-md'
           >
             <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-              {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
+              {isTypeHighlighted ? (
+                <mark className={WORKFLOW_SEARCH_CURRENT_MATCH_CLASS}>
+                  {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
+                </mark>
+              ) : currentBlock.type === 'loop' ? (
+                'Loop Type'
+              ) : (
+                'Parallel Type'
+              )}
             </Label>
             <Combobox
               options={typeOptions}
@@ -118,17 +124,24 @@ export function SubflowEditor({
           <div
             data-workflow-search-subblock-id={configSearchFieldId}
             data-workflow-search-canonical-id={configSearchFieldId}
-            className={cn(
-              'rounded-md transition-colors',
-              isConfigHighlighted && 'bg-[var(--surface-3)] p-2 ring-1 ring-[var(--border-1)]'
-            )}
+            className='rounded-md'
           >
             <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-              {isCountMode
-                ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
-                : isConditionMode
-                  ? 'While Condition'
-                  : `${currentBlock.type === 'loop' ? 'Collection' : 'Parallel'} Items`}
+              {isConfigHighlighted ? (
+                <mark className={WORKFLOW_SEARCH_CURRENT_MATCH_CLASS}>
+                  {isCountMode
+                    ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
+                    : isConditionMode
+                      ? 'While Condition'
+                      : `${currentBlock.type === 'loop' ? 'Collection' : 'Parallel'} Items`}
+                </mark>
+              ) : isCountMode ? (
+                `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
+              ) : isConditionMode ? (
+                'While Condition'
+              ) : (
+                `${currentBlock.type === 'loop' ? 'Collection' : 'Parallel'} Items`
+              )}
             </Label>
 
             {isCountMode ? (

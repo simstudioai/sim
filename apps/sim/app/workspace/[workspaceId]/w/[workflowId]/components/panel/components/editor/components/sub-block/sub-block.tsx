@@ -72,6 +72,8 @@ const FOLDER_OVERRIDES: SelectorOverrides = {
   },
 }
 
+const WORKFLOW_SEARCH_CURRENT_MATCH_CLASS = 'rounded-md bg-orange-400 px-1 py-0.5'
+
 /**
  * Interface for wand control handlers exposed by sub-block inputs
  */
@@ -230,6 +232,7 @@ const renderLabel = (
     onCopy: () => void
   },
   labelSuffix?: React.ReactNode,
+  isSearchHighlighted?: boolean,
   externalLink?: {
     show: boolean
     onClick: () => void
@@ -249,7 +252,11 @@ const renderLabel = (
   return (
     <div className='flex items-center justify-between gap-1.5 pl-0.5'>
       <Label className='flex items-baseline gap-1.5 whitespace-nowrap'>
-        {config.title}
+        {isSearchHighlighted ? (
+          <mark className={WORKFLOW_SEARCH_CURRENT_MATCH_CLASS}>{config.title}</mark>
+        ) : (
+          config.title
+        )}
         {required && <span className='ml-0.5'>*</span>}
         {labelSuffix}
         {config.type === 'code' &&
@@ -1173,10 +1180,7 @@ function SubBlockComponent({
       onMouseDown={handleMouseDown}
       data-workflow-search-subblock-id={config.id}
       data-workflow-search-canonical-id={config.canonicalParamId ?? config.id}
-      className={cn(
-        'subblock-content flex flex-col gap-2.5 rounded-md transition-colors',
-        isSearchHighlighted && 'bg-[var(--surface-3)] p-2 ring-1 ring-[var(--border-1)]'
-      )}
+      className='subblock-content flex flex-col gap-2.5'
     >
       {renderLabel(
         config,
@@ -1204,6 +1208,7 @@ function SubBlockComponent({
           onCopy: handleCopy,
         },
         labelSuffix,
+        isSearchHighlighted,
         externalLink
       )}
       {renderInput()}
