@@ -466,6 +466,10 @@ export function useCreateTable(workspaceId: string) {
         body: { ...params, workspaceId },
       })
     },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
     },
@@ -531,6 +535,10 @@ export function useDeleteTable(workspaceId: string) {
         params: { tableId },
         query: { workspaceId },
       })
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, tableId) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -818,6 +826,10 @@ export function useDeleteTableRow({ workspaceId, tableId }: RowMutationContext) 
         body: { workspaceId },
       })
     },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
     },
@@ -854,6 +866,10 @@ export function useDeleteTableRows({ workspaceId, tableId }: RowMutationContext)
       }
 
       return { deletedRowIds }
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
@@ -1032,6 +1048,10 @@ export function useRestoreTable() {
         params: { tableId },
       })
     },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
     },
@@ -1068,11 +1088,12 @@ export function useUploadCsvToTable() {
 
       return response.json()
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
-    },
     onError: (error) => {
       logger.error('Failed to upload CSV:', error)
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
     },
   })
 }
@@ -1144,12 +1165,13 @@ export function useImportCsvIntoTable() {
 
       return response.json()
     },
+    onError: (error) => {
+      logger.error('Failed to import CSV into table:', error)
+      toast.error(error.message, { duration: 5000 })
+    },
     onSettled: (_data, _error, variables) => {
       if (!variables) return
       invalidateRowCount(queryClient, variables.tableId)
-    },
-    onError: (error) => {
-      logger.error('Failed to import CSV into table:', error)
     },
   })
 }
@@ -1442,6 +1464,10 @@ export function useAddWorkflowGroup({ workspaceId, tableId }: RowMutationContext
         body: { workspaceId, group, outputColumns },
       })
     },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
     },
@@ -1468,6 +1494,10 @@ export function useUpdateWorkflowGroup({ workspaceId, tableId }: RowMutationCont
         body: { workspaceId, ...vars },
       })
     },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
@@ -1487,6 +1517,10 @@ export function useDeleteWorkflowGroup({ workspaceId, tableId }: RowMutationCont
         params: { tableId },
         body: { workspaceId, groupId },
       })
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
