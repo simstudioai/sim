@@ -117,8 +117,6 @@ export function Table({
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
 
-  // Subscribe to per-cell SSE events for this table. Patches the row cache
-  // as transitions arrive — replaces polling for live updates.
   useTableEventStream({ tableId, workspaceId })
 
   const [slideout, dispatch] = useReducer(slideoutReducer, { kind: 'none' })

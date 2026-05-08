@@ -26,23 +26,21 @@ export const TABLE_EVENT_TTL_SECONDS = 60 * 60 // 1 hour
 export const TABLE_EVENT_CAP = 5000
 
 /**
- * Atomic flush: ZADD the new entry, refresh TTL on events + seq + meta keys,
- * trim the front of the sorted set to enforce the cap, then update the meta
- * `earliestEventId` to whatever the front of the set now is. Without the
- * Lua script, a slow reader could observe the trim before the meta update
- * and incorrectly think pruning hadn't happened.
+ * Atomic append: INCR the seq counter to mint a new eventId, build the entry
+ * JSON inline, ZADD it, refresh TTL on events + seq + meta, trim to cap, then
+ * write the resulting earliestEventId to meta. Single round-trip per event.
+ * Without atomicity a slow reader could observe the trim before the meta
+ * update and miss the prune signal.
  *
- * KEYS[1] = events sorted set key
- * KEYS[2] = seq counter key (only EXPIRE'd here; INCR happens before EVAL)
- * KEYS[3] = meta hash key
- * ARGV[1] = TTL seconds
- * ARGV[2] = cap (max events retained)
- * ARGV[3] = updatedAt ISO string
- * ARGV[4] = eventId (numeric, used as ZADD score)
- * ARGV[5] = entry JSON
+ * KEYS: [events, seq, meta]
+ * ARGV: [ttlSec, cap, updatedAtIso, entryPrefix, entrySuffix]
+ *   The new eventId is spliced between prefix/suffix to form the entry JSON.
+ *   Returns the new eventId.
  */
 const APPEND_EVENT_SCRIPT = `
-redis.call('ZADD', KEYS[1], ARGV[4], ARGV[5])
+local eventId = redis.call('INCR', KEYS[2])
+local entry = ARGV[4] .. eventId .. ARGV[5]
+redis.call('ZADD', KEYS[1], eventId, entry)
 redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]))
 redis.call('EXPIRE', KEYS[2], tonumber(ARGV[1]))
 redis.call('ZREMRANGEBYRANK', KEYS[1], 0, -tonumber(ARGV[2]) - 1)
@@ -51,7 +49,7 @@ if oldest[2] then
   redis.call('HSET', KEYS[3], 'earliestEventId', tostring(math.floor(tonumber(oldest[2]))), 'updatedAt', ARGV[3])
   redis.call('EXPIRE', KEYS[3], tonumber(ARGV[1]))
 end
-return oldest[2] or false
+return eventId
 `
 
 function getEventsKey(tableId: string) {
@@ -189,9 +187,11 @@ export async function appendTableEvent(event: TableEvent): Promise<TableEventEnt
     return null
   }
   try {
-    const eventId = await redis.incr(getSeqKey(event.tableId))
-    const entry: TableEventEntry = { eventId, tableId: event.tableId, event }
-    await redis.eval(
+    // Build the entry JSON in two halves so Lua can splice the new eventId
+    // between them without us needing a round-trip just to mint the id first.
+    const tail = `,"tableId":${JSON.stringify(event.tableId)},"event":${JSON.stringify(event)}}`
+    const head = `{"eventId":`
+    const result = await redis.eval(
       APPEND_EVENT_SCRIPT,
       3,
       getEventsKey(event.tableId),
@@ -200,10 +200,12 @@ export async function appendTableEvent(event: TableEvent): Promise<TableEventEnt
       TABLE_EVENT_TTL_SECONDS,
       TABLE_EVENT_CAP,
       new Date().toISOString(),
-      eventId,
-      JSON.stringify(entry)
+      head,
+      tail
     )
-    return entry
+    const eventId = typeof result === 'number' ? result : Number(result)
+    if (!Number.isFinite(eventId)) return null
+    return { eventId, tableId: event.tableId, event }
   } catch (error) {
     logger.warn('appendTableEvent: Redis append failed', {
       tableId: event.tableId,

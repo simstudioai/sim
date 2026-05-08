@@ -71,77 +71,6 @@ import type {
 } from '@/lib/table'
 import { areOutputsFilled, optimisticallyScheduleNewlyEligibleGroups } from '@/lib/table/deps'
 
-/**
- * Shallow-equality on the fields the renderer reads from a row. Row data is
- * also shallow-compared — workflow output cells are scalars, so `===` per key
- * suffices. `executions` is a per-group exec metadata object; we compare each
- * group's `(status, jobId, executionId, error)` tuple. Any deeper drift forces
- * a fresh row reference, which is the safe default.
- */
-function rowEqual(a: TableRow, b: TableRow): boolean {
-  if (a === b) return true
-  if (a.position !== b.position) return false
-  const aData = a.data ?? {}
-  const bData = b.data ?? {}
-  const aDataKeys = Object.keys(aData)
-  if (aDataKeys.length !== Object.keys(bData).length) return false
-  for (const k of aDataKeys) {
-    if (aData[k] !== bData[k]) return false
-  }
-  const aExec = a.executions ?? {}
-  const bExec = b.executions ?? {}
-  const aExecKeys = Object.keys(aExec)
-  if (aExecKeys.length !== Object.keys(bExec).length) return false
-  for (const k of aExecKeys) {
-    const ax = aExec[k]
-    const bx = bExec[k]
-    if (ax === bx) continue
-    if (!ax || !bx) return false
-    if (
-      ax.status !== bx.status ||
-      ax.jobId !== bx.jobId ||
-      ax.executionId !== bx.executionId ||
-      ax.error !== bx.error
-    ) {
-      return false
-    }
-  }
-  return true
-}
-
-/**
- * Replaces `prev.rows` element-by-element with `fresh.rows`, but reuses the
- * `prev` reference for any row that hasn't changed. Memoized `<DataRow>`
- * children short-circuit on row-identity, so a poll tick that arrives with
- * 1000 rows but only flips the status of 5 only re-renders those 5 instead
- * of every row in the page.
- */
-function mergePagePreservingIdentity(
-  prev: TableRowsResponse,
-  fresh: TableRowsResponse
-): TableRowsResponse {
-  if (prev.rows === fresh.rows) return prev
-  const oldById = new Map(prev.rows.map((r) => [r.id, r]))
-  let changed = false
-  const merged = fresh.rows.map((freshRow) => {
-    const old = oldById.get(freshRow.id)
-    if (old && rowEqual(old, freshRow)) return old
-    changed = true
-    return freshRow
-  })
-  if (!changed && merged.length === prev.rows.length) {
-    let identical = true
-    for (let i = 0; i < merged.length; i++) {
-      if (merged[i] !== prev.rows[i]) {
-        identical = false
-        break
-      }
-    }
-    if (identical && prev.totalCount === fresh.totalCount) return prev
-  }
-  return { ...fresh, rows: merged }
-}
-
 const logger = createLogger('TableQueries')
 
 type TableQueryScope = 'active' | 'archived' | 'all'
@@ -1101,12 +1030,19 @@ function isInfiniteRowsCache(value: unknown): value is InfiniteRowsCache {
  * row to write, or `null` to leave it. The common pattern is "matching cells
  * flip state, others are skipped".
  */
+/** Walks every cached query under `rowsRoot(tableId)` and applies `transform`
+ *  to each row. Transform returns the new row or `null` to skip. Returns the
+ *  list of [queryKey, prior data] entries so optimistic-update callers can
+ *  roll back. SSE patchers can ignore the return value. */
 export async function snapshotAndMutateRows(
   queryClient: ReturnType<typeof useQueryClient>,
   tableId: string,
-  transform: (row: TableRow) => TableRow | null
+  transform: (row: TableRow) => TableRow | null,
+  options?: { cancelInFlight?: boolean }
 ): Promise<RowsCacheSnapshots> {
-  await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+  if (options?.cancelInFlight !== false) {
+    await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+  }
   const matching = queryClient.getQueriesData<RowsCacheEntry>({
     queryKey: tableKeys.rowsRoot(tableId),
   })
@@ -1236,10 +1172,9 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
     onError: (_err, _variables, context) => {
       if (context?.snapshots) restoreCachedWorkflowCells(queryClient, context.snapshots)
     },
-    // No onSettled refetch — useTableEventStream keeps the cache live via SSE.
-    // A post-mutation refetch here would race the stream's incremental patches
-    // and snap the cache back to a DB snapshot, losing the just-arrived
-    // status transitions.
+    // No reconciliation here — useTableEventStream is the source of truth for
+    // post-mutation cache state, and a refetch would race its incremental
+    // patches.
   })
 }
 
