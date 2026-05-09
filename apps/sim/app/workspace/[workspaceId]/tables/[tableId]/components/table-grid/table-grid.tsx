@@ -1653,9 +1653,7 @@ export function TableGrid({
           if (undoCells.length > 0) {
             pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
           }
-          if (batchUpdates.length > 0) {
-            await chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current)
-          }
+          await chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current)
         })().catch((error) => {
           logger.error('Failed to clear selected cells', { error })
           toast.error('Failed to clear cells — please try again')
@@ -1882,8 +1880,7 @@ export function TableGrid({
               batchUpdates.push({ rowId: row.id, data: updates })
             }
             if (undoCells.length > 0) pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
-            if (batchUpdates.length > 0)
-              await chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current)
+            await chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current)
           })().catch((error) => {
             logger.error('Failed to clear column values', { error })
             toast.error('Failed to clear column values — please try again')
@@ -1908,12 +1905,10 @@ export function TableGrid({
           undoCells.push({ rowId: row.id, data: previousData })
           batchUpdates.push({ rowId: row.id, data: updates })
         }
-        if (batchUpdates.length > 0) {
-          void chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current).catch((error) => {
-            logger.error('Failed to clear selected cells', { error })
-            toast.error('Failed to clear cells — please try again')
-          })
-        }
+        void chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current).catch((error) => {
+          logger.error('Failed to clear selected cells', { error })
+          toast.error('Failed to clear cells — please try again')
+        })
         if (undoCells.length > 0) {
           pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
         }
@@ -1991,6 +1986,51 @@ export function TableGrid({
       if (!sel) return
 
       e.preventDefault()
+
+      if (isColumnSelectionRef.current) {
+        // Column-header copy spans all rows — drain pages first, then use async
+        // clipboard so we don't block the event before the drain completes.
+        void (async () => {
+          const allRows = await ensureAllRowsLoadedRef.current()
+          const lines: string[] = []
+          for (const row of allRows) {
+            const cells: string[] = []
+            for (let c = sel.startCol; c <= sel.endCol; c++) {
+              const colName = cols[c]?.name
+              if (!colName) continue
+              const value: unknown = row.data[colName]
+              cells.push(
+                value === null || value === undefined
+                  ? ''
+                  : typeof value === 'object'
+                    ? JSON.stringify(value)
+                    : String(value)
+              )
+            }
+            lines.push(cells.join('\t'))
+          }
+          if (!navigator.clipboard) {
+            toast.error('Clipboard access is unavailable in this context')
+            return
+          }
+          try {
+            await navigator.clipboard.writeText(lines.join('\n'))
+          } catch (err) {
+            if (err instanceof DOMException && err.name === 'NotAllowedError') {
+              toast.error(
+                'Clipboard permission expired — press Cmd+C again immediately after selecting'
+              )
+            } else {
+              throw err
+            }
+          }
+        })().catch((error) => {
+          logger.error('Failed to copy column cells', { error })
+          toast.error('Failed to copy — please try again')
+        })
+        return
+      }
+
       const lines: string[] = []
       for (let r = sel.startRow; r <= sel.endRow; r++) {
         const cells: string[] = []
@@ -2127,9 +2167,7 @@ export function TableGrid({
           if (undoCells.length > 0) {
             pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
           }
-          if (batchUpdates.length > 0) {
-            await chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current)
-          }
+          await chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current)
         })().catch((error) => {
           logger.error('Failed to cut column cells', { error })
           toast.error('Failed to cut — please try again')
@@ -2164,12 +2202,10 @@ export function TableGrid({
         batchUpdates.push({ rowId: row.id, data: updates })
       }
       e.clipboardData?.setData('text/plain', lines.join('\n'))
-      if (batchUpdates.length > 0) {
-        void chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current).catch((error) => {
-          logger.error('Failed to cut selected cells', { error })
-          toast.error('Failed to cut — please try again')
-        })
-      }
+      void chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current).catch((error) => {
+        logger.error('Failed to cut selected cells', { error })
+        toast.error('Failed to cut — please try again')
+      })
       if (undoCells.length > 0) {
         pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
       }

@@ -251,11 +251,8 @@ export function useTableRows({
   })
 }
 
-/** Merges a freshly-fetched page into the cached page while preserving row
- * object identity for unchanged rows (by `updatedAt`). Returns the original
- * `prev` reference unchanged when nothing has actually changed — callers can
- * use a `===` check to skip a `setQueryData` write entirely. */
-function mergePagePreservingIdentity(
+/** @internal — exported for testing only. */
+export function _mergePagePreservingIdentity(
   prev: TableRowsResponse,
   fresh: TableRowsResponse
 ): TableRowsResponse {
@@ -264,7 +261,8 @@ function mergePagePreservingIdentity(
   let allSame = true
   const nextRows = fresh.rows.map((freshRow) => {
     const prevRow = prevById.get(freshRow.id)
-    if (prevRow && String(prevRow.updatedAt) === String(freshRow.updatedAt)) return prevRow
+    if (prevRow && new Date(prevRow.updatedAt).getTime() === new Date(freshRow.updatedAt).getTime())
+      return prevRow
     allSame = false
     return freshRow
   })
@@ -343,7 +341,12 @@ export function useInfiniteTableRows({
     const tick = async () => {
       if (cancelled) return
       let hasDirty = false
-      if (queryClient.isMutating() === 0) {
+      if (queryClient.isMutating() !== 0) {
+        // Mutation in progress — skip network fetch to avoid racing optimistic
+        // updates, but stay on the short interval so we catch up quickly once
+        // the mutation settles.
+        hasDirty = true
+      } else {
         const data = queryClient.getQueryData<InfiniteData<TableRowsResponse, number>>(queryKey)
         const dirty: number[] = []
         if (data) {
@@ -374,7 +377,7 @@ export function useInfiniteTableRows({
                     if (!prev) return prev
                     const idx = prev.pageParams.indexOf(offset)
                     if (idx === -1) return prev
-                    const merged = mergePagePreservingIdentity(prev.pages[idx], fresh)
+                    const merged = _mergePagePreservingIdentity(prev.pages[idx], fresh)
                     if (merged === prev.pages[idx]) return prev
                     const nextPages = prev.pages.slice()
                     nextPages[idx] = merged
