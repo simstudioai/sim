@@ -219,15 +219,15 @@ export interface FileValidationError {
   supportedTypes: string[]
 }
 
-export const SUPPORTED_ATTACHMENT_EXTENSIONS = [
-  ...SUPPORTED_DOCUMENT_EXTENSIONS,
-  ...SUPPORTED_CODE_EXTENSIONS,
-  ...SUPPORTED_IMAGE_EXTENSIONS,
-  ...SUPPORTED_AUDIO_EXTENSIONS,
-  ...SUPPORTED_VIDEO_EXTENSIONS,
-] as const
-
-export type SupportedAttachmentExtension = (typeof SUPPORTED_ATTACHMENT_EXTENSIONS)[number]
+export const SUPPORTED_ATTACHMENT_EXTENSIONS = Array.from(
+  new Set<string>([
+    ...SUPPORTED_DOCUMENT_EXTENSIONS,
+    ...SUPPORTED_CODE_EXTENSIONS,
+    ...SUPPORTED_IMAGE_EXTENSIONS,
+    ...SUPPORTED_AUDIO_EXTENSIONS,
+    ...SUPPORTED_VIDEO_EXTENSIONS,
+  ])
+) as readonly string[]
 
 /**
  * Validate that a file's extension is allowed as a chat/mothership attachment.
@@ -239,7 +239,7 @@ export function validateAttachmentFileType(fileName: string): FileValidationErro
   const raw = extractExtension(fileName)
   const extension = isAlphanumericExtension(raw) ? raw : ''
 
-  if (!SUPPORTED_ATTACHMENT_EXTENSIONS.includes(extension as SupportedAttachmentExtension)) {
+  if (!SUPPORTED_ATTACHMENT_EXTENSIONS.includes(extension)) {
     return {
       code: 'UNSUPPORTED_FILE_TYPE',
       message: `Unsupported file type${extension ? `: ${extension}` : ` for "${fileName}"`}. Supported types include documents, code, images, audio, and video.`,

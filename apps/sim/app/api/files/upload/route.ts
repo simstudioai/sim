@@ -14,14 +14,7 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
-import {
-  SUPPORTED_AUDIO_EXTENSIONS,
-  SUPPORTED_CODE_EXTENSIONS,
-  SUPPORTED_DOCUMENT_EXTENSIONS,
-  SUPPORTED_IMAGE_EXTENSIONS,
-  SUPPORTED_VIDEO_EXTENSIONS,
-  validateFileType,
-} from '@/lib/uploads/utils/validation'
+import { SUPPORTED_ATTACHMENT_EXTENSIONS, validateFileType } from '@/lib/uploads/utils/validation'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
   createErrorResponse,
@@ -29,13 +22,7 @@ import {
   InvalidRequestError,
 } from '@/app/api/files/utils'
 
-const ALLOWED_EXTENSIONS = new Set<string>([
-  ...SUPPORTED_DOCUMENT_EXTENSIONS,
-  ...SUPPORTED_CODE_EXTENSIONS,
-  ...SUPPORTED_IMAGE_EXTENSIONS,
-  ...SUPPORTED_AUDIO_EXTENSIONS,
-  ...SUPPORTED_VIDEO_EXTENSIONS,
-])
+const ALLOWED_EXTENSIONS = new Set<string>(SUPPORTED_ATTACHMENT_EXTENSIONS)
 
 function validateFileExtension(filename: string): boolean {
   const extension = filename.split('.').pop()?.toLowerCase()
