@@ -1,6 +1,6 @@
 /**
- * Internal PPTX inspired by https://github.com/aiden0z/pptx-renderer and
- * adapted for Sim.
+ * Internal PPTX source ported from https://github.com/aiden0z/pptx-renderer and
+ * adapted for use in Sim.
  */
 export type {
   FitMode,
