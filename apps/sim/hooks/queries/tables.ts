@@ -4,7 +4,6 @@
  * React Query hooks for managing user-defined tables.
  */
 
-import { useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   type InfiniteData,
@@ -70,16 +69,9 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table'
-import {
-  areOutputsFilled,
-  hasRunningGroupExecution,
-  optimisticallyScheduleNewlyEligibleGroups,
-} from '@/lib/table/deps'
+import { areOutputsFilled, optimisticallyScheduleNewlyEligibleGroups } from '@/lib/table/deps'
 
 const logger = createLogger('TableQueries')
-
-const ROWS_POLL_INTERVAL_WHILE_RUNNING_MS = 2_000
-const ROWS_POLL_INTERVAL_IDLE_MS = 30_000
 
 type TableQueryScope = 'active' | 'archived' | 'all'
 
@@ -251,24 +243,6 @@ export function useTableRows({
   })
 }
 
-/** @internal — exported for testing only. */
-export function mergePagePreservingIdentity(
-  prev: TableRowsResponse,
-  fresh: TableRowsResponse
-): TableRowsResponse {
-  if (prev.totalCount !== fresh.totalCount || prev.rows.length !== fresh.rows.length) return fresh
-  const prevById = new Map(prev.rows.map((r) => [r.id, r]))
-  let allSame = true
-  const nextRows = fresh.rows.map((freshRow) => {
-    const prevRow = prevById.get(freshRow.id)
-    if (prevRow && new Date(prevRow.updatedAt).getTime() === new Date(freshRow.updatedAt).getTime())
-      return prevRow
-    allSame = false
-    return freshRow
-  })
-  return allSame ? prev : { ...fresh, rows: nextRows }
-}
-
 export function tableRowsParamsKey({
   pageSize,
   filter,
@@ -316,99 +290,10 @@ export function useInfiniteTableRows({
   sort,
   enabled = true,
 }: InfiniteTableRowsParams) {
-  const queryClient = useQueryClient()
-  const paramsKey = tableRowsParamsKey({ pageSize, filter, sort })
-  // Memoize the key so the polling useEffect below doesn't fire on every render.
-  const queryKey = useMemo(() => tableKeys.infiniteRows(tableId, paramsKey), [tableId, paramsKey])
-
-  const query = useInfiniteQuery({
+  return useInfiniteQuery({
     ...tableRowsInfiniteOptions({ workspaceId, tableId, pageSize, filter, sort }),
-    queryKey,
     enabled: Boolean(workspaceId && tableId) && enabled,
   })
-
-  /**
-   * Per-page polling. Built-in `refetchInterval` would refetch every loaded
-   * page on each tick — wasteful when only one page has running cells.
-   * Instead, walk pages each tick and refetch ONLY the dirty ones, splicing
-   * results back into the cache. Polling stops when no page has in-flight
-   * cells, or while a mutation is running (optimistic-update guard).
-   */
-  useEffect(() => {
-    if (!enabled || !workspaceId || !tableId) return
-    let cancelled = false
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
-    const tick = async () => {
-      if (cancelled) return
-      let hasDirty = false
-      if (queryClient.isMutating() !== 0) {
-        // Mutation in progress — skip network fetch to avoid racing optimistic
-        // updates, but stay on the short interval so we catch up quickly once
-        // the mutation settles.
-        hasDirty = true
-      } else {
-        const data = queryClient.getQueryData<InfiniteData<TableRowsResponse, number>>(queryKey)
-        const dirty: number[] = []
-        if (data) {
-          for (let i = 0; i < data.pages.length; i++) {
-            if (hasRunningGroupExecution(data.pages[i].rows)) {
-              dirty.push(data.pageParams[i] ?? i * pageSize)
-            }
-          }
-        }
-        hasDirty = dirty.length > 0
-        if (hasDirty) {
-          await Promise.all(
-            dirty.map(async (offset) => {
-              try {
-                const fresh = await fetchTableRows({
-                  workspaceId,
-                  tableId,
-                  limit: pageSize,
-                  offset,
-                  filter,
-                  sort,
-                  includeTotal: offset === 0,
-                })
-                if (cancelled) return
-                queryClient.setQueryData<InfiniteData<TableRowsResponse, number>>(
-                  queryKey,
-                  (prev) => {
-                    if (!prev) return prev
-                    const idx = prev.pageParams.indexOf(offset)
-                    if (idx === -1) return prev
-                    const merged = mergePagePreservingIdentity(prev.pages[idx], fresh)
-                    if (merged === prev.pages[idx]) return prev
-                    const nextPages = prev.pages.slice()
-                    nextPages[idx] = merged
-                    return { ...prev, pages: nextPages }
-                  }
-                )
-              } catch {
-                // Transient fetch failure — next tick retries. Don't kill the loop.
-              }
-            })
-          )
-        }
-      }
-      if (cancelled) return
-      // Recursive setTimeout instead of setInterval so a slow tick can't
-      // overlap the next one — out-of-order responses would otherwise let
-      // stale data overwrite fresh. Use a long interval when idle so tables
-      // with no running executions don't burn CPU on constant cache reads.
-      timeoutId = setTimeout(
-        () => void tick(),
-        hasDirty ? ROWS_POLL_INTERVAL_WHILE_RUNNING_MS : ROWS_POLL_INTERVAL_IDLE_MS
-      )
-    }
-    timeoutId = setTimeout(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
-    return () => {
-      cancelled = true
-      if (timeoutId !== null) clearTimeout(timeoutId)
-    }
-  }, [enabled, workspaceId, tableId, pageSize, filter, sort, queryClient, queryKey])
-
-  return query
 }
 
 /**

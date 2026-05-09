@@ -82,7 +82,6 @@ vi.mock('@/components/emcn', () => ({
 }))
 
 import {
-  mergePagePreservingIdentity,
   tableKeys,
   tableRowsInfiniteOptions,
   tableRowsParamsKey,
@@ -369,77 +368,5 @@ describe('tableRowsInfiniteOptions', () => {
       sort: null,
     }) as { queryKey: readonly unknown[] }
     expect(JSON.stringify(opts1.queryKey)).not.toBe(JSON.stringify(opts2.queryKey))
-  })
-})
-
-describe('mergePagePreservingIdentity', () => {
-  const ts = '2024-01-01T00:00:00.000Z'
-  const ts2 = '2024-01-02T00:00:00.000Z'
-
-  function makeRow(id: string, updatedAt: string, extra?: Record<string, unknown>) {
-    return { id, updatedAt, data: { value: id, ...extra } }
-  }
-
-  it('returns fresh when totalCount differs', () => {
-    const prev = { rows: [makeRow('r1', ts)], totalCount: 1, nextOffset: undefined }
-    const fresh = { rows: [makeRow('r1', ts)], totalCount: 2, nextOffset: undefined }
-    const result = mergePagePreservingIdentity(prev, fresh)
-    expect(result).toBe(fresh)
-  })
-
-  it('returns fresh when row counts differ', () => {
-    const prev = { rows: [makeRow('r1', ts)], totalCount: 2, nextOffset: undefined }
-    const fresh = {
-      rows: [makeRow('r1', ts), makeRow('r2', ts)],
-      totalCount: 2,
-      nextOffset: undefined,
-    }
-    const result = mergePagePreservingIdentity(prev, fresh)
-    expect(result).toBe(fresh)
-  })
-
-  it('returns prev (same reference) when all rows are unchanged', () => {
-    const row1 = makeRow('r1', ts)
-    const row2 = makeRow('r2', ts)
-    const prev = { rows: [row1, row2], totalCount: 2, nextOffset: undefined }
-    const freshRow1 = makeRow('r1', ts)
-    const fresh = { rows: [freshRow1, makeRow('r2', ts)], totalCount: 2, nextOffset: undefined }
-    const result = mergePagePreservingIdentity(prev, fresh)
-    expect(result).toBe(prev)
-  })
-
-  it('preserves identity for unchanged rows, uses fresh for updated rows', () => {
-    const row1 = makeRow('r1', ts)
-    const row2 = makeRow('r2', ts)
-    const prev = { rows: [row1, row2], totalCount: 2, nextOffset: undefined }
-    const updatedRow2 = makeRow('r2', ts2, { extra: 'new' })
-    const fresh = { rows: [makeRow('r1', ts), updatedRow2], totalCount: 2, nextOffset: undefined }
-    const result = mergePagePreservingIdentity(prev, fresh)
-    expect(result).not.toBe(prev)
-    expect(result.rows[0]).toBe(row1)
-    expect(result.rows[1]).toBe(updatedRow2)
-  })
-
-  it('uses fresh row when ID is not found in prev', () => {
-    const row1 = makeRow('r1', ts)
-    const prev = { rows: [row1, makeRow('r2', ts)], totalCount: 2, nextOffset: undefined }
-    const newRow = makeRow('r3', ts)
-    const fresh = { rows: [makeRow('r1', ts), newRow], totalCount: 2, nextOffset: undefined }
-    const result = mergePagePreservingIdentity(prev, fresh)
-    expect(result.rows[1]).toBe(newRow)
-  })
-
-  it('compares updatedAt as dates, not strings (ISO vs different string forms)', () => {
-    const row1 = makeRow('r1', ts)
-    const prev = { rows: [row1], totalCount: 1, nextOffset: undefined }
-    // Same point in time, different ISO string representation (with trailing Z vs +00:00)
-    const sameTimeDifferentFormat = '2024-01-01T00:00:00+00:00'
-    const fresh = {
-      rows: [makeRow('r1', sameTimeDifferentFormat)],
-      totalCount: 1,
-      nextOffset: undefined,
-    }
-    const result = mergePagePreservingIdentity(prev, fresh)
-    expect(result).toBe(prev)
   })
 })

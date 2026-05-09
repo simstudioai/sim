@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ColumnDefinition, TableDefinition, TableRow, WorkflowGroup } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
@@ -83,13 +83,6 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     sort: queryOptions.sort,
     enabled: Boolean(workspaceId && tableId),
   })
-
-  // prefetchInfiniteQuery is a no-op when data is fresh (staleTime not exceeded),
-  // so drive the drain through fetchNextPage — it appends one page at a time.
-  useEffect(() => {
-    if (!workspaceId || !tableId || !hasNextPage || isFetchingNextPage) return
-    void fetchNextPage()
-  }, [workspaceId, tableId, hasNextPage, isFetchingNextPage, fetchNextPage])
 
   const rows = useMemo<TableRow[]>(
     () => rowsData?.pages.flatMap((p) => p.rows) ?? [],

@@ -198,6 +198,8 @@ interface TableGridProps {
  * an all-or-nothing result and partial success cannot leave the table in an
  * ambiguous half-cleared state.
  */
+const CHUNK_CONCURRENCY = 3
+
 async function chunkBatchUpdates(
   updates: Array<{ rowId: string; data: Record<string, unknown> }>,
   mutateAsync: (args: {
@@ -205,9 +207,18 @@ async function chunkBatchUpdates(
   }) => Promise<unknown>
 ): Promise<void> {
   const size = TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
+  const chunks: Array<Array<{ rowId: string; data: Record<string, unknown> }>> = []
   for (let i = 0; i < updates.length; i += size) {
-    await mutateAsync({ updates: updates.slice(i, i + size) })
+    chunks.push(updates.slice(i, i + size))
   }
+  let cursor = 0
+  await Promise.all(
+    Array.from({ length: Math.min(CHUNK_CONCURRENCY, chunks.length) }, async () => {
+      while (cursor < chunks.length) {
+        await mutateAsync({ updates: chunks[cursor++]! })
+      }
+    })
+  )
 }
 
 export function TableGrid({
