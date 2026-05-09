@@ -2078,6 +2078,65 @@ export function TableGrid({
       if (!sel) return
 
       e.preventDefault()
+
+      if (isColumnSelectionRef.current) {
+        // Column-header cut spans all rows — drain pages first, then use async
+        // clipboard so we don't block the event before the drain completes.
+        void (async () => {
+          const allRows = await ensureAllRowsLoadedRef.current()
+          const lines: string[] = []
+          const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
+          const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
+          for (const row of allRows) {
+            const cells: string[] = []
+            const updates: Record<string, unknown> = {}
+            const previousData: Record<string, unknown> = {}
+            for (let c = sel.startCol; c <= sel.endCol; c++) {
+              const colName = cols[c]?.name
+              if (!colName) continue
+              const value: unknown = row.data[colName]
+              cells.push(
+                value === null || value === undefined
+                  ? ''
+                  : typeof value === 'object'
+                    ? JSON.stringify(value)
+                    : String(value)
+              )
+              previousData[colName] = row.data[colName] ?? null
+              updates[colName] = null
+            }
+            lines.push(cells.join('\t'))
+            undoCells.push({ rowId: row.id, data: previousData })
+            batchUpdates.push({ rowId: row.id, data: updates })
+          }
+          if (!navigator.clipboard) {
+            toast.error('Clipboard access is unavailable in this context')
+            return
+          }
+          try {
+            await navigator.clipboard.writeText(lines.join('\n'))
+          } catch (err) {
+            if (err instanceof DOMException && err.name === 'NotAllowedError') {
+              toast.error(
+                'Clipboard permission expired — press Cmd+X again immediately after selecting'
+              )
+              return
+            }
+            throw err
+          }
+          if (undoCells.length > 0) {
+            pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
+          }
+          if (batchUpdates.length > 0) {
+            await chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current)
+          }
+        })().catch((error) => {
+          logger.error('Failed to cut column cells', { error })
+          toast.error('Failed to cut — please try again')
+        })
+        return
+      }
+
       const lines: string[] = []
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []

@@ -79,6 +79,7 @@ import {
 const logger = createLogger('TableQueries')
 
 const ROWS_POLL_INTERVAL_WHILE_RUNNING_MS = 2_000
+const ROWS_POLL_INTERVAL_IDLE_MS = 30_000
 
 type TableQueryScope = 'active' | 'archived' | 'all'
 
@@ -341,6 +342,7 @@ export function useInfiniteTableRows({
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     const tick = async () => {
       if (cancelled) return
+      let hasDirty = false
       if (queryClient.isMutating() === 0) {
         const data = queryClient.getQueryData<InfiniteData<TableRowsResponse, number>>(queryKey)
         const dirty: number[] = []
@@ -351,7 +353,8 @@ export function useInfiniteTableRows({
             }
           }
         }
-        if (dirty.length > 0) {
+        hasDirty = dirty.length > 0
+        if (hasDirty) {
           await Promise.all(
             dirty.map(async (offset) => {
               try {
@@ -388,8 +391,12 @@ export function useInfiniteTableRows({
       if (cancelled) return
       // Recursive setTimeout instead of setInterval so a slow tick can't
       // overlap the next one — out-of-order responses would otherwise let
-      // stale data overwrite fresh.
-      timeoutId = setTimeout(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
+      // stale data overwrite fresh. Use a long interval when idle so tables
+      // with no running executions don't burn CPU on constant cache reads.
+      timeoutId = setTimeout(
+        () => void tick(),
+        hasDirty ? ROWS_POLL_INTERVAL_WHILE_RUNNING_MS : ROWS_POLL_INTERVAL_IDLE_MS
+      )
     }
     timeoutId = setTimeout(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
     return () => {
@@ -1036,7 +1043,6 @@ export function useUploadCsvToTable() {
       return response.json()
     },
     onError: (error) => {
-      if (isValidationError(error)) return
       logger.error('Failed to upload CSV:', error)
       toast.error(error.message, { duration: 5000 })
     },

@@ -198,17 +198,13 @@ function InlineTextEditor({
   return (
     <input
       ref={inputRef}
-      type={isNumber ? 'number' : 'text'}
-      step={isNumber ? 'any' : undefined}
+      type='text'
+      inputMode={isNumber ? 'decimal' : undefined}
       value={draft ?? ''}
       onChange={(e) => setDraft(e.target.value)}
       onKeyDown={handleKeyDown}
       onBlur={() => doSave('blur')}
-      className={cn(
-        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none',
-        isNumber &&
-          '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
-      )}
+      className='w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
     />
   )
 }
