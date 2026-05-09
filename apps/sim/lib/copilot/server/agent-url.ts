@@ -14,7 +14,6 @@ export interface GetMothershipBaseURLOptions {
 type ConcreteMothershipEnvironment = Exclude<MothershipEnvironment, 'default'>
 
 const ENVIRONMENT_URLS: Record<ConcreteMothershipEnvironment, string | undefined> = {
-  // env vars
   dev: env.COPILOT_DEV_URL,
   staging: env.COPILOT_STAGING_URL,
   prod: env.COPILOT_PROD_URL,
@@ -40,10 +39,6 @@ export async function getMothershipBaseURL(
 ): Promise<string> {
   const defaultUrl = getDefaultMothershipBaseURL(options.fallbackUrl)
 
-  if (options.environment) {
-    return getConfiguredEnvironmentUrl(options.environment) ?? defaultUrl
-  }
-
   const { userId } = options
   if (!userId) return defaultUrl
 
@@ -61,7 +56,8 @@ export async function getMothershipBaseURL(
   const effectiveSuperUser = row?.role === 'admin' && (row.superUserModeEnabled ?? false)
   if (!effectiveSuperUser) return defaultUrl
 
-  const parsedEnvironment = mothershipEnvironmentSchema.safeParse(row.mothershipEnvironment)
+  const selectedEnvironment = options.environment ?? row.mothershipEnvironment
+  const parsedEnvironment = mothershipEnvironmentSchema.safeParse(selectedEnvironment)
   const environment = parsedEnvironment.success ? parsedEnvironment.data : 'default'
 
   return getConfiguredEnvironmentUrl(environment) ?? defaultUrl

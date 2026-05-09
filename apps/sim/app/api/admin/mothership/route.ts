@@ -16,11 +16,12 @@ const ENV_URLS: Record<string, string | undefined> = {
   prod: env.MOTHERSHIP_PROD_URL,
 }
 
-async function getMothershipUrl(environment: string): Promise<string | null> {
+async function getMothershipUrl(environment: string, userId: string): Promise<string | null> {
   const parsedEnvironment = mothershipEnvironmentSchema.safeParse(environment)
   if (!parsedEnvironment.success) return ENV_URLS[environment] ?? null
 
   return getMothershipBaseURL({
+    userId,
     environment: parsedEnvironment.data,
     fallbackUrl: ENV_URLS[environment],
   })
@@ -34,9 +35,9 @@ function isValidEndpoint(endpoint: string): boolean {
   return ENDPOINT_PATTERN.test(endpoint)
 }
 
-async function isAdminRequestAuthorized() {
+async function getAuthorizedAdminUserId() {
   const session = await getSession()
-  if (!session?.user?.id) return false
+  if (!session?.user?.id) return null
 
   const [currentUser] = await db
     .select({
@@ -48,7 +49,8 @@ async function isAdminRequestAuthorized() {
     .where(eq(user.id, session.user.id))
     .limit(1)
 
-  return currentUser?.role === 'admin' && (currentUser.superUserModeEnabled ?? false)
+  const authorized = currentUser?.role === 'admin' && (currentUser.superUserModeEnabled ?? false)
+  return authorized ? session.user.id : null
 }
 
 /**
@@ -62,7 +64,8 @@ async function isAdminRequestAuthorized() {
  * (e.g. requestId for GET /traces) are forwarded.
  */
 export const POST = withRouteHandler(async (req: NextRequest) => {
-  if (!(await isAdminRequestAuthorized())) {
+  const userId = await getAuthorizedAdminUserId()
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -80,7 +83,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'invalid endpoint' }, { status: 400 })
   }
 
-  const baseUrl = await getMothershipUrl(environment)
+  const baseUrl = await getMothershipUrl(environment, userId)
   if (!baseUrl) {
     return NextResponse.json(
       { error: `No URL configured for environment: ${environment}` },
@@ -114,7 +117,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 })
 
 export const GET = withRouteHandler(async (req: NextRequest) => {
-  if (!(await isAdminRequestAuthorized())) {
+  const userId = await getAuthorizedAdminUserId()
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -132,7 +136,7 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'invalid endpoint' }, { status: 400 })
   }
 
-  const baseUrl = await getMothershipUrl(environment)
+  const baseUrl = await getMothershipUrl(environment, userId)
   if (!baseUrl) {
     return NextResponse.json(
       { error: `No URL configured for environment: ${environment}` },
