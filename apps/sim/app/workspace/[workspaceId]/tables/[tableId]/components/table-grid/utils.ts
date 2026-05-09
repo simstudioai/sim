@@ -8,6 +8,49 @@ import type {
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import type { DisplayColumn } from './types'
 
+export type RowSelection = { kind: 'none' } | { kind: 'some'; ids: Set<string> } | { kind: 'all' }
+
+export const ROW_SELECTION_NONE: RowSelection = { kind: 'none' }
+export const ROW_SELECTION_ALL: RowSelection = { kind: 'all' }
+
+export function rowSelectionIncludes(sel: RowSelection, id: string): boolean {
+  if (sel.kind === 'all') return true
+  if (sel.kind === 'some') return sel.ids.has(id)
+  return false
+}
+
+export function rowSelectionIsEmpty(sel: RowSelection): boolean {
+  if (sel.kind === 'none') return true
+  if (sel.kind === 'some') return sel.ids.size === 0
+  return false
+}
+
+export function rowSelectionMaterialize(sel: RowSelection, rows: TableRowType[]): Set<string> {
+  if (sel.kind === 'all') return new Set(rows.map((r) => r.id))
+  if (sel.kind === 'some') return new Set(sel.ids)
+  return new Set<string>()
+}
+
+export function rowSelectionCoversAll(sel: RowSelection, rows: TableRowType[]): boolean {
+  if (rows.length === 0) return false
+  if (sel.kind === 'all') return true
+  if (sel.kind === 'none') return false
+  if (sel.ids.size < rows.length) return false
+  for (const r of rows) if (!sel.ids.has(r.id)) return false
+  return true
+}
+
+/** Returns sticky row-number column dimensions sized to the digit count of `maxRows`. */
+export function checkboxColLayout(
+  maxRows: number,
+  hasWorkflowCols: boolean
+): { colWidth: number; numDivWidth: number } {
+  const digits = maxRows > 0 ? Math.floor(Math.log10(maxRows)) + 1 : 1
+  const numDivWidth = Math.max(20, digits * 8 + 4)
+  const colWidth = Math.max(32, numDivWidth + 8) + (hasWorkflowCols ? 16 : 0)
+  return { colWidth, numDivWidth }
+}
+
 export interface CellCoord {
   rowIndex: number
   colIndex: number

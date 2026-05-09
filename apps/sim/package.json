@@ -195,6 +195,7 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "three": "0.177.0",
+    "tldts": "7.0.30",
     "twilio": "5.9.0",
     "unified": "11.0.5",
     "unpdf": "1.4.0",

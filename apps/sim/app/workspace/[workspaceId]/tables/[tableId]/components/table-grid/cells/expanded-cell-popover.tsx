@@ -22,13 +22,11 @@ const EXPANDED_CELL_MIN_WIDTH = 420
 const EXPANDED_CELL_HEIGHT = 280
 
 /**
- * Supabase-style anchored cell expander. Floats over the clicked cell at the cell's
- * top-left, minimum width {@link EXPANDED_CELL_MIN_WIDTH}, fixed height, internally
- * scrollable. Triggered by cell double-click so long values are readable/editable
- * without widening the column. Inline edit via Enter/F2/typing is unaffected.
+ * Anchored cell editor. Floats over the double-clicked cell, minimum width
+ * {@link EXPANDED_CELL_MIN_WIDTH}, fixed height, internally scrollable.
  *
- * Workflow and boolean cells are read-only in this view — workflow cells are driven
- * by the scheduler, booleans use a checkbox cell inline.
+ * Workflow and boolean cells are read-only here — workflow cells are driven
+ * by the scheduler, booleans toggle inline.
  */
 export function ExpandedCellPopover({
   expandedCell,
