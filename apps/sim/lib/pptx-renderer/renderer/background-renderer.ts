@@ -9,6 +9,26 @@ import { getOrCreateBlobUrl, resolveMediaPath } from '../utils/media'
 import type { RenderContext } from './render-context'
 import { resolveColor, resolveFill } from './style-resolver'
 
+const COLOR_NODE_NAMES = new Set([
+  'srgbClr',
+  'schemeClr',
+  'sysClr',
+  'prstClr',
+  'hslClr',
+  'scrgbClr',
+])
+
+/**
+ * Check whether a node contains a supported OOXML color node.
+ */
+function hasColorNode(node: SafeXmlNode): boolean {
+  if (COLOR_NODE_NAMES.has(node.localName)) {
+    return true
+  }
+
+  return node.allChildren().some((child) => COLOR_NODE_NAMES.has(child.localName))
+}
+
 /**
  * Composite a semi-transparent color on white so the result is always opaque.
  * This prevents the slide background from becoming see-through when embedded
@@ -123,17 +143,18 @@ function renderBgPr(
  */
 function renderBgRef(bgRef: SafeXmlNode, ctx: RenderContext, container: HTMLElement): void {
   // bgRef may contain a color child (schemeClr, srgbClr, etc.)
-  const { color, alpha } = resolveColor(bgRef, ctx)
-  if (color && color !== '#000000') {
-    const hex = color.startsWith('#') ? color : `#${color}`
-    if (alpha < 1) {
-      const { r, g, b } = hexToRgb(hex)
-      container.style.backgroundColor = compositeOnWhite(r, g, b, alpha)
-    } else {
-      container.style.backgroundColor = hex
-    }
-  } else {
+  if (!hasColorNode(bgRef)) {
     container.style.backgroundColor = '#FFFFFF'
+    return
+  }
+
+  const { color, alpha } = resolveColor(bgRef, ctx)
+  const hex = color.startsWith('#') ? color : `#${color}`
+  if (alpha < 1) {
+    const { r, g, b } = hexToRgb(hex)
+    container.style.backgroundColor = compositeOnWhite(r, g, b, alpha)
+  } else {
+    container.style.backgroundColor = hex
   }
 }
 
