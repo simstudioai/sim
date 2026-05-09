@@ -38,6 +38,7 @@ export type CellRenderKind =
   | { kind: 'boolean'; checked: boolean }
   | { kind: 'json'; text: string }
   | { kind: 'date'; text: string }
+  | { kind: 'url'; text: string; href: string; domain: string }
   | { kind: 'text'; text: string }
   // Universal fallback
   | { kind: 'empty' }
@@ -113,6 +114,12 @@ export function resolveCellRender({
   if (isNull) return { kind: 'empty' }
   if (column.type === 'json') return { kind: 'json', text: JSON.stringify(value) }
   if (column.type === 'date') return { kind: 'date', text: String(value) }
+  if (column.type === 'string') {
+    const text = stringifyValue(value)
+    const urlInfo = extractUrlInfo(text)
+    if (urlInfo) return { kind: 'url', text, href: urlInfo.href, domain: urlInfo.domain }
+    return { kind: 'text', text }
+  }
   return { kind: 'text', text: stringifyValue(value) }
 }
 
@@ -120,6 +127,78 @@ function stringifyValue(value: unknown): string {
   if (typeof value === 'string') return value
   if (value === null || value === undefined) return ''
   return JSON.stringify(value)
+}
+
+/** Matches bare hostnames: `microsoft.com`, `www.linkedin.com`, `sub.domain.co.uk` */
+const BARE_DOMAIN_RE = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/
+
+/**
+ * File extensions that are also valid TLDs but should never be treated as URLs.
+ * Without this, strings like `config.json` or `readme.md` would resolve as domains.
+ */
+const FILE_EXTENSION_TLDS = new Set([
+  'txt',
+  'json',
+  'yaml',
+  'yml',
+  'xml',
+  'html',
+  'htm',
+  'css',
+  'js',
+  'ts',
+  'tsx',
+  'jsx',
+  'md',
+  'mdx',
+  'csv',
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'ppt',
+  'pptx',
+  'zip',
+  'gz',
+  'tar',
+  'rar',
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'svg',
+  'webp',
+  'mp4',
+  'mp3',
+  'wav',
+  'mov',
+  'py',
+  'rb',
+  'go',
+  'rs',
+  'sh',
+  'bat',
+  'log',
+  'env',
+])
+
+function extractUrlInfo(text: string): { href: string; domain: string } | null {
+  if (!text) return null
+  if (/^https?:\/\//i.test(text)) {
+    try {
+      const url = new URL(text)
+      return { href: text, domain: url.hostname }
+    } catch {
+      return null
+    }
+  }
+  if (BARE_DOMAIN_RE.test(text)) {
+    const tld = text.split('.').pop()?.toLowerCase() ?? ''
+    if (FILE_EXTENSION_TLDS.has(tld)) return null
+    return { href: `https://${text}`, domain: text }
+  }
+  return null
 }
 
 interface CellRenderProps {
@@ -234,6 +313,31 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
       return (
         <span className={cn('text-[var(--text-primary)]', isEditing && 'invisible')}>
           {storageToDisplay(kind.text)}
+        </span>
+      )
+
+    case 'url':
+      return (
+        <span className={cn('flex min-w-0 items-center gap-1.5', isEditing && 'invisible')}>
+          <img
+            src={`https://www.google.com/s2/favicons?domain=${kind.domain}&sz=16`}
+            alt=''
+            width={12}
+            height={12}
+            className='shrink-0 rounded-[2px]'
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+            }}
+          />
+          <a
+            href={kind.href}
+            target='_blank'
+            rel='noopener noreferrer'
+            className='min-w-0 overflow-clip text-ellipsis text-[var(--text-primary)] underline underline-offset-2 hover:opacity-70'
+            onClick={(e) => e.stopPropagation()}
+          >
+            {kind.text}
+          </a>
         </span>
       )
 
