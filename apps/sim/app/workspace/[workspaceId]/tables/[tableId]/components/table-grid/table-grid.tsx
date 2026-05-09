@@ -193,13 +193,10 @@ interface TableGridProps {
 }
 
 /**
- * Split updates into chunks that fit within the server's batch-size limit,
- * running each chunk sequentially. Throws on first failure so callers see
- * an all-or-nothing result and partial success cannot leave the table in an
- * ambiguous half-cleared state.
+ * Split updates into chunks bounded by the server batch-size limit, dispatching
+ * up to 3 chunks concurrently. Throws on first failure — `Promise.all` rejects
+ * immediately, so partial success cannot leave the table in an ambiguous state.
  */
-const CHUNK_CONCURRENCY = 3
-
 async function chunkBatchUpdates(
   updates: Array<{ rowId: string; data: Record<string, unknown> }>,
   mutateAsync: (args: {
@@ -213,7 +210,7 @@ async function chunkBatchUpdates(
   }
   let cursor = 0
   await Promise.all(
-    Array.from({ length: Math.min(CHUNK_CONCURRENCY, chunks.length) }, async () => {
+    Array.from({ length: Math.min(3, chunks.length) }, async () => {
       while (cursor < chunks.length) {
         await mutateAsync({ updates: chunks[cursor++]! })
       }

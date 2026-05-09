@@ -210,11 +210,6 @@ interface InfiniteTableRowsParams {
   enabled?: boolean
 }
 
-/**
- * Fetch a single page of rows for a table with pagination/filter/sort. Polls
- * while any cell is in flight so cells reach their terminal state without a
- * manual refresh.
- */
 export function useTableRows({
   workspaceId,
   tableId,
@@ -416,7 +411,6 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       reconcileCreatedRow(queryClient, tableId, row)
     },
     onError: (error) => {
-      // Validation errors are surfaced inline by the caller (see useUpdateColumn).
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -771,7 +765,6 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
           queryClient.setQueryData(key, data)
         }
       }
-      // Validation errors are surfaced as inline FieldErrors by the caller.
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -1011,7 +1004,6 @@ export function useImportCsvIntoTable() {
       logger.error('Failed to import CSV into table:', error)
     },
     onSettled: (_data, _error, variables) => {
-      if (!variables) return
       invalidateRowCount(queryClient, variables.tableId)
     },
   })
@@ -1290,8 +1282,6 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
     // patches.
   })
 }
-
-// ───────────────────────── Workflow group mutations ─────────────────────────
 
 interface AddWorkflowGroupVariables {
   group: WorkflowGroup
