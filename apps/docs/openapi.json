@@ -5030,6 +5030,7 @@
                       {
                         "documentId": "doc_abc123",
                         "documentName": "Getting Started.pdf",
+                        "sourceUrl": "https://example.atlassian.net/wiki/spaces/DOCS/pages/12345",
                         "content": "To reset your password, go to Settings > Security.",
                         "chunkIndex": 3,
                         "similarity": 0.95,
@@ -6263,6 +6264,11 @@
           "documentName": {
             "type": "string",
             "description": "Filename of the source document."
+          },
+          "sourceUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "URL to the original source document for connector-synced documents (e.g., a Confluence page, Google Doc, or Notion page). Null for documents without an external source."
           },
           "content": {
             "type": "string",

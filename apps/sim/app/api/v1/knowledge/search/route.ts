@@ -8,7 +8,7 @@ import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/
 import type { StructuredFilter } from '@/lib/knowledge/types'
 import {
   generateSearchEmbedding,
-  getDocumentNamesByIds,
+  getDocumentMetadataByIds,
   getQueryStrategy,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
@@ -205,7 +205,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     const documentIds = results.map((r) => r.documentId)
-    const documentNameMap = await getDocumentNamesByIds(documentIds)
+    const documentMetadataMap = await getDocumentMetadataByIds(documentIds)
 
     return NextResponse.json({
       success: true,
@@ -222,9 +222,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             }
           })
 
+          const docMeta = documentMetadataMap[result.documentId]
           return {
             documentId: result.documentId,
-            documentName: documentNameMap[result.documentId] || undefined,
+            documentName: docMeta?.filename || undefined,
+            sourceUrl: docMeta?.sourceUrl ?? null,
             content: result.content,
             chunkIndex: result.chunkIndex,
             metadata: tags,

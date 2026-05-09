@@ -46,6 +46,7 @@ export interface OutputProperty {
   type: OutputType
   description?: string
   optional?: boolean
+  nullable?: boolean
   properties?: Record<string, OutputProperty>
   items?: {
     type: OutputType
