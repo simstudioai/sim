@@ -86,10 +86,10 @@ export const PptxSandboxHost = memo(function PptxSandboxHost({
         activeContainerRef.current = nextContainer
         setSlideCount(handle.viewer.slideCount)
         setCurrentSlide(handle.viewer.currentSlideIndex + 1)
-        nextContainer.style.visibility = 'visible'
         if (zoomPercentRef.current !== 100) {
           await handle.viewer.setZoom(zoomPercentRef.current)
         }
+        nextContainer.style.visibility = 'visible'
         previousHandle?.destroy()
         previousContainer?.remove()
         onRenderCompleteRef.current?.()
