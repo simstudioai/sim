@@ -4,6 +4,7 @@
  */
 
 import type { SafeXmlNode } from '../parser/xml-parser'
+import { isPlaceholder, parseAllAttributes } from './xml-helpers'
 
 export interface MasterData {
   colorMap: Map<string, string>
@@ -20,24 +21,6 @@ export interface MasterData {
 }
 
 /**
- * Check whether a shape node contains a placeholder definition.
- * Looks for `p:nvSpPr > p:nvPr > p:ph` or `p:nvPicPr > p:nvPr > p:ph`.
- */
-function isPlaceholder(node: SafeXmlNode): boolean {
-  const nvSpPr = node.child('nvSpPr')
-  if (nvSpPr.exists()) {
-    const nvPr = nvSpPr.child('nvPr')
-    if (nvPr.child('ph').exists()) return true
-  }
-  const nvPicPr = node.child('nvPicPr')
-  if (nvPicPr.exists()) {
-    const nvPr = nvPicPr.child('nvPr')
-    if (nvPr.child('ph').exists()) return true
-  }
-  return false
-}
-
-/**
  * Extract placeholder shape nodes from an spTree node.
  * A shape is considered a placeholder if it has a `p:ph` element in its nvPr.
  */
@@ -50,22 +33,6 @@ function extractPlaceholders(spTree: SafeXmlNode): SafeXmlNode[] {
     }
   }
   return placeholders
-}
-
-/**
- * Parse all attributes of a node into a Map<string, string>.
- * Used for clrMap where every attribute is a color mapping entry.
- */
-function parseAllAttributes(node: SafeXmlNode): Map<string, string> {
-  const result = new Map<string, string>()
-  const el = node.element
-  if (!el) return result
-  const attrs = el.attributes
-  for (let i = 0; i < attrs.length; i++) {
-    const attr = attrs[i]
-    result.set(attr.localName, attr.value)
-  }
-  return result
 }
 
 /**

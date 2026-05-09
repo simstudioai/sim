@@ -4,7 +4,6 @@
  */
 
 import { type RelEntry, resolveRelTarget } from '../parser/rel-parser'
-import { emuToPx } from '../parser/units'
 import { parseXml, type SafeXmlNode } from '../parser/xml-parser'
 import { parseBaseProps } from './nodes/base-node'
 import { type ChartNodeData, parseChartNode } from './nodes/chart-node'
@@ -179,27 +178,9 @@ function parseDiagramFrame(
 }
 
 /**
- * Read xfrm off/ext from a shape-like node (dsp:sp uses dsp:spPr > a:xfrm).
- */
-function readShapeBounds(node: SafeXmlNode): { x: number; y: number; w: number; h: number } | null {
-  const spPr = node.child('spPr')
-  if (!spPr.exists()) return null
-  const xfrm = spPr.child('xfrm')
-  if (!xfrm.exists()) return null
-  const off = xfrm.child('off')
-  const ext = xfrm.child('ext')
-  const x = emuToPx(off.numAttr('x') ?? 0)
-  const y = emuToPx(off.numAttr('y') ?? 0)
-  const w = emuToPx(ext.numAttr('cx') ?? 0)
-  const h = emuToPx(ext.numAttr('cy') ?? 0)
-  return { x, y, w, h }
-}
-
-/**
  * Build a GroupNodeData from a diagram drawing XML string.
  * Diagram drawings use dsp: namespace (drawingml 2008); structure is dsp:drawing > dsp:spTree > dsp:sp.
- * Diagram shapes use their own coordinate space; we compute childOffset/childExtent from
- * the actual bounding box of all shapes so remapping preserves layout and spacing.
+ * Diagram shapes are positioned in the graphicFrame's own coordinate space.
  */
 function buildDiagramGroup(
   base: ReturnType<typeof parseBaseProps>,
@@ -218,64 +199,25 @@ function buildDiagramGroup(
   }
 
   const CHILD_TAGS = new Set(['sp', 'pic', 'grpSp', 'graphicFrame', 'cxnSp'])
-  // Circular presets need isotropic scaling; tree/org-chart style diagrams should keep native axis scaling.
-  const CIRCULAR_PRESETS = new Set(['pie', 'arc', 'blockArc', 'donut', 'circularArrow'])
   const children: SafeXmlNode[] = []
-  let minX = Number.POSITIVE_INFINITY
-  let minY = Number.POSITIVE_INFINITY
-  let maxRight = Number.NEGATIVE_INFINITY
-  let maxBottom = Number.NEGATIVE_INFINITY
-  let hasCircularPreset = false
 
   for (const child of spTree.allChildren()) {
     if (CHILD_TAGS.has(child.localName)) {
       children.push(child)
-      const prst = child.child('spPr').child('prstGeom').attr('prst')
-      if (prst && CIRCULAR_PRESETS.has(prst)) hasCircularPreset = true
-      const b = readShapeBounds(child)
-      if (b) {
-        minX = Math.min(minX, b.x)
-        minY = Math.min(minY, b.y)
-        maxRight = Math.max(maxRight, b.x + b.w)
-        maxBottom = Math.max(maxBottom, b.y + b.h)
-      }
     }
   }
-
-  const hasBounds =
-    minX !== Number.POSITIVE_INFINITY &&
-    minY !== Number.POSITIVE_INFINITY &&
-    maxRight !== Number.NEGATIVE_INFINITY &&
-    maxBottom !== Number.NEGATIVE_INFINITY
-
-  // Check if shapes extend significantly beyond the diagram frame (negative offsets or huge extents).
-  // When decorative shapes (e.g. blockArc) have large negative coordinates, including them in
-  // the bounding box distorts the layout. Fall back to frame-based coordinates in that case.
-  const bboxSpansNegative = hasBounds && (minX < 0 || minY < 0)
-  const bboxMuchLargerThanFrame =
-    hasBounds && (maxRight - minX > base.size.w * 2 || maxBottom - minY > base.size.h * 2)
-  const useFrameCoords = bboxSpansNegative || bboxMuchLargerThanFrame
 
   // Use the graphicFrame's own dimensions as the child coordinate space.
   // Diagram shapes are positioned in the frame's coordinate space (EMU converted to px).
   // Using frame dimensions gives a 1:1 scale, preserving original positions and sizes.
   // This avoids enlarging shapes when the bounding box is smaller than the frame.
-  let extentW = Math.max(1, base.size.w)
-  let extentH = Math.max(1, base.size.h)
-  let offX = 0
-  let offY = 0
-
-  if (!hasBounds) {
-    extentW = Math.max(1, base.size.w)
-    extentH = Math.max(1, base.size.h)
-    offX = 0
-    offY = 0
-  }
+  const extentW = Math.max(1, base.size.w)
+  const extentH = Math.max(1, base.size.h)
 
   return {
     ...base,
     nodeType: 'group',
-    childOffset: { x: offX, y: offY },
+    childOffset: { x: 0, y: 0 },
     childExtent: { w: extentW, h: extentH },
     children,
   }

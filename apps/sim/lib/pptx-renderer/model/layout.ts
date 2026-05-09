@@ -5,6 +5,7 @@
 
 import { emuToPx } from '../parser/units'
 import type { SafeXmlNode } from '../parser/xml-parser'
+import { isPlaceholder, parseAllAttributes } from './xml-helpers'
 
 export interface PlaceholderXfrm {
   position: { x: number; y: number }
@@ -25,23 +26,6 @@ export interface LayoutData {
   rels: Map<string, import('../parser/rel-parser').RelEntry>
   /** When false, shapes from the slide master should NOT be rendered on this layout. */
   showMasterSp: boolean
-}
-
-/**
- * Check whether a shape node contains a placeholder definition.
- */
-function isPlaceholder(node: SafeXmlNode): boolean {
-  const nvSpPr = node.child('nvSpPr')
-  if (nvSpPr.exists()) {
-    const nvPr = nvSpPr.child('nvPr')
-    if (nvPr.child('ph').exists()) return true
-  }
-  const nvPicPr = node.child('nvPicPr')
-  if (nvPicPr.exists()) {
-    const nvPr = nvPicPr.child('nvPr')
-    if (nvPr.child('ph').exists()) return true
-  }
-  return false
 }
 
 function getShapeXfrmInEmu(
@@ -159,21 +143,6 @@ function extractPlaceholdersRecursive(
     }
   }
   return out
-}
-
-/**
- * Parse all attributes of a node into a Map<string, string>.
- */
-function parseAllAttributes(node: SafeXmlNode): Map<string, string> {
-  const result = new Map<string, string>()
-  const el = node.element
-  if (!el) return result
-  const attrs = el.attributes
-  for (let i = 0; i < attrs.length; i++) {
-    const attr = attrs[i]
-    result.set(attr.localName, attr.value)
-  }
-  return result
 }
 
 /**
