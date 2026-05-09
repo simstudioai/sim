@@ -96,10 +96,7 @@ function describeReadTarget(path: string | undefined): string | undefined {
   }
 
   if (resourceType === 'file') {
-    const compiledCheckTarget = describeCompiledCheckTarget(segments)
-    if (compiledCheckTarget) return compiledCheckTarget
-
-    return segments.slice(1).join('/') || segments[segments.length - 1]
+    return describeFileReadTarget(segments)
   }
 
   if (resourceType === 'workflow') {
@@ -110,21 +107,30 @@ function describeReadTarget(path: string | undefined): string | undefined {
   return stripExtension(resourceName)
 }
 
-function describeCompiledCheckTarget(segments: string[]): string | undefined {
-  if (segments[segments.length - 1] !== 'compiled-check') return undefined
+const FILE_SPECIAL_READ_TARGET_PREFIXES: Record<string, string> = {
+  content: 'the content of',
+  'meta.json': 'metadata for',
+  style: 'style details for',
+  'compiled-check': 'the final file check for',
+}
 
-  const byIdIndex = segments.indexOf('by-id')
-  if (byIdIndex >= 0) {
-    const fileName = segments[byIdIndex + 2]
-    if (fileName && fileName !== 'compiled-check') {
-      return `the compile check for ${fileName}`
-    }
-    return 'the compile check for this file'
+function describeFileReadTarget(segments: string[]): string {
+  const lastSegment = segments[segments.length - 1] || ''
+  const specialPrefix = FILE_SPECIAL_READ_TARGET_PREFIXES[lastSegment]
+  if (specialPrefix) {
+    return `${specialPrefix} ${describeSpecialFilePathSubject(segments)}`
   }
 
-  const fileName = segments.slice(1, -1).join('/')
-  if (!fileName) return 'the compile check for this file'
-  return `the compile check for ${fileName}`
+  return segments.slice(1).join('/') || lastSegment
+}
+
+function describeSpecialFilePathSubject(segments: string[]): string {
+  if (segments[1] === 'by-id') {
+    const namedRemainder = segments.slice(3, -1).join('/')
+    return namedRemainder || 'this file'
+  }
+
+  return segments.slice(1, -1).join('/') || 'this file'
 }
 
 function getLeafResourceSegment(segments: string[]): string {
