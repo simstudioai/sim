@@ -1,11 +1,16 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { ColumnDefinition, TableDefinition, TableRow, WorkflowGroup } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
-import { useInfiniteTableRows, useTable as useTableQuery } from '@/hooks/queries/tables'
+import {
+  tableRowsInfiniteOptions,
+  useInfiniteTableRows,
+  useTable as useTableQuery,
+} from '@/hooks/queries/tables'
 import { useWorkflowStates, useWorkflows } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -52,6 +57,12 @@ export interface UseTableReturn {
   /** Pre-resolved icon + block-name info per output column name. Headers read
    *  from this map instead of each subscribing to its own workflow-state query. */
   columnSourceInfo: Map<string, ColumnSourceInfo>
+  /**
+   * Fetches any missing row pages and returns the full flat row list directly
+   * from cache — safe to read immediately without waiting for a React re-render.
+   * Gate bulk ops that must act on the complete row set with this.
+   */
+  ensureAllRowsLoaded: () => Promise<TableRow[]>
 }
 
 /**
@@ -66,6 +77,7 @@ export interface UseTableReturn {
  * single hook return and re-render the world.
  */
 export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams): UseTableReturn {
+  const queryClient = useQueryClient()
   const { data: tableData, isLoading: isLoadingTable } = useTableQuery(workspaceId, tableId)
 
   const {
@@ -84,6 +96,15 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     enabled: Boolean(workspaceId && tableId),
   })
 
+  // Background drain: TanStack's prefetchInfiniteQuery is a no-op when the first page is
+  // already fresh (staleTime not exceeded). Drive the drain through fetchNextPage instead
+  // — it only fetches the *next* page (not from scratch) and fires whenever a full page
+  // is sitting in cache, chaining until getNextPageParam returns undefined.
+  useEffect(() => {
+    if (!workspaceId || !tableId || !hasNextPage || isFetchingNextPage) return
+    void fetchNextPage()
+  }, [workspaceId, tableId, hasNextPage, isFetchingNextPage, fetchNextPage])
+
   const rows = useMemo<TableRow[]>(
     () => rowsData?.pages.flatMap((p) => p.rows) ?? [],
     [rowsData?.pages]
@@ -92,6 +113,35 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
   const refetchRows = useCallback(() => {
     void refetch()
   }, [refetch])
+
+  const ensureAllRowsLoaded = useCallback(async (): Promise<TableRow[]> => {
+    if (!workspaceId || !tableId) return []
+
+    const opts = tableRowsInfiniteOptions({
+      workspaceId,
+      tableId,
+      pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT,
+      filter: queryOptions.filter,
+      sort: queryOptions.sort,
+    })
+
+    // Drain pages one at a time using the cache as the source of truth.
+    // fetchNextPage appends exactly one new page without re-fetching existing
+    // ones. getQueryData reads the live cache synchronously — bypassing React's
+    // render cycle — so updated pages are visible immediately after each await.
+    while (true) {
+      const data = queryClient.getQueryData(opts.queryKey)
+      const lastPage = data?.pages[data.pages.length - 1]
+      // A partial (or absent) last page means all available rows are in cache.
+      if (!lastPage || lastPage.rows.length < TABLE_LIMITS.MAX_QUERY_LIMIT) break
+      const result = await fetchNextPage()
+      if (result.status === 'error') {
+        throw result.error ?? new Error('Failed to load table rows')
+      }
+    }
+
+    return queryClient.getQueryData(opts.queryKey)?.pages.flatMap((p) => p.rows) ?? []
+  }, [workspaceId, tableId, queryOptions.filter, queryOptions.sort, queryClient, fetchNextPage])
 
   const fetchNextPageWrapped = useCallback(async () => {
     const result = await fetchNextPage()
@@ -149,5 +199,6 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     tableWorkflowGroups,
     workflowStates,
     columnSourceInfo,
+    ensureAllRowsLoaded,
   }
 }

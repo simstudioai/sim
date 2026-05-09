@@ -131,7 +131,7 @@ function InlineDateEditor({
   )
 }
 
-/** Inline editor for `string`/`number`/`json` columns — single-line text input. */
+/** Inline editor for `string`/`number`/`json` columns — single-line text input. Number columns use `type="number"` so the browser rejects non-numeric input. */
 function InlineTextEditor({
   value,
   column,
@@ -193,16 +193,21 @@ function InlineTextEditor({
     }
   }
 
+  const isNumber = column.type === 'number'
+
   return (
     <input
       ref={inputRef}
-      type='text'
-      value={draft}
+      type={isNumber ? 'number' : 'text'}
+      step={isNumber ? 'any' : undefined}
+      value={draft ?? ''}
       onChange={(e) => setDraft(e.target.value)}
       onKeyDown={handleKeyDown}
       onBlur={() => doSave('blur')}
       className={cn(
-        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
+        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none',
+        isNumber &&
+          '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
       )}
     />
   )

@@ -31,6 +31,7 @@ const { queryClient, cacheStore } = vi.hoisted(() => {
 
 vi.mock('@tanstack/react-query', () => ({
   keepPreviousData: {},
+  infiniteQueryOptions: (opts: unknown) => opts,
   useQuery: vi.fn(),
   useInfiniteQuery: vi.fn(),
   useQueryClient: vi.fn(() => queryClient),
@@ -80,7 +81,13 @@ vi.mock('@/components/emcn', () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }))
 
-import { tableKeys, useDeleteColumn, useUpdateColumn } from '@/hooks/queries/tables'
+import {
+  tableKeys,
+  tableRowsInfiniteOptions,
+  tableRowsParamsKey,
+  useDeleteColumn,
+  useUpdateColumn,
+} from '@/hooks/queries/tables'
 
 const TABLE_ID = 'tbl-1'
 const WORKSPACE_ID = 'ws-1'
@@ -247,5 +254,119 @@ describe('useDeleteColumn case-insensitive row cleanup', () => {
       tableKeys.rowsRoot(TABLE_ID)
     )
     expect(rows?.rows[0]?.data).toEqual({ name: 'a' })
+  })
+})
+
+describe('tableRowsParamsKey', () => {
+  it('produces the same key for identical params', () => {
+    const k1 = tableRowsParamsKey({ pageSize: 1000, filter: null, sort: null })
+    const k2 = tableRowsParamsKey({ pageSize: 1000, filter: null, sort: null })
+    expect(k1).toBe(k2)
+  })
+
+  it('treats undefined filter and sort as null', () => {
+    const withUndefined = tableRowsParamsKey({ pageSize: 1000, filter: undefined, sort: undefined })
+    const withNull = tableRowsParamsKey({ pageSize: 1000, filter: null, sort: null })
+    expect(withUndefined).toBe(withNull)
+  })
+
+  it('produces different keys for different filters', () => {
+    const k1 = tableRowsParamsKey({ pageSize: 1000, filter: null, sort: null })
+    const k2 = tableRowsParamsKey({
+      pageSize: 1000,
+      filter: { column: 'name', operator: 'eq', value: 'Alice' } as never,
+      sort: null,
+    })
+    expect(k1).not.toBe(k2)
+  })
+
+  it('produces different keys for different page sizes', () => {
+    const k1 = tableRowsParamsKey({ pageSize: 1000, filter: null, sort: null })
+    const k2 = tableRowsParamsKey({ pageSize: 500, filter: null, sort: null })
+    expect(k1).not.toBe(k2)
+  })
+
+  it('produces different keys for different sorts', () => {
+    const k1 = tableRowsParamsKey({ pageSize: 1000, filter: null, sort: null })
+    const k2 = tableRowsParamsKey({
+      pageSize: 1000,
+      filter: null,
+      sort: { column: 'name', direction: 'asc' } as never,
+    })
+    expect(k1).not.toBe(k2)
+  })
+})
+
+describe('tableRowsInfiniteOptions', () => {
+  const PAGE_SIZE = 1000
+
+  function makeOpts(pageSize = PAGE_SIZE) {
+    return tableRowsInfiniteOptions({
+      workspaceId: WORKSPACE_ID,
+      tableId: TABLE_ID,
+      pageSize,
+      filter: null,
+      sort: null,
+    }) as {
+      queryKey: readonly unknown[]
+      getNextPageParam: (
+        lastPage: { rows: unknown[] },
+        allPages: unknown[],
+        lastPageParam: unknown
+      ) => number | undefined
+    }
+  }
+
+  it('getNextPageParam returns undefined for a partial page (drain terminates)', () => {
+    const opts = makeOpts()
+    const lastPage = { rows: Array.from({ length: 500 }, (_, i) => ({ id: `r${i}` })) }
+    expect(opts.getNextPageParam(lastPage, [], 0)).toBeUndefined()
+  })
+
+  it('getNextPageParam returns undefined for an empty page', () => {
+    const opts = makeOpts()
+    expect(opts.getNextPageParam({ rows: [] }, [], 0)).toBeUndefined()
+  })
+
+  it('getNextPageParam returns next offset for a full page', () => {
+    const opts = makeOpts()
+    const fullPage = { rows: Array.from({ length: PAGE_SIZE }, (_, i) => ({ id: `r${i}` })) }
+    expect(opts.getNextPageParam(fullPage, [], 0)).toBe(PAGE_SIZE)
+    expect(opts.getNextPageParam(fullPage, [], PAGE_SIZE)).toBe(PAGE_SIZE * 2)
+  })
+
+  it('getNextPageParam advances correctly across three pages of 1000', () => {
+    const opts = makeOpts()
+    const fullPage = { rows: Array.from({ length: PAGE_SIZE }, (_, i) => ({ id: `r${i}` })) }
+    const lastPartialPage = { rows: Array.from({ length: 200 }, (_, i) => ({ id: `r${i}` })) }
+
+    expect(opts.getNextPageParam(fullPage, [], 0)).toBe(1000)
+    expect(opts.getNextPageParam(fullPage, [], 1000)).toBe(2000)
+    expect(opts.getNextPageParam(lastPartialPage, [], 2000)).toBeUndefined()
+  })
+
+  it('queryKey includes the result of tableRowsParamsKey', () => {
+    const paramsKey = tableRowsParamsKey({ pageSize: PAGE_SIZE, filter: null, sort: null })
+    const opts = makeOpts(PAGE_SIZE)
+    // queryKey is a tuple; one element must be exactly the paramsKey string
+    expect(opts.queryKey).toContain(paramsKey)
+  })
+
+  it('queryKey differs when filter changes', () => {
+    const opts1 = tableRowsInfiniteOptions({
+      workspaceId: WORKSPACE_ID,
+      tableId: TABLE_ID,
+      pageSize: PAGE_SIZE,
+      filter: null,
+      sort: null,
+    }) as { queryKey: readonly unknown[] }
+    const opts2 = tableRowsInfiniteOptions({
+      workspaceId: WORKSPACE_ID,
+      tableId: TABLE_ID,
+      pageSize: PAGE_SIZE,
+      filter: { column: 'name', operator: 'eq', value: 'Alice' } as never,
+      sort: null,
+    }) as { queryKey: readonly unknown[] }
+    expect(JSON.stringify(opts1.queryKey)).not.toBe(JSON.stringify(opts2.queryKey))
   })
 })

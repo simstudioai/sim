@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -90,7 +91,7 @@ export function useTableUndo({
   )
 
   const executeAction = useCallback(
-    (action: TableUndoAction, direction: 'undo' | 'redo') => {
+    async (action: TableUndoAction, direction: 'undo' | 'redo') => {
       try {
         switch (action.type) {
           case 'update-cell': {
@@ -110,7 +111,11 @@ export function useTableUndo({
                   ? cell.data
                   : Object.fromEntries(Object.keys(cell.data).map((k) => [k, null])),
             }))
-            batchUpdateRowsMutation.mutate({ updates })
+            for (let i = 0; i < updates.length; i += TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
+              await batchUpdateRowsMutation.mutateAsync({
+                updates: updates.slice(i, i + TABLE_LIMITS.MAX_BULK_OPERATION_SIZE),
+              })
+            }
             break
           }
 
@@ -119,7 +124,11 @@ export function useTableUndo({
               rowId: cell.rowId,
               data: direction === 'undo' ? cell.oldData : cell.newData,
             }))
-            batchUpdateRowsMutation.mutate({ updates })
+            for (let i = 0; i < updates.length; i += TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
+              await batchUpdateRowsMutation.mutateAsync({
+                updates: updates.slice(i, i + TABLE_LIMITS.MAX_BULK_OPERATION_SIZE),
+              })
+            }
             break
           }
 
@@ -239,17 +248,24 @@ export function useTableUndo({
                         rowId: c.rowId,
                         data: { [action.columnName]: c.value },
                       }))
-                      batchUpdateRowsMutation.mutate(
-                        { updates },
-                        {
-                          onError: (error) => {
-                            logger.error('Failed to restore cell data on delete-column undo', {
-                              columnName: action.columnName,
-                              error,
+                      void (async () => {
+                        try {
+                          for (
+                            let i = 0;
+                            i < updates.length;
+                            i += TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
+                          ) {
+                            await batchUpdateRowsMutation.mutateAsync({
+                              updates: updates.slice(i, i + TABLE_LIMITS.MAX_BULK_OPERATION_SIZE),
                             })
-                          },
+                          }
+                        } catch (error) {
+                          logger.error('Failed to restore cell data on delete-column undo', {
+                            columnName: action.columnName,
+                            error,
+                          })
                         }
-                      )
+                      })()
                     }
                     const metadata: Record<string, unknown> = {}
                     if (action.previousOrder) {
@@ -348,7 +364,7 @@ export function useTableUndo({
     if (!entry) return
 
     runWithoutRecording(() => {
-      executeAction(entry.action, 'undo')
+      void executeAction(entry.action, 'undo')
     })
   }, [popUndo, tableId, executeAction])
 
@@ -357,7 +373,7 @@ export function useTableUndo({
     if (!entry) return
 
     runWithoutRecording(() => {
-      executeAction(entry.action, 'redo')
+      void executeAction(entry.action, 'redo')
     })
   }, [popRedo, tableId, executeAction])
 

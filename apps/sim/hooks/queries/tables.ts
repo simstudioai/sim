@@ -8,6 +8,7 @@ import { useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   type InfiniteData,
+  infiniteQueryOptions,
   keepPreviousData,
   useInfiniteQuery,
   useMutation,
@@ -243,36 +244,31 @@ export function useTableRows({
   })
 }
 
-/**
- * Paginated row fetching with `useInfiniteQuery`. Each page requests `pageSize`
- * rows at the next offset; `getNextPageParam` returns `undefined` once the last
- * page comes back short, signalling end-of-list.
- *
- * Page 0 includes a server `COUNT(*)`; subsequent pages skip it.
- */
-export function useInfiniteTableRows({
+export function tableRowsParamsKey({
+  pageSize,
+  filter,
+  sort,
+}: Pick<InfiniteTableRowsParams, 'pageSize' | 'filter' | 'sort'>): string {
+  return JSON.stringify({ pageSize, filter: filter ?? null, sort: sort ?? null })
+}
+
+/** `infiniteQueryOptions` factory shared by the hook and imperative drain calls to target the same cache key. */
+export function tableRowsInfiniteOptions({
   workspaceId,
   tableId,
   pageSize,
   filter,
   sort,
-  enabled = true,
-}: InfiniteTableRowsParams) {
-  const paramsKey = JSON.stringify({
-    pageSize,
-    filter: filter ?? null,
-    sort: sort ?? null,
-  })
-  const queryKey = useMemo(() => tableKeys.infiniteRows(tableId, paramsKey), [tableId, paramsKey])
-
-  return useInfiniteQuery({
-    queryKey,
+}: Omit<InfiniteTableRowsParams, 'enabled'>) {
+  const paramsKey = tableRowsParamsKey({ pageSize, filter, sort })
+  return infiniteQueryOptions({
+    queryKey: tableKeys.infiniteRows(tableId, paramsKey),
     queryFn: ({ pageParam, signal }) =>
       fetchTableRows({
         workspaceId,
         tableId,
         limit: pageSize,
-        offset: pageParam,
+        offset: pageParam as number,
         filter,
         sort,
         includeTotal: pageParam === 0,
@@ -281,11 +277,103 @@ export function useInfiniteTableRows({
     initialPageParam: 0,
     getNextPageParam: (lastPage, _allPages, lastPageParam) => {
       if (lastPage.rows.length < pageSize) return undefined
-      return lastPageParam + pageSize
+      return (lastPageParam as number) + pageSize
     },
-    enabled: Boolean(workspaceId && tableId) && enabled,
     staleTime: 30 * 1000,
   })
+}
+
+/** Page 0 fetches a server-side `COUNT(*)`; subsequent pages skip it. */
+export function useInfiniteTableRows({
+  workspaceId,
+  tableId,
+  pageSize,
+  filter,
+  sort,
+  enabled = true,
+}: InfiniteTableRowsParams) {
+  const queryClient = useQueryClient()
+  const paramsKey = tableRowsParamsKey({ pageSize, filter, sort })
+  // Memoize the key so the polling useEffect below doesn't fire on every render.
+  const queryKey = useMemo(() => tableKeys.infiniteRows(tableId, paramsKey), [tableId, paramsKey])
+
+  const query = useInfiniteQuery({
+    ...tableRowsInfiniteOptions({ workspaceId, tableId, pageSize, filter, sort }),
+    queryKey,
+    enabled: Boolean(workspaceId && tableId) && enabled,
+  })
+
+  /**
+   * Per-page polling. Built-in `refetchInterval` would refetch every loaded
+   * page on each tick — wasteful when only one page has running cells.
+   * Instead, walk pages each tick and refetch ONLY the dirty ones, splicing
+   * results back into the cache. Polling stops when no page has in-flight
+   * cells, or while a mutation is running (optimistic-update guard).
+   */
+  useEffect(() => {
+    if (!enabled || !workspaceId || !tableId) return
+    let cancelled = false
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    const tick = async () => {
+      if (cancelled) return
+      if (queryClient.isMutating() === 0) {
+        const data = queryClient.getQueryData<InfiniteData<TableRowsResponse, number>>(queryKey)
+        const dirty: number[] = []
+        if (data) {
+          for (let i = 0; i < data.pages.length; i++) {
+            if (hasRunningGroupExecution(data.pages[i].rows)) {
+              dirty.push(data.pageParams[i] ?? i * pageSize)
+            }
+          }
+        }
+        if (dirty.length > 0) {
+          await Promise.all(
+            dirty.map(async (offset) => {
+              try {
+                const fresh = await fetchTableRows({
+                  workspaceId,
+                  tableId,
+                  limit: pageSize,
+                  offset,
+                  filter,
+                  sort,
+                  includeTotal: offset === 0,
+                })
+                if (cancelled) return
+                queryClient.setQueryData<InfiniteData<TableRowsResponse, number>>(
+                  queryKey,
+                  (prev) => {
+                    if (!prev) return prev
+                    const idx = prev.pageParams.indexOf(offset)
+                    if (idx === -1) return prev
+                    const merged = mergePagePreservingIdentity(prev.pages[idx], fresh)
+                    if (merged === prev.pages[idx]) return prev
+                    const nextPages = prev.pages.slice()
+                    nextPages[idx] = merged
+                    return { ...prev, pages: nextPages }
+                  }
+                )
+              } catch {
+                // Transient fetch failure — next tick retries. Don't kill the loop.
+              }
+            })
+          )
+        }
+      }
+      if (cancelled) return
+      // Recursive setTimeout instead of setInterval so a slow tick can't
+      // overlap the next one — out-of-order responses would otherwise let
+      // stale data overwrite fresh.
+      timeoutId = setTimeout(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
+    }
+    timeoutId = setTimeout(() => void tick(), ROWS_POLL_INTERVAL_WHILE_RUNNING_MS)
+    return () => {
+      cancelled = true
+      if (timeoutId !== null) clearTimeout(timeoutId)
+    }
+  }, [enabled, workspaceId, tableId, pageSize, filter, sort, queryClient, queryKey])
+
+  return query
 }
 
 /**
@@ -923,7 +1011,9 @@ export function useUploadCsvToTable() {
       return response.json()
     },
     onError: (error) => {
+      if (isValidationError(error)) return
       logger.error('Failed to upload CSV:', error)
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
