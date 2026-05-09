@@ -96,6 +96,9 @@ function describeReadTarget(path: string | undefined): string | undefined {
   }
 
   if (resourceType === 'file') {
+    const compiledCheckTarget = describeCompiledCheckTarget(segments)
+    if (compiledCheckTarget) return compiledCheckTarget
+
     return segments.slice(1).join('/') || segments[segments.length - 1]
   }
 
@@ -105,6 +108,23 @@ function describeReadTarget(path: string | undefined): string | undefined {
 
   const resourceName = segments[1] || segments[segments.length - 1]
   return stripExtension(resourceName)
+}
+
+function describeCompiledCheckTarget(segments: string[]): string | undefined {
+  if (segments[segments.length - 1] !== 'compiled-check') return undefined
+
+  const byIdIndex = segments.indexOf('by-id')
+  if (byIdIndex >= 0) {
+    const fileName = segments[byIdIndex + 2]
+    if (fileName && fileName !== 'compiled-check') {
+      return `the compile check for ${fileName}`
+    }
+    return 'the compile check for this file'
+  }
+
+  const fileName = segments.slice(1, -1).join('/')
+  if (!fileName) return 'the compile check for this file'
+  return `the compile check for ${fileName}`
 }
 
 function getLeafResourceSegment(segments: string[]): string {
