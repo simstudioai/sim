@@ -1,6 +1,6 @@
 {
-  "id": "1c89700e-fc3d-4dc3-864d-963edc5b7158",
-  "prevId": "c261a35e-0a35-452b-8f72-995fc488b108",
+  "id": "ab556b01-da00-4156-a137-f7cb60dd91dd",
+  "prevId": "1c89700e-fc3d-4dc3-864d-963edc5b7158",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -9765,7 +9765,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'prod'"
+          "default": "'default'"
         },
         "error_notifications_enabled": {
           "name": "error_notifications_enabled",

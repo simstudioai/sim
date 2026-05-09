@@ -39,9 +39,4 @@ jobs:
         working-directory: ./packages/db
         env:
           DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.DATABASE_URL || github.ref == 'refs/heads/dev' && secrets.DEV_DATABASE_URL || secrets.STAGING_DATABASE_URL }}
-        run: |
-          if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
-            bunx drizzle-kit push --config=./drizzle.config.ts --force
-          else
-            bunx drizzle-kit migrate --config=./drizzle.config.ts
-          fi
+        run: bunx drizzle-kit migrate --config=./drizzle.config.ts
