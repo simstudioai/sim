@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
-import { marked } from 'marked'
+import { toHtml } from 'hast-util-to-html'
+import remarkBreaks from 'remark-breaks'
+import remarkGfm from 'remark-gfm'
+import remarkParse from 'remark-parse'
+import remarkRehype from 'remark-rehype'
+import { unified } from 'unified'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { replaceUntilStable } from '@/lib/mothership/inbox/format'
@@ -37,7 +42,7 @@ export async function sendInboxResponse(
     : `I wasn't able to complete this task.\n\nError: ${result.error || 'Unknown error'}\n\n[View details](${chatUrl})\n\nBest,\nMothership`
 
   const html = result.success
-    ? renderEmailHtml(result.content, chatUrl)
+    ? await renderEmailHtml(result.content, chatUrl)
     : renderErrorHtml(result.error || 'Unknown error', chatUrl)
 
   try {
@@ -93,8 +98,20 @@ function stripUnsafeUrls(html: string): string {
   return html.replace(/href\s*=\s*"(javascript|vbscript|data):[^"]*"/gi, 'href="#"')
 }
 
-function renderEmailHtml(markdown: string, chatUrl: string): string {
-  const bodyHtml = stripUnsafeUrls(marked.parse(stripRawHtml(markdown), { async: false }) as string)
+const markdownProcessor = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkBreaks)
+  .use(remarkRehype)
+
+async function markdownToHtml(markdown: string): Promise<string> {
+  const mdast = markdownProcessor.parse(markdown)
+  const hast = await markdownProcessor.run(mdast)
+  return toHtml(hast)
+}
+
+async function renderEmailHtml(markdown: string, chatUrl: string): Promise<string> {
+  const bodyHtml = stripUnsafeUrls(await markdownToHtml(stripRawHtml(markdown)))
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${EMAIL_STYLES}</style></head>
 <body>
