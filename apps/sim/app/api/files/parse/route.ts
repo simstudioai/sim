@@ -3,6 +3,7 @@ import { createHash } from 'crypto'
 import fsPromises, { readFile } from 'fs/promises'
 import path from 'path'
 import { createLogger } from '@sim/logger'
+import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
 import { fileParseContract } from '@/lib/api/contracts/storage-transfer'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -38,6 +39,7 @@ const logger = createLogger('FilesParseAPI')
 
 const MAX_DOWNLOAD_SIZE_BYTES = 100 * 1024 * 1024 // 100 MB
 const DOWNLOAD_TIMEOUT_MS = 30000 // 30 seconds
+const BINARY_EXTENSIONS = new Set<string>(binaryExtensionsList)
 
 function isLikelyTextBuffer(fileBuffer: Buffer): boolean {
   return isUtf8(fileBuffer) && !fileBuffer.includes(0)
@@ -866,9 +868,11 @@ function handleGenericBuffer(
   extension: string,
   fileType?: string
 ): ParseResult {
-  const content = isLikelyTextBuffer(fileBuffer)
-    ? fileBuffer.toString('utf-8')
-    : `[Binary ${extension.toUpperCase()} file - ${fileBuffer.length} bytes]`
+  const normalizedExtension = extension.toLowerCase()
+  const content =
+    !BINARY_EXTENSIONS.has(normalizedExtension) && isLikelyTextBuffer(fileBuffer)
+      ? fileBuffer.toString('utf-8')
+      : `[Binary ${normalizedExtension.toUpperCase()} file - ${fileBuffer.length} bytes]`
 
   return {
     success: true,
