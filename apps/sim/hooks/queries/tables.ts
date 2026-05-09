@@ -4,7 +4,7 @@
  * React Query hooks for managing user-defined tables.
  */
 
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   type InfiniteData,

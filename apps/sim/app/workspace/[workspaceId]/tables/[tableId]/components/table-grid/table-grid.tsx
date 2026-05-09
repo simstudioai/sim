@@ -1909,7 +1909,10 @@ export function TableGrid({
           batchUpdates.push({ rowId: row.id, data: updates })
         }
         if (batchUpdates.length > 0) {
-          batchUpdateRef.current({ updates: batchUpdates })
+          void chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current).catch((error) => {
+            logger.error('Failed to clear selected cells', { error })
+            toast.error('Failed to clear cells — please try again')
+          })
         }
         if (undoCells.length > 0) {
           pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
@@ -2083,7 +2086,10 @@ export function TableGrid({
       }
       e.clipboardData?.setData('text/plain', lines.join('\n'))
       if (batchUpdates.length > 0) {
-        batchUpdateRef.current({ updates: batchUpdates })
+        void chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current).catch((error) => {
+          logger.error('Failed to cut selected cells', { error })
+          toast.error('Failed to cut — please try again')
+        })
       }
       if (undoCells.length > 0) {
         pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
