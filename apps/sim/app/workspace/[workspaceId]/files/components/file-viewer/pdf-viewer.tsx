@@ -6,6 +6,7 @@ import { pdfjs, Document as ReactPdfDocument, Page as ReactPdfPage } from 'react
 import 'react-pdf/dist/Page/TextLayer.css'
 import { Skeleton } from '@/components/emcn'
 import { PreviewToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-toolbar'
+import { bindPreviewWheelZoom } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-wheel-zoom'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -120,9 +121,14 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
   }, [])
 
   const scrollToPage = (page: number) => {
+    const container = containerRef.current
+    if (container && zoomRef.current !== PDF_ZOOM_DEFAULT) {
+      applyZoomAt(PDF_ZOOM_DEFAULT, container.clientWidth / 2, container.clientHeight / 2)
+    }
+
     const wrapper = pageRefs.current[page - 1]
-    if (wrapper && containerRef.current) {
-      containerRef.current.scrollTo({ top: wrapper.offsetTop - 16, behavior: 'smooth' })
+    if (wrapper && container) {
+      container.scrollTo({ top: wrapper.offsetTop - 16, behavior: 'smooth' })
     }
   }
 
@@ -153,20 +159,14 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
     const container = containerRef.current
     if (!container) return
 
-    const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey) return
-      e.preventDefault()
-
+    return bindPreviewWheelZoom(container, (e) => {
       const next = Math.min(
         PDF_ZOOM_MAX,
         Math.max(PDF_ZOOM_MIN, zoomRef.current * (1 - e.deltaY * 0.005))
       )
       const rect = container.getBoundingClientRect()
       applyZoomAt(next, e.clientX - rect.left, e.clientY - rect.top)
-    }
-
-    container.addEventListener('wheel', onWheel, { passive: false })
-    return () => container.removeEventListener('wheel', onWheel)
+    })
   }, [applyZoomAt])
 
   return (

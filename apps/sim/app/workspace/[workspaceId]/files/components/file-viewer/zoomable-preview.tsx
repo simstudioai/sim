@@ -2,9 +2,8 @@
 
 import type { MouseEvent, ReactNode } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ZoomIn, ZoomOut } from 'lucide-react'
-import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { PreviewToolbar } from './preview-toolbar'
 
 const ZOOM_MIN = 0.25
 const ZOOM_MAX = 4
@@ -77,7 +76,7 @@ export function ZoomablePreview({
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [containerSize, setContainerSize] = useState<Size>({ width: 0, height: 0 })
   const [contentSize, setContentSize] = useState<Size>({ width: 0, height: 0 })
-  const containerRef = useRef<HTMLDivElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
   const dragStart = useRef({ x: 0, y: 0 })
@@ -92,11 +91,27 @@ export function ZoomablePreview({
   containerSizeRef.current = containerSize
   contentSizeRef.current = contentSize
 
-  const applyZoom = useCallback((nextZoom: number) => {
+  const applyZoom = useCallback((nextZoom: number, anchorX?: number, anchorY?: number) => {
+    const currentZoom = zoomRef.current
+    const ratio = nextZoom / currentZoom
+    const container = containerSizeRef.current
+    const anchorFromCenter = {
+      x: (anchorX ?? container.width / 2) - container.width / 2,
+      y: (anchorY ?? container.height / 2) - container.height / 2,
+    }
+
     zoomRef.current = nextZoom
     setZoom(nextZoom)
     setOffset((currentOffset) =>
-      clampOffset(containerSizeRef.current, contentSizeRef.current, currentOffset, nextZoom)
+      clampOffset(
+        container,
+        contentSizeRef.current,
+        {
+          x: currentOffset.x * ratio + anchorFromCenter.x * (1 - ratio),
+          y: currentOffset.y * ratio + anchorFromCenter.y * (1 - ratio),
+        },
+        nextZoom
+      )
     )
   }, [])
 
@@ -119,14 +134,19 @@ export function ZoomablePreview({
   }
 
   useEffect(() => {
-    const el = containerRef.current
+    const el = viewportRef.current
     if (!el) return
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       if (e.ctrlKey || e.metaKey) {
         hasInteractedRef.current = true
-        applyZoom(clampZoom(zoomRef.current * Math.exp(-e.deltaY * ZOOM_WHEEL_SENSITIVITY)))
+        const rect = el.getBoundingClientRect()
+        applyZoom(
+          clampZoom(zoomRef.current * Math.exp(-e.deltaY * ZOOM_WHEEL_SENSITIVITY)),
+          e.clientX - rect.left,
+          e.clientY - rect.top
+        )
       } else {
         hasInteractedRef.current = true
         setOffset((currentOffset) =>
@@ -149,12 +169,12 @@ export function ZoomablePreview({
 
   useLayoutEffect(() => {
     const updateSizes = () => {
-      setContainerSize(getElementSize(containerRef.current))
+      setContainerSize(getElementSize(viewportRef.current))
       setContentSize(getElementSize(contentRef.current))
     }
     updateSizes()
 
-    const container = containerRef.current
+    const container = viewportRef.current
     const content = contentRef.current
     if (!container || !content) return
 
@@ -200,7 +220,7 @@ export function ZoomablePreview({
     isDragging.current = true
     dragStart.current = { x: e.clientX, y: e.clientY }
     offsetAtDragStart.current = offsetRef.current
-    if (containerRef.current) containerRef.current.style.cursor = 'grabbing'
+    if (viewportRef.current) viewportRef.current.style.cursor = 'grabbing'
     e.preventDefault()
   }
 
@@ -221,66 +241,41 @@ export function ZoomablePreview({
 
   const handleMouseUp = () => {
     isDragging.current = false
-    if (containerRef.current) containerRef.current.style.cursor = 'grab'
+    if (viewportRef.current) viewportRef.current.style.cursor = 'grab'
   }
 
   return (
-    <div
-      ref={containerRef}
-      className={cn('relative cursor-grab overflow-hidden bg-[var(--surface-1)]', className)}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-    >
-      <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
-        <div
-          ref={contentRef}
-          className={cn('flex items-center justify-center', contentClassName)}
-          style={{
-            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-            transformOrigin: 'center center',
-          }}
-        >
-          {children}
-        </div>
-      </div>
+    <div className={cn('flex min-h-0 flex-col overflow-hidden bg-[var(--surface-1)]', className)}>
+      <PreviewToolbar
+        zoom={{
+          label: `${Math.round(zoom * 100)}%`,
+          canZoomOut: zoom > ZOOM_MIN,
+          canZoomIn: zoom < ZOOM_MAX,
+          onReset: fitToView,
+          onZoomOut: zoomOut,
+          onZoomIn: zoomIn,
+        }}
+      />
       <div
-        className='absolute right-4 bottom-4 flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 shadow-card'
-        onMouseDown={(e) => e.stopPropagation()}
+        ref={viewportRef}
+        className='relative min-h-0 flex-1 cursor-grab overflow-hidden'
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
       >
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={fitToView}
-          className='h-6 px-2 text-[11px]'
-          aria-label={initialScale === 'fit' ? 'Fit to view' : 'Reset zoom'}
-        >
-          {initialScale === 'fit' ? 'Fit' : 'Reset'}
-        </Button>
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={zoomOut}
-          disabled={zoom <= ZOOM_MIN}
-          className='h-6 w-6 p-0'
-          aria-label='Zoom out'
-        >
-          <ZoomOut className='h-3.5 w-3.5' />
-        </Button>
-        <span className='min-w-[3rem] text-center text-[11px] text-[var(--text-secondary)]'>
-          {Math.round(zoom * 100)}%
-        </span>
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={zoomIn}
-          disabled={zoom >= ZOOM_MAX}
-          className='h-6 w-6 p-0'
-          aria-label='Zoom in'
-        >
-          <ZoomIn className='h-3.5 w-3.5' />
-        </Button>
+        <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
+          <div
+            ref={contentRef}
+            className={cn('flex items-center justify-center', contentClassName)}
+            style={{
+              transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+              transformOrigin: 'center center',
+            }}
+          >
+            {children}
+          </div>
+        </div>
       </div>
     </div>
   )

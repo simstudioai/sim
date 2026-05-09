@@ -1,16 +1,18 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { openSimPptxViewer, type SimPptxViewerHandle } from '@/lib/pptx-renderer/sim-pptx-viewer'
 import { PreviewToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-toolbar'
+import { bindPreviewWheelZoom } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-wheel-zoom'
 
 const logger = createLogger('PptxSandboxHost')
 
 const ZOOM_MIN = 25
 const ZOOM_MAX = 400
 const ZOOM_STEP = 20
+const ZOOM_WHEEL_SENSITIVITY = 0.005
 
 interface PptxSandboxHostProps {
   buffer: ArrayBuffer
@@ -121,16 +123,58 @@ export const PptxSandboxHost = memo(function PptxSandboxHost({
     }
   }, [])
 
-  async function applyZoom(nextZoom: number) {
-    const clampedZoom = Math.min(Math.max(nextZoom, ZOOM_MIN), ZOOM_MAX)
+  const applyZoomAt = useCallback(async (nextZoom: number, anchorX: number, anchorY: number) => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const clampedZoom = Math.round(Math.min(Math.max(nextZoom, ZOOM_MIN), ZOOM_MAX))
+    const ratio = clampedZoom / zoomPercentRef.current
+    const style = window.getComputedStyle(container)
+    const paddingLeft = Number.parseFloat(style.paddingLeft) || 0
+    const paddingTop = Number.parseFloat(style.paddingTop) || 0
+
     zoomPercentRef.current = clampedZoom
     setZoomPercent(clampedZoom)
     await activeHandleRef.current?.viewer.setZoom(clampedZoom)
-  }
+
+    container.scrollLeft =
+      (container.scrollLeft + anchorX - paddingLeft) * ratio + paddingLeft - anchorX
+    container.scrollTop =
+      (container.scrollTop + anchorY - paddingTop) * ratio + paddingTop - anchorY
+  }, [])
+
+  const applyZoomFromCenter = useCallback(
+    (nextZoom: number): Promise<void> => {
+      const container = scrollContainerRef.current
+      return applyZoomAt(
+        nextZoom,
+        container ? container.clientWidth / 2 : 0,
+        container ? container.clientHeight / 2 : 0
+      )
+    },
+    [applyZoomAt]
+  )
+
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    return bindPreviewWheelZoom(container, (event) => {
+      const rect = container.getBoundingClientRect()
+      void applyZoomAt(
+        zoomPercentRef.current * (1 - event.deltaY * ZOOM_WHEEL_SENSITIVITY),
+        event.clientX - rect.left,
+        event.clientY - rect.top
+      )
+    })
+  }, [applyZoomAt])
 
   async function goToSlide(slideNumber: number) {
     if (!activeHandleRef.current || slideCount <= 0) return
     const clampedSlide = Math.min(Math.max(slideNumber, 1), slideCount)
+    if (zoomPercentRef.current !== 100) {
+      await applyZoomFromCenter(100)
+    }
     setCurrentSlide(clampedSlide)
     await activeHandleRef.current.viewer.goToSlide(clampedSlide - 1)
   }
@@ -151,9 +195,15 @@ export const PptxSandboxHost = memo(function PptxSandboxHost({
           label: `${zoomPercent}%`,
           canZoomOut: zoomPercent > ZOOM_MIN,
           canZoomIn: zoomPercent < ZOOM_MAX,
-          onReset: () => applyZoom(100),
-          onZoomOut: () => applyZoom(zoomPercent - ZOOM_STEP),
-          onZoomIn: () => applyZoom(zoomPercent + ZOOM_STEP),
+          onReset: () => {
+            void applyZoomFromCenter(100)
+          },
+          onZoomOut: () => {
+            void applyZoomFromCenter(zoomPercent - ZOOM_STEP)
+          },
+          onZoomIn: () => {
+            void applyZoomFromCenter(zoomPercent + ZOOM_STEP)
+          },
         }}
       />
       <div
