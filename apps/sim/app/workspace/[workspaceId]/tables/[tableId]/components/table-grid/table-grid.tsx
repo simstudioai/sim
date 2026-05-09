@@ -1650,11 +1650,11 @@ export function TableGrid({
             undoCells.push({ rowId: row.id, data: previousData })
             batchUpdates.push({ rowId: row.id, data: updates })
           }
-          if (batchUpdates.length > 0) {
-            await chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current)
-          }
           if (undoCells.length > 0) {
             pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
+          }
+          if (batchUpdates.length > 0) {
+            await chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current)
           }
         })().catch((error) => {
           logger.error('Failed to clear selected cells', { error })
@@ -1881,9 +1881,9 @@ export function TableGrid({
               undoCells.push({ rowId: row.id, data: previousData })
               batchUpdates.push({ rowId: row.id, data: updates })
             }
+            if (undoCells.length > 0) pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
             if (batchUpdates.length > 0)
               await chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current)
-            if (undoCells.length > 0) pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
           })().catch((error) => {
             logger.error('Failed to clear column values', { error })
             toast.error('Failed to clear column values — please try again')
@@ -2058,11 +2058,11 @@ export function TableGrid({
             }
             throw err
           }
-          if (cutUpdates.length > 0) {
-            await chunkBatchUpdates(cutUpdates, batchUpdateAsyncRef.current)
-          }
           if (cutUndo.length > 0) {
             pushUndoRef.current({ type: 'clear-cells', cells: cutUndo })
+          }
+          if (cutUpdates.length > 0) {
+            await chunkBatchUpdates(cutUpdates, batchUpdateAsyncRef.current)
           }
         })().catch((error) => {
           logger.error('Failed to cut selected rows', { error })
