@@ -182,8 +182,9 @@ function parseDocxStyles(
       type,
       ...(basedOnMatch && { basedOn: basedOnMatch[1] }),
       ...(szMatch && { fontSize: Math.round(Number.parseInt(szMatch[1]) / 2) }),
-      ...(/<w:b\b(?:\s[^/]*)?\/?>/.test(block) &&
-        !/<w:b\b[^>]*\bw:val=["'](0|false)["']/.test(block) && { bold: true }),
+      ...(/<w:b\b(?:\s[^/]*)?\/?>/.test(block) && {
+        bold: !/<w:b\b[^>]*\bw:val=["'](0|false)["']/.test(block),
+      }),
       ...(colorMatch && { color: colorMatch[1].toUpperCase() }),
       ...(font && { font }),
       ...(themeFont && { themeFont }),
@@ -236,7 +237,7 @@ function parseDocxStyles(
       name: resolved.name,
       type: resolved.type,
       ...(resolved.fontSize !== undefined && { fontSize: resolved.fontSize }),
-      ...(resolved.bold && { bold: resolved.bold }),
+      ...(resolved.bold !== undefined && { bold: resolved.bold }),
       ...(resolved.color && { color: resolved.color }),
       ...(resolvedFont && { font: resolvedFont }),
     })
