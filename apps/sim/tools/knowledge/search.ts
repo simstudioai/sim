@@ -179,6 +179,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
           documentName: { type: 'string', description: 'Document name' },
           sourceUrl: {
             type: 'string',
+            nullable: true,
             description:
               'URL to the original source document (e.g., Confluence page, Google Doc, Notion page). Null for documents without an external source.',
           },

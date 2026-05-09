@@ -999,7 +999,10 @@ describe('Knowledge Search API Route', () => {
 
       mockGenerateSearchEmbedding.mockResolvedValue([0.1, 0.2, 0.3])
       mockGetDocumentMetadataByIds.mockResolvedValue({
-        'doc-active': { filename: 'Active Document.pdf', sourceUrl: null },
+        'doc-active': {
+          filename: 'Active Document.pdf',
+          sourceUrl: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345',
+        },
       })
 
       const mockTagDefs = {
@@ -1023,6 +1026,9 @@ describe('Knowledge Search API Route', () => {
       expect(data.data.results).toHaveLength(1)
       expect(data.data.results[0].documentId).toBe('doc-active')
       expect(data.data.results[0].documentName).toBe('Active Document.pdf')
+      expect(data.data.results[0].sourceUrl).toBe(
+        'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345'
+      )
     })
 
     it('should exclude results from deleted documents in tag search', async () => {

@@ -127,6 +127,42 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
     expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled()
   })
 
+  it('surfaces sourceUrl from document metadata in search results', async () => {
+    mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
+      hasAccess: true,
+      knowledgeBase: baseKb('kb-confluence', 'text-embedding-3-small'),
+    })
+    mockHandleVectorOnlySearch.mockResolvedValue([
+      {
+        documentId: 'doc-confluence',
+        knowledgeBaseId: 'kb-confluence',
+        content: 'page content',
+        chunkIndex: 0,
+        distance: 0.1,
+      },
+    ])
+    mockGetDocumentMetadataByIds.mockResolvedValue({
+      'doc-confluence': {
+        filename: 'Runbook.md',
+        sourceUrl: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345',
+      },
+    })
+
+    const req = createMockRequest('POST', {
+      workspaceId: 'ws-1',
+      knowledgeBaseIds: 'kb-confluence',
+      query: 'runbook',
+    })
+    const res = await POST(req)
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.data.results[0].sourceUrl).toBe(
+      'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345'
+    )
+    expect(body.data.results[0].documentName).toBe('Runbook.md')
+  })
+
   it('allows tag-only search across mixed embedding models', async () => {
     mockHandleTagOnlySearch.mockResolvedValue([])
     mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
