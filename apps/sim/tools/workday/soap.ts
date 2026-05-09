@@ -15,10 +15,10 @@ export type WorkdayServiceKey = keyof typeof WORKDAY_SERVICES
 export interface WorkdaySoapResult {
   Response_Data?: Record<string, unknown>
   Response_Results?: {
-    Total_Results?: number
-    Total_Pages?: number
-    Page_Results?: number
-    Page?: number
+    Total_Results?: number | string
+    Total_Pages?: number | string
+    Page_Results?: number | string
+    Page?: number | string
   }
   Event_Reference?: WorkdayReference
   Employee_Reference?: WorkdayReference
@@ -98,7 +98,7 @@ export interface WorkdayOrganizationSoap {
 export interface WorkdayOrganizationDataSoap {
   Organization_Type_Reference?: WorkdayReference
   Organization_Subtype_Reference?: WorkdayReference
-  Inactive?: boolean
+  Inactive?: boolean | string
 }
 
 /**
@@ -110,24 +110,51 @@ export function normalizeSoapArray<T>(value: T | T[] | undefined): T[] {
   return Array.isArray(value) ? value : [value]
 }
 
-const WD_OPERATIONS = {
-  Get_Workers: { service: 'humanResources', soapAction: 'Get_Workers' },
-  Get_Organizations: { service: 'humanResources', soapAction: 'Get_Organizations' },
-  Put_Applicant: { service: 'recruiting', soapAction: 'Put_Applicant' },
-  Hire_Employee: { service: 'staffing', soapAction: 'Hire_Employee' },
-  Change_Job: { service: 'staffing', soapAction: 'Change_Job' },
-  Terminate_Employee: { service: 'staffing', soapAction: 'Terminate_Employee' },
-  Change_Personal_Information: {
-    service: 'humanResources',
-    soapAction: 'Change_Personal_Information',
-  },
-  Put_Onboarding_Plan_Assignment: {
-    service: 'humanResources',
-    soapAction: 'Put_Onboarding_Plan_Assignment',
-  },
-} as const satisfies Record<string, { service: WorkdayServiceKey; soapAction: string }>
+/**
+ * Coerces a SOAP scalar to a boolean. The XML parser returns leaf text as strings,
+ * so `"true"`/`"false"` must be normalized before boolean operations like negation.
+ * Returns null when the value is null/undefined or unrecognized.
+ */
+export function parseSoapBoolean(value: unknown): boolean | null {
+  if (value == null) return null
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toLowerCase()
+    if (trimmed === 'true' || trimmed === '1') return true
+    if (trimmed === 'false' || trimmed === '0') return false
+  }
+  return null
+}
 
-type WorkdayOperation = keyof typeof WD_OPERATIONS
+/**
+ * Coerces a SOAP scalar to a number. The XML parser returns leaf text as strings,
+ * so numeric fields like `Total_Results` must be normalized before arithmetic.
+ * Returns null when the value is null/undefined or not a finite number.
+ */
+export function parseSoapNumber(value: unknown): number | null {
+  if (value == null) return null
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed === '') return null
+    const n = Number(trimmed)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+const WD_OPERATIONS = [
+  'Get_Workers',
+  'Get_Organizations',
+  'Put_Applicant',
+  'Hire_Employee',
+  'Change_Job',
+  'Terminate_Employee',
+  'Change_Personal_Information',
+  'Put_Onboarding_Plan_Assignment',
+] as const
+
+type WorkdayOperation = (typeof WD_OPERATIONS)[number]
 
 type SoapOperationFn = (
   args: Record<string, unknown>
