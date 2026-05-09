@@ -14,6 +14,7 @@ export interface GetMothershipBaseURLOptions {
 type ConcreteMothershipEnvironment = Exclude<MothershipEnvironment, 'default'>
 
 const ENVIRONMENT_URLS: Record<ConcreteMothershipEnvironment, string | undefined> = {
+  // env vars
   dev: env.COPILOT_DEV_URL,
   staging: env.COPILOT_STAGING_URL,
   prod: env.COPILOT_PROD_URL,
