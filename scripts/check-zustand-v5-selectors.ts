@@ -42,7 +42,7 @@ const UNSAFE_SELECTOR_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
     reason: 'selector allocates Object.keys; return a primitive or use useShallow',
   },
   {
-    pattern: /\.(?:map|filter|reduce)\s*\(/,
+    pattern: /(?:=>|return)\s+[^;{}]*\.(?:map|filter|reduce)\s*\(/,
     reason: 'selector allocates a derived value; use useStoreWithEqualityFn or memoize outside',
   },
   {
@@ -292,15 +292,50 @@ function auditFile(file: string, source: string): Violation[] {
 function returnsPrimitiveDerivedValue(selector: string): boolean {
   return (
     /\bObject\.(?:keys|values|entries)\s*\([^)]*\)\s*\.\s*(?:length|some|every)\b/.test(selector) ||
-    /\bObject\.keys\s*\([^)]*\)\.length\b/.test(selector)
+    /\bObject\.keys\s*\([^)]*\)\.length\b/.test(selector) ||
+    /\.(?:map|filter)\s*\([^)]*\)\s*\.\s*(?:length|some|every|join)\b/.test(selector)
   )
 }
 
 function usesReferenceFallbackOnlyInsideBlockBody(selector: string): boolean {
-  return (
-    /\)\s*=>\s*\{/.test(selector) &&
-    /\breturn\s+['"`]|\breturn\s+(?:true|false|null|undefined)\b/.test(selector)
+  if (!/\)\s*=>\s*\{/.test(selector)) return false
+
+  const returnExpressions = [...selector.matchAll(/\breturn\s+([^;\n}]+)/g)].map((match) =>
+    match[1].trim()
   )
+
+  return (
+    returnExpressions.length > 0 &&
+    returnExpressions.every((expression) => isPrimitiveReturnExpression(expression, selector))
+  )
+}
+
+function isPrimitiveReturnExpression(expression: string, selector: string): boolean {
+  const normalized = expression
+    .trim()
+    .replace(/^\((.*)\)$/, '$1')
+    .trim()
+
+  if (/^(?:true|false|null|undefined)\b/.test(normalized)) return true
+  if (/^(?:['"`]|\d)/.test(normalized)) return true
+  if (/^(?:!|typeof\b)/.test(normalized)) return true
+  if (/^(?:Boolean|Number|String)\s*\(/.test(normalized)) return true
+  if (/(?:===|!==|==|!=|>=|<=|>|<)/.test(normalized)) return true
+  if (/\.(?:length|some|every|includes|has)\s*(?:\(|$)/.test(normalized)) return true
+
+  if (/^[A-Za-z_$][\w$]*$/.test(normalized)) {
+    return isIdentifierAssignedPrimitive(normalized, selector)
+  }
+
+  return false
+}
+
+function isIdentifierAssignedPrimitive(identifier: string, selector: string): boolean {
+  const declarationPattern = new RegExp(`\\b(?:const|let)\\s+${identifier}\\s*=\\s*([^;\\n]+)`)
+  const declaration = selector.match(declarationPattern)
+  if (!declaration) return false
+
+  return isPrimitiveReturnExpression(declaration[1], selector)
 }
 
 async function main() {

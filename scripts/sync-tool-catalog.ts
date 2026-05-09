@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { formatGeneratedSource } from './format-generated-source'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
@@ -208,7 +209,7 @@ async function main() {
   lines.push('};')
   lines.push('')
 
-  const rendered = lines.join('\n')
+  const rendered = formatGeneratedSource(lines.join('\n'), OUTPUT_PATH, ROOT)
   const runtimeSchemaRendered = renderRuntimeSchemaModule(catalog)
 
   if (checkOnly) {
