@@ -181,6 +181,19 @@ export const auth = betterAuth({
     provider: 'pg',
     schema,
   }),
+  rateLimit: {
+    enabled: true,
+    customRules: {
+      '/sign-up/email': { window: 600, max: 3 },
+      '/sign-in/email': { window: 60, max: 10 },
+      '/forget-password': { window: 600, max: 3 },
+    },
+  },
+  advanced: {
+    ipAddress: {
+      ipAddressHeaders: ['cf-connecting-ip', 'x-forwarded-for'],
+    },
+  },
   session: {
     cookieCache: {
       enabled: true,
