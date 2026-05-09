@@ -78,6 +78,8 @@ import {
 
 const logger = createLogger('TableQueries')
 
+const ROWS_POLL_INTERVAL_WHILE_RUNNING_MS = 2_000
+
 type TableQueryScope = 'active' | 'archived' | 'all'
 
 export const tableKeys = {
