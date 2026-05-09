@@ -14,7 +14,11 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
-import { SUPPORTED_ATTACHMENT_EXTENSIONS, validateFileType } from '@/lib/uploads/utils/validation'
+import {
+  SUPPORTED_ATTACHMENT_EXTENSIONS,
+  SUPPORTED_IMAGE_EXTENSIONS,
+  validateFileType,
+} from '@/lib/uploads/utils/validation'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
   createErrorResponse,
