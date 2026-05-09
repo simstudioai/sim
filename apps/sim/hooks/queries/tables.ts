@@ -252,7 +252,6 @@ export function tableRowsParamsKey({
   return JSON.stringify({ pageSize, filter: filter ?? null, sort: sort ?? null })
 }
 
-/** `infiniteQueryOptions` factory shared by the hook and imperative drain calls to target the same cache key. */
 export function tableRowsInfiniteOptions({
   workspaceId,
   tableId,

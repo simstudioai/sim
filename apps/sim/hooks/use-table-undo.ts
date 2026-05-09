@@ -1,7 +1,3 @@
-/**
- * Hook that connects the table undo/redo store to React Query mutations.
- */
-
 import { useCallback, useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { TABLE_LIMITS } from '@/lib/table/constants'
@@ -23,9 +19,6 @@ import type { TableUndoAction } from '@/stores/table/types'
 
 const logger = createLogger('useTableUndo')
 
-/**
- * Extract the row ID from a create-row API response.
- */
 export function extractCreatedRowId(response: Record<string, unknown>): string | undefined {
   const data = response?.data as Record<string, unknown> | undefined
   const row = data?.row as Record<string, unknown> | undefined
