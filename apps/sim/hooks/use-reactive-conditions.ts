@@ -3,7 +3,7 @@ import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibilit
 import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { EMPTY_BLOCK_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 /**
  * Evaluates reactive conditions for subblocks. Always calls the same hooks
@@ -27,7 +27,8 @@ export function useReactiveConditions(
     useCallback(
       (state) => {
         if (!reactiveCond || !activeWorkflowId) return ''
-        const blockValues = state.workflowValues[activeWorkflowId]?.[blockId] ?? {}
+        const blockValues =
+          state.workflowValues[activeWorkflowId]?.[blockId] ?? EMPTY_BLOCK_SUBBLOCK_VALUES
         for (const field of reactiveCond.watchFields) {
           const val = resolveDependencyValue(
             field,

@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { formatGeneratedSource } from './format-generated-source'
 
 /**
  * Generate `apps/sim/lib/copilot/generated/trace-attributes-v1.ts`
@@ -32,12 +33,9 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
 const DEFAULT_CONTRACT_PATH = resolve(
   ROOT,
-  '../copilot/copilot/contracts/trace-attributes-v1.schema.json',
+  '../copilot/copilot/contracts/trace-attributes-v1.schema.json'
 )
-const OUTPUT_PATH = resolve(
-  ROOT,
-  'apps/sim/lib/copilot/generated/trace-attributes-v1.ts',
-)
+const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/trace-attributes-v1.ts')
 
 function extractAttrKeys(schema: Record<string, unknown>): string[] {
   const defs = (schema.$defs ?? {}) as Record<string, unknown>
@@ -47,9 +45,7 @@ function extractAttrKeys(schema: Record<string, unknown>): string[] {
     typeof nameDef !== 'object' ||
     !Array.isArray((nameDef as Record<string, unknown>).enum)
   ) {
-    throw new Error(
-      'trace-attributes-v1.schema.json is missing $defs.TraceAttributesV1Name.enum',
-    )
+    throw new Error('trace-attributes-v1.schema.json is missing $defs.TraceAttributesV1Name.enum')
   }
   const enumValues = (nameDef as Record<string, unknown>).enum as unknown[]
   if (!enumValues.every((v) => typeof v === 'string')) {
@@ -71,13 +67,9 @@ function toIdentifier(name: string): string {
   if (parts.length === 0) {
     throw new Error(`Cannot derive identifier for attribute key: ${name}`)
   }
-  const ident = parts
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
-    .join('')
+  const ident = parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join('')
   if (/^[0-9]/.test(ident)) {
-    throw new Error(
-      `Derived identifier "${ident}" for attribute "${name}" starts with a digit`,
-    )
+    throw new Error(`Derived identifier "${ident}" for attribute "${name}" starts with a digit`)
   }
   return ident
 }
@@ -91,16 +83,12 @@ function render(attrKeys: string[]): string {
   for (const p of pairs) {
     const prev = seen.get(p.ident)
     if (prev && prev !== p.name) {
-      throw new Error(
-        `Identifier collision: "${prev}" and "${p.name}" both map to "${p.ident}"`,
-      )
+      throw new Error(`Identifier collision: "${prev}" and "${p.name}" both map to "${p.ident}"`)
     }
     seen.set(p.ident, p.name)
   }
 
-  const constLines = pairs
-    .map((p) => `  ${p.ident}: ${JSON.stringify(p.name)},`)
-    .join('\n')
+  const constLines = pairs.map((p) => `  ${p.ident}: ${JSON.stringify(p.name)},`).join('\n')
   const arrayEntries = attrKeys.map((n) => `  ${JSON.stringify(n)},`).join('\n')
 
   return `// AUTO-GENERATED FILE. DO NOT EDIT.
@@ -144,13 +132,13 @@ async function main() {
   const raw = await readFile(inputPath, 'utf8')
   const schema = JSON.parse(raw)
   const attrKeys = extractAttrKeys(schema)
-  const rendered = render(attrKeys)
+  const rendered = formatGeneratedSource(render(attrKeys), OUTPUT_PATH, ROOT)
 
   if (checkOnly) {
     const existing = await readFile(OUTPUT_PATH, 'utf8').catch(() => null)
     if (existing !== rendered) {
       throw new Error(
-        'Generated trace attributes contract is stale. Run: bun run trace-attributes-contract:generate',
+        'Generated trace attributes contract is stale. Run: bun run trace-attributes-contract:generate'
       )
     }
     console.log('Trace attributes contract is up to date.')

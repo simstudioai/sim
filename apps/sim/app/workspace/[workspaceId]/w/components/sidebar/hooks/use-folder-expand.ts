@@ -1,6 +1,9 @@
 import { useCallback } from 'react'
 import { useFolderStore } from '@/stores/folders/store'
 
+const toggleFolderExpanded = useFolderStore.getState().toggleExpanded
+const setFolderExpanded = useFolderStore.getState().setExpanded
+
 interface UseFolderExpandProps {
   folderId: string
 }
@@ -13,22 +16,22 @@ interface UseFolderExpandProps {
  * @returns Expansion state and event handlers
  */
 export function useFolderExpand({ folderId }: UseFolderExpandProps) {
-  const { expandedFolders, toggleExpanded, setExpanded } = useFolderStore()
+  const expandedFolders = useFolderStore((state) => state.expandedFolders)
   const isExpanded = expandedFolders.has(folderId)
 
   /**
    * Toggle folder expansion state
    */
   const handleToggleExpanded = useCallback(() => {
-    toggleExpanded(folderId)
-  }, [folderId, toggleExpanded])
+    toggleFolderExpanded(folderId)
+  }, [folderId])
 
   /**
    * Expand the folder (useful when creating items inside)
    */
   const expandFolder = useCallback(() => {
-    setExpanded(folderId, true)
-  }, [folderId, setExpanded])
+    setFolderExpanded(folderId, true)
+  }, [folderId])
 
   /**
    * Handle keyboard navigation (Enter/Space)

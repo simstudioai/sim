@@ -19,6 +19,11 @@ const logger = createLogger('SubBlockStore')
 export const EMPTY_SUBBLOCK_VALUES: Record<string, Record<string, SubBlockValue>> = {}
 
 /**
+ * Stable empty fallback for a single block's sub-block values.
+ */
+export const EMPTY_BLOCK_SUBBLOCK_VALUES: Record<string, SubBlockValue> = {}
+
+/**
  * SubBlockState stores values for all subblocks in workflows
  *
  * Important implementation notes:
