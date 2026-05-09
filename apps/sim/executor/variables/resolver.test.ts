@@ -127,6 +127,7 @@ describe('VariableResolver function block inputs', () => {
     )
 
     expect(result.resolvedInputs.code).toBe(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional — asserting template literal is preserved
       'return `value: ${JSON.stringify(globalThis["__blockRef_0"])}`'
     )
     expect(result.displayInputs.code).toBe('return `value: "hello world"`')
@@ -139,11 +140,14 @@ describe('VariableResolver function block inputs', () => {
     const result = resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional — asserting template literal is preserved
       { code: 'return `${String(<Producer.result>)}`' },
       block
     )
 
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional — asserting template literal is preserved
     expect(result.resolvedInputs.code).toBe('return `${String(globalThis["__blockRef_0"])}`')
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional — asserting template literal is preserved
     expect(result.displayInputs.code).toBe('return `${String("hello world")}`')
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
+import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const workspaceFileScopeSchema = z.enum(['active', 'archived', 'all'])
 
@@ -46,6 +46,12 @@ const workspaceFileSuccessSchema = z.object({
   success: z.boolean(),
 })
 
+const listWorkspaceFilesResponseSchema = workspaceFileSuccessSchema.extend({
+  files: z.array(workspaceFileRecordSchema),
+})
+
+export type ListWorkspaceFilesResponse = z.output<typeof listWorkspaceFilesResponseSchema>
+
 export const listWorkspaceFilesContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/files',
@@ -53,12 +59,9 @@ export const listWorkspaceFilesContract = defineRouteContract({
   query: listWorkspaceFilesQuerySchema,
   response: {
     mode: 'json',
-    schema: workspaceFileSuccessSchema.extend({
-      files: z.array(workspaceFileRecordSchema),
-    }),
+    schema: listWorkspaceFilesResponseSchema,
   },
 })
-export type ListWorkspaceFilesResponse = ContractJsonResponse<typeof listWorkspaceFilesContract>
 
 export const renameWorkspaceFileContract = defineRouteContract({
   method: 'PATCH',
@@ -108,15 +111,30 @@ export const updateWorkspaceFileContentContract = defineRouteContract({
 
 const documentStyleSummarySchema = z
   .object({
-    format: z.enum(['docx', 'pptx']),
+    format: z.enum(['docx', 'pptx', 'pdf']),
+    // OOXML theme — present for pptx, present for docx when theme1.xml exists, absent for pdf
     theme: z
       .object({
-        name: z.string(),
         colors: z.record(z.string(), z.string()),
         fonts: z.object({ major: z.string(), minor: z.string() }),
       })
-      .passthrough(),
+      .optional(),
+    // docx only
     styles: z.array(z.object({}).passthrough()).optional(),
+    defaults: z.object({ fontSize: z.number().optional(), font: z.string().optional() }).optional(),
+    // pdf only
+    pageSize: z
+      .object({
+        preset: z.enum(['A4', 'letter', 'custom']),
+        widthPt: z.number().optional(),
+        heightPt: z.number().optional(),
+      })
+      .optional(),
+    fonts: z.array(z.string()).optional(),
+    // pptx only
+    slideCount: z.number().optional(),
+    aspectRatio: z.enum(['16:9', '4:3', 'custom']).optional(),
+    background: z.string().optional(),
   })
   .passthrough()
 

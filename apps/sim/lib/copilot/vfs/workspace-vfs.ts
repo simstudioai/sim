@@ -316,7 +316,7 @@ function getStaticComponentFiles(): Map<string, string> {
  *   tables/{name}/meta.json
  *   files/{name}/meta.json
  *   files/by-id/{id}/meta.json
- *   files/by-id/{id}/style            (dynamic — OOXML theme/font extraction for .docx/.pptx)
+ *   files/by-id/{id}/style            (dynamic — style extraction for .docx/.pptx/.pdf)
  *   files/by-id/{id}/compiled-check   (dynamic — compile generated source / validate diagrams, returns {ok,error?})
  *   jobs/{title}/meta.json
  *   jobs/{title}/history.json
@@ -457,7 +457,7 @@ export class WorkspaceVFS {
    * Attempt to read dynamic workspace file content from storage.
    * Handles images (base64), parseable documents (PDF, etc.), and text files.
    * Also handles:
-   *   `files/by-id/{id}/style`           — OOXML theme/style extraction (.docx / .pptx only)
+   *   `files/by-id/{id}/style`           — style extraction (.docx / .pptx / .pdf)
    *   `files/by-id/{id}/compiled-check`  — compile JS-source binary files or validate Mermaid diagrams
    * Returns null if the path doesn't match `files/{name}` / `files/by-id/{id}` or the file isn't found.
    */
@@ -518,8 +518,8 @@ export class WorkspaceVFS {
         const record = await getWorkspaceFile(this._workspaceId, fileId)
         if (!record) return null
         const rawExt = record.name.split('.').pop()?.toLowerCase()
-        if (rawExt !== 'docx' && rawExt !== 'pptx') return null
-        const ext: 'docx' | 'pptx' = rawExt
+        if (rawExt !== 'docx' && rawExt !== 'pptx' && rawExt !== 'pdf') return null
+        const ext: 'docx' | 'pptx' | 'pdf' = rawExt
         const buffer = await fetchWorkspaceFileBuffer(record)
         const summary = await extractDocumentStyle(buffer, ext)
         if (!summary) return null
