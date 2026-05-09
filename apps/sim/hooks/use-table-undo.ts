@@ -1,9 +1,6 @@
-/**
- * Hook that connects the table undo/redo store to React Query mutations.
- */
-
 import { useCallback, useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -22,9 +19,6 @@ import type { TableUndoAction } from '@/stores/table/types'
 
 const logger = createLogger('useTableUndo')
 
-/**
- * Extract the row ID from a create-row API response.
- */
 export function extractCreatedRowId(response: Record<string, unknown>): string | undefined {
   const data = response?.data as Record<string, unknown> | undefined
   const row = data?.row as Record<string, unknown> | undefined
@@ -90,7 +84,7 @@ export function useTableUndo({
   )
 
   const executeAction = useCallback(
-    (action: TableUndoAction, direction: 'undo' | 'redo') => {
+    async (action: TableUndoAction, direction: 'undo' | 'redo') => {
       try {
         switch (action.type) {
           case 'update-cell': {
@@ -110,7 +104,11 @@ export function useTableUndo({
                   ? cell.data
                   : Object.fromEntries(Object.keys(cell.data).map((k) => [k, null])),
             }))
-            batchUpdateRowsMutation.mutate({ updates })
+            for (let i = 0; i < updates.length; i += TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
+              await batchUpdateRowsMutation.mutateAsync({
+                updates: updates.slice(i, i + TABLE_LIMITS.MAX_BULK_OPERATION_SIZE),
+              })
+            }
             break
           }
 
@@ -119,7 +117,11 @@ export function useTableUndo({
               rowId: cell.rowId,
               data: direction === 'undo' ? cell.oldData : cell.newData,
             }))
-            batchUpdateRowsMutation.mutate({ updates })
+            for (let i = 0; i < updates.length; i += TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
+              await batchUpdateRowsMutation.mutateAsync({
+                updates: updates.slice(i, i + TABLE_LIMITS.MAX_BULK_OPERATION_SIZE),
+              })
+            }
             break
           }
 
@@ -239,17 +241,24 @@ export function useTableUndo({
                         rowId: c.rowId,
                         data: { [action.columnName]: c.value },
                       }))
-                      batchUpdateRowsMutation.mutate(
-                        { updates },
-                        {
-                          onError: (error) => {
-                            logger.error('Failed to restore cell data on delete-column undo', {
-                              columnName: action.columnName,
-                              error,
+                      void (async () => {
+                        try {
+                          for (
+                            let i = 0;
+                            i < updates.length;
+                            i += TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
+                          ) {
+                            await batchUpdateRowsMutation.mutateAsync({
+                              updates: updates.slice(i, i + TABLE_LIMITS.MAX_BULK_OPERATION_SIZE),
                             })
-                          },
+                          }
+                        } catch (error) {
+                          logger.error('Failed to restore cell data on delete-column undo', {
+                            columnName: action.columnName,
+                            error,
+                          })
                         }
-                      )
+                      })()
                     }
                     const metadata: Record<string, unknown> = {}
                     if (action.previousOrder) {
@@ -346,19 +355,13 @@ export function useTableUndo({
   const undo = useCallback(() => {
     const entry = popUndo(tableId)
     if (!entry) return
-
-    runWithoutRecording(() => {
-      executeAction(entry.action, 'undo')
-    })
+    void runWithoutRecording(() => executeAction(entry.action, 'undo'))
   }, [popUndo, tableId, executeAction])
 
   const redo = useCallback(() => {
     const entry = popRedo(tableId)
     if (!entry) return
-
-    runWithoutRecording(() => {
-      executeAction(entry.action, 'redo')
-    })
+    void runWithoutRecording(() => executeAction(entry.action, 'redo'))
   }, [popRedo, tableId, executeAction])
 
   return { pushUndo, undo, redo, canUndo, canRedo }
