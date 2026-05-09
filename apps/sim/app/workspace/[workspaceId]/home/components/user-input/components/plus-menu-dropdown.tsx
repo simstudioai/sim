@@ -89,6 +89,7 @@ export const PlusMenuDropdown = React.memo(
         items.filter((item) => item.name.toLowerCase().includes(q)).map((item) => ({ type, item }))
       )
     }, [isMention, mentionQuery, search, availableResources])
+    const isRootMenu = !isMention && filteredItems === null
 
     const filteredItemsRef = useRef(filteredItems)
     filteredItemsRef.current = filteredItems
@@ -248,6 +249,7 @@ export const PlusMenuDropdown = React.memo(
             collisionPadding={8}
             className={cn(
               'flex flex-col overflow-hidden',
+              isRootMenu && 'max-h-none',
               // Plus-click shows short fixed labels (Workflows, Tables, …) — let it size
               // to its content via the emcn DropdownMenuContent default max-w.
               // Mention mode renders resource names directly, so widen for breathing room.
