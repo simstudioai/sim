@@ -70,28 +70,6 @@ function parseParagraph(pNode: SafeXmlNode): TextParagraph {
   const pPr = pNode.child('pPr')
   const level = pPr.numAttr('lvl') ?? 0
 
-  const runs: TextRun[] = []
-
-  // Regular runs (a:r)
-  for (const rNode of pNode.children('r')) {
-    const rPr = rNode.child('rPr')
-    const tNode = rNode.child('t')
-    runs.push({
-      text: tNode.text(),
-      properties: rPr.exists() ? rPr : undefined,
-    })
-  }
-
-  // Line breaks (a:br) — treated as runs with newline text
-  // Field codes (a:fld) — treated as runs with their display text
-  for (const child of pNode.allChildren()) {
-    if (child.localName === 'br') {
-      // a:br nodes are interspersed with a:r nodes, but since we iterate
-      // children separately, we need a combined approach. We handle this
-      // by re-scanning all children in order below.
-    }
-  }
-
   // Re-scan in document order to get correct interleaving of r, br, fld
   const orderedRuns: TextRun[] = []
   for (const child of pNode.allChildren()) {
@@ -122,7 +100,7 @@ function parseParagraph(pNode: SafeXmlNode): TextParagraph {
   const endParaRPrNode = pNode.child('endParaRPr')
   return {
     properties: pPr.exists() ? pPr : undefined,
-    runs: orderedRuns.length > 0 ? orderedRuns : runs,
+    runs: orderedRuns,
     level,
     endParaRPr: endParaRPrNode.exists() ? endParaRPrNode : undefined,
   }
