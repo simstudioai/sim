@@ -346,15 +346,15 @@ function parsePptxPresentation(xml: string): {
   const sldIdLst = between(xml, '<p:sldIdLst>', '</p:sldIdLst>')
   const slideCount = (sldIdLst.match(/<p:sldId\b/g) ?? []).length
 
-  // Slide size in EMU — 1 inch = 914400 EMU
-  const sldSzMatch = /<p:sldSz\b[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/.exec(xml)
+  // Slide size in EMU — 1 inch = 914400 EMU. Capture cx/cy independently so
+  // attribute order (LibreOffice/Google Slides may write cy before cx) doesn't matter.
+  const cxMatch = /<p:sldSz\b[^>]*\bcx="(\d+)"/.exec(xml)
+  const cyMatch = /<p:sldSz\b[^>]*\bcy="(\d+)"/.exec(xml)
   let aspectRatio: '16:9' | '4:3' | 'custom' = 'custom'
-  if (sldSzMatch) {
-    const cx = Number.parseInt(sldSzMatch[1])
-    const cy = Number.parseInt(sldSzMatch[2])
+  if (cxMatch && cyMatch) {
+    const cx = Number.parseInt(cxMatch[1])
+    const cy = Number.parseInt(cyMatch[1])
     const ratio = cx / cy
-    // 16:9 ≈ 1.7778 (covers both 9144000×5143500 and 12192000×6858000)
-    // 4:3  ≈ 1.3333 (9144000×6858000 or 10×7.5 inches)
     if (Math.abs(ratio - 16 / 9) < 0.01) aspectRatio = '16:9'
     else if (Math.abs(ratio - 4 / 3) < 0.01) aspectRatio = '4:3'
   }
