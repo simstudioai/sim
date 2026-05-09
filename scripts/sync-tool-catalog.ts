@@ -210,7 +210,11 @@ async function main() {
   lines.push('')
 
   const rendered = formatGeneratedSource(lines.join('\n'), OUTPUT_PATH, ROOT)
-  const runtimeSchemaRendered = renderRuntimeSchemaModule(catalog)
+  const runtimeSchemaRendered = formatGeneratedSource(
+    renderRuntimeSchemaModule(catalog),
+    RUNTIME_SCHEMA_OUTPUT_PATH,
+    ROOT
+  )
 
   if (checkOnly) {
     const existing = await readFile(OUTPUT_PATH, 'utf8').catch(() => null)
