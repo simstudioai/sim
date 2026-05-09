@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { assertNoLargeValueRefs } from '@/lib/execution/payloads/large-value-ref'
 import { isReference, normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
 import { InvalidFieldError } from '@/executor/utils/block-reference'
 import {
@@ -11,10 +12,14 @@ import {
   navigatePath,
   type ResolutionContext,
   type Resolver,
+  splitLeadingBracketPath,
 } from '@/executor/variables/resolvers/reference'
 import type { SerializedParallel, SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('ParallelResolver')
+const PARALLEL_OUTPUT_FIELDS = ['results'] as const
+const PARALLEL_CONTEXT_FIELDS = ['index'] as const
+const COLLECTION_PARALLEL_CONTEXT_FIELDS = ['index', 'currentItem', 'items'] as const
 
 export class ParallelResolver implements Resolver {
   private parallelNameToId: Map<string, string>
@@ -74,8 +79,15 @@ export class ParallelResolver implements Resolver {
       )
     }
 
-    if (rest.length > 0 && ParallelResolver.OUTPUT_PROPERTIES.has(rest[0])) {
-      return this.resolveOutput(targetParallelId, rest.slice(1), context)
+    if (rest.length > 0) {
+      const { property, pathParts: bracketPathParts } = splitLeadingBracketPath(rest[0])
+      if (ParallelResolver.OUTPUT_PROPERTIES.has(property)) {
+        return this.resolveOutput(
+          targetParallelId,
+          [...bracketPathParts, ...rest.slice(1)],
+          context
+        )
+      }
     }
 
     // Look up config using the original (non-cloned) ID
@@ -86,15 +98,11 @@ export class ParallelResolver implements Resolver {
       return undefined
     }
 
-    if (!isGenericRef) {
-      if (!this.isBlockInParallelOrDescendant(context.currentNodeId, originalParallelId)) {
-        logger.warn('Block is not inside the referenced parallel', {
-          reference,
-          blockId: context.currentNodeId,
-          parallelId: targetParallelId,
-        })
-        return undefined
-      }
+    const isContextual =
+      isGenericRef || this.isBlockInParallelOrDescendant(context.currentNodeId, originalParallelId)
+
+    if (rest.length > 0 && !isContextual) {
+      throw new InvalidFieldError(firstPart, rest[0], [...PARALLEL_OUTPUT_FIELDS])
     }
 
     const branchIndex = extractBranchIndex(context.currentNodeId)
@@ -116,15 +124,12 @@ export class ParallelResolver implements Resolver {
       return result
     }
 
-    const property = rest[0]
-    const pathParts = rest.slice(1)
+    const [rawProperty, ...remainingPathParts] = rest
+    const { property, pathParts: bracketPathParts } = splitLeadingBracketPath(rawProperty)
+    const pathParts = [...bracketPathParts, ...remainingPathParts]
 
     if (!ParallelResolver.KNOWN_PROPERTIES.has(property)) {
-      const isCollection = parallelConfig.parallelType === 'collection'
-      const availableFields = isCollection
-        ? ['index', 'currentItem', 'items', 'result']
-        : ['index', 'result']
-      throw new InvalidFieldError(firstPart, property, availableFields)
+      throw new InvalidFieldError(firstPart, rawProperty, this.getAvailableFields(parallelConfig))
     }
 
     let value: unknown
@@ -236,6 +241,7 @@ export class ParallelResolver implements Resolver {
     if (pathParts.length > 0) {
       return navigatePath(value, pathParts)
     }
+    assertNoLargeValueRefs(value)
     return value
   }
 
@@ -277,5 +283,11 @@ export class ParallelResolver implements Resolver {
     }
 
     return []
+  }
+
+  private getAvailableFields(parallelConfig: SerializedParallel): string[] {
+    return parallelConfig.parallelType === 'collection'
+      ? [...COLLECTION_PARALLEL_CONTEXT_FIELDS]
+      : [...PARALLEL_CONTEXT_FIELDS]
   }
 }

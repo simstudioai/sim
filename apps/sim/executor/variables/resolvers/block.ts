@@ -1,3 +1,4 @@
+import { assertNoLargeValueRefs } from '@/lib/execution/payloads/large-value-ref'
 import {
   isReference,
   normalizeName,
@@ -82,6 +83,7 @@ export class BlockResolver implements Resolver {
       })!
 
       if (result.value !== undefined) {
+        assertNoLargeValueRefs(result.value)
         return result.value
       }
 

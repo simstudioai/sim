@@ -5,6 +5,17 @@ export interface SimStudioConfig {
   baseUrl?: string
 }
 
+export interface LargeValueRef {
+  __simLargeValueRef: true
+  version: 1
+  id: string
+  kind: 'array' | 'object' | 'string' | 'json'
+  size: number
+  key?: string
+  executionId?: string
+  preview?: unknown
+}
+
 export interface WorkflowExecutionResult {
   success: boolean
   output?: any

@@ -408,7 +408,7 @@ export async function emitSubflowSuccessEvents(
   ctx: ExecutionContext,
   blockId: string,
   blockType: 'loop' | 'parallel',
-  output: { results: any[] },
+  output: { results: unknown },
   contextExtensions: ContextExtensions | null
 ): Promise<void> {
   const now = new Date().toISOString()

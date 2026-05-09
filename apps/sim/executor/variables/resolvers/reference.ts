@@ -1,3 +1,5 @@
+import { materializeLargeValueRefSyncOrThrow } from '@/lib/execution/payloads/cache'
+import { assertNoLargeValueRefs, isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
 export interface ResolutionContext {
@@ -20,6 +22,19 @@ export interface Resolver {
  */
 export const RESOLVED_EMPTY = Symbol('RESOLVED_EMPTY')
 
+export function splitLeadingBracketPath(part: string): { property: string; pathParts: string[] } {
+  const bracketMatch = part.match(/^([^[]+)((?:\[\d+\])+)$/)
+  if (!bracketMatch) {
+    return { property: part, pathParts: [] }
+  }
+
+  const indices = bracketMatch[2].match(/\[(\d+)\]/g) ?? []
+  return {
+    property: bracketMatch[1],
+    pathParts: indices.map((indexMatch) => indexMatch.slice(1, -1)),
+  }
+}
+
 /**
  * Navigate through nested object properties using a path array.
  * Supports dot notation and array indices.
@@ -31,6 +46,10 @@ export const RESOLVED_EMPTY = Symbol('RESOLVED_EMPTY')
 export function navigatePath(obj: any, path: string[]): any {
   let current = obj
   for (const part of path) {
+    if (isLargeValueRef(current)) {
+      current = materializeLargeValueRefSyncOrThrow(current)
+    }
+
     if (current === null || current === undefined) {
       return undefined
     }
@@ -42,6 +61,9 @@ export function navigatePath(obj: any, path: string[]): any {
         typeof current === 'object' && current !== null
           ? (current as Record<string, unknown>)[prop]
           : undefined
+      if (isLargeValueRef(current)) {
+        current = materializeLargeValueRefSyncOrThrow(current)
+      }
       if (current === undefined || current === null) {
         return undefined
       }
@@ -51,6 +73,9 @@ export function navigatePath(obj: any, path: string[]): any {
         for (const indexMatch of indices) {
           if (current === null || current === undefined) {
             return undefined
+          }
+          if (isLargeValueRef(current)) {
+            current = materializeLargeValueRefSyncOrThrow(current)
           }
           const idx = Number.parseInt(indexMatch.slice(1, -1), 10)
           current = Array.isArray(current) ? current[idx] : undefined
@@ -66,5 +91,6 @@ export function navigatePath(obj: any, path: string[]): any {
           : undefined
     }
   }
+  assertNoLargeValueRefs(current)
   return current
 }

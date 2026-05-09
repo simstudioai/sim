@@ -2,6 +2,9 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
+import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 
 const logger = createLogger('ExecutionEventBuffer')
@@ -11,6 +14,7 @@ const TTL_SECONDS = 60 * 60 // 1 hour
 const EVENT_LIMIT = 1000
 const RESERVE_BATCH = 100
 const FLUSH_INTERVAL_MS = 15
+const FLUSH_MAX_RETRY_INTERVAL_MS = 1000
 const FLUSH_MAX_BATCH = 200
 const MAX_PENDING_EVENTS = 1000
 const ACTIVE_META_ATTEMPTS = 3
@@ -51,6 +55,50 @@ export type ExecutionStreamStatus = 'active' | 'complete' | 'error' | 'cancelled
 
 function isExecutionStreamStatus(value: string | undefined): value is ExecutionStreamStatus {
   return value === 'active' || value === 'complete' || value === 'error' || value === 'cancelled'
+}
+
+function getJsonSize(value: unknown): number | null {
+  try {
+    return Buffer.byteLength(JSON.stringify(value), 'utf8')
+  } catch {
+    return null
+  }
+}
+
+function trimFinalBlockLogsForEventData(data: unknown): unknown {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return data
+
+  const record = data as Record<string, unknown>
+  const finalBlockLogs = record.finalBlockLogs
+  if (!Array.isArray(finalBlockLogs)) return data
+  const originalSize = getJsonSize(data)
+  if (originalSize !== null && originalSize <= LARGE_VALUE_THRESHOLD_BYTES) return data
+
+  const total = finalBlockLogs.length
+  let logs = finalBlockLogs
+  let trimmed: Record<string, unknown> = {
+    ...record,
+    finalBlockLogs: logs,
+    finalBlockLogsTruncated: true,
+    finalBlockLogsTotal: total,
+  }
+
+  while (logs.length > 0) {
+    const size = getJsonSize(trimmed)
+    if (size !== null && size <= LARGE_VALUE_THRESHOLD_BYTES) {
+      return trimmed
+    }
+
+    logs = logs.length === 1 ? [] : logs.slice(Math.ceil(logs.length / 2))
+    trimmed = {
+      ...record,
+      finalBlockLogs: logs,
+      finalBlockLogsTruncated: true,
+      finalBlockLogsTotal: total,
+    }
+  }
+
+  return trimmed
 }
 
 export interface ExecutionStreamMeta {
@@ -95,6 +143,37 @@ export interface ExecutionEventWriter {
   ) => Promise<ExecutionEventEntry>
   flush: () => Promise<void>
   close: () => Promise<void>
+}
+
+export interface ExecutionEventWriterContext extends LargeValueStoreContext {
+  requireDurablePayloads?: boolean
+  preserveUserFileBase64?: boolean
+}
+
+async function compactEventForBuffer(
+  event: ExecutionEvent,
+  context: ExecutionEventWriterContext = {}
+): Promise<ExecutionEvent> {
+  if (!('data' in event)) {
+    return event
+  }
+
+  const compactedData = await compactExecutionPayload(event.data, {
+    ...context,
+    executionId: context.executionId ?? event.executionId,
+    requireDurable: context.requireDurablePayloads,
+    preserveUserFileBase64: context.preserveUserFileBase64,
+    preserveRoot: true,
+  })
+  const eventData = trimFinalBlockLogsForEventData(compactedData)
+  const eventDataSize = getJsonSize(eventData)
+  if (eventDataSize !== null && eventDataSize > LARGE_VALUE_THRESHOLD_BYTES) {
+    throw new Error(
+      `Execution event data remains too large after compaction (${eventDataSize} bytes)`
+    )
+  }
+
+  return { ...event, data: eventData } as ExecutionEvent
 }
 
 const memoryExecutionStreams = new Map<string, MemoryExecutionStream>()
@@ -169,13 +248,17 @@ function readMemoryEvents(executionId: string, afterEventId: number): ExecutionE
   }
 }
 
-function createMemoryExecutionEventWriter(executionId: string): ExecutionEventWriter {
+function createMemoryExecutionEventWriter(
+  executionId: string,
+  context: ExecutionEventWriterContext = {}
+): ExecutionEventWriter {
   const writeMemoryEvent = async (event: ExecutionEvent) => {
     const stream = getMemoryStream(executionId)
+    const compactEvent = await compactEventForBuffer(event, context)
     const entry = {
       eventId: stream.nextEventId++,
       executionId,
-      event,
+      event: compactEvent,
     }
     stream.events.push(entry)
     if (stream.events.length > EVENT_LIMIT) {
@@ -450,12 +533,15 @@ export async function readExecutionEventsState(
   }
 }
 
-export function createExecutionEventWriter(executionId: string): ExecutionEventWriter {
+export function createExecutionEventWriter(
+  executionId: string,
+  context: ExecutionEventWriterContext = {}
+): ExecutionEventWriter {
   const redis = getRedisClient()
   if (!redis) {
     if (canUseMemoryEventBuffer()) {
       logger.info('createExecutionEventWriter: using in-memory event buffer', { executionId })
-      return createMemoryExecutionEventWriter(executionId)
+      return createMemoryExecutionEventWriter(executionId, context)
     }
     logger.warn(
       'createExecutionEventWriter: Redis client unavailable, events will not be buffered',
@@ -477,13 +563,23 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
   let nextEventId = 0
   let maxReservedId = 0
   let flushTimer: ReturnType<typeof setTimeout> | null = null
+  let consecutiveFlushFailures = 0
 
-  const scheduleFlush = () => {
+  const getFlushDelayMs = () => {
+    if (consecutiveFlushFailures === 0) return FLUSH_INTERVAL_MS
+    const backoff = Math.min(
+      FLUSH_INTERVAL_MS * 2 ** Math.min(consecutiveFlushFailures, 6),
+      FLUSH_MAX_RETRY_INTERVAL_MS
+    )
+    return backoff + Math.floor(Math.random() * FLUSH_INTERVAL_MS)
+  }
+
+  const scheduleFlush = (delayMs = FLUSH_INTERVAL_MS) => {
     if (flushTimer) return
     flushTimer = setTimeout(() => {
       flushTimer = null
       void flushPending()
-    }, FLUSH_INTERVAL_MS)
+    }, delayMs)
   }
 
   const reserveIds = async (minCount: number) => {
@@ -524,11 +620,14 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
         terminalStatus ?? '',
         ...zaddArgs
       )
+      consecutiveFlushFailures = 0
       return true
     } catch (error) {
+      consecutiveFlushFailures += 1
       logger.warn('Failed to flush execution events', {
         executionId,
         batchSize: batch.length,
+        consecutiveFailures: consecutiveFlushFailures,
         error: toError(error).message,
         stack: error instanceof Error ? error.stack : undefined,
       })
@@ -566,7 +665,7 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
         flushPromise = null
       }
       if (!ok) {
-        if (scheduleOnFailure && pending.length > 0) scheduleFlush()
+        if (scheduleOnFailure && pending.length > 0) scheduleFlush(getFlushDelayMs())
         return false
       }
     }
@@ -577,7 +676,12 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
       await reserveIds(1)
     }
     const eventId = nextEventId++
-    const entry: ExecutionEventEntry = { eventId, executionId, event }
+    const compactEvent = await compactEventForBuffer(event, {
+      ...context,
+      executionId,
+      requireDurablePayloads: true,
+    })
+    const entry: ExecutionEventEntry = { eventId, executionId, event: compactEvent }
     pending.push(entry)
     if (pending.length >= FLUSH_MAX_BATCH) {
       await flushPending()
@@ -618,7 +722,12 @@ export function createExecutionEventWriter(executionId: string): ExecutionEventW
         await reserveIds(1)
       }
       const eventId = nextEventId++
-      const entry: ExecutionEventEntry = { eventId, executionId, event }
+      const compactEvent = await compactEventForBuffer(event, {
+        ...context,
+        executionId,
+        requireDurablePayloads: true,
+      })
+      const entry: ExecutionEventEntry = { eventId, executionId, event: compactEvent }
       pending.push(entry)
       const ok = await flushPending(false, status)
       if (!ok) {

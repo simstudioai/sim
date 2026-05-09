@@ -3,11 +3,15 @@ import { createLogger } from '@sim/logger'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import { bufferToBase64 } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage, downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 
-const DEFAULT_MAX_BASE64_BYTES = 10 * 1024 * 1024
+const INLINE_BASE64_JSON_OVERHEAD_BYTES = 512 * 1024
+const DEFAULT_MAX_BASE64_BYTES = Math.floor(
+  (LARGE_VALUE_THRESHOLD_BYTES - INLINE_BASE64_JSON_OVERHEAD_BYTES) * 0.75
+)
 const DEFAULT_TIMEOUT_MS = getMaxExecutionTimeout()
 const DEFAULT_CACHE_TTL_SECONDS = 300
 const REDIS_KEY_PREFIX = 'user-file:base64:'
@@ -118,16 +122,30 @@ function getFullCacheKey(executionId: string | undefined, file: UserFile): strin
   return `${REDIS_KEY_PREFIX}${fileKey}`
 }
 
+function stripBase64(file: UserFile): UserFile {
+  const { base64: _base64, ...rest } = file
+  return rest
+}
+
 async function resolveBase64(
   file: UserFile,
   options: Base64HydrationOptions,
   logger: Logger
 ): Promise<string | null> {
+  const requestedMaxBytes = options.maxBytes ?? DEFAULT_MAX_BASE64_BYTES
+  const maxBytes = Math.min(requestedMaxBytes, DEFAULT_MAX_BASE64_BYTES)
+
   if (file.base64) {
+    const base64Bytes = Buffer.byteLength(file.base64, 'base64')
+    if (base64Bytes > maxBytes) {
+      logger.warn(
+        `[${options.requestId}] Skipping existing base64 for ${file.name} (decoded ${base64Bytes} exceeds ${maxBytes})`
+      )
+      return null
+    }
     return file.base64
   }
 
-  const maxBytes = options.maxBytes ?? DEFAULT_MAX_BASE64_BYTES
   const allowUnknownSize = options.allowUnknownSize ?? false
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const hasStableStorageKey = Boolean(file.key)
@@ -192,12 +210,19 @@ async function hydrateUserFile(
 ): Promise<UserFile> {
   const cached = await state.cache.get(file)
   if (cached) {
+    const maxBytes = Math.min(
+      options.maxBytes ?? DEFAULT_MAX_BASE64_BYTES,
+      DEFAULT_MAX_BASE64_BYTES
+    )
+    if (Buffer.byteLength(cached, 'base64') > maxBytes) {
+      return stripBase64(file)
+    }
     return { ...file, base64: cached }
   }
 
   const base64 = await resolveBase64(file, options, logger)
   if (!base64) {
-    return file
+    return stripBase64(file)
   }
 
   await state.cache.set(file, base64, state.cacheTtlSeconds)

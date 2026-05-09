@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { BlockExecutor } from '@/executor/execution/block-executor'
@@ -9,6 +10,20 @@ import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
 
 const logger = createLogger('NodeExecutionOrchestrator')
+
+function getResultCount(value: unknown): number {
+  if (isLargeValueRef(value)) {
+    const preview = value.preview
+    if (
+      preview &&
+      typeof preview === 'object' &&
+      typeof (preview as Record<string, unknown>).length === 'number'
+    ) {
+      return (preview as { length: number }).length
+    }
+  }
+  return Array.isArray(value) ? value.length : 0
+}
 
 export interface NodeExecutionResult {
   nodeId: string
@@ -130,7 +145,9 @@ export class NodeExecutionOrchestrator {
           shouldContinue: false,
           shouldExit: true,
           selectedRoute: continuationResult.selectedRoute,
-          totalIterations: continuationResult.aggregatedResults?.length || 0,
+          totalIterations:
+            continuationResult.totalIterations ??
+            getResultCount(continuationResult.aggregatedResults),
         }
       }
 

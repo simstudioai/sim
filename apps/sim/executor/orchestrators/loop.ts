@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
+import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { buildLoopIndexCondition, DEFAULTS, EDGE, PARALLEL } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
@@ -36,7 +37,8 @@ export interface LoopContinuationResult {
   shouldContinue: boolean
   shouldExit: boolean
   selectedRoute: LoopRoute
-  aggregatedResults?: NormalizedBlockOutput[][]
+  aggregatedResults?: unknown
+  totalIterations?: number
 }
 
 export class LoopOrchestrator {
@@ -313,8 +315,19 @@ export class LoopOrchestrator {
     scope: LoopScope
   ): Promise<LoopContinuationResult> {
     const results = scope.allIterationOutputs
-    const output = { results }
+    const totalIterations = results.length
+    const output = (await compactExecutionPayload(
+      { results },
+      {
+        workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
+        executionId: ctx.executionId,
+        userId: ctx.userId,
+        requireDurable: true,
+      }
+    )) as { results: unknown }
     this.state.setBlockOutput(loopId, output, DEFAULTS.EXECUTION_TIME)
+    scope.allIterationOutputs = []
 
     await emitSubflowSuccessEvents(ctx, loopId, 'loop', output, this.contextExtensions)
 
@@ -322,7 +335,8 @@ export class LoopOrchestrator {
       shouldContinue: false,
       shouldExit: true,
       selectedRoute: EDGE.LOOP_EXIT,
-      aggregatedResults: results,
+      aggregatedResults: output.results,
+      totalIterations,
     }
   }
 

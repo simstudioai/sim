@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { DEFAULTS } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { ParallelScope } from '@/executor/execution/state'
@@ -29,7 +30,7 @@ export interface ParallelBranchMetadata {
 
 export interface ParallelAggregationResult {
   allBranchesComplete: boolean
-  results?: NormalizedBlockOutput[][]
+  results?: unknown
   completedBranches?: number
   totalBranches?: number
 }
@@ -312,14 +313,24 @@ export class ParallelOrchestrator {
       }
       results.push(branchOutputs ?? [])
     }
-    const output = { results }
+    const output = (await compactExecutionPayload(
+      { results },
+      {
+        workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
+        executionId: ctx.executionId,
+        userId: ctx.userId,
+        requireDurable: true,
+      }
+    )) as { results: unknown }
     this.state.setBlockOutput(parallelId, output)
+    scope.branchOutputs = new Map()
 
     await emitSubflowSuccessEvents(ctx, parallelId, 'parallel', output, this.contextExtensions)
 
     return {
       allBranchesComplete: true,
-      results,
+      results: output.results,
       completedBranches: scope.totalBranches,
       totalBranches: scope.totalBranches,
     }

@@ -226,6 +226,23 @@ interface WorkflowExecutionResult {
 }
 ```
 
+### LargeValueRef
+
+Oversized execution values may be returned as a versioned reference inside `output`, `logs`, streaming events, or async job status responses.
+
+```typescript
+interface LargeValueRef {
+  __simLargeValueRef: true;
+  version: 1;
+  id: string;
+  kind: 'array' | 'object' | 'string' | 'json';
+  size: number;
+  key?: string;
+  executionId?: string;
+  preview?: unknown;
+}
+```
+
 ### WorkflowStatus
 
 ```typescript

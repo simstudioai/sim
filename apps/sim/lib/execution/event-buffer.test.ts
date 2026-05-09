@@ -287,6 +287,41 @@ describe('execution event buffer', () => {
     expect(mockRedis.hset).toHaveBeenCalledWith('meta', { status: 'complete' })
   })
 
+  it('preserves requested UserFile base64 when buffering terminal events', async () => {
+    mockRedis.incrby.mockResolvedValue(100)
+    const base64 = Buffer.from('hello').toString('base64')
+    const writer = createExecutionEventWriter('exec-1', { preserveUserFileBase64: true })
+
+    await writer.writeTerminal(
+      {
+        type: 'execution:completed',
+        timestamp: new Date().toISOString(),
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        data: {
+          success: true,
+          duration: 1,
+          output: {
+            file: {
+              id: 'file-1',
+              name: 'small.txt',
+              size: 5,
+              type: 'text/plain',
+              context: 'execution',
+              base64,
+            },
+          },
+        },
+      },
+      'complete'
+    )
+
+    const eventData = persistedEntries[0].event.data as {
+      output: { file: { base64?: string } }
+    }
+    expect(eventData.output.file.base64).toBe(base64)
+  })
+
   it('retries active meta initialization before giving up', async () => {
     mockRedis.hset.mockRejectedValueOnce(new Error('meta write failed')).mockResolvedValueOnce(1)
 

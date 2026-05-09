@@ -84,6 +84,48 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
+  it('resolves named loop result bracket paths in function code', () => {
+    const loopBlock = createBlock('loop-1', 'Loop 1', 'loop')
+    const functionBlock = createBlock('function', 'Function', BlockType.FUNCTION, {
+      language: 'javascript',
+    })
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [loopBlock, functionBlock],
+      connections: [],
+      loops: { 'loop-1': { nodes: ['producer'] } },
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    state.setBlockOutput('loop-1', {
+      results: [[{ id: 'a' }], [{ id: 'b' }]],
+    })
+    const ctx = {
+      blockStates: state.getBlockStates(),
+      blockLogs: [],
+      environmentVariables: {},
+      workflowVariables: {},
+      decisions: { router: new Map(), condition: new Map() },
+      loopExecutions: new Map(),
+      executedBlocks: new Set(),
+      activeExecutionPath: new Set(),
+      completedLoops: new Set(),
+      metadata: {},
+    } as ExecutionContext
+    const resolver = new VariableResolver(workflow, {}, state)
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'return <loop1.results[1][0].id>' },
+      functionBlock
+    )
+
+    expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
+    expect(result.displayInputs.code).toBe('return "b"')
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'b' })
+  })
+
   it('resolves Python block references through globals lookup', () => {
     const { block, ctx, resolver } = createResolver('python')
 

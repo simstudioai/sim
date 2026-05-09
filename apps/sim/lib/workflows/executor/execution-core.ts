@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { isPlainRecord } from '@/lib/core/utils/records'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
+import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
@@ -580,6 +581,13 @@ export async function executeWorkflowCore(
       stopAfterBlockId: resolvedStopAfterBlockId,
       onChildWorkflowInstanceReady,
       callChain: metadata.callChain,
+    }
+
+    if (snapshot.state) {
+      await warmLargeValueRefs(snapshot.state)
+    }
+    if (runFromBlock?.sourceSnapshot) {
+      await warmLargeValueRefs(runFromBlock.sourceSnapshot)
     }
 
     for (const variable of Object.values(workflowVariables)) {

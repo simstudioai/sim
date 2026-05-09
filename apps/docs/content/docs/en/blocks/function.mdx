@@ -185,6 +185,14 @@ plt.show()
 
 ## Best Practices
 
+### Large Inputs and Payload Limits
+
+Function blocks receive their code, parameters, resolved references, and previous block context in an internal execution request. Sim can safely reference oversized workflow outputs, such as large `loop.results` or `parallel.results`, when you select a smaller nested field like `<loop.results[0][0].id>`.
+
+Avoid passing a full large object into a Function block when you only need one field. For example, prefer `<api.data.customerId>` over `<api.data>` when the API response is large. If the complete function request body is still larger than the platform limit, execution can fail before your code starts.
+
+For large generated data, write the result to a file or table with `outputPath`, `outputSandboxPath`, or `outputTable` instead of returning the entire payload inline.
+
 - **Keep functions focused**: Write functions that do one thing well to improve maintainability and debugging
 - **Handle errors gracefully**: Use try/catch blocks to handle potential errors and provide meaningful error messages
 - **Test edge cases**: Ensure your code handles unusual inputs, null values, and boundary conditions correctly

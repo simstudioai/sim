@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { assertNoLargeValueRefs } from '@/lib/execution/payloads/large-value-ref'
 import { isReference, normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
 import { InvalidFieldError } from '@/executor/utils/block-reference'
 import {
@@ -10,10 +11,14 @@ import {
   navigatePath,
   type ResolutionContext,
   type Resolver,
+  splitLeadingBracketPath,
 } from '@/executor/variables/resolvers/reference'
 import type { SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('LoopResolver')
+const LOOP_OUTPUT_FIELDS = ['results'] as const
+const LOOP_CONTEXT_FIELDS = ['index'] as const
+const FOR_EACH_LOOP_CONTEXT_FIELDS = ['index', 'currentItem', 'items'] as const
 
 export class LoopResolver implements Resolver {
   private loopNameToId: Map<string, string>
@@ -76,34 +81,30 @@ export class LoopResolver implements Resolver {
     }
 
     if (rest.length > 0) {
-      const property = rest[0]
+      const { property, pathParts: bracketPathParts } = splitLeadingBracketPath(rest[0])
 
       if (LoopResolver.OUTPUT_PROPERTIES.has(property)) {
         if (!targetLoopId) {
           return undefined
         }
-        return this.resolveOutput(targetLoopId, rest.slice(1), context)
+        return this.resolveOutput(targetLoopId, [...bracketPathParts, ...rest.slice(1)], context)
       }
+
+      const isContextual =
+        isGenericRef ||
+        (targetLoopId !== undefined &&
+          this.isBlockInLoopOrDescendant(context.currentNodeId, targetLoopId))
 
       if (!LoopResolver.KNOWN_PROPERTIES.has(property)) {
-        const isForEach = targetLoopId
-          ? this.isForEachLoop(targetLoopId)
-          : context.loopScope?.items !== undefined
-        const availableFields = isForEach
-          ? ['index', 'currentItem', 'items', 'result']
-          : ['index', 'result']
-        throw new InvalidFieldError(firstPart, property, availableFields)
+        throw new InvalidFieldError(
+          firstPart,
+          rest[0],
+          this.getAvailableFields(targetLoopId, context)
+        )
       }
 
-      if (!isGenericRef && targetLoopId) {
-        if (!this.isBlockInLoopOrDescendant(context.currentNodeId, targetLoopId)) {
-          logger.warn('Block is not inside the referenced loop', {
-            reference,
-            blockId: context.currentNodeId,
-            loopId: targetLoopId,
-          })
-          return undefined
-        }
+      if (!isContextual) {
+        throw new InvalidFieldError(firstPart, rest[0], [...LOOP_OUTPUT_FIELDS])
       }
     }
 
@@ -130,7 +131,9 @@ export class LoopResolver implements Resolver {
       return obj
     }
 
-    const [property, ...pathParts] = rest
+    const [rawProperty, ...remainingPathParts] = rest
+    const { property, pathParts: bracketPathParts } = splitLeadingBracketPath(rawProperty)
+    const pathParts = [...bracketPathParts, ...remainingPathParts]
 
     let value: any
     switch (property) {
@@ -163,6 +166,7 @@ export class LoopResolver implements Resolver {
     if (pathParts.length > 0) {
       return navigatePath(value, pathParts)
     }
+    assertNoLargeValueRefs(value)
     return value
   }
 
@@ -233,5 +237,23 @@ export class LoopResolver implements Resolver {
     const originalId = stripOuterBranchSuffix(loopId)
     const loopConfig = this.workflow.loops?.[originalId]
     return loopConfig?.loopType === 'forEach'
+  }
+
+  private getAvailableFields(
+    targetLoopId: string | undefined,
+    context: ResolutionContext
+  ): string[] {
+    const isContextual =
+      targetLoopId === undefined ||
+      this.isBlockInLoopOrDescendant(context.currentNodeId, targetLoopId)
+
+    if (!isContextual) {
+      return [...LOOP_OUTPUT_FIELDS]
+    }
+
+    const isForEach = targetLoopId
+      ? this.isForEachLoop(targetLoopId)
+      : context.loopScope?.items !== undefined
+    return isForEach ? [...FOR_EACH_LOOP_CONTEXT_FIELDS] : [...LOOP_CONTEXT_FIELDS]
   }
 }

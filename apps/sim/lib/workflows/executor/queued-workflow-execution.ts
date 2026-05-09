@@ -7,6 +7,7 @@ import {
   initializeExecutionStreamMeta,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
+import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
@@ -117,7 +118,14 @@ export async function executeQueuedWorkflowJob(
   const { metadata } = payload
   const { executionId, requestId, workflowId, triggerType } = metadata
   const loggingSession = new LoggingSession(workflowId, executionId, triggerType, requestId)
-  const eventWriter = payload.streamEvents ? createExecutionEventWriter(executionId) : null
+  const eventWriter = payload.streamEvents
+    ? createExecutionEventWriter(executionId, {
+        workspaceId: metadata.workspaceId,
+        workflowId,
+        userId: metadata.userId,
+        preserveUserFileBase64: payload.includeFileBase64,
+      })
+    : null
   let eventWriterClosed = false
 
   if (payload.streamEvents) {
@@ -180,6 +188,22 @@ export async function executeQueuedWorkflowJob(
       runFromBlock: payload.runFromBlock,
       abortSignal: timeoutController.signal,
     })
+    const compactTerminalOutput = await compactExecutionPayload(result.output, {
+      workspaceId: metadata.workspaceId,
+      workflowId,
+      executionId,
+      userId: metadata.userId,
+      preserveUserFileBase64: true,
+      preserveRoot: true,
+      requireDurable: true,
+    })
+    const compactTerminalLogs = await compactBlockLogs(result.logs, {
+      workspaceId: metadata.workspaceId,
+      workflowId,
+      executionId,
+      userId: metadata.userId,
+      requireDurable: true,
+    })
 
     if (
       result.status === 'cancelled' &&
@@ -202,7 +226,7 @@ export async function executeQueuedWorkflowJob(
             data: {
               error: timeoutErrorMessage,
               duration: result.metadata?.duration || 0,
-              finalBlockLogs: result.logs,
+              finalBlockLogs: compactTerminalLogs,
             },
           },
         })
@@ -215,9 +239,9 @@ export async function executeQueuedWorkflowJob(
         'cancelled',
         {
           success: false,
-          output: result.output,
+          output: compactTerminalOutput,
           error: timeoutErrorMessage,
-          logs: result.logs,
+          logs: compactTerminalLogs,
           metadata: result.metadata
             ? {
                 duration: result.metadata.duration,
@@ -240,6 +264,22 @@ export async function executeQueuedWorkflowJob(
           maxBytes: payload.base64MaxBytes,
         })
       : result.output
+    const compactOutput = await compactExecutionPayload(outputWithBase64, {
+      workspaceId: metadata.workspaceId,
+      workflowId,
+      executionId,
+      userId: metadata.userId,
+      preserveUserFileBase64: true,
+      preserveRoot: true,
+      requireDurable: true,
+    })
+    const compactLogs = await compactBlockLogs(result.logs, {
+      workspaceId: metadata.workspaceId,
+      workflowId,
+      executionId,
+      userId: metadata.userId,
+      requireDurable: true,
+    })
 
     if (eventWriter) {
       if (result.status === 'cancelled') {
@@ -254,7 +294,7 @@ export async function executeQueuedWorkflowJob(
             workflowId,
             data: {
               duration: result.metadata?.duration || 0,
-              finalBlockLogs: result.logs,
+              finalBlockLogs: compactLogs,
             },
           },
         })
@@ -269,11 +309,11 @@ export async function executeQueuedWorkflowJob(
             executionId,
             workflowId,
             data: {
-              output: outputWithBase64,
+              output: compactOutput,
               duration: result.metadata?.duration || 0,
               startTime: result.metadata?.startTime || metadata.startTime,
               endTime: result.metadata?.endTime || new Date().toISOString(),
-              finalBlockLogs: result.logs,
+              finalBlockLogs: compactLogs,
             },
           },
         })
@@ -289,11 +329,11 @@ export async function executeQueuedWorkflowJob(
             workflowId,
             data: {
               success: result.success,
-              output: outputWithBase64,
+              output: compactOutput,
               duration: result.metadata?.duration || 0,
               startTime: result.metadata?.startTime || metadata.startTime,
               endTime: result.metadata?.endTime || new Date().toISOString(),
-              finalBlockLogs: result.logs,
+              finalBlockLogs: compactLogs,
             },
           },
         })
@@ -311,9 +351,9 @@ export async function executeQueuedWorkflowJob(
           : 'success',
       {
         success: result.success,
-        output: outputWithBase64,
+        output: compactOutput,
         error: result.error,
-        logs: result.logs,
+        logs: compactLogs,
         metadata: result.metadata
           ? {
               duration: result.metadata.duration,
@@ -348,6 +388,32 @@ export async function executeQueuedWorkflowJob(
     }
 
     const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
+    let compactErrorLogs: BlockLog[] | undefined
+    let compactErrorOutput: NormalizedBlockOutput = {}
+    try {
+      compactErrorLogs = executionResult?.logs
+        ? await compactBlockLogs(executionResult.logs, {
+            workspaceId: metadata.workspaceId,
+            workflowId,
+            executionId,
+            userId: metadata.userId,
+            requireDurable: true,
+          })
+        : undefined
+      compactErrorOutput = await compactExecutionPayload(executionResult?.output ?? {}, {
+        workspaceId: metadata.workspaceId,
+        workflowId,
+        executionId,
+        userId: metadata.userId,
+        preserveRoot: true,
+        requireDurable: true,
+      })
+    } catch (compactionError) {
+      logger.warn('Failed to compact queued error payload, omitting oversized error details', {
+        executionId,
+        error: toError(compactionError).message,
+      })
+    }
 
     if (eventWriter) {
       eventWriterClosed = await publishTerminalExecutionEvent({
@@ -362,7 +428,7 @@ export async function executeQueuedWorkflowJob(
           data: {
             error: toError(error).message,
             duration: 0,
-            finalBlockLogs: executionResult?.logs,
+            finalBlockLogs: compactErrorLogs,
           },
         },
       })
@@ -375,9 +441,9 @@ export async function executeQueuedWorkflowJob(
       'failed',
       {
         success: false,
-        output: executionResult?.output ?? {},
+        output: compactErrorOutput,
         error: executionResult?.error || toError(error).message,
-        logs: executionResult?.logs,
+        logs: compactErrorLogs,
         metadata: executionResult?.metadata
           ? {
               duration: executionResult.metadata.duration,
