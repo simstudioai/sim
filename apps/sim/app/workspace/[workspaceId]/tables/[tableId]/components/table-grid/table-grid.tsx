@@ -97,7 +97,7 @@ export interface SelectionSnapshot {
   hasWorkflowColumns: boolean
   /** Cells the Play / Refresh / Stop buttons act on. Null when the selection
    *  contains no workflow output cells. */
-  selectedRunScope: { groupIds: string[]; rowIds: string[] } | null
+  selectedRunScope: { groupIds: string[]; rowIds: string[]; allRows: boolean } | null
   /** Drives Play (`hasIncompleteOrFailed`) / Refresh (`hasCompleted`) /
    *  Stop (`hasInFlight`) visibility on the action bar. */
   selectionStats: ExecStatusMix
@@ -2804,12 +2804,12 @@ export function TableGrid({
   const selectedRunScope = useMemo<SelectionSnapshot['selectedRunScope']>(() => {
     if (tableWorkflowGroupIds.length === 0) return null
     if (!rowSelectionIsEmpty(rowSelection)) {
-      const rowIds: string[] = []
-      for (const row of rows) {
-        if (rowSelectionIncludes(rowSelection, row.id)) rowIds.push(row.id)
+      if (rowSelection.kind === 'all') {
+        return { groupIds: tableWorkflowGroupIds, rowIds: rows.map((r) => r.id), allRows: true }
       }
+      const rowIds = rows.filter((r) => rowSelectionIncludes(rowSelection, r.id)).map((r) => r.id)
       if (rowIds.length === 0) return null
-      return { groupIds: tableWorkflowGroupIds, rowIds }
+      return { groupIds: tableWorkflowGroupIds, rowIds, allRows: false }
     }
     const sel = normalizedSelection
     if (!sel) return null
@@ -2827,7 +2827,7 @@ export function TableGrid({
       if (row) rowIds.push(row.id)
     }
     if (rowIds.length === 0) return null
-    return { groupIds: [...groupIdsInRect], rowIds }
+    return { groupIds: [...groupIdsInRect], rowIds, allRows: false }
   }, [rowSelection, normalizedSelection, rows, displayColumns, tableWorkflowGroupIds])
 
   const selectionStats = useMemo<SelectionSnapshot['selectionStats']>(() => {
