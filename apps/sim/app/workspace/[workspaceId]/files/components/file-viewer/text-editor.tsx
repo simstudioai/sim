@@ -665,7 +665,8 @@ export const TextEditor = memo(function TextEditor({
 
   const previewType = resolvePreviewType(file.type, file.name)
   const isIframeRendered = previewType === 'html' || previewType === 'svg'
-  const effectiveMode = isStreaming && isIframeRendered ? 'editor' : previewMode
+  const effectiveMode =
+    previewType === null || (isStreaming && isIframeRendered) ? 'editor' : previewMode
   const showEditor = effectiveMode !== 'preview'
   const showPreviewPane = effectiveMode !== 'editor'
 
