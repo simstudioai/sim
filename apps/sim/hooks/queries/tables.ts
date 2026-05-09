@@ -70,7 +70,11 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupOutput,
 } from '@/lib/table'
-import { areOutputsFilled, optimisticallyScheduleNewlyEligibleGroups } from '@/lib/table/deps'
+import {
+  areOutputsFilled,
+  hasRunningGroupExecution,
+  optimisticallyScheduleNewlyEligibleGroups,
+} from '@/lib/table/deps'
 
 const logger = createLogger('TableQueries')
 
