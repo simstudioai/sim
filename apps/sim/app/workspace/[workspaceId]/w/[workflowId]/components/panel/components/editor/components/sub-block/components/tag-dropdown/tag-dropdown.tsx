@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isEqual } from 'es-toolkit'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
   Popover,
   PopoverAnchor,
@@ -36,6 +38,8 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+
+const EMPTY_VARIABLES: Variable[] = []
 
 /**
  * Context for sharing nested navigation state between components.
@@ -997,8 +1001,17 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     [blocks, workflowSubBlockValues]
   )
 
-  const getVariablesByWorkflowId = useVariablesStore((state) => state.getVariablesByWorkflowId)
-  const workflowVariables = workflowId ? getVariablesByWorkflowId(workflowId) : []
+  const workflowVariables = useStoreWithEqualityFn(
+    useVariablesStore,
+    useCallback(
+      (state) =>
+        workflowId
+          ? Object.values(state.variables).filter((variable) => variable.workflowId === workflowId)
+          : EMPTY_VARIABLES,
+      [workflowId]
+    ),
+    isEqual
+  )
 
   const searchTerm = useMemo(
     () => getTagSearchTerm(inputValue, cursorPosition),

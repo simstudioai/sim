@@ -160,7 +160,7 @@ export function FileUpload({
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { activeWorkflowId } = useWorkflowRegistry()
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const params = useParams()
   const workspaceId = params?.workspaceId as string
 

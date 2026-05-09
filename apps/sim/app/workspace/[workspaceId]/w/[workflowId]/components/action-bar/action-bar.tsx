@@ -1,5 +1,6 @@
 import { memo, useCallback } from 'react'
 import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Lock, LogOut, Unlock } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { Button, Copy, PlayOutline, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
@@ -51,7 +52,7 @@ export const ActionBar = memo(
       collaborativeBatchToggleBlockHandles,
       collaborativeBatchToggleLocked,
     } = useCollaborativeWorkflow()
-    const { setPendingSelection } = useWorkflowRegistry()
+    const setPendingSelection = useWorkflowRegistry((state) => state.setPendingSelection)
     const { handleRunFromBlock } = useWorkflowExecution()
 
     const addNotification = useNotificationStore((s) => s.addNotification)
@@ -94,26 +95,28 @@ export const ActionBar = memo(
       isParentLocked,
       isParentDisabled,
     } = useWorkflowStore(
-      useCallback(
-        (state) => {
-          const block = state.blocks[blockId]
-          const parentId = block?.data?.parentId
-          const parentBlock = parentId ? state.blocks[parentId] : undefined
-          return {
-            isEnabled: block?.enabled ?? true,
-            horizontalHandles: block?.horizontalHandles ?? false,
-            parentId,
-            parentType: parentBlock?.type,
-            isLocked: block?.locked ?? false,
-            isParentLocked: parentBlock?.locked ?? false,
-            isParentDisabled: parentBlock ? !parentBlock.enabled : false,
-          }
-        },
-        [blockId]
+      useShallow(
+        useCallback(
+          (state) => {
+            const block = state.blocks[blockId]
+            const parentId = block?.data?.parentId
+            const parentBlock = parentId ? state.blocks[parentId] : undefined
+            return {
+              isEnabled: block?.enabled ?? true,
+              horizontalHandles: block?.horizontalHandles ?? false,
+              parentId,
+              parentType: parentBlock?.type,
+              isLocked: block?.locked ?? false,
+              isParentLocked: parentBlock?.locked ?? false,
+              isParentDisabled: parentBlock ? !parentBlock.enabled : false,
+            }
+          },
+          [blockId]
+        )
       )
     )
 
-    const { activeWorkflowId } = useWorkflowRegistry()
+    const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
     const isExecuting = useIsCurrentWorkflowExecuting()
     const getLastExecutionSnapshot = useExecutionStore((s) => s.getLastExecutionSnapshot)
     const userPermissions = useUserPermissionsContext()

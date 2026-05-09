@@ -54,7 +54,7 @@ export function CredentialSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [editingValue, setEditingValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
-  const { activeWorkflowId } = useWorkflowRegistry()
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
 
   const requiredScopes = subBlock.requiredScopes || []

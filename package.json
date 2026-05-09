@@ -25,6 +25,7 @@
     "check:api-validation": "bun run scripts/check-api-validation-contracts.ts --check",
     "check:api-validation:strict": "bun run scripts/check-api-validation-contracts.ts --check --enforce-boundary-baseline",
     "check:realtime-prune": "bun run scripts/check-realtime-prune-graph.ts",
+    "check:zustand-v5": "bun run scripts/check-zustand-v5-selectors.ts",
     "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",
     "mship-contracts:check": "bun run scripts/sync-mothership-stream-contract.ts --check",
     "mship-tools:generate": "bun run scripts/sync-tool-catalog.ts",
