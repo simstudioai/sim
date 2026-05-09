@@ -2,10 +2,10 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
 import { pdfjs, Document as ReactPdfDocument, Page as ReactPdfPage } from 'react-pdf'
 import 'react-pdf/dist/Page/TextLayer.css'
-import { Button, Skeleton } from '@/components/emcn'
+import { Skeleton } from '@/components/emcn'
+import { PreviewToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-toolbar'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -172,81 +172,44 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
   return (
     <div className='flex flex-1 flex-col overflow-hidden'>
       {pageCount > 0 && !loadError && (
-        <div className='flex shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-1)] px-3 py-1.5'>
-          <div className='flex items-center gap-1'>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => {
-                const prev = Math.max(1, currentPage - 1)
-                setCurrentPage(prev)
-                scrollToPage(prev)
-              }}
-              disabled={currentPage <= 1}
-              className='h-6 w-6 p-0 text-[var(--text-icon)]'
-              aria-label='Previous page'
-            >
-              <ChevronLeft className='h-[14px] w-[14px]' />
-            </Button>
-            <span className='min-w-[5rem] text-center text-[12px] text-[var(--text-secondary)]'>
-              {currentPage} / {pageCount}
-            </span>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => {
-                const next = Math.min(pageCount, currentPage + 1)
-                setCurrentPage(next)
-                scrollToPage(next)
-              }}
-              disabled={currentPage >= pageCount}
-              className='h-6 w-6 p-0 text-[var(--text-icon)]'
-              aria-label='Next page'
-            >
-              <ChevronRight className='h-[14px] w-[14px]' />
-            </Button>
-          </div>
-
-          <div className='flex items-center gap-1'>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => {
-                const c = containerRef.current
-                applyZoomAt(
-                  Math.max(PDF_ZOOM_MIN, zoomRef.current / PDF_ZOOM_STEP),
-                  c ? c.clientWidth / 2 : 0,
-                  c ? c.clientHeight / 2 : 0
-                )
-              }}
-              disabled={displayZoom <= PDF_ZOOM_MIN}
-              className='h-6 w-6 p-0 text-[var(--text-icon)]'
-              aria-label='Zoom out'
-            >
-              <ZoomOut className='h-[14px] w-[14px]' />
-            </Button>
-            <span className='min-w-[3rem] text-center text-[12px] text-[var(--text-secondary)]'>
-              {Math.round(displayZoom * 100)}%
-            </span>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => {
-                const c = containerRef.current
-                applyZoomAt(
-                  Math.min(PDF_ZOOM_MAX, zoomRef.current * PDF_ZOOM_STEP),
-                  c ? c.clientWidth / 2 : 0,
-                  c ? c.clientHeight / 2 : 0
-                )
-              }}
-              disabled={displayZoom >= PDF_ZOOM_MAX}
-              className='h-6 w-6 p-0 text-[var(--text-icon)]'
-              aria-label='Zoom in'
-            >
-              <ZoomIn className='h-[14px] w-[14px]' />
-            </Button>
-          </div>
-        </div>
+        <PreviewToolbar
+          navigation={{
+            current: currentPage,
+            total: pageCount,
+            label: 'page',
+            onPrevious: () => {
+              const prev = Math.max(1, currentPage - 1)
+              setCurrentPage(prev)
+              scrollToPage(prev)
+            },
+            onNext: () => {
+              const next = Math.min(pageCount, currentPage + 1)
+              setCurrentPage(next)
+              scrollToPage(next)
+            },
+          }}
+          zoom={{
+            label: `${Math.round(displayZoom * 100)}%`,
+            canZoomOut: displayZoom > PDF_ZOOM_MIN,
+            canZoomIn: displayZoom < PDF_ZOOM_MAX,
+            onZoomOut: () => {
+              const c = containerRef.current
+              applyZoomAt(
+                Math.max(PDF_ZOOM_MIN, zoomRef.current / PDF_ZOOM_STEP),
+                c ? c.clientWidth / 2 : 0,
+                c ? c.clientHeight / 2 : 0
+              )
+            },
+            onZoomIn: () => {
+              const c = containerRef.current
+              applyZoomAt(
+                Math.min(PDF_ZOOM_MAX, zoomRef.current * PDF_ZOOM_STEP),
+                c ? c.clientWidth / 2 : 0,
+                c ? c.clientHeight / 2 : 0
+              )
+            },
+          }}
+        />
       )}
 
       <div
