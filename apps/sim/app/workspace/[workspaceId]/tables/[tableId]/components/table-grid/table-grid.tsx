@@ -1,17 +1,18 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type React from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { Button, Checkbox, Skeleton, toast } from '@/components/emcn'
-import { PlayOutline, Plus, Square, TableX } from '@/components/emcn/icons'
+import { Skeleton, toast } from '@/components/emcn'
+import { TableX } from '@/components/emcn/icons'
 import type { RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
-import type { ColumnDefinition, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import type { ColumnDefinition, TableRow as TableRowType } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import { getUnmetGroupDeps, isExecInFlight } from '@/lib/table/deps'
+import { isExecInFlight } from '@/lib/table/deps'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   useAddTableColumn,
@@ -40,89 +41,45 @@ import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
 import { RunStatusControl } from '../run-status-control'
 import type { WorkflowConfig } from '../workflow-sidebar'
-import { CellContent, ExpandedCellPopover } from './cells'
-import { COL_WIDTH, SELECTION_TINT_BG } from './constants'
+import { ExpandedCellPopover } from './cells'
+import { ADD_COL_WIDTH, CELL_HEADER_CHECKBOX, COL_WIDTH, SELECTION_TINT_BG } from './constants'
+import { DataRow } from './data-row'
 import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
+import {
+  AddRowButton,
+  SelectAllCheckbox,
+  TableBodySkeleton,
+  TableColGroup,
+} from './table-primitives'
 import type { DisplayColumn } from './types'
 import {
   buildHeaderGroups,
   type CellCoord,
+  checkboxColLayout,
   classifyExecStatusMix,
   collectRowSnapshots,
   computeNormalizedSelection,
   type ExecStatusMix,
   expandToDisplayColumns,
   moveCell,
-  type NormalizedSelection,
-  readExecution,
+  ROW_SELECTION_ALL,
+  ROW_SELECTION_NONE,
+  type RowSelection,
+  rowSelectionCoversAll,
+  rowSelectionIncludes,
+  rowSelectionIsEmpty,
+  rowSelectionMaterialize,
 } from './utils'
 
 const logger = createLogger('TableView')
 
-type RowSelection = { kind: 'none' } | { kind: 'some'; ids: Set<string> } | { kind: 'all' }
-
-const ROW_SELECTION_NONE: RowSelection = { kind: 'none' }
-const ROW_SELECTION_ALL: RowSelection = { kind: 'all' }
-
-function rowSelectionIncludes(sel: RowSelection, id: string): boolean {
-  if (sel.kind === 'all') return true
-  if (sel.kind === 'some') return sel.ids.has(id)
-  return false
-}
-
-function rowSelectionIsEmpty(sel: RowSelection): boolean {
-  if (sel.kind === 'none') return true
-  if (sel.kind === 'some') return sel.ids.size === 0
-  return false
-}
-
-function rowSelectionMaterialize(sel: RowSelection, rows: TableRowType[]): Set<string> {
-  if (sel.kind === 'all') return new Set(rows.map((r) => r.id))
-  if (sel.kind === 'some') return new Set(sel.ids)
-  return new Set<string>()
-}
-
-function rowSelectionCoversAll(sel: RowSelection, rows: TableRowType[]): boolean {
-  if (rows.length === 0) return false
-  if (sel.kind === 'all') return true
-  if (sel.kind === 'none') return false
-  if (sel.ids.size < rows.length) return false
-  for (const r of rows) if (!sel.ids.has(r.id)) return false
-  return true
-}
-
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
-const ADD_COL_WIDTH = 120
-
-/** Returns sticky row-number column dimensions sized to the digit count of `maxRows`. */
-function checkboxColLayout(
-  maxRows: number,
-  hasWorkflowCols: boolean
-): { colWidth: number; numDivWidth: number } {
-  const digits = maxRows > 0 ? Math.floor(Math.log10(maxRows)) + 1 : 1
-  const numDivWidth = Math.max(20, digits * 8 + 4)
-  const colWidth = Math.max(32, numDivWidth + 8) + (hasWorkflowCols ? 16 : 0)
-  return { colWidth, numDivWidth }
-}
 const SKELETON_COL_COUNT = 4
-const SKELETON_ROW_COUNT = 10
 const ROW_HEIGHT_ESTIMATE = 35
 
-const CELL = 'border-[var(--border)] border-r border-b px-2 py-[7px] align-middle select-none'
-const CELL_CHECKBOX =
-  'sticky left-0 z-[6] border-[var(--border)] border-r border-b bg-[var(--bg)] px-1 py-[7px] align-middle select-none'
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
-const CELL_HEADER_CHECKBOX =
-  'sticky left-0 z-[12] border-[var(--border)] border-r border-b bg-[var(--bg)] px-1 py-[7px] text-center align-middle'
-// Fixed height (not min-) so a Badge-rendered status pill doesn't make the row
-// grow vs a plain-text neighbor. Sized to comfortably contain the badge; the
-// flex centers plain text + badges on the same baseline.
-const CELL_CONTENT =
-  'relative flex h-[22px] min-w-0 items-center overflow-clip text-ellipsis whitespace-nowrap text-small'
-const SELECTION_OVERLAY =
-  'pointer-events-none absolute -top-px -right-px -bottom-px z-[5] border-[2px] border-[var(--selection)]'
 
 /**
  * Snapshot of grid selection state the wrapper needs to render `<TableActionBar>`.
@@ -372,12 +329,9 @@ export function TableGrid({
   const deleteWorkflowGroupMutation = useDeleteWorkflowGroup({ workspaceId, tableId })
   const updateWorkflowGroupMutation = useUpdateWorkflowGroup({ workspaceId, tableId })
 
-  const handleRunColumn = useCallback(
-    (groupId: string, runMode: RunMode = 'all', rowIds?: string[]) => {
-      onRunColumn(groupId, runMode, rowIds)
-    },
-    [onRunColumn]
-  )
+  function handleRunColumn(groupId: string, runMode: RunMode = 'all', rowIds?: string[]) {
+    onRunColumn(groupId, runMode, rowIds)
+  }
 
   const handleViewWorkflow = useCallback(
     (workflowId: string) => {
@@ -575,6 +529,12 @@ export function TableGrid({
   selectionAnchorRef.current = selectionAnchor
   selectionFocusRef.current = selectionFocus
   isColumnSelectionRef.current = isColumnSelection
+  anchorRowIdRef.current = selectionAnchor
+    ? (rowsRef.current[selectionAnchor.rowIndex]?.id ?? null)
+    : null
+  focusRowIdRef.current = selectionFocus
+    ? (rowsRef.current[selectionFocus.rowIndex]?.id ?? null)
+    : null
 
   const columnRename = useInlineRename({
     onSave: (columnName, newName) => {
@@ -599,7 +559,7 @@ export function TableGrid({
     []
   )
 
-  const handleContextMenuEditCell = useCallback(() => {
+  function handleContextMenuEditCell() {
     if (contextMenu.row && contextMenu.columnName) {
       const column = columnsRef.current.find((c) => c.name === contextMenu.columnName)
       if (column?.type === 'boolean') {
@@ -614,9 +574,9 @@ export function TableGrid({
       }
     }
     closeContextMenu()
-  }, [contextMenu.row, contextMenu.columnName, closeContextMenu])
+  }
 
-  const handleContextMenuDelete = useCallback(() => {
+  function handleContextMenuDelete() {
     const contextRow = contextMenu.row
     if (!contextRow) {
       closeContextMenu()
@@ -653,68 +613,54 @@ export function TableGrid({
     }
 
     closeContextMenu()
-  }, [contextMenu.row, closeContextMenu, onRequestDeleteRows])
+  }
 
-  const handleInsertRow = useCallback(
-    (offset: 0 | 1) => {
-      if (!contextMenu.row) return
-      const position = contextMenu.row.position + offset
-      createRef.current(
-        { data: {}, position },
-        {
-          onSuccess: (response: Record<string, unknown>) => {
-            const newRowId = extractCreatedRowId(response)
-            if (newRowId) {
-              pushUndoRef.current({ type: 'create-row', rowId: newRowId, position })
-            }
-          },
-        }
-      )
-      closeContextMenu()
-    },
-    [contextMenu.row, closeContextMenu]
-  )
+  function handleInsertRow(offset: 0 | 1) {
+    if (!contextMenu.row) return
+    const position = contextMenu.row.position + offset
+    createRef.current(
+      { data: {}, position },
+      {
+        onSuccess: (response: Record<string, unknown>) => {
+          const newRowId = extractCreatedRowId(response)
+          if (newRowId) {
+            pushUndoRef.current({ type: 'create-row', rowId: newRowId, position })
+          }
+        },
+      }
+    )
+    closeContextMenu()
+  }
 
-  const handleInsertRowAbove = useCallback(() => handleInsertRow(0), [handleInsertRow])
-  const handleInsertRowBelow = useCallback(() => handleInsertRow(1), [handleInsertRow])
+  const handleInsertRowAbove = () => handleInsertRow(0)
+  const handleInsertRowBelow = () => handleInsertRow(1)
 
-  const contextMenuColumnInfo = useMemo<{
-    isWorkflowColumn: boolean
-    executionId: string | null
-    hasStartedRun: boolean
-  }>(() => {
-    if (!contextMenu.row || !contextMenu.columnName) {
-      return { isWorkflowColumn: false, executionId: null, hasStartedRun: false }
+  let contextMenuExecutionId: string | null = null
+  let contextMenuIsWorkflowColumn = false
+  let contextMenuHasStartedRun = false
+  if (contextMenu.row && contextMenu.columnName) {
+    const _col = columnsRef.current.find((c) => c.name === contextMenu.columnName)
+    const _gid = _col?.workflowGroupId
+    if (_col && _gid) {
+      const _exec = contextMenu.row.executions?.[_gid]
+      contextMenuIsWorkflowColumn = true
+      // Only `completed` / `error` / `running` cells are guaranteed to have a
+      // server-side execution log. `queued` / `pending` haven't started yet;
+      // `cancelled` may have been cancelled before the worker ever picked the
+      // job up, so its executionId can't be relied on either.
+      contextMenuHasStartedRun =
+        _exec?.status === 'completed' || _exec?.status === 'error' || _exec?.status === 'running'
+      contextMenuExecutionId = _exec?.executionId ?? null
     }
-    const column = columnsRef.current.find((c) => c.name === contextMenu.columnName)
-    const groupId = column?.workflowGroupId
-    if (!column || !groupId) {
-      return { isWorkflowColumn: false, executionId: null, hasStartedRun: false }
-    }
-    const exec = contextMenu.row.executions?.[groupId]
-    // Only `completed` / `error` / `running` cells are guaranteed to have a
-    // server-side execution log. `queued` / `pending` haven't started yet;
-    // `cancelled` may have been cancelled before the worker ever picked the
-    // job up, so its executionId can't be relied on either.
-    const hasStartedRun =
-      exec?.status === 'completed' || exec?.status === 'error' || exec?.status === 'running'
-    return {
-      isWorkflowColumn: true,
-      executionId: exec?.executionId ?? null,
-      hasStartedRun,
-    }
-  }, [contextMenu.row, contextMenu.columnName])
-  const contextMenuExecutionId = contextMenuColumnInfo.executionId
-  const contextMenuIsWorkflowColumn = contextMenuColumnInfo.isWorkflowColumn
-  const contextMenuHasStartedRun = contextMenuColumnInfo.hasStartedRun
+  }
 
-  const handleViewExecution = useCallback(() => {
+  function handleViewExecution() {
     if (!contextMenuExecutionId) return
     onOpenExecutionDetails(contextMenuExecutionId)
     closeContextMenu()
-  }, [contextMenuExecutionId, onOpenExecutionDetails, closeContextMenu])
+  }
 
-  const handleDuplicateRow = useCallback(() => {
+  function handleDuplicateRow() {
     const contextRow = contextMenu.row
     if (!contextRow) return
     const rowData = { ...contextRow.data }
@@ -742,7 +688,7 @@ export function TableGrid({
         },
       }
     )
-  }, [contextMenu.row, closeContextMenu])
+  }
 
   const handleAppendRow = useCallback(async () => {
     if (isAppendingRowRef.current) return
@@ -1396,18 +1342,6 @@ export function TableGrid({
   }, [])
 
   useEffect(() => {
-    anchorRowIdRef.current = selectionAnchor
-      ? (rowsRef.current[selectionAnchor.rowIndex]?.id ?? null)
-      : null
-  }, [selectionAnchor])
-
-  useEffect(() => {
-    focusRowIdRef.current = selectionFocus
-      ? (rowsRef.current[selectionFocus.rowIndex]?.id ?? null)
-      : null
-  }, [selectionFocus])
-
-  useEffect(() => {
     // Skip during transient empty-rows state (initial load of a new sort/filter
     // before keepPreviousData kicks in) — clearing here would lose the user's
     // selection across every uncached query change.
@@ -1535,6 +1469,12 @@ export function TableGrid({
 
   const updateMetadataRef = useRef(updateMetadataMutation.mutate)
   updateMetadataRef.current = updateMetadataMutation.mutate
+
+  const deleteWorkflowGroupRef = useRef(deleteWorkflowGroupMutation.mutate)
+  deleteWorkflowGroupRef.current = deleteWorkflowGroupMutation.mutate
+
+  const updateWorkflowGroupRef = useRef(updateWorkflowGroupMutation.mutate)
+  updateWorkflowGroupRef.current = updateWorkflowGroupMutation.mutate
 
   const toggleBooleanCellRef = useRef(toggleBooleanCell)
   toggleBooleanCellRef.current = toggleBooleanCell
@@ -2476,17 +2416,14 @@ export function TableGrid({
    * Open the column-config sidebar pre-seeded with the chosen scalar type.
    * Nothing is persisted until the user fills in the name and hits Save.
    */
-  const handleAddColumnOfType = useCallback(
-    (type: ColumnDefinition['type']) => {
-      onOpenColumnConfig({ mode: 'create', proposedName: generateColumnName(), type })
-    },
-    [generateColumnName, onOpenColumnConfig]
-  )
+  function handleAddColumnOfType(type: ColumnDefinition['type']) {
+    onOpenColumnConfig({ mode: 'create', proposedName: generateColumnName(), type })
+  }
 
   /** Open the workflow-config sidebar to spawn a brand-new workflow group. */
-  const handleAddWorkflowColumn = useCallback(() => {
+  function handleAddWorkflowColumn() {
     onOpenWorkflowConfig({ mode: 'create', proposedName: generateColumnName() })
-  }, [generateColumnName, onOpenWorkflowConfig])
+  }
 
   const handleConfigureColumn = useCallback(
     (columnName: string) => {
@@ -2508,12 +2445,9 @@ export function TableGrid({
     [onOpenWorkflowConfig]
   )
 
-  const handleDeleteWorkflowGroup = useCallback(
-    (groupId: string) => {
-      deleteWorkflowGroupMutation.mutate({ groupId })
-    },
-    [deleteWorkflowGroupMutation]
-  )
+  const handleDeleteWorkflowGroup = useCallback((groupId: string) => {
+    deleteWorkflowGroupRef.current({ groupId })
+  }, [])
 
   /**
    * Computes the names slated for deletion given a click on `columnName` and
@@ -2547,35 +2481,32 @@ export function TableGrid({
    * logs. Only valid when removing the columns leaves every affected group
    * with at least one surviving output — caller must check first.
    */
-  const hideWorkflowOutputColumns = useCallback(
-    (names: string[]) => {
-      const schemaCols = schemaColumnsRef.current
-      const groups = workflowGroupsRef.current
-      const removalsByGroup = new Map<string, Set<string>>()
-      for (const name of names) {
-        const def = schemaCols.find((c) => c.name === name)
-        if (!def?.workflowGroupId) return false
-        const set = removalsByGroup.get(def.workflowGroupId) ?? new Set<string>()
-        set.add(name)
-        removalsByGroup.set(def.workflowGroupId, set)
-      }
-      for (const [groupId, removed] of removalsByGroup) {
-        const group = groups.find((g) => g.id === groupId)
-        if (!group) return false
-        const remaining = group.outputs.filter((o) => !removed.has(o.columnName))
-        if (remaining.length === 0) return false
-        updateWorkflowGroupMutation.mutate({
-          groupId: group.id,
-          workflowId: group.workflowId,
-          name: group.name,
-          dependencies: group.dependencies,
-          outputs: remaining,
-        })
-      }
-      return true
-    },
-    [updateWorkflowGroupMutation]
-  )
+  const hideWorkflowOutputColumns = useCallback((names: string[]) => {
+    const schemaCols = schemaColumnsRef.current
+    const groups = workflowGroupsRef.current
+    const removalsByGroup = new Map<string, Set<string>>()
+    for (const name of names) {
+      const def = schemaCols.find((c) => c.name === name)
+      if (!def?.workflowGroupId) return false
+      const set = removalsByGroup.get(def.workflowGroupId) ?? new Set<string>()
+      set.add(name)
+      removalsByGroup.set(def.workflowGroupId, set)
+    }
+    for (const [groupId, removed] of removalsByGroup) {
+      const group = groups.find((g) => g.id === groupId)
+      if (!group) return false
+      const remaining = group.outputs.filter((o) => !removed.has(o.columnName))
+      if (remaining.length === 0) return false
+      updateWorkflowGroupRef.current({
+        groupId: group.id,
+        workflowId: group.workflowId,
+        name: group.name,
+        dependencies: group.dependencies,
+        outputs: remaining,
+      })
+    }
+    return true
+  }, [])
 
   const handleDeleteColumn = useCallback(
     (columnName: string) => {
@@ -2965,13 +2896,6 @@ export function TableGrid({
     singleWorkflowCell,
   ])
 
-  const handleRunRow = useCallback(
-    (rowId: string) => {
-      onRunRow(rowId)
-    },
-    [onRunRow]
-  )
-
   if (!isLoadingTable && !tableData) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
@@ -3213,7 +3137,7 @@ export function TableGrid({
                         hasWorkflowColumns={hasWorkflowColumns}
                         numDivWidth={numDivWidth}
                         onStopRow={onStopRow}
-                        onRunRow={handleRunRow}
+                        onRunRow={onRunRow}
                         workflowGroups={tableWorkflowGroups}
                       />
                     ))}
@@ -3293,403 +3217,3 @@ export function TableGrid({
     </div>
   )
 }
-
-const TableColGroup = React.memo(function TableColGroup({
-  columns,
-  columnWidths,
-  checkboxColWidth,
-}: {
-  columns: DisplayColumn[]
-  columnWidths: Record<string, number>
-  checkboxColWidth: number
-}) {
-  return (
-    <colgroup>
-      <col style={{ width: checkboxColWidth }} />
-      {columns.map((col) => (
-        <col key={col.key} style={{ width: columnWidths[col.key] ?? COL_WIDTH }} />
-      ))}
-      <col style={{ width: ADD_COL_WIDTH }} />
-    </colgroup>
-  )
-})
-
-interface DataRowProps {
-  row: TableRowType
-  columns: DisplayColumn[]
-  rowIndex: number
-  isFirstRow: boolean
-  editingColumnName: string | null
-  initialCharacter: string | null
-  pendingCellValue: Record<string, unknown> | null
-  normalizedSelection: NormalizedSelection | null
-  onClick: (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => void
-  onDoubleClick: (rowId: string, columnName: string, columnKey: string) => void
-  onSave: (rowId: string, columnName: string, value: unknown, reason: SaveReason) => void
-  onCancel: () => void
-  onContextMenu: (e: React.MouseEvent, row: TableRowType) => void
-  onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
-  onCellMouseEnter: (rowIndex: number, colIndex: number) => void
-  isRowChecked: boolean
-  onRowToggle: (rowIndex: number, shiftKey: boolean) => void
-  /** Number of workflow cells in this row currently in a running/queued state. */
-  runningCount: number
-  /** Whether the table has at least one workflow column — controls whether a run/stop icon is rendered. */
-  hasWorkflowColumns: boolean
-  /** Width of the row-number inner div in px, derived from the table's maxRows digit count. */
-  numDivWidth: number
-  onStopRow: (rowId: string) => void
-  onRunRow: (rowId: string) => void
-  /**
-   * The table's workflow groups, used to compute per-row "Waiting on …" labels
-   * for empty workflow-output cells whose group has unmet dependencies.
-   */
-  workflowGroups: WorkflowGroup[]
-}
-
-function cellRangeRowChanged(
-  rowIndex: number,
-  colCount: number,
-  prev: NormalizedSelection | null,
-  next: NormalizedSelection | null
-): boolean {
-  const pIn = prev !== null && rowIndex >= prev.startRow && rowIndex <= prev.endRow
-  const nIn = next !== null && rowIndex >= next.startRow && rowIndex <= next.endRow
-  const pAnchor = prev !== null && rowIndex === prev.anchorRow
-  const nAnchor = next !== null && rowIndex === next.anchorRow
-
-  if (!pIn && !nIn && !pAnchor && !nAnchor) return false
-  if (pIn !== nIn || pAnchor !== nAnchor) return true
-
-  if (pIn && nIn) {
-    if (prev!.startCol !== next!.startCol || prev!.endCol !== next!.endCol) return true
-    if ((rowIndex === prev!.startRow) !== (rowIndex === next!.startRow)) return true
-    if ((rowIndex === prev!.endRow) !== (rowIndex === next!.endRow)) return true
-    const pMulti = prev!.startRow !== prev!.endRow || prev!.startCol !== prev!.endCol
-    const nMulti = next!.startRow !== next!.endRow || next!.startCol !== next!.endCol
-    if (pMulti !== nMulti) return true
-    const pFull = prev!.startCol === 0 && prev!.endCol === colCount - 1
-    const nFull = next!.startCol === 0 && next!.endCol === colCount - 1
-    if (pFull !== nFull) return true
-  }
-
-  if (pAnchor && nAnchor && prev!.anchorCol !== next!.anchorCol) return true
-
-  return false
-}
-
-function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
-  if (
-    prev.row !== next.row ||
-    prev.columns !== next.columns ||
-    prev.rowIndex !== next.rowIndex ||
-    prev.isFirstRow !== next.isFirstRow ||
-    prev.editingColumnName !== next.editingColumnName ||
-    prev.pendingCellValue !== next.pendingCellValue ||
-    prev.onClick !== next.onClick ||
-    prev.onDoubleClick !== next.onDoubleClick ||
-    prev.onSave !== next.onSave ||
-    prev.onCancel !== next.onCancel ||
-    prev.onContextMenu !== next.onContextMenu ||
-    prev.onCellMouseDown !== next.onCellMouseDown ||
-    prev.onCellMouseEnter !== next.onCellMouseEnter ||
-    prev.isRowChecked !== next.isRowChecked ||
-    prev.onRowToggle !== next.onRowToggle ||
-    prev.runningCount !== next.runningCount ||
-    prev.hasWorkflowColumns !== next.hasWorkflowColumns ||
-    prev.numDivWidth !== next.numDivWidth ||
-    prev.onStopRow !== next.onStopRow ||
-    prev.onRunRow !== next.onRunRow ||
-    prev.workflowGroups !== next.workflowGroups
-  ) {
-    return false
-  }
-  if (
-    (prev.editingColumnName !== null || next.editingColumnName !== null) &&
-    prev.initialCharacter !== next.initialCharacter
-  ) {
-    return false
-  }
-
-  return !cellRangeRowChanged(
-    prev.rowIndex,
-    prev.columns.length,
-    prev.normalizedSelection,
-    next.normalizedSelection
-  )
-}
-
-const DataRow = React.memo(function DataRow({
-  row,
-  columns,
-  rowIndex,
-  isFirstRow,
-  editingColumnName,
-  initialCharacter,
-  pendingCellValue,
-  normalizedSelection,
-  isRowChecked,
-  onClick,
-  onDoubleClick,
-  onSave,
-  onCancel,
-  onContextMenu,
-  onCellMouseDown,
-  onCellMouseEnter,
-  onRowToggle,
-  runningCount,
-  hasWorkflowColumns,
-  numDivWidth,
-  onStopRow,
-  onRunRow,
-  workflowGroups,
-}: DataRowProps) {
-  const sel = normalizedSelection
-  /**
-   * Per-row "Waiting on …" labels keyed by group id. A group has labels iff
-   * at least one of its dependencies is unmet for this row — drives the
-   * "Waiting" pill rendered by `CellContent` for empty workflow-output cells.
-   * Computed once per render rather than per cell so all cells in a group
-   * share the same array reference.
-   */
-  const waitingByGroupId = React.useMemo(() => {
-    if (workflowGroups.length === 0) return null
-    const map = new Map<string, string[]>()
-    for (const group of workflowGroups) {
-      // autoRun=false groups never fire from the scheduler — there's nothing
-      // to wait on. The cell stays empty until the user clicks Run manually.
-      if (group.autoRun === false) continue
-      const unmet = getUnmetGroupDeps(group, row)
-      if (unmet.columns.length === 0) continue
-      map.set(group.id, unmet.columns)
-    }
-    return map
-  }, [workflowGroups, row])
-  const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
-  const isRowSelected = isRowChecked
-
-  return (
-    <tr onContextMenu={(e) => onContextMenu(e, row)}>
-      <td className={cn(CELL_CHECKBOX, 'cursor-pointer')}>
-        <div
-          className={cn(
-            'flex items-center gap-1',
-            hasWorkflowColumns ? 'justify-between' : 'justify-center'
-          )}
-        >
-          <div
-            className='group/checkbox flex h-[20px] shrink-0 items-center justify-center'
-            style={{ width: numDivWidth }}
-            onMouseDown={(e) => {
-              if (e.button !== 0) return
-              onRowToggle(rowIndex, e.shiftKey)
-            }}
-          >
-            <span
-              className={cn(
-                'text-center text-[var(--text-tertiary)] text-xs tabular-nums',
-                isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
-              )}
-            >
-              {rowIndex + 1}
-            </span>
-            <div
-              className={cn(
-                'items-center justify-end',
-                isRowSelected ? 'flex' : 'hidden group-hover/checkbox:flex'
-              )}
-            >
-              <Checkbox size='sm' checked={isRowSelected} className='pointer-events-none' />
-            </div>
-          </div>
-          {hasWorkflowColumns && (
-            <Button
-              type='button'
-              variant='ghost'
-              size='sm'
-              aria-label={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
-              title={runningCount > 0 ? `Stop ${runningCount} running` : 'Run row'}
-              // mr-px keeps the hover bg off the cell's right border — without
-              // it the rounded-rect background paints over the divider line
-              // while the button is hovered.
-              className='mr-px h-[20px] w-[20px] shrink-0 px-0 py-0 text-[var(--text-primary)] hover-hover:bg-[var(--surface-2)]'
-              onClick={() => {
-                if (runningCount > 0) {
-                  onStopRow(row.id)
-                } else {
-                  onRunRow(row.id)
-                }
-              }}
-            >
-              {runningCount > 0 ? (
-                <Square className='h-[12px] w-[12px]' />
-              ) : (
-                <PlayOutline className='h-[12px] w-[12px]' />
-              )}
-            </Button>
-          )}
-        </div>
-      </td>
-      {columns.map((column, colIndex) => {
-        const inRange =
-          sel !== null &&
-          rowIndex >= sel.startRow &&
-          rowIndex <= sel.endRow &&
-          colIndex >= sel.startCol &&
-          colIndex <= sel.endCol
-        const isAnchor = sel !== null && rowIndex === sel.anchorRow && colIndex === sel.anchorCol
-        const isEditing = editingColumnName === column.name
-        const isHighlighted = inRange || isRowChecked
-
-        const isTopEdge = inRange ? rowIndex === sel!.startRow : isRowChecked
-        const isBottomEdge = inRange ? rowIndex === sel!.endRow : isRowChecked
-        const isLeftEdge = inRange ? colIndex === sel!.startCol : colIndex === 0
-        const isRightEdge = inRange ? colIndex === sel!.endCol : colIndex === columns.length - 1
-
-        return (
-          <td
-            key={column.key}
-            data-row={rowIndex}
-            data-row-id={row.id}
-            data-col={colIndex}
-            className={cn(CELL, (isHighlighted || isAnchor || isEditing) && 'relative')}
-            onMouseDown={(e) => {
-              if (e.button !== 0 || isEditing) return
-              onCellMouseDown(rowIndex, colIndex, e.shiftKey)
-            }}
-            onMouseEnter={() => onCellMouseEnter(rowIndex, colIndex)}
-            onClick={(e) =>
-              onClick(row.id, column.name, {
-                toggleBoolean:
-                  !e.shiftKey &&
-                  Boolean((e.target as HTMLElement).closest('[data-boolean-cell-toggle]')),
-              })
-            }
-            onDoubleClick={() => onDoubleClick(row.id, column.name, column.key)}
-          >
-            {isHighlighted && (isMultiCell || isRowChecked) && (
-              <div
-                className={cn(
-                  '-top-px -right-px -bottom-px pointer-events-none absolute z-[4]',
-                  colIndex === 0 ? 'left-0' : '-left-px',
-                  SELECTION_TINT_BG,
-                  isFirstRow && isTopEdge && 'top-0',
-                  isTopEdge && 'border-t border-t-[var(--selection)]',
-                  isBottomEdge && 'border-b border-b-[var(--selection)]',
-                  isLeftEdge && 'border-l border-l-[var(--selection)]',
-                  isRightEdge && 'border-r border-r-[var(--selection)]'
-                )}
-              />
-            )}
-            {isAnchor && (
-              <div
-                className={cn(
-                  SELECTION_OVERLAY,
-                  colIndex === 0 ? 'left-0' : '-left-px',
-                  isFirstRow && 'top-0'
-                )}
-              />
-            )}
-            <div className={CELL_CONTENT}>
-              <CellContent
-                value={
-                  pendingCellValue && column.name in pendingCellValue
-                    ? pendingCellValue[column.name]
-                    : row.data[column.name]
-                }
-                exec={readExecution(row, column.workflowGroupId)}
-                column={column}
-                isEditing={isEditing}
-                initialCharacter={isEditing ? initialCharacter : undefined}
-                onSave={(value, reason) => onSave(row.id, column.name, value, reason)}
-                onCancel={onCancel}
-                waitingOnLabels={
-                  column.workflowGroupId
-                    ? (waitingByGroupId?.get(column.workflowGroupId) ?? undefined)
-                    : undefined
-                }
-              />
-            </div>
-          </td>
-        )
-      })}
-    </tr>
-  )
-}, dataRowPropsAreEqual)
-
-const TableBodySkeleton = React.memo(function TableBodySkeleton({
-  colCount,
-}: {
-  colCount: number
-}) {
-  return (
-    <>
-      {Array.from({ length: SKELETON_ROW_COUNT }).map((_, rowIndex) => (
-        <tr key={rowIndex}>
-          <td className={cn(CELL_CHECKBOX, 'text-center')}>
-            <div className='flex min-h-[20px] items-center justify-center'>
-              <span className='text-[var(--text-tertiary)] text-xs tabular-nums'>
-                {rowIndex + 1}
-              </span>
-            </div>
-          </td>
-          {Array.from({ length: colCount }).map((_, colIndex) => {
-            const width = 72 + ((rowIndex + colIndex) % 4) * 24
-            return (
-              <td key={colIndex} className={CELL}>
-                <div className='flex min-h-[20px] items-center'>
-                  <Skeleton className='h-[16px]' style={{ width: `${width}px` }} />
-                </div>
-              </td>
-            )
-          })}
-        </tr>
-      ))}
-    </>
-  )
-})
-
-const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
-  checked,
-  onCheckedChange,
-}: {
-  checked: boolean
-  onCheckedChange: () => void
-}) {
-  return (
-    <th
-      className={cn(CELL_HEADER_CHECKBOX, 'cursor-pointer')}
-      role='checkbox'
-      aria-checked={checked}
-      tabIndex={0}
-      onMouseDown={(e) => {
-        if (e.button !== 0) return
-        onCheckedChange()
-      }}
-      onKeyDown={(e) => {
-        if (e.key !== ' ' && e.key !== 'Enter') return
-        e.preventDefault()
-        onCheckedChange()
-      }}
-    >
-      <div className='flex items-center justify-center'>
-        <Checkbox size='sm' checked={checked} className='pointer-events-none' />
-      </div>
-    </th>
-  )
-})
-
-const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: () => void }) {
-  return (
-    <div className='px-2 py-[7px]'>
-      <button
-        type='button'
-        className='flex h-[20px] cursor-pointer items-center gap-2'
-        onClick={onClick}
-      >
-        <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='font-medium text-[var(--text-body)] text-small'>New row</span>
-      </button>
-    </div>
-  )
-})

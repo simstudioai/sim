@@ -252,7 +252,7 @@ export function useTableRows({
 }
 
 /** @internal — exported for testing only. */
-export function _mergePagePreservingIdentity(
+export function mergePagePreservingIdentity(
   prev: TableRowsResponse,
   fresh: TableRowsResponse
 ): TableRowsResponse {
@@ -377,7 +377,7 @@ export function useInfiniteTableRows({
                     if (!prev) return prev
                     const idx = prev.pageParams.indexOf(offset)
                     if (idx === -1) return prev
-                    const merged = _mergePagePreservingIdentity(prev.pages[idx], fresh)
+                    const merged = mergePagePreservingIdentity(prev.pages[idx], fresh)
                     if (merged === prev.pages[idx]) return prev
                     const nextPages = prev.pages.slice()
                     nextPages[idx] = merged

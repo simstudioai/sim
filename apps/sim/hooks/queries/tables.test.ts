@@ -82,7 +82,7 @@ vi.mock('@/components/emcn', () => ({
 }))
 
 import {
-  _mergePagePreservingIdentity,
+  mergePagePreservingIdentity,
   tableKeys,
   tableRowsInfiniteOptions,
   tableRowsParamsKey,
@@ -372,7 +372,7 @@ describe('tableRowsInfiniteOptions', () => {
   })
 })
 
-describe('_mergePagePreservingIdentity', () => {
+describe('mergePagePreservingIdentity', () => {
   const ts = '2024-01-01T00:00:00.000Z'
   const ts2 = '2024-01-02T00:00:00.000Z'
 
@@ -383,7 +383,7 @@ describe('_mergePagePreservingIdentity', () => {
   it('returns fresh when totalCount differs', () => {
     const prev = { rows: [makeRow('r1', ts)], totalCount: 1, nextOffset: undefined }
     const fresh = { rows: [makeRow('r1', ts)], totalCount: 2, nextOffset: undefined }
-    const result = _mergePagePreservingIdentity(prev, fresh)
+    const result = mergePagePreservingIdentity(prev, fresh)
     expect(result).toBe(fresh)
   })
 
@@ -394,7 +394,7 @@ describe('_mergePagePreservingIdentity', () => {
       totalCount: 2,
       nextOffset: undefined,
     }
-    const result = _mergePagePreservingIdentity(prev, fresh)
+    const result = mergePagePreservingIdentity(prev, fresh)
     expect(result).toBe(fresh)
   })
 
@@ -404,7 +404,7 @@ describe('_mergePagePreservingIdentity', () => {
     const prev = { rows: [row1, row2], totalCount: 2, nextOffset: undefined }
     const freshRow1 = makeRow('r1', ts)
     const fresh = { rows: [freshRow1, makeRow('r2', ts)], totalCount: 2, nextOffset: undefined }
-    const result = _mergePagePreservingIdentity(prev, fresh)
+    const result = mergePagePreservingIdentity(prev, fresh)
     expect(result).toBe(prev)
   })
 
@@ -414,7 +414,7 @@ describe('_mergePagePreservingIdentity', () => {
     const prev = { rows: [row1, row2], totalCount: 2, nextOffset: undefined }
     const updatedRow2 = makeRow('r2', ts2, { extra: 'new' })
     const fresh = { rows: [makeRow('r1', ts), updatedRow2], totalCount: 2, nextOffset: undefined }
-    const result = _mergePagePreservingIdentity(prev, fresh)
+    const result = mergePagePreservingIdentity(prev, fresh)
     expect(result).not.toBe(prev)
     expect(result.rows[0]).toBe(row1)
     expect(result.rows[1]).toBe(updatedRow2)
@@ -425,7 +425,7 @@ describe('_mergePagePreservingIdentity', () => {
     const prev = { rows: [row1, makeRow('r2', ts)], totalCount: 2, nextOffset: undefined }
     const newRow = makeRow('r3', ts)
     const fresh = { rows: [makeRow('r1', ts), newRow], totalCount: 2, nextOffset: undefined }
-    const result = _mergePagePreservingIdentity(prev, fresh)
+    const result = mergePagePreservingIdentity(prev, fresh)
     expect(result.rows[1]).toBe(newRow)
   })
 
@@ -439,7 +439,7 @@ describe('_mergePagePreservingIdentity', () => {
       totalCount: 1,
       nextOffset: undefined,
     }
-    const result = _mergePagePreservingIdentity(prev, fresh)
+    const result = mergePagePreservingIdentity(prev, fresh)
     expect(result).toBe(prev)
   })
 })
