@@ -46,6 +46,12 @@ const workspaceFileSuccessSchema = z.object({
   success: z.boolean(),
 })
 
+const listWorkspaceFilesResponseSchema = workspaceFileSuccessSchema.extend({
+  files: z.array(workspaceFileRecordSchema),
+})
+
+export type ListWorkspaceFilesResponse = z.output<typeof listWorkspaceFilesResponseSchema>
+
 export const listWorkspaceFilesContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/files',
@@ -53,9 +59,7 @@ export const listWorkspaceFilesContract = defineRouteContract({
   query: listWorkspaceFilesQuerySchema,
   response: {
     mode: 'json',
-    schema: workspaceFileSuccessSchema.extend({
-      files: z.array(workspaceFileRecordSchema),
-    }),
+    schema: listWorkspaceFilesResponseSchema,
   },
 })
 
