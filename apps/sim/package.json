@@ -131,7 +131,6 @@
     "google-auth-library": "10.5.0",
     "gray-matter": "^4.0.3",
     "groq-sdk": "^0.15.0",
-    "hast-util-to-html": "9.0.5",
     "html-to-image": "1.11.13",
     "html-to-text": "^9.0.5",
     "idb-keyval": "6.2.2",
