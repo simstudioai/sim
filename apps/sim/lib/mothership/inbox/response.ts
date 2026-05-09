@@ -1,5 +1,7 @@
+import { type ComponentType, type CSSProperties, createElement, type ReactNode } from 'react'
+import { Body, Head, Html, Link, Markdown, Section, Text } from '@react-email/components'
+import { render } from '@react-email/render'
 import { createLogger } from '@sim/logger'
-import { marked } from 'marked'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { replaceUntilStable } from '@/lib/mothership/inbox/format'
@@ -37,8 +39,8 @@ export async function sendInboxResponse(
     : `I wasn't able to complete this task.\n\nError: ${result.error || 'Unknown error'}\n\n[View details](${chatUrl})\n\nBest,\nMothership`
 
   const html = result.success
-    ? renderEmailHtml(result.content, chatUrl)
-    : renderErrorHtml(result.error || 'Unknown error', chatUrl)
+    ? await renderEmailHtml(result.content, chatUrl)
+    : await renderErrorHtml(result.error || 'Unknown error', chatUrl)
 
   try {
     const response = await agentmail.replyToMessage(
@@ -58,27 +60,199 @@ export async function sendInboxResponse(
   }
 }
 
-const EMAIL_STYLES = `
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif; font-size: 15px; line-height: 25px; color: #1a1a1a; font-weight: 430; }
-  p { margin: 0 0 16px 0; }
-  h1, h2, h3, h4 { font-weight: 600; color: #1a1a1a; margin-top: 24px; margin-bottom: 12px; }
-  h1 { font-size: 24px; } h2 { font-size: 20px; } h3 { font-size: 16px; } h4 { font-size: 15px; }
-  strong { font-weight: 600; color: #1a1a1a; }
-  pre { background: #f3f3f3; padding: 16px; border-radius: 8px; border: 1px solid #ededed; overflow-x: auto; margin: 24px 0; }
-  code { background: #f3f3f3; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace; font-size: 13px; color: #1a1a1a; }
-  pre code { background: none; padding: 0; font-size: 13px; line-height: 21px; }
-  table { border-collapse: collapse; margin: 16px 0; }
-  th, td { border: 1px solid #ededed; padding: 8px 12px; text-align: left; font-size: 14px; }
-  th { background: #f5f5f5; font-weight: 600; }
-  tr { border-bottom: 1px solid #ededed; }
-  blockquote { border-left: 4px solid #e0e0e0; margin: 16px 0; padding: 4px 16px; color: #525252; font-style: italic; }
-  a { color: #2563eb; text-decoration: underline; text-decoration-style: dashed; text-underline-offset: 2px; }
-  ul, ol { margin: 16px 0; padding-left: 24px; }
-  li { margin: 4px 0; }
-  hr { border: none; border-top: 1px solid #ededed; margin: 24px 0; }
-  .signature { color: #525252; margin-top: 32px; font-size: 14px; }
-  .signature a { color: #1a1a1a; text-decoration: underline; text-decoration-style: dashed; text-underline-offset: 2px; }
-`
+const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif"
+const CODE_FONT_FAMILY = "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace"
+
+const emailStyles = {
+  body: {
+    fontFamily: FONT_FAMILY,
+    fontSize: '15px',
+    lineHeight: '25px',
+    color: '#1a1a1a',
+    fontWeight: 430,
+  },
+  content: {
+    margin: 0,
+  },
+  markdownContainer: {
+    margin: 0,
+  },
+  signature: {
+    color: '#525252',
+    marginTop: '32px',
+    fontSize: '14px',
+  },
+  signatureText: {
+    color: '#525252',
+    margin: '0 0 16px 0',
+    fontSize: '14px',
+    lineHeight: '25px',
+    fontFamily: FONT_FAMILY,
+  },
+  signatureLink: {
+    color: '#1a1a1a',
+    textDecoration: 'underline',
+    textDecorationStyle: 'dashed',
+    textUnderlineOffset: '2px',
+  },
+} satisfies Record<string, CSSProperties>
+
+const markdownStyles = {
+  p: {
+    margin: '0 0 16px 0',
+    fontSize: '15px',
+    lineHeight: '25px',
+    color: '#1a1a1a',
+    fontFamily: FONT_FAMILY,
+    fontWeight: 430,
+  },
+  h1: {
+    fontWeight: 600,
+    color: '#1a1a1a',
+    margin: '24px 0 12px 0',
+    fontSize: '24px',
+    lineHeight: '32px',
+    fontFamily: FONT_FAMILY,
+  },
+  h2: {
+    fontWeight: 600,
+    color: '#1a1a1a',
+    margin: '24px 0 12px 0',
+    fontSize: '20px',
+    lineHeight: '28px',
+    fontFamily: FONT_FAMILY,
+  },
+  h3: {
+    fontWeight: 600,
+    color: '#1a1a1a',
+    margin: '24px 0 12px 0',
+    fontSize: '16px',
+    lineHeight: '24px',
+    fontFamily: FONT_FAMILY,
+  },
+  h4: {
+    fontWeight: 600,
+    color: '#1a1a1a',
+    margin: '24px 0 12px 0',
+    fontSize: '15px',
+    lineHeight: '25px',
+    fontFamily: FONT_FAMILY,
+  },
+  strong: {
+    fontWeight: 600,
+    color: '#1a1a1a',
+  },
+  codeInline: {
+    backgroundColor: '#f3f3f3',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    fontFamily: CODE_FONT_FAMILY,
+    fontSize: '13px',
+    color: '#1a1a1a',
+  },
+  codeBlock: {
+    backgroundColor: '#f3f3f3',
+    padding: '16px',
+    borderRadius: '8px',
+    border: '1px solid #ededed',
+    overflowX: 'auto',
+    margin: '24px 0',
+    fontFamily: CODE_FONT_FAMILY,
+    fontSize: '13px',
+    lineHeight: '21px',
+    color: '#1a1a1a',
+  },
+  table: {
+    borderCollapse: 'collapse',
+    margin: '16px 0',
+  },
+  th: {
+    border: '1px solid #ededed',
+    padding: '8px 12px',
+    textAlign: 'left',
+    fontSize: '14px',
+    backgroundColor: '#f5f5f5',
+    fontWeight: 600,
+  },
+  td: {
+    border: '1px solid #ededed',
+    padding: '8px 12px',
+    textAlign: 'left',
+    fontSize: '14px',
+  },
+  blockQuote: {
+    borderLeft: '4px solid #e0e0e0',
+    margin: '16px 0',
+    padding: '4px 16px',
+    color: '#525252',
+    fontStyle: 'italic',
+  },
+  a: {
+    color: '#2563eb',
+    textDecoration: 'underline',
+    textDecorationStyle: 'dashed',
+    textUnderlineOffset: '2px',
+  },
+  ul: {
+    margin: '16px 0',
+    paddingLeft: '24px',
+  },
+  ol: {
+    margin: '16px 0',
+    paddingLeft: '24px',
+  },
+  li: {
+    margin: '4px 0',
+  },
+  hr: {
+    border: 'none',
+    borderTop: '1px solid #ededed',
+    margin: '24px 0',
+  },
+} satisfies Record<string, CSSProperties>
+
+interface InboxResponseEmailProps {
+  children?: ReactNode
+  chatUrl: string
+  linkLabel: string
+}
+
+interface EmailMarkdownProps {
+  children?: string
+  markdownContainerStyles?: CSSProperties
+  markdownCustomStyles?: Record<string, CSSProperties>
+}
+
+const EmailMarkdown = Markdown as ComponentType<EmailMarkdownProps>
+
+function InboxResponseEmail({ children, chatUrl, linkLabel }: InboxResponseEmailProps) {
+  return createElement(
+    Html,
+    { lang: 'en', dir: 'ltr' },
+    createElement(Head),
+    createElement(
+      Body,
+      { style: emailStyles.body },
+      createElement(Section, { style: emailStyles.content }, children),
+      createElement(
+        Section,
+        { style: emailStyles.signature },
+        createElement(
+          Text,
+          { style: emailStyles.signatureText },
+          createElement(Link, { href: chatUrl, style: emailStyles.signatureLink }, linkLabel)
+        ),
+        createElement(
+          Text,
+          { style: emailStyles.signatureText },
+          'Best,',
+          createElement('br'),
+          'Mothership'
+        )
+      )
+    )
+  )
+}
 
 function stripRawHtml(text: string): string {
   return text
@@ -89,44 +263,54 @@ function stripRawHtml(text: string): string {
     .join('')
 }
 
+function preserveSoftBreaks(text: string): string {
+  return text
+    .split(/(```[\s\S]*?```)/g)
+    .map((segment, i) => (i % 2 === 0 ? segment.replace(/([^\n])\n(?=[^\n])/g, '$1  \n') : segment))
+    .join('')
+}
+
 function stripUnsafeUrls(html: string): string {
-  return html.replace(/href\s*=\s*"(javascript|vbscript|data):[^"]*"/gi, 'href="#"')
+  return html.replace(/href\s*=\s*(['"])(?:javascript|vbscript|data):.*?\1/gi, 'href="#"')
 }
 
-function renderEmailHtml(markdown: string, chatUrl: string): string {
-  const bodyHtml = stripUnsafeUrls(marked.parse(stripRawHtml(markdown), { async: false }) as string)
+async function renderEmailHtml(markdown: string, chatUrl: string): Promise<string> {
+  const safeMarkdown = preserveSoftBreaks(stripRawHtml(markdown))
+  const html = await render(
+    createElement(
+      InboxResponseEmail,
+      { chatUrl, linkLabel: 'View full conversation' },
+      createElement(
+        EmailMarkdown,
+        {
+          markdownContainerStyles: emailStyles.markdownContainer,
+          markdownCustomStyles: markdownStyles,
+        },
+        safeMarkdown
+      )
+    )
+  )
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${EMAIL_STYLES}</style></head>
-<body>
-${bodyHtml}
-<div class="signature">
-  <p><a href="${escapeAttr(chatUrl)}">View full conversation</a></p>
-  <p>Best,<br>Mothership</p>
-</div>
-</body></html>`
+  return stripUnsafeUrls(html)
 }
 
-function renderErrorHtml(error: string, chatUrl: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${EMAIL_STYLES}</style></head>
-<body>
-<p>I wasn't able to complete this task.</p>
-<p style="color: #6b7280;">Error: ${escapeHtml(error)}</p>
-<div class="signature">
-  <p><a href="${escapeAttr(chatUrl)}">View details</a></p>
-  <p>Best,<br>Mothership</p>
-</div>
-</body></html>`
-}
+async function renderErrorHtml(error: string, chatUrl: string): Promise<string> {
+  const html = await render(
+    createElement(
+      InboxResponseEmail,
+      { chatUrl, linkLabel: 'View details' },
+      createElement(
+        Text,
+        { key: 'message', style: markdownStyles.p },
+        "I wasn't able to complete this task."
+      ),
+      createElement(
+        Text,
+        { key: 'error', style: { ...markdownStyles.p, color: '#6b7280' } },
+        `Error: ${error}`
+      )
+    )
+  )
 
-function escapeHtml(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-function escapeAttr(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  return stripUnsafeUrls(html)
 }

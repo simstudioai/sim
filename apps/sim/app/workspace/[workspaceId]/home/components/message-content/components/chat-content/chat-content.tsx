@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentPropsWithoutRef, useEffect, useMemo, useRef } from 'react'
+import { type ComponentPropsWithoutRef, memo, useEffect, useMemo, useRef } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import 'prismjs/components/prism-typescript'
@@ -217,7 +217,7 @@ const MARKDOWN_COMPONENTS = {
   },
   inlineCode({ children }: { children?: React.ReactNode }) {
     return (
-      <code className='rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-[400] font-mono text-[var(--text-primary)] text-small before:content-none after:content-none'>
+      <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-[400] font-mono text-[var(--text-primary)] not-italic before:content-none after:content-none'>
         {children}
       </code>
     )
@@ -237,7 +237,7 @@ interface ChatContentProps {
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
 }
 
-export function ChatContent({
+function ChatContentInner({
   content,
   isStreaming = false,
   onOptionSelect,
@@ -335,3 +335,5 @@ export function ChatContent({
     </div>
   )
 }
+
+export const ChatContent = memo(ChatContentInner)

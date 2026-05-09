@@ -271,7 +271,7 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
             ...(token ? { 'x-captcha-response': token } : {}),
           },
           onError: (ctx) => {
-            logger.error('Signup error:', ctx.error)
+            logger.warn('Signup error:', ctx.error)
             const errorMessage: string[] = ['Failed to create account']
 
             let errorCode = 'unknown'

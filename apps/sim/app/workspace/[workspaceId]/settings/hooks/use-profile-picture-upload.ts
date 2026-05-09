@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import type { StorageContext } from '@/lib/uploads/shared/types'
+import { uploadViaApiFallback } from '@/lib/uploads/client/api-fallback'
+import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 
 const logger = createLogger('ProfilePictureUpload')
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
@@ -10,7 +11,7 @@ interface UseProfilePictureUploadProps {
   onUpload?: (url: string | null) => void
   onError?: (error: string) => void
   currentImage?: string | null
-  context?: StorageContext
+  context?: 'profile-pictures' | 'workspace-logos'
   workspaceId?: string
 }
 
@@ -64,33 +65,27 @@ export function useProfilePictureUpload({
 
   const uploadFileToServer = useCallback(
     async (file: File): Promise<string> => {
+      const presignedEndpoint =
+        context === 'workspace-logos' && workspaceId
+          ? `/api/files/presigned?type=workspace-logos&workspaceId=${encodeURIComponent(workspaceId)}`
+          : `/api/files/presigned?type=${context}`
+
       try {
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('context', context)
-        if (workspaceId) {
-          formData.append('workspaceId', workspaceId)
-        }
-
-        // boundary-raw-fetch: multipart/form-data upload (FileUpload boundary), incompatible with requestJson which JSON-stringifies bodies
-        const response = await fetch('/api/files/upload', {
-          method: 'POST',
-          body: formData,
+        const result = await runUploadStrategy({
+          file,
+          workspaceId: workspaceId ?? '',
+          context,
+          presignedEndpoint,
         })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: response.statusText }))
-          throw new Error(
-            errorData.message || errorData.error || `Failed to upload file: ${response.status}`
-          )
-        }
-
-        const data = await response.json()
-        const publicUrl = data.fileInfo?.path || data.path || data.url
-        logger.info(`Profile picture uploaded successfully via server upload: ${publicUrl}`)
-        return publicUrl
+        logger.info(`${context} uploaded successfully: ${result.path}`)
+        return result.path
       } catch (error) {
-        throw new Error(error instanceof Error ? error.message : 'Failed to upload profile picture')
+        if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
+          const { path } = await uploadViaApiFallback(file, context, workspaceId)
+          logger.info(`${context} uploaded successfully via API fallback: ${path}`)
+          return path
+        }
+        throw error
       }
     },
     [context, workspaceId]

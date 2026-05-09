@@ -5,7 +5,6 @@ import { getLogById } from '@/lib/logs/service'
 import { getTableById } from '@/lib/table/service'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
-import { isUuid } from '@/executor/constants'
 import type { OpenResourceItem, OpenResourceParams, ValidOpenResourceParams } from './param-types'
 
 const VALID_OPEN_RESOURCE_TYPES = new Set(Object.values(MothershipResourceType))
@@ -21,8 +20,6 @@ async function resolveResource(
   if (resourceType === 'file') {
     if (!context.workspaceId)
       return { error: 'Opening a workspace file requires workspace context.' }
-    if (!isUuid(item.id))
-      return { error: 'open_resource for files requires the canonical file UUID.' }
     const record = await getWorkspaceFile(context.workspaceId, item.id)
     if (!record) return { error: `No workspace file with id "${item.id}".` }
     resourceId = record.id

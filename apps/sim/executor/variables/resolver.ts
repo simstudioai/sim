@@ -18,10 +18,23 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 /** Key used to carry pre-resolved context variables through the inputs map. */
 export const FUNCTION_BLOCK_CONTEXT_VARS_KEY = '_runtimeContextVars'
+/** Key used to carry display-resolved code through the function execution path. */
+export const FUNCTION_BLOCK_DISPLAY_CODE_KEY = '_runtimeDisplayCode'
 
 const logger = createLogger('VariableResolver')
 
 type ShellQuoteContext = 'single' | 'double' | null
+type CodeStringQuoteContext = ShellQuoteContext | 'triple-single' | 'triple-double' | 'template'
+type CodeScanMode =
+  | { type: 'normal' }
+  | { type: 'single' }
+  | { type: 'double' }
+  | { type: 'triple-single' }
+  | { type: 'triple-double' }
+  | { type: 'template' }
+  | { type: 'template-expression'; depth: number }
+  | { type: 'line-comment' }
+  | { type: 'block-comment' }
 
 export class VariableResolver {
   private resolvers: Resolver[]
@@ -47,27 +60,32 @@ export class VariableResolver {
    * are stored as named context variables instead of being embedded as JavaScript
    * literals, preventing large values from bloating the code string.
    *
-   * Returns the resolved inputs and a `contextVariables` map. Callers should inject
-   * contextVariables into the function execution request body so the isolated VM can
-   * access them as global variables.
+   * Returns runtime inputs, display inputs, and a `contextVariables` map. Callers
+   * should inject contextVariables into the function execution request body so the
+   * isolated VM can access them as global variables.
    */
   resolveInputsForFunctionBlock(
     ctx: ExecutionContext,
     currentNodeId: string,
     params: Record<string, any> | null | undefined,
     block: SerializedBlock
-  ): { resolvedInputs: Record<string, any>; contextVariables: Record<string, unknown> } {
+  ): {
+    resolvedInputs: Record<string, any>
+    displayInputs: Record<string, any>
+    contextVariables: Record<string, unknown>
+  } {
     const contextVariables: Record<string, unknown> = {}
     const resolved: Record<string, any> = {}
+    const display: Record<string, any> = {}
 
     if (!params) {
-      return { resolvedInputs: resolved, contextVariables }
+      return { resolvedInputs: resolved, displayInputs: display, contextVariables }
     }
 
     for (const [key, value] of Object.entries(params)) {
       if (key === 'code') {
         if (typeof value === 'string') {
-          resolved[key] = this.resolveCodeWithContextVars(
+          const code = this.resolveCodeWithContextVars(
             ctx,
             currentNodeId,
             value,
@@ -75,32 +93,47 @@ export class VariableResolver {
             block,
             contextVariables
           )
+          resolved[key] = code.resolvedCode
+          display[key] = code.displayCode
         } else if (Array.isArray(value)) {
-          resolved[key] = value.map((item: any) => {
+          const resolvedItems: any[] = []
+          const displayItems: any[] = []
+          for (const item of value) {
             if (item && typeof item === 'object' && typeof item.content === 'string') {
-              return {
+              const code = this.resolveCodeWithContextVars(
+                ctx,
+                currentNodeId,
+                item.content,
+                undefined,
+                block,
+                contextVariables
+              )
+              resolvedItems.push({
                 ...item,
-                content: this.resolveCodeWithContextVars(
-                  ctx,
-                  currentNodeId,
-                  item.content,
-                  undefined,
-                  block,
-                  contextVariables
-                ),
-              }
+                content: code.resolvedCode,
+              })
+              displayItems.push({
+                ...item,
+                content: code.displayCode,
+              })
+              continue
             }
-            return item
-          })
+            resolvedItems.push(item)
+            displayItems.push(item)
+          }
+          resolved[key] = resolvedItems
+          display[key] = displayItems
         } else {
           resolved[key] = this.resolveValue(ctx, currentNodeId, value, undefined, block)
+          display[key] = resolved[key]
         }
       } else {
         resolved[key] = this.resolveValue(ctx, currentNodeId, value, undefined, block)
+        display[key] = resolved[key]
       }
     }
 
-    return { resolvedInputs: resolved, contextVariables }
+    return { resolvedInputs: resolved, displayInputs: display, contextVariables }
   }
 
   resolveInputs(
@@ -230,7 +263,7 @@ export class VariableResolver {
     loopScope: LoopScope | undefined,
     block: SerializedBlock,
     contextVarAccumulator: Record<string, unknown>
-  ): string {
+  ): { resolvedCode: string; displayCode: string } {
     const resolutionContext: ResolutionContext = {
       executionContext: ctx,
       executionState: this.state,
@@ -243,14 +276,21 @@ export class VariableResolver {
       | undefined
 
     let replacementError: Error | null = null
+    let displayResult = ''
+    let displayCursor = 0
 
     let result = replaceValidReferences(template, (match, index) => {
       if (replacementError) return match
+      displayResult += template.slice(displayCursor, index)
+      displayCursor = index + match.length
 
       try {
         if (this.blockResolver.canResolve(match)) {
           const resolved = this.resolveReference(match, resolutionContext)
-          if (resolved === undefined) return match
+          if (resolved === undefined) {
+            displayResult += match
+            return match
+          }
 
           const effectiveValue = resolved === RESOLVED_EMPTY ? null : resolved
 
@@ -265,21 +305,38 @@ export class VariableResolver {
             index,
             effectiveValue
           )
+          displayResult += this.formatDisplayValueForCodeContext(
+            effectiveValue,
+            language,
+            template,
+            index
+          )
           return replacement
         }
 
         const resolved = this.resolveReference(match, resolutionContext)
-        if (resolved === undefined) return match
+        if (resolved === undefined) {
+          displayResult += match
+          return match
+        }
 
         const effectiveValue = resolved === RESOLVED_EMPTY ? null : resolved
 
         // Non-block reference (loop, parallel, workflow, env): embed as literal
-        return this.blockResolver.formatValueForBlock(effectiveValue, BlockType.FUNCTION, language)
+        const replacement = this.blockResolver.formatValueForBlock(
+          effectiveValue,
+          BlockType.FUNCTION,
+          language
+        )
+        displayResult += replacement
+        return replacement
       } catch (error) {
         replacementError = error instanceof Error ? error : new Error(String(error))
+        displayResult += match
         return match
       }
     })
+    displayResult += template.slice(displayCursor)
 
     if (replacementError !== null) {
       throw replacementError
@@ -289,8 +346,12 @@ export class VariableResolver {
       const resolved = this.resolveReference(match, resolutionContext)
       return typeof resolved === 'string' ? resolved : match
     })
+    displayResult = displayResult.replace(createEnvVarPattern(), (match) => {
+      const resolved = this.resolveReference(match, resolutionContext)
+      return typeof resolved === 'string' ? resolved : match
+    })
 
-    return result
+    return { resolvedCode: result, displayCode: displayResult }
   }
 
   private formatContextVariableReference(
@@ -301,14 +362,242 @@ export class VariableResolver {
     value: unknown
   ): string {
     if (language === 'python') {
-      return `globals()[${JSON.stringify(varName)}]`
+      const expression = `globals()[${JSON.stringify(varName)}]`
+      const quoteContext = this.getCodeStringQuoteContext(template, matchIndex, language)
+      if (this.isPythonStringQuoteContext(quoteContext)) {
+        const quote = this.getCodeStringQuoteToken(quoteContext)
+        return `${quote} + json.dumps(${expression}) + ${quote}`
+      }
+      return expression
     }
 
     if (language === 'shell') {
       return this.formatShellContextVariableReference(varName, template, matchIndex, value)
     }
 
-    return `globalThis[${JSON.stringify(varName)}]`
+    const expression = `globalThis[${JSON.stringify(varName)}]`
+    const quoteContext = this.getCodeStringQuoteContext(template, matchIndex, language)
+    if (quoteContext === 'template') {
+      return `\${JSON.stringify(${expression})}`
+    }
+    if (quoteContext === 'single' || quoteContext === 'double') {
+      const quote = this.getCodeStringQuoteToken(quoteContext)
+      return `${quote} + JSON.stringify(${expression}) + ${quote}`
+    }
+    return expression
+  }
+
+  private isPythonStringQuoteContext(
+    quoteContext: CodeStringQuoteContext
+  ): quoteContext is 'single' | 'double' | 'triple-single' | 'triple-double' {
+    return (
+      quoteContext === 'single' ||
+      quoteContext === 'double' ||
+      quoteContext === 'triple-single' ||
+      quoteContext === 'triple-double'
+    )
+  }
+
+  private getCodeStringQuoteToken(
+    quoteContext: 'single' | 'double' | 'triple-single' | 'triple-double'
+  ): string {
+    if (quoteContext === 'single') return "'"
+    if (quoteContext === 'double') return '"'
+    if (quoteContext === 'triple-single') return "'''"
+    return '"""'
+  }
+
+  private formatDisplayValueForCodeContext(
+    value: unknown,
+    language: string | undefined,
+    template: string,
+    matchIndex: number
+  ): string {
+    if (language === 'shell') {
+      return this.formatShellDisplayValue(value, template, matchIndex)
+    }
+
+    return this.blockResolver.formatValueForBlock(value, BlockType.FUNCTION, language)
+  }
+
+  private formatShellDisplayValue(value: unknown, template: string, matchIndex: number): string {
+    const text = this.stringifyShellDisplayValue(value)
+    const quoteContext = this.getShellQuoteContext(template, matchIndex)
+    if (quoteContext === 'double') {
+      return text.replace(/["\\$`]/g, '\\$&')
+    }
+
+    return `"${text.replace(/["\\$`]/g, '\\$&')}"`
+  }
+
+  private stringifyShellDisplayValue(value: unknown): string {
+    if (value === null || value === undefined) {
+      return ''
+    }
+    if (typeof value === 'string') {
+      return value
+    }
+    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+      return String(value)
+    }
+    return JSON.stringify(value)
+  }
+
+  private getCodeStringQuoteContext(
+    template: string,
+    index: number,
+    language: string | undefined
+  ): CodeStringQuoteContext {
+    const isPython = language === 'python'
+    const modes: CodeScanMode[] = [{ type: 'normal' }]
+
+    for (let i = 0; i < index; i++) {
+      const char = template[i]
+      const next = template[i + 1]
+      const mode = modes[modes.length - 1]
+
+      if (mode.type === 'line-comment') {
+        if (char === '\n') {
+          modes.pop()
+        }
+        continue
+      }
+
+      if (mode.type === 'block-comment') {
+        if (char === '*' && next === '/') {
+          modes.pop()
+          i++
+        }
+        continue
+      }
+
+      if (mode.type === 'single' || mode.type === 'double') {
+        const quote = mode.type === 'single' ? "'" : '"'
+        if (char === '\\') {
+          i++
+          continue
+        }
+        if (char === quote || char === '\n') {
+          modes.pop()
+        }
+        continue
+      }
+
+      if (mode.type === 'triple-single' || mode.type === 'triple-double') {
+        const quote = mode.type === 'triple-single' ? "'" : '"'
+        if (char === '\\') {
+          i++
+          continue
+        }
+        if (char === quote && next === quote && template[i + 2] === quote) {
+          modes.pop()
+          i += 2
+        }
+        continue
+      }
+
+      if (mode.type === 'template') {
+        if (char === '\\') {
+          i++
+          continue
+        }
+        if (char === '`') {
+          modes.pop()
+          continue
+        }
+        if (char === '$' && next === '{') {
+          modes.push({ type: 'template-expression', depth: 1 })
+          i++
+        }
+        continue
+      }
+
+      if (mode.type === 'template-expression') {
+        if (!isPython && char === '/' && next === '/') {
+          modes.push({ type: 'line-comment' })
+          i++
+          continue
+        }
+        if (!isPython && char === '/' && next === '*') {
+          modes.push({ type: 'block-comment' })
+          i++
+          continue
+        }
+        if (isPython && char === "'" && next === "'" && template[i + 2] === "'") {
+          modes.push({ type: 'triple-single' })
+          i += 2
+          continue
+        }
+        if (isPython && char === '"' && next === '"' && template[i + 2] === '"') {
+          modes.push({ type: 'triple-double' })
+          i += 2
+          continue
+        }
+        if (char === "'") {
+          modes.push({ type: 'single' })
+          continue
+        }
+        if (char === '"') {
+          modes.push({ type: 'double' })
+          continue
+        }
+        if (!isPython && char === '`') {
+          modes.push({ type: 'template' })
+          continue
+        }
+        if (char === '{') {
+          mode.depth += 1
+          continue
+        }
+        if (char === '}') {
+          mode.depth -= 1
+          if (mode.depth === 0) {
+            modes.pop()
+          }
+        }
+        continue
+      }
+
+      if (isPython && char === '#') {
+        modes.push({ type: 'line-comment' })
+        continue
+      }
+      if (!isPython && char === '/' && next === '/') {
+        modes.push({ type: 'line-comment' })
+        i++
+        continue
+      }
+      if (!isPython && char === '/' && next === '*') {
+        modes.push({ type: 'block-comment' })
+        i++
+        continue
+      }
+      if (isPython && char === "'" && next === "'" && template[i + 2] === "'") {
+        modes.push({ type: 'triple-single' })
+        i += 2
+      } else if (isPython && char === '"' && next === '"' && template[i + 2] === '"') {
+        modes.push({ type: 'triple-double' })
+        i += 2
+      } else if (char === "'") {
+        modes.push({ type: 'single' })
+      } else if (char === '"') {
+        modes.push({ type: 'double' })
+      } else if (!isPython && char === '`') {
+        modes.push({ type: 'template' })
+      }
+    }
+
+    const mode = modes[modes.length - 1]
+    if (
+      mode.type === 'single' ||
+      mode.type === 'double' ||
+      mode.type === 'triple-single' ||
+      mode.type === 'triple-double' ||
+      mode.type === 'template'
+    ) {
+      return mode.type
+    }
+    return null
   }
 
   private formatShellContextVariableReference(

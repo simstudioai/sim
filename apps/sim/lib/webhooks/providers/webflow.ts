@@ -150,6 +150,7 @@ export const webflowHandler: WebhookProviderHandler = {
     webhook: webhookRecord,
     workflow,
     requestId,
+    strict,
   }: DeleteSubscriptionContext): Promise<void> {
     try {
       const config = getProviderConfig(webhookRecord)
@@ -160,6 +161,7 @@ export const webflowHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Missing siteId for Webflow webhook deletion ${webhookRecord.id}, skipping cleanup`
         )
+        if (strict) throw new Error('Missing Webflow siteId for webhook deletion')
         return
       }
 
@@ -167,6 +169,7 @@ export const webflowHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Missing externalId for Webflow webhook deletion ${webhookRecord.id}, skipping cleanup`
         )
+        if (strict) throw new Error('Missing Webflow externalId for webhook deletion')
         return
       }
 
@@ -176,6 +179,7 @@ export const webflowHandler: WebhookProviderHandler = {
           webhookId: webhookRecord.id,
           siteId: siteId.substring(0, 30),
         })
+        if (strict) throw new Error('Invalid Webflow siteId for webhook deletion')
         return
       }
 
@@ -185,6 +189,7 @@ export const webflowHandler: WebhookProviderHandler = {
           webhookId: webhookRecord.id,
           externalId: externalId.substring(0, 30),
         })
+        if (strict) throw new Error('Invalid Webflow webhook ID for deletion')
         return
       }
 
@@ -193,6 +198,7 @@ export const webflowHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Missing credentialId for Webflow webhook deletion ${webhookRecord.id}`
         )
+        if (strict) throw new Error('Missing Webflow credentialId for webhook deletion')
         return
       }
 
@@ -205,10 +211,9 @@ export const webflowHandler: WebhookProviderHandler = {
           )
         : null
       if (!accessToken) {
-        logger.warn(
-          `[${requestId}] Could not retrieve Webflow access token. Cannot delete webhook.`,
-          { webhookId: webhookRecord.id }
-        )
+        const message = `[${requestId}] Could not retrieve Webflow access token. Cannot delete webhook.`
+        logger.warn(message, { webhookId: webhookRecord.id })
+        if (strict) throw new Error(message)
         return
       }
 
@@ -228,11 +233,15 @@ export const webflowHandler: WebhookProviderHandler = {
           `[${requestId}] Failed to delete Webflow webhook (non-fatal): ${webflowResponse.status}`,
           { response: responseBody }
         )
+        if (strict) {
+          throw new Error(`Failed to delete Webflow webhook: ${webflowResponse.status}`)
+        }
       } else {
         logger.info(`[${requestId}] Successfully deleted Webflow webhook ${externalId}`)
       }
     } catch (error) {
       logger.warn(`[${requestId}] Error deleting Webflow webhook (non-fatal)`, error)
+      if (strict) throw error
     }
   },
 

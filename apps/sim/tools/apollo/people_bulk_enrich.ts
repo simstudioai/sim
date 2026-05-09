@@ -36,12 +36,32 @@ export const apolloPeopleBulkEnrichTool: ToolConfig<
       type: 'boolean',
       required: false,
       visibility: 'user-only',
-      description: 'Reveal phone numbers (uses credits)',
+      description: 'Reveal phone numbers (uses credits, requires webhook_url)',
+    },
+    webhook_url: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Webhook URL for async phone number delivery (required when reveal_phone_number is true)',
     },
   },
 
   request: {
-    url: 'https://api.apollo.io/api/v1/people/bulk_match',
+    url: (params: ApolloPeopleBulkEnrichParams) => {
+      const qs = new URLSearchParams()
+      if (params.reveal_personal_emails !== undefined) {
+        qs.set('reveal_personal_emails', String(params.reveal_personal_emails))
+      }
+      if (params.reveal_phone_number !== undefined) {
+        qs.set('reveal_phone_number', String(params.reveal_phone_number))
+      }
+      if (params.webhook_url) {
+        qs.set('webhook_url', params.webhook_url)
+      }
+      const query = qs.toString()
+      return `https://api.apollo.io/api/v1/people/bulk_match${query ? `?${query}` : ''}`
+    },
     method: 'POST',
     headers: (params: ApolloPeopleBulkEnrichParams) => ({
       'Content-Type': 'application/json',
@@ -50,8 +70,6 @@ export const apolloPeopleBulkEnrichTool: ToolConfig<
     }),
     body: (params: ApolloPeopleBulkEnrichParams) => ({
       details: params.people.slice(0, 10),
-      reveal_personal_emails: params.reveal_personal_emails,
-      reveal_phone_number: params.reveal_phone_number,
     }),
   },
 
@@ -62,20 +80,46 @@ export const apolloPeopleBulkEnrichTool: ToolConfig<
     }
 
     const data = await response.json()
+    const matches = Array.isArray(data.matches)
+      ? data.matches
+      : Array.isArray(data.people)
+        ? data.people
+        : []
 
     return {
       success: true,
       output: {
-        people: data.matches || [],
-        total: data.matches?.length || 0,
-        enriched: data.matches?.filter((p: any) => p).length || 0,
+        matches,
+        total_requested_enrichments: data.total_requested_enrichments ?? matches.length,
+        unique_enriched_records: data.unique_enriched_records ?? matches.filter(Boolean).length,
+        missing_records: data.missing_records ?? null,
+        credits_consumed: data.credits_consumed ?? null,
       },
     }
   },
 
   outputs: {
-    people: { type: 'json', description: 'Array of enriched people data' },
-    total: { type: 'number', description: 'Total number of people processed' },
-    enriched: { type: 'number', description: 'Number of people successfully enriched' },
+    matches: {
+      type: 'json',
+      description: 'Array of enriched people (null entries indicate no match)',
+    },
+    total_requested_enrichments: {
+      type: 'number',
+      description: 'Total number of records submitted for enrichment',
+    },
+    unique_enriched_records: {
+      type: 'number',
+      description: 'Number of records successfully enriched',
+    },
+    missing_records: {
+      type: 'number',
+      description: 'Number of records that could not be enriched',
+      optional: true,
+    },
+    credits_consumed: {
+      type: 'number',
+      description: 'Number of Apollo credits consumed by this request',
+      optional: true,
+    },
   },
 }

@@ -195,7 +195,7 @@ export default function ChangelogList({ initialEntries }: Props) {
                   </strong>
                 ),
                 inlineCode: ({ children }) => (
-                  <code className='rounded bg-[var(--landing-bg-elevated)] px-1 py-0.5 font-mono text-[var(--landing-text)] text-xs'>
+                  <code className='whitespace-normal rounded bg-[var(--landing-bg-elevated)] px-1 py-0.5 font-mono text-[var(--landing-text)] not-italic'>
                     {children}
                   </code>
                 ),

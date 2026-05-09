@@ -81,9 +81,6 @@ const nextConfig: NextConfig = {
     'unpdf',
     'ffmpeg-static',
     'fluent-ffmpeg',
-    'pino',
-    'pino-pretty',
-    'thread-stream',
     'ws',
     'isolated-vm',
   ],
@@ -98,7 +95,6 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizeCss: true,
     preloadEntriesOnStart: false,
-    turbopackFileSystemCacheForBuild: true,
     optimizePackageImports: [
       'lodash',
       'framer-motion',

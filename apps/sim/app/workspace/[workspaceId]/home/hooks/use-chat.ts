@@ -1140,6 +1140,167 @@ function isAlreadyProcessedStreamCursor(
   )
 }
 
+function isZeroStreamCursor(cursor: string): boolean {
+  const sequence = Number(cursor)
+  return Number.isFinite(sequence) && sequence <= 0
+}
+
+function isPersistedAssistantMessage(message: PersistedMessage, liveAssistantId: string): boolean {
+  return (
+    message.role === 'assistant' &&
+    message.id !== liveAssistantId &&
+    !message.id.startsWith('live-assistant:')
+  )
+}
+
+function findStreamOwnerIndex(messages: PersistedMessage[], streamId: string): number {
+  return messages.findIndex((message) => message.role === 'user' && message.id === streamId)
+}
+
+function findAssistantAfterOwner(messages: PersistedMessage[], ownerIndex: number): number {
+  for (let index = ownerIndex + 1; index < messages.length; index++) {
+    const message = messages[index]
+    if (message.role === 'user') return -1
+    if (message.role === 'assistant') return index
+  }
+  return -1
+}
+
+function hasTerminalPersistedAssistantForStream(
+  messages: PersistedMessage[],
+  streamId: string,
+  liveAssistantId: string
+): boolean {
+  const ownerIndex = findStreamOwnerIndex(messages, streamId)
+  if (ownerIndex === -1) return false
+
+  const assistantIndex = findAssistantAfterOwner(messages, ownerIndex)
+  if (assistantIndex === -1) return false
+
+  return isPersistedAssistantMessage(messages[assistantIndex], liveAssistantId)
+}
+
+export function reconcileLiveAssistantTurn(params: {
+  messages: PersistedMessage[]
+  streamId: string
+  liveAssistant: PersistedMessage
+  activeStreamId: string | null
+}): PersistedMessage[] {
+  const { messages, streamId, liveAssistant, activeStreamId } = params
+  const ownerIndex = findStreamOwnerIndex(messages, streamId)
+  if (ownerIndex === -1) {
+    return [...messages.filter((message) => message.id !== liveAssistant.id), liveAssistant]
+  }
+
+  const assistantIndex = findAssistantAfterOwner(messages, ownerIndex)
+  const existingAssistant = assistantIndex >= 0 ? messages[assistantIndex] : undefined
+  if (
+    activeStreamId !== streamId &&
+    existingAssistant &&
+    isPersistedAssistantMessage(existingAssistant, liveAssistant.id)
+  ) {
+    const withoutStaleLiveAssistant = messages.filter((message) => message.id !== liveAssistant.id)
+    return withoutStaleLiveAssistant.length === messages.length
+      ? messages
+      : withoutStaleLiveAssistant
+  }
+
+  const withoutDuplicateLiveAssistant = messages.filter(
+    (message, index) => index === assistantIndex || message.id !== liveAssistant.id
+  )
+  const adjustedOwnerIndex = withoutDuplicateLiveAssistant.findIndex(
+    (message) => message.role === 'user' && message.id === streamId
+  )
+  const adjustedAssistantIndex =
+    adjustedOwnerIndex >= 0
+      ? findAssistantAfterOwner(withoutDuplicateLiveAssistant, adjustedOwnerIndex)
+      : -1
+
+  if (adjustedAssistantIndex >= 0) {
+    return withoutDuplicateLiveAssistant.map((message, index) =>
+      index === adjustedAssistantIndex ? liveAssistant : message
+    )
+  }
+
+  if (adjustedOwnerIndex >= 0) {
+    return [
+      ...withoutDuplicateLiveAssistant.slice(0, adjustedOwnerIndex + 1),
+      liveAssistant,
+      ...withoutDuplicateLiveAssistant.slice(adjustedOwnerIndex + 1),
+    ]
+  }
+
+  return [...withoutDuplicateLiveAssistant, liveAssistant]
+}
+
+export interface ReconnectReplaySelection {
+  afterCursor: string
+  content: string
+  contentBlocks: ContentBlock[]
+  preserveExistingState: boolean
+  source: 'cache' | 'reset'
+}
+
+export function selectReconnectReplayState(params: {
+  afterCursor: string
+  cachedLiveAssistant?: Pick<ChatMessage, 'content' | 'contentBlocks'> | null
+  currentContent: string
+  currentBlocks: ContentBlock[]
+}): ReconnectReplaySelection {
+  const { afterCursor, cachedLiveAssistant, currentContent, currentBlocks } = params
+  if (isZeroStreamCursor(afterCursor)) {
+    return {
+      afterCursor,
+      content: '',
+      contentBlocks: [],
+      preserveExistingState: false,
+      source: 'reset',
+    }
+  }
+
+  const cachedContent = cachedLiveAssistant?.content ?? ''
+  const cachedBlocks = cachedLiveAssistant?.contentBlocks ?? []
+  const cachedHasLiveState = cachedContent.length > 0 || cachedBlocks.length > 0
+  const cachedIsAhead =
+    cachedHasLiveState &&
+    cachedContent.length >= currentContent.length &&
+    cachedContent.startsWith(currentContent) &&
+    cachedBlocks.length >= currentBlocks.length
+
+  if (cachedIsAhead) {
+    return {
+      afterCursor,
+      content: cachedContent,
+      contentBlocks: [...cachedBlocks],
+      preserveExistingState: true,
+      source: 'cache',
+    }
+  }
+
+  return {
+    afterCursor: '0',
+    content: '',
+    contentBlocks: [],
+    preserveExistingState: false,
+    source: 'reset',
+  }
+}
+
+export function getReplayCompletedWorkflowToolCallIds(events: StreamBatchEvent[]): Set<string> {
+  const completedToolCallIds = new Set<string>()
+  for (const entry of events) {
+    const event = entry.event
+    if (event.type !== MothershipStreamV1EventType.tool) continue
+    const payload = event.payload
+    if (!('phase' in payload)) continue
+    if (payload.phase !== MothershipStreamV1ToolPhase.result) continue
+    if (typeof payload.toolCallId === 'string' && isWorkflowToolName(payload.toolName)) {
+      completedToolCallIds.add(payload.toolCallId)
+    }
+  }
+  return completedToolCallIds
+}
+
 function buildRecoverySubjectKey(
   chatId: string | undefined,
   selectedChatId: string | undefined
@@ -1556,7 +1717,7 @@ export function useChat(
       expectedGen?: number,
       options?: {
         preserveExistingState?: boolean
-        suppressWorkflowToolStarts?: boolean
+        suppressedWorkflowToolStartIds?: ReadonlySet<string>
         targetChatId?: string
         shouldContinue?: () => boolean
       }
@@ -1734,6 +1895,45 @@ export function useChat(
     streamingContentRef.current = ''
     streamingBlocksRef.current = []
   }, [])
+
+  const applyReconnectReplaySelection = useCallback(
+    (
+      streamId: string,
+      assistantId: string,
+      afterCursor: string,
+      options?: { targetChatId?: string; chatHistory?: TaskChatHistory }
+    ): ReconnectReplaySelection => {
+      const cachedHistory =
+        options?.chatHistory ??
+        (options?.targetChatId
+          ? queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(options.targetChatId))
+          : undefined)
+      const cachedLiveAssistant = cachedHistory?.messages.find(
+        (message) => message.id === assistantId
+      )
+      const selection = selectReconnectReplayState({
+        afterCursor,
+        cachedLiveAssistant: cachedLiveAssistant ? toDisplayMessage(cachedLiveAssistant) : null,
+        currentContent: streamingContentRef.current,
+        currentBlocks: streamingBlocksRef.current,
+      })
+
+      streamingContentRef.current = selection.content
+      streamingBlocksRef.current = selection.contentBlocks
+      lastCursorRef.current = selection.afterCursor
+
+      if (selection.afterCursor === '0' && afterCursor !== '0') {
+        logger.info('Resetting stream replay cursor after reconnect state mismatch', {
+          streamId,
+          targetChatId: options?.targetChatId ?? cachedHistory?.id,
+          previousCursor: afterCursor,
+        })
+      }
+
+      return selection
+    },
+    [queryClient]
+  )
 
   const clearActiveTurn = useCallback(() => {
     activeTurnRef.current = null
@@ -2075,12 +2275,32 @@ export function useChat(
       const previousStreamId = streamIdRef.current ?? activeTurnRef.current?.userMessageId
       const reconnectAfterCursor =
         previousStreamId === activeStreamId ? lastCursorRef.current || '0' : '0'
+      cancelActiveStreamRecovery()
+      const replacedController = abortControllerRef.current
+      if (replacedController && !replacedController.signal.aborted) {
+        replacedController.abort('superseded_chat_history_reconnect')
+      }
+      cancelActiveStreamReader()
       abortControllerRef.current = abortController
       streamIdRef.current = activeStreamId
-      lastCursorRef.current = reconnectAfterCursor
       setTransportReconnecting()
 
       const assistantId = getLiveAssistantMessageId(activeStreamId)
+      let snapshotReplayAfterCursor: string
+      if (snapshotEvents.length > 0) {
+        streamingContentRef.current = ''
+        streamingBlocksRef.current = []
+        lastCursorRef.current = '0'
+        snapshotReplayAfterCursor = '0'
+      } else {
+        const replaySelection = applyReconnectReplaySelection(
+          activeStreamId,
+          assistantId,
+          reconnectAfterCursor,
+          { targetChatId: chatHistory.id, chatHistory }
+        )
+        snapshotReplayAfterCursor = replaySelection.afterCursor
+      }
 
       const reconnect = async () => {
         const initialSnapshot = chatHistory.streamSnapshot
@@ -2091,7 +2311,8 @@ export function useChat(
         let reconnectResult: Awaited<ReturnType<typeof attachToExistingStreamRef.current>> | null =
           null
         const replaySnapshotEvents = snapshotEvents.filter(
-          (entry) => !isAlreadyProcessedStreamCursor(String(entry.eventId), reconnectAfterCursor)
+          (entry) =>
+            !isAlreadyProcessedStreamCursor(String(entry.eventId), snapshotReplayAfterCursor)
         )
         if (replaySnapshotEvents.length > 0) {
           try {
@@ -2105,7 +2326,7 @@ export function useChat(
                 previewSessions: snapshotPreviewSessions,
                 status: initialSnapshot?.status ?? 'unknown',
               },
-              afterCursor: reconnectAfterCursor,
+              afterCursor: snapshotReplayAfterCursor,
               targetChatId: chatHistory.id,
             })
           } catch (error) {
@@ -2150,9 +2371,12 @@ export function useChat(
   }, [
     chatHistory,
     workspaceId,
+    cancelActiveStreamReader,
+    cancelActiveStreamRecovery,
     queryClient,
     recoverPendingClientWorkflowTools,
     seedPreviewSessions,
+    applyReconnectReplaySelection,
     setTransportIdle,
     setTransportReconnecting,
   ])
@@ -2164,7 +2388,7 @@ export function useChat(
       expectedGen?: number,
       options?: {
         preserveExistingState?: boolean
-        suppressWorkflowToolStarts?: boolean
+        suppressedWorkflowToolStartIds?: ReadonlySet<string>
         targetChatId?: string
         shouldContinue?: () => boolean
       }
@@ -2372,14 +2596,27 @@ export function useChat(
           contentBlocks: blocks,
           ...(streamRequestId ? { requestId: streamRequestId } : {}),
         })
-        upsertTaskChatHistory(activeChatId, (current) => ({
-          ...current,
-          messages: [
-            ...current.messages.filter((message) => message.id !== assistantId),
-            assistantMessage,
-          ],
-          activeStreamId: streamIdRef.current ?? current.activeStreamId,
-        }))
+        upsertTaskChatHistory(activeChatId, (current) => {
+          const streamId = streamIdRef.current ?? current.activeStreamId ?? assistantId
+          const terminalPersistedAssistantExists =
+            current.activeStreamId !== streamId &&
+            hasTerminalPersistedAssistantForStream(current.messages, streamId, assistantMessage.id)
+          const reconciledMessages = reconcileLiveAssistantTurn({
+            messages: current.messages,
+            streamId,
+            liveAssistant: assistantMessage,
+            activeStreamId: current.activeStreamId,
+          })
+          const skippedTerminalLiveWrite = reconciledMessages === current.messages
+          return {
+            ...current,
+            messages: reconciledMessages,
+            activeStreamId:
+              skippedTerminalLiveWrite || terminalPersistedAssistantExists
+                ? current.activeStreamId
+                : (streamIdRef.current ?? current.activeStreamId),
+          }
+        })
       }
 
       const flushText = () => {
@@ -2951,7 +3188,7 @@ export function useChat(
 
               if (isWorkflowToolName(name) && !isPartial) {
                 const shouldStartWorkflowTool =
-                  !options?.suppressWorkflowToolStarts &&
+                  !options?.suppressedWorkflowToolStartIds?.has(id) &&
                   (isNewToolCall ||
                     (existingToolCall?.status === ToolCallStatus.executing &&
                       !existingToolCall.result))
@@ -3392,10 +3629,6 @@ export function useChat(
         targetChatId,
         shouldContinue,
       } = opts
-      let latestCursor = afterCursor
-      let seedEvents = opts.initialBatch?.events ?? []
-      let streamStatus = opts.initialBatch?.status ?? 'unknown'
-      let suppressSeedWorkflowStarts = seedEvents.length > 0
 
       const isStaleReconnect = () =>
         streamGenRef.current !== expectedGen ||
@@ -3405,6 +3638,20 @@ export function useChat(
       if (isStaleReconnect()) {
         return { error: false, aborted: true }
       }
+
+      const initialReplaySelection: Pick<
+        ReconnectReplaySelection,
+        'afterCursor' | 'preserveExistingState'
+      > = opts.initialBatch
+        ? { afterCursor, preserveExistingState: true }
+        : applyReconnectReplaySelection(streamId, assistantId, afterCursor, {
+            ...(targetChatId ? { targetChatId } : {}),
+          })
+      let latestCursor = initialReplaySelection.afterCursor
+      let preserveNextReplayState = initialReplaySelection.preserveExistingState
+      let seedEvents = opts.initialBatch?.events ?? []
+      let streamStatus = opts.initialBatch?.status ?? 'unknown'
+      let suppressedSeedWorkflowToolStartIds = getReplayCompletedWorkflowToolCallIds(seedEvents)
 
       setTransportReconnecting()
       setError(null)
@@ -3417,8 +3664,8 @@ export function useChat(
               assistantId,
               expectedGen,
               {
-                preserveExistingState: true,
-                suppressWorkflowToolStarts: suppressSeedWorkflowStarts,
+                preserveExistingState: preserveNextReplayState,
+                suppressedWorkflowToolStartIds: suppressedSeedWorkflowToolStartIds,
                 ...(targetChatId ? { targetChatId } : {}),
                 ...(shouldContinue ? { shouldContinue } : {}),
               }
@@ -3429,7 +3676,8 @@ export function useChat(
             latestCursor = String(seedEvents[seedEvents.length - 1]?.eventId ?? latestCursor)
             lastCursorRef.current = latestCursor
             seedEvents = []
-            suppressSeedWorkflowStarts = false
+            preserveNextReplayState = true
+            suppressedSeedWorkflowToolStartIds = new Set()
 
             if (replayResult.sawStreamError) {
               return { error: true, aborted: false }
@@ -3475,11 +3723,12 @@ export function useChat(
             assistantId,
             expectedGen,
             {
-              preserveExistingState: true,
+              preserveExistingState: preserveNextReplayState,
               ...(targetChatId ? { targetChatId } : {}),
               ...(shouldContinue ? { shouldContinue } : {}),
             }
           )
+          preserveNextReplayState = true
 
           if (liveResult.sawStreamError) {
             return { error: true, aborted: false }
@@ -3509,6 +3758,7 @@ export function useChat(
           seedStreamBatchPreviewSessions(batch)
           seedEvents = batch.events
           streamStatus = batch.status
+          suppressedSeedWorkflowToolStartIds = getReplayCompletedWorkflowToolCallIds(seedEvents)
 
           if (batch.events.length > 0) {
             latestCursor = String(batch.events[batch.events.length - 1].eventId)
@@ -3538,6 +3788,7 @@ export function useChat(
       }
     },
     [
+      applyReconnectReplaySelection,
       fetchStreamBatch,
       seedStreamBatchPreviewSessions,
       setTransportIdle,
@@ -3559,7 +3810,12 @@ export function useChat(
     }): Promise<void> => {
       const { streamId, assistantId, gen, afterCursor, signal, targetChatId, shouldContinue } = opts
 
-      const batch = await fetchStreamBatch(streamId, afterCursor, signal)
+      if (streamGenRef.current !== gen || signal?.aborted || shouldContinue?.() === false) return
+
+      const replaySelection = applyReconnectReplaySelection(streamId, assistantId, afterCursor, {
+        ...(targetChatId ? { targetChatId } : {}),
+      })
+      const batch = await fetchStreamBatch(streamId, replaySelection.afterCursor, signal)
       if (streamGenRef.current !== gen || shouldContinue?.() === false) return
       seedStreamBatchPreviewSessions(batch)
 
@@ -3570,7 +3826,8 @@ export function useChat(
             assistantId,
             gen,
             {
-              preserveExistingState: true,
+              preserveExistingState: replaySelection.preserveExistingState,
+              suppressedWorkflowToolStartIds: getReplayCompletedWorkflowToolCallIds(batch.events),
               ...(targetChatId ? { targetChatId } : {}),
               ...(shouldContinue ? { shouldContinue } : {}),
             }
@@ -3594,7 +3851,7 @@ export function useChat(
         afterCursor:
           batch.events.length > 0
             ? String(batch.events[batch.events.length - 1].eventId)
-            : afterCursor,
+            : replaySelection.afterCursor,
       })
 
       if (
@@ -3615,7 +3872,13 @@ export function useChat(
         setTransportIdle()
       }
     },
-    [fetchStreamBatch, seedStreamBatchPreviewSessions, attachToExistingStream, setTransportIdle]
+    [
+      applyReconnectReplaySelection,
+      fetchStreamBatch,
+      seedStreamBatchPreviewSessions,
+      attachToExistingStream,
+      setTransportIdle,
+    ]
   )
 
   const retryReconnect = useCallback(
@@ -3782,6 +4045,8 @@ export function useChat(
         }
 
         const recoveryGen = observedGeneration + 1
+        const previousStreamId = streamIdRef.current ?? activeTurnRef.current?.userMessageId
+        const afterCursor = previousStreamId === streamId ? lastCursorRef.current || '0' : '0'
         streamGenRef.current = recoveryGen
         setTransportReconnecting()
         streamIdRef.current = streamId
@@ -3821,7 +4086,6 @@ export function useChat(
         if (locallyTerminalStreamIdRef.current === streamId) return
 
         const assistantId = getLiveAssistantMessageId(streamId)
-        const afterCursor = lastCursorRef.current || '0'
 
         try {
           await resumeOrFinalize({

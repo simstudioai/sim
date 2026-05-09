@@ -7,14 +7,26 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
+import { generateExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
+import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { generatePresignedUploadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
+import { insertFileMetadata } from '@/lib/uploads/server/metadata'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
-import { validateFileType } from '@/lib/uploads/utils/validation'
+import { validateAttachmentFileType, validateFileType } from '@/lib/uploads/utils/validation'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { createErrorResponse } from '@/app/api/files/utils'
 
 const logger = createLogger('PresignedUploadAPI')
 
-const VALID_UPLOAD_TYPES = ['knowledge-base', 'chat', 'copilot', 'profile-pictures'] as const
+const VALID_UPLOAD_TYPES = [
+  'knowledge-base',
+  'chat',
+  'copilot',
+  'profile-pictures',
+  'mothership',
+  'workspace-logos',
+  'execution',
+] as const
 
 class PresignedUrlError extends Error {
   constructor(
@@ -116,6 +128,131 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           error instanceof Error ? error.message : 'Copilot validation failed'
         )
       }
+    } else if (uploadType === 'mothership') {
+      const workspaceId = request.nextUrl.searchParams.get('workspaceId')
+      if (!workspaceId?.trim()) {
+        throw new ValidationError('workspaceId query parameter is required for mothership uploads')
+      }
+
+      const permission = await getUserEntityPermissions(sessionUserId, 'workspace', workspaceId)
+      if (permission !== 'write' && permission !== 'admin') {
+        return NextResponse.json(
+          { error: 'Write or Admin access required for mothership uploads' },
+          { status: 403 }
+        )
+      }
+
+      const fileValidationError = validateAttachmentFileType(fileName)
+      if (fileValidationError) {
+        throw new ValidationError(fileValidationError.message)
+      }
+
+      const customKey = generateWorkspaceFileKey(workspaceId, fileName)
+      presignedUrlResponse = await generatePresignedUploadUrl({
+        fileName,
+        contentType,
+        fileSize,
+        context: 'mothership',
+        userId: sessionUserId,
+        customKey,
+        expirationSeconds: 3600,
+        metadata: { workspaceId },
+      })
+
+      await insertFileMetadata({
+        key: presignedUrlResponse.key,
+        userId: sessionUserId,
+        workspaceId,
+        context: 'mothership',
+        originalName: fileName,
+        contentType,
+        size: fileSize,
+      })
+    } else if (uploadType === 'execution') {
+      const workflowId = request.nextUrl.searchParams.get('workflowId')
+      const executionId = request.nextUrl.searchParams.get('executionId')
+      const workspaceId = request.nextUrl.searchParams.get('workspaceId')
+      if (!workflowId?.trim() || !executionId?.trim() || !workspaceId?.trim()) {
+        throw new ValidationError(
+          'workflowId, executionId, and workspaceId query parameters are required for execution uploads'
+        )
+      }
+
+      const permission = await getUserEntityPermissions(sessionUserId, 'workspace', workspaceId)
+      if (permission !== 'write' && permission !== 'admin') {
+        return NextResponse.json(
+          { error: 'Write or Admin access required for execution uploads' },
+          { status: 403 }
+        )
+      }
+
+      const fileValidationError = validateAttachmentFileType(fileName)
+      if (fileValidationError) {
+        throw new ValidationError(fileValidationError.message)
+      }
+
+      const customKey = generateExecutionFileKey({ workspaceId, workflowId, executionId }, fileName)
+      presignedUrlResponse = await generatePresignedUploadUrl({
+        fileName,
+        contentType,
+        fileSize,
+        context: 'execution',
+        userId: sessionUserId,
+        customKey,
+        expirationSeconds: 3600,
+        metadata: { workspaceId, workflowId, executionId },
+      })
+
+      await insertFileMetadata({
+        key: presignedUrlResponse.key,
+        userId: sessionUserId,
+        workspaceId,
+        context: 'execution',
+        originalName: fileName,
+        contentType,
+        size: fileSize,
+      })
+    } else if (uploadType === 'workspace-logos') {
+      const workspaceId = request.nextUrl.searchParams.get('workspaceId')
+      if (!workspaceId?.trim()) {
+        throw new ValidationError(
+          'workspaceId query parameter is required for workspace-logos uploads'
+        )
+      }
+
+      const permission = await getUserEntityPermissions(sessionUserId, 'workspace', workspaceId)
+      if (permission !== 'admin') {
+        return NextResponse.json(
+          { error: 'Admin access required for workspace logo uploads' },
+          { status: 403 }
+        )
+      }
+
+      if (!isImageFileType(contentType)) {
+        throw new ValidationError(
+          'Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for workspace logo uploads'
+        )
+      }
+
+      presignedUrlResponse = await generatePresignedUploadUrl({
+        fileName,
+        contentType,
+        fileSize,
+        context: 'workspace-logos',
+        userId: sessionUserId,
+        expirationSeconds: 3600,
+        metadata: { workspaceId },
+      })
+
+      await insertFileMetadata({
+        key: presignedUrlResponse.key,
+        userId: sessionUserId,
+        workspaceId,
+        context: 'workspace-logos',
+        originalName: fileName,
+        contentType,
+        size: fileSize,
+      })
     } else {
       if (uploadType === 'profile-pictures') {
         if (!sessionUserId?.trim()) {

@@ -16,7 +16,7 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { Button, Loader, Tooltip } from '@/components/emcn'
+import { Button, FieldDivider, Loader, Tooltip } from '@/components/emcn'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   buildCanonicalIndex,
@@ -24,6 +24,7 @@ import {
   hasAdvancedValues,
   isCanonicalPair,
   resolveCanonicalMode,
+  shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -47,7 +48,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
-import type { SubBlockType } from '@/blocks/types'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap, useWorkflowState } from '@/hooks/queries/workflows'
@@ -85,15 +85,21 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
  * @returns Editor panel content
  */
 export function Editor() {
-  const { currentBlockId, connectionsHeight, toggleConnectionsCollapsed, registerRenameCallback } =
-    usePanelEditorStore(
-      useShallow((state) => ({
-        currentBlockId: state.currentBlockId,
-        connectionsHeight: state.connectionsHeight,
-        toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
-        registerRenameCallback: state.registerRenameCallback,
-      }))
-    )
+  const {
+    currentBlockId,
+    activeSearchTarget,
+    connectionsHeight,
+    toggleConnectionsCollapsed,
+    registerRenameCallback,
+  } = usePanelEditorStore(
+    useShallow((state) => ({
+      currentBlockId: state.currentBlockId,
+      activeSearchTarget: state.activeSearchTarget,
+      connectionsHeight: state.connectionsHeight,
+      toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
+      registerRenameCallback: state.registerRenameCallback,
+    }))
+  )
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
@@ -148,12 +154,7 @@ export function Editor() {
   const subBlocksForCanonical = useMemo(() => {
     const subBlocks = blockConfig?.subBlocks || []
     if (!triggerMode) return subBlocks
-    return subBlocks.filter(
-      (subBlock) =>
-        subBlock.mode === 'trigger' ||
-        subBlock.mode === 'trigger-advanced' ||
-        subBlock.type === ('trigger-config' as SubBlockType)
-    )
+    return subBlocks.filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
   }, [blockConfig?.subBlocks, triggerMode])
 
   const canonicalIndex = useMemo(
@@ -161,11 +162,23 @@ export function Editor() {
     [subBlocksForCanonical]
   )
   const canonicalModeOverrides = currentBlock?.data?.canonicalModes
+  const activeSearchTargetNeedsAdvanced = useMemo(() => {
+    if (!activeSearchTarget || activeSearchTarget.blockId !== currentBlockId) return false
+
+    return subBlocksForCanonical.some(
+      (subBlock) =>
+        subBlock.mode === 'advanced' &&
+        (activeSearchTarget.subBlockId === subBlock.id ||
+          activeSearchTarget.canonicalSubBlockId === (subBlock.canonicalParamId ?? subBlock.id))
+    )
+  }, [activeSearchTarget, currentBlockId, subBlocksForCanonical])
   const advancedValuesPresent = useMemo(
     () => hasAdvancedValues(subBlocksForCanonical, blockSubBlockValues, canonicalIndex),
     [subBlocksForCanonical, blockSubBlockValues, canonicalIndex]
   )
-  const displayAdvancedOptions = canEditBlock ? advancedMode : advancedMode || advancedValuesPresent
+  const displayAdvancedOptions = canEditBlock
+    ? advancedMode || activeSearchTargetNeedsAdvanced
+    : advancedMode || advancedValuesPresent || activeSearchTargetNeedsAdvanced
 
   const hasAdvancedOnlyFields = useMemo(() => {
     for (const subBlock of subBlocksForCanonical) {
@@ -237,6 +250,22 @@ export function Editor() {
   const [isRenaming, setIsRenaming] = useState(false)
   const [editedName, setEditedName] = useState('')
   const renamingBlockIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!activeSearchTarget || activeSearchTarget.blockId !== currentBlockId) return
+    const container = subBlocksRef.current
+    if (!container) return
+
+    const directTarget = container.querySelector<HTMLElement>(
+      `[data-workflow-search-subblock-id="${activeSearchTarget.subBlockId}"]`
+    )
+    const target =
+      directTarget ??
+      container.querySelector<HTMLElement>(
+        `[data-workflow-search-canonical-id="${activeSearchTarget.canonicalSubBlockId}"]`
+      )
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [activeSearchTarget, currentBlockId, subBlocks])
 
   /**
    * Ref callback that auto-selects the input text when mounted.
@@ -484,6 +513,7 @@ export function Editor() {
           toggleConnectionsCollapsed={toggleConnectionsCollapsed}
           userCanEdit={canEditBlock}
           isConnectionsAtMinHeight={isConnectionsAtMinHeight}
+          activeSearchTarget={activeSearchTarget}
         />
       ) : (
         <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
@@ -542,9 +572,7 @@ export function Editor() {
                       )}
                     </div>
                   </div>
-                  <div className='subblock-divider px-0.5 pt-4 pb-[13px]'>
-                    <div className='h-[1.25px]' style={DASHED_DIVIDER_STYLE} />
-                  </div>
+                  <FieldDivider subblockMarker />
                 </>
               )}
               {subBlocks.length === 0 && !isWorkflowBlock ? (
@@ -586,6 +614,13 @@ export function Editor() {
                           subBlockValues={subBlockState}
                           disabled={!canEditBlock}
                           allowExpandInPreview={false}
+                          isSearchHighlighted={
+                            activeSearchTarget?.blockId === currentBlockId &&
+                            (activeSearchTarget.subBlockId === subBlock.id ||
+                              activeSearchTarget.canonicalSubBlockId ===
+                                (subBlock.canonicalParamId ?? subBlock.id))
+                          }
+                          activeSearchTarget={activeSearchTarget}
                           canonicalToggle={
                             isCanonicalSwap && canonicalMode && canonicalId
                               ? {
@@ -605,11 +640,7 @@ export function Editor() {
                               : undefined
                           }
                         />
-                        {showDivider && (
-                          <div className='subblock-divider px-0.5 pt-4 pb-[13px]'>
-                            <div className='h-[1.25px]' style={DASHED_DIVIDER_STYLE} />
-                          </div>
-                        )}
+                        {showDivider && <FieldDivider subblockMarker />}
                       </div>
                     )
                   })}
@@ -658,11 +689,16 @@ export function Editor() {
                           subBlockValues={subBlockState}
                           disabled={!canEditBlock}
                           allowExpandInPreview={false}
+                          isSearchHighlighted={
+                            activeSearchTarget?.blockId === currentBlockId &&
+                            (activeSearchTarget.subBlockId === subBlock.id ||
+                              activeSearchTarget.canonicalSubBlockId ===
+                                (subBlock.canonicalParamId ?? subBlock.id))
+                          }
+                          activeSearchTarget={activeSearchTarget}
                         />
                         {index < advancedOnlySubBlocks.length - 1 && (
-                          <div className='subblock-divider px-0.5 pt-4 pb-[13px]'>
-                            <div className='h-[1.25px]' style={DASHED_DIVIDER_STYLE} />
-                          </div>
+                          <FieldDivider subblockMarker />
                         )}
                       </div>
                     )

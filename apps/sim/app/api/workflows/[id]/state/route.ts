@@ -7,7 +7,7 @@ import {
   authorizeWorkflowByWorkspacePermission,
   WorkflowLockedError,
 } from '@sim/workflow-authz'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { putWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
@@ -52,8 +52,20 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const normalized = await loadWorkflowFromNormalizedTables(workflowId)
-      if (!normalized) {
+      const snapshot = await db.transaction(async (tx) => {
+        await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
+        const [normalized, [workflowRecord]] = await Promise.all([
+          loadWorkflowFromNormalizedTables(workflowId, tx),
+          tx
+            .select({ variables: workflow.variables })
+            .from(workflow)
+            .where(eq(workflow.id, workflowId))
+            .limit(1),
+        ])
+        return { normalized, variables: workflowRecord?.variables }
+      })
+
+      if (!snapshot.normalized) {
         return NextResponse.json({ error: 'Workflow state not found' }, { status: 404 })
       }
 
@@ -62,7 +74,7 @@ export const GET = withRouteHandler(
       // requiring clients to thread the path param through. The read
       // contract requires this server-stamped field.
       const persistedVariables =
-        (authorization.workflow?.variables as Record<string, Record<string, unknown>>) || {}
+        (snapshot.variables as Record<string, Record<string, unknown>>) || {}
       const variables: Record<string, Record<string, unknown>> = {}
       for (const [variableId, variable] of Object.entries(persistedVariables)) {
         if (variable && typeof variable === 'object') {
@@ -71,10 +83,10 @@ export const GET = withRouteHandler(
       }
 
       return NextResponse.json({
-        blocks: normalized.blocks,
-        edges: normalized.edges,
-        loops: normalized.loops || {},
-        parallels: normalized.parallels || {},
+        blocks: snapshot.normalized.blocks,
+        edges: snapshot.normalized.edges,
+        loops: snapshot.normalized.loops || {},
+        parallels: snapshot.normalized.parallels || {},
         variables,
       })
     } catch (error) {
@@ -185,10 +197,41 @@ export const PUT = withRouteHandler(
         deployedAt: state.deployedAt,
       }
 
-      const saveResult = await saveWorkflowToNormalizedTables(
-        workflowId,
-        workflowState as WorkflowState
-      )
+      const saveResult = await db.transaction(async (tx) => {
+        await tx
+          .select({ id: workflow.id })
+          .from(workflow)
+          .where(eq(workflow.id, workflowId))
+          .limit(1)
+          .for('update')
+
+        const result = await saveWorkflowToNormalizedTables(
+          workflowId,
+          workflowState as WorkflowState,
+          tx
+        )
+
+        if (!result.success) return result
+
+        // Update workflow's lastSynced timestamp and variables if provided
+        const updateData: {
+          lastSynced: Date
+          updatedAt: Date
+          variables?: typeof state.variables
+        } = {
+          lastSynced: new Date(),
+          updatedAt: new Date(),
+        }
+
+        // If variables are provided in the state, update them in the workflow record
+        if (state.variables !== undefined) {
+          updateData.variables = state.variables
+        }
+
+        await tx.update(workflow).set(updateData).where(eq(workflow.id, workflowId))
+
+        return result
+      })
 
       if (!saveResult.success) {
         logger.error(
@@ -234,19 +277,6 @@ export const PUT = withRouteHandler(
       } catch (error) {
         logger.error(`[${requestId}] Failed to persist custom tools`, { error, workflowId })
       }
-
-      // Update workflow's lastSynced timestamp and variables if provided
-      const updateData: any = {
-        lastSynced: new Date(),
-        updatedAt: new Date(),
-      }
-
-      // If variables are provided in the state, update them in the workflow record
-      if (state.variables !== undefined) {
-        updateData.variables = state.variables
-      }
-
-      await db.update(workflow).set(updateData).where(eq(workflow.id, workflowId))
 
       const elapsed = Date.now() - startTime
       logger.info(`[${requestId}] Successfully saved workflow ${workflowId} state in ${elapsed}ms`)

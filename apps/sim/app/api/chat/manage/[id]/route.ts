@@ -11,12 +11,12 @@ import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { notifySocketDeploymentChanged, performChatUndeploy } from '@/lib/workflows/orchestration'
-import { deployWorkflow } from '@/lib/workflows/persistence/utils'
+import { performChatUndeploy, performFullDeploy } from '@/lib/workflows/orchestration'
 import { checkChatAccess } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 120
 
 const logger = createLogger('ChatDetailAPI')
 
@@ -126,23 +126,6 @@ export const PATCH = withRouteHandler(
         }
       }
 
-      // Redeploy the workflow to ensure latest version is active
-      const deployResult = await deployWorkflow({
-        workflowId: existingChat[0].workflowId,
-        deployedBy: session.user.id,
-      })
-
-      if (!deployResult.success) {
-        logger.warn(
-          `Failed to redeploy workflow for chat update: ${deployResult.error}, continuing with chat update`
-        )
-      } else {
-        logger.info(
-          `Redeployed workflow ${existingChat[0].workflowId} for chat update (v${deployResult.version})`
-        )
-        await notifySocketDeploymentChanged(existingChat[0].workflowId)
-      }
-
       let encryptedPassword
 
       if (password) {
@@ -155,6 +138,27 @@ export const PATCH = withRouteHandler(
         }
         logger.info('Keeping existing password')
       }
+
+      // Redeploy the workflow to ensure latest version is active
+      const deployResult = await performFullDeploy({
+        workflowId: existingChat[0].workflowId,
+        userId: session.user.id,
+        request,
+      })
+
+      if (!deployResult.success) {
+        logger.warn(`Failed to redeploy workflow for chat update: ${deployResult.error}`)
+        const status =
+          deployResult.errorCode === 'validation'
+            ? 400
+            : deployResult.errorCode === 'not_found'
+              ? 404
+              : 500
+        return createErrorResponse(deployResult.error || 'Failed to redeploy workflow', status)
+      }
+      logger.info(
+        `Redeployed workflow ${existingChat[0].workflowId} for chat update (v${deployResult.version})`
+      )
 
       const updateData: Record<string, unknown> = {
         updatedAt: new Date(),

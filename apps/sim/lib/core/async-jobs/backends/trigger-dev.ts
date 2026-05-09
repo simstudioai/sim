@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { runs, tasks } from '@trigger.dev/sdk'
+import { runs, type TriggerOptions, tasks } from '@trigger.dev/sdk'
 import {
   type EnqueueOptions,
   JOB_STATUS,
@@ -73,13 +73,34 @@ export class TriggerDevJobQueue implements JobQueueBackend {
         : payload
 
     const tags = buildTags(options)
-    const triggerOptions: Parameters<typeof tasks.trigger>[2] = {}
+    const triggerOptions: TriggerOptions = {}
     if (tags.length > 0) triggerOptions.tags = tags
     if (options?.concurrencyKey) triggerOptions.concurrencyKey = options.concurrencyKey
+    if (options?.jobId) {
+      triggerOptions.idempotencyKey = options.jobId
+      triggerOptions.idempotencyKeyTTL = '14d'
+    }
     const handle = await tasks.trigger(taskId, enrichedPayload, triggerOptions)
 
     logger.debug('Enqueued job via trigger.dev', { jobId: handle.id, type, taskId, tags })
     return handle.id
+  }
+
+  async batchEnqueue<TPayload>(
+    type: JobType,
+    items: Array<{ payload: TPayload; options?: EnqueueOptions }>
+  ): Promise<string[]> {
+    if (items.length === 0) return []
+    // tasks.batchTrigger returns only a batchId, not per-item run IDs, so we
+    // can't use it when callers need to track individual runs (e.g. table cell
+    // tasks need per-row jobIds for cancellation). Sequential `tasks.trigger`
+    // gives us per-item IDs and naturally preserves input order in the queue.
+    const ids: string[] = []
+    for (const { payload, options } of items) {
+      const id = await this.enqueue(type, payload, options)
+      ids.push(id)
+    }
+    return ids
   }
 
   async getJob(jobId: string): Promise<Job | null> {

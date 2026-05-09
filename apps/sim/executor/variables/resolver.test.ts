@@ -66,7 +66,7 @@ describe('VariableResolver function block inputs', () => {
 
     const result = resolver.resolveInputsForFunctionBlock(ctx, 'function', undefined, block)
 
-    expect(result).toEqual({ resolvedInputs: {}, contextVariables: {} })
+    expect(result).toEqual({ resolvedInputs: {}, displayInputs: {}, contextVariables: {} })
   })
 
   it('resolves JavaScript block references through globalThis context variables', () => {
@@ -80,6 +80,7 @@ describe('VariableResolver function block inputs', () => {
     )
 
     expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
+    expect(result.displayInputs.code).toBe('return "hello world"')
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
@@ -94,6 +95,168 @@ describe('VariableResolver function block inputs', () => {
     )
 
     expect(result.resolvedInputs.code).toBe('return globals()["__blockRef_0"]')
+    expect(result.displayInputs.code).toBe('return "hello world"')
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
+  it('breaks JavaScript string literals around quoted block references', () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: "const rawEmail = '<Producer.result>';\nreturn rawEmail" },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      "const rawEmail = '' + JSON.stringify(globalThis[\"__blockRef_0\"]) + '';\nreturn rawEmail"
+    )
+    expect(result.displayInputs.code).toBe('const rawEmail = \'"hello world"\';\nreturn rawEmail')
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
+  it('uses template interpolation for JavaScript template literal block references', () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'return `value: <Producer.result>`' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional — asserting template literal is preserved
+      'return `value: ${JSON.stringify(globalThis["__blockRef_0"])}`'
+    )
+    expect(result.displayInputs.code).toBe('return `value: "hello world"`')
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
+  it('keeps JavaScript block references inside template expressions executable', () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional — asserting template literal is preserved
+      { code: 'return `${String(<Producer.result>)}`' },
+      block
+    )
+
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional — asserting template literal is preserved
+    expect(result.resolvedInputs.code).toBe('return `${String(globalThis["__blockRef_0"])}`')
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional — asserting template literal is preserved
+    expect(result.displayInputs.code).toBe('return `${String("hello world")}`')
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
+  it('ignores JavaScript comment quotes before later block references', () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: "// don't confuse quote tracking\nreturn <Producer.result>" },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      '// don\'t confuse quote tracking\nreturn globalThis["__blockRef_0"]'
+    )
+    expect(result.displayInputs.code).toBe('// don\'t confuse quote tracking\nreturn "hello world"')
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
+  it('breaks Python string literals around quoted block references', () => {
+    const { block, ctx, resolver } = createResolver('python')
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: "raw_email = '<Producer.result>'\nreturn raw_email" },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      "raw_email = '' + json.dumps(globals()[\"__blockRef_0\"]) + ''\nreturn raw_email"
+    )
+    expect(result.displayInputs.code).toBe('raw_email = \'"hello world"\'\nreturn raw_email')
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
+  it('breaks Python triple-double-quoted strings around block references', () => {
+    const { block, ctx, resolver } = createResolver('python')
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'prompt = """\nSummary: <Producer.result>\n"""\nreturn prompt' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      'prompt = """\nSummary: """ + json.dumps(globals()["__blockRef_0"]) + """\n"""\nreturn prompt'
+    )
+    expect(result.displayInputs.code).toBe(
+      'prompt = """\nSummary: "hello world"\n"""\nreturn prompt'
+    )
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
+  it('ignores escaped triple-double quotes before later Python block references', () => {
+    const { block, ctx, resolver } = createResolver('python')
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'prompt = """Escaped delimiter: \\"\\"\\"\nSummary: <Producer.result>\n"""' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      'prompt = """Escaped delimiter: \\"\\"\\"\nSummary: """ + json.dumps(globals()["__blockRef_0"]) + """\n"""'
+    )
+    expect(result.displayInputs.code).toBe(
+      'prompt = """Escaped delimiter: \\"\\"\\"\nSummary: "hello world"\n"""'
+    )
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
+  it('breaks Python triple-single-quoted strings around block references', () => {
+    const { block, ctx, resolver } = createResolver('python')
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: "prompt = '''\nSummary: <Producer.result>\n'''\nreturn prompt" },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      "prompt = '''\nSummary: ''' + json.dumps(globals()[\"__blockRef_0\"]) + '''\n'''\nreturn prompt"
+    )
+    expect(result.displayInputs.code).toBe(
+      "prompt = '''\nSummary: \"hello world\"\n'''\nreturn prompt"
+    )
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
+  it('ignores Python comment quotes before later block references', () => {
+    const { block, ctx, resolver } = createResolver('python')
+
+    const result = resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: "# don't confuse quote tracking\nreturn <Producer.result>" },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      '# don\'t confuse quote tracking\nreturn globals()["__blockRef_0"]'
+    )
+    expect(result.displayInputs.code).toBe('# don\'t confuse quote tracking\nreturn "hello world"')
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
@@ -109,6 +272,9 @@ describe('VariableResolver function block inputs', () => {
 
     expect(result.resolvedInputs.code).toBe(
       'a = globals()["__blockRef_0"]\nb = globals()["__blockRef_1"]\nreturn b'
+    )
+    expect(result.displayInputs.code).toBe(
+      'a = json.loads("[\\"a\\",\\"b\\"]")\nb = json.loads("[\\"a\\",\\"b\\"]")\nreturn b'
     )
     expect(result.contextVariables).toEqual({
       __blockRef_0: ['a', 'b'],
@@ -129,6 +295,7 @@ describe('VariableResolver function block inputs', () => {
     expect(result.resolvedInputs.code).toBe(
       `echo "\${__blockRef_0}"suffix && echo "\${__blockRef_1}"`
     )
+    expect(result.displayInputs.code).toBe('echo "hello world"suffix && echo "hello world"')
     expect(result.contextVariables).toEqual({
       __blockRef_0: 'hello world',
       __blockRef_1: 'hello world',
@@ -148,6 +315,7 @@ describe('VariableResolver function block inputs', () => {
     expect(result.resolvedInputs.code).toBe(
       `# don't confuse quote tracking\necho "\${__blockRef_0}"`
     )
+    expect(result.displayInputs.code).toBe('# don\'t confuse quote tracking\necho "hello world"')
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 })

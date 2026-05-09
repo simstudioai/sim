@@ -24,6 +24,7 @@ const logger = createLogger('WorkflowDeployAPI')
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+export const maxDuration = 120
 
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -240,6 +241,7 @@ export const DELETE = withRouteHandler(
         isDeployed: false,
         deployedAt: null,
         apiKey: null,
+        warnings: result.warnings,
       })
     } catch (error: unknown) {
       if (error instanceof WorkflowLockedError) {

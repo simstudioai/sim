@@ -206,6 +206,7 @@ interface UploadFileParams {
   onProgress?: (event: UploadProgressEvent) => void
   signal?: AbortSignal
   skipToast?: boolean
+  skipInvalidation?: boolean
 }
 
 interface UploadFileResponse {
@@ -320,7 +321,8 @@ export function useUploadWorkspaceFile() {
   return useMutation({
     mutationFn: ({ workspaceId, file, onProgress, signal }: UploadFileParams) =>
       uploadWorkspaceFile(workspaceId, file, onProgress, signal),
-    onSettled: () => {
+    onSettled: (_data, _error, variables) => {
+      if (variables.skipInvalidation) return
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
@@ -331,9 +333,11 @@ export function useUploadWorkspaceFile() {
     },
     onError: (error, variables) => {
       logger.error('Failed to upload file:', error)
-      toast.error(`Failed to upload "${variables.file.name}": ${error.message}`, {
-        duration: 5000,
-      })
+      if (!variables.skipToast) {
+        toast.error(`Failed to upload "${variables.file.name}": ${error.message}`, {
+          duration: 5000,
+        })
+      }
     },
   })
 }

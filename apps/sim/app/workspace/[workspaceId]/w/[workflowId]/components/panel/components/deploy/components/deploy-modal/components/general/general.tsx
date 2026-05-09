@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -17,8 +17,10 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { Versions } from './components'
 
@@ -30,8 +32,11 @@ interface GeneralDeployProps {
   isLoadingDeployedState: boolean
   versions: WorkflowDeploymentVersionResponse[]
   versionsLoading: boolean
+  isPromotingVersion: boolean
+  deployReadiness: DeployReadiness
   onPromoteToLive: (version: number) => Promise<void>
   onLoadDeploymentComplete: () => void
+  onLoadDeploymentBlocked: (message: string) => void
 }
 
 type PreviewMode = 'active' | 'selected'
@@ -45,8 +50,11 @@ export function GeneralDeploy({
   isLoadingDeployedState,
   versions,
   versionsLoading,
+  isPromotingVersion,
+  deployReadiness,
   onPromoteToLive,
   onLoadDeploymentComplete,
+  onLoadDeploymentBlocked,
 }: GeneralDeployProps) {
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [showActiveDespiteSelection, setShowActiveDespiteSelection] = useState(false)
@@ -56,12 +64,18 @@ export function GeneralDeploy({
   const [showLoadDialog, setShowLoadDialog] = useState(false)
   const [showPromoteDialog, setShowPromoteDialog] = useState(false)
   const [showExpandedPreview, setShowExpandedPreview] = useState(false)
-  const [versionToLoad, setVersionToLoad] = useState<number | null>(null)
-  const [versionToPromote, setVersionToPromote] = useState<number | null>(null)
+  const [versionToLoad, setVersionToLoad] = useState<{
+    workflowId: string
+    version: number
+  } | null>(null)
+  const [versionToPromote, setVersionToPromote] = useState<{
+    workflowId: string
+    version: number
+  } | null>(null)
 
   const selectedVersionInfo = versions.find((v) => v.version === selectedVersion)
-  const versionToPromoteInfo = versions.find((v) => v.version === versionToPromote)
-  const versionToLoadInfo = versions.find((v) => v.version === versionToLoad)
+  const versionToPromoteInfo = versions.find((v) => v.version === versionToPromote?.version)
+  const versionToLoadInfo = versions.find((v) => v.version === versionToLoad?.version)
 
   const { data: selectedVersionState } = useDeploymentVersionState(workflowId, selectedVersion)
 
@@ -72,40 +86,82 @@ export function GeneralDeploy({
     setShowActiveDespiteSelection(false)
   }, [])
 
-  const handleLoadDeployment = useCallback((version: number) => {
-    setVersionToLoad(version)
-    setShowLoadDialog(true)
-  }, [])
+  const handleLoadDeployment = useCallback(
+    (version: number) => {
+      if (!workflowId) return
+      setVersionToLoad({ workflowId, version })
+      setShowLoadDialog(true)
+    },
+    [workflowId]
+  )
 
-  const handlePromoteToLive = useCallback((version: number) => {
-    setVersionToPromote(version)
-    setShowPromoteDialog(true)
-  }, [])
+  const handlePromoteToLive = useCallback(
+    (version: number) => {
+      if (!workflowId) return
+      setVersionToPromote({ workflowId, version })
+      setShowPromoteDialog(true)
+    },
+    [workflowId]
+  )
 
   const confirmLoadDeployment = async () => {
-    if (!workflowId || versionToLoad === null) return
+    if (!versionToLoad) return
+    const target = versionToLoad
+    if (!(await deployReadiness.waitUntilReady())) {
+      if (
+        workflowId !== target.workflowId ||
+        useWorkflowRegistry.getState().activeWorkflowId !== target.workflowId
+      ) {
+        setShowLoadDialog(false)
+        setVersionToLoad(null)
+        return
+      }
+      onLoadDeploymentBlocked(deployReadiness.tooltip)
+      return
+    }
+    if (
+      workflowId !== target.workflowId ||
+      useWorkflowRegistry.getState().activeWorkflowId !== target.workflowId
+    ) {
+      setShowLoadDialog(false)
+      setVersionToLoad(null)
+      return
+    }
 
     setShowLoadDialog(false)
-    const version = versionToLoad
     setVersionToLoad(null)
 
     try {
-      await revertMutation.mutateAsync({ workflowId, version })
+      await revertMutation.mutateAsync({ workflowId: target.workflowId, version: target.version })
       onLoadDeploymentComplete()
     } catch (error) {
       logger.error('Failed to load deployment:', error)
     }
   }
 
+  useEffect(() => {
+    setShowLoadDialog(false)
+    setVersionToLoad(null)
+    setShowPromoteDialog(false)
+    setVersionToPromote(null)
+  }, [workflowId])
+
   const confirmPromoteToLive = async () => {
-    if (versionToPromote === null) return
+    if (!versionToPromote || isPromotingVersion) return
+    const target = versionToPromote
 
     setShowPromoteDialog(false)
-    const version = versionToPromote
     setVersionToPromote(null)
 
+    if (
+      workflowId !== target.workflowId ||
+      useWorkflowRegistry.getState().activeWorkflowId !== target.workflowId
+    ) {
+      return
+    }
+
     try {
-      await onPromoteToLive(version)
+      await onPromoteToLive(target.version)
     } catch (error) {
       logger.error('Failed to promote version:', error)
     }
@@ -221,6 +277,7 @@ export function GeneralDeploy({
             workflowId={workflowId}
             versions={versions}
             versionsLoading={versionsLoading}
+            isPromotingVersion={isPromotingVersion}
             selectedVersion={selectedVersion}
             onSelectVersion={handleSelectVersion}
             onPromoteToLive={handlePromoteToLive}
@@ -236,7 +293,7 @@ export function GeneralDeploy({
             <p className='text-[var(--text-secondary)]'>
               Are you sure you want to load{' '}
               <span className='font-medium text-[var(--text-primary)]'>
-                {versionToLoadInfo?.name || `v${versionToLoad}`}
+                {versionToLoadInfo?.name || `v${versionToLoad?.version}`}
               </span>
               ?{' '}
               <span className='text-[var(--text-error)]'>
@@ -262,7 +319,7 @@ export function GeneralDeploy({
             <p className='text-[var(--text-secondary)]'>
               Are you sure you want to promote{' '}
               <span className='font-medium text-[var(--text-primary)]'>
-                {versionToPromoteInfo?.name || `v${versionToPromote}`}
+                {versionToPromoteInfo?.name || `v${versionToPromote?.version}`}
               </span>{' '}
               to live?{' '}
               <span className='text-[var(--text-primary)]'>
@@ -274,7 +331,7 @@ export function GeneralDeploy({
             <Button variant='default' onClick={() => setShowPromoteDialog(false)}>
               Cancel
             </Button>
-            <Button variant='tertiary' onClick={confirmPromoteToLive}>
+            <Button variant='tertiary' onClick={confirmPromoteToLive} disabled={isPromotingVersion}>
               Promote to live
             </Button>
           </ModalFooter>

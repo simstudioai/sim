@@ -150,52 +150,6 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       return
     }
 
-    // Handle table row write notifications from the Sim API
-    if (req.method === 'POST' && req.url === '/api/table-row-updated') {
-      try {
-        const body = await readRequestBody(req)
-        const { tableId, rowId, data, executions, position, updatedAt } = JSON.parse(body)
-        await roomManager.handleTableRowUpdated(tableId, {
-          rowId,
-          data,
-          executions,
-          position,
-          updatedAt,
-        })
-        sendSuccess(res)
-      } catch (error) {
-        logger.error('Error handling table row update notification:', error)
-        sendError(res, 'Failed to process table row update')
-      }
-      return
-    }
-
-    if (req.method === 'POST' && req.url === '/api/table-row-deleted') {
-      try {
-        const body = await readRequestBody(req)
-        const { tableId, rowId } = JSON.parse(body)
-        await roomManager.handleTableRowDeleted(tableId, rowId)
-        sendSuccess(res)
-      } catch (error) {
-        logger.error('Error handling table row deletion notification:', error)
-        sendError(res, 'Failed to process table row deletion')
-      }
-      return
-    }
-
-    if (req.method === 'POST' && req.url === '/api/table-deleted') {
-      try {
-        const body = await readRequestBody(req)
-        const { tableId } = JSON.parse(body)
-        await roomManager.handleTableDeleted(tableId)
-        sendSuccess(res)
-      } catch (error) {
-        logger.error('Error handling table deletion notification:', error)
-        sendError(res, 'Failed to process table deletion')
-      }
-      return
-    }
-
     res.writeHead(404, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: 'Not found' }))
   }

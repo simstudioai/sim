@@ -90,6 +90,7 @@ export interface SelectorContext {
   awsSecretAccessKey?: string
   awsRegion?: string
   logGroupName?: string
+  mcpServerId?: string
 }
 
 export interface SelectorQueryArgs {

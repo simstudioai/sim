@@ -23,6 +23,12 @@ export const apolloPeopleSearchTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Job titles to search for (e.g., ["CEO", "VP of Sales"])',
     },
+    include_similar_titles: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to return people with job titles similar to person_titles',
+    },
     person_locations: {
       type: 'array',
       required: false,
@@ -33,13 +39,48 @@ export const apolloPeopleSearchTool: ToolConfig<
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Seniority levels (e.g., ["senior", "executive", "manager"])',
+      description:
+        'Seniority levels (one of: owner, founder, c_suite, partner, vp, head, director, manager, senior, entry, intern)',
+    },
+    organization_ids: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Apollo organization IDs to filter by (e.g., ["5e66b6381e05b4008c8331b8"])',
     },
     organization_names: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Company names to search within',
+      description: 'Company names to search within (legacy filter)',
+    },
+    organization_locations: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "Headquarters locations of the people's current employer (e.g., ['texas', 'tokyo', 'spain'])",
+    },
+    q_organization_domains_list: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Employer domain names (e.g., ["apollo.io", "microsoft.com"]) — up to 1,000, no www. or @',
+    },
+    organization_num_employees_ranges: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Employee count ranges for the person\'s current employer. Each entry is "min,max" (e.g., ["1,10", "250,500", "10000,20000"])',
+    },
+    contact_email_status: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Email statuses to filter by: "verified", "unverified", "likely to engage", "unavailable"',
     },
     q_keywords: {
       type: 'string',
@@ -70,7 +111,7 @@ export const apolloPeopleSearchTool: ToolConfig<
       'X-Api-Key': params.apiKey,
     }),
     body: (params: ApolloPeopleSearchParams) => {
-      const body: any = {
+      const body: Record<string, unknown> = {
         page: params.page || 1,
         per_page: Math.min(params.per_page || 25, 100),
       }
@@ -78,14 +119,35 @@ export const apolloPeopleSearchTool: ToolConfig<
       if (params.person_titles && params.person_titles.length > 0) {
         body.person_titles = params.person_titles
       }
+      if (params.include_similar_titles !== undefined) {
+        body.include_similar_titles = params.include_similar_titles
+      }
       if (params.person_locations && params.person_locations.length > 0) {
         body.person_locations = params.person_locations
       }
       if (params.person_seniorities && params.person_seniorities.length > 0) {
         body.person_seniorities = params.person_seniorities
       }
+      if (params.organization_ids && params.organization_ids.length > 0) {
+        body.organization_ids = params.organization_ids
+      }
       if (params.organization_names && params.organization_names.length > 0) {
         body.organization_names = params.organization_names
+      }
+      if (params.organization_locations && params.organization_locations.length > 0) {
+        body.organization_locations = params.organization_locations
+      }
+      if (params.q_organization_domains_list && params.q_organization_domains_list.length > 0) {
+        body.q_organization_domains_list = params.q_organization_domains_list
+      }
+      if (
+        params.organization_num_employees_ranges &&
+        params.organization_num_employees_ranges.length > 0
+      ) {
+        body.organization_num_employees_ranges = params.organization_num_employees_ranges
+      }
+      if (params.contact_email_status && params.contact_email_status.length > 0) {
+        body.contact_email_status = params.contact_email_status
       }
       if (params.q_keywords) {
         body.q_keywords = params.q_keywords

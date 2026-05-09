@@ -54,6 +54,15 @@ export async function validateWorkflowAccess(
         }
       }
 
+      if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflow.workspaceId) {
+        return {
+          error: {
+            message: 'API key is not authorized for this workspace',
+            status: 403,
+          },
+        }
+      }
+
       const authorization = await authorizeWorkflowByWorkspacePermission({
         workflowId,
         userId: auth.userId,

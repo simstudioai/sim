@@ -36,6 +36,7 @@ export function inferDocumentFileInfo(documentName: string): {
 export interface KnowledgeSearchResult {
   documentId: string
   documentName: string
+  sourceUrl: string | null
   content: string
   chunkIndex: number
   metadata: Record<string, any>

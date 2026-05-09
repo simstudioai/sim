@@ -4,7 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTaskCreateResponse> = {
   id: 'apollo_task_create',
   name: 'Apollo Create Task',
-  description: 'Create a new task in Apollo',
+  description: 'Create one or more tasks in Apollo (one task per contact_id, master key required)',
   version: '1.0.0',
 
   params: {
@@ -14,41 +14,48 @@ export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTask
       visibility: 'hidden',
       description: 'Apollo API key (master key required)',
     },
-    note: {
+    user_id: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Task note/description',
+      description: 'ID of the Apollo user the task is assigned to',
     },
-    contact_id: {
-      type: 'string',
-      required: false,
+    contact_ids: {
+      type: 'array',
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Contact ID to associate with (e.g., "con_abc123")',
-    },
-    account_id: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Account ID to associate with (e.g., "acc_abc123")',
-    },
-    due_at: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Due date in ISO format',
+      description: 'Array of contact IDs. One task is created per contact.',
     },
     priority: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Task priority',
+      visibility: 'user-or-llm',
+      description: 'Task priority: "high", "medium", or "low" (defaults to "medium")',
+    },
+    due_at: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Due date/time in ISO 8601 format (e.g., "2024-12-31T23:59:59Z")',
     },
     type: {
       type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'Task type: "call", "outreach_manual_email", "linkedin_step_connect", "linkedin_step_message", "linkedin_step_view_profile", "linkedin_step_interact_post", or "action_item"',
+    },
+    status: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Task status: "scheduled", "completed", or "skipped"',
+    },
+    note: {
+      type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'Task type',
+      visibility: 'user-or-llm',
+      description: 'Free-form note providing context for the task',
     },
   },
 
@@ -61,12 +68,15 @@ export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTask
       'X-Api-Key': params.apiKey,
     }),
     body: (params: ApolloTaskCreateParams) => {
-      const body: any = { note: params.note }
-      if (params.contact_id) body.contact_id = params.contact_id
-      if (params.account_id) body.account_id = params.account_id
-      if (params.due_at) body.due_at = params.due_at
-      if (params.priority) body.priority = params.priority
-      if (params.type) body.type = params.type
+      const body: Record<string, unknown> = {
+        user_id: params.user_id,
+        contact_ids: params.contact_ids,
+        priority: params.priority || 'medium',
+        due_at: params.due_at,
+        type: params.type,
+        status: params.status,
+      }
+      if (params.note) body.note = params.note
       return body
     },
   },
@@ -77,21 +87,20 @@ export const apolloTaskCreateTool: ToolConfig<ApolloTaskCreateParams, ApolloTask
       throw new Error(`Apollo API error: ${response.status} - ${errorText}`)
     }
 
-    const data = await response.json()
+    const data = await response.json().catch(() => null)
+    const tasks = Array.isArray(data?.tasks) ? data.tasks : []
 
-    // Apollo's task creation endpoint currently only returns true, not the task object
-    // Return the request params as the task data since the API doesn't return it
     return {
       success: true,
       output: {
-        task: data.task ?? null,
-        created: data === true || !!data.task,
+        tasks,
+        created: true,
       },
     }
   },
 
   outputs: {
-    task: { type: 'json', description: 'Created task data from Apollo', optional: true },
-    created: { type: 'boolean', description: 'Whether the task was successfully created' },
+    tasks: { type: 'json', description: 'Array of created tasks (when returned by Apollo)' },
+    created: { type: 'boolean', description: 'Whether the request succeeded' },
   },
 }

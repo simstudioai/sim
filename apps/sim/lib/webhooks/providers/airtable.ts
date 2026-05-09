@@ -572,6 +572,7 @@ export const airtableHandler: WebhookProviderHandler = {
     webhook: webhookRecord,
     workflow,
     requestId,
+    strict,
   }: DeleteSubscriptionContext): Promise<void> {
     try {
       const config = getProviderConfig(webhookRecord)
@@ -584,6 +585,7 @@ export const airtableHandler: WebhookProviderHandler = {
         logger.warn(`[${requestId}] Missing baseId for Airtable webhook deletion`, {
           webhookId: webhookRecord.id,
         })
+        if (strict) throw new Error('Missing Airtable baseId for webhook deletion')
         return
       }
 
@@ -593,6 +595,7 @@ export const airtableHandler: WebhookProviderHandler = {
           webhookId: webhookRecord.id,
           baseId: baseId.substring(0, 20),
         })
+        if (strict) throw new Error('Invalid Airtable baseId for webhook deletion')
         return
       }
 
@@ -601,6 +604,7 @@ export const airtableHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Missing credentialId for Airtable webhook deletion ${webhookRecord.id}`
         )
+        if (strict) throw new Error('Missing Airtable credentialId for webhook deletion')
         return
       }
 
@@ -613,14 +617,22 @@ export const airtableHandler: WebhookProviderHandler = {
           )
         : null
       if (!accessToken) {
-        logger.warn(
-          `[${requestId}] Could not retrieve Airtable access token. Cannot delete webhook in Airtable.`,
-          { webhookId: webhookRecord.id }
-        )
+        const message = `[${requestId}] Could not retrieve Airtable access token. Cannot delete webhook in Airtable.`
+        logger.warn(message, { webhookId: webhookRecord.id })
+        if (strict) throw new Error(message)
         return
       }
 
       let resolvedExternalId: string | undefined = externalId
+      let externalIdLookupFailed = false
+
+      if (!resolvedExternalId && strict) {
+        logger.warn(
+          `[${requestId}] Missing Airtable externalId during strict cleanup; skipping unsafe URL-based remote deletion`,
+          { webhookId: webhookRecord.id, baseId }
+        )
+        throw new Error('Missing Airtable externalId for strict cleanup')
+      }
 
       if (!resolvedExternalId) {
         try {
@@ -656,6 +668,7 @@ export const airtableHandler: WebhookProviderHandler = {
               })
             }
           } else {
+            externalIdLookupFailed = true
             logger.warn(`[${requestId}] Failed to list Airtable webhooks to resolve externalId`, {
               baseId,
               status: listResp.status,
@@ -663,6 +676,7 @@ export const airtableHandler: WebhookProviderHandler = {
             })
           }
         } catch (e: unknown) {
+          externalIdLookupFailed = true
           logger.warn(`[${requestId}] Error attempting to resolve Airtable externalId`, {
             error: (e as Error)?.message,
           })
@@ -672,7 +686,11 @@ export const airtableHandler: WebhookProviderHandler = {
       if (!resolvedExternalId) {
         logger.info(`[${requestId}] Airtable externalId not found; skipping remote deletion`, {
           baseId,
+          confirmedAbsent: !externalIdLookupFailed,
         })
+        if (strict && externalIdLookupFailed) {
+          throw new Error('Could not resolve Airtable externalId for strict cleanup')
+        }
         return
       }
 
@@ -682,6 +700,7 @@ export const airtableHandler: WebhookProviderHandler = {
           webhookId: webhookRecord.id,
           externalId: resolvedExternalId.substring(0, 20),
         })
+        if (strict) throw new Error('Invalid Airtable webhook ID for deletion')
         return
       }
 
@@ -693,22 +712,22 @@ export const airtableHandler: WebhookProviderHandler = {
         },
       })
 
-      if (!airtableResponse.ok) {
+      if (!airtableResponse.ok && airtableResponse.status !== 404) {
         let responseBody: unknown = null
         try {
           responseBody = await airtableResponse.json()
-        } catch {
-          // Ignore parse errors
-        }
+        } catch {}
 
         logger.warn(
           `[${requestId}] Failed to delete Airtable webhook in Airtable. Status: ${airtableResponse.status}`,
           { baseId, externalId: resolvedExternalId, response: responseBody }
         )
+        if (strict) throw new Error(`Failed to delete Airtable webhook: ${airtableResponse.status}`)
       } else {
         logger.info(`[${requestId}] Successfully deleted Airtable webhook in Airtable`, {
           baseId,
           externalId: resolvedExternalId,
+          alreadyDeleted: airtableResponse.status === 404,
         })
       }
     } catch (error: unknown) {
@@ -718,6 +737,7 @@ export const airtableHandler: WebhookProviderHandler = {
         error: err.message,
         stack: err.stack,
       })
+      if (strict) throw error
     }
   },
 

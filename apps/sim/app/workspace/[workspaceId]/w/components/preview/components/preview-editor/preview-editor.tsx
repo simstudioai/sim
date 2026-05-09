@@ -24,6 +24,7 @@ import {
   ChevronDown,
   Code,
   Combobox,
+  FieldDivider,
   Input,
   Label,
   Tooltip,
@@ -1442,15 +1443,7 @@ function PreviewEditorContent({
                     )}
                   </div>
                 </div>
-                <div className='subblock-divider px-0.5 pt-4 pb-[13px]'>
-                  <div
-                    className='h-[1.25px]'
-                    style={{
-                      backgroundImage:
-                        'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
-                    }}
-                  />
-                </div>
+                <FieldDivider subblockMarker />
               </div>
             )}
 
@@ -1472,17 +1465,7 @@ function PreviewEditorContent({
                         subBlockValues={subBlockValues}
                         disabled={true}
                       />
-                      {index < visibleSubBlocks.length - 1 && (
-                        <div className='subblock-divider px-0.5 pt-4 pb-[13px]'>
-                          <div
-                            className='h-[1.25px]'
-                            style={{
-                              backgroundImage:
-                                'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
-                            }}
-                          />
-                        </div>
-                      )}
+                      {index < visibleSubBlocks.length - 1 && <FieldDivider subblockMarker />}
                     </div>
                   ))}
                 </div>

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { uploadViaApiFallback } from '@/lib/uploads/client/api-fallback'
+import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 
 const logger = createLogger('WorkspaceLogoUpload')
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
@@ -60,30 +62,30 @@ export function useWorkspaceLogoUpload({
   }, [])
 
   const uploadFileToServer = useCallback(async (file: File): Promise<string> => {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('context', 'workspace-logos')
-    if (workspaceIdRef.current) {
-      formData.append('workspaceId', workspaceIdRef.current)
+    const targetWorkspaceId = workspaceIdRef.current
+    if (!targetWorkspaceId) {
+      throw new Error('workspaceId is required for workspace logo upload')
     }
 
-    // boundary-raw-fetch: multipart/form-data upload (FileUpload boundary), incompatible with requestJson which JSON-stringifies bodies
-    const response = await fetch('/api/files/upload', {
-      method: 'POST',
-      body: formData,
-    })
+    const presignedEndpoint = `/api/files/presigned?type=workspace-logos&workspaceId=${encodeURIComponent(targetWorkspaceId)}`
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: response.statusText }))
-      throw new Error(
-        errorData.message || errorData.error || `Failed to upload file: ${response.status}`
-      )
+    try {
+      const result = await runUploadStrategy({
+        file,
+        workspaceId: targetWorkspaceId,
+        context: 'workspace-logos',
+        presignedEndpoint,
+      })
+      logger.info(`Workspace logo uploaded successfully: ${result.path}`)
+      return result.path
+    } catch (error) {
+      if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
+        const { path } = await uploadViaApiFallback(file, 'workspace-logos', targetWorkspaceId)
+        logger.info(`Workspace logo uploaded via API fallback: ${path}`)
+        return path
+      }
+      throw error
     }
-
-    const data = await response.json()
-    const publicUrl = data.fileInfo?.path || data.path || data.url
-    logger.info(`Workspace logo uploaded successfully: ${publicUrl}`)
-    return publicUrl
   }, [])
 
   const processFile = useCallback(

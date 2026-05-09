@@ -70,5 +70,8 @@ export function useChangeDetection({
     return hasWorkflowChanged(currentState, deployedState)
   }, [currentState, deployedState, isLoadingDeployedState])
 
-  return { changeDetected }
+  return {
+    changeDetected,
+    isChangeDetectionSettling: Boolean(workflowId && isLoadingDeployedState),
+  }
 }

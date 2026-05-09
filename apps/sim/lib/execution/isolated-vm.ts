@@ -425,10 +425,20 @@ async function releaseDistributedLease(ownerKey: string, leaseId: string): Promi
     return 1
   `
 
+  let deadlineTimer: NodeJS.Timeout | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    deadlineTimer = setTimeout(
+      () => reject(new Error(`Redis lease release timed out after ${LEASE_REDIS_DEADLINE_MS}ms`)),
+      LEASE_REDIS_DEADLINE_MS
+    )
+  })
+
   try {
-    await redis.eval(script, 1, key, leaseId)
+    await Promise.race([redis.eval(script, 1, key, leaseId), deadline])
   } catch (error) {
     logger.error('Failed to release distributed owner lease', { ownerKey, error })
+  } finally {
+    clearTimeout(deadlineTimer)
   }
 }
 

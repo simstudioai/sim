@@ -58,7 +58,8 @@ const { state, mockDb } = vi.hoisted(() => {
       if (
         row.set.status === 'completed' ||
         row.set.status === 'dead_letter' ||
-        (row.set.status === 'pending' && 'attempts' in row.set && 'availableAt' in row.set)
+        (row.set.status === 'pending' && 'attempts' in row.set && 'availableAt' in row.set) ||
+        (!('status' in row.set) && 'attempts' in row.set && 'lockedAt' in row.set)
       ) {
         return state.leaseHeld ? [{ id: 'evt-1' }] : []
       }
@@ -75,7 +76,7 @@ const { state, mockDb } = vi.hoisted(() => {
     chain.where = vi.fn(self)
     chain.orderBy = vi.fn(self)
     chain.limit = vi.fn(self)
-    chain.for = vi.fn(async () => state.claimedRows)
+    chain.for = vi.fn(async () => state.claimedRows.splice(0, 1))
     return chain
   }
 
@@ -339,7 +340,7 @@ describe('processOutboxEvents — handler timeout', () => {
     vi.useRealTimers()
   })
 
-  it('times out a stuck handler and schedules retry', async () => {
+  it('times out a stuck handler without releasing it for overlapping retry', async () => {
     const neverResolves = vi.fn(() => new Promise<void>(() => {}))
 
     state.claimedRows = [makePendingRow({ attempts: 0 })]
@@ -349,9 +350,12 @@ describe('processOutboxEvents — handler timeout', () => {
     await vi.advanceTimersByTimeAsync(90 * 1000 + 1)
     const result = await promise
 
-    expect(result.retried).toBe(1)
-    const retryUpdate = state.updates.find((u) => u.set.status === 'pending' && 'attempts' in u.set)
-    expect(retryUpdate?.set.lastError).toMatch(/timed out/)
+    expect(result.leaseLost).toBe(1)
+    const timeoutUpdate = state.updates.find(
+      (u) => !('status' in u.set) && 'attempts' in u.set && 'lockedAt' in u.set
+    )
+    expect(timeoutUpdate?.set.attempts).toBe(1)
+    expect(timeoutUpdate?.set.lastError).toMatch(/timed out/)
   })
 })
 

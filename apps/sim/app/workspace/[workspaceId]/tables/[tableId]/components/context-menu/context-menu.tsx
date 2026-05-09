@@ -5,7 +5,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { ArrowDown, ArrowUp, Duplicate, Eye, Pencil, Trash } from '@/components/emcn/icons'
+import {
+  ArrowDown,
+  ArrowUp,
+  Duplicate,
+  Eye,
+  Pencil,
+  PlayOutline,
+  RefreshCw,
+  Square,
+  Trash,
+} from '@/components/emcn/icons'
 import type { ContextMenuState } from '../../types'
 
 interface ContextMenuProps {
@@ -20,6 +30,18 @@ interface ContextMenuProps {
   canViewExecution?: boolean
   canEditCell?: boolean
   selectedRowCount?: number
+  /** Fires every workflow group on the row(s), skipping already-completed
+   *  cells. Mirrors the action bar's Play. */
+  onRunWorkflows?: () => void
+  /** Re-runs every workflow group on the row(s), including already-completed
+   *  cells. Mirrors the action bar's Refresh. */
+  onRefreshWorkflows?: () => void
+  /** Cancels every running/queued execution on the row(s) the context menu is acting on. */
+  onStopWorkflows?: () => void
+  /** Total running/queued executions across the row(s) under the context menu. Drives the Stop label and visibility. */
+  runningInSelectionCount?: number
+  /** Whether the table has any workflow columns; gates the run-workflows item. */
+  hasWorkflowColumns?: boolean
   disableEdit?: boolean
   disableInsert?: boolean
   disableDelete?: boolean
@@ -37,11 +59,26 @@ export function ContextMenu({
   canViewExecution = false,
   canEditCell = true,
   selectedRowCount = 1,
+  onRunWorkflows,
+  onRefreshWorkflows,
+  onStopWorkflows,
+  runningInSelectionCount = 0,
+  hasWorkflowColumns = false,
   disableEdit = false,
   disableInsert = false,
   disableDelete = false,
 }: ContextMenuProps) {
   const deleteLabel = selectedRowCount > 1 ? `Delete ${selectedRowCount} rows` : 'Delete row'
+  const runLabel =
+    selectedRowCount > 1
+      ? `Run empty or failed cells on ${selectedRowCount} rows`
+      : 'Run empty or failed cells'
+  const refreshLabel =
+    selectedRowCount > 1 ? `Re-run all cells on ${selectedRowCount} rows` : 'Re-run all cells'
+  const stopLabel =
+    runningInSelectionCount === 1
+      ? 'Stop running workflow'
+      : `Stop ${runningInSelectionCount} running workflows`
 
   return (
     <DropdownMenu
@@ -79,6 +116,24 @@ export function ContextMenu({
           <DropdownMenuItem onSelect={onViewExecution}>
             <Eye />
             View execution
+          </DropdownMenuItem>
+        )}
+        {hasWorkflowColumns && onRunWorkflows && (
+          <DropdownMenuItem disabled={disableEdit} onSelect={onRunWorkflows}>
+            <PlayOutline />
+            {runLabel}
+          </DropdownMenuItem>
+        )}
+        {hasWorkflowColumns && onRefreshWorkflows && (
+          <DropdownMenuItem disabled={disableEdit} onSelect={onRefreshWorkflows}>
+            <RefreshCw />
+            {refreshLabel}
+          </DropdownMenuItem>
+        )}
+        {hasWorkflowColumns && onStopWorkflows && runningInSelectionCount > 0 && (
+          <DropdownMenuItem disabled={disableEdit} onSelect={onStopWorkflows}>
+            <Square className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+            {stopLabel}
           </DropdownMenuItem>
         )}
         <DropdownMenuItem disabled={disableInsert} onSelect={onInsertAbove}>

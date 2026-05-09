@@ -46,6 +46,7 @@ const WRITE_OPERATIONS: string[] = [
   SUBFLOW_OPERATIONS.UPDATE,
   // Subblock operations
   SUBBLOCK_OPERATIONS.UPDATE,
+  SUBBLOCK_OPERATIONS.BATCH_UPDATE,
   // Variable operations
   VARIABLE_OPERATIONS.UPDATE,
   // Workflow operations
@@ -128,54 +129,6 @@ export async function verifyWorkflowAccess(
       `Error verifying workflow access for user ${userId}, workflow ${workflowId}:`,
       error
     )
-    return { hasAccess: false }
-  }
-}
-
-/**
- * Verify a user has read access to a table by virtue of workspace permission.
- * Mirrors `verifyWorkflowAccess` for the table-room socket join check.
- */
-export async function verifyTableAccess(
-  userId: string,
-  tableId: string
-): Promise<{ hasAccess: boolean; workspaceId?: string }> {
-  try {
-    const { userTableDefinitions, permissions } = await import('@sim/db')
-    const tableData = await db
-      .select({ workspaceId: userTableDefinitions.workspaceId })
-      .from(userTableDefinitions)
-      .where(and(eq(userTableDefinitions.id, tableId), isNull(userTableDefinitions.archivedAt)))
-      .limit(1)
-
-    if (!tableData.length) {
-      logger.warn(`Table ${tableId} not found`)
-      return { hasAccess: false }
-    }
-    const { workspaceId } = tableData[0]
-    if (!workspaceId) return { hasAccess: false }
-
-    const [permissionRow] = await db
-      .select({ permissionType: permissions.permissionType })
-      .from(permissions)
-      .where(
-        and(
-          eq(permissions.userId, userId),
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workspaceId)
-        )
-      )
-      .limit(1)
-
-    if (!permissionRow?.permissionType) {
-      logger.warn(
-        `User ${userId} has no permission for workspace ${workspaceId} (table ${tableId})`
-      )
-      return { hasAccess: false }
-    }
-    return { hasAccess: true, workspaceId }
-  } catch (error) {
-    logger.error(`Error verifying table access for user ${userId}, table ${tableId}:`, error)
     return { hasAccess: false }
   }
 }

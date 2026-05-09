@@ -645,6 +645,7 @@ export interface AdminDeployResult {
 
 export interface AdminUndeployResult {
   isDeployed: boolean
+  warnings?: string[]
 }
 
 // =============================================================================

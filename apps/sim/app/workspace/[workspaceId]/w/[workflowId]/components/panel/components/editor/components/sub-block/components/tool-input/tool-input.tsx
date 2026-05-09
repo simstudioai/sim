@@ -77,6 +77,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import {
   formatParameterLabel,
   getSubBlocksForToolInput,
+  getToolIdForOperation,
   getToolParametersConfig,
   isPasswordParameter,
   type SubBlocksForToolInput,
@@ -381,36 +382,6 @@ function getOperationOptions(blockType: string): { label: string; id: string }[]
       return { id: toolId, label: toolId }
     }
   })
-}
-
-/**
- * Gets the correct tool ID for a given operation.
- *
- * @param blockType - The block type
- * @param operation - The selected operation (for multi-operation tools)
- * @returns The tool ID to use for execution, or `undefined` if not found
- */
-function getToolIdForOperation(blockType: string, operation?: string): string | undefined {
-  const block = getAllBlocks().find((b) => b.type === blockType)
-  if (!block || !block.tools?.access) return undefined
-
-  if (block.tools.access.length === 1) {
-    return block.tools.access[0]
-  }
-
-  if (operation && block.tools?.config?.tool) {
-    try {
-      return block.tools.config.tool({ operation })
-    } catch (error) {
-      logger.error('Error selecting tool for operation:', error)
-    }
-  }
-
-  if (operation && block.tools.access.includes(operation)) {
-    return operation
-  }
-
-  return block.tools.access[0]
 }
 
 /**

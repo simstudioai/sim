@@ -862,7 +862,7 @@
       },
       {
         "name": "Bulk Create Accounts",
-        "description": "Create up to 100 accounts at once in your Apollo database. Note: Apollo does not apply deduplication - duplicate accounts may be created if entries share similar names or domains. Master key required."
+        "description": "Create up to 100 accounts at once in your Apollo database. Set run_dedupe=true to deduplicate by domain, organization_id, and name. Master key required."
       },
       {
         "name": "Bulk Update Accounts",
@@ -894,7 +894,7 @@
       },
       {
         "name": "Create Task",
-        "description": "Create a new task in Apollo"
+        "description": "Create one or more tasks in Apollo (one task per contact_id, master key required)"
       },
       {
         "name": "Search Tasks",
@@ -6526,7 +6526,7 @@
   {
     "type": "hunter",
     "slug": "hunter-io",
-    "name": "Hunter io",
+    "name": "Hunter.io",
     "description": "Find and verify professional email addresses",
     "longDescription": "Integrate Hunter into the workflow. Can search domains, find email addresses, verify email addresses, discover companies, find companies, and count email addresses.",
     "bgColor": "#E0E0E0",
@@ -9716,6 +9716,69 @@
     "tags": ["web-scraping", "llm", "agentic"]
   },
   {
+    "type": "peopledatalabs",
+    "slug": "people-data-labs",
+    "name": "People Data Labs",
+    "description": "Enrich and search people and companies",
+    "longDescription": "Enrich a single person or company with People Data Labs, or search the global person and company datasets with SQL or Elasticsearch DSL. Useful for sales enrichment, contact lookup, and CRM hygiene.",
+    "bgColor": "#4831C3",
+    "iconName": "PeopleDataLabsIcon",
+    "docsUrl": "https://docs.sim.ai/tools/peopledatalabs",
+    "operations": [
+      {
+        "name": "Person Enrich",
+        "description": "Enrich a single person profile using People Data Labs. Match by email, phone, LinkedIn URL, or name + company/location. Returns work history, contact details, location, and skills."
+      },
+      {
+        "name": "Person Identify",
+        "description": "Return up to 20 candidate person matches with confidence scores. Useful when you want to see all plausible matches rather than the single best one. Reference: https://docs.peopledatalabs.com/docs/identify-api-quickstart"
+      },
+      {
+        "name": "Person Search",
+        "description": "Search the People Data Labs person dataset using SQL or Elasticsearch DSL. Returns up to 100 matching records per call."
+      },
+      {
+        "name": "Bulk Person Enrich",
+        "description": "Enrich up to 100 person records in a single call. Provide a JSON array of request objects, each with a `params` object (and optional `metadata` echoed back). Reference: https://docs.peopledatalabs.com/docs/bulk-person-enrichment-api"
+      },
+      {
+        "name": "Company Enrich",
+        "description": "Enrich a single company using People Data Labs. Match by name, website, LinkedIn URL, ticker, or PDL ID."
+      },
+      {
+        "name": "Company Search",
+        "description": "Search the People Data Labs company dataset using SQL or Elasticsearch DSL. Returns up to 100 matching companies per call."
+      },
+      {
+        "name": "Bulk Company Enrich",
+        "description": "Enrich up to 100 companies in a single call. Provide a JSON array of request objects, each with a `params` object. Reference: https://docs.peopledatalabs.com/docs/bulk-company-enrichment-api"
+      },
+      {
+        "name": "Company Cleaner",
+        "description": "Normalize a company string into a canonical company record. Provide at least one of name, website, or profile (LinkedIn URL)."
+      },
+      {
+        "name": "Location Cleaner",
+        "description": "Normalize a freeform location string into a structured locality/region/country record with coordinates."
+      },
+      {
+        "name": "School Cleaner",
+        "description": "Normalize a school string into a canonical school record. Provide at least one of name, website, or profile (LinkedIn URL)."
+      },
+      {
+        "name": "Autocomplete",
+        "description": "Get autocomplete suggestions for a PDL field (title, skill, company, industry, location, school, major, role, sub_role)."
+      }
+    ],
+    "operationCount": 11,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["sales"],
+    "tags": ["enrichment"]
+  },
+  {
     "type": "perplexity",
     "slug": "perplexity",
     "name": "Perplexity",
@@ -10748,7 +10811,7 @@
       },
       {
         "name": "Refund Google Subscription",
-        "description": "Refund and optionally revoke a Google Play subscription (Google Play only)"
+        "description": "Refund a specific store transaction by its store transaction identifier and revoke access (subscription or non-subscription, last 365 days)"
       },
       {
         "name": "Revoke Google Subscription",
@@ -14173,7 +14236,7 @@
         "description": "Hire a pre-hire into an employee position. Converts an applicant into an active employee record with position, start date, and manager assignment."
       },
       {
-        "name": "Update Worker",
+        "name": "Update Personal Information",
         "description": "Update fields on an existing worker record in Workday."
       },
       {

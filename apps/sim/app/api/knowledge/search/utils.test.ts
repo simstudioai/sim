@@ -396,11 +396,11 @@ describe('Knowledge Search Utils', () => {
     })
   })
 
-  describe('getDocumentNamesByIds', () => {
+  describe('getDocumentMetadataByIds', () => {
     it('should handle empty input gracefully', async () => {
-      const { getDocumentNamesByIds } = await import('./utils')
+      const { getDocumentMetadataByIds } = await import('./utils')
 
-      const result = await getDocumentNamesByIds([])
+      const result = await getDocumentMetadataByIds([])
 
       expect(result).toEqual({})
     })

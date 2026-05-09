@@ -8,7 +8,10 @@ import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
-import { FUNCTION_BLOCK_CONTEXT_VARS_KEY } from '@/executor/variables/resolver'
+import {
+  FUNCTION_BLOCK_CONTEXT_VARS_KEY,
+  FUNCTION_BLOCK_DISPLAY_CODE_KEY,
+} from '@/executor/variables/resolver'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
@@ -42,9 +45,9 @@ export class FunctionBlockHandler implements BlockHandler {
     inputs: Record<string, any>
   ): Promise<any> {
     const codeContent = readCodeContent(inputs.code) ?? inputs.code
-    const sourceCode = readCodeContent(
-      (block.config?.params as Record<string, unknown> | undefined)?.code
-    )
+    const sourceCode =
+      readCodeContent(inputs[FUNCTION_BLOCK_DISPLAY_CODE_KEY]) ??
+      readCodeContent((block.config?.params as Record<string, unknown> | undefined)?.code)
 
     const { blockData, blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
 

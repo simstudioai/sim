@@ -1,3 +1,7 @@
+import {
+  isWorkflowBlockAncestorLocked,
+  isWorkflowBlockProtected,
+} from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 
@@ -168,14 +172,7 @@ export function findAllDescendantNodes(
  * @returns True if any ancestor is locked
  */
 export function isAncestorProtected(blockId: string, blocks: Record<string, BlockState>): boolean {
-  const visited = new Set<string>()
-  let parentId = blocks[blockId]?.data?.parentId
-  while (parentId && !visited.has(parentId)) {
-    visited.add(parentId)
-    if (blocks[parentId]?.locked) return true
-    parentId = blocks[parentId]?.data?.parentId
-  }
-  return false
+  return isWorkflowBlockAncestorLocked(blockId, blocks)
 }
 
 /**
@@ -187,10 +184,7 @@ export function isAncestorProtected(blockId: string, blocks: Record<string, Bloc
  * @returns True if the block is protected
  */
 export function isBlockProtected(blockId: string, blocks: Record<string, BlockState>): boolean {
-  const block = blocks[blockId]
-  if (!block) return false
-  if (block.locked) return true
-  return isAncestorProtected(blockId, blocks)
+  return isWorkflowBlockProtected(blockId, blocks)
 }
 
 /**

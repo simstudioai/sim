@@ -71,13 +71,12 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const body: Record<string, unknown> = {}
 
-      // Add optional parameters if provided
       if (params.query) body.query = params.query
       if (params.domain) body.organization = { domain: [params.domain] }
-      if (params.headcount) body.headcount = params.headcount
-      if (params.company_type) body.company_type = params.company_type
+      if (params.headcount) body.headcount = [params.headcount]
+      if (params.company_type) body.company_type = { include: [params.company_type] }
       if (params.technology) {
         body.technology = {
           include: [params.technology],
@@ -90,18 +89,22 @@ export const discoverTool: ToolConfig<HunterDiscoverParams, HunterDiscoverRespon
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+    const companies: Array<{
+      domain?: string
+      organization?: string
+      emails_count?: { personal?: number; generic?: number; total?: number }
+    }> = Array.isArray(data?.data) ? data.data : []
 
     return {
       success: true,
       output: {
-        results:
-          data.data?.map((company: any) => ({
-            domain: company.domain || '',
-            name: company.organization || '',
-            headcount: company.headcount,
-            technologies: company.technologies || [],
-            email_count: company.emails_count?.total || 0,
-          })) || [],
+        results: companies.map((c) => ({
+          domain: c.domain ?? '',
+          organization: c.organization ?? '',
+          personal_emails: c.emails_count?.personal ?? 0,
+          generic_emails: c.emails_count?.generic ?? 0,
+          total_emails: c.emails_count?.total ?? 0,
+        })),
       },
     }
   },

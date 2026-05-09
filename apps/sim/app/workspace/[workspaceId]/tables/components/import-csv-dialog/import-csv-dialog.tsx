@@ -46,8 +46,8 @@ const CREATE_VALUE = '__ create __'
 /**
  * Converts the verbose backend error messages into a short, human-friendly
  * summary suitable for the modal footer. Specifically collapses repeated
- * `Row N: Column "X" must be unique. Value "Y" already exists in row row_abc`
- * segments into a single concise summary without internal row IDs.
+ * `Row N: Column "X" must be unique. Value "Y" already exists in row M`
+ * segments into a single concise summary.
  */
 function summarizeImportError(message: string): string {
   const uniqueMatches = [
@@ -75,9 +75,9 @@ function summarizeImportError(message: string): string {
     return rowLimitMatch[0].trim()
   }
 
-  const stripped = message.replace(/\s+in row\s+row_[a-f0-9]+/gi, '').trim()
-  if (stripped.length > 180) return `${stripped.slice(0, 177)}...`
-  return stripped
+  const trimmed = message.trim()
+  if (trimmed.length > 180) return `${trimmed.slice(0, 177)}...`
+  return trimmed
 }
 
 interface ImportCsvDialogProps {

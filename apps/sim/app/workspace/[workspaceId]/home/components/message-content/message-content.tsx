@@ -1,5 +1,6 @@
 'use client'
 
+import { memo, useMemo } from 'react'
 import {
   Read as ReadTool,
   ToolSearchToolRegex,
@@ -407,14 +408,14 @@ interface MessageContentProps {
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
 }
 
-export function MessageContent({
+function MessageContentInner({
   blocks,
   fallbackContent,
   isStreaming = false,
   onOptionSelect,
   onWorkspaceResourceSelect,
 }: MessageContentProps) {
-  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
+  const parsed = useMemo(() => (blocks.length > 0 ? parseBlocks(blocks) : []), [blocks])
 
   const segments: MessageSegment[] =
     parsed.length > 0
@@ -537,3 +538,5 @@ export function MessageContent({
     </div>
   )
 }
+
+export const MessageContent = memo(MessageContentInner)

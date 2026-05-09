@@ -55,6 +55,8 @@ interface ResourceHeaderProps {
   breadcrumbs?: BreadcrumbItem[]
   create?: CreateAction
   actions?: HeaderAction[]
+  /** Arbitrary content rendered in the right-aligned actions row, before `actions`. */
+  leadingActions?: React.ReactNode
   /** Arbitrary content rendered in the right-aligned actions row, before the Create button. */
   trailingActions?: React.ReactNode
   /**
@@ -71,6 +73,7 @@ export const ResourceHeader = memo(function ResourceHeader({
   breadcrumbs,
   create,
   actions,
+  leadingActions,
   trailingActions,
   createTrigger,
 }: ResourceHeaderProps) {
@@ -106,6 +109,7 @@ export const ResourceHeader = memo(function ResourceHeader({
           )}
         </div>
         <div className='flex items-center gap-1.5'>
+          {leadingActions}
           {actions?.map((action) => {
             const ActionIcon = action.icon
             return (

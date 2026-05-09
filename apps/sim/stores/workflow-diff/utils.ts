@@ -7,6 +7,8 @@ import {
   type WorkflowStateContractInput,
 } from '@/lib/api/contracts/workflows'
 import { stripWorkflowDiffMarkers } from '@/lib/workflows/diff'
+import { useVariablesStore } from '@/stores/variables/store'
+import type { Variable } from '@/stores/variables/types'
 import { useWorkflowRegistry } from '../workflows/registry/store'
 import { useSubBlockStore } from '../workflows/subblock/store'
 import { mergeSubblockState } from '../workflows/utils'
@@ -15,6 +17,7 @@ import type { WorkflowState } from '../workflows/workflow/types'
 import type { WorkflowDiffState } from './types'
 
 const logger = createLogger('WorkflowDiffStore')
+export const WORKFLOW_DIFF_SETTLED_EVENT = 'workflow-diff-settled'
 
 export function cloneWorkflowState(state: WorkflowState): WorkflowState {
   return {
@@ -58,6 +61,9 @@ export function applyWorkflowStateToStores(
   workflowStore.replaceWorkflowState(cloned, options)
   const subBlockValues = extractSubBlockValues(workflowState)
   useSubBlockStore.getState().setWorkflowValues(workflowId, subBlockValues)
+  if (Object.hasOwn(workflowState, 'variables')) {
+    applyWorkflowVariablesToStore(workflowId, workflowState.variables)
+  }
 
   // Verify what's in the store after apply
   const afterState = workflowStore.getWorkflowState()
@@ -65,6 +71,33 @@ export function applyWorkflowStateToStores(
     workflowId,
     afterEdgeCount: afterState.edges?.length ?? 0,
   })
+}
+
+export function applyWorkflowVariablesToStore(
+  workflowId: string,
+  variables?: WorkflowState['variables'] | null
+) {
+  const stampedVariables: Record<string, Variable> = {}
+
+  Object.entries(variables || {}).forEach(([id, variable]) => {
+    if (!variable?.name) return
+    stampedVariables[id] = {
+      id: variable.id || id,
+      workflowId,
+      name: variable.name,
+      type: variable.type || 'plain',
+      value: Object.hasOwn(variable, 'value') ? variable.value : '',
+    }
+  })
+
+  useVariablesStore.setState((state) => ({
+    variables: {
+      ...Object.fromEntries(
+        Object.entries(state.variables).filter(([, variable]) => variable.workflowId !== workflowId)
+      ),
+      ...stampedVariables,
+    },
+  }))
 }
 
 export function captureBaselineSnapshot(workflowId: string): WorkflowState {
