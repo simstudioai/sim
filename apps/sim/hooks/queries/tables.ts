@@ -8,6 +8,7 @@ import { useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   type InfiniteData,
+  infiniteQueryOptions,
   keepPreviousData,
   useInfiniteQuery,
   useMutation,
@@ -336,13 +337,46 @@ export function useTableRows({
   })
 }
 
-/**
- * Paginated row fetching with `useInfiniteQuery`. Each page requests `pageSize`
- * rows at the next offset; `getNextPageParam` returns `undefined` once the last
- * page comes back short, signalling end-of-list.
- *
- * Page 0 includes a server `COUNT(*)`; subsequent pages skip it.
- */
+export function tableRowsParamsKey({
+  pageSize,
+  filter,
+  sort,
+}: Pick<InfiniteTableRowsParams, 'pageSize' | 'filter' | 'sort'>): string {
+  return JSON.stringify({ pageSize, filter: filter ?? null, sort: sort ?? null })
+}
+
+/** `infiniteQueryOptions` factory shared by the hook and imperative drain calls to target the same cache key. */
+export function tableRowsInfiniteOptions({
+  workspaceId,
+  tableId,
+  pageSize,
+  filter,
+  sort,
+}: Omit<InfiniteTableRowsParams, 'enabled'>) {
+  const paramsKey = tableRowsParamsKey({ pageSize, filter, sort })
+  return infiniteQueryOptions({
+    queryKey: tableKeys.infiniteRows(tableId, paramsKey),
+    queryFn: ({ pageParam, signal }) =>
+      fetchTableRows({
+        workspaceId,
+        tableId,
+        limit: pageSize,
+        offset: pageParam as number,
+        filter,
+        sort,
+        includeTotal: pageParam === 0,
+        signal,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, _allPages, lastPageParam) => {
+      if (lastPage.rows.length < pageSize) return undefined
+      return (lastPageParam as number) + pageSize
+    },
+    staleTime: 30 * 1000,
+  })
+}
+
+/** Page 0 fetches a server-side `COUNT(*)`; subsequent pages skip it. */
 export function useInfiniteTableRows({
   workspaceId,
   tableId,
@@ -352,33 +386,14 @@ export function useInfiniteTableRows({
   enabled = true,
 }: InfiniteTableRowsParams) {
   const queryClient = useQueryClient()
-  const paramsKey = JSON.stringify({
-    pageSize,
-    filter: filter ?? null,
-    sort: sort ?? null,
-  })
+  const paramsKey = tableRowsParamsKey({ pageSize, filter, sort })
+  // Memoize the key so the polling useEffect below doesn't fire on every render.
   const queryKey = useMemo(() => tableKeys.infiniteRows(tableId, paramsKey), [tableId, paramsKey])
 
   const query = useInfiniteQuery({
+    ...tableRowsInfiniteOptions({ workspaceId, tableId, pageSize, filter, sort }),
     queryKey,
-    queryFn: ({ pageParam, signal }) =>
-      fetchTableRows({
-        workspaceId,
-        tableId,
-        limit: pageSize,
-        offset: pageParam,
-        filter,
-        sort,
-        includeTotal: pageParam === 0,
-        signal,
-      }),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, _allPages, lastPageParam) => {
-      if (lastPage.rows.length < pageSize) return undefined
-      return lastPageParam + pageSize
-    },
     enabled: Boolean(workspaceId && tableId) && enabled,
-    staleTime: 30 * 1000,
   })
 
   /**
@@ -1089,7 +1104,9 @@ export function useUploadCsvToTable() {
       return response.json()
     },
     onError: (error) => {
+      if (isValidationError(error)) return
       logger.error('Failed to upload CSV:', error)
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })

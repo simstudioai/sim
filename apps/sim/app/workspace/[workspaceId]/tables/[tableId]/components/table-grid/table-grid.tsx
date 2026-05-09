@@ -10,6 +10,7 @@ import type { RunMode } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import { getUnmetGroupDeps, isExecInFlight } from '@/lib/table/deps'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -234,6 +235,24 @@ interface TableGridProps {
   >
 }
 
+/**
+ * Split updates into chunks that fit within the server's batch-size limit,
+ * running each chunk sequentially. Throws on first failure so callers see
+ * an all-or-nothing result and partial success cannot leave the table in an
+ * ambiguous half-cleared state.
+ */
+async function chunkBatchUpdates(
+  updates: Array<{ rowId: string; data: Record<string, unknown> }>,
+  mutateAsync: (args: {
+    updates: Array<{ rowId: string; data: Record<string, unknown> }>
+  }) => Promise<unknown>
+): Promise<void> {
+  const size = TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
+  for (let i = 0; i < updates.length; i += size) {
+    await mutateAsync({ updates: updates.slice(i, i + size) })
+  }
+}
+
 export function TableGrid({
   workspaceId: propWorkspaceId,
   tableId: propTableId,
@@ -313,6 +332,7 @@ export function TableGrid({
     tableWorkflowGroups,
     workflowStates,
     columnSourceInfo,
+    ensureAllRowsLoaded,
   } = useTable({ workspaceId, tableId, queryOptions })
 
   const fetchNextPageRef = useRef(fetchNextPage)
@@ -321,6 +341,8 @@ export function TableGrid({
   hasNextPageRef.current = hasNextPage
   const isFetchingNextPageRef = useRef(isFetchingNextPage)
   isFetchingNextPageRef.current = isFetchingNextPage
+  const ensureAllRowsLoadedRef = useRef(ensureAllRowsLoaded)
+  ensureAllRowsLoadedRef.current = ensureAllRowsLoaded
   const isAppendingRowRef = useRef(false)
 
   const userPermissions = useUserPermissionsContext()
@@ -1464,10 +1486,6 @@ export function TableGrid({
     []
   )
 
-  // The cell has `select-none` which suppresses programmatic selection, so we
-  // override `user-select` on the inner element until the next click. The popover
-  // only opens when the leaf's scroll dimensions exceed its client dimensions
-  // (workflow cells nest text inside a span with its own `overflow-clip`).
   const handleCellDoubleClick = useCallback(
     (rowId: string, columnName: string, columnKey: string) => {
       const column = columnsRef.current.find((c) => c.key === columnKey)
@@ -1476,54 +1494,27 @@ export function TableGrid({
       setSelectionFocus(null)
       setIsColumnSelection(false)
 
-      const rowArrayIndex = rowsRef.current.findIndex((r) => r.id === rowId)
-      const row = rowArrayIndex !== -1 ? rowsRef.current[rowArrayIndex] : null
-
-      // Workflow-output cell with no value (status pill showing) → enter edit
-      // mode with a blank input so the user can write a value over the status.
-      // Escape cancels without persisting.
-      if (column?.workflowGroupId && row && canEditRef.current) {
-        const cellValue = row.data[columnName]
-        if (cellValue === null || cellValue === undefined || cellValue === '') {
-          setEditingCell({ rowId, columnName })
-          setInitialCharacter('')
-          return
-        }
+      // Date/number: use inline editor (calendar picker / numeric input).
+      if ((column?.type === 'date' || column?.type === 'number') && canEditRef.current) {
+        setEditingCell({ rowId, columnName })
+        setInitialCharacter(null)
+        return
       }
 
-      const colIndex = columnsRef.current.findIndex((c) => c.key === columnKey)
-      let overflows = true
-      if (row && colIndex !== -1) {
-        const td = document.querySelector<HTMLElement>(
-          `[data-table-scroll] [data-row="${rowArrayIndex}"][data-col="${colIndex}"]`
-        )
-        const inner = td?.querySelector<HTMLElement>(':scope > div:last-child')
-        if (inner) {
-          const candidates: HTMLElement[] = [inner]
-          const descendants = inner.querySelectorAll<HTMLElement>('*')
-          for (const el of descendants) candidates.push(el)
-          overflows = candidates.some(
-            (el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1
-          )
-
-          inner.style.userSelect = 'text'
-          const clear = () => {
-            inner.style.userSelect = ''
-            window.removeEventListener('mousedown', clear, true)
-          }
-          window.addEventListener('mousedown', clear, true)
-
-          const selection = window.getSelection()
-          if (selection) {
-            const range = document.createRange()
-            range.selectNodeContents(inner)
-            selection.removeAllRanges()
-            selection.addRange(range)
+      // Workflow-output cell with no value → let the user write over the status pill.
+      if (column?.workflowGroupId && canEditRef.current) {
+        const row = rowsRef.current.find((r) => r.id === rowId)
+        if (row) {
+          const cellValue = row.data[columnName]
+          if (cellValue === null || cellValue === undefined || cellValue === '') {
+            setEditingCell({ rowId, columnName })
+            setInitialCharacter('')
+            return
           }
         }
       }
 
-      if (overflows) setExpandedCell({ rowId, columnName, columnKey })
+      setExpandedCell({ rowId, columnName, columnKey })
     },
     []
   )
@@ -1539,6 +1530,8 @@ export function TableGrid({
 
   const batchUpdateRef = useRef(batchUpdateRowsMutation.mutate)
   batchUpdateRef.current = batchUpdateRowsMutation.mutate
+  const batchUpdateAsyncRef = useRef(batchUpdateRowsMutation.mutateAsync)
+  batchUpdateAsyncRef.current = batchUpdateRowsMutation.mutateAsync
 
   const updateMetadataRef = useRef(updateMetadataMutation.mutate)
   updateMetadataRef.current = updateMetadataMutation.mutate
@@ -1640,28 +1633,33 @@ export function TableGrid({
         if (editingCellRef.current) return
         if (!canEditRef.current) return
         e.preventDefault()
-        const rowSel = rowSelectionRef.current
-        const currentRows = rowsRef.current
-        const currentCols = columnsRef.current
-        const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
-        const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
-        for (const row of currentRows) {
-          if (!rowSelectionIncludes(rowSel, row.id)) continue
-          const updates: Record<string, unknown> = {}
-          const previousData: Record<string, unknown> = {}
-          for (const col of currentCols) {
-            previousData[col.name] = row.data[col.name] ?? null
-            updates[col.name] = null
+        void (async () => {
+          const allRows = await ensureAllRowsLoadedRef.current()
+          const rowSel = rowSelectionRef.current
+          const currentCols = columnsRef.current
+          const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
+          const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
+          for (const row of allRows) {
+            if (!rowSelectionIncludes(rowSel, row.id)) continue
+            const updates: Record<string, unknown> = {}
+            const previousData: Record<string, unknown> = {}
+            for (const col of currentCols) {
+              previousData[col.name] = row.data[col.name] ?? null
+              updates[col.name] = null
+            }
+            undoCells.push({ rowId: row.id, data: previousData })
+            batchUpdates.push({ rowId: row.id, data: updates })
           }
-          undoCells.push({ rowId: row.id, data: previousData })
-          batchUpdates.push({ rowId: row.id, data: updates })
-        }
-        if (batchUpdates.length > 0) {
-          batchUpdateRef.current({ updates: batchUpdates })
-        }
-        if (undoCells.length > 0) {
-          pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
-        }
+          if (batchUpdates.length > 0) {
+            await chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current)
+          }
+          if (undoCells.length > 0) {
+            pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
+          }
+        })().catch((error) => {
+          logger.error('Failed to clear selected cells', { error })
+          toast.error('Failed to clear cells — please try again')
+        })
         return
       }
 
@@ -1863,6 +1861,36 @@ export function TableGrid({
         e.preventDefault()
         const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
         if (!sel) return
+
+        if (isColumnSelectionRef.current) {
+          // Column-header selection spans all rows — selection bounds are capped
+          // to the loaded page count, so drain first then walk the full set.
+          void (async () => {
+            const allRows = await ensureAllRowsLoadedRef.current()
+            const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
+            const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
+            for (const row of allRows) {
+              const updates: Record<string, unknown> = {}
+              const previousData: Record<string, unknown> = {}
+              for (let c = sel.startCol; c <= sel.endCol; c++) {
+                const colName = cols[c]?.name
+                if (!colName) continue
+                previousData[colName] = row.data[colName] ?? null
+                updates[colName] = null
+              }
+              undoCells.push({ rowId: row.id, data: previousData })
+              batchUpdates.push({ rowId: row.id, data: updates })
+            }
+            if (batchUpdates.length > 0)
+              await chunkBatchUpdates(batchUpdates, batchUpdateAsyncRef.current)
+            if (undoCells.length > 0) pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
+          })().catch((error) => {
+            logger.error('Failed to clear column values', { error })
+            toast.error('Failed to clear column values — please try again')
+          })
+          return
+        }
+
         const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
         const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
         for (let r = sel.startRow; r <= sel.endRow; r++) {
@@ -1919,17 +1947,27 @@ export function TableGrid({
 
       if (!rowSelectionIsEmpty(rowSel)) {
         e.preventDefault()
-        const lines: string[] = []
-        for (const row of currentRows) {
-          if (!rowSelectionIncludes(rowSel, row.id)) continue
-          const cells: string[] = cols.map((col) => {
-            const value: unknown = row.data[col.name]
-            if (value === null || value === undefined) return ''
-            return typeof value === 'object' ? JSON.stringify(value) : String(value)
-          })
-          lines.push(cells.join('\t'))
-        }
-        e.clipboardData?.setData('text/plain', lines.join('\n'))
+        void (async () => {
+          const allRows = await ensureAllRowsLoadedRef.current()
+          const lines: string[] = []
+          for (const row of allRows) {
+            if (!rowSelectionIncludes(rowSel, row.id)) continue
+            const cells: string[] = cols.map((col) => {
+              const value: unknown = row.data[col.name]
+              if (value === null || value === undefined) return ''
+              return typeof value === 'object' ? JSON.stringify(value) : String(value)
+            })
+            lines.push(cells.join('\t'))
+          }
+          if (!navigator.clipboard) {
+            toast.error('Clipboard access is unavailable in this context')
+            return
+          }
+          await navigator.clipboard.writeText(lines.join('\n'))
+        })().catch((error) => {
+          logger.error('Failed to copy selected rows', { error })
+          toast.error('Failed to copy — please try again')
+        })
         return
       }
 
@@ -1967,65 +2005,83 @@ export function TableGrid({
       const rowSel = rowSelectionRef.current
       const cols = columnsRef.current
       const currentRows = rowsRef.current
-      const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
-      const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
 
       if (!rowSelectionIsEmpty(rowSel)) {
         e.preventDefault()
-        const lines: string[] = []
-        for (const row of currentRows) {
-          if (!rowSelectionIncludes(rowSel, row.id)) continue
-          const cells: string[] = cols.map((col) => {
-            const value: unknown = row.data[col.name]
-            if (value === null || value === undefined) return ''
-            return typeof value === 'object' ? JSON.stringify(value) : String(value)
-          })
-          lines.push(cells.join('\t'))
-          const updates: Record<string, unknown> = {}
-          const previousData: Record<string, unknown> = {}
-          for (const col of cols) {
-            previousData[col.name] = row.data[col.name] ?? null
-            updates[col.name] = null
-          }
-          undoCells.push({ rowId: row.id, data: previousData })
-          batchUpdates.push({ rowId: row.id, data: updates })
-        }
-        e.clipboardData?.setData('text/plain', lines.join('\n'))
-      } else {
-        const anchor = selectionAnchorRef.current
-        if (!anchor) return
-
-        const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
-        if (!sel) return
-
-        e.preventDefault()
-        const lines: string[] = []
-        for (let r = sel.startRow; r <= sel.endRow; r++) {
-          const row = currentRows[r]
-          if (!row) continue
-          const cells: string[] = []
-          const updates: Record<string, unknown> = {}
-          const previousData: Record<string, unknown> = {}
-          for (let c = sel.startCol; c <= sel.endCol; c++) {
-            if (c < cols.length) {
-              const colName = cols[c].name
-              const value: unknown = row.data[colName]
-              if (value === null || value === undefined) {
-                cells.push('')
-              } else {
-                cells.push(typeof value === 'object' ? JSON.stringify(value) : String(value))
-              }
-              previousData[colName] = row.data[colName] ?? null
-              updates[colName] = null
+        void (async () => {
+          const allRows = await ensureAllRowsLoadedRef.current()
+          const lines: string[] = []
+          const cutUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
+          const cutUndo: Array<{ rowId: string; data: Record<string, unknown> }> = []
+          for (const row of allRows) {
+            if (!rowSelectionIncludes(rowSel, row.id)) continue
+            const cells: string[] = cols.map((col) => {
+              const value: unknown = row.data[col.name]
+              if (value === null || value === undefined) return ''
+              return typeof value === 'object' ? JSON.stringify(value) : String(value)
+            })
+            lines.push(cells.join('\t'))
+            const updates: Record<string, unknown> = {}
+            const previousData: Record<string, unknown> = {}
+            for (const col of cols) {
+              previousData[col.name] = row.data[col.name] ?? null
+              updates[col.name] = null
             }
+            cutUndo.push({ rowId: row.id, data: previousData })
+            cutUpdates.push({ rowId: row.id, data: updates })
           }
-          lines.push(cells.join('\t'))
-          undoCells.push({ rowId: row.id, data: previousData })
-          batchUpdates.push({ rowId: row.id, data: updates })
-        }
-        e.clipboardData?.setData('text/plain', lines.join('\n'))
+          if (!navigator.clipboard) {
+            toast.error('Clipboard access is unavailable in this context')
+            return
+          }
+          await navigator.clipboard.writeText(lines.join('\n'))
+          if (cutUpdates.length > 0) {
+            await chunkBatchUpdates(cutUpdates, batchUpdateAsyncRef.current)
+          }
+          if (cutUndo.length > 0) {
+            pushUndoRef.current({ type: 'clear-cells', cells: cutUndo })
+          }
+        })().catch((error) => {
+          logger.error('Failed to cut selected rows', { error })
+          toast.error('Failed to cut — please try again')
+        })
+        return
       }
 
+      const anchor = selectionAnchorRef.current
+      if (!anchor) return
+
+      const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
+      if (!sel) return
+
+      e.preventDefault()
+      const lines: string[] = []
+      const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
+      const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
+      for (let r = sel.startRow; r <= sel.endRow; r++) {
+        const row = currentRows[r]
+        if (!row) continue
+        const cells: string[] = []
+        const updates: Record<string, unknown> = {}
+        const previousData: Record<string, unknown> = {}
+        for (let c = sel.startCol; c <= sel.endCol; c++) {
+          if (c < cols.length) {
+            const colName = cols[c].name
+            const value: unknown = row.data[colName]
+            if (value === null || value === undefined) {
+              cells.push('')
+            } else {
+              cells.push(typeof value === 'object' ? JSON.stringify(value) : String(value))
+            }
+            previousData[colName] = row.data[colName] ?? null
+            updates[colName] = null
+          }
+        }
+        lines.push(cells.join('\t'))
+        undoCells.push({ rowId: row.id, data: previousData })
+        batchUpdates.push({ rowId: row.id, data: updates })
+      }
+      e.clipboardData?.setData('text/plain', lines.join('\n'))
       if (batchUpdates.length > 0) {
         batchUpdateRef.current({ updates: batchUpdates })
       }
@@ -3383,9 +3439,9 @@ const DataRow = React.memo(function DataRow({
             onMouseEnter={() => onCellMouseEnter(rowIndex, colIndex)}
             onClick={(e) =>
               onClick(row.id, column.name, {
-                toggleBoolean: Boolean(
-                  (e.target as HTMLElement).closest('[data-boolean-cell-toggle]')
-                ),
+                toggleBoolean:
+                  !e.shiftKey &&
+                  Boolean((e.target as HTMLElement).closest('[data-boolean-cell-toggle]')),
               })
             }
             onDoubleClick={() => onDoubleClick(row.id, column.name, column.key)}
