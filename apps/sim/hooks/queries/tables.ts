@@ -1002,6 +1002,7 @@ export function useImportCsvIntoTable() {
     },
     onError: (error) => {
       logger.error('Failed to import CSV into table:', error)
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
       invalidateRowCount(queryClient, variables.tableId)

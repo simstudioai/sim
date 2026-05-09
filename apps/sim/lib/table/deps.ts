@@ -24,15 +24,6 @@ export function isExecInFlight(exec: RowExecutionMetadata | undefined): boolean 
   return false
 }
 
-export function hasRunningGroupExecution(rows: TableRow[]): boolean {
-  for (const row of rows) {
-    for (const exec of Object.values(row.executions)) {
-      if (isExecInFlight(exec)) return true
-    }
-  }
-  return false
-}
-
 /**
  * True when every output column the group writes still has a non-empty value
  * on this row. The "completed" exec status is metadata, but the cells are the
