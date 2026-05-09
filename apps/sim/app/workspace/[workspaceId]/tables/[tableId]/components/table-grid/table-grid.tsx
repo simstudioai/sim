@@ -1633,9 +1633,9 @@ export function TableGrid({
         if (editingCellRef.current) return
         if (!canEditRef.current) return
         e.preventDefault()
+        const rowSel = rowSelectionRef.current
         void (async () => {
           const allRows = await ensureAllRowsLoadedRef.current()
-          const rowSel = rowSelectionRef.current
           const currentCols = columnsRef.current
           const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
           const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
@@ -1966,7 +1966,17 @@ export function TableGrid({
             toast.error('Clipboard access is unavailable in this context')
             return
           }
-          await navigator.clipboard.writeText(lines.join('\n'))
+          try {
+            await navigator.clipboard.writeText(lines.join('\n'))
+          } catch (err) {
+            if (err instanceof DOMException && err.name === 'NotAllowedError') {
+              toast.error(
+                'Clipboard permission expired — press Cmd+C again immediately after selecting'
+              )
+            } else {
+              throw err
+            }
+          }
         })().catch((error) => {
           logger.error('Failed to copy selected rows', { error })
           toast.error('Failed to copy — please try again')
@@ -2037,7 +2047,17 @@ export function TableGrid({
             toast.error('Clipboard access is unavailable in this context')
             return
           }
-          await navigator.clipboard.writeText(lines.join('\n'))
+          try {
+            await navigator.clipboard.writeText(lines.join('\n'))
+          } catch (err) {
+            if (err instanceof DOMException && err.name === 'NotAllowedError') {
+              toast.error(
+                'Clipboard permission expired — press Cmd+X again immediately after selecting'
+              )
+            } else {
+              throw err
+            }
+          }
           if (cutUpdates.length > 0) {
             await chunkBatchUpdates(cutUpdates, batchUpdateAsyncRef.current)
           }
