@@ -2054,9 +2054,9 @@ export function TableGrid({
               toast.error(
                 'Clipboard permission expired — press Cmd+X again immediately after selecting'
               )
-            } else {
-              throw err
+              return
             }
+            throw err
           }
           if (cutUpdates.length > 0) {
             await chunkBatchUpdates(cutUpdates, batchUpdateAsyncRef.current)
