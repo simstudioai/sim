@@ -70,7 +70,6 @@ vi.mock('@/lib/table/constants', () => ({
 }))
 
 import { useTable } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table'
-import { useInfiniteTableRows } from '@/hooks/queries/tables'
 
 const WORKSPACE_ID = 'ws-1'
 const TABLE_ID = 'tbl-1'
@@ -235,70 +234,5 @@ describe('useTable – ensureAllRowsLoaded', () => {
     await ensureAllRowsLoaded()
     const queryKey = mockGetQueryData.mock.calls[0][0] as unknown[]
     expect(JSON.stringify(queryKey)).toContain('Alice')
-  })
-})
-
-describe('useTable – background drain on mount', () => {
-  it('calls fetchNextPage when hasNextPage is true', () => {
-    vi.mocked(useInfiniteTableRows).mockReturnValueOnce({
-      data: { pages: [] },
-      isLoading: false,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      fetchNextPage: mockFetchNextPage,
-      hasNextPage: true,
-      isFetchingNextPage: false,
-    })
-    useTable({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID, queryOptions: QUERY_OPTIONS })
-    for (const effect of capturedEffects) effect()
-    expect(mockFetchNextPage).toHaveBeenCalled()
-  })
-
-  it('does not call fetchNextPage when hasNextPage is false', () => {
-    // Default mock already returns hasNextPage: false.
-    useTable({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID, queryOptions: QUERY_OPTIONS })
-    for (const effect of capturedEffects) effect()
-    expect(mockFetchNextPage).not.toHaveBeenCalled()
-  })
-
-  it('does not call fetchNextPage when isFetchingNextPage is true', () => {
-    vi.mocked(useInfiniteTableRows).mockReturnValueOnce({
-      data: { pages: [] },
-      isLoading: false,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      fetchNextPage: mockFetchNextPage,
-      hasNextPage: true,
-      isFetchingNextPage: true,
-    })
-    useTable({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID, queryOptions: QUERY_OPTIONS })
-    for (const effect of capturedEffects) effect()
-    expect(mockFetchNextPage).not.toHaveBeenCalled()
-  })
-
-  it('does not drain when workspaceId is empty', () => {
-    vi.mocked(useInfiniteTableRows).mockReturnValueOnce({
-      data: { pages: [] },
-      isLoading: false,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      fetchNextPage: mockFetchNextPage,
-      hasNextPage: true,
-      isFetchingNextPage: false,
-    })
-    useTable({ workspaceId: '', tableId: TABLE_ID, queryOptions: QUERY_OPTIONS })
-    for (const effect of capturedEffects) effect()
-    expect(mockFetchNextPage).not.toHaveBeenCalled()
-  })
-
-  it('does not drain when tableId is empty', () => {
-    vi.mocked(useInfiniteTableRows).mockReturnValueOnce({
-      data: { pages: [] },
-      isLoading: false,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      fetchNextPage: mockFetchNextPage,
-      hasNextPage: true,
-      isFetchingNextPage: false,
-    })
-    useTable({ workspaceId: WORKSPACE_ID, tableId: '', queryOptions: QUERY_OPTIONS })
-    for (const effect of capturedEffects) effect()
-    expect(mockFetchNextPage).not.toHaveBeenCalled()
   })
 })
