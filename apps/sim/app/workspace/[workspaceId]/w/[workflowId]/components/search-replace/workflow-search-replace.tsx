@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, ChevronUp, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useShallow } from 'zustand/react/shallow'
 import { Button, Input } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
@@ -126,7 +127,21 @@ export function WorkflowSearchReplace() {
     setQuery,
     setReplacement,
     setActiveMatchId,
-  } = useWorkflowSearchReplaceStore()
+  } = useWorkflowSearchReplaceStore(
+    useShallow((state) => ({
+      isOpen: state.isOpen,
+      query: state.query,
+      replacement: state.replacement,
+      activeMatchId: state.activeMatchId,
+      position: state.position,
+      close: state.close,
+      open: state.open,
+      setPosition: state.setPosition,
+      setQuery: state.setQuery,
+      setReplacement: state.setReplacement,
+      setActiveMatchId: state.setActiveMatchId,
+    }))
+  )
   const { data: workspaceCredentials } = useWorkspaceCredentials({ workspaceId, enabled: isOpen })
 
   useRegisterGlobalCommands([

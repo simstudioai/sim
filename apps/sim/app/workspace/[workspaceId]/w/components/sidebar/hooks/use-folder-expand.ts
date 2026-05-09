@@ -13,7 +13,9 @@ interface UseFolderExpandProps {
  * @returns Expansion state and event handlers
  */
 export function useFolderExpand({ folderId }: UseFolderExpandProps) {
-  const { expandedFolders, toggleExpanded, setExpanded } = useFolderStore()
+  const expandedFolders = useFolderStore((state) => state.expandedFolders)
+  const toggleExpanded = useFolderStore((state) => state.toggleExpanded)
+  const setExpanded = useFolderStore((state) => state.setExpanded)
   const isExpanded = expandedFolders.has(folderId)
 
   /**

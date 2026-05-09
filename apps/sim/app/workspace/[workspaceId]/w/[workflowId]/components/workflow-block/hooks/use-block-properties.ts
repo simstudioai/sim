@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowBlockProps } from '../types'
 
@@ -43,18 +44,20 @@ export function useBlockProperties(
     storeBlockAdvancedMode,
     storeBlockTriggerMode,
   } = useWorkflowStore(
-    useCallback(
-      (state) => {
-        const block = state.blocks[blockId]
-        return {
-          storeHorizontalHandles: block?.horizontalHandles ?? true,
-          storeBlockHeight: block?.height ?? 0,
-          storeBlockLayout: block?.layout,
-          storeBlockAdvancedMode: block?.advancedMode ?? false,
-          storeBlockTriggerMode: block?.triggerMode ?? false,
-        }
-      },
-      [blockId]
+    useShallow(
+      useCallback(
+        (state) => {
+          const block = state.blocks[blockId]
+          return {
+            storeHorizontalHandles: block?.horizontalHandles ?? true,
+            storeBlockHeight: block?.height ?? 0,
+            storeBlockLayout: block?.layout,
+            storeBlockAdvancedMode: block?.advancedMode ?? false,
+            storeBlockTriggerMode: block?.triggerMode ?? false,
+          }
+        },
+        [blockId]
+      )
     )
   )
 
