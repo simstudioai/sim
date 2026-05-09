@@ -25,6 +25,7 @@ const {
   mockGetUserEntityPermissions,
   mockGenerateWorkspaceFileKey,
   mockGenerateExecutionFileKey,
+  mockInsertFileMetadata,
 } = vi.hoisted(() => ({
   mockVerifyFileAccess: vi.fn().mockResolvedValue(true),
   mockVerifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
@@ -50,6 +51,7 @@ const {
     (ctx: { workspaceId: string; workflowId: string; executionId: string }, fileName: string) =>
       `execution/${ctx.workspaceId}/${ctx.workflowId}/${ctx.executionId}/${fileName}`
   ),
+  mockInsertFileMetadata: vi.fn().mockResolvedValue({ id: 'wf_test' }),
 }))
 
 vi.mock('@/app/api/files/authorization', () => ({
@@ -87,6 +89,10 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 
 vi.mock('@/lib/uploads/contexts/execution/utils', () => ({
   generateExecutionFileKey: mockGenerateExecutionFileKey,
+}))
+
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  insertFileMetadata: mockInsertFileMetadata,
 }))
 
 vi.mock('@/lib/uploads/utils/file-utils', () => ({
@@ -614,6 +620,57 @@ describe('/api/files/presigned', () => {
       const response = await POST(request)
       expect(response.status).toBe(403)
     })
+
+    it('inserts a workspaceFiles row with context=mothership so previews authorize', async () => {
+      setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
+
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=mothership&workspaceId=ws-1',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'screenshot.png',
+            contentType: 'image/png',
+            fileSize: 4096,
+          }),
+        }
+      )
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(mockInsertFileMetadata).toHaveBeenCalledTimes(1)
+      expect(mockInsertFileMetadata).toHaveBeenCalledWith({
+        key: data.fileInfo.key,
+        userId: 'test-user-id',
+        workspaceId: 'ws-1',
+        context: 'mothership',
+        originalName: 'screenshot.png',
+        contentType: 'image/png',
+        size: 4096,
+      })
+    })
+
+    it('returns 500 when insertFileMetadata fails so callers do not get an unauthorizable URL', async () => {
+      setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
+      mockInsertFileMetadata.mockRejectedValueOnce(new Error('DB connection lost'))
+
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=mothership&workspaceId=ws-1',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'screenshot.png',
+            contentType: 'image/png',
+            fileSize: 4096,
+          }),
+        }
+      )
+
+      const response = await POST(request)
+      expect(response.status).toBe(500)
+    })
   })
 
   describe('execution uploads', () => {
@@ -681,6 +738,70 @@ describe('/api/files/presigned', () => {
 
       const response = await POST(request)
       expect(response.status).toBe(400)
+    })
+
+    it('inserts a workspaceFiles row with context=execution so previews authorize', async () => {
+      setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
+
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=execution&workspaceId=ws-1&workflowId=wf-1&executionId=exec-1',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'output.mp4',
+            contentType: 'video/mp4',
+            fileSize: 4096,
+          }),
+        }
+      )
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(mockInsertFileMetadata).toHaveBeenCalledTimes(1)
+      expect(mockInsertFileMetadata).toHaveBeenCalledWith({
+        key: data.fileInfo.key,
+        userId: 'test-user-id',
+        workspaceId: 'ws-1',
+        context: 'execution',
+        originalName: 'output.mp4',
+        contentType: 'video/mp4',
+        size: 4096,
+      })
+    })
+  })
+
+  describe('workspace-logos uploads', () => {
+    it('inserts a workspaceFiles row with context=workspace-logos so logos authorize', async () => {
+      setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
+
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=workspace-logos&workspaceId=ws-1',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'logo.png',
+            contentType: 'image/png',
+            fileSize: 4096,
+          }),
+        }
+      )
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(mockInsertFileMetadata).toHaveBeenCalledTimes(1)
+      expect(mockInsertFileMetadata).toHaveBeenCalledWith({
+        key: data.fileInfo.key,
+        userId: 'test-user-id',
+        workspaceId: 'ws-1',
+        context: 'workspace-logos',
+        originalName: 'logo.png',
+        contentType: 'image/png',
+        size: 4096,
+      })
     })
   })
 
