@@ -651,6 +651,26 @@ describe('/api/files/presigned', () => {
         size: 4096,
       })
     })
+
+    it('returns 500 when insertFileMetadata fails so callers do not get an unauthorizable URL', async () => {
+      setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
+      mockInsertFileMetadata.mockRejectedValueOnce(new Error('DB connection lost'))
+
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=mothership&workspaceId=ws-1',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'screenshot.png',
+            contentType: 'image/png',
+            fileSize: 4096,
+          }),
+        }
+      )
+
+      const response = await POST(request)
+      expect(response.status).toBe(500)
+    })
   })
 
   describe('execution uploads', () => {
