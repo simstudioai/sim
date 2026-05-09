@@ -15,7 +15,7 @@ const {
   mockHandleTagAndVectorSearch,
   mockGetQueryStrategy,
   mockGenerateSearchEmbedding,
-  mockGetDocumentNamesByIds,
+  mockGetDocumentMetadataByIds,
   mockAuthenticateRequest,
   mockValidateWorkspaceAccess,
 } = vi.hoisted(() => ({
@@ -24,7 +24,7 @@ const {
   mockHandleTagAndVectorSearch: vi.fn(),
   mockGetQueryStrategy: vi.fn(),
   mockGenerateSearchEmbedding: vi.fn(),
-  mockGetDocumentNamesByIds: vi.fn(),
+  mockGetDocumentMetadataByIds: vi.fn(),
   mockAuthenticateRequest: vi.fn(),
   mockValidateWorkspaceAccess: vi.fn(),
 }))
@@ -35,7 +35,7 @@ vi.mock('@/app/api/knowledge/search/utils', () => ({
   handleTagAndVectorSearch: mockHandleTagAndVectorSearch,
   getQueryStrategy: mockGetQueryStrategy,
   generateSearchEmbedding: mockGenerateSearchEmbedding,
-  getDocumentNamesByIds: mockGetDocumentNamesByIds,
+  getDocumentMetadataByIds: mockGetDocumentMetadataByIds,
 }))
 
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
@@ -81,7 +81,7 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
     mockGetQueryStrategy.mockReturnValue({ distanceThreshold: 0.5 })
     mockGenerateSearchEmbedding.mockResolvedValue([0.1, 0.2, 0.3])
     mockHandleVectorOnlySearch.mockResolvedValue([])
-    mockGetDocumentNamesByIds.mockResolvedValue({})
+    mockGetDocumentMetadataByIds.mockResolvedValue({})
   })
 
   it('passes the KB embedding model into generateSearchEmbedding', async () => {
