@@ -132,15 +132,16 @@ export const PptxSandboxHost = memo(function PptxSandboxHost({
     const style = window.getComputedStyle(container)
     const paddingLeft = Number.parseFloat(style.paddingLeft) || 0
     const paddingTop = Number.parseFloat(style.paddingTop) || 0
+    const previousScrollLeft = container.scrollLeft
+    const previousScrollTop = container.scrollTop
 
     zoomPercentRef.current = clampedZoom
     setZoomPercent(clampedZoom)
     await activeHandleRef.current?.viewer.setZoom(clampedZoom)
 
     container.scrollLeft =
-      (container.scrollLeft + anchorX - paddingLeft) * ratio + paddingLeft - anchorX
-    container.scrollTop =
-      (container.scrollTop + anchorY - paddingTop) * ratio + paddingTop - anchorY
+      (previousScrollLeft + anchorX - paddingLeft) * ratio + paddingLeft - anchorX
+    container.scrollTop = (previousScrollTop + anchorY - paddingTop) * ratio + paddingTop - anchorY
   }, [])
 
   const applyZoomFromCenter = useCallback(
