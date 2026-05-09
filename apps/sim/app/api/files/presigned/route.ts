@@ -175,7 +175,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
-      const fileValidationError = validateFileType(fileName, contentType)
+      const fileValidationError = validateAttachmentFileType(fileName)
       if (fileValidationError) {
         throw new ValidationError(fileValidationError.message)
       }
