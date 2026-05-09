@@ -11,7 +11,7 @@ import { generateExecutionFileKey } from '@/lib/uploads/contexts/execution/utils
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { generatePresignedUploadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
-import { validateFileType } from '@/lib/uploads/utils/validation'
+import { validateAttachmentFileType, validateFileType } from '@/lib/uploads/utils/validation'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { createErrorResponse } from '@/app/api/files/utils'
 
@@ -141,7 +141,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
-      const fileValidationError = validateFileType(fileName, contentType)
+      const fileValidationError = validateAttachmentFileType(fileName)
       if (fileValidationError) {
         throw new ValidationError(fileValidationError.message)
       }
@@ -175,7 +175,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
-      const fileValidationError = validateFileType(fileName, contentType)
+      const fileValidationError = validateAttachmentFileType(fileName)
       if (fileValidationError) {
         throw new ValidationError(fileValidationError.message)
       }
