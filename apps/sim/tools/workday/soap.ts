@@ -79,9 +79,9 @@ export interface WorkdayCompensationDataSoap {
 
 export interface WorkdayCompensationPlanSoap {
   Compensation_Plan_Reference?: WorkdayReference
-  Amount?: number
-  Per_Unit_Amount?: number
-  Individual_Target_Amount?: number
+  Amount?: number | string
+  Per_Unit_Amount?: number | string
+  Individual_Target_Amount?: number | string
   Currency_Reference?: WorkdayReference
   Frequency_Reference?: WorkdayReference
 }
@@ -244,6 +244,10 @@ function marshal(name: string, value: unknown): string {
       out += marshal(name, item)
     }
     return out
+  }
+
+  if (value instanceof Date) {
+    return `<${tag}>${value.toISOString()}</${tag}>`
   }
 
   if (typeof value === 'object') {
