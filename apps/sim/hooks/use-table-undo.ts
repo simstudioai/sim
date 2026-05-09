@@ -355,19 +355,13 @@ export function useTableUndo({
   const undo = useCallback(() => {
     const entry = popUndo(tableId)
     if (!entry) return
-
-    runWithoutRecording(() => {
-      void executeAction(entry.action, 'undo')
-    })
+    void runWithoutRecording(() => executeAction(entry.action, 'undo'))
   }, [popUndo, tableId, executeAction])
 
   const redo = useCallback(() => {
     const entry = popRedo(tableId)
     if (!entry) return
-
-    runWithoutRecording(() => {
-      void executeAction(entry.action, 'redo')
-    })
+    void runWithoutRecording(() => executeAction(entry.action, 'redo'))
   }, [popRedo, tableId, executeAction])
 
   return { pushUndo, undo, redo, canUndo, canRedo }

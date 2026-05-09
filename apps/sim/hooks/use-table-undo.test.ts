@@ -50,7 +50,7 @@ const storeState = {
 
 vi.mock('@/stores/table/store', () => ({
   useTableUndoStore: vi.fn((selector: (s: typeof storeState) => unknown) => selector(storeState)),
-  runWithoutRecording: (fn: () => void) => fn(),
+  runWithoutRecording: (fn: () => unknown) => Promise.resolve(fn()),
 }))
 
 import { useTableUndo } from '@/hooks/use-table-undo'
