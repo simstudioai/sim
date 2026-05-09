@@ -248,6 +248,26 @@ export function useTableRows({
   })
 }
 
+/** Merges a freshly-fetched page into the cached page while preserving row
+ * object identity for unchanged rows (by `updatedAt`). Returns the original
+ * `prev` reference unchanged when nothing has actually changed — callers can
+ * use a `===` check to skip a `setQueryData` write entirely. */
+function mergePagePreservingIdentity(
+  prev: TableRowsResponse,
+  fresh: TableRowsResponse
+): TableRowsResponse {
+  if (prev.totalCount !== fresh.totalCount || prev.rows.length !== fresh.rows.length) return fresh
+  const prevById = new Map(prev.rows.map((r) => [r.id, r]))
+  let allSame = true
+  const nextRows = fresh.rows.map((freshRow) => {
+    const prevRow = prevById.get(freshRow.id)
+    if (prevRow && String(prevRow.updatedAt) === String(freshRow.updatedAt)) return prevRow
+    allSame = false
+    return freshRow
+  })
+  return allSame ? prev : { ...fresh, rows: nextRows }
+}
+
 export function tableRowsParamsKey({
   pageSize,
   filter,
