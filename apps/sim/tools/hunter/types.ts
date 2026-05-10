@@ -178,7 +178,7 @@ export const DISCOVER_RESULTS_OUTPUT: OutputProperty = {
 }
 
 // Common parameters for all Hunter.io tools
-export interface HunterBaseParams {
+interface HunterBaseParams {
   apiKey: string
 }
 
@@ -191,7 +191,7 @@ export interface HunterDiscoverParams extends HunterBaseParams {
   technology?: string
 }
 
-export interface HunterDiscoverResult {
+interface HunterDiscoverResult {
   domain: string
   organization: string
   personal_emails: number

@@ -93,13 +93,13 @@ export const QDRANT_RESPONSE_OUTPUT_PROPERTIES = {
   time: { type: 'number', description: 'Time spent processing request in seconds', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
-export interface QdrantBaseParams {
+interface QdrantBaseParams {
   url: string
   apiKey?: string
   collection: string
 }
 
-export interface QdrantVector {
+interface QdrantVector {
   id: string
   vector: number[]
   payload?: Record<string, any>

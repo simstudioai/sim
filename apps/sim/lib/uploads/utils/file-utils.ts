@@ -4,7 +4,7 @@ import { ACCEPTED_FILE_TYPES, SUPPORTED_DOCUMENT_EXTENSIONS } from '@/lib/upload
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
-export interface FileAttachment {
+interface FileAttachment {
   id: string
   key: string
   filename: string

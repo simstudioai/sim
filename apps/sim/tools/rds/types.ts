@@ -38,7 +38,7 @@ export interface RdsIntrospectParams extends RdsConnectionConfig {
   engine?: 'aurora-postgresql' | 'aurora-mysql'
 }
 
-export interface RdsBaseResponse extends ToolResponse {
+interface RdsBaseResponse extends ToolResponse {
   output: {
     message: string
     rows: unknown[]
@@ -54,7 +54,7 @@ export interface RdsDeleteResponse extends RdsBaseResponse {}
 export interface RdsExecuteResponse extends RdsBaseResponse {}
 export interface RdsResponse extends RdsBaseResponse {}
 
-export interface RdsTableColumn {
+interface RdsTableColumn {
   name: string
   type: string
   nullable: boolean
@@ -67,7 +67,7 @@ export interface RdsTableColumn {
   }
 }
 
-export interface RdsTableSchema {
+interface RdsTableSchema {
   name: string
   schema: string
   columns: RdsTableColumn[]

@@ -61,7 +61,7 @@ const timePickerVariants = cva(
 /**
  * Props for the TimePicker component.
  */
-export interface TimePickerProps
+interface TimePickerProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onChange'>,
     VariantProps<typeof timePickerVariants> {
   /** Current time value in 24h format (HH:mm) */
@@ -147,10 +147,11 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
 
     React.useEffect(() => {
       if (open) {
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           hourInputRef.current?.focus()
           hourInputRef.current?.select()
         }, 0)
+        return () => clearTimeout(timeoutId)
       }
     }, [open])
 

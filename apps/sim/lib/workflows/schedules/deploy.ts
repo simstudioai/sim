@@ -209,7 +209,7 @@ export async function deleteSchedulesForWorkflow(
   )
 }
 
-export async function cleanupDeploymentVersion(params: {
+async function cleanupDeploymentVersion(params: {
   workflowId: string
   workflow: Record<string, unknown>
   requestId: string

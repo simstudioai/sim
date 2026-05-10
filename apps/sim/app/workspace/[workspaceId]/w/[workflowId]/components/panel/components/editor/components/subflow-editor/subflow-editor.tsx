@@ -210,6 +210,8 @@ export function SubflowEditor({
         >
           <div className='relative'>
             <div
+              role='separator'
+              aria-orientation='horizontal'
               className='absolute top-[-4px] right-0 left-0 z-30 h-[8px] cursor-ns-resize'
               onMouseDown={handleConnectionsResizeMouseDown}
             />

@@ -239,7 +239,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           <Badge>{DESTINATION_LABELS[drain.destinationType]}</Badge>
         </TableCell>
         <TableCell>{CADENCE_LABELS[drain.scheduleCadence]}</TableCell>
-        <TableCell className='text-[13px] text-[var(--text-muted)]'>
+        <TableCell className='text-[13px] text-[var(--text-muted)]' suppressHydrationWarning>
           {drain.lastRunAt ? new Date(drain.lastRunAt).toLocaleString() : 'Never'}
         </TableCell>
         <TableCell onClick={(e) => e.stopPropagation()}>
@@ -253,7 +253,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant='ghost' size='sm' aria-label='Drain actions'>
-                <MoreHorizontal className='h-4 w-4' />
+                <MoreHorizontal className='size-4' />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
@@ -288,7 +288,7 @@ function DrainRunsPanel({ organizationId, drainId }: DrainRunsPanelProps) {
   const { data: runs, isLoading } = useDataDrainRuns(organizationId, drainId, 10)
 
   if (isLoading) {
-    return <div className='text-[13px] text-[var(--text-muted)]'>Loading runs...</div>
+    return <div className='text-[13px] text-[var(--text-muted)]'>Loading runs…</div>
   }
   if (!runs || runs.length === 0) {
     return <div className='text-[13px] text-[var(--text-muted)]'>No runs yet.</div>
@@ -317,7 +317,7 @@ function RunRow({ run }: { run: DataDrainRun }) {
         <div className='flex items-center gap-2'>
           <span className={cn('font-medium', statusColor)}>{run.status}</span>
           <span className='text-[var(--text-muted)]'>{run.trigger}</span>
-          <span className='text-[var(--text-muted)]'>
+          <span className='text-[var(--text-muted)]' suppressHydrationWarning>
             {new Date(run.startedAt).toLocaleString()}
           </span>
         </div>

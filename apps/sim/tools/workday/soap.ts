@@ -12,7 +12,7 @@ const WORKDAY_SERVICES = {
 
 export type WorkdayServiceKey = keyof typeof WORKDAY_SERVICES
 
-export interface WorkdaySoapResult {
+interface WorkdaySoapResult {
   Response_Data?: Record<string, unknown>
   Response_Results?: {
     Total_Results?: number | string
@@ -50,7 +50,7 @@ export interface WorkdayWorkerSoap {
   Worker_Data?: WorkdayWorkerDataSoap
 }
 
-export interface WorkdayWorkerDataSoap {
+interface WorkdayWorkerDataSoap {
   Personal_Data?: Record<string, unknown>
   Employment_Data?: Record<string, unknown>
   Compensation_Data?: WorkdayCompensationDataSoap
@@ -95,7 +95,7 @@ export interface WorkdayOrganizationSoap {
   Organization_Data?: WorkdayOrganizationDataSoap
 }
 
-export interface WorkdayOrganizationDataSoap {
+interface WorkdayOrganizationDataSoap {
   Organization_Type_Reference?: WorkdayReference
   Organization_Subtype_Reference?: WorkdayReference
   Inactive?: boolean | string

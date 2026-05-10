@@ -5,6 +5,7 @@ import { Label, Switch } from '@/components/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { ChunkData, DocumentData } from '@/lib/knowledge/types'
 import { getAccurateTokenCount, getTokenStrings } from '@/lib/tokenization/estimators'
 import { useCreateChunk, useUpdateChunk } from '@/hooks/queries/kb/knowledge'
@@ -183,9 +184,15 @@ export function ChunkEditor({
   return (
     <div className='flex flex-1 flex-col overflow-hidden'>
       <div
+        role='group'
+        aria-label='Chunk content editor'
         className='flex min-h-0 flex-1 cursor-text overflow-hidden'
         onClick={(e) => {
           if (e.target === e.currentTarget) textareaRef.current?.focus()
+        }}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return
+          handleKeyboardActivation(event, () => textareaRef.current?.focus())
         }}
       >
         {tokenizerOn ? (

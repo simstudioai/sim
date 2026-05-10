@@ -106,7 +106,7 @@ export const kalshiGetCandlesticksTool: ToolConfig<
 /**
  * BidAskDistribution - OHLC data for yes_bid and yes_ask
  */
-export interface BidAskDistribution {
+interface BidAskDistribution {
   open: number | null
   open_dollars: string | null
   low: number | null
@@ -120,7 +120,7 @@ export interface BidAskDistribution {
 /**
  * PriceDistribution - Extended OHLC data for price field
  */
-export interface PriceDistribution {
+interface PriceDistribution {
   open: number | null
   open_dollars: string | null
   low: number | null

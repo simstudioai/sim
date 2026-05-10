@@ -39,7 +39,7 @@ interface ImapAttachment {
   size: number
 }
 
-export interface SimplifiedImapEmail {
+interface SimplifiedImapEmail {
   uid: string
   messageId: string
   subject: string
@@ -54,7 +54,7 @@ export interface SimplifiedImapEmail {
   attachments: ImapAttachment[]
 }
 
-export interface ImapWebhookPayload {
+interface ImapWebhookPayload {
   messageId: string
   subject: string
   from: string

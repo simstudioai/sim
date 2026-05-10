@@ -24,7 +24,7 @@ export function mapWorkflow(workflow: WorkflowApiRow): WorkflowMetadata {
   }
 }
 
-export async function fetchWorkflows(
+async function fetchWorkflows(
   workspaceId: string,
   scope: WorkflowQueryScope = 'active',
   signal?: AbortSignal

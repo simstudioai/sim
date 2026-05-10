@@ -14,6 +14,7 @@ import clsx from 'clsx'
 import { Search } from 'lucide-react'
 import { usePostHog } from 'posthog-js/react'
 import { Button } from '@/components/emcn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   getBlocksForSidebar,
@@ -80,7 +81,7 @@ const ToolbarItem = memo(function ToolbarItem({
     [item.type, item.name, item.bgColor, isTriggerCapable, onDragStart, isTrigger]
   )
 
-  const handleClick = useCallback(() => {
+  const addBlockToPanel = useCallback(() => {
     onClick(item.type, isTriggerCapable)
   }, [item.type, isTriggerCapable, onClick])
 
@@ -93,11 +94,9 @@ const ToolbarItem = memo(function ToolbarItem({
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
-      if (event.key === 'Enter') {
-        event.preventDefault()
-        event.stopPropagation()
-        onClick(item.type, isTriggerCapable)
-      }
+      handleKeyboardActivation(event, () => onClick(item.type, isTriggerCapable), {
+        stopPropagation: true,
+      })
     },
     [item.type, isTriggerCapable, onClick]
   )
@@ -105,10 +104,12 @@ const ToolbarItem = memo(function ToolbarItem({
   return (
     <div
       ref={itemRef}
+      role='button'
+      aria-label={`Add ${item.name}`}
       tabIndex={-1}
       draggable
       onDragStart={handleDragStart}
-      onClick={handleClick}
+      onClick={addBlockToPanel}
       onContextMenu={handleContextMenu}
       className={clsx(
         'group flex h-[28px] items-center gap-2 rounded-lg px-1.5 text-sm',
@@ -118,7 +119,7 @@ const ToolbarItem = memo(function ToolbarItem({
       onKeyDown={handleKeyDown}
     >
       <div
-        className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+        className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
         style={{ background: item.bgColor }}
       >
         {Icon && (
@@ -723,8 +724,11 @@ export const Toolbar = memo(
       >
         {/* Header */}
         <div
+          role='button'
+          tabIndex={0}
           className='mx-[-1px] flex flex-shrink-0 cursor-pointer items-center justify-between border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'
           onClick={handleSearchClick}
+          onKeyDown={(event) => handleKeyboardActivation(event, handleSearchClick)}
         >
           <h2 className='font-medium text-[var(--text-primary)] text-sm'>Toolbar</h2>
           <div className='flex shrink-0 items-center gap-2'>
@@ -735,7 +739,7 @@ export const Toolbar = memo(
                 aria-label='Search toolbar'
                 onClick={handleSearchClick}
               >
-                <Search className='h-[14px] w-[14px]' />
+                <Search className='size-[14px]' />
               </Button>
             ) : (
               <input
@@ -786,6 +790,8 @@ export const Toolbar = memo(
           {/* Resize Handle */}
           <div className='relative flex-shrink-0 border-[var(--border)] border-t'>
             <div
+              role='separator'
+              aria-orientation='horizontal'
               className='absolute top-[-4px] right-0 left-0 z-30 h-[8px] cursor-ns-resize'
               onMouseDown={handleMouseDown}
             />
@@ -795,7 +801,10 @@ export const Toolbar = memo(
           <div className='blocks-section flex flex-1 flex-col overflow-hidden'>
             <div
               ref={blocksHeaderRef}
+              role='button'
+              tabIndex={0}
               onClick={handleBlocksHeaderClick}
+              onKeyDown={(event) => handleKeyboardActivation(event, handleBlocksHeaderClick)}
               className='cursor-pointer px-2.5 pt-1.5 pb-1.5 font-medium text-[var(--text-primary)] text-small'
             >
               Blocks

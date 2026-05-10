@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { Badge, Input } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -223,8 +224,11 @@ function InputMappingField({
       )}
     >
       <div
+        role='button'
+        tabIndex={0}
         className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
         onClick={onToggleCollapse}
+        onKeyDown={(event) => handleKeyboardActivation(event, onToggleCollapse)}
       >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>

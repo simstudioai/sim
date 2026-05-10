@@ -61,7 +61,7 @@ export async function getWorkspaceTableLimits(workspaceId: string): Promise<Tabl
  * @param currentTableCount - The current number of tables in the workspace
  * @returns Object with canCreate boolean and limit info
  */
-export async function canCreateTable(
+async function canCreateTable(
   workspaceId: string,
   currentTableCount: number
 ): Promise<{ canCreate: boolean; maxTables: number; currentCount: number }> {
@@ -80,7 +80,7 @@ export async function canCreateTable(
  * @param workspaceId - The workspace ID
  * @returns Maximum rows per table (-1 for unlimited)
  */
-export async function getMaxRowsPerTable(workspaceId: string): Promise<number> {
+async function getMaxRowsPerTable(workspaceId: string): Promise<number> {
   const limits = await getWorkspaceTableLimits(workspaceId)
   return limits.maxRowsPerTable
 }

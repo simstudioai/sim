@@ -101,7 +101,7 @@ function ResourceIcon({ resource }: { resource: DeletedResource }) {
     const color = resource.color ?? '#888'
     return (
       <div
-        className='h-[14px] w-[14px] shrink-0 rounded-[3px] border-[2px]'
+        className='size-[14px] shrink-0 rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
           borderColor: workflowBorderColor(color),
@@ -315,7 +315,7 @@ export function RecentlyDeleted() {
       <div className='flex items-center gap-2'>
         <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
           <Search
-            className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+            className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
             strokeWidth={2}
           />
           <Input
@@ -387,7 +387,7 @@ export function RecentlyDeleted() {
               return (
                 <div
                   key={resource.id}
-                  className='flex items-center gap-3 rounded-md px-2 py-2 hover-hover:bg-[var(--bg-hover)]'
+                  className='flex items-center gap-3 rounded-md p-2 hover-hover:bg-[var(--bg-hover)]'
                 >
                   <ResourceIcon resource={resource} />
 

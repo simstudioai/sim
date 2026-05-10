@@ -429,7 +429,7 @@ export interface SearchResult {
   duration?: string
 }
 
-export interface KnowledgeGraph {
+interface KnowledgeGraph {
   title: string
   type?: string
   description?: string
@@ -440,25 +440,25 @@ export interface KnowledgeGraph {
   attributes?: Record<string, string>
 }
 
-export interface AnswerBox {
+interface AnswerBox {
   snippet?: string
   answer?: string
   title?: string
   link?: string
 }
 
-export interface PeopleAlsoAsk {
+interface PeopleAlsoAsk {
   question: string
   snippet?: string
   title?: string
   link?: string
 }
 
-export interface RelatedSearch {
+interface RelatedSearch {
   query: string
 }
 
-export interface TopStory {
+interface TopStory {
   title: string
   link: string
   source: string

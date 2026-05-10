@@ -3,7 +3,7 @@ import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
-export interface DroppedEdge {
+interface DroppedEdge {
   edge: Edge
   reason: string
 }

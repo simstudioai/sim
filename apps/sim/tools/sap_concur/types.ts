@@ -20,7 +20,7 @@ export interface SapConcurBaseParams {
   companyUuid?: string
 }
 
-export interface ProxyOutput {
+interface ProxyOutput {
   status: number
   data: unknown
 }
@@ -415,32 +415,32 @@ export interface CreateQuickExpenseWithImageParams extends SapConcurBaseParams {
   body: Record<string, unknown> | string
 }
 
-export interface ListInvoicesParams extends SapConcurBaseParams {
+interface ListInvoicesParams extends SapConcurBaseParams {
   limit?: number
   offset?: number
   modifiedAfter?: string
 }
 
-export interface GetInvoiceParams extends SapConcurBaseParams {
+interface GetInvoiceParams extends SapConcurBaseParams {
   invoiceId: string
 }
 
-export interface ListPurchaseOrdersParams extends SapConcurBaseParams {
+interface ListPurchaseOrdersParams extends SapConcurBaseParams {
   limit?: number
   offset?: number
 }
 
-export interface GetPurchaseOrderParams extends SapConcurBaseParams {
+interface GetPurchaseOrderParams extends SapConcurBaseParams {
   purchaseOrderId: string
 }
 
-export interface ListVendorsParams extends SapConcurBaseParams {
+interface ListVendorsParams extends SapConcurBaseParams {
   limit?: number
   offset?: number
   vendorCode?: string
 }
 
-export interface ListPurchaseRequestsParams extends SapConcurBaseParams {
+interface ListPurchaseRequestsParams extends SapConcurBaseParams {
   limit?: number
   offset?: number
   modifiedAfter?: string
@@ -454,7 +454,7 @@ export interface CreatePurchaseRequestParams extends SapConcurBaseParams {
   body: Record<string, unknown> | string
 }
 
-export interface UpdatePurchaseRequestParams extends SapConcurBaseParams {
+interface UpdatePurchaseRequestParams extends SapConcurBaseParams {
   purchaseRequestId: string
   body: Record<string, unknown> | string
 }
@@ -499,7 +499,7 @@ export interface GetBudgetParams extends SapConcurBaseParams {
   budgetId: string
 }
 
-export interface ListBudgetItemsParams extends SapConcurBaseParams {
+interface ListBudgetItemsParams extends SapConcurBaseParams {
   budgetId: string
   limit?: number
   offset?: number
@@ -507,7 +507,7 @@ export interface ListBudgetItemsParams extends SapConcurBaseParams {
 
 export type ListBudgetCategoriesParams = SapConcurBaseParams
 
-export interface ListCardTransactionsParams extends SapConcurBaseParams {
+interface ListCardTransactionsParams extends SapConcurBaseParams {
   limit?: number
   offset?: number
   cardAccountId?: string
@@ -515,7 +515,7 @@ export interface ListCardTransactionsParams extends SapConcurBaseParams {
   modifiedAfter?: string
 }
 
-export interface GetCardTransactionParams extends SapConcurBaseParams {
+interface GetCardTransactionParams extends SapConcurBaseParams {
   cardTransactionId: string
 }
 
@@ -523,7 +523,7 @@ export interface UploadExchangeRatesParams extends SapConcurBaseParams {
   body: Record<string, unknown> | string
 }
 
-export interface ListLocalitiesParams extends SapConcurBaseParams {
+interface ListLocalitiesParams extends SapConcurBaseParams {
   limit?: number
   offset?: number
   countryCode?: string

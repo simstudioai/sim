@@ -25,6 +25,8 @@ interface BaseCardProps {
   onDelete?: (id: string) => Promise<void>
 }
 
+const EMPTY_CONNECTOR_TYPES: string[] = []
+
 /**
  * Skeleton placeholder for a knowledge base card
  */
@@ -39,7 +41,7 @@ export function BaseCardSkeleton() {
       <div className='flex flex-1 flex-col gap-2'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-1.5'>
-            <div className='h-[12px] w-[12px] animate-pulse rounded-xs bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+            <div className='size-[12px] animate-pulse rounded-xs bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
             <div className='h-[15px] w-[45px] animate-pulse rounded-sm bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
           </div>
           <div className='h-[15px] w-[120px] animate-pulse rounded-sm bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
@@ -78,7 +80,7 @@ export function BaseCard({
   docCount,
   description,
   updatedAt,
-  connectorTypes = [],
+  connectorTypes = EMPTY_CONNECTOR_TYPES,
   chunkingConfig,
   onUpdate,
   onDelete,
@@ -108,7 +110,7 @@ export function BaseCard({
 
   const shortId = id ? `kb-${id.slice(0, 8)}` : ''
 
-  const handleClick = useCallback(
+  const navigateToKnowledgeBase = useCallback(
     (e: React.MouseEvent) => {
       if (isContextMenuOpen) {
         e.preventDefault()
@@ -170,7 +172,7 @@ export function BaseCard({
         role='button'
         tabIndex={0}
         className='h-full cursor-pointer'
-        onClick={handleClick}
+        onClick={navigateToKnowledgeBase}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
         data-kb-card
@@ -186,7 +188,7 @@ export function BaseCard({
           <div className='flex flex-1 flex-col gap-2'>
             <div className='flex items-center justify-between'>
               <span className='flex items-center gap-1.5 text-[var(--text-tertiary)] text-caption'>
-                <DocumentAttachment className='h-[12px] w-[12px]' />
+                <DocumentAttachment className='size-[12px]' />
                 {docCount} {docCount === 1 ? 'doc' : 'docs'}
               </span>
               {updatedAt && (
@@ -217,10 +219,10 @@ export function BaseCard({
                       <Tooltip.Root key={type}>
                         <Tooltip.Trigger asChild>
                           <div
-                            className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--surface-5)]'
+                            className='flex size-[20px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--surface-5)]'
                             style={{ marginLeft: index > 0 ? '-4px' : '0' }}
                           >
-                            <Icon className='h-[12px] w-[12px] text-[var(--text-secondary)]' />
+                            <Icon className='size-[12px] text-[var(--text-secondary)]' />
                           </div>
                         </Tooltip.Trigger>
                         <Tooltip.Content>{config.name}</Tooltip.Content>

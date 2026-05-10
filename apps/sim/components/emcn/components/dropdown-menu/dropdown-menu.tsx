@@ -148,9 +148,9 @@ const DropdownMenuCheckboxItem = React.forwardRef<
     checked={checked}
     {...props}
   >
-    <span className='absolute left-2 flex h-[14px] w-[14px] items-center justify-center'>
+    <span className='absolute left-2 flex size-[14px] items-center justify-center'>
       <DropdownMenuPrimitive.ItemIndicator>
-        <Check className='h-[14px] w-[14px]' />
+        <Check className='size-[14px]' />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}
@@ -170,9 +170,9 @@ const DropdownMenuRadioItem = React.forwardRef<
     )}
     {...props}
   >
-    <span className='absolute left-2 flex h-[14px] w-[14px] items-center justify-center'>
+    <span className='absolute left-2 flex size-[14px] items-center justify-center'>
       <DropdownMenuPrimitive.ItemIndicator>
-        <Circle className='h-[6px] w-[6px] fill-current' />
+        <Circle className='size-[6px] fill-current' />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}
@@ -233,7 +233,7 @@ const DropdownMenuSearchInput = React.forwardRef<
 
   return (
     <div className='mx-0.5 mt-0.5 mb-0.5 flex shrink-0 items-center gap-2 rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
-      <Search className='h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
+      <Search className='size-[14px] shrink-0 text-[var(--text-muted)]' />
       <input
         ref={setRefs}
         onKeyDown={(e) => {

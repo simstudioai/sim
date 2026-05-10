@@ -47,7 +47,7 @@ import {
  * ```
  */
 
-export interface WizardStepProps {
+interface WizardStepProps {
   /** Title shown in the modal header when this step is active. */
   title: string
   /** Step body. Rendered inside the modal body when this step is active. */
@@ -75,7 +75,7 @@ function isStepElement(node: React.ReactNode): node is React.ReactElement<Wizard
   return typeof type !== 'string' && type?.displayName === STEP_DISPLAY_NAME
 }
 
-export interface WizardProps {
+interface WizardProps {
   /** Whether the wizard modal is open. */
   open: boolean
   /** Called when the modal's open state changes. */

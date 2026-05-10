@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface UpstashRedisBaseParams {
+interface UpstashRedisBaseParams {
   restUrl: string
   restToken: string
 }

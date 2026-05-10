@@ -151,7 +151,7 @@ export default function CredentialAccountInvitePage() {
 
   const providerWithIcon = (
     <span className='inline-flex items-baseline gap-1'>
-      <ProviderIcon className='inline-block h-4 w-4 translate-y-[2px]' />
+      <ProviderIcon className='inline-block size-4 translate-y-[2px]' />
       {providerName}
     </span>
   )

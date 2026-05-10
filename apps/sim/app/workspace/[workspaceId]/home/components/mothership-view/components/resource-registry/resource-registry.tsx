@@ -65,7 +65,7 @@ function WorkflowDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
       <div
-        className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+        className='size-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
           borderColor: workflowBorderColor(color),
@@ -85,7 +85,7 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
   const DocIcon = getDocumentIcon('', item.name)
   return (
     <>
-      <DocIcon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <DocIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
       <span className='truncate'>{item.name}</span>
     </>
   )
@@ -94,7 +94,7 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
 function IconDropdownItem({ item, icon: Icon }: DropdownItemRenderProps & { icon: ElementType }) {
   return (
     <>
-      <Icon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
       <span className='truncate'>{item.name}</span>
     </>
   )
@@ -107,7 +107,7 @@ function LogDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
       <div
-        className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+        className='size-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
           borderColor: workflowBorderColor(color),

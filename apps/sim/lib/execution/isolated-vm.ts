@@ -45,7 +45,7 @@ export interface IsolatedVMExecutionRequest {
   task?: IsolatedVMTaskRequest
 }
 
-export interface IsolatedVMTaskRequest {
+interface IsolatedVMTaskRequest {
   id: string
   bundles: string[]
   bootstrap: string
@@ -80,7 +80,7 @@ export interface IsolatedVMExecutionResult {
   timings?: IsolatedVMTaskTimings
 }
 
-export interface IsolatedVMTaskTimings {
+interface IsolatedVMTaskTimings {
   setup: number
   runtimeBootstrap: number
   bundles: number
@@ -92,7 +92,7 @@ export interface IsolatedVMTaskTimings {
   total: number
 }
 
-export interface IsolatedVMError {
+interface IsolatedVMError {
   message: string
   name: string
   stack?: string

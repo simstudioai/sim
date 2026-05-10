@@ -70,7 +70,7 @@ export async function executeOAuthRequestAccess(
  * Steps: resolve provider → create credential draft → look up user session →
  * call auth.api.oAuth2LinkAccount → return the real authorization URL.
  */
-export async function generateOAuthLink(
+async function generateOAuthLink(
   userId: string,
   workspaceId: string | undefined,
   workflowId: string | undefined,

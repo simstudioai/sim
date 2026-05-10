@@ -42,7 +42,7 @@ export function refineConfluencePageId(data: { pageId: string }, ctx: z.Refineme
   }
 }
 
-const confluencePageBaseSchema = z.object({
+export const confluencePageBaseSchema = z.object({
   domain: z.string().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   cloudId: optionalString,
@@ -77,7 +77,7 @@ const confluencePageScopedSchema = confluenceBaseSchema.extend({
   pageId: z.string({ error: 'Page ID is required' }).min(1, 'Page ID is required'),
 })
 
-const confluenceSpaceScopedSchema = confluenceBaseSchema.extend({
+export const confluenceSpaceScopedSchema = confluenceBaseSchema.extend({
   spaceId: z.string({ error: 'Space ID is required' }).min(1, 'Space ID is required'),
 })
 
@@ -100,13 +100,13 @@ function addAlphanumericIdIssue(
   }
 }
 
-const confluenceCommentScopedSchema = confluenceBaseSchema
+export const confluenceCommentScopedSchema = confluenceBaseSchema
   .extend({
     commentId: z.string().min(1, 'Comment ID is required'),
   })
   .superRefine((data, ctx) => addAlphanumericIdIssue(data, 'commentId', 'comment ID', ctx))
 
-const confluenceBlogPostScopedSchema = confluenceBaseSchema
+export const confluenceBlogPostScopedSchema = confluenceBaseSchema
   .extend({
     blogPostId: z.string({ error: 'Blog post ID is required' }).min(1, 'Blog post ID is required'),
   })
@@ -136,8 +136,6 @@ export const confluenceListCommentsQuerySchema = confluencePageScopedSchema.exte
 export const confluenceUpdateCommentBodySchema = confluenceCommentScopedSchema.extend({
   comment: z.string().min(1, 'Comment is required'),
 })
-
-export const confluenceDeleteCommentBodySchema = confluenceCommentScopedSchema
 
 export const confluenceCreatePageBodySchema = confluenceSpaceScopedSchema.extend({
   title: z.string({ error: 'Title is required' }).min(1, 'Title is required'),
@@ -186,14 +184,10 @@ export const confluenceUpdateSpaceBodySchema = confluenceSpaceScopedSchema.exten
   name: z.string().optional(),
   description: z.string().optional(),
 })
-export const confluenceDeleteSpaceBodySchema = confluenceSpaceScopedSchema
-
 export const confluencePageChildrenBodySchema = confluencePageScopedSchema.extend({
   limit: z.number().optional().default(50),
   cursor: z.string().optional(),
 })
-
-export const confluencePageDescendantsBodySchema = confluencePageChildrenBodySchema
 
 export const confluencePageAncestorsBodySchema = confluencePageScopedSchema.extend({
   limit: z.number().optional().default(25),
@@ -309,8 +303,6 @@ export const confluenceUpdateBlogPostBodySchema = confluenceBlogPostScopedSchema
   content: z.string().optional(),
 })
 
-export const confluenceDeleteBlogPostBodySchema = confluenceBlogPostScopedSchema
-
 const defineConfluencePostContract = <TBody extends z.ZodType>(path: string, body: TBody) =>
   defineRouteContract({
     method: 'POST',
@@ -414,7 +406,7 @@ export const confluenceUpdateBlogPostContract = defineConfluencePutContract(
 )
 export const confluenceDeleteBlogPostContract = defineConfluenceDeleteContract(
   '/api/tools/confluence/blogposts',
-  confluenceDeleteBlogPostBodySchema
+  confluenceBlogPostScopedSchema
 )
 export const confluenceCreateCommentContract = defineConfluencePostContract(
   '/api/tools/confluence/comments',
@@ -430,7 +422,7 @@ export const confluenceUpdateCommentContract = defineConfluencePutContract(
 )
 export const confluenceDeleteCommentContract = defineConfluenceDeleteContract(
   '/api/tools/confluence/comment',
-  confluenceDeleteCommentBodySchema
+  confluenceCommentScopedSchema
 )
 export const confluenceCreatePageContract = defineConfluencePostContract(
   '/api/tools/confluence/create-page',
@@ -478,7 +470,7 @@ export const confluenceUpdateSpaceContract = defineConfluencePutContract(
 )
 export const confluenceDeleteSpaceContract = defineConfluenceDeleteContract(
   '/api/tools/confluence/space',
-  confluenceDeleteSpaceBodySchema
+  confluenceSpaceScopedSchema
 )
 export const confluencePageChildrenContract = defineConfluencePostContract(
   '/api/tools/confluence/page-children',
@@ -486,7 +478,7 @@ export const confluencePageChildrenContract = defineConfluencePostContract(
 )
 export const confluencePageDescendantsContract = defineConfluencePostContract(
   '/api/tools/confluence/page-descendants',
-  confluencePageDescendantsBodySchema
+  confluencePageChildrenBodySchema
 )
 export const confluencePageAncestorsContract = defineConfluencePostContract(
   '/api/tools/confluence/page-ancestors',

@@ -43,7 +43,7 @@ export type UsageLogMetadata = ModelUsageMetadata | Record<string, unknown> | nu
 /**
  * A single usage entry to be recorded in the usage_log table.
  */
-export interface UsageEntry {
+interface UsageEntry {
   category: UsageLogCategory
   source: UsageLogSource
   description: string
@@ -185,7 +185,7 @@ export interface GetUsageLogsOptions {
 /**
  * Usage log entry returned from queries
  */
-export interface UsageLogEntry {
+interface UsageLogEntry {
   id: string
   createdAt: string
   category: UsageLogCategory

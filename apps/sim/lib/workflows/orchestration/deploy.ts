@@ -29,7 +29,7 @@ const logger = createLogger('DeployOrchestration')
  * Notifies the socket server that a workflow's deployment state has changed,
  * so all connected clients can refresh their deployment queries.
  */
-export async function notifySocketDeploymentChanged(workflowId: string): Promise<void> {
+async function notifySocketDeploymentChanged(workflowId: string): Promise<void> {
   try {
     const response = await fetch(`${getSocketServerUrl()}/api/workflow-deployed`, {
       method: 'POST',

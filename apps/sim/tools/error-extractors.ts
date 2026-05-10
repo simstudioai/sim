@@ -29,7 +29,7 @@ export interface ErrorInfo {
 
 export type ErrorExtractor = (errorInfo?: ErrorInfo) => string | null | undefined
 
-export interface ErrorExtractorConfig {
+interface ErrorExtractorConfig {
   /** Unique identifier for this extractor */
   id: string
   /** Human-readable description of what API/pattern this handles */

@@ -846,7 +846,7 @@ try {
                     </Label>
                     {schemaError && (
                       <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
-                        <AlertCircle className='h-3 w-3 flex-shrink-0' />
+                        <AlertCircle className='size-3 flex-shrink-0' />
                         <span className='truncate'>{schemaError}</span>
                       </div>
                     )}
@@ -887,9 +887,9 @@ try {
                             e.stopPropagation()
                             handleSchemaPromptSubmit()
                           }}
-                          className='h-[20px] w-[20px] flex-shrink-0 p-0'
+                          className='size-[20px] flex-shrink-0 p-0'
                         >
-                          <ArrowUp className='h-[12px] w-[12px]' />
+                          <ArrowUp className='size-[12px]' />
                         </Button>
                       </div>
                     )}
@@ -938,7 +938,7 @@ try {
                     </Label>
                     {codeError && !codeGeneration.isStreaming && (
                       <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
-                        <AlertCircle className='h-3 w-3 flex-shrink-0' />
+                        <AlertCircle className='size-3 flex-shrink-0' />
                         <span className='truncate'>{codeError}</span>
                       </div>
                     )}
@@ -979,9 +979,9 @@ try {
                             e.stopPropagation()
                             handleCodePromptSubmit()
                           }}
-                          className='h-[20px] w-[20px] flex-shrink-0 p-0'
+                          className='size-[20px] flex-shrink-0 p-0'
                         >
-                          <ArrowUp className='h-[12px] w-[12px]' />
+                          <ArrowUp className='size-[12px]' />
                         </Button>
                       </div>
                     )}

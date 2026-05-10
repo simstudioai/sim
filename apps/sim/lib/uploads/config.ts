@@ -2,10 +2,11 @@ import { env } from '@/lib/core/config/env'
 import type { StorageConfig, StorageContext } from '@/lib/uploads/shared/types'
 
 export type { StorageConfig, StorageContext } from '@/lib/uploads/shared/types'
+
 export const UPLOAD_DIR = '/uploads'
 
 const hasS3Config = !!(env.S3_BUCKET_NAME && env.AWS_REGION)
-const hasBlobConfig = !!(
+export const hasBlobConfig = !!(
   env.AZURE_STORAGE_CONTAINER_NAME &&
   ((env.AZURE_ACCOUNT_NAME && env.AZURE_ACCOUNT_KEY) || env.AZURE_CONNECTION_STRING)
 )

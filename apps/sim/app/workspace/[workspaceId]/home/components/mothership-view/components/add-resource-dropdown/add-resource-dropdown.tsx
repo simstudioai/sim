@@ -258,7 +258,7 @@ export function WorkflowFolderTreeItems({ nodes, onSelect }: WorkflowFolderTreeI
         ) : (
           <DropdownMenuSub key={node.id}>
             <DropdownMenuSubTrigger>
-              <Folder className='h-[14px] w-[14px]' />
+              <Folder className='size-[14px]' />
               <span>{node.name}</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
@@ -393,7 +393,7 @@ export function AddResourceDropdown({
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <div
-                      className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+                      className='size-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
                       style={{
                         backgroundColor: '#808080',
                         borderColor: '#80808060',
@@ -415,7 +415,7 @@ export function AddResourceDropdown({
                 return (
                   <DropdownMenuSub key={type}>
                     <DropdownMenuSubTrigger>
-                      <Icon className='h-[14px] w-[14px]' />
+                      <Icon className='size-[14px]' />
                       <span>{config.label}</span>
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent>

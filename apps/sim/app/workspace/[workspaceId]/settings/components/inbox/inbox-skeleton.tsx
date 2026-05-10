@@ -41,8 +41,8 @@ export function InboxSkeleton() {
           <div className='flex items-center justify-between'>
             <Skeleton className='h-[13px] w-[200px]' />
             <div className='flex items-center gap-1.5'>
-              <Skeleton className='h-[12px] w-[12px] rounded-sm' />
-              <Skeleton className='h-[12px] w-[12px] rounded-sm' />
+              <Skeleton className='size-[12px] rounded-sm' />
+              <Skeleton className='size-[12px] rounded-sm' />
             </div>
           </div>
           <Skeleton className='h-9 w-full rounded-md' />

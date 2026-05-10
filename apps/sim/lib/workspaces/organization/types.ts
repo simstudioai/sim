@@ -1,4 +1,4 @@
-export interface User {
+interface User {
   name?: string
   email?: string
   id?: string
@@ -11,7 +11,7 @@ export interface Member {
   user?: User
 }
 
-export interface Invitation {
+interface Invitation {
   id: string
   email: string
   status: string
@@ -29,7 +29,7 @@ export interface Organization {
   [key: string]: unknown
 }
 
-export interface Subscription {
+interface Subscription {
   id: string
   plan: string
   status: string
@@ -42,12 +42,12 @@ export interface Subscription {
   [key: string]: unknown
 }
 
-export interface WorkspaceInvitation {
+interface WorkspaceInvitation {
   workspaceId: string
   permission: string
 }
 
-export interface Workspace {
+interface Workspace {
   id: string
   name: string
   ownerId: string
@@ -55,13 +55,13 @@ export interface Workspace {
   canInvite: boolean
 }
 
-export interface OrganizationFormData {
+interface OrganizationFormData {
   name: string
   slug: string
   logo: string
 }
 
-export interface MemberUsageData {
+interface MemberUsageData {
   userId: string
   userName: string
   userEmail: string
@@ -74,7 +74,7 @@ export interface MemberUsageData {
   lastActive: string | null
 }
 
-export interface OrganizationBillingData {
+interface OrganizationBillingData {
   organizationId: string
   organizationName: string
   subscriptionPlan: string
@@ -93,7 +93,7 @@ export interface OrganizationBillingData {
   billingBlocked?: boolean
 }
 
-export interface OrganizationState {
+interface OrganizationState {
   // Core organization data
   organizations: Organization[]
   activeOrganization: Organization | null
@@ -134,7 +134,7 @@ export interface OrganizationState {
   hasEnterprisePlan: boolean
 }
 
-export interface OrganizationStore extends OrganizationState {
+interface OrganizationStore extends OrganizationState {
   loadData: () => Promise<void>
   loadOrganizationSubscription: (orgId: string) => Promise<void>
   loadOrganizationBillingData: (organizationId: string, force?: boolean) => Promise<void>

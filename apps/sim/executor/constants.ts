@@ -282,7 +282,7 @@ export const PARSING = {
 
 export type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files' | 'plain'
 
-export interface ConditionConfig {
+interface ConditionConfig {
   id: string
   label?: string
   condition: string

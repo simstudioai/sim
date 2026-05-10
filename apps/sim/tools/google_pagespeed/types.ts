@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface GooglePagespeedBaseParams {
+interface GooglePagespeedBaseParams {
   apiKey: string
 }
 

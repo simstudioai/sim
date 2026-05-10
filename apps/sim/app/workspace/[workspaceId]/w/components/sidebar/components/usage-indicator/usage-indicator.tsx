@@ -15,6 +15,7 @@ import {
   getUsage,
 } from '@/lib/billing/client/utils'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { subscriptionKeys, useSubscriptionData } from '@/hooks/queries/subscription'
@@ -228,12 +229,15 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   } = useContextMenu()
 
   useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>
     const handleOperationConfirmed = () => {
-      setTimeout(() => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
       }, 1000)
     }
     onOperationConfirmed(handleOperationConfirmed)
+    return () => clearTimeout(timeoutId)
   }, [onOperationConfirmed, queryClient])
 
   const usage = getUsage(subscriptionData?.data)
@@ -428,7 +432,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     )
   }
 
-  const handleClick = async () => {
+  const handleBillingAction = async () => {
     try {
       if (onClick) {
         onClick()
@@ -481,8 +485,11 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   return (
     <>
       <div
+        role='button'
+        tabIndex={0}
         className='group flex flex-shrink-0 cursor-pointer flex-col gap-2 border-t px-[13.5px] pt-2 pb-2.5'
-        onClick={handleClick}
+        onClick={handleBillingAction}
+        onKeyDown={(event) => handleKeyboardActivation(event, handleBillingAction)}
         onContextMenu={handleContextMenuWithCheck}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}

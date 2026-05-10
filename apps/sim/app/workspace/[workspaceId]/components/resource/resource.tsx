@@ -8,7 +8,7 @@ import { ResourceHeader } from './components/resource-header'
 import type { FilterTag, SearchConfig, SortConfig } from './components/resource-options-bar'
 import { ResourceOptionsBar } from './components/resource-options-bar'
 
-const CREATE_ROW_PLUS_ICON = <Plus className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+const CREATE_ROW_PLUS_ICON = <Plus className='size-[14px] text-[var(--text-subtle)]' />
 
 export interface ResourceColumn {
   id: string
@@ -303,7 +303,7 @@ export const ResourceTable = memo(function ResourceTable({
                     >
                       {col.header}
                       {isActive && (
-                        <SortIcon className='ml-1 h-[12px] w-[12px] text-[var(--text-icon)]' />
+                        <SortIcon className='ml-1 size-[12px] text-[var(--text-icon)]' />
                       )}
                     </Button>
                   </th>
@@ -339,7 +339,7 @@ export const ResourceTable = memo(function ResourceTable({
         {hasMore && (
           <div ref={loadMoreRef} className='flex items-center justify-center py-3'>
             {isLoadingMore && (
-              <Loader className='h-[16px] w-[16px] text-[var(--text-secondary)]' animate />
+              <Loader className='size-[16px] text-[var(--text-secondary)]' animate />
             )}
           </div>
         )}
@@ -373,7 +373,7 @@ const Pagination = memo(function Pagination({
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage <= 1}
         >
-          <ChevronLeft className='h-3.5 w-3.5' />
+          <ChevronLeft className='size-3.5' />
         </Button>
         <div className='mx-3 flex items-center gap-4'>
           {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
@@ -408,7 +408,7 @@ const Pagination = memo(function Pagination({
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage >= totalPages}
         >
-          <ChevronRight className='h-3.5 w-3.5' />
+          <ChevronRight className='size-3.5' />
         </Button>
       </div>
     </div>
@@ -594,7 +594,7 @@ const DataTableSkeleton = memo(function DataTableSkeleton({
             <tr>
               {hasCheckbox && (
                 <th className='h-10 w-[52px] py-2.5 pr-0 pl-5 text-left align-middle'>
-                  <Skeleton className='h-[14px] w-[14px] rounded-xs' />
+                  <Skeleton className='size-[14px] rounded-xs' />
                 </th>
               )}
               {columns.map((col) => (
@@ -619,13 +619,13 @@ const DataTableSkeleton = memo(function DataTableSkeleton({
               <tr key={i}>
                 {hasCheckbox && (
                   <td className='w-[52px] py-2.5 pr-0 pl-5 align-middle'>
-                    <Skeleton className='h-[14px] w-[14px] rounded-xs' />
+                    <Skeleton className='size-[14px] rounded-xs' />
                   </td>
                 )}
                 {columns.map((col, colIdx) => (
                   <td key={col.id} className='px-6 py-2.5 align-middle'>
                     <span className='flex min-h-[21px] items-center gap-3'>
-                      {colIdx === 0 && <Skeleton className='h-[14px] w-[14px] rounded-xs' />}
+                      {colIdx === 0 && <Skeleton className='size-[14px] rounded-xs' />}
                       <Skeleton className='h-[14px] w-[128px]' />
                     </span>
                   </td>

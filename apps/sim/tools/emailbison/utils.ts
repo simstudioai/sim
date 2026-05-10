@@ -84,7 +84,7 @@ export function jsonBody(fields: Record<string, unknown>): Record<string, unknow
   return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined))
 }
 
-export async function emailBisonData<T>(response: Response): Promise<T | null> {
+async function emailBisonData<T>(response: Response): Promise<T | null> {
   const payload = (await response.json()) as EmailBisonEnvelope<T>
   return payload.data ?? null
 }

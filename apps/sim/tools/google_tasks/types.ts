@@ -2,7 +2,7 @@ import type { ToolResponse } from '@/tools/types'
 
 export const TASKS_API_BASE = 'https://tasks.googleapis.com/tasks/v1'
 
-export interface BaseGoogleTasksParams {
+interface BaseGoogleTasksParams {
   accessToken: string
 }
 

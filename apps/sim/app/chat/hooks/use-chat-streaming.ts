@@ -48,7 +48,7 @@ function extractFilesFromData(
   return files
 }
 
-export interface VoiceSettings {
+interface VoiceSettings {
   isVoiceEnabled: boolean
   voiceId: string
   autoPlayResponses: boolean

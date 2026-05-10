@@ -342,6 +342,24 @@ const CollapseButton = memo(function CollapseButton({ isCollapsed, onClick }: Co
   )
 })
 
+interface CollapseLineButtonProps {
+  lineIndex: number
+  isCollapsed: boolean
+  onToggleCollapse: (lineIndex: number) => void
+}
+
+const CollapseLineButton = memo(function CollapseLineButton({
+  lineIndex,
+  isCollapsed,
+  onToggleCollapse,
+}: CollapseLineButtonProps) {
+  const toggleCollapse = useCallback(() => {
+    onToggleCollapse(lineIndex)
+  }, [lineIndex, onToggleCollapse])
+
+  return <CollapseButton isCollapsed={isCollapsed} onClick={toggleCollapse} />
+})
+
 /**
  * Props for the Code.Container component.
  */
@@ -625,9 +643,10 @@ function CodeRow({ index, style, ...props }: RowComponentProps<CodeRowProps>) {
           style={{ width: COLLAPSE_COLUMN_WIDTH }}
         >
           {isCollapsible && (
-            <CollapseButton
+            <CollapseLineButton
+              lineIndex={originalLineIndex}
               isCollapsed={isCollapsed}
-              onClick={() => onToggleCollapse(originalLineIndex)}
+              onToggleCollapse={onToggleCollapse}
             />
           )}
         </div>
@@ -1143,9 +1162,10 @@ const ViewerInner = memo(function ViewerInner({
                   {effectiveShowCollapseColumn && (
                     <div className='ml-1 flex items-start justify-end'>
                       {isCollapsible && (
-                        <CollapseButton
+                        <CollapseLineButton
+                          lineIndex={idx}
                           isCollapsed={isCollapsed}
-                          onClick={() => toggleCollapse(idx)}
+                          onToggleCollapse={toggleCollapse}
                         />
                       )}
                     </div>

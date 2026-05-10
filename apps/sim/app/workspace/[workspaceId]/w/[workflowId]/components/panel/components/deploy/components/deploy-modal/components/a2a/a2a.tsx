@@ -684,7 +684,7 @@ console.log(data);`
                   aria-label='Copy URL'
                   className='!p-1.5 -my-1.5'
                 >
-                  {urlCopied ? <Check className='h-3 w-3' /> : <Clipboard className='h-3 w-3' />}
+                  {urlCopied ? <Check className='size-3' /> : <Clipboard className='size-3' />}
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>
@@ -856,11 +856,7 @@ console.log(data);`
                       aria-label='Copy command'
                       className='!p-1.5 -my-1.5'
                     >
-                      {codeCopied ? (
-                        <Check className='h-3 w-3' />
-                      ) : (
-                        <Clipboard className='h-3 w-3' />
-                      )}
+                      {codeCopied ? <Check className='size-3' /> : <Clipboard className='size-3' />}
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
@@ -883,13 +879,14 @@ console.log(data);`
                 <code className='text-micro'>&lt;start.files&gt;</code>.
               </p>
               {missingFields.any && (
-                <div
+                <button
+                  type='button'
                   className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-[9px] py-0.5 font-medium font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-active)]'
                   title='Add required A2A input fields to Start block'
                   onClick={handleAddA2AInputs}
                 >
                   <span className='whitespace-nowrap'>Add inputs</span>
-                </div>
+                </button>
               )}
             </div>
           </div>

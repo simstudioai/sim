@@ -3,7 +3,7 @@ import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
-export interface KnowledgeBaseData {
+interface KnowledgeBaseData {
   id: string
   userId: string
   workspaceId?: string | null
@@ -18,7 +18,7 @@ export interface KnowledgeBaseData {
   updatedAt: Date
 }
 
-export interface DocumentData {
+interface DocumentData {
   id: string
   knowledgeBaseId: string
   filename: string
@@ -62,7 +62,7 @@ export interface DocumentData {
   externalId?: string | null
 }
 
-export interface EmbeddingData {
+interface EmbeddingData {
   id: string
   knowledgeBaseId: string
   documentId: string
@@ -109,7 +109,7 @@ export interface KnowledgeBaseAccessResult {
   >
 }
 
-export interface KnowledgeBaseAccessDenied {
+interface KnowledgeBaseAccessDenied {
   hasAccess: false
   notFound?: boolean
   reason?: string
@@ -117,7 +117,7 @@ export interface KnowledgeBaseAccessDenied {
 
 export type KnowledgeBaseAccessCheck = KnowledgeBaseAccessResult | KnowledgeBaseAccessDenied
 
-export interface DocumentAccessResult {
+interface DocumentAccessResult {
   hasAccess: true
   document: DocumentData
   knowledgeBase: Pick<
@@ -126,7 +126,7 @@ export interface DocumentAccessResult {
   >
 }
 
-export interface DocumentAccessDenied {
+interface DocumentAccessDenied {
   hasAccess: false
   notFound?: boolean
   reason: string
@@ -134,7 +134,7 @@ export interface DocumentAccessDenied {
 
 export type DocumentAccessCheck = DocumentAccessResult | DocumentAccessDenied
 
-export interface ChunkAccessResult {
+interface ChunkAccessResult {
   hasAccess: true
   chunk: EmbeddingData
   document: DocumentData
@@ -144,7 +144,7 @@ export interface ChunkAccessResult {
   >
 }
 
-export interface ChunkAccessDenied {
+interface ChunkAccessDenied {
   hasAccess: false
   notFound?: boolean
   reason: string

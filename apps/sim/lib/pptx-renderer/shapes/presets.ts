@@ -4425,7 +4425,7 @@ presetShapes.set('funnel', (w, h) => {
 // Preset shape overlays — additional paths for 3D-like shapes (lighter top face, etc.)
 // ---------------------------------------------------------------------------
 
-export interface PresetOverlay {
+interface PresetOverlay {
   /** SVG path d-attribute for the overlay */
   path: string
   /** Fill modifier: 'lighten' brightens the base fill */

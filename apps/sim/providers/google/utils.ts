@@ -47,7 +47,7 @@ export interface GeminiUsage {
 /**
  * Parsed function call from Gemini response
  */
-export interface ParsedFunctionCall {
+interface ParsedFunctionCall {
   name: string
   args: Record<string, unknown>
 }

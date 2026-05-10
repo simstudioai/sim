@@ -666,7 +666,7 @@ export function IntegrationsManager() {
               <div className='flex flex-col gap-3'>
                 <div className='flex items-center gap-2 rounded-[8px] border border-[var(--border)] bg-transparent px-2 py-[5px]'>
                   <Search
-                    className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+                    className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
                     strokeWidth={2}
                   />
                   <UiInput
@@ -689,9 +689,9 @@ export function IntegrationsManager() {
                           setCreateStep(2)
                           setServiceSearch('')
                         }}
-                        className='h-auto w-full justify-start gap-2.5 rounded-[6px] px-2 py-2 text-left hover-hover:bg-[var(--surface-5)]'
+                        className='h-auto w-full justify-start gap-2.5 rounded-[6px] p-2 text-left hover-hover:bg-[var(--surface-5)]'
                       >
-                        <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                        <div className='flex size-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
                           {config ? (
                             createElement(config.icon, { className: 'h-4 w-4' })
                           ) : (
@@ -731,7 +731,7 @@ export function IntegrationsManager() {
                     setCreateStep(1)
                     setCreateError(null)
                   }}
-                  className='h-6 w-6 rounded-[4px] p-0 text-[var(--text-muted)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
+                  className='size-6 rounded-[4px] p-0 text-[var(--text-muted)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
                   aria-label='Back'
                 >
                   ←
@@ -759,7 +759,7 @@ export function IntegrationsManager() {
               )}
               <div className='flex flex-col gap-4'>
                 <div className='flex items-center gap-3'>
-                  <div className='flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[var(--surface-5)]'>
+                  <div className='flex size-[40px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[var(--surface-5)]'>
                     {selectedOAuthService &&
                       createElement(selectedOAuthService.icon, { className: 'h-[18px] w-[18px]' })}
                   </div>
@@ -783,8 +783,8 @@ export function IntegrationsManager() {
                     <ul className='max-h-[200px] space-y-2.5 overflow-y-auto px-3.5 py-3'>
                       {createDisplayScopes.map((scope) => (
                         <li key={scope} className='flex items-start gap-2.5'>
-                          <div className='mt-0.5 flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-                            <Check className='h-[10px] w-[10px] text-[var(--text-primary)]' />
+                          <div className='mt-0.5 flex size-[16px] flex-shrink-0 items-center justify-center'>
+                            <Check className='size-[10px] text-[var(--text-primary)]' />
                           </div>
                           <span className='text-[12px] text-[var(--text-primary)]'>
                             {getScopeDescription(scope)}
@@ -901,7 +901,7 @@ export function IntegrationsManager() {
           {deleteError && (
             <div className='mt-3 rounded-lg border border-[color-mix(in_srgb,var(--text-error)_40%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] p-3'>
               <div className='flex items-start gap-2.5'>
-                <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-[var(--text-error)]' />
+                <AlertTriangle className='mt-[1px] size-4 flex-shrink-0 text-[var(--text-error)]' />
                 <p className='text-[var(--text-error)] text-small'>{deleteError}</p>
               </div>
             </div>
@@ -953,7 +953,7 @@ export function IntegrationsManager() {
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='flex flex-col gap-4.5'>
               <div className='flex items-center gap-2.5 border-[var(--border)] border-b pb-3'>
-                <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-5)]'>
+                <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-5)]'>
                   {selectedOAuthServiceConfig ? (
                     createElement(selectedOAuthServiceConfig.icon, {
                       className: 'h-[18px] w-[18px]',
@@ -996,7 +996,7 @@ export function IntegrationsManager() {
                       <Button
                         type='button'
                         variant='ghost'
-                        className='-my-1 h-5 w-5 p-0'
+                        className='-my-1 size-5 p-0'
                         onClick={() => {
                           navigator.clipboard.writeText(selectedCredential.id)
                           setCopyIdSuccess(true)
@@ -1005,9 +1005,9 @@ export function IntegrationsManager() {
                         aria-label='Copy value'
                       >
                         {copyIdSuccess ? (
-                          <Check className='h-3 w-3 text-[var(--text-success)]' />
+                          <Check className='size-3 text-[var(--text-success)]' />
                         ) : (
-                          <Clipboard className='h-3 w-3 text-[var(--text-icon)]' />
+                          <Clipboard className='size-3 text-[var(--text-icon)]' />
                         )}
                       </Button>
                     </Tooltip.Trigger>
@@ -1066,7 +1066,7 @@ export function IntegrationsManager() {
                         )}
                       >
                         <div className='flex min-w-0 items-center gap-2.5'>
-                          <Avatar className='h-8 w-8 flex-shrink-0'>
+                          <Avatar className='size-8 flex-shrink-0'>
                             <AvatarFallback
                               style={{
                                 background: getUserColor(member.userId || member.userEmail || ''),
@@ -1175,7 +1175,7 @@ export function IntegrationsManager() {
                       onClick={handleShareWithWorkspace}
                       disabled={isSharingWithWorkspace || workspaceUserOptions.length === 0}
                     >
-                      <Share2 className='mr-1.5 h-[13px] w-[13px]' />
+                      <Share2 className='mr-1.5 size-[13px]' />
                       {isSharingWithWorkspace ? 'Sharing...' : 'Share with workspace'}
                     </Button>
                   )}
@@ -1219,7 +1219,7 @@ export function IntegrationsManager() {
         <div className='flex items-center gap-2'>
           <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
-              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
             />
             <UiInput
@@ -1235,7 +1235,7 @@ export function IntegrationsManager() {
             disabled={credentialsLoading}
             variant='primary'
           >
-            <Plus className='mr-1.5 h-[13px] w-[13px]' />
+            <Plus className='mr-1.5 size-[13px]' />
             Connect
           </Button>
         </div>
@@ -1257,7 +1257,7 @@ export function IntegrationsManager() {
                   <div key={credential.id} className='flex items-center justify-between gap-3'>
                     <div className='flex min-w-0 items-center gap-2.5'>
                       {serviceConfig && (
-                        <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-5)]'>
+                        <div className='flex size-8 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-5)]'>
                           {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}
                         </div>
                       )}
@@ -1318,7 +1318,7 @@ export function IntegrationsManager() {
                       >
                         <div className='flex min-w-0 items-center gap-2.5'>
                           {serviceConfig && (
-                            <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                            <div className='flex size-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
                               {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}
                             </div>
                           )}

@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface AlgoliaBaseParams {
+interface AlgoliaBaseParams {
   applicationId: string
   apiKey: string
 }

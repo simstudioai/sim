@@ -4,7 +4,7 @@ import type { ToolResponse } from '@/tools/types'
 
 // Common parameters for all WordPress tools (WordPress.com OAuth)
 // Note: accessToken is injected by the OAuth system at runtime, not defined in tool params
-export interface WordPressBaseParams {
+interface WordPressBaseParams {
   siteId: string // WordPress.com site ID or domain (e.g., 12345678 or mysite.wordpress.com)
   accessToken: string // OAuth access token (injected by OAuth system)
 }
@@ -34,7 +34,7 @@ export interface WordPressCreatePostParams extends WordPressBaseParams {
   slug?: string
 }
 
-export interface WordPressPost {
+interface WordPressPost {
   id: number
   date: string
   modified: string
@@ -128,13 +128,13 @@ export interface WordPressListPostsResponse extends ToolResponse {
 }
 
 // Search Posts
-export interface WordPressSearchPostsParams extends WordPressBaseParams {
+interface WordPressSearchPostsParams extends WordPressBaseParams {
   query: string
   perPage?: number
   page?: number
 }
 
-export interface WordPressSearchPostsResponse extends ToolResponse {
+interface WordPressSearchPostsResponse extends ToolResponse {
   output: {
     posts: WordPressPost[]
     total: number
@@ -158,7 +158,7 @@ export interface WordPressCreatePageParams extends WordPressBaseParams {
   slug?: string
 }
 
-export interface WordPressPage {
+interface WordPressPage {
   id: number
   date: string
   modified: string
@@ -263,7 +263,7 @@ export interface WordPressUploadMediaParams extends WordPressBaseParams {
   description?: string
 }
 
-export interface WordPressMedia {
+interface WordPressMedia {
   id: number
   date: string
   slug: string
@@ -349,7 +349,7 @@ export interface WordPressCreateCommentParams extends WordPressBaseParams {
   authorUrl?: string
 }
 
-export interface WordPressComment {
+interface WordPressComment {
   id: number
   post: number
   parent: number
@@ -372,11 +372,11 @@ export interface WordPressCreateCommentResponse extends ToolResponse {
 }
 
 // Get Comment
-export interface WordPressGetCommentParams extends WordPressBaseParams {
+interface WordPressGetCommentParams extends WordPressBaseParams {
   commentId: number
 }
 
-export interface WordPressGetCommentResponse extends ToolResponse {
+interface WordPressGetCommentResponse extends ToolResponse {
   output: {
     comment: WordPressComment
   }
@@ -439,7 +439,7 @@ export interface WordPressCreateCategoryParams extends WordPressBaseParams {
   slug?: string
 }
 
-export interface WordPressCategory {
+interface WordPressCategory {
   id: number
   count: number
   description: string
@@ -479,7 +479,7 @@ export interface WordPressCreateTagParams extends WordPressBaseParams {
   slug?: string
 }
 
-export interface WordPressTag {
+interface WordPressTag {
   id: number
   count: number
   description: string
@@ -518,7 +518,7 @@ export interface WordPressListTagsResponse extends ToolResponse {
 // Get Current User
 export interface WordPressGetCurrentUserParams extends WordPressBaseParams {}
 
-export interface WordPressUser {
+interface WordPressUser {
   id: number
   username: string
   name: string
@@ -580,7 +580,7 @@ export interface WordPressSearchContentParams extends WordPressBaseParams {
   subtype?: string
 }
 
-export interface WordPressSearchResult {
+interface WordPressSearchResult {
   id: number
   title: string
   url: string

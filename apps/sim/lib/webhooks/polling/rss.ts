@@ -54,7 +54,7 @@ interface RssFeed {
   items: RssItem[]
 }
 
-export interface RssWebhookPayload {
+interface RssWebhookPayload {
   title?: string
   link?: string
   pubDate?: string

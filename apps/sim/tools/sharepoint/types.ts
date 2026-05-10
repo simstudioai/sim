@@ -60,7 +60,7 @@ export interface SharepointPageContent {
   } | null
 }
 
-export interface SharepointColumn {
+interface SharepointColumn {
   id?: string
   name?: string
   displayName?: string
@@ -74,7 +74,7 @@ export interface SharepointColumn {
   [key: string]: unknown
 }
 
-export interface SharepointListItem {
+interface SharepointListItem {
   id: string
   fields?: Record<string, unknown>
 }
@@ -93,7 +93,7 @@ export interface SharepointList {
   items?: SharepointListItem[]
 }
 
-export interface SharepointListSitesResponse extends ToolResponse {
+interface SharepointListSitesResponse extends ToolResponse {
   output: {
     sites: SharepointSite[]
     nextPageUrl?: string
@@ -106,7 +106,7 @@ export interface SharepointCreatePageResponse extends ToolResponse {
   }
 }
 
-export interface SharepointPageWithContent {
+interface SharepointPageWithContent {
   page: SharepointPage
   content: SharepointPageContent
 }
@@ -203,7 +203,7 @@ export interface GraphApiResponse {
   }
 }
 
-export interface GraphApiPageItem {
+interface GraphApiPageItem {
   id: string
   name: string
   title?: string
@@ -276,7 +276,7 @@ export interface SharepointAddListItemResponse extends ToolResponse {
   }
 }
 
-export interface SharepointUploadedFile {
+interface SharepointUploadedFile {
   id: string
   name: string
   webUrl: string

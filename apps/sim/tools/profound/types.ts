@@ -1,7 +1,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 /** Shared report response shape (visibility, sentiment, citations, bots, referrals, query fanouts, prompt volume) */
-export interface ProfoundReportResponse extends ToolResponse {
+interface ProfoundReportResponse extends ToolResponse {
   output: {
     totalRows: number
     data: Array<{
@@ -12,7 +12,7 @@ export interface ProfoundReportResponse extends ToolResponse {
 }
 
 /** Shared report query params for category-based reports */
-export interface ProfoundCategoryReportParams {
+interface ProfoundCategoryReportParams {
   apiKey: string
   categoryId: string
   startDate: string
@@ -25,7 +25,7 @@ export interface ProfoundCategoryReportParams {
 }
 
 /** Shared report query params for domain-based reports */
-export interface ProfoundDomainReportParams {
+interface ProfoundDomainReportParams {
   apiKey: string
   domain: string
   startDate: string

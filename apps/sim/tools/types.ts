@@ -214,7 +214,7 @@ export interface ToolFileData {
  * Configuration for dynamically enriching a parameter's schema at runtime.
  * Used when a parameter's schema depends on runtime values (e.g., KB tags, workflow inputs).
  */
-export interface SchemaEnrichmentConfig {
+interface SchemaEnrichmentConfig {
   /** The param ID that this enrichment depends on (e.g., 'knowledgeBaseId', 'workflowId') */
   dependsOn: string
   /** Function to fetch and build dynamic schema based on the dependency value */
@@ -230,7 +230,7 @@ export interface SchemaEnrichmentConfig {
  * Configuration for enriching an entire tool (description + all parameters) at runtime.
  * Used when multiple parameters and the description depend on a single runtime value (e.g., tableId).
  */
-export interface ToolEnrichmentConfig {
+interface ToolEnrichmentConfig {
   /** The param ID that this enrichment depends on (e.g., 'tableId') */
   dependsOn: string
   /** Function to enrich the tool's description and parameter schema */
@@ -256,14 +256,14 @@ export interface ToolEnrichmentConfig {
  * Pricing models for hosted API key usage
  */
 /** Flat fee per API call (e.g., Serper search) */
-export interface PerRequestPricing {
+interface PerRequestPricing {
   type: 'per_request'
   /** Cost per request in dollars */
   cost: number
 }
 
 /** Result from custom pricing calculation */
-export interface CustomPricingResult {
+interface CustomPricingResult {
   /** Cost in dollars */
   cost: number
   /** Optional metadata about the cost calculation (e.g., breakdown from API) */
@@ -271,7 +271,7 @@ export interface CustomPricingResult {
 }
 
 /** Custom pricing calculated from params and response (e.g., Exa with different modes/result counts) */
-export interface CustomPricing<P = Record<string, unknown>> {
+interface CustomPricing<P = Record<string, unknown>> {
   type: 'custom'
   /** Calculate cost based on request params and response output. Fields starting with _ are internal. */
   getCost: (params: P, output: Record<string, unknown>) => number | CustomPricingResult
@@ -304,7 +304,7 @@ export type ToolHostingPricing<P = Record<string, unknown>> = PerRequestPricing 
  * Adding more keys only requires updating the count and adding the new env var —
  * no code changes needed.
  */
-export interface ToolHostingConfig<P = Record<string, unknown>> {
+interface ToolHostingConfig<P = Record<string, unknown>> {
   /**
    * Env var name prefix for hosted keys.
    * At runtime, `{envKeyPrefix}_COUNT` is read to determine how many keys exist,

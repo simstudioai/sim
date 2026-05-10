@@ -1,7 +1,6 @@
 'use client'
 
 import type { SVGProps } from 'react'
-import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
 
 function SunIcon(props: SVGProps<SVGSVGElement>) {
@@ -51,28 +50,17 @@ function MoonIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!mounted) {
-    return (
-      <button className='flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-full text-foreground/40'>
-        <MoonIcon />
-      </button>
-    )
-  }
+  const { resolvedTheme, setTheme } = useTheme()
 
   return (
     <button
-      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-      className='flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-full text-foreground/40 transition-colors duration-200 hover:bg-neutral-100 hover:text-foreground/70 dark:hover:bg-neutral-800 dark:hover:text-foreground/70'
+      type='button'
+      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+      className='flex size-[30px] cursor-pointer items-center justify-center rounded-full text-foreground/40 transition-colors duration-200 hover:bg-neutral-100 hover:text-foreground/70 dark:hover:bg-neutral-800 dark:hover:text-foreground/70'
       aria-label='Toggle theme'
     >
-      {theme === 'dark' ? <MoonIcon /> : <SunIcon />}
+      <SunIcon className='block dark:hidden' />
+      <MoonIcon className='hidden dark:block' />
     </button>
   )
 }

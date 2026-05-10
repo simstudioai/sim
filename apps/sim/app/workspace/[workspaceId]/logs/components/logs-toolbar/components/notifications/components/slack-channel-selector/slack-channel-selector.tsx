@@ -111,5 +111,3 @@ export function SlackChannelSelector({
     </div>
   )
 }
-
-export default SlackChannelSelector

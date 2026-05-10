@@ -209,7 +209,7 @@ export const PptxSandboxHost = memo(function PptxSandboxHost({
       />
       <div
         ref={scrollContainerRef}
-        className='relative flex min-h-0 flex-1 items-start overflow-auto bg-[var(--surface-1)] px-6 py-6'
+        className='relative flex min-h-0 flex-1 items-start overflow-auto bg-[var(--surface-1)] p-6'
       >
         <div ref={stageRef} className='mx-auto w-full max-w-[960px]' />
       </div>

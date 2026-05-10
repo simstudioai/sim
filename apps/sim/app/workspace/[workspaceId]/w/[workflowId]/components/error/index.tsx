@@ -38,7 +38,7 @@ export function ErrorUI({
             <p className='max-w-[300px] text-[var(--text-tertiary)] text-small'>{message}</p>
           </div>
           <Button variant='default' size='sm' onClick={onReset ?? (() => window.location.reload())}>
-            <RefreshCw className='mr-1.5 h-[14px] w-[14px]' />
+            <RefreshCw className='mr-1.5 size-[14px]' />
             Try again
           </Button>
         </div>

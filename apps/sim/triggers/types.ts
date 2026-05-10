@@ -34,7 +34,7 @@ export interface TriggerRegistry {
   [triggerId: string]: TriggerConfig
 }
 
-export interface TriggerInstance {
+interface TriggerInstance {
   id: string
   triggerId: string
   blockId: string

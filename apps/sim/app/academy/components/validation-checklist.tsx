@@ -27,12 +27,12 @@ export function ValidationChecklist({ results, allPassed }: ValidationChecklistP
         )}
       </div>
       <ul className='space-y-1.5'>
-        {results.map((result, i) => (
-          <li key={i} className='flex items-start gap-2'>
+        {results.map((result) => (
+          <li key={result.message} className='flex items-start gap-2'>
             {result.passed ? (
-              <CheckCircle2 className='mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-[#4CAF50]' />
+              <CheckCircle2 className='mt-0.5 size-3.5 flex-shrink-0 text-[#4CAF50]' />
             ) : (
-              <Circle className='mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-[#444]' />
+              <Circle className='mt-0.5 size-3.5 flex-shrink-0 text-[#444]' />
             )}
             <span
               className={cn(

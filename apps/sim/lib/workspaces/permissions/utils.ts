@@ -341,7 +341,7 @@ export async function hasWorkspaceAdminAccess(
   return await isOrganizationAdminOrOwnerOfWorkspace(userId, ws)
 }
 
-export async function isOrganizationAdminOrOwnerOfWorkspace(
+async function isOrganizationAdminOrOwnerOfWorkspace(
   userId: string,
   ws: Pick<WorkspaceWithOwner, 'organizationId'>
 ): Promise<boolean> {

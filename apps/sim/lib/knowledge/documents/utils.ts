@@ -20,7 +20,7 @@ export interface RetryOptions {
   retryCondition?: (error: unknown) => boolean
 }
 
-export interface RetryResult<T> {
+interface RetryResult<T> {
   success: boolean
   data?: T
   error?: Error

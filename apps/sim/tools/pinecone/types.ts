@@ -1,14 +1,14 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Base Pinecone params shared across all operations
-export interface PineconeBaseParams {
+interface PineconeBaseParams {
   indexHost: string
   namespace: string
   apiKey: string
 }
 
 // Response types
-export interface PineconeMatchResponse {
+interface PineconeMatchResponse {
   id: string
   score: number
   values?: number[]
@@ -55,7 +55,7 @@ export interface PineconeUpsertTextParams extends PineconeBaseParams {
 }
 
 // Upsert Vectors
-export interface PineconeUpsertVectorsParams extends PineconeBaseParams {
+interface PineconeUpsertVectorsParams extends PineconeBaseParams {
   vectors: {
     id: string
     values: number[]
@@ -68,7 +68,7 @@ export interface PineconeUpsertVectorsParams extends PineconeBaseParams {
 }
 
 // Search Text
-export interface PineconeSearchQuery {
+interface PineconeSearchQuery {
   inputs?: { text: string }
   vector?: {
     values: number[]
@@ -80,7 +80,7 @@ export interface PineconeSearchQuery {
   filter?: Record<string, any>
 }
 
-export interface PineconeRerank {
+interface PineconeRerank {
   model: string
   rank_fields: string[]
   top_n?: number
@@ -102,7 +102,7 @@ export interface PineconeSearchHit {
   fields?: Record<string, any>
 }
 
-export interface PineconeSearchResponse {
+interface PineconeSearchResponse {
   result: {
     hits: PineconeSearchHit[]
   }
@@ -124,17 +124,17 @@ export interface PineconeVector {
   metadata?: Record<string, any>
 }
 
-export interface PineconeUsage {
+interface PineconeUsage {
   readUnits: number
 }
 
-export interface PineconeFetchResponse {
+interface PineconeFetchResponse {
   vectors: Record<string, PineconeVector>
   namespace?: string
   usage: PineconeUsage
 }
 
-export interface PineconeParams {
+interface PineconeParams {
   apiKey: string
   indexHost: string
   operation: 'query' | 'upsert' | 'delete'

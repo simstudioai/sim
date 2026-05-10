@@ -82,7 +82,7 @@ interface SimplifiedCalendarEvent {
   organizer: CalendarEventPerson | null
 }
 
-export interface GoogleCalendarWebhookPayload {
+interface GoogleCalendarWebhookPayload {
   event: SimplifiedCalendarEvent
   calendarId: string
   timestamp: string

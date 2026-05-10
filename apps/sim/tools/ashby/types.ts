@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface AshbyBaseParams {
+interface AshbyBaseParams {
   apiKey: string
 }
 
@@ -10,12 +10,12 @@ export interface AshbyContactInfo {
   isPrimary: boolean
 }
 
-export interface AshbySocialLink {
+interface AshbySocialLink {
   type: string
   url: string
 }
 
-export interface AshbyTag {
+interface AshbyTag {
   id: string
   title: string
   isArchived: boolean
@@ -57,7 +57,7 @@ export interface AshbySourceSummary {
   } | null
 }
 
-export interface AshbyCandidateLocation {
+interface AshbyCandidateLocation {
   id: string | null
   locationSummary: string | null
   locationComponents: Array<{ type: string; name: string }>
@@ -174,7 +174,7 @@ export interface AshbySearchCandidatesResponse extends ToolResponse {
   }
 }
 
-export interface AshbyJobLocation {
+interface AshbyJobLocation {
   id: string | null
   name: string | null
   externalName: string | null
@@ -228,7 +228,7 @@ export interface AshbyOpening {
   latestVersion: AshbyOpeningLatestVersion | null
 }
 
-export interface AshbyJobCompensationTier {
+interface AshbyJobCompensationTier {
   id: string | null
   title: string | null
   additionalInformation: string | null
@@ -274,7 +274,7 @@ export interface AshbyGetJobResponse extends ToolResponse {
   output: AshbyJob
 }
 
-export interface AshbyNote {
+interface AshbyNote {
   id: string
   createdAt: string | null
   isPrivate: boolean
@@ -291,21 +291,21 @@ export interface AshbyCreateNoteResponse extends ToolResponse {
   output: AshbyNote
 }
 
-export interface AshbyApplicationCandidate {
+interface AshbyApplicationCandidate {
   id: string
   name: string | null
   primaryEmailAddress: AshbyContactInfo | null
   primaryPhoneNumber: AshbyContactInfo | null
 }
 
-export interface AshbyApplicationJob {
+interface AshbyApplicationJob {
   id: string
   title: string | null
   locationId: string | null
   departmentId: string | null
 }
 
-export interface AshbyApplicationStage {
+interface AshbyApplicationStage {
   id: string
   title: string | null
   type: string | null
@@ -314,7 +314,7 @@ export interface AshbyApplicationStage {
   interviewPlanId: string | null
 }
 
-export interface AshbyApplicationArchiveReason {
+interface AshbyApplicationArchiveReason {
   id: string
   text: string | null
   reasonType: string | null
@@ -322,7 +322,7 @@ export interface AshbyApplicationArchiveReason {
   customFields: AshbyCustomField[]
 }
 
-export interface AshbyApplicationHistoryEntry {
+interface AshbyApplicationHistoryEntry {
   id: string
   stageId: string | null
   stageNumber: number | null

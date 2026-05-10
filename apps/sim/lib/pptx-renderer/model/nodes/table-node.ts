@@ -17,7 +17,7 @@ export interface TableCell {
   properties?: SafeXmlNode
 }
 
-export interface TableRow {
+interface TableRow {
   height: number
   cells: TableCell[]
 }

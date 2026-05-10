@@ -354,7 +354,7 @@ export function FolderItem({
     [effectiveLocked, handleStartEdit]
   )
 
-  const handleClick = useCallback(
+  const handleFolderSelect = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       e.stopPropagation()
 
@@ -498,7 +498,7 @@ export function FolderItem({
           (isSelected || isContextMenuOpen) && 'bg-[var(--surface-active)]',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
-        onClick={handleClick}
+        onClick={handleFolderSelect}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
         draggable={!isEditing && !dragDisabled && !effectiveLocked}
@@ -515,12 +515,12 @@ export function FolderItem({
         />
         {isExpanded ? (
           <FolderOpen
-            className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]'
+            className='size-[16px] flex-shrink-0 text-[var(--text-icon)]'
             aria-hidden='true'
           />
         ) : (
           <Folder
-            className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]'
+            className='size-[16px] flex-shrink-0 text-[var(--text-icon)]'
             aria-hidden='true'
           />
         )}
@@ -553,7 +553,7 @@ export function FolderItem({
                 {folder.name}
               </span>
             </div>
-            <div className='relative h-[18px] w-[18px] flex-shrink-0'>
+            <div className='relative size-[18px] flex-shrink-0'>
               {folder.locked && (
                 <span
                   role='img'
@@ -564,7 +564,7 @@ export function FolderItem({
                     isContextMenuOpen && 'opacity-0'
                   )}
                 >
-                  <Lock className='h-[14px] w-[14px] text-[var(--text-icon)]' aria-hidden='true' />
+                  <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden='true' />
                 </span>
               )}
               <button
@@ -578,7 +578,7 @@ export function FolderItem({
                   isContextMenuOpen && 'pointer-events-auto opacity-100'
                 )}
               >
-                <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+                <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
               </button>
             </div>
           </div>

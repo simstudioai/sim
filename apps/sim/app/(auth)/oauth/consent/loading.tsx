@@ -4,9 +4,9 @@ export default function OAuthConsentLoading() {
   return (
     <div className='flex flex-col items-center'>
       <div className='flex items-center gap-4'>
-        <Skeleton className='h-[48px] w-[48px] rounded-[12px]' />
-        <Skeleton className='h-[20px] w-[20px] rounded-[4px]' />
-        <Skeleton className='h-[48px] w-[48px] rounded-[12px]' />
+        <Skeleton className='size-[48px] rounded-[12px]' />
+        <Skeleton className='size-[20px] rounded-[4px]' />
+        <Skeleton className='size-[48px] rounded-[12px]' />
       </div>
       <Skeleton className='mt-6 h-[38px] w-[220px] rounded-[4px]' />
       <Skeleton className='mt-2 h-[14px] w-[280px] rounded-[4px]' />

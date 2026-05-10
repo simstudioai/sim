@@ -137,13 +137,13 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
 
         <div className='relative px-6 pt-6 pb-6'>
           <ModalClose className='absolute top-6 right-6 rounded-sm opacity-70 transition-opacity hover:opacity-100'>
-            <X className='h-5 w-5 text-[var(--landing-text-muted)]' />
+            <X className='size-5 text-[var(--landing-text-muted)]' />
             <span className='sr-only'>Close</span>
           </ModalClose>
 
           {!providerStatus ? (
             <div className='flex items-center justify-center py-16'>
-              <Loader className='h-5 w-5 text-[var(--landing-text-muted)]' animate />
+              <Loader className='size-5 text-[var(--landing-text-muted)]' animate />
             </div>
           ) : (
             <>
@@ -174,7 +174,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                     disabled={!!socialLoading}
                     className={SOCIAL_BTN}
                   >
-                    <GoogleIcon className='absolute left-4 h-[18px] w-[18px] shrink-0' />
+                    <GoogleIcon className='absolute left-4 size-[18px] shrink-0' />
                     <span>
                       {socialLoading === 'google' ? 'Connecting...' : 'Continue with Google'}
                     </span>
@@ -187,7 +187,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                     disabled={!!socialLoading}
                     className={SOCIAL_BTN}
                   >
-                    <GithubIcon className='absolute left-4 h-[18px] w-[18px] shrink-0' />
+                    <GithubIcon className='absolute left-4 size-[18px] shrink-0' />
                     <span>
                       {socialLoading === 'github' ? 'Connecting...' : 'Continue with GitHub'}
                     </span>

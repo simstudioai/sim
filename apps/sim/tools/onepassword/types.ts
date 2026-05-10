@@ -1,7 +1,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 /** Base params shared by all 1Password tools (credential fields). */
-export interface OnePasswordBaseParams {
+interface OnePasswordBaseParams {
   connectionMode?: 'service_account' | 'connect'
   serviceAccountToken?: string
   apiKey?: string
@@ -104,7 +104,7 @@ export interface OnePasswordListItemsResponse extends ToolResponse {
   }
 }
 
-export interface OnePasswordFullItemResponse extends ToolResponse {
+interface OnePasswordFullItemResponse extends ToolResponse {
   output: {
     id: string
     title: string

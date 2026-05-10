@@ -87,7 +87,7 @@ export async function addCredits(
   }
 }
 
-export async function removeCredits(
+async function removeCredits(
   entityType: 'user' | 'organization',
   entityId: string,
   amount: number
@@ -109,7 +109,7 @@ export async function removeCredits(
   }
 }
 
-export interface DeductResult {
+interface DeductResult {
   creditsUsed: number
   overflow: number
 }
@@ -168,7 +168,7 @@ async function atomicDeductOrgCredits(orgId: string, cost: number): Promise<numb
   return toNumber(oldBalance.lessThan(costDecimal) ? oldBalance : costDecimal)
 }
 
-export async function deductFromCredits(userId: string, cost: number): Promise<DeductResult> {
+async function deductFromCredits(userId: string, cost: number): Promise<DeductResult> {
   if (cost <= 0) {
     return { creditsUsed: 0, overflow: 0 }
   }

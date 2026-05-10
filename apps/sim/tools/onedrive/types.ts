@@ -33,7 +33,7 @@ export interface MicrosoftGraphDriveItem {
   }
 }
 
-export interface OneDriveFile {
+interface OneDriveFile {
   id: string
   name: string
   mimeType: string

@@ -2097,6 +2097,7 @@ export function useWorkflowExecution() {
     let reconnectionComplete = false
     let ownsReconnect = false
     let ownedReconnectExecutionId: string | null = null
+    let retryTimeoutId: ReturnType<typeof setTimeout> | undefined
     const reconnectWorkflowId = activeWorkflowId
 
     const releaseReconnectOwnership = () => {
@@ -2206,7 +2207,7 @@ export function useWorkflowExecution() {
       }
       const scheduleRetryableReconnect = () => {
         releaseReconnectOwnership()
-        setTimeout(() => {
+        retryTimeoutId = setTimeout(() => {
           if (!cleanupRan && !reconnectionComplete) {
             setReconnectAttemptNonce((nonce) => nonce + 1)
           }
@@ -2403,6 +2404,7 @@ export function useWorkflowExecution() {
 
     return () => {
       cleanupRan = true
+      clearTimeout(retryTimeoutId)
       if (ownsReconnect) {
         if (ownedReconnectExecutionId) {
           executionStream.cancelReconnect(reconnectWorkflowId, ownedReconnectExecutionId)

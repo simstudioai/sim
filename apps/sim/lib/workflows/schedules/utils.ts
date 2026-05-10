@@ -50,7 +50,7 @@ export function validateCronExpression(
   }
 }
 
-export interface SubBlockValue {
+interface SubBlockValue {
   value: string
 }
 

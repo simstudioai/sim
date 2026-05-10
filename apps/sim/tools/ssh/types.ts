@@ -1,7 +1,7 @@
 import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 // Base SSH connection configuration
-export interface SSHConnectionConfig {
+interface SSHConnectionConfig {
   host: string
   port: number
   username: string
@@ -41,7 +41,7 @@ export interface SSHUploadFileParams extends SSHConnectionConfig {
 }
 
 // Upload Directory parameters
-export interface SSHUploadDirectoryParams extends SSHConnectionConfig {
+interface SSHUploadDirectoryParams extends SSHConnectionConfig {
   localDirectory: string
   remoteDirectory: string
   recursive?: boolean
@@ -54,7 +54,7 @@ export interface SSHDownloadFileParams extends SSHConnectionConfig {
 }
 
 // Download Directory parameters
-export interface SSHDownloadDirectoryParams extends SSHConnectionConfig {
+interface SSHDownloadDirectoryParams extends SSHConnectionConfig {
   remotePath: string
   recursive?: boolean
 }
@@ -112,7 +112,7 @@ export interface SSHWriteFileContentParams extends SSHConnectionConfig {
 }
 
 // File info interface
-export interface SSHFileInfo {
+interface SSHFileInfo {
   name: string
   type: 'file' | 'directory' | 'symlink' | 'other'
   size: number
@@ -123,7 +123,7 @@ export interface SSHFileInfo {
 }
 
 // System info interface
-export interface SSHSystemInfo {
+interface SSHSystemInfo {
   hostname: string
   os: string
   architecture: string

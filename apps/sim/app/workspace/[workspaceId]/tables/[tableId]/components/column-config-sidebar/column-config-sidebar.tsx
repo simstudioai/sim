@@ -157,10 +157,10 @@ function ColumnConfigBody({
           variant='ghost'
           size='sm'
           onClick={onClose}
-          className='!p-1 h-7 w-7'
+          className='!p-1 size-7'
           aria-label='Close'
         >
-          <X className='h-[14px] w-[14px]' />
+          <X className='size-[14px]' />
         </Button>
       </div>
 

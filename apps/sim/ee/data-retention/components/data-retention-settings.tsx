@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { Button, Callout, Combobox, toast } from '@/components/emcn'
@@ -88,10 +88,10 @@ export function DataRetentionSettings() {
   const [savedLogDays, setSavedLogDays] = useState('')
   const [savedSoftDeleteDays, setSavedSoftDeleteDays] = useState('')
   const [savedTaskCleanupDays, setSavedTaskCleanupDays] = useState('')
-  const [formInitialized, setFormInitialized] = useState(false)
+  const formInitializedRef = useRef(false)
 
   useEffect(() => {
-    if (!data || formInitialized) return
+    if (!data || formInitializedRef.current) return
     const log = hoursToDisplayDays(data.effective.logRetentionHours)
     const soft = hoursToDisplayDays(data.effective.softDeleteRetentionHours)
     const task = hoursToDisplayDays(data.effective.taskCleanupHours)
@@ -101,8 +101,8 @@ export function DataRetentionSettings() {
     setSavedLogDays(log)
     setSavedSoftDeleteDays(soft)
     setSavedTaskCleanupDays(task)
-    setFormInitialized(true)
-  }, [data, formInitialized])
+    formInitializedRef.current = true
+  }, [data])
 
   const hasChanges =
     logDays !== savedLogDays ||

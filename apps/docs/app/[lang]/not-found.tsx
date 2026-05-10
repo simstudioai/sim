@@ -9,7 +9,7 @@ export default function NotFound() {
   return (
     <DocsPage>
       <div className='flex min-h-[70vh] flex-col items-center justify-center gap-4 text-center'>
-        <h1 className='bg-gradient-to-b from-[#47d991] to-[#33c482] bg-clip-text font-bold text-8xl text-transparent'>
+        <h1 className='bg-gradient-to-b from-[#47d991] to-[#33c482] bg-clip-text font-semibold text-8xl text-transparent'>
           404
         </h1>
         <h2 className='font-semibold text-2xl text-foreground'>Page Not Found</h2>

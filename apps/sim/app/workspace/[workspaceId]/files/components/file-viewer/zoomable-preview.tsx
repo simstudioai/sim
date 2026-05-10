@@ -1,7 +1,7 @@
 'use client'
 
-import type { MouseEvent, ReactNode } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { MouseEvent, ReactNode, WheelEvent } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { PreviewToolbar } from './preview-toolbar'
 
@@ -133,39 +133,31 @@ export function ZoomablePreview({
     applyZoom(clampZoom(zoom / ZOOM_BUTTON_FACTOR))
   }
 
-  useEffect(() => {
-    const el = viewportRef.current
-    if (!el) return
-
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      if (e.ctrlKey || e.metaKey) {
-        hasInteractedRef.current = true
-        const rect = el.getBoundingClientRect()
-        applyZoom(
-          clampZoom(zoomRef.current * Math.exp(-e.deltaY * ZOOM_WHEEL_SENSITIVITY)),
-          e.clientX - rect.left,
-          e.clientY - rect.top
+  const handleWheel = (e: WheelEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    if (e.ctrlKey || e.metaKey) {
+      hasInteractedRef.current = true
+      const rect = e.currentTarget.getBoundingClientRect()
+      applyZoom(
+        clampZoom(zoomRef.current * Math.exp(-e.deltaY * ZOOM_WHEEL_SENSITIVITY)),
+        e.clientX - rect.left,
+        e.clientY - rect.top
+      )
+    } else {
+      hasInteractedRef.current = true
+      setOffset((currentOffset) =>
+        clampOffset(
+          containerSizeRef.current,
+          contentSizeRef.current,
+          {
+            x: currentOffset.x - e.deltaX,
+            y: currentOffset.y - e.deltaY,
+          },
+          zoomRef.current
         )
-      } else {
-        hasInteractedRef.current = true
-        setOffset((currentOffset) =>
-          clampOffset(
-            containerSizeRef.current,
-            contentSizeRef.current,
-            {
-              x: currentOffset.x - e.deltaX,
-              y: currentOffset.y - e.deltaY,
-            },
-            zoomRef.current
-          )
-        )
-      }
+      )
     }
-
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [applyZoom])
+  }
 
   useLayoutEffect(() => {
     const updateSizes = () => {
@@ -258,11 +250,14 @@ export function ZoomablePreview({
       />
       <div
         ref={viewportRef}
+        role='application'
+        aria-label='Zoomable preview'
         className='relative min-h-0 flex-1 cursor-grab overflow-hidden'
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
       >
         <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
           <div

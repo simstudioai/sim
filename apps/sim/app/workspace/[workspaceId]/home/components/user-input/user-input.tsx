@@ -19,6 +19,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -564,6 +565,10 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     return () => window.cancelAnimationFrame(raf)
   }, [textareaRef])
 
+  const focusTextarea = useCallback(() => {
+    textareaRef.current?.focus()
+  }, [textareaRef])
+
   const handleContainerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if ((e.target as HTMLElement).closest('button')) return
@@ -867,7 +872,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
         <ContextMentionIcon
           context={matchingCtx}
           workflowColor={wfId ? (workflowsById[wfId]?.color ?? null) : null}
-          className='absolute inset-0 m-auto h-[12px] w-[12px] text-[var(--text-icon)]'
+          className='absolute inset-0 m-auto size-[12px] text-[var(--text-icon)]'
         />
       ) : null
 
@@ -900,7 +905,13 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
   return (
     <div
+      role='group'
+      aria-label='Message input'
       onClick={handleContainerClick}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        handleKeyboardActivation(event, focusTextarea)
+      }}
       className={cn(
         'relative z-10 mx-auto w-full max-w-[42rem] cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
         isInitialView && 'shadow-sm'
@@ -962,9 +973,9 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
                 variant='ghost'
                 onClick={handleFileSelectStable}
                 aria-label='Attach file'
-                className='h-[28px] w-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
+                className='size-[28px] rounded-full p-0 hover-hover:bg-[var(--surface-hover)]'
               >
-                <Paperclip className='h-[14px] w-[14px] text-[var(--text-icon)]' strokeWidth={2} />
+                <Paperclip className='size-[14px] text-[var(--text-icon)]' strokeWidth={2} />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Attach file</Tooltip.Content>

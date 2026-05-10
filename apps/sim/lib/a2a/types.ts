@@ -3,56 +3,17 @@
  * @see https://a2a-protocol.org/specification
  */
 
-export {
-  AGENT_CARD_PATH,
-  type AgentCapabilities,
-  type AgentCard,
-  type AgentProvider,
-  type AgentSkill,
-  type Artifact,
-  type DataPart,
-  type FilePart,
-  type Message,
-  type MessageSendConfiguration,
-  type MessageSendParams,
-  type Part,
-  type PushNotificationConfig,
-  type Task,
-  type TaskArtifactUpdateEvent,
-  type TaskIdParams,
-  type TaskPushNotificationConfig,
-  type TaskQueryParams,
-  type TaskState,
-  type TaskStatus,
-  type TaskStatusUpdateEvent,
-  type TextPart,
+export type {
+  AgentCapabilities,
+  AgentSkill,
 } from '@a2a-js/sdk'
-export {
-  type A2AClientOptions,
-  type AuthenticationHandler,
-  Client,
-  type ClientConfig,
-  ClientFactory,
-  type RequestOptions,
-} from '@a2a-js/sdk/client'
-export {
-  A2AError,
-  type AgentExecutor,
-  DefaultExecutionEventBus,
-  DefaultRequestHandler,
-  type ExecutionEventBus,
-  InMemoryTaskStore,
-  JsonRpcTransportHandler,
-  type RequestContext,
-  type TaskStore,
-} from '@a2a-js/sdk/server'
 
 /**
  * App-specific: Extended MessageSendParams
  * Note: Structured inputs should be passed via DataPart in message.parts (A2A spec compliant)
  * Files should be passed via FilePart in message.parts
  */
-export interface ExtendedMessageSendParams {
+interface ExtendedMessageSendParams {
   message: import('@a2a-js/sdk').Message
   configuration?: import('@a2a-js/sdk').MessageSendConfiguration
 }
@@ -60,7 +21,7 @@ export interface ExtendedMessageSendParams {
 /**
  * App-specific: Database model for A2A Agent configuration
  */
-export interface A2AAgentConfig {
+interface A2AAgentConfig {
   id: string
   workspaceId: string
   workflowId: string
@@ -88,7 +49,7 @@ export interface AgentAuthentication {
 /**
  * App-specific: Agent card signature (v0.3)
  */
-export interface AgentCardSignature {
+interface AgentCardSignature {
   algorithm: string
   keyId: string
   value: string
@@ -97,7 +58,7 @@ export interface AgentCardSignature {
 /**
  * App-specific: Database model for A2A Task record
  */
-export interface A2ATaskRecord {
+interface A2ATaskRecord {
   id: string
   agentId: string
   contextId?: string
@@ -114,7 +75,7 @@ export interface A2ATaskRecord {
 /**
  * App-specific: A2A API Response wrapper
  */
-export interface A2AApiResponse<T = unknown> {
+interface A2AApiResponse<T = unknown> {
   success: boolean
   data?: T
   error?: string
@@ -123,7 +84,7 @@ export interface A2AApiResponse<T = unknown> {
 /**
  * App-specific: JSON Schema definition for skill input/output schemas
  */
-export interface JSONSchema {
+interface JSONSchema {
   type?: string
   properties?: Record<string, JSONSchema>
   items?: JSONSchema

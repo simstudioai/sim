@@ -295,7 +295,7 @@ export interface PdlAutocompleteParams {
   titlecase?: boolean
 }
 
-export interface PdlAutocompleteSuggestion {
+interface PdlAutocompleteSuggestion {
   name: string
   count: number
   meta?: Record<string, unknown>
@@ -372,7 +372,7 @@ export interface PdlPersonIdentifyParams {
   titlecase?: boolean
 }
 
-export interface PdlPersonIdentifyMatch {
+interface PdlPersonIdentifyMatch {
   match_score: number
   matched_on?: string[]
   person: PdlPersonRecord

@@ -41,7 +41,7 @@ export function EmbedCodeGenerator({ formUrl }: EmbedCodeGeneratorProps) {
               aria-label='Copy code'
               className='!p-1.5 -my-1.5'
             >
-              {copied ? <Check className='h-3 w-3' /> : <Clipboard className='h-3 w-3' />}
+              {copied ? <Check className='size-3' /> : <Clipboard className='size-3' />}
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content>

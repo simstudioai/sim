@@ -139,7 +139,7 @@ function SubscriptionSkeleton() {
                 <ul className='flex flex-1 flex-col gap-3.5'>
                   {[...Array(5)].map((_, j) => (
                     <li key={j} className='flex items-center gap-2'>
-                      <Skeleton className='h-[12px] w-[12px] flex-shrink-0 rounded-sm' />
+                      <Skeleton className='size-[12px] flex-shrink-0 rounded-sm' />
                       <Skeleton className='h-[12px] w-[120px] rounded-sm' />
                     </li>
                   ))}
@@ -223,9 +223,9 @@ function CreditPlanCard({
 
       {features && features.length > 0 && (
         <ul className='flex flex-col gap-2.5 border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3'>
-          {features.map((feature, idx) => (
-            <li key={idx} className='flex items-center gap-2'>
-              <feature.icon className='h-[13px] w-[13px] flex-shrink-0 text-[var(--text-muted)]' />
+          {features.map((feature) => (
+            <li key={feature.text} className='flex items-center gap-2'>
+              <feature.icon className='size-[13px] flex-shrink-0 text-[var(--text-muted)]' />
               <span className='text-[var(--text-secondary)] text-caption'>{feature.text}</span>
             </li>
           ))}
@@ -240,7 +240,7 @@ function CreditPlanCard({
         </div>
       )}
 
-      <div className='flex min-h-[60px] items-center border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3.5'>
+      <div className='flex min-h-[60px] items-center border-[var(--border-1)] border-t bg-[var(--surface-4)] p-3.5'>
         {isCurrentPlan ? (
           <Button onClick={onManagePlan} className='h-[32px] w-full' variant='default'>
             {isCancelledAtPeriodEnd ? 'Restore Subscription' : 'Manage plan'}
@@ -1066,7 +1066,7 @@ export function Subscription() {
                 <Label htmlFor='billed-account'>Billed Account</Label>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Info className='h-[12px] w-[12px] text-[var(--text-secondary)]' />
+                    <Info className='size-[12px] text-[var(--text-secondary)]' />
                   </Tooltip.Trigger>
                   <Tooltip.Content>
                     <span>Usage from this workspace will be billed to this account</span>

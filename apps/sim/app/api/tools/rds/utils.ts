@@ -279,7 +279,7 @@ export interface RdsIntrospectionResult {
 /**
  * Detects the database engine by querying SELECT VERSION()
  */
-export async function detectEngine(
+async function detectEngine(
   client: RDSDataClient,
   resourceArn: string,
   secretArn: string,

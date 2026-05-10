@@ -194,7 +194,7 @@ function ColorPickerSubmenu({
           />
           <div className='flex items-center gap-1'>
             <div
-              className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border border-black/10'
+              className='size-[16px] flex-shrink-0 rounded-sm border border-black/10'
               style={{
                 backgroundColor: isValidHex(hexInput) ? normalizeHex(hexInput) : '#ffffff',
               }}
@@ -215,9 +215,9 @@ function ColorPickerSubmenu({
                 e.stopPropagation()
                 handleHexSubmit()
               }}
-              className='h-[20px] w-[20px] flex-shrink-0 p-0'
+              className='size-[20px] flex-shrink-0 p-0'
             >
-              <Check className='h-[12px] w-[12px]' />
+              <Check className='size-[12px]' />
             </Button>
           </div>
         </div>

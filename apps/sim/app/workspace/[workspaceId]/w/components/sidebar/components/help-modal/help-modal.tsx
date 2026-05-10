@@ -409,7 +409,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                               className='absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'
                               onClick={() => removeImage(index)}
                             >
-                              <X className='h-[18px] w-[18px] text-white' />
+                              <X className='size-[18px] text-white' />
                             </button>
                           </div>
                           <div className='truncate p-1.5 text-caption'>{image.name}</div>

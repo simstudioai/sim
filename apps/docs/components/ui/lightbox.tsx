@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useEffectEvent, useLayoutEffect, useRef } from 'react'
 import { getAssetUrl } from '@/lib/utils'
 
 interface LightboxProps {
@@ -14,33 +14,38 @@ interface LightboxProps {
 
 export function Lightbox({ isOpen, onClose, src, alt, type, startTime }: LightboxProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
+  const mediaButtonRef = useRef<HTMLButtonElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const closeLightbox = useEffectEvent(onClose)
 
   useEffect(() => {
+    if (!isOpen) return
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose()
+        closeLightbox()
       }
     }
 
     const handleClickOutside = (event: MouseEvent) => {
       if (overlayRef.current && event.target === overlayRef.current) {
-        onClose()
+        closeLightbox()
       }
     }
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown)
-      document.addEventListener('click', handleClickOutside)
-      document.body.style.overflow = 'hidden'
-    }
+    const previousOverflow = document.body.style.overflow
+
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('click', handleClickOutside)
+    document.body.style.overflow = 'hidden'
+    mediaButtonRef.current?.focus()
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
       document.removeEventListener('click', handleClickOutside)
-      document.body.style.overflow = 'unset'
+      document.body.style.overflow = previousOverflow
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   useLayoutEffect(() => {
     if (isOpen && type === 'video' && videoRef.current && startTime != null && startTime > 0) {
@@ -59,26 +64,32 @@ export function Lightbox({ isOpen, onClose, src, alt, type, startTime }: Lightbo
       aria-label='Media viewer'
     >
       <div className='relative max-h-full max-w-full overflow-hidden rounded-xl'>
-        {type === 'image' ? (
-          <img
-            src={src}
-            alt={alt}
-            className='max-h-[75vh] max-w-[75vw] cursor-pointer rounded-xl object-contain'
-            loading='lazy'
-            onClick={onClose}
-          />
-        ) : (
-          <video
-            ref={videoRef}
-            src={getAssetUrl(src)}
-            autoPlay
-            loop
-            muted
-            playsInline
-            className='max-h-[75vh] max-w-[75vw] cursor-pointer rounded-xl outline-none focus:outline-none'
-            onClick={onClose}
-          />
-        )}
+        <button
+          ref={mediaButtonRef}
+          type='button'
+          onClick={onClose}
+          aria-label='Close media viewer'
+          className='block cursor-pointer rounded-xl p-0 outline-none focus-visible:ring-2 focus-visible:ring-white/70'
+        >
+          {type === 'image' ? (
+            <img
+              src={src}
+              alt={alt}
+              className='max-h-[75vh] max-w-[75vw] rounded-xl object-contain'
+              loading='lazy'
+            />
+          ) : (
+            <video
+              ref={videoRef}
+              src={getAssetUrl(src)}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className='max-h-[75vh] max-w-[75vw] rounded-xl outline-none focus:outline-none'
+            />
+          )}
+        </button>
       </div>
     </div>
   )

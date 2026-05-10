@@ -19,13 +19,13 @@ export interface GoogleFormsResponseList {
   nextPageToken?: string
 }
 
-export interface GoogleFormsInfo {
+interface GoogleFormsInfo {
   title?: string
   description?: string
   documentTitle?: string
 }
 
-export interface GoogleFormsSettings {
+interface GoogleFormsSettings {
   quizSettings?: {
     isQuiz?: boolean
   }
@@ -37,7 +37,7 @@ export interface GoogleFormsSettings {
   [key: string]: unknown
 }
 
-export interface GoogleFormsPublishState {
+interface GoogleFormsPublishState {
   isPublished?: boolean
   isAcceptingResponses?: boolean
 }
@@ -46,7 +46,7 @@ export interface GoogleFormsPublishSettings {
   publishState?: GoogleFormsPublishState
 }
 
-export interface GoogleFormsItem {
+interface GoogleFormsItem {
   itemId?: string
   title?: string
   description?: string
@@ -143,7 +143,7 @@ export interface GoogleFormsCreateFormResponse extends ToolResponse {
 // Batch Update Params & Response
 // ============================================
 
-export interface GoogleFormsBatchUpdateRequest {
+interface GoogleFormsBatchUpdateRequest {
   updateFormInfo?: {
     info: Partial<GoogleFormsInfo>
     updateMask: string
