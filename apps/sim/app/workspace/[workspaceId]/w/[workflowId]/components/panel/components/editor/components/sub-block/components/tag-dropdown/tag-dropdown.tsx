@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { isEqual } from 'es-toolkit'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
