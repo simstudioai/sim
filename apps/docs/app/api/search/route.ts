@@ -6,19 +6,8 @@ import { generateSearchEmbedding } from '@/lib/embeddings'
 export const runtime = 'nodejs'
 export const revalidate = 0
 
-type SearchRequestBody = {
-  query?: unknown
-  q?: unknown
-  locale?: unknown
-  limit?: unknown
-}
-
 const DEFAULT_SEARCH_LIMIT = 10
 const MAX_SEARCH_LIMIT = 20
-
-function getStringParam(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined
-}
 
 function getSearchLimit(value: unknown): number {
   const limit = Number.parseInt(String(value ?? DEFAULT_SEARCH_LIMIT), 10)
@@ -30,28 +19,12 @@ function getSearchLimit(value: unknown): number {
   return Math.min(limit, MAX_SEARCH_LIMIT)
 }
 
-async function getSearchParams(request: NextRequest) {
-  const contentType = request.headers.get('content-type') ?? ''
-  let body: SearchRequestBody = {}
-
-  if (contentType.includes('application/json')) {
-    try {
-      body = (await request.json()) as SearchRequestBody
-    } catch {
-      body = {}
-    }
-  } else if (
-    contentType.includes('application/x-www-form-urlencoded') ||
-    contentType.includes('multipart/form-data')
-  ) {
-    const formData = await request.formData()
-    body = Object.fromEntries(formData.entries())
-  }
-
+function getSearchParams(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams
   return {
-    query: getStringParam(body.query) || getStringParam(body.q) || '',
-    locale: getStringParam(body.locale) || 'en',
-    limit: getSearchLimit(body.limit),
+    query: searchParams.get('query') || searchParams.get('q') || '',
+    locale: searchParams.get('locale') || 'en',
+    limit: getSearchLimit(searchParams.get('limit')),
   }
 }
 
@@ -60,9 +33,9 @@ async function getSearchParams(request: NextRequest) {
  * - English: Vector embeddings + keyword search
  * - Other languages: Keyword search only
  */
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const { query, locale, limit } = await getSearchParams(request)
+    const { query, locale, limit } = getSearchParams(request)
 
     if (!query || query.trim().length === 0) {
       return NextResponse.json([])
