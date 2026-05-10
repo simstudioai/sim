@@ -155,12 +155,12 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
 
   useEffect(() => {
     if (visibleNotifications.length === 0) {
-      if (isPaused) setIsPaused(false)
+      if (isPausedRef.current) setIsPaused(false)
       for (const timer of timersRef.current.values()) clearTimeout(timer)
       timersRef.current.clear()
       return
     }
-    if (isPaused) return
+    if (isPausedRef.current) return
 
     const timers = timersRef.current
     const activeIds = new Set<string>()
@@ -200,7 +200,7 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
       for (const timer of timers.values()) clearTimeout(timer)
       timers.clear()
     }
-  }, [visibleNotifications, removeNotification, isPaused])
+  }, [visibleNotifications, removeNotification])
 
   useEffect(() => {
     const timers = timersRef.current

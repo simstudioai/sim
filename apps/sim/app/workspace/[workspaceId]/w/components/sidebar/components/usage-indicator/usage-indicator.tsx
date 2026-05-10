@@ -432,7 +432,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     )
   }
 
-  const handleClick = async () => {
+  const handleBillingAction = async () => {
     try {
       if (onClick) {
         onClick()
@@ -488,8 +488,8 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         role='button'
         tabIndex={0}
         className='group flex flex-shrink-0 cursor-pointer flex-col gap-2 border-t px-[13.5px] pt-2 pb-2.5'
-        onClick={handleClick}
-        onKeyDown={(event) => handleKeyboardActivation(event, handleClick)}
+        onClick={handleBillingAction}
+        onKeyDown={(event) => handleKeyboardActivation(event, handleBillingAction)}
         onContextMenu={handleContextMenuWithCheck}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}

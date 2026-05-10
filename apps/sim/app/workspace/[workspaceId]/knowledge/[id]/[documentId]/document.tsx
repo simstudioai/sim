@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -362,17 +362,19 @@ export function Document({
     }
   }, [pendingAction, closeEditor])
 
+  const handleSaveEvent = useEffectEvent(handleSave)
+
   useEffect(() => {
     if (!isInEditorView) return
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-        handleSave()
+        handleSaveEvent()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isInEditorView, handleSave])
+  }, [isInEditorView])
 
   useEffect(() => {
     if (!isDirty) return

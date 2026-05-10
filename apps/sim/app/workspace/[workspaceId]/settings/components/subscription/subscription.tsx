@@ -223,8 +223,8 @@ function CreditPlanCard({
 
       {features && features.length > 0 && (
         <ul className='flex flex-col gap-2.5 border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3'>
-          {features.map((feature, idx) => (
-            <li key={idx} className='flex items-center gap-2'>
+          {features.map((feature) => (
+            <li key={feature.text} className='flex items-center gap-2'>
               <feature.icon className='size-[13px] flex-shrink-0 text-[var(--text-muted)]' />
               <span className='text-[var(--text-secondary)] text-caption'>{feature.text}</span>
             </li>

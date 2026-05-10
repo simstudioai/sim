@@ -25,18 +25,64 @@ interface ConnectionBlocksProps {
   currentBlockId: string
 }
 
+interface FieldTreeNodesProps {
+  fields: SchemaField[]
+  parentPath: string
+  level: number
+  connection: ConnectedBlock
+  isFieldExpanded: (connectionId: string, fieldPath: string) => boolean
+  onToggleFieldExpansion: (connectionId: string, fieldPath: string) => void
+}
+
+function FieldTreeNodes({
+  fields,
+  parentPath,
+  level,
+  connection,
+  isFieldExpanded,
+  onToggleFieldExpansion,
+}: FieldTreeNodesProps) {
+  return fields.map((field) => {
+    const fieldPath = parentPath ? `${parentPath}.${field.name}` : field.name
+    const hasChildren = !!(field.children && field.children.length > 0)
+    const expanded = isFieldExpanded(connection.id, fieldPath)
+
+    return (
+      <div key={fieldPath}>
+        <FieldItem
+          connection={connection}
+          field={field}
+          path={fieldPath}
+          level={level}
+          hasChildren={hasChildren}
+          isExpanded={expanded}
+          onToggleExpand={(p) => onToggleFieldExpansion(connection.id, p)}
+        />
+        {hasChildren && expanded && (
+          <div className='relative mt-0.5 ml-1.5 space-y-0.5 pl-2.5'>
+            <div className='pointer-events-none absolute top-1 bottom-1 left-0 w-px bg-[var(--border)]' />
+            <FieldTreeNodes
+              fields={field.children!}
+              parentPath={fieldPath}
+              level={level + 1}
+              connection={connection}
+              isFieldExpanded={isFieldExpanded}
+              onToggleFieldExpansion={onToggleFieldExpansion}
+            />
+          </div>
+        )}
+      </div>
+    )
+  })
+}
+
 interface ConnectionItemProps {
   connection: ConnectedBlock
   isExpanded: boolean
   onToggleExpand: (connectionId: string) => void
   isFieldExpanded: (connectionId: string, fieldPath: string) => boolean
+  onToggleFieldExpansion: (connectionId: string, fieldPath: string) => void
   onConnectionDragStart: (e: React.DragEvent, connection: ConnectedBlock) => void
-  renderFieldTree: (
-    fields: SchemaField[],
-    parentPath: string,
-    level: number,
-    connection: ConnectedBlock
-  ) => React.ReactNode
   connectionRef: (el: HTMLDivElement | null) => void
   mergedSubBlocks: Record<string, any>
   sourceBlock: { triggerMode?: boolean } | undefined
@@ -50,8 +96,8 @@ function ConnectionItem({
   isExpanded,
   onToggleExpand,
   isFieldExpanded,
+  onToggleFieldExpansion,
   onConnectionDragStart,
-  renderFieldTree,
   connectionRef,
   mergedSubBlocks,
   sourceBlock,
@@ -132,7 +178,14 @@ function ConnectionItem({
       {isExpanded && hasFields && (
         <div className='relative mt-0.5 ml-3 space-y-0.5 pl-2.5'>
           <div className='pointer-events-none absolute top-1 bottom-1 left-0 w-px bg-[var(--border)]' />
-          {renderFieldTree(fields, '', 0, connection)}
+          <FieldTreeNodes
+            fields={fields}
+            parentPath=''
+            level={0}
+            connection={connection}
+            isFieldExpanded={isFieldExpanded}
+            onToggleFieldExpansion={onToggleFieldExpansion}
+          />
         </div>
       )}
     </div>
@@ -251,37 +304,6 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
     []
   )
 
-  const renderFieldTree = useCallback(
-    (fields: SchemaField[], parentPath: string, level: number, connection: ConnectedBlock) => {
-      return fields.map((field) => {
-        const fieldPath = parentPath ? `${parentPath}.${field.name}` : field.name
-        const hasChildren = !!(field.children && field.children.length > 0)
-        const expanded = isFieldExpanded(connection.id, fieldPath)
-
-        return (
-          <div key={fieldPath}>
-            <FieldItem
-              connection={connection}
-              field={field}
-              path={fieldPath}
-              level={level}
-              hasChildren={hasChildren}
-              isExpanded={expanded}
-              onToggleExpand={(p) => toggleFieldExpansion(connection.id, p)}
-            />
-            {hasChildren && expanded && (
-              <div className='relative mt-0.5 ml-1.5 space-y-0.5 pl-2.5'>
-                <div className='pointer-events-none absolute top-1 bottom-1 left-0 w-px bg-[var(--border)]' />
-                {renderFieldTree(field.children!, fieldPath, level + 1, connection)}
-              </div>
-            )}
-          </div>
-        )
-      })
-    },
-    [isFieldExpanded, toggleFieldExpansion]
-  )
-
   if (!connections || connections.length === 0) {
     return null
   }
@@ -299,8 +321,8 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
             isExpanded={expandedConnections.has(connection.id)}
             onToggleExpand={toggleConnectionExpansion}
             isFieldExpanded={isFieldExpanded}
+            onToggleFieldExpansion={toggleFieldExpansion}
             onConnectionDragStart={handleConnectionDragStart}
-            renderFieldTree={renderFieldTree}
             connectionRef={(el) => {
               if (el) {
                 connectionRefs.current.set(connection.id, el)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { X } from 'lucide-react'
@@ -143,7 +143,7 @@ export function WhitelabelingSettings() {
   const [privacyUrl, setPrivacyUrl] = useState('')
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [wordmarkUrl, setWordmarkUrl] = useState<string | null>(null)
-  const [formInitialized, setFormInitialized] = useState(false)
+  const formInitializedRef = useRef(false)
   const [savedBrandName, setSavedBrandName] = useState('')
   const [savedPrimaryColor, setSavedPrimaryColor] = useState('')
   const [savedPrimaryHoverColor, setSavedPrimaryHoverColor] = useState('')
@@ -157,7 +157,7 @@ export function WhitelabelingSettings() {
   const [savedWordmarkUrl, setSavedWordmarkUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!savedSettings || formInitialized) return
+    if (!savedSettings || formInitializedRef.current) return
     const brand = savedSettings.brandName ?? ''
     const primary = savedSettings.primaryColor ?? ''
     const primaryHover = savedSettings.primaryHoverColor ?? ''
@@ -191,8 +191,8 @@ export function WhitelabelingSettings() {
     setSavedPrivacyUrl(privacy)
     setSavedLogoUrl(logo)
     setSavedWordmarkUrl(wordmark)
-    setFormInitialized(true)
-  }, [savedSettings, formInitialized])
+    formInitializedRef.current = true
+  }, [savedSettings])
 
   const logoUpload = useProfilePictureUpload({
     currentImage: logoUrl,
@@ -211,7 +211,7 @@ export function WhitelabelingSettings() {
   })
 
   const hasChanges =
-    formInitialized &&
+    formInitializedRef.current &&
     (brandName !== savedBrandName ||
       primaryColor !== savedPrimaryColor ||
       primaryHoverColor !== savedPrimaryHoverColor ||

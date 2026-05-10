@@ -125,13 +125,24 @@ export async function getAllTags(): Promise<TagWithCount[]> {
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
 }
 
+const BLOG_COMPONENT_LOADERS: Record<string, () => Promise<Record<string, React.ComponentType>>> = {
+  enterprise: () => import('@/content/blog/enterprise/components'),
+  'v0-5': () => import('@/content/blog/v0-5/components'),
+}
+
 async function loadPostComponents(slug: string): Promise<Record<string, React.ComponentType>> {
   if (postComponentsRegistry[slug]) {
     return postComponentsRegistry[slug]
   }
 
+  const loader = BLOG_COMPONENT_LOADERS[slug]
+  if (!loader) {
+    postComponentsRegistry[slug] = {}
+    return {}
+  }
+
   try {
-    const postComponents = await import(`@/content/blog/${slug}/components`)
+    const postComponents = await loader()
     postComponentsRegistry[slug] = postComponents
     return postComponents
   } catch {

@@ -172,8 +172,8 @@ export default function SSOForm() {
             />
             {showEmailValidationError && emailErrors.length > 0 && (
               <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                {emailErrors.map((error, index) => (
-                  <p key={index}>{error}</p>
+                {emailErrors.map((error) => (
+                  <p key={error}>{error}</p>
                 ))}
               </div>
             )}

@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/emcn'
 import type { TableRow as TableRowType } from '@/lib/table'
 import type { EditingCell, SaveReason } from '../../../types'
@@ -88,18 +88,20 @@ export function ExpandedCellPopover({
     requestAnimationFrame(() => textareaRef.current?.focus())
   }, [expandedCell, target, isEditable])
 
+  const onCloseEvent = useEffectEvent(onClose)
+
   useEffect(() => {
     if (!expandedCell) return
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        onClose()
+        onCloseEvent()
       }
     }
     const handleMouseDown = (e: MouseEvent) => {
       if (!rootRef.current) return
       if (rootRef.current.contains(e.target as Node)) return
-      onClose()
+      onCloseEvent()
     }
     window.addEventListener('keydown', handleKey)
     window.addEventListener('mousedown', handleMouseDown)
@@ -107,15 +109,15 @@ export function ExpandedCellPopover({
       window.removeEventListener('keydown', handleKey)
       window.removeEventListener('mousedown', handleMouseDown)
     }
-  }, [expandedCell, onClose])
+  }, [expandedCell])
 
   // Close on table scroll — re-anchoring mid-scroll is more jarring than dismissing.
   useEffect(() => {
     if (!expandedCell || !scrollContainer) return
-    const handler = () => onClose()
+    const handler = () => onCloseEvent()
     scrollContainer.addEventListener('scroll', handler, { passive: true })
     return () => scrollContainer.removeEventListener('scroll', handler)
-  }, [expandedCell, scrollContainer, onClose])
+  }, [expandedCell, scrollContainer])
 
   if (!expandedCell || !target || !rect) return null
 

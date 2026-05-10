@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 
@@ -19,5 +20,9 @@ export default async function KnowledgeBasePage({ params, searchParams }: PagePr
   const { id } = await params
   const { kbName } = await searchParams
 
-  return <KnowledgeBase id={id} knowledgeBaseName={kbName || 'Knowledge Base'} />
+  return (
+    <Suspense fallback={null}>
+      <KnowledgeBase id={id} knowledgeBaseName={kbName || 'Knowledge Base'} />
+    </Suspense>
+  )
 }

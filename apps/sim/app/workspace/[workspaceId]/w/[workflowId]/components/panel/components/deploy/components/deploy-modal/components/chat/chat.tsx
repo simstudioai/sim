@@ -122,7 +122,7 @@ export function ChatDeploy({
   const updateChatMutation = useUpdateChat()
   const deleteChatMutation = useDeleteChat()
   const [isIdentifierValid, setIsIdentifierValid] = useState(false)
-  const [hasInitializedForm, setHasInitializedForm] = useState(false)
+  const hasInitializedFormRef = useRef(false)
   const existingPassword = hasExistingPassword(existingChat)
 
   const updateField = <K extends keyof ChatFormData>(field: K, value: ChatFormData[K]) => {
@@ -180,7 +180,7 @@ export function ChatDeploy({
   }, [isFormValid, onValidationChange])
 
   useEffect(() => {
-    if (existingChat && !hasInitializedForm) {
+    if (existingChat && !hasInitializedFormRef.current) {
       setFormData({
         identifier: existingChat.identifier || '',
         title: existingChat.title || '',
@@ -201,13 +201,13 @@ export function ChatDeploy({
         setImageUrl(existingChat.customizations.imageUrl)
       }
 
-      setHasInitializedForm(true)
+      hasInitializedFormRef.current = true
     } else if (!existingChat && !isLoadingChat) {
       setFormData(initialFormData)
       setImageUrl(null)
-      setHasInitializedForm(false)
+      hasInitializedFormRef.current = false
     }
-  }, [existingChat, isLoadingChat, hasInitializedForm])
+  }, [existingChat, isLoadingChat])
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()

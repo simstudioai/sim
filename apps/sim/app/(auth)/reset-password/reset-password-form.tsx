@@ -211,8 +211,8 @@ export function SetNewPasswordForm({
 
         {validationMessages.length > 0 && (
           <div className='mt-1 space-y-1 text-red-400 text-xs'>
-            {validationMessages.map((error, index) => (
-              <p key={index}>{error}</p>
+            {validationMessages.map((error) => (
+              <p key={error}>{error}</p>
             ))}
           </div>
         )}

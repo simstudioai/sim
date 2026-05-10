@@ -1050,7 +1050,7 @@ export function Chat() {
                     </div>
                     <div className='space-y-1'>
                       {uploadErrors.map((err, idx) => (
-                        <div key={idx} className='text-[var(--text-error)] text-micro'>
+                        <div key={`${err}-${idx}`} className='text-[var(--text-error)] text-micro'>
                           {err}
                         </div>
                       ))}

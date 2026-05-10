@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { generateShortId } from '@sim/utils/id'
 import { isEqual } from 'es-toolkit'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { Button, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@/components/emcn'
@@ -88,6 +89,7 @@ export function MessagesInput({
 }: MessagesInputProps) {
   const [messages, setMessages] = useSubBlockValue<Message[]>(blockId, subBlockId, false)
   const [localMessages, setLocalMessages] = useState<Message[]>([{ role: 'user', content: '' }])
+  const messageIdsRef = useRef<string[]>([generateShortId()])
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null)
   const subBlockInput = useSubBlockInput({
@@ -244,6 +246,7 @@ export function MessagesInput({
       }
     } else if (messages && Array.isArray(messages) && messages.length > 0) {
       if (!isEqual(localMessagesRef.current, messages)) {
+        messageIdsRef.current = messages.map(() => generateShortId())
         setLocalMessages(messages)
       }
     }
@@ -314,6 +317,7 @@ export function MessagesInput({
 
       const newMessages = [...localMessages]
       newMessages.splice(index + 1, 0, { role: 'user' as const, content: '' })
+      messageIdsRef.current.splice(index + 1, 0, generateShortId())
       setLocalMessages(newMessages)
       setMessages(newMessages)
     },
@@ -329,6 +333,7 @@ export function MessagesInput({
 
       const newMessages = [...localMessages]
       newMessages.splice(index, 1)
+      messageIdsRef.current.splice(index, 1)
       setLocalMessages(newMessages)
       setMessages(newMessages)
     },
@@ -346,6 +351,9 @@ export function MessagesInput({
       const temp = newMessages[index]
       newMessages[index] = newMessages[index - 1]
       newMessages[index - 1] = temp
+      const tempId = messageIdsRef.current[index]
+      messageIdsRef.current[index] = messageIdsRef.current[index - 1]
+      messageIdsRef.current[index - 1] = tempId
       setLocalMessages(newMessages)
       setMessages(newMessages)
     },
@@ -363,6 +371,9 @@ export function MessagesInput({
       const temp = newMessages[index]
       newMessages[index] = newMessages[index + 1]
       newMessages[index + 1] = temp
+      const tempId = messageIdsRef.current[index]
+      messageIdsRef.current[index] = messageIdsRef.current[index + 1]
+      messageIdsRef.current[index + 1] = tempId
       setLocalMessages(newMessages)
       setMessages(newMessages)
     },
@@ -526,7 +537,7 @@ export function MessagesInput({
     <div className='flex w-full flex-col gap-2.5'>
       {currentMessages.map((message, index) => (
         <div
-          key={`message-${index}`}
+          key={messageIdsRef.current[index] ?? `fallback-${index}`}
           className={cn(
             'relative flex w-full flex-col rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] transition-colors dark:bg-[var(--surface-5)]',
             disabled && 'opacity-50'

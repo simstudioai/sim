@@ -768,7 +768,7 @@ function AnchorRenderer({ href, children }: { href?: string; children?: React.Re
   const navigate = use(NavigateCtx)
   const parsed = href ? isInternalHref(href) : null
 
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleMarkdownLinkClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!parsed || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
 
     e.preventDefault()
@@ -799,7 +799,7 @@ function AnchorRenderer({ href, children }: { href?: string; children?: React.Re
       href={href}
       target={parsed ? undefined : '_blank'}
       rel={parsed ? undefined : 'noopener noreferrer'}
-      onClick={handleClick}
+      onClick={handleMarkdownLinkClick}
       className='break-all text-[var(--brand-secondary)] underline-offset-2 hover:underline'
     >
       {children}

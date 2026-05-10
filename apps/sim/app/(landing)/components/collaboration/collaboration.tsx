@@ -349,7 +349,13 @@ export default function Collaboration() {
           className='relative mx-4 mb-6 flex cursor-none items-center gap-3.5 rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] px-3 py-2.5 transition-colors hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-card)] sm:mx-8 md:absolute md:bottom-10 md:left-16 md:z-20 md:mx-0 md:mb-0'
         >
           <div className='relative h-7 w-11 shrink-0'>
-            <Image src='/landing/multiplayer-cursors.svg' alt='' fill className='object-contain' />
+            <Image
+              src='/landing/multiplayer-cursors.svg'
+              alt=''
+              fill
+              sizes='44px'
+              className='object-contain'
+            />
           </div>
           <div className='flex flex-col gap-0.5'>
             <span className='font-[430] font-season text-[#F6F6F0]/50 text-caption uppercase leading-[100%] tracking-[0.08em]'>

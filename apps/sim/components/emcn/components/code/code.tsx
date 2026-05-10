@@ -353,11 +353,11 @@ const CollapseLineButton = memo(function CollapseLineButton({
   isCollapsed,
   onToggleCollapse,
 }: CollapseLineButtonProps) {
-  const handleClick = useCallback(() => {
+  const toggleCollapse = useCallback(() => {
     onToggleCollapse(lineIndex)
   }, [lineIndex, onToggleCollapse])
 
-  return <CollapseButton isCollapsed={isCollapsed} onClick={handleClick} />
+  return <CollapseButton isCollapsed={isCollapsed} onClick={toggleCollapse} />
 })
 
 /**

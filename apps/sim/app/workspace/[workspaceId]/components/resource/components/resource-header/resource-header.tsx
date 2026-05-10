@@ -90,7 +90,7 @@ export const ResourceHeader = memo(function ResourceHeader({
         <div className='flex items-center gap-3'>
           {hasBreadcrumbs ? (
             breadcrumbs.map((crumb, i) => (
-              <Fragment key={i}>
+              <Fragment key={crumb.label}>
                 {i > 0 && <span className='select-none text-[var(--text-icon)] text-sm'>/</span>}
                 <BreadcrumbSegment
                   icon={i === 0 ? Icon : undefined}

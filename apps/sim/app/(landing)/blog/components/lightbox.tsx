@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useEffectEvent, useRef } from 'react'
 
 interface LightboxProps {
   isOpen: boolean
@@ -12,18 +12,20 @@ interface LightboxProps {
 export function Lightbox({ isOpen, onClose, src, alt }: LightboxProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
 
+  const onCloseEvent = useEffectEvent(onClose)
+
   useEffect(() => {
     if (!isOpen) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose()
+        onCloseEvent()
       }
     }
 
     const handleClickOutside = (event: MouseEvent) => {
       if (overlayRef.current && event.target === overlayRef.current) {
-        onClose()
+        onCloseEvent()
       }
     }
 
@@ -36,7 +38,7 @@ export function Lightbox({ isOpen, onClose, src, alt }: LightboxProps) {
       document.removeEventListener('click', handleClickOutside)
       document.body.style.overflow = 'unset'
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   if (!isOpen) return null
 

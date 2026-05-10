@@ -81,7 +81,7 @@ const ToolbarItem = memo(function ToolbarItem({
     [item.type, item.name, item.bgColor, isTriggerCapable, onDragStart, isTrigger]
   )
 
-  const handleClick = useCallback(() => {
+  const addBlockToPanel = useCallback(() => {
     onClick(item.type, isTriggerCapable)
   }, [item.type, isTriggerCapable, onClick])
 
@@ -109,7 +109,7 @@ const ToolbarItem = memo(function ToolbarItem({
       tabIndex={-1}
       draggable
       onDragStart={handleDragStart}
-      onClick={handleClick}
+      onClick={addBlockToPanel}
       onContextMenu={handleContextMenu}
       className={clsx(
         'group flex h-[28px] items-center gap-2 rounded-lg px-1.5 text-sm',

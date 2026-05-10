@@ -657,7 +657,7 @@ export function McpServerFormModal({
                 <div className='flex max-h-[140px] flex-col gap-2 overflow-y-auto'>
                   {(formData.headers || []).map((header, index) => (
                     <HeaderRow
-                      key={index}
+                      key={header.key || `header-${index}`}
                       header={header}
                       index={index}
                       headerScrollLeft={headerScrollLeft}

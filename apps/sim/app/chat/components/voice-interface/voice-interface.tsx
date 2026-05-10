@@ -40,6 +40,8 @@ interface VoiceInterfaceProps {
   chatId?: string
 }
 
+const EMPTY_MESSAGES: Array<{ content: string; type: 'user' | 'assistant' }> = []
+
 export function VoiceInterface({
   onCallEnd,
   onVoiceTranscript,
@@ -49,7 +51,7 @@ export function VoiceInterface({
   isStreaming = false,
   isPlayingAudio = false,
   audioContextRef: sharedAudioContextRef,
-  messages = [],
+  messages = EMPTY_MESSAGES,
   className,
   chatId,
 }: VoiceInterfaceProps) {

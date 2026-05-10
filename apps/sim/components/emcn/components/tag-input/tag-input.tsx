@@ -445,7 +445,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
         )}
         {items.map((item, index) => (
           <TagInputTag
-            key={`item-${index}`}
+            key={item.value}
             item={item}
             index={index}
             onRemove={onRemove}

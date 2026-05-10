@@ -397,7 +397,7 @@ export function DocumentTagsModal({
               <Label>Tags</Label>
 
               {documentTags.map((tag, index) => (
-                <div key={index} className='space-y-2'>
+                <div key={tag.displayName} className='space-y-2'>
                   <div
                     role='button'
                     tabIndex={0}

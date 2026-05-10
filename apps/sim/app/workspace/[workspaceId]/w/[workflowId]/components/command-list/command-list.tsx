@@ -230,13 +230,13 @@ export function CommandList() {
                 >
                   <span>⌘</span>
                 </Button>
-                {shortcuts.map((key, index) => (
+                {shortcuts.map((shortcut) => (
                   <Button
-                    key={index}
+                    key={shortcut}
                     className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-caption hover-hover:translate-y-0 hover-hover:text-[var(--text-tertiary)] hover-hover:shadow-kbd-sm group-hover:text-[var(--text-primary)] group-hover:shadow-kbd'
                     variant='3d'
                   >
-                    {key}
+                    {shortcut}
                   </Button>
                 ))}
               </div>

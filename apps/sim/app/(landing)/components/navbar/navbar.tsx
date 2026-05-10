@@ -46,12 +46,14 @@ const emptySubscribe = () => () => {}
 const getLocationSearch = () => window.location.search
 const getServerLocationSearch = () => ''
 
+const EMPTY_BLOG_POSTS: NavBlogPost[] = []
+
 interface NavbarProps {
   logoOnly?: boolean
   blogPosts?: NavBlogPost[]
 }
 
-export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps) {
+export default function Navbar({ logoOnly = false, blogPosts = EMPTY_BLOG_POSTS }: NavbarProps) {
   const brand = getBrandConfig()
   const sessionCtx = useContext(SessionContext)
   const session = sessionCtx?.data ?? null

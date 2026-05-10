@@ -387,7 +387,7 @@ export function WorkflowItem({
     [handleStartEdit, effectiveLocked]
   )
 
-  const handleClick = useCallback(
+  const handleWorkflowSelect = useCallback(
     (e: React.MouseEvent<HTMLAnchorElement>) => {
       e.stopPropagation()
 
@@ -428,7 +428,7 @@ export function WorkflowItem({
         draggable={!isEditing && !dragDisabled && !effectiveLocked}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        onClick={handleClick}
+        onClick={handleWorkflowSelect}
         onContextMenu={handleContextMenu}
       >
         <div

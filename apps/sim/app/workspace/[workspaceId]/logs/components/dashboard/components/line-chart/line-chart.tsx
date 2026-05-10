@@ -432,7 +432,7 @@ function LineChartComponent({
               if (y === undefined) return null
               return (
                 <line
-                  key={`pt-${idx}`}
+                  key={s.id}
                   x1={padding.left}
                   y1={y}
                   x2={width - padding.right}
@@ -466,7 +466,7 @@ function LineChartComponent({
             })()
             return (
               <path
-                key={`series-${idx}`}
+                key={s.id}
                 d={p}
                 fill='none'
                 stroke={resolvedColors[s.id || ''] || s.color}

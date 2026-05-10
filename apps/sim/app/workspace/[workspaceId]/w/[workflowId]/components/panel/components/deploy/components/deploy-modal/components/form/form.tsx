@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Check, Eye, EyeOff } from 'lucide-react'
 import {
@@ -79,8 +79,8 @@ export function FormDeploy({
   const [inputFields, setInputFields] = useState<{ name: string; type: string }[]>([])
   const [showPasswordField, setShowPasswordField] = useState(false)
   const [fieldConfigs, setFieldConfigs] = useState<FieldConfig[]>([])
+  const fieldConfigsInitializedRef = useRef(false)
   const [errors, setErrors] = useState<FormErrors>({})
-  const [isIdentifierValid, setIsIdentifierValid] = useState(false)
 
   const { data: existingForm, isLoading } = useFormByWorkflow(workflowId)
   const createFormMutation = useCreateForm()
@@ -92,12 +92,8 @@ export function FormDeploy({
   const {
     isChecking: isCheckingIdentifier,
     error: identifierError,
-    isValid: identifierValidationPassed,
+    isValid: isIdentifierValid,
   } = useIdentifierValidation(identifier, existingForm?.identifier, !!existingForm)
-
-  useEffect(() => {
-    setIsIdentifierValid(identifierValidationPassed)
-  }, [identifierValidationPassed])
 
   const setError = (field: keyof FormErrors, message: string) => {
     setErrors((prev) => ({ ...prev, [field]: message }))
@@ -147,6 +143,10 @@ export function FormDeploy({
   }, [existingForm, isLoading])
 
   useEffect(() => {
+    fieldConfigsInitializedRef.current = false
+  }, [workflowId])
+
+  useEffect(() => {
     const blocks = Object.values(useWorkflowStore.getState().blocks)
     const startBlock = blocks.find((b) => isInputDefinitionTrigger(b.type))
 
@@ -155,7 +155,8 @@ export function FormDeploy({
       if (inputFormat && Array.isArray(inputFormat)) {
         setInputFields(inputFormat)
 
-        if (fieldConfigs.length === 0) {
+        if (!fieldConfigsInitializedRef.current) {
+          fieldConfigsInitializedRef.current = true
           setFieldConfigs(
             inputFormat.map((f: { name: string; type?: string }) => ({
               name: f.name,
@@ -170,7 +171,7 @@ export function FormDeploy({
         }
       }
     }
-  }, [workflowId, fieldConfigs.length])
+  }, [workflowId])
 
   const allowedEmails = emailItems.filter((item) => item.isValid).map((item) => item.value)
 
@@ -374,7 +375,7 @@ export function FormDeploy({
                 placeholder='my-form'
                 className={cn(
                   'rounded-none border-0 pl-0 shadow-none',
-                  (isCheckingIdentifier || (identifierValidationPassed && identifier)) && 'pr-8'
+                  (isCheckingIdentifier || (isIdentifierValid && identifier)) && 'pr-8'
                 )}
               />
               {isCheckingIdentifier ? (
@@ -382,7 +383,7 @@ export function FormDeploy({
                   <Loader className='size-4 text-[var(--text-tertiary)]' animate />
                 </div>
               ) : (
-                identifierValidationPassed &&
+                isIdentifierValid &&
                 identifier && (
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>

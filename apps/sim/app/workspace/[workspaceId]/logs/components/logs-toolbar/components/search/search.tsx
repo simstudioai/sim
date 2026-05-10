@@ -169,7 +169,7 @@ export function AutocompleteSearch({
               {/* Applied Filter Badges */}
               {appliedFilters.map((filter, index) => (
                 <Badge
-                  key={`${filter.field}-${filter.value}-${index}`}
+                  key={`${filter.field}-${filter.value}`}
                   variant='outline'
                   role='button'
                   tabIndex={0}

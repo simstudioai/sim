@@ -222,12 +222,12 @@ export default async function ModelPage({
           </p>
 
           <div className='flex flex-wrap gap-2'>
-            <a
+            <Link
               href='/'
               className='inline-flex h-[32px] items-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
             >
               Build with this model
-            </a>
+            </Link>
             <Link
               href={provider.href}
               className='inline-flex h-[32px] items-center rounded-[5px] border border-[var(--landing-border-strong)] px-2.5 font-season text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'

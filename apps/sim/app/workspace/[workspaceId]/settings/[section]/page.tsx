@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -53,7 +54,9 @@ export default async function SettingsSectionPage({
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <SettingsPage section={section as SettingsSection} />
+      <Suspense fallback={null}>
+        <SettingsPage section={section as SettingsSection} />
+      </Suspense>
     </HydrationBoundary>
   )
 }

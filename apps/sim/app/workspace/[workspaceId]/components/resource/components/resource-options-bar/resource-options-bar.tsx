@@ -94,9 +94,9 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
         {search && <SearchSection search={search} />}
         <div className='flex items-center gap-1.5'>
           {extras}
-          {filterTags?.map((tag, i) => (
+          {filterTags?.map((tag) => (
             <Button
-              key={`${tag.label}-${i}`}
+              key={tag.label}
               variant='subtle'
               className='max-w-[200px] px-2 py-1 text-caption'
               onClick={tag.onRemove}
@@ -155,7 +155,7 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
       <div className='flex flex-1 items-center gap-1.5 overflow-x-auto pl-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
         {search.tags?.map((tag, i) => (
           <Button
-            key={`${tag.label}-${tag.value}-${i}`}
+            key={`${tag.label}-${tag.value}`}
             variant='subtle'
             className={cn(
               'shrink-0 px-2 py-1 text-caption',

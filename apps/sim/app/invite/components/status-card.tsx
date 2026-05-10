@@ -19,12 +19,14 @@ interface InviteStatusCardProps {
   isExpiredError?: boolean
 }
 
+const EMPTY_ACTIONS: NonNullable<InviteStatusCardProps['actions']> = []
+
 export function InviteStatusCard({
   type,
   title,
   description,
   icon: _icon,
-  actions = [],
+  actions = EMPTY_ACTIONS,
   isExpiredError = false,
 }: InviteStatusCardProps) {
   const router = useRouter()
@@ -61,9 +63,9 @@ export function InviteStatusCard({
           </button>
         )}
 
-        {actions.map((action, index) => (
+        {actions.map((action) => (
           <button
-            key={index}
+            key={action.label}
             onClick={action.onClick}
             disabled={action.disabled || action.loading}
             className={cn(

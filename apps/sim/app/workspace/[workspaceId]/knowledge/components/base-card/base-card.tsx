@@ -25,6 +25,8 @@ interface BaseCardProps {
   onDelete?: (id: string) => Promise<void>
 }
 
+const EMPTY_CONNECTOR_TYPES: string[] = []
+
 /**
  * Skeleton placeholder for a knowledge base card
  */
@@ -78,7 +80,7 @@ export function BaseCard({
   docCount,
   description,
   updatedAt,
-  connectorTypes = [],
+  connectorTypes = EMPTY_CONNECTOR_TYPES,
   chunkingConfig,
   onUpdate,
   onDelete,
@@ -108,7 +110,7 @@ export function BaseCard({
 
   const shortId = id ? `kb-${id.slice(0, 8)}` : ''
 
-  const handleClick = useCallback(
+  const navigateToKnowledgeBase = useCallback(
     (e: React.MouseEvent) => {
       if (isContextMenuOpen) {
         e.preventDefault()
@@ -170,7 +172,7 @@ export function BaseCard({
         role='button'
         tabIndex={0}
         className='h-full cursor-pointer'
-        onClick={handleClick}
+        onClick={navigateToKnowledgeBase}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
         data-kb-card

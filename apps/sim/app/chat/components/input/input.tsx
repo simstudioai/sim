@@ -176,7 +176,7 @@ export const ChatInput: React.FC<{
           {uploadErrors.length > 0 && (
             <div className='mb-3 flex flex-col gap-2'>
               {uploadErrors.map((error, idx) => (
-                <Badge key={idx} variant='red' size='lg' dot className='max-w-full'>
+                <Badge key={`${error}-${idx}`} variant='red' size='lg' dot className='max-w-full'>
                   {error}
                 </Badge>
               ))}

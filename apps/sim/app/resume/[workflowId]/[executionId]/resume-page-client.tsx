@@ -191,22 +191,7 @@ function renderStructuredValuePreview(value: unknown) {
 
   const stringValue = String(value)
   return (
-    <div
-      style={{
-        display: 'inline-flex',
-        maxWidth: '100%',
-        borderRadius: '6px',
-        border: '1px solid var(--border)',
-        background: 'var(--surface-5)',
-        padding: '4px 8px',
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        fontFamily: 'var(--font-mono, monospace)',
-        fontSize: '12px',
-        lineHeight: '16px',
-        color: 'var(--text-primary)',
-      }}
-    >
+    <div className='inline-flex max-w-full rounded-[6px] border border-[var(--border)] bg-[var(--surface-5)] px-2 py-1 font-mono text-[12px] text-[var(--text-primary)] leading-4 [white-space:pre-wrap] [word-break:break-word]'>
       {stringValue}
     </div>
   )

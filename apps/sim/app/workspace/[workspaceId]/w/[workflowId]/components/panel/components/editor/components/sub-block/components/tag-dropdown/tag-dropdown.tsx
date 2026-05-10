@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -1628,6 +1628,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     setSelectedIndex(0)
   }, [flatTagList.length])
 
+  const onCloseEvent = useEffectEvent(() => onClose?.())
+
   useEffect(() => {
     if (visible) {
       const handleKeyboardEvent = (e: KeyboardEvent) => {
@@ -1635,7 +1637,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           case 'Escape':
             e.preventDefault()
             e.stopPropagation()
-            onClose?.()
+            onCloseEvent()
             break
         }
       }
@@ -1643,7 +1645,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       window.addEventListener('keydown', handleKeyboardEvent, true)
       return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
     }
-  }, [visible, onClose])
+  }, [visible])
 
   if (!visible || tags.length === 0 || flatTagList.length === 0) return null
 

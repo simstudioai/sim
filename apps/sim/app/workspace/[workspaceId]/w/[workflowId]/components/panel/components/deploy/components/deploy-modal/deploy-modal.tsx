@@ -610,9 +610,9 @@ export function DeployModal({
                       {deployError}
                     </Badge>
                   )}
-                  {deployWarnings.map((warning, index) => (
+                  {deployWarnings.map((warning) => (
                     <Badge
-                      key={index}
+                      key={warning}
                       variant='amber'
                       size='lg'
                       dot

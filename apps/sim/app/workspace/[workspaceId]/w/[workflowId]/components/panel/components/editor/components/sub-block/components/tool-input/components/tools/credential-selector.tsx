@@ -61,11 +61,13 @@ interface ToolCredentialSelectorProps {
   disabled?: boolean
 }
 
+const EMPTY_SCOPES: string[] = []
+
 export function ToolCredentialSelector({
   value,
   onChange,
   provider,
-  requiredScopes = [],
+  requiredScopes = EMPTY_SCOPES,
   label,
   serviceId,
   disabled = false,

@@ -37,17 +37,24 @@ import {
 import type { PageItem, SearchModalProps, TaskItem, WorkflowItem, WorkspaceItem } from './utils'
 import { filterAndSort } from './utils'
 
+const EMPTY_WORKFLOWS: WorkflowItem[] = []
+const EMPTY_WORKSPACES: WorkspaceItem[] = []
+const EMPTY_TASKS: TaskItem[] = []
+const EMPTY_TABLES: TaskItem[] = []
+const EMPTY_FILES: TaskItem[] = []
+const EMPTY_KNOWLEDGE_BASES: TaskItem[] = []
+
 export type { SearchModalProps } from './utils'
 
 export function SearchModal({
   open,
   onOpenChange,
-  workflows = [],
-  workspaces = [],
-  tasks = [],
-  tables = [],
-  files = [],
-  knowledgeBases = [],
+  workflows = EMPTY_WORKFLOWS,
+  workspaces = EMPTY_WORKSPACES,
+  tasks = EMPTY_TASKS,
+  tables = EMPTY_TABLES,
+  files = EMPTY_FILES,
+  knowledgeBases = EMPTY_KNOWLEDGE_BASES,
   isOnWorkflowPage = false,
 }: SearchModalProps) {
   const params = useParams()

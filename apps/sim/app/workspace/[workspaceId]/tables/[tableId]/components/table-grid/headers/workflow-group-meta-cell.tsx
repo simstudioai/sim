@@ -262,7 +262,7 @@ export function WorkflowGroupMetaCell({
     [column]
   )
 
-  const handleClick = useCallback(
+  const selectGroupAndOpenConfig = useCallback(
     (e: React.MouseEvent<HTMLTableCellElement>) => {
       // Ignore clicks that landed on an interactive child (badge, play button,
       // dropdown items rendered via portal). Only the bare meta-cell area
@@ -342,7 +342,7 @@ export function WorkflowGroupMetaCell({
   return (
     <th
       colSpan={size}
-      onClick={handleClick}
+      onClick={selectGroupAndOpenConfig}
       onContextMenu={handleContextMenu}
       draggable={isDraggable}
       onDragStart={isDraggable ? handleDragStart : undefined}

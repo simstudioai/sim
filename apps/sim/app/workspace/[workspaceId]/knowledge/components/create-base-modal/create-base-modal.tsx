@@ -592,7 +592,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
 
                         return (
                           <div
-                            key={index}
+                            key={`${file.name}-${file.size}`}
                             className={cn(
                               'flex items-center gap-2 rounded-sm border p-2',
                               isFailed && !isRetrying && 'border-[var(--text-error)]'

@@ -40,6 +40,8 @@ const TagIcon: React.FC<{
   </div>
 )
 
+const EMPTY_OUTPUTS: string[] = []
+
 /**
  * Props for the OutputSelect component
  */
@@ -74,7 +76,7 @@ interface OutputSelectProps {
  */
 export function OutputSelect({
   workflowId,
-  selectedOutputs = [],
+  selectedOutputs = EMPTY_OUTPUTS,
   onOutputSelect,
   disabled = false,
   placeholder = 'Select outputs',

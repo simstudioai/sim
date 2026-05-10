@@ -354,7 +354,7 @@ export function FolderItem({
     [effectiveLocked, handleStartEdit]
   )
 
-  const handleClick = useCallback(
+  const handleFolderSelect = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       e.stopPropagation()
 
@@ -498,7 +498,7 @@ export function FolderItem({
           (isSelected || isContextMenuOpen) && 'bg-[var(--surface-active)]',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
-        onClick={handleClick}
+        onClick={handleFolderSelect}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
         draggable={!isEditing && !dragDisabled && !effectiveLocked}

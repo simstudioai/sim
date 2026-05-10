@@ -118,8 +118,8 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
                     >
                       <div className='overflow-hidden'>
                         <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                          {passwordErrors.map((error, index) => (
-                            <p key={index}>{error}</p>
+                          {passwordErrors.map((error) => (
+                            <p key={error}>{error}</p>
                           ))}
                         </div>
                       </div>

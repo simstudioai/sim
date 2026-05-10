@@ -35,6 +35,8 @@ interface CodeEditorProps {
   wandButtonDisabled?: boolean
 }
 
+const EMPTY_SCHEMA_PARAMETERS: NonNullable<CodeEditorProps['schemaParameters']> = []
+
 export function CodeEditor({
   value,
   onChange,
@@ -46,7 +48,7 @@ export function CodeEditor({
   highlightVariables = true,
   onKeyDown,
   disabled = false,
-  schemaParameters = [],
+  schemaParameters = EMPTY_SCHEMA_PARAMETERS,
   showWandButton = false,
   onWandClick,
   wandButtonDisabled = false,
