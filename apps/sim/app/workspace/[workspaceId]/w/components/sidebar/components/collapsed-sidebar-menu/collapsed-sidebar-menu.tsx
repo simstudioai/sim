@@ -285,7 +285,7 @@ export function CollapsedWorkflowFlyoutItem({
   if (isEditing) {
     return (
       <div className='group relative'>
-        <div className='flex min-w-0 cursor-default select-none items-center gap-2 rounded-[5px] bg-[var(--surface-active)] px-2 py-2 font-medium text-[var(--text-body)] text-caption outline-none'>
+        <div className='flex min-w-0 cursor-default select-none items-center gap-2 rounded-[5px] bg-[var(--surface-active)] p-2 font-medium text-[var(--text-body)] text-caption outline-none'>
           <WorkflowColorSwatch color={workflow.color} />
           <input
             aria-label={`Rename workflow ${workflow.name}`}

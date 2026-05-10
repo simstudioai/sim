@@ -98,7 +98,7 @@ export function RequestIntegrationModal() {
                   </svg>
                 </div>
                 <p className='text-[14px] text-[var(--landing-text)]'>
-                  Request submitted — we&apos;ll follow up at{' '}
+                  Request submitted. We&apos;ll follow up at{' '}
                   <span className='font-medium'>{email}</span>.
                 </p>
               </div>

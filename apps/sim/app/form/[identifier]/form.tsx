@@ -330,7 +330,7 @@ export default function Form({ identifier }: { identifier: string }) {
                   {isSubmitting ? (
                     <span className='flex items-center gap-2'>
                       <Loader className='size-4' animate />
-                      Submitting...
+                      Submitting…
                     </span>
                   ) : (
                     'Submit'

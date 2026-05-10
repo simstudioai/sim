@@ -159,7 +159,7 @@ function PreviewFile() {
         </p>
         <p className='mt-1 font-medium text-[7px] text-[var(--text-body)]'>Discussion Points</p>
         <p className='mt-[1px] text-[6.5px] text-[var(--text-tertiary)]'>
-          The team agreed to prioritize the new onboarding flow...
+          The team agreed to prioritize the new onboarding flow…
         </p>
         <p className='mt-1 font-medium text-[7px] text-[var(--text-body)]'>Next Steps</p>
         <p className='mt-[1px] text-[6.5px] text-[var(--text-tertiary)]'>

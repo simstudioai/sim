@@ -95,7 +95,7 @@ function UnsubscribeContent() {
             Loading
           </h1>
           <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
-            Validating your unsubscribe link...
+            Validating your unsubscribe link…
           </p>
         </div>
         <div className={'mt-8 flex w-full items-center justify-center py-8'}>
@@ -191,7 +191,7 @@ function UnsubscribeContent() {
           {processing ? (
             <span className='flex items-center gap-2'>
               <Loader className='size-4' animate />
-              Unsubscribing...
+              Unsubscribing…
             </span>
           ) : isAlreadyUnsubscribedFromAll ? (
             'Unsubscribed from All Emails'
@@ -269,7 +269,7 @@ export default function Unsubscribe() {
               Loading
             </h1>
             <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
-              Validating your unsubscribe link...
+              Validating your unsubscribe link…
             </p>
           </div>
           <div className={'mt-8 flex w-full items-center justify-center py-8'}>

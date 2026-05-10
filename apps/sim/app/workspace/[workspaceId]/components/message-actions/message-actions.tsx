@@ -283,7 +283,7 @@ export const MessageActions = memo(function MessageActions({
               Cancel
             </Button>
             <Button variant='primary' onClick={handleSubmitFeedback}>
-              Submit
+              Submit feedback
             </Button>
           </ModalFooter>
         </ModalContent>

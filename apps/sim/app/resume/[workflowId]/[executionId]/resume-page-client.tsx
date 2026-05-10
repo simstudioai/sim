@@ -1009,9 +1009,7 @@ export default function ResumeExecutionPage({
                     borderRadius: '8px',
                   }}
                 >
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
-                    Loading...
-                  </span>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Loading…</span>
                 </div>
               ) : !selectedContextId ? (
                 <div

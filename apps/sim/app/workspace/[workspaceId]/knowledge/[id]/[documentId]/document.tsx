@@ -1077,7 +1077,7 @@ export function Document({
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
           <ResourceHeader icon={FileText} breadcrumbs={loadingBreadcrumbs} />
           <div className='flex flex-1 items-center justify-center'>
-            <span className='text-[var(--text-muted)] text-sm'>Loading chunk...</span>
+            <span className='text-[var(--text-muted)] text-sm'>Loading chunk…</span>
           </div>
         </div>
       )

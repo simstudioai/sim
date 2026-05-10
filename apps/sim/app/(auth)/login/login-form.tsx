@@ -455,7 +455,7 @@ export default function LoginPage({
             {isLoading ? (
               <span className='flex items-center gap-2'>
                 <Loader className='size-4' animate />
-                Signing in...
+                Signing in…
               </span>
             ) : (
               'Sign in'
@@ -570,7 +570,7 @@ export default function LoginPage({
                   {isSubmittingReset ? (
                     <span className='flex items-center gap-2'>
                       <Loader className='size-4' animate />
-                      Sending...
+                      Sending…
                     </span>
                   ) : (
                     'Send Reset Link'

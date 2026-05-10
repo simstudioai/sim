@@ -787,7 +787,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
       />
 
       {/* Today Button */}
-      <div className='border-[var(--border-1)] border-t px-2 py-2'>
+      <div className='border-[var(--border-1)] border-t p-2'>
         <Button variant='active' className='w-full' onClick={handleSelectToday}>
           Today
         </Button>

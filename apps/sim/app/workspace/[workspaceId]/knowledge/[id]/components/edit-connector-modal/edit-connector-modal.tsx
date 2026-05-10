@@ -257,7 +257,7 @@ export function EditConnectorModal({
               {isSaving ? (
                 <>
                   <Loader className='mr-1.5 size-3.5' animate />
-                  Saving...
+                  Saving…
                 </>
               ) : (
                 'Save'

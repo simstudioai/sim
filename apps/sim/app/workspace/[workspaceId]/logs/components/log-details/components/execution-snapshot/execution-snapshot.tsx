@@ -96,7 +96,7 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
             <Loader className='size-[16px]' animate />
-            <span className='text-small'>Loading run snapshot...</span>
+            <span className='text-small'>Loading run snapshot…</span>
           </div>
         </div>
       )
@@ -124,7 +124,7 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
             <Loader className='size-[16px]' animate />
-            <span className='text-small'>Loading run snapshot...</span>
+            <span className='text-small'>Loading run snapshot…</span>
           </div>
         </div>
       )

@@ -621,7 +621,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
     return (
       <div className='flex items-center gap-2 py-1 text-[var(--text-muted)] text-xs'>
         <Loader className='size-3' animate />
-        Loading sync history...
+        Loading sync history…
       </div>
     )
   }
@@ -689,7 +689,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                     )}
                   </span>
                 )}
-                {isRunning && <span className='text-[var(--text-muted)]'>In progress...</span>}
+                {isRunning && <span className='text-[var(--text-muted)]'>In progress…</span>}
               </div>
 
               {isError && log.errorMessage && (

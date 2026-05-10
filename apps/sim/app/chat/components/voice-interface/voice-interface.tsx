@@ -560,7 +560,7 @@ export function VoiceInterface({
       </div>
 
       <div className='px-8 pb-12'>
-        <div className='flex items-center justify-center space-x-12'>
+        <div className='flex items-center justify-center gap-x-12'>
           <Button
             onClick={handleCallEnd}
             variant='outline'

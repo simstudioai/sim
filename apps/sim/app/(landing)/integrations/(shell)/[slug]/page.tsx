@@ -788,7 +788,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           </h2>
           <p className='mx-auto mb-8 max-w-[480px] text-[var(--landing-text-body)] text-base leading-[150%] tracking-[0.02em]'>
             Build your first AI agent with {name} in minutes. Connect to every tool your team uses.
-            Free to start — no credit card required.
+            Free to start, no credit card required.
           </p>
           <IntegrationCtaButton
             label='Build for free'

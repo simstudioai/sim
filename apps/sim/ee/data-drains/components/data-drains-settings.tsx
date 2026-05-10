@@ -288,7 +288,7 @@ function DrainRunsPanel({ organizationId, drainId }: DrainRunsPanelProps) {
   const { data: runs, isLoading } = useDataDrainRuns(organizationId, drainId, 10)
 
   if (isLoading) {
-    return <div className='text-[13px] text-[var(--text-muted)]'>Loading runs...</div>
+    return <div className='text-[13px] text-[var(--text-muted)]'>Loading runs…</div>
   }
   if (!runs || runs.length === 0) {
     return <div className='text-[13px] text-[var(--text-muted)]'>No runs yet.</div>

@@ -143,7 +143,7 @@ function OAuthConsentInner() {
             Authorize Application
           </h1>
           <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-            Loading application details...
+            Loading application details…
           </p>
         </div>
       </div>
@@ -279,7 +279,7 @@ function OAuthConsentInner() {
           {submitting ? (
             <span className='flex items-center gap-2'>
               <Loader className='size-4' animate />
-              Authorizing...
+              Authorizing…
             </span>
           ) : (
             'Allow'

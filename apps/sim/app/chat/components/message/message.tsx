@@ -194,7 +194,7 @@ export const ClientChatMessage = memo(
       ) : (
         <div className='px-4 pt-5 pb-2' data-message-id={message.id}>
           <div className='mx-auto max-w-3xl'>
-            <div className='flex flex-col space-y-3'>
+            <div className='flex flex-col gap-y-3'>
               {/* Direct content rendering - tool calls are now handled via SSE events */}
               <div>
                 <div className='break-words text-base'>
@@ -215,7 +215,7 @@ export const ClientChatMessage = memo(
                 </div>
               )}
               {message.type === 'assistant' && !isJsonObject && !message.isInitialMessage && (
-                <div className='flex items-center justify-start space-x-2'>
+                <div className='flex items-center justify-start gap-x-2'>
                   {/* Copy Button - Only show when not streaming */}
                   {!message.isStreaming && (
                     <Tooltip.Root delayDuration={300}>

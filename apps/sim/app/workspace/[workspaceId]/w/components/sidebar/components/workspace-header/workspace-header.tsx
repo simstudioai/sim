@@ -432,7 +432,7 @@ function WorkspaceHeaderImpl({
             >
               {isWorkspacesLoading ? (
                 <div className='px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption'>
-                  Loading workspaces...
+                  Loading workspaces…
                 </div>
               ) : (
                 <>

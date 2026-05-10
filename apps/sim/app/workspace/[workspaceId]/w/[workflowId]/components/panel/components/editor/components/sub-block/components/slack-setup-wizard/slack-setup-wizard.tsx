@@ -459,7 +459,7 @@ function StatusRow({ label, ok }: StatusRowProps) {
       />
       <span>
         {label}
-        {!ok && <span className='ml-1 text-[var(--text-muted)]'>— not saved yet</span>}
+        {!ok && <span className='ml-1 text-[var(--text-muted)]'>(not saved yet)</span>}
       </span>
     </span>
   )

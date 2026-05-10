@@ -1460,7 +1460,7 @@ export const Sidebar = memo(function Sidebar() {
                           {tasksLoading ? (
                             <DropdownMenuItem disabled>
                               <Loader className='size-[14px]' animate />
-                              Loading...
+                              Loading…
                             </DropdownMenuItem>
                           ) : (
                             tasks.map((task) => (
@@ -1611,7 +1611,7 @@ export const Sidebar = memo(function Sidebar() {
                               </Tooltip.Trigger>
                               <Tooltip.Content>
                                 {isCreatingWorkflow ? (
-                                  <p>Creating workflow...</p>
+                                  <p>Creating workflow…</p>
                                 ) : (
                                   <Tooltip.Shortcut keys={isMac ? '⌘⇧P' : 'Ctrl+Shift+P'}>
                                     New workflow
@@ -1633,7 +1633,7 @@ export const Sidebar = memo(function Sidebar() {
                           {workflowsLoading && regularWorkflows.length === 0 ? (
                             <DropdownMenuItem disabled>
                               <Loader className='size-[14px]' animate />
-                              Loading...
+                              Loading…
                             </DropdownMenuItem>
                           ) : regularWorkflows.length === 0 ? (
                             <DropdownMenuItem disabled>No workflows yet</DropdownMenuItem>

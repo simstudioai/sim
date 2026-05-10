@@ -387,7 +387,7 @@ export function RecentlyDeleted() {
               return (
                 <div
                   key={resource.id}
-                  className='flex items-center gap-3 rounded-md px-2 py-2 hover-hover:bg-[var(--bg-hover)]'
+                  className='flex items-center gap-3 rounded-md p-2 hover-hover:bg-[var(--bg-hover)]'
                 >
                   <ResourceIcon resource={resource} />
 

@@ -148,7 +148,7 @@ export const PermissionsTable = ({
           <div className='flex items-center justify-center py-12'>
             <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
               <Loader className='size-[16px]' animate />
-              <span className='font-medium text-small'>Saving permission changes...</span>
+              <span className='font-medium text-small'>Saving permission changes…</span>
             </div>
           </div>
         </div>
@@ -203,7 +203,7 @@ export const PermissionsTable = ({
                         {resendingInvitationIds &&
                         user.invitationId &&
                         resendingInvitationIds[user.invitationId] ? (
-                          <span>Sending...</span>
+                          <span>Sending…</span>
                         ) : resentInvitationIds &&
                           user.invitationId &&
                           resentInvitationIds[user.invitationId] ? (
