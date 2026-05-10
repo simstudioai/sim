@@ -1,47 +1,45 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const onePasswordCredentialsBodySchema = z.object({
+const onePasswordCredentialsBodySchema = z.object({
   connectionMode: z.enum(['service_account', 'connect']).nullish(),
   serviceAccountToken: z.string().nullish(),
   serverUrl: z.string().nullish(),
   apiKey: z.string().nullish(),
 })
 
-export const onePasswordListVaultsBodySchema = onePasswordCredentialsBodySchema.extend({
+const onePasswordListVaultsBodySchema = onePasswordCredentialsBodySchema.extend({
   filter: z.string().nullish(),
 })
 
-export const onePasswordGetVaultBodySchema = onePasswordCredentialsBodySchema.extend({
+const onePasswordGetVaultBodySchema = onePasswordCredentialsBodySchema.extend({
   vaultId: z.string().min(1, 'Vault ID is required'),
 })
 
-export const onePasswordListItemsBodySchema = onePasswordGetVaultBodySchema.extend({
+const onePasswordListItemsBodySchema = onePasswordGetVaultBodySchema.extend({
   filter: z.string().nullish(),
 })
 
-export const onePasswordGetItemBodySchema = onePasswordGetVaultBodySchema.extend({
+const onePasswordGetItemBodySchema = onePasswordGetVaultBodySchema.extend({
   itemId: z.string().min(1, 'Item ID is required'),
 })
 
-export const onePasswordCreateItemBodySchema = onePasswordGetVaultBodySchema.extend({
+const onePasswordCreateItemBodySchema = onePasswordGetVaultBodySchema.extend({
   category: z.string().min(1, 'Category is required'),
   title: z.string().nullish(),
   tags: z.string().nullish(),
   fields: z.string().nullish(),
 })
 
-export const onePasswordUpdateItemBodySchema = onePasswordGetItemBodySchema.extend({
+const onePasswordUpdateItemBodySchema = onePasswordGetItemBodySchema.extend({
   operations: z.string().min(1, 'Patch operations are required'),
 })
 
-export const onePasswordReplaceItemBodySchema = onePasswordGetItemBodySchema.extend({
+const onePasswordReplaceItemBodySchema = onePasswordGetItemBodySchema.extend({
   item: z.string().min(1, 'Item JSON is required'),
 })
 
-export const onePasswordDeleteItemBodySchema = onePasswordGetItemBodySchema
-
-export const onePasswordResolveSecretBodySchema = onePasswordCredentialsBodySchema.extend({
+const onePasswordResolveSecretBodySchema = onePasswordCredentialsBodySchema.extend({
   secretReference: z.string().min(1, 'Secret reference is required'),
 })
 
@@ -129,7 +127,7 @@ const onePasswordDeleteItemResponseSchema = z.object({
 export const onePasswordDeleteItemContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/onepassword/delete-item',
-  body: onePasswordDeleteItemBodySchema,
+  body: onePasswordGetItemBodySchema,
   response: {
     mode: 'json',
     schema: onePasswordDeleteItemResponseSchema,

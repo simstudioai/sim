@@ -6,16 +6,16 @@ export const invitationParamsSchema = z.object({
   id: z.string({ error: 'Invitation ID is required' }).min(1, 'Invitation ID is required'),
 })
 
-export const invitationQuerySchema = z.object({
+const invitationQuerySchema = z.object({
   token: z.string().min(1).optional(),
 })
 
-export const invitationGrantSchema = z.object({
+const invitationGrantSchema = z.object({
   workspaceId: z.string().min(1),
   permission: workspacePermissionSchema,
 })
 
-export const updateInvitationBodySchema = z
+const updateInvitationBodySchema = z
   .object({
     role: z.enum(['admin', 'member']).optional(),
     grants: z.array(invitationGrantSchema).optional(),
@@ -24,7 +24,7 @@ export const updateInvitationBodySchema = z
     message: 'Provide a role or at least one grant update',
   })
 
-export const pendingWorkspaceInvitationSchema = z
+const pendingWorkspaceInvitationSchema = z
   .object({
     id: z.string(),
     workspaceId: z.string(),
@@ -36,7 +36,7 @@ export const pendingWorkspaceInvitationSchema = z
   })
   .passthrough()
 
-export const batchWorkspaceInvitationBodySchema = z.object({
+const batchWorkspaceInvitationBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   invitations: z
     .array(
@@ -48,7 +48,7 @@ export const batchWorkspaceInvitationBodySchema = z.object({
     .min(1, 'At least one invitation is required'),
 })
 
-export const batchInvitationResultSchema = z
+const batchInvitationResultSchema = z
   .object({
     success: z.boolean(),
     successful: z.array(z.string()),
@@ -57,19 +57,19 @@ export const batchInvitationResultSchema = z
   })
   .passthrough()
 
-export const removeWorkspaceMemberBodySchema = z.object({
+const removeWorkspaceMemberBodySchema = z.object({
   workspaceId: z.string().uuid(),
 })
 
-export const invitationActionParamsSchema = z.object({
+const invitationActionParamsSchema = z.object({
   id: z.string({ error: 'Invitation ID is required' }).min(1, 'Invitation ID is required'),
 })
 
-export const invitationActionBodySchema = z.object({
+const invitationActionBodySchema = z.object({
   token: z.string().min(1).optional(),
 })
 
-export const invitationDetailsSchema = z.object({
+const invitationDetailsSchema = z.object({
   id: z.string(),
   kind: z.enum(['organization', 'workspace']),
   email: z.string(),
@@ -91,7 +91,7 @@ export const invitationDetailsSchema = z.object({
   ),
 })
 
-export const acceptInvitationResponseSchema = z.object({
+const acceptInvitationResponseSchema = z.object({
   success: z.literal(true),
   redirectPath: z.string(),
   invitation: z.object({

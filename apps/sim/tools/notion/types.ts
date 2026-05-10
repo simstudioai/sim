@@ -18,7 +18,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Used for created_by and last_edited_by fields.
  * @see https://developers.notion.com/reference/user
  */
-export const PARTIAL_USER_OUTPUT_PROPERTIES = {
+const PARTIAL_USER_OUTPUT_PROPERTIES = {
   object: { type: 'string', description: 'Always "user"' },
   id: { type: 'string', description: 'User UUID' },
 } as const satisfies Record<string, OutputProperty>
@@ -26,7 +26,7 @@ export const PARTIAL_USER_OUTPUT_PROPERTIES = {
 /**
  * Complete partial user output definition
  */
-export const PARTIAL_USER_OUTPUT: OutputProperty = {
+const PARTIAL_USER_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Partial user object',
   properties: PARTIAL_USER_OUTPUT_PROPERTIES,
@@ -36,7 +36,7 @@ export const PARTIAL_USER_OUTPUT: OutputProperty = {
  * Full User object properties returned by Notion API.
  * @see https://developers.notion.com/reference/user
  */
-export const USER_OUTPUT_PROPERTIES = {
+const USER_OUTPUT_PROPERTIES = {
   object: { type: 'string', description: 'Always "user"' },
   id: { type: 'string', description: 'User UUID' },
   type: { type: 'string', description: 'User type: "person" or "bot"', optional: true },
@@ -47,7 +47,7 @@ export const USER_OUTPUT_PROPERTIES = {
 /**
  * Complete user output definition
  */
-export const USER_OUTPUT: OutputProperty = {
+const USER_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'User object',
   properties: USER_OUTPUT_PROPERTIES,
@@ -57,7 +57,7 @@ export const USER_OUTPUT: OutputProperty = {
  * Parent object properties for pages and databases.
  * @see https://developers.notion.com/reference/parent-object
  */
-export const PARENT_OUTPUT_PROPERTIES = {
+const PARENT_OUTPUT_PROPERTIES = {
   type: {
     type: 'string',
     description:
@@ -89,7 +89,7 @@ export const PARENT_OUTPUT_PROPERTIES = {
 /**
  * Complete parent output definition
  */
-export const PARENT_OUTPUT: OutputProperty = {
+const PARENT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Parent object specifying hierarchical relationship',
   properties: PARENT_OUTPUT_PROPERTIES,
@@ -99,7 +99,7 @@ export const PARENT_OUTPUT: OutputProperty = {
  * Rich text annotation properties.
  * @see https://developers.notion.com/reference/rich-text
  */
-export const ANNOTATIONS_OUTPUT_PROPERTIES = {
+const ANNOTATIONS_OUTPUT_PROPERTIES = {
   bold: { type: 'boolean', description: 'Bold styling' },
   italic: { type: 'boolean', description: 'Italic styling' },
   strikethrough: { type: 'boolean', description: 'Strikethrough styling' },
@@ -116,7 +116,7 @@ export const ANNOTATIONS_OUTPUT_PROPERTIES = {
  * Rich text object properties.
  * @see https://developers.notion.com/reference/rich-text
  */
-export const RICH_TEXT_OUTPUT_PROPERTIES = {
+const RICH_TEXT_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'Rich text type: "text", "mention", or "equation"' },
   plain_text: { type: 'string', description: 'Plain text content without annotations' },
   href: { type: 'string', description: 'URL for links or Notion mentions', optional: true },
@@ -130,7 +130,7 @@ export const RICH_TEXT_OUTPUT_PROPERTIES = {
 /**
  * Complete rich text array output definition
  */
-export const RICH_TEXT_ARRAY_OUTPUT: OutputProperty = {
+const RICH_TEXT_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of rich text objects',
   items: {
@@ -143,7 +143,7 @@ export const RICH_TEXT_ARRAY_OUTPUT: OutputProperty = {
  * Notion-hosted file object properties (type: "file").
  * @see https://developers.notion.com/reference/file-object
  */
-export const NOTION_FILE_OUTPUT_PROPERTIES = {
+const NOTION_FILE_OUTPUT_PROPERTIES = {
   url: { type: 'string', description: 'Authenticated URL valid for one hour' },
   expiry_time: { type: 'string', description: 'ISO 8601 timestamp when URL expires' },
 } as const satisfies Record<string, OutputProperty>
@@ -152,7 +152,7 @@ export const NOTION_FILE_OUTPUT_PROPERTIES = {
  * API-uploaded file object properties (type: "file_upload").
  * @see https://developers.notion.com/reference/file-object
  */
-export const FILE_UPLOAD_OUTPUT_PROPERTIES = {
+const FILE_UPLOAD_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'File upload UUID' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -160,7 +160,7 @@ export const FILE_UPLOAD_OUTPUT_PROPERTIES = {
  * External file object properties (type: "external").
  * @see https://developers.notion.com/reference/file-object
  */
-export const EXTERNAL_FILE_OUTPUT_PROPERTIES = {
+const EXTERNAL_FILE_OUTPUT_PROPERTIES = {
   url: { type: 'string', description: 'External file URL (never expires)' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -168,7 +168,7 @@ export const EXTERNAL_FILE_OUTPUT_PROPERTIES = {
  * File object properties.
  * @see https://developers.notion.com/reference/file-object
  */
-export const FILE_OUTPUT_PROPERTIES = {
+const FILE_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'File type: "file", "file_upload", or "external"' },
   file: {
     type: 'object',
@@ -193,7 +193,7 @@ export const FILE_OUTPUT_PROPERTIES = {
 /**
  * Complete file output definition
  */
-export const FILE_OUTPUT: OutputProperty = {
+const FILE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'File object',
   properties: FILE_OUTPUT_PROPERTIES,
@@ -203,7 +203,7 @@ export const FILE_OUTPUT: OutputProperty = {
  * Emoji object properties.
  * @see https://developers.notion.com/reference/emoji-object
  */
-export const EMOJI_OUTPUT_PROPERTIES = {
+const EMOJI_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'Always "emoji" for standard emojis' },
   emoji: { type: 'string', description: 'The emoji character' },
 } as const satisfies Record<string, OutputProperty>
@@ -212,7 +212,7 @@ export const EMOJI_OUTPUT_PROPERTIES = {
  * Custom emoji object properties.
  * @see https://developers.notion.com/reference/emoji-object
  */
-export const CUSTOM_EMOJI_OUTPUT_PROPERTIES = {
+const CUSTOM_EMOJI_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'Always "custom_emoji"' },
   custom_emoji: {
     type: 'object',
@@ -228,7 +228,7 @@ export const CUSTOM_EMOJI_OUTPUT_PROPERTIES = {
 /**
  * Icon output (can be emoji, custom_emoji, or file)
  */
-export const ICON_OUTPUT: OutputProperty = {
+const ICON_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Page/database icon (emoji, custom_emoji, or file)',
   optional: true,
@@ -263,7 +263,7 @@ export const ICON_OUTPUT: OutputProperty = {
 /**
  * Cover output (file object for page/database covers)
  */
-export const COVER_OUTPUT: OutputProperty = {
+const COVER_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Page/database cover image',
   optional: true,
@@ -302,7 +302,7 @@ export const PAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete page output definition for array items
  */
-export const PAGE_OUTPUT: OutputProperty = {
+const PAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Notion page object',
   properties: PAGE_OUTPUT_PROPERTIES,
@@ -312,7 +312,7 @@ export const PAGE_OUTPUT: OutputProperty = {
  * Simplified page output properties for read operations (flattened structure).
  * Used by notion_read and notion_read_v2 tools.
  */
-export const PAGE_READ_OUTPUT_PROPERTIES = {
+const PAGE_READ_OUTPUT_PROPERTIES = {
   content: {
     type: 'string',
     description: 'Page content in markdown format with headers, paragraphs, lists, and todos',
@@ -327,7 +327,7 @@ export const PAGE_READ_OUTPUT_PROPERTIES = {
  * Page metadata output properties for legacy tools.
  * Used by notion_read, notion_create_page, notion_update_page.
  */
-export const PAGE_METADATA_OUTPUT_PROPERTIES = {
+const PAGE_METADATA_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Page title' },
   lastEditedTime: { type: 'string', description: 'ISO 8601 last edit timestamp' },
   createdTime: { type: 'string', description: 'ISO 8601 creation timestamp' },
@@ -337,7 +337,7 @@ export const PAGE_METADATA_OUTPUT_PROPERTIES = {
 /**
  * Page metadata output for create/update operations.
  */
-export const PAGE_MUTATION_METADATA_OUTPUT_PROPERTIES = {
+const PAGE_MUTATION_METADATA_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Page title' },
   pageId: { type: 'string', description: 'Page UUID' },
   url: { type: 'string', description: 'Notion page URL' },
@@ -348,7 +348,7 @@ export const PAGE_MUTATION_METADATA_OUTPUT_PROPERTIES = {
 /**
  * Complete page metadata output definition
  */
-export const PAGE_METADATA_OUTPUT: OutputProperty = {
+const PAGE_METADATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Page metadata including title, URL, and timestamps',
   properties: PAGE_METADATA_OUTPUT_PROPERTIES,
@@ -357,7 +357,7 @@ export const PAGE_METADATA_OUTPUT: OutputProperty = {
 /**
  * Page mutation metadata output definition (for create/update)
  */
-export const PAGE_MUTATION_METADATA_OUTPUT: OutputProperty = {
+const PAGE_MUTATION_METADATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Page metadata including title, page ID, URL, and timestamps',
   properties: PAGE_MUTATION_METADATA_OUTPUT_PROPERTIES,
@@ -394,7 +394,7 @@ export const DATABASE_OUTPUT_PROPERTIES = {
 /**
  * Complete database output definition for array items
  */
-export const DATABASE_OUTPUT: OutputProperty = {
+const DATABASE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Notion database object',
   properties: DATABASE_OUTPUT_PROPERTIES,
@@ -404,7 +404,7 @@ export const DATABASE_OUTPUT: OutputProperty = {
  * Database metadata output properties for legacy tools.
  * Used by notion_read_database, notion_create_database.
  */
-export const DATABASE_METADATA_OUTPUT_PROPERTIES = {
+const DATABASE_METADATA_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Database UUID' },
   title: { type: 'string', description: 'Database title' },
   url: { type: 'string', description: 'Notion database URL' },
@@ -416,7 +416,7 @@ export const DATABASE_METADATA_OUTPUT_PROPERTIES = {
 /**
  * Complete database metadata output definition
  */
-export const DATABASE_METADATA_OUTPUT: OutputProperty = {
+const DATABASE_METADATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Database metadata including title, ID, URL, timestamps, and properties schema',
   properties: DATABASE_METADATA_OUTPUT_PROPERTIES,
@@ -426,7 +426,7 @@ export const DATABASE_METADATA_OUTPUT: OutputProperty = {
  * Block object properties from Notion API.
  * @see https://developers.notion.com/reference/block
  */
-export const BLOCK_OUTPUT_PROPERTIES = {
+const BLOCK_OUTPUT_PROPERTIES = {
   object: { type: 'string', description: 'Always "block"' },
   id: { type: 'string', description: 'Block UUID' },
   parent: PARENT_OUTPUT,
@@ -446,7 +446,7 @@ export const BLOCK_OUTPUT_PROPERTIES = {
 /**
  * Complete block output definition for array items
  */
-export const BLOCK_OUTPUT: OutputProperty = {
+const BLOCK_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Notion block object',
   properties: BLOCK_OUTPUT_PROPERTIES,
@@ -494,7 +494,7 @@ export const SEARCH_RESULTS_OUTPUT: OutputProperty = {
 /**
  * Search metadata output properties for legacy tools.
  */
-export const SEARCH_METADATA_OUTPUT_PROPERTIES = {
+const SEARCH_METADATA_OUTPUT_PROPERTIES = {
   totalResults: { type: 'number', description: 'Number of results returned' },
   hasMore: { type: 'boolean', description: 'Whether more results are available' },
   nextCursor: { type: 'string', description: 'Cursor for next page of results', optional: true },
@@ -504,7 +504,7 @@ export const SEARCH_METADATA_OUTPUT_PROPERTIES = {
 /**
  * Complete search metadata output definition
  */
-export const SEARCH_METADATA_OUTPUT: OutputProperty = {
+const SEARCH_METADATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Search metadata including total results count, pagination info, and raw results',
   properties: SEARCH_METADATA_OUTPUT_PROPERTIES,
@@ -525,7 +525,7 @@ export const DATABASE_QUERY_RESULTS_OUTPUT: OutputProperty = {
 /**
  * Query metadata output properties for legacy tools.
  */
-export const QUERY_METADATA_OUTPUT_PROPERTIES = {
+const QUERY_METADATA_OUTPUT_PROPERTIES = {
   totalResults: { type: 'number', description: 'Number of results returned' },
   hasMore: { type: 'boolean', description: 'Whether more results are available' },
   nextCursor: { type: 'string', description: 'Cursor for next page of results', optional: true },
@@ -535,7 +535,7 @@ export const QUERY_METADATA_OUTPUT_PROPERTIES = {
 /**
  * Complete query metadata output definition
  */
-export const QUERY_METADATA_OUTPUT: OutputProperty = {
+const QUERY_METADATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Query metadata including total results, pagination info, and raw results array',
   properties: QUERY_METADATA_OUTPUT_PROPERTIES,
@@ -544,7 +544,7 @@ export const QUERY_METADATA_OUTPUT: OutputProperty = {
 /**
  * Row output properties for add_database_row operations.
  */
-export const ROW_OUTPUT_PROPERTIES = {
+const ROW_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Row (page) UUID' },
   url: { type: 'string', description: 'Notion page URL' },
   title: { type: 'string', description: 'Row title' },
@@ -555,7 +555,7 @@ export const ROW_OUTPUT_PROPERTIES = {
 /**
  * Write operation output properties.
  */
-export const WRITE_OUTPUT_PROPERTIES = {
+const WRITE_OUTPUT_PROPERTIES = {
   appended: { type: 'boolean', description: 'Whether content was successfully appended' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -625,7 +625,7 @@ export interface NotionCreateDatabaseParams {
   accessToken: string
 }
 
-export interface NotionReadDatabaseParams {
+interface NotionReadDatabaseParams {
   databaseId: string
   accessToken: string
 }

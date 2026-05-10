@@ -122,65 +122,10 @@ Get a single contact by ID from Intercom. Returns API-aligned fields only.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `contact` | object | Contact object |
-|   ↳ `id` | string | Unique identifier for the contact |
-|   ↳ `type` | string | Object type \(contact\) |
-|   ↳ `role` | string | Role of the contact \(user or lead\) |
-|   ↳ `email` | string | Email address of the contact |
-|   ↳ `email_domain` | string | Email domain of the contact |
-|   ↳ `phone` | string | Phone number of the contact |
-|   ↳ `name` | string | Name of the contact |
-|   ↳ `avatar` | string | Avatar URL of the contact |
-|   ↳ `owner_id` | string | ID of the admin assigned account ownership |
-|   ↳ `external_id` | string | External identifier provided by the client |
-|   ↳ `workspace_id` | string | Workspace ID the contact belongs to |
-|   ↳ `created_at` | number | Unix timestamp when contact was created |
-|   ↳ `updated_at` | number | Unix timestamp when contact was last updated |
-|   ↳ `signed_up_at` | number | Unix timestamp when user signed up |
-|   ↳ `last_seen_at` | number | Unix timestamp when user was last seen |
-|   ↳ `last_contacted_at` | number | Unix timestamp when contact was last contacted |
-|   ↳ `last_replied_at` | number | Unix timestamp when contact last replied |
-|   ↳ `last_email_opened_at` | number | Unix timestamp when contact last opened an email |
-|   ↳ `last_email_clicked_at` | number | Unix timestamp when contact last clicked an email link |
-|   ↳ `has_hard_bounced` | boolean | Whether email to this contact has hard bounced |
-|   ↳ `marked_email_as_spam` | boolean | Whether contact marked email as spam |
-|   ↳ `unsubscribed_from_emails` | boolean | Whether contact is unsubscribed from emails |
-|   ↳ `browser` | string | Browser used by contact |
-|   ↳ `browser_version` | string | Browser version |
-|   ↳ `browser_language` | string | Browser language setting |
-|   ↳ `os` | string | Operating system |
-|   ↳ `language_override` | string | Language override setting |
 |   ↳ `custom_attributes` | object | Custom attributes set on the contact |
 |   ↳ `tags` | object | Tags associated with the contact \(up to 10 displayed\) |
-|     ↳ `type` | string | List type identifier |
-|     ↳ `url` | string | URL to fetch full list |
-|     ↳ `data` | array | Array of objects \(up to 10\) |
-|     ↳ `has_more` | boolean | Whether there are more items beyond this list |
-|     ↳ `total_count` | number | Total number of items |
 |   ↳ `notes` | object | Notes associated with the contact \(up to 10 displayed\) |
-|     ↳ `type` | string | List type identifier |
-|     ↳ `url` | string | URL to fetch full list |
-|     ↳ `data` | array | Array of objects \(up to 10\) |
-|     ↳ `has_more` | boolean | Whether there are more items beyond this list |
-|     ↳ `total_count` | number | Total number of items |
 |   ↳ `companies` | object | Companies associated with the contact \(up to 10 displayed\) |
-|     ↳ `type` | string | List type identifier |
-|     ↳ `url` | string | URL to fetch full list |
-|     ↳ `data` | array | Array of objects \(up to 10\) |
-|     ↳ `has_more` | boolean | Whether there are more items beyond this list |
-|     ↳ `total_count` | number | Total number of items |
-|   ↳ `location` | object | Location information for the contact |
-|     ↳ `type` | string | Object type \(location\) |
-|     ↳ `city` | string | City name |
-|     ↳ `region` | string | Region or state name |
-|     ↳ `country` | string | Country name |
-|     ↳ `country_code` | string | ISO country code |
-|     ↳ `continent_code` | string | Continent code |
-|   ↳ `social_profiles` | object | Social profiles of the contact |
-|     ↳ `type` | string | Social network type \(e.g., twitter, facebook\) |
-|     ↳ `name` | string | Social network name |
-|     ↳ `url` | string | Profile URL |
-|     ↳ `username` | string | Username on the social network |
-|     ↳ `id` | string | User ID on the social network |
 
 ### `intercom_update_contact`
 

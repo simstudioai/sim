@@ -7,7 +7,7 @@ import { emuToPx } from '../parser/units'
 import type { SafeXmlNode } from '../parser/xml-parser'
 import { isPlaceholder, parseAllAttributes } from './xml-helpers'
 
-export interface PlaceholderXfrm {
+interface PlaceholderXfrm {
   position: { x: number; y: number }
   size: { w: number; h: number }
 }

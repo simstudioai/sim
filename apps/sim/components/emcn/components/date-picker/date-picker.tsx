@@ -118,7 +118,7 @@ interface DatePickerRangeProps extends DatePickerBaseProps {
   onChange?: never
 }
 
-export type DatePickerProps = DatePickerSingleProps | DatePickerRangeProps
+type DatePickerProps = DatePickerSingleProps | DatePickerRangeProps
 
 /**
  * Month names for calendar display.
@@ -385,13 +385,13 @@ function CalendarMonth({
         {showNavigation === 'left' || showNavigation === 'both' ? (
           <button
             type='button'
-            className='flex h-[24px] w-[24px] items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
+            className='flex size-[24px] items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
             onClick={onPrevMonth}
           >
-            <ChevronLeft className='h-4 w-4' />
+            <ChevronLeft className='size-4' />
           </button>
         ) : (
-          <div className='h-[24px] w-[24px]' />
+          <div className='size-[24px]' />
         )}
         <span className='font-medium text-[var(--text-primary)] text-small'>
           {MONTHS[viewMonth]} {viewYear}
@@ -399,13 +399,13 @@ function CalendarMonth({
         {showNavigation === 'right' || showNavigation === 'both' ? (
           <button
             type='button'
-            className='flex h-[24px] w-[24px] items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
+            className='flex size-[24px] items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
             onClick={onNextMonth}
           >
-            <ChevronRight className='h-4 w-4' />
+            <ChevronRight className='size-4' />
           </button>
         ) : (
-          <div className='h-[24px] w-[24px]' />
+          <div className='size-[24px]' />
         )}
       </div>
 

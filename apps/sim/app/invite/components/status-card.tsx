@@ -39,7 +39,7 @@ export function InviteStatusCard({
           <p className='font-[380] text-[var(--landing-text-muted)] text-md'>{description}</p>
         </div>
         <div className='mt-8 flex w-full items-center justify-center py-8'>
-          <Loader className='h-8 w-8 text-[var(--landing-text-muted)]' animate />
+          <Loader className='size-8 text-[var(--landing-text-muted)]' animate />
         </div>
       </>
     )
@@ -74,7 +74,7 @@ export function InviteStatusCard({
           >
             {action.loading ? (
               <span className='flex items-center gap-2'>
-                <Loader className='h-4 w-4' animate />
+                <Loader className='size-4' animate />
                 {action.label}...
               </span>
             ) : (

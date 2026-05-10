@@ -22,10 +22,10 @@ import { getRedisClient } from '@/lib/core/config/redis'
 const logger = createLogger('TableEventBuffer')
 
 const REDIS_PREFIX = 'table:stream:'
-export const TABLE_EVENT_TTL_SECONDS = 60 * 60 // 1 hour
-export const TABLE_EVENT_CAP = 5000
+const TABLE_EVENT_TTL_SECONDS = 60 * 60 // 1 hour
+const TABLE_EVENT_CAP = 5000
 /** Max events returned by a single read; the SSE route drains in chunks. */
-export const TABLE_EVENT_READ_CHUNK = 500
+const TABLE_EVENT_READ_CHUNK = 500
 
 /**
  * Atomic append: INCR the seq counter to mint a new eventId, build the entry
@@ -66,7 +66,7 @@ function getMetaKey(tableId: string) {
   return `${REDIS_PREFIX}${tableId}:meta`
 }
 
-export type TableCellStatus = 'pending' | 'queued' | 'running' | 'completed' | 'cancelled' | 'error'
+type TableCellStatus = 'pending' | 'queued' | 'running' | 'completed' | 'cancelled' | 'error'
 
 export interface TableEvent {
   kind: 'cell'

@@ -8,7 +8,7 @@ import {
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import type { StrategyOptions } from '@/lib/chunkers/types'
 
-export const knowledgeScopeSchema = z.enum(['active', 'archived', 'all'])
+const knowledgeScopeSchema = z.enum(['active', 'archived', 'all'])
 export type KnowledgeScope = z.output<typeof knowledgeScopeSchema>
 
 export const listKnowledgeBasesQuerySchema = z.object({
@@ -16,7 +16,7 @@ export const listKnowledgeBasesQuerySchema = z.object({
   scope: knowledgeScopeSchema.default('active'),
 })
 
-export const chunkingStrategyOptionsSchema = z
+const chunkingStrategyOptionsSchema = z
   .object({
     pattern: z.string().max(500).optional(),
     separators: z.array(z.string()).optional(),
@@ -25,7 +25,7 @@ export const chunkingStrategyOptionsSchema = z
   })
   .strict() satisfies z.ZodType<StrategyOptions>
 
-export const chunkingConfigSchema = z
+const chunkingConfigSchema = z
   .object({
     maxSize: z.number().min(100).max(4000),
     minSize: z.number().min(1).max(2000),
@@ -49,7 +49,7 @@ export const chunkingConfigSchema = z
     message: 'strictBoundaries is only valid for the regex chunking strategy',
   })
 
-export const createKnowledgeBaseBodySchema = z.object({
+const createKnowledgeBaseBodySchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   workspaceId: z.string().min(1, 'Workspace ID is required'),
@@ -62,7 +62,7 @@ export const createKnowledgeBaseBodySchema = z.object({
   }),
 })
 
-export const updateKnowledgeBaseBodySchema = createKnowledgeBaseBodySchema
+const updateKnowledgeBaseBodySchema = createKnowledgeBaseBodySchema
   .pick({
     name: true,
     description: true,
@@ -85,7 +85,7 @@ const knowledgeChunkingConfigSchema = z
   })
   .passthrough()
 
-export const knowledgeBaseDataSchema = z
+const knowledgeBaseDataSchema = z
   .object({
     id: z.string(),
     userId: z.string(),

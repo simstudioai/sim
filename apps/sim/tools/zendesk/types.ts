@@ -4,7 +4,7 @@ import type { OutputProperty } from '@/tools/types'
 const logger = createLogger('Zendesk')
 
 // Base params - following Sentry pattern where subdomain is user-provided
-export interface ZendeskBaseParams {
+interface ZendeskBaseParams {
   email: string // Zendesk user email (required for API token authentication)
   apiToken: string // API token (hidden)
   subdomain: string // Zendesk subdomain (user-visible, required - e.g., "mycompany" for mycompany.zendesk.com)
@@ -21,7 +21,7 @@ export interface ZendeskPagingInfo {
   next_page?: string | null
 }
 
-export interface ZendeskListMetadata {
+interface ZendeskListMetadata {
   total_returned: number
   has_more: boolean
 }
@@ -80,7 +80,7 @@ export function extractCursorPagingInfo(data: Record<string, unknown>): ZendeskP
  * Output definition for the "via" object in ticket responses.
  * Contains information about how the ticket was created.
  */
-export const VIA_OUTPUT_PROPERTIES = {
+const VIA_OUTPUT_PROPERTIES = {
   channel: {
     type: 'string',
     description: 'Channel through which the ticket was created (e.g., email, web, api)',
@@ -123,7 +123,7 @@ export const VIA_OUTPUT_PROPERTIES = {
 /**
  * Output definition for custom field entries in ticket responses
  */
-export const CUSTOM_FIELD_OUTPUT_PROPERTIES = {
+const CUSTOM_FIELD_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Custom field ID' },
   value: { type: 'string', description: 'Custom field value' },
 } as const satisfies Record<string, OutputProperty>
@@ -131,7 +131,7 @@ export const CUSTOM_FIELD_OUTPUT_PROPERTIES = {
 /**
  * Output definition for satisfaction rating in ticket responses
  */
-export const SATISFACTION_RATING_OUTPUT_PROPERTIES = {
+const SATISFACTION_RATING_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Satisfaction rating ID', optional: true },
   score: { type: 'string', description: 'Rating score (e.g., good, bad, offered, unoffered)' },
   comment: { type: 'string', description: 'Comment left with the rating', optional: true },
@@ -263,7 +263,7 @@ export const TICKET_OUTPUT_PROPERTIES = {
 /**
  * Output definition for user photo object
  */
-export const USER_PHOTO_OUTPUT_PROPERTIES = {
+const USER_PHOTO_OUTPUT_PROPERTIES = {
   content_url: { type: 'string', description: 'URL to the photo' },
   file_name: { type: 'string', description: 'Photo file name' },
   size: { type: 'number', description: 'File size in bytes' },
@@ -402,7 +402,7 @@ export const ORGANIZATION_OUTPUT_PROPERTIES = {
 /**
  * Pagination output properties for list endpoints
  */
-export const PAGING_OUTPUT_PROPERTIES = {
+const PAGING_OUTPUT_PROPERTIES = {
   after_cursor: {
     type: 'string',
     description: 'Cursor for fetching the next page of results',
@@ -424,7 +424,7 @@ export const PAGING_OUTPUT: OutputProperty = {
 /**
  * Metadata output properties for list responses
  */
-export const METADATA_OUTPUT_PROPERTIES = {
+const METADATA_OUTPUT_PROPERTIES = {
   total_returned: { type: 'number', description: 'Number of items returned in this response' },
   has_more: { type: 'boolean', description: 'Whether more items are available' },
 } as const satisfies Record<string, OutputProperty>
@@ -478,7 +478,7 @@ export const ORGANIZATIONS_ARRAY_OUTPUT: OutputProperty = {
  * Job status result item output properties for bulk operations.
  * @see https://developer.zendesk.com/api-reference/ticketing/ticket-management/job_statuses/
  */
-export const JOB_RESULT_OUTPUT_PROPERTIES = {
+const JOB_RESULT_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'ID of the created or updated resource' },
   index: { type: 'number', description: 'Position of the result in the batch', optional: true },
   action: {
@@ -499,7 +499,7 @@ export const JOB_RESULT_OUTPUT_PROPERTIES = {
  * Job status output properties for bulk operation responses.
  * @see https://developer.zendesk.com/api-reference/ticketing/ticket-management/job_statuses/
  */
-export const JOB_STATUS_OUTPUT_PROPERTIES = {
+const JOB_STATUS_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Automatically assigned job ID' },
   url: { type: 'string', description: 'URL to poll for status updates' },
   status: {

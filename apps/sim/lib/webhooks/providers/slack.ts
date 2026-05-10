@@ -219,7 +219,7 @@ function validateSlackSignature(
 /**
  * Handle Slack verification challenges
  */
-export function handleSlackChallenge(body: unknown): NextResponse | null {
+function handleSlackChallenge(body: unknown): NextResponse | null {
   const obj = body as Record<string, unknown>
   if (obj.type === 'url_verification' && obj.challenge) {
     return NextResponse.json({ challenge: obj.challenge })

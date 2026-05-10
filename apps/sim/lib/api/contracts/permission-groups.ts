@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { permissionGroupConfigSchema } from '@/lib/permission-groups/types'
 
-export const permissionGroupFullConfigSchema = z.object({
+const permissionGroupFullConfigSchema = z.object({
   allowedIntegrations: z.array(z.string()).nullable(),
   allowedModelProviders: z.array(z.string()).nullable(),
   hideTraceSpans: z.boolean(),
@@ -26,20 +26,20 @@ export const permissionGroupFullConfigSchema = z.object({
   hideDeployTemplate: z.boolean(),
 })
 
-export const addPermissionGroupMemberBodySchema = z.object({
+const addPermissionGroupMemberBodySchema = z.object({
   userId: z.string().min(1),
 })
 
-export const permissionGroupParamsSchema = z.object({
+const permissionGroupParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-export const permissionGroupDetailParamsSchema = z.object({
+const permissionGroupDetailParamsSchema = z.object({
   id: z.string().min(1),
   groupId: z.string().min(1),
 })
 
-export const permissionGroupSchema = z.object({
+const permissionGroupSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
@@ -54,7 +54,7 @@ export const permissionGroupSchema = z.object({
 })
 export type PermissionGroup = z.output<typeof permissionGroupSchema>
 
-export const permissionGroupWriteSchema = z.object({
+const permissionGroupWriteSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
   name: z.string(),
@@ -65,9 +65,9 @@ export const permissionGroupWriteSchema = z.object({
   updatedAt: z.string(),
   autoAddNewMembers: z.boolean(),
 })
-export type PermissionGroupWrite = z.output<typeof permissionGroupWriteSchema>
+type PermissionGroupWrite = z.output<typeof permissionGroupWriteSchema>
 
-export const permissionGroupMemberSchema = z.object({
+const permissionGroupMemberSchema = z.object({
   id: z.string(),
   userId: z.string(),
   assignedAt: z.string(),
@@ -81,7 +81,7 @@ export const userPermissionConfigQuerySchema = z.object({
   workspaceId: z.string().min(1),
 })
 
-export const userPermissionConfigSchema = z.object({
+const userPermissionConfigSchema = z.object({
   permissionGroupId: z.string().nullable(),
   groupName: z.string().nullable(),
   config: permissionGroupFullConfigSchema.nullable(),
@@ -89,25 +89,25 @@ export const userPermissionConfigSchema = z.object({
 })
 export type UserPermissionConfig = z.output<typeof userPermissionConfigSchema>
 
-export const createPermissionGroupBodySchema = z.object({
+const createPermissionGroupBodySchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().max(500).optional(),
   config: permissionGroupConfigSchema.optional(),
   autoAddNewMembers: z.boolean().optional(),
 })
 
-export const updatePermissionGroupBodySchema = z.object({
+const updatePermissionGroupBodySchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   description: z.string().max(500).nullable().optional(),
   config: permissionGroupConfigSchema.optional(),
   autoAddNewMembers: z.boolean().optional(),
 })
 
-export const removePermissionGroupMemberQuerySchema = z.object({
+const removePermissionGroupMemberQuerySchema = z.object({
   memberId: z.string().min(1),
 })
 
-export const bulkAddPermissionGroupMembersBodySchema = z.object({
+const bulkAddPermissionGroupMembersBodySchema = z.object({
   userIds: z.array(z.string()).optional(),
   addAllWorkspaceMembers: z.boolean().optional(),
 })

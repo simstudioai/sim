@@ -8,7 +8,7 @@ const logger = createLogger('AlertRules')
 /**
  * Alert rule types supported by the notification system
  */
-export type AlertRuleType =
+type AlertRuleType =
   | 'consecutive_failures'
   | 'failure_rate'
   | 'latency_threshold'
@@ -35,7 +35,7 @@ export interface AlertConfig {
 /**
  * Metadata for alert rule types
  */
-export interface AlertRuleDefinition {
+interface AlertRuleDefinition {
   type: AlertRuleType
   name: string
   description: string

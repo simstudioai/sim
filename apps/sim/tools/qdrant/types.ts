@@ -28,7 +28,7 @@ export const POINT_OUTPUT_PROPERTIES = {
 /**
  * Complete point object output definition
  */
-export const POINT_OUTPUT: OutputProperty = {
+const POINT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Point object with ID, payload, and optional vector',
   properties: POINT_OUTPUT_PROPERTIES,
@@ -58,7 +58,7 @@ export const SCORED_POINT_OUTPUT_PROPERTIES = {
 /**
  * Complete scored point object output definition
  */
-export const SCORED_POINT_OUTPUT: OutputProperty = {
+const SCORED_POINT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Scored point with ID, version, score, payload, and optional vector',
   properties: SCORED_POINT_OUTPUT_PROPERTIES,
@@ -79,7 +79,7 @@ export const UPSERT_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete upsert result output definition
  */
-export const UPSERT_RESULT_OUTPUT: OutputProperty = {
+const UPSERT_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Upsert operation result with operation ID and status',
   properties: UPSERT_RESULT_OUTPUT_PROPERTIES,
@@ -93,13 +93,13 @@ export const QDRANT_RESPONSE_OUTPUT_PROPERTIES = {
   time: { type: 'number', description: 'Time spent processing request in seconds', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
-export interface QdrantBaseParams {
+interface QdrantBaseParams {
   url: string
   apiKey?: string
   collection: string
 }
 
-export interface QdrantVector {
+interface QdrantVector {
   id: string
   vector: number[]
   payload?: Record<string, any>

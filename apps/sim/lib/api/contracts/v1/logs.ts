@@ -2,15 +2,15 @@ import { z } from 'zod'
 import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const v1LogParamsSchema = z.object({
+const v1LogParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-export const v1ExecutionParamsSchema = z.object({
+const v1ExecutionParamsSchema = z.object({
   executionId: z.string().min(1),
 })
 
-export const v1ListLogsQuerySchema = z.object({
+const v1ListLogsQuerySchema = z.object({
   workspaceId: z.string().min(1),
   workflowIds: z.string().optional(),
   folderIds: z.string().optional(),
@@ -38,9 +38,9 @@ const v1ApiResponseWithLimitsSchema = z
   })
   .passthrough()
 
-export type V1ListLogsQuery = z.output<typeof v1ListLogsQuerySchema>
-export type V1LogParams = z.output<typeof v1LogParamsSchema>
-export type V1ExecutionParams = z.output<typeof v1ExecutionParamsSchema>
+type V1ListLogsQuery = z.output<typeof v1ListLogsQuerySchema>
+type V1LogParams = z.output<typeof v1LogParamsSchema>
+type V1ExecutionParams = z.output<typeof v1ExecutionParamsSchema>
 
 export const v1ListLogsContract = defineRouteContract({
   method: 'GET',

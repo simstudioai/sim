@@ -102,7 +102,7 @@ export function getPlanByName(planName: string): BillingPlan | undefined {
  * Get a specific plan by Stripe price ID.
  * Matches against both monthly (`priceId`) and annual (`annualDiscountPriceId`) prices.
  */
-export function getPlanByPriceId(priceId: string): BillingPlan | undefined {
+function getPlanByPriceId(priceId: string): BillingPlan | undefined {
   if (!priceId) return undefined
   return getPlans().find(
     (plan) => plan.priceId === priceId || plan.annualDiscountPriceId === priceId
@@ -112,7 +112,7 @@ export function getPlanByPriceId(priceId: string): BillingPlan | undefined {
 /**
  * Get plan limits for a given plan name
  */
-export function getPlanLimits(planName: string): number {
+function getPlanLimits(planName: string): number {
   const plan = getPlanByName(planName)
   return plan?.limits.cost ?? getFreeTierLimit()
 }

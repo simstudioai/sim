@@ -120,14 +120,14 @@ function SingleFileSelector({
       <Button
         type='button'
         variant='ghost'
-        className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10 h-6 w-6 p-0'
+        className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10 size-6 p-0'
         onClick={onClear}
         disabled={isDeleting}
       >
         {isDeleting ? (
-          <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+          <div className='size-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
         ) : (
-          <X className='h-4 w-4 opacity-50 hover-hover:opacity-100' />
+          <X className='size-4 opacity-50 hover-hover:opacity-100' />
         )}
       </Button>
     </div>
@@ -517,14 +517,14 @@ export function FileUpload({
         <Button
           type='button'
           variant='ghost'
-          className='-translate-y-1/2 absolute top-1/2 right-[4px] h-6 w-6 p-0'
+          className='-translate-y-1/2 absolute top-1/2 right-[4px] size-6 p-0'
           onClick={(e) => handleRemoveFile(file, e)}
           disabled={isDeleting}
         >
           {isDeleting ? (
-            <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+            <div className='size-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
           ) : (
-            <X className='h-4 w-4 opacity-50' />
+            <X className='size-4 opacity-50' />
           )}
         </Button>
       </div>
@@ -541,8 +541,8 @@ export function FileUpload({
           <span className='text-[var(--text-primary)]'>{file.name}</span>
           <span className='ml-2 text-[var(--text-muted)]'>({formatFileSize(file.size)})</span>
         </div>
-        <div className='flex h-5 w-5 shrink-0 items-center justify-center'>
-          <div className='h-3.5 w-3.5 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+        <div className='flex size-5 shrink-0 items-center justify-center'>
+          <div className='size-3.5 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
         </div>
       </div>
     )
@@ -631,7 +631,7 @@ export function FileUpload({
   }
 
   return (
-    <div className='w-full' onClick={(e) => e.stopPropagation()}>
+    <div role='presentation' className='w-full' onClick={(e) => e.stopPropagation()}>
       <input
         type='file'
         ref={fileInputRef}

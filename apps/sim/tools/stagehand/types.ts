@@ -13,7 +13,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Output definition for usage statistics from agent execution
  * Based on Stagehand AgentResult.usage structure
  */
-export const STAGEHAND_USAGE_OUTPUT_PROPERTIES = {
+const STAGEHAND_USAGE_OUTPUT_PROPERTIES = {
   input_tokens: { type: 'number', description: 'Number of input tokens consumed' },
   output_tokens: { type: 'number', description: 'Number of output tokens generated' },
   reasoning_tokens: {
@@ -32,7 +32,7 @@ export const STAGEHAND_USAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete usage statistics output definition
  */
-export const STAGEHAND_USAGE_OUTPUT: OutputProperty = {
+const STAGEHAND_USAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Token usage and timing statistics from agent execution',
   optional: true,
@@ -43,7 +43,7 @@ export const STAGEHAND_USAGE_OUTPUT: OutputProperty = {
  * Output definition for agent action objects
  * Based on Stagehand AgentAction interface
  */
-export const STAGEHAND_ACTION_OUTPUT_PROPERTIES = {
+const STAGEHAND_ACTION_OUTPUT_PROPERTIES = {
   type: {
     type: 'string',
     description:
@@ -94,7 +94,7 @@ export const STAGEHAND_ACTION_OUTPUT_PROPERTIES = {
 /**
  * Complete agent action output definition
  */
-export const STAGEHAND_ACTION_OUTPUT: OutputProperty = {
+const STAGEHAND_ACTION_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Record of an action performed by the agent',
   properties: STAGEHAND_ACTION_OUTPUT_PROPERTIES,
@@ -103,7 +103,7 @@ export const STAGEHAND_ACTION_OUTPUT: OutputProperty = {
 /**
  * Actions array output definition
  */
-export const STAGEHAND_ACTIONS_OUTPUT: OutputProperty = {
+const STAGEHAND_ACTIONS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'List of all actions performed by the agent during task execution',
   items: {
@@ -135,7 +135,7 @@ export const STAGEHAND_AGENT_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete agent result output definition
  */
-export const STAGEHAND_AGENT_RESULT_OUTPUT: OutputProperty = {
+const STAGEHAND_AGENT_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Complete result from the Stagehand agent execution',
   properties: STAGEHAND_AGENT_RESULT_OUTPUT_PROPERTIES,
@@ -145,7 +145,7 @@ export const STAGEHAND_AGENT_RESULT_OUTPUT: OutputProperty = {
  * Output definition for act() method results
  * Based on Stagehand ActResult interface
  */
-export const STAGEHAND_ACT_ACTION_OUTPUT_PROPERTIES = {
+const STAGEHAND_ACT_ACTION_OUTPUT_PROPERTIES = {
   selector: {
     type: 'string',
     description: 'XPath or CSS selector of the element acted upon',
@@ -171,7 +171,7 @@ export const STAGEHAND_ACT_ACTION_OUTPUT_PROPERTIES = {
 /**
  * Output definition for act() result
  */
-export const STAGEHAND_ACT_RESULT_OUTPUT_PROPERTIES = {
+const STAGEHAND_ACT_RESULT_OUTPUT_PROPERTIES = {
   success: {
     type: 'boolean',
     description: 'Whether the act operation completed successfully',
@@ -199,7 +199,7 @@ export const STAGEHAND_ACT_RESULT_OUTPUT_PROPERTIES = {
  * Output definition for extract() method when called without schema
  * Returns pageText or extraction string
  */
-export const STAGEHAND_SIMPLE_EXTRACT_OUTPUT_PROPERTIES = {
+const STAGEHAND_SIMPLE_EXTRACT_OUTPUT_PROPERTIES = {
   pageText: {
     type: 'string',
     description: 'Raw text content of the page (when no instruction provided)',
@@ -216,7 +216,7 @@ export const STAGEHAND_SIMPLE_EXTRACT_OUTPUT_PROPERTIES = {
  * Output definition for extract() method result with schema
  * The actual structure depends on the user-provided schema
  */
-export const STAGEHAND_EXTRACT_OUTPUT_PROPERTIES = {
+const STAGEHAND_EXTRACT_OUTPUT_PROPERTIES = {
   data: {
     type: 'object',
     description: 'Extracted structured data matching the provided schema',
@@ -255,7 +255,7 @@ export interface StagehandAgentParams {
   }
 }
 
-export interface StagehandAgentAction {
+interface StagehandAgentAction {
   type: string
   reasoning?: string
   taskCompleted?: boolean
@@ -268,7 +268,7 @@ export interface StagehandAgentAction {
   [key: string]: unknown
 }
 
-export interface StagehandAgentUsage {
+interface StagehandAgentUsage {
   input_tokens: number
   output_tokens: number
   reasoning_tokens?: number
@@ -276,7 +276,7 @@ export interface StagehandAgentUsage {
   inference_time_ms: number
 }
 
-export interface StagehandAgentResult {
+interface StagehandAgentResult {
   success: boolean
   completed: boolean
   message: string
@@ -293,7 +293,7 @@ export interface StagehandAgentResponse extends ToolResponse {
   }
 }
 
-export function jsonSchemaToZod(jsonSchema: Record<string, any>): z.ZodTypeAny {
+function jsonSchemaToZod(jsonSchema: Record<string, any>): z.ZodTypeAny {
   if (!jsonSchema) {
     throw new Error('Invalid schema: Schema is required')
   }

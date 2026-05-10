@@ -15,7 +15,7 @@ import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
  * Output definition for reaction objects on messages
  * Based on Slack API reactions structure
  */
-export const REACTION_OUTPUT_PROPERTIES = {
+const REACTION_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Emoji name (without colons)' },
   count: { type: 'number', description: 'Number of times this reaction was added' },
   users: {
@@ -28,7 +28,7 @@ export const REACTION_OUTPUT_PROPERTIES = {
 /**
  * Complete reaction array output definition
  */
-export const REACTIONS_OUTPUT: OutputProperty = {
+const REACTIONS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Reactions on this message',
   items: {
@@ -41,7 +41,7 @@ export const REACTIONS_OUTPUT: OutputProperty = {
  * Output definition for message edit information
  * Based on Slack API edited object structure
  */
-export const MESSAGE_EDITED_OUTPUT_PROPERTIES = {
+const MESSAGE_EDITED_OUTPUT_PROPERTIES = {
   user: { type: 'string', description: 'User ID who edited the message' },
   ts: { type: 'string', description: 'Timestamp of the edit' },
 } as const satisfies Record<string, OutputProperty>
@@ -49,7 +49,7 @@ export const MESSAGE_EDITED_OUTPUT_PROPERTIES = {
 /**
  * Complete message edited output definition
  */
-export const MESSAGE_EDITED_OUTPUT: OutputProperty = {
+const MESSAGE_EDITED_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Edit information if message was edited',
   optional: true,
@@ -60,7 +60,7 @@ export const MESSAGE_EDITED_OUTPUT: OutputProperty = {
  * Output definition for file objects attached to messages
  * Based on Slack API file object structure
  */
-export const FILE_OUTPUT_PROPERTIES = {
+const FILE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique file identifier' },
   name: { type: 'string', description: 'File name' },
   mimetype: { type: 'string', description: 'MIME type of the file' },
@@ -77,7 +77,7 @@ export const FILE_OUTPUT_PROPERTIES = {
 /**
  * Complete files array output definition
  */
-export const FILES_OUTPUT: OutputProperty = {
+const FILES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Files attached to the message',
   items: {
@@ -90,7 +90,7 @@ export const FILES_OUTPUT: OutputProperty = {
  * Output definition for Block Kit block objects
  * Based on Slack Block Kit structure
  */
-export const BLOCK_OUTPUT_PROPERTIES = {
+const BLOCK_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'Block type (section, divider, image, actions, etc.)' },
   block_id: { type: 'string', description: 'Unique block identifier', optional: true },
 } as const satisfies Record<string, OutputProperty>
@@ -98,7 +98,7 @@ export const BLOCK_OUTPUT_PROPERTIES = {
 /**
  * Complete blocks array output definition
  */
-export const BLOCKS_OUTPUT: OutputProperty = {
+const BLOCKS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Block Kit blocks in the message',
   items: {
@@ -111,7 +111,7 @@ export const BLOCKS_OUTPUT: OutputProperty = {
  * Output definition for legacy attachment objects
  * Based on Slack API secondary attachments structure
  */
-export const ATTACHMENT_OUTPUT_PROPERTIES = {
+const ATTACHMENT_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Attachment ID', optional: true },
   fallback: { type: 'string', description: 'Plain text summary', optional: true },
   text: { type: 'string', description: 'Main attachment text', optional: true },
@@ -132,7 +132,7 @@ export const ATTACHMENT_OUTPUT_PROPERTIES = {
 /**
  * Complete attachments array output definition
  */
-export const ATTACHMENTS_OUTPUT: OutputProperty = {
+const ATTACHMENTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Legacy attachments on the message',
   items: {
@@ -145,7 +145,7 @@ export const ATTACHMENTS_OUTPUT: OutputProperty = {
  * Core message properties shared across all message-related tools
  * Based on Slack message event structure
  */
-export const MESSAGE_CORE_OUTPUT_PROPERTIES = {
+const MESSAGE_CORE_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'Message type (usually "message")' },
   ts: { type: 'string', description: 'Message timestamp (unique identifier)' },
   text: { type: 'string', description: 'Message text content' },
@@ -160,7 +160,7 @@ export const MESSAGE_CORE_OUTPUT_PROPERTIES = {
  * Thread-related message properties
  * Based on Slack threading structure
  */
-export const MESSAGE_THREAD_OUTPUT_PROPERTIES = {
+const MESSAGE_THREAD_OUTPUT_PROPERTIES = {
   thread_ts: {
     type: 'string',
     description: 'Parent message timestamp (for threaded replies)',
@@ -194,7 +194,7 @@ export const MESSAGE_THREAD_OUTPUT_PROPERTIES = {
 /**
  * Message interaction properties (stars, pins, etc.)
  */
-export const MESSAGE_INTERACTION_OUTPUT_PROPERTIES = {
+const MESSAGE_INTERACTION_OUTPUT_PROPERTIES = {
   subtype: {
     type: 'string',
     description: 'Message subtype (bot_message, file_share, etc.)',
@@ -231,7 +231,7 @@ export const MESSAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete message object output definition
  */
-export const MESSAGE_OUTPUT: OutputProperty = {
+const MESSAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Slack message object',
   properties: MESSAGE_OUTPUT_PROPERTIES,
@@ -240,7 +240,7 @@ export const MESSAGE_OUTPUT: OutputProperty = {
 /**
  * Messages array output definition for list/reader tools
  */
-export const MESSAGES_OUTPUT: OutputProperty = {
+const MESSAGES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of message objects',
   items: {
@@ -253,7 +253,7 @@ export const MESSAGES_OUTPUT: OutputProperty = {
  * Output definition for channel topic/purpose nested objects
  * Based on Slack conversation object structure
  */
-export const CHANNEL_TOPIC_OUTPUT_PROPERTIES = {
+const CHANNEL_TOPIC_OUTPUT_PROPERTIES = {
   value: { type: 'string', description: 'Topic or purpose text' },
   creator: { type: 'string', description: 'User ID who set it' },
   last_set: { type: 'number', description: 'Unix timestamp when last set' },
@@ -305,7 +305,7 @@ export const CHANNEL_OUTPUT_PROPERTIES = {
 /**
  * Complete channel object output definition
  */
-export const CHANNEL_OUTPUT: OutputProperty = {
+const CHANNEL_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Slack channel object',
   properties: CHANNEL_OUTPUT_PROPERTIES,
@@ -314,7 +314,7 @@ export const CHANNEL_OUTPUT: OutputProperty = {
 /**
  * Channels array output definition
  */
-export const CHANNELS_OUTPUT: OutputProperty = {
+const CHANNELS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of channel objects',
   items: {
@@ -327,7 +327,7 @@ export const CHANNELS_OUTPUT: OutputProperty = {
  * Output definition for user profile objects (nested in user)
  * Based on Slack user profile object
  */
-export const USER_PROFILE_OUTPUT_PROPERTIES = {
+const USER_PROFILE_OUTPUT_PROPERTIES = {
   real_name: { type: 'string', description: 'Full real name' },
   real_name_normalized: { type: 'string', description: 'Normalized real name', optional: true },
   display_name: { type: 'string', description: 'Display name shown in Slack' },
@@ -456,7 +456,7 @@ export const USER_SUMMARY_OUTPUT_PROPERTIES = {
 /**
  * Complete user object output definition
  */
-export const USER_OUTPUT: OutputProperty = {
+const USER_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Slack user object',
   properties: USER_OUTPUT_PROPERTIES,
@@ -465,7 +465,7 @@ export const USER_OUTPUT: OutputProperty = {
 /**
  * Users array output definition
  */
-export const USERS_OUTPUT: OutputProperty = {
+const USERS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of user objects',
   items: {
@@ -676,7 +676,7 @@ export const REACTION_METADATA_OUTPUT_PROPERTIES = {
   reaction: { type: 'string', description: 'Emoji reaction name' },
 } as const satisfies Record<string, OutputProperty>
 
-export interface SlackBaseParams {
+interface SlackBaseParams {
   authMethod: 'oauth' | 'bot_token'
   accessToken: string
   botToken: string
@@ -880,18 +880,18 @@ export interface SlackCanvasResponse extends ToolResponse {
   }
 }
 
-export interface SlackReaction {
+interface SlackReaction {
   name: string
   count: number
   users: string[]
 }
 
-export interface SlackMessageEdited {
+interface SlackMessageEdited {
   user: string
   ts: string
 }
 
-export interface SlackAttachment {
+interface SlackAttachment {
   id?: number
   fallback?: string
   text?: string
@@ -914,13 +914,13 @@ export interface SlackAttachment {
   ts?: string
 }
 
-export interface SlackBlock {
+interface SlackBlock {
   type: string
   block_id?: string
   [key: string]: any // Blocks can have various properties depending on type
 }
 
-export interface SlackMessage {
+interface SlackMessage {
   // Core properties
   type: string
   ts: string
@@ -1030,7 +1030,7 @@ export interface SlackRemoveReactionResponse extends ToolResponse {
   }
 }
 
-export interface SlackChannel {
+interface SlackChannel {
   id: string
   name: string
   is_channel?: boolean
@@ -1067,7 +1067,7 @@ export interface SlackListMembersResponse extends ToolResponse {
   }
 }
 
-export interface SlackUser {
+interface SlackUser {
   id: string
   team_id?: string | null
   name: string
@@ -1212,14 +1212,14 @@ export interface SlackCanvasFile {
   canvas_creator_id?: string | null
 }
 
-export interface SlackCanvasPaging {
+interface SlackCanvasPaging {
   count: number
   total: number
   page: number
   pages: number
 }
 
-export interface SlackCanvasSection {
+interface SlackCanvasSection {
   id: string
 }
 
@@ -1248,7 +1248,7 @@ export interface SlackDeleteCanvasResponse extends ToolResponse {
   }
 }
 
-export interface SlackView {
+interface SlackView {
   id: string
   team_id?: string | null
   type: string

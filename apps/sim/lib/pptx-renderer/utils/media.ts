@@ -6,7 +6,7 @@
  * Determine MIME type from file extension.
  * Covers images, video, and audio formats used in PPTX files.
  */
-export function getMimeType(path: string): string {
+function getMimeType(path: string): string {
   const ext = path.split('.').pop()?.toLowerCase() || ''
   const mimeMap: Record<string, string> = {
     png: 'image/png',

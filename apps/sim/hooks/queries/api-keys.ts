@@ -18,7 +18,7 @@ export type { ApiKey }
 /**
  * Query key factories for API keys-related queries
  */
-export const apiKeysKeys = {
+const apiKeysKeys = {
   all: ['apiKeys'] as const,
   workspaces: () => [...apiKeysKeys.all, 'workspace'] as const,
   workspace: (workspaceId: string) => [...apiKeysKeys.workspaces(), workspaceId] as const,

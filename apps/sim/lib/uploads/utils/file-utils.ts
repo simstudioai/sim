@@ -4,7 +4,7 @@ import { ACCEPTED_FILE_TYPES, SUPPORTED_DOCUMENT_EXTENSIONS } from '@/lib/upload
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
-export interface FileAttachment {
+interface FileAttachment {
   id: string
   key: string
   filename: string
@@ -25,7 +25,7 @@ export interface MessageContent {
 /**
  * Mapping of MIME types to content types
  */
-export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 'video'> = {
+const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 'video'> = {
   // Images
   'image/jpeg': 'image',
   'image/jpg': 'image',
@@ -90,14 +90,14 @@ export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 
 /**
  * Get the content type for a given MIME type
  */
-export function getContentType(mimeType: string): 'image' | 'document' | 'audio' | 'video' | null {
+function getContentType(mimeType: string): 'image' | 'document' | 'audio' | 'video' | null {
   return MIME_TYPE_MAPPING[mimeType.toLowerCase()] || null
 }
 
 /**
  * Check if a MIME type is supported
  */
-export function isSupportedFileType(mimeType: string): boolean {
+function isSupportedFileType(mimeType: string): boolean {
   return mimeType.toLowerCase() in MIME_TYPE_MAPPING
 }
 
@@ -131,7 +131,7 @@ export function isVideoFileType(mimeType: string): boolean {
 /**
  * Check if a MIME type is an audio or video type
  */
-export function isMediaFileType(mimeType: string): boolean {
+function isMediaFileType(mimeType: string): boolean {
   const contentType = getContentType(mimeType)
   return contentType === 'audio' || contentType === 'video'
 }

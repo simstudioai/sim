@@ -98,7 +98,7 @@ function TrustStrip() {
         rel='noopener noreferrer'
         className='group flex items-center gap-3 border-[var(--landing-bg-elevated)] border-b px-4 py-3.5 transition-colors hover:bg-[#212121] sm:border-r sm:border-b-0'
       >
-        <div className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#FFCC02]/10'>
+        <div className='flex size-[22px] shrink-0 items-center justify-center rounded-full bg-[#FFCC02]/10'>
           <GithubIcon width={11} height={11} className='text-[#FFCC02]/75' />
         </div>
         <div className='flex flex-col gap-[3px]'>
@@ -113,8 +113,8 @@ function TrustStrip() {
 
       {/* SSO */}
       <div className='flex items-center gap-3 px-4 py-3.5'>
-        <div className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#2ABBF8]/10'>
-          <Lock className='h-[14px] w-[14px] text-[#2ABBF8]/75' />
+        <div className='flex size-[22px] shrink-0 items-center justify-center rounded-full bg-[#2ABBF8]/10'>
+          <Lock className='size-[14px] text-[#2ABBF8]/75' />
         </div>
         <div className='flex flex-col gap-[3px]'>
           <strong className='font-[430] font-season text-small text-white leading-none'>
@@ -231,7 +231,7 @@ export default function Enterprise() {
               >
                 Book a demo
                 <svg
-                  className='h-[10px] w-[10px] shrink-0'
+                  className='size-[10px] shrink-0'
                   viewBox='0 0 10 10'
                   fill='none'
                   xmlns='http://www.w3.org/2000/svg'

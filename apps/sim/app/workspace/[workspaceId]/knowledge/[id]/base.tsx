@@ -926,9 +926,9 @@ export function KnowledgeBase({
               className='flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption shadow-[inset_0_0_0_1px_var(--border)] transition-colors hover-hover:bg-[var(--surface-3)]'
             >
               {connector.status === 'syncing' ? (
-                <Loader className='h-[14px] w-[14px]' animate />
+                <Loader className='size-[14px]' animate />
               ) : (
-                ConnectorIcon && <ConnectorIcon className='h-[14px] w-[14px]' />
+                ConnectorIcon && <ConnectorIcon className='size-[14px]' />
               )}
               {def?.name || connector.connectorType}
             </button>
@@ -1012,8 +1012,10 @@ export function KnowledgeBase({
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <span
+                        role='presentation'
                         className='block max-w-full truncate text-[var(--text-secondary)] text-caption'
                         onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
                       >
                         {tagsDisplayText}
                       </span>
@@ -1042,7 +1044,7 @@ export function KnowledgeBase({
               content: (
                 <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
                   <span className='flex-shrink-0 text-[var(--text-icon)]'>
-                    <DocIcon className='h-[14px] w-[14px]' />
+                    <DocIcon className='size-[14px]' />
                   </span>
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
@@ -1098,7 +1100,7 @@ export function KnowledgeBase({
   if (error && !knowledgeBase) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <DatabaseX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
+        <DatabaseX className='size-[32px] text-[var(--text-muted)]' />
         <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>
             Knowledge base not found
@@ -1490,7 +1492,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
             </Button>
           )}
           <Button variant='ghost' className='h-auto p-0' onClick={addFilter}>
-            <Plus className='h-3.5 w-3.5' />
+            <Plus className='size-3.5' />
           </Button>
         </div>
       </div>
@@ -1516,7 +1518,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
                   onClick={() => removeFilter(entry.id)}
                   className='text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-error)]'
                 >
-                  <X className='h-3 w-3' />
+                  <X className='size-3' />
                 </button>
               </div>
               <Combobox

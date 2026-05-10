@@ -15,14 +15,6 @@ export {
   truncateToTokenLimit,
 } from '@/lib/tokenization/estimators'
 export { processStreamingBlockLog, processStreamingBlockLogs } from '@/lib/tokenization/streaming'
-export type {
-  CostBreakdown,
-  ProviderTokenizationConfig,
-  StreamingCostResult,
-  TokenEstimate,
-  TokenizationInput,
-  TokenUsage,
-} from '@/lib/tokenization/types'
 export {
   createTextPreview,
   extractTextContent,

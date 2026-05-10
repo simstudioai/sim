@@ -43,7 +43,6 @@ interface FileViewerProps {
   workspaceId: string
   canEdit: boolean
   previewMode?: PreviewMode
-  autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
@@ -58,7 +57,6 @@ export function FileViewer({
   workspaceId,
   canEdit,
   previewMode,
-  autoFocus,
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
@@ -76,7 +74,6 @@ export function FileViewer({
         workspaceId={workspaceId}
         canEdit={canEdit}
         previewMode={previewMode ?? 'editor'}
-        autoFocus={autoFocus}
         onDirtyChange={onDirtyChange}
         onSaveStatusChange={onSaveStatusChange}
         saveRef={saveRef}
@@ -288,7 +285,7 @@ const AudioPreview = memo(function AudioPreview({
   if (isLoading && !blobUrl) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
-        <Skeleton className='h-[40px] w-[40px] rounded-full' />
+        <Skeleton className='size-[40px] rounded-full' />
         <Skeleton className='h-[14px] w-[160px]' />
         <Skeleton className='h-[40px] w-full max-w-[480px] rounded-lg' />
       </div>

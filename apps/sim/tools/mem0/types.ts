@@ -61,7 +61,7 @@ export const ADD_MEMORY_OUTPUT_PROPERTIES = {
 /**
  * Complete add memory object output definition
  */
-export const ADD_MEMORY_OUTPUT: OutputProperty = {
+const ADD_MEMORY_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Queued memory processing job returned from add operation',
   properties: ADD_MEMORY_OUTPUT_PROPERTIES,
@@ -104,7 +104,7 @@ export const MEMORY_OUTPUT_PROPERTIES = {
 /**
  * Complete memory object output definition
  */
-export const MEMORY_OUTPUT: OutputProperty = {
+const MEMORY_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Memory object with full details including timestamps and ownership',
   properties: MEMORY_OUTPUT_PROPERTIES,
@@ -148,7 +148,7 @@ export const SEARCH_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete search result object output definition
  */
-export const SEARCH_RESULT_OUTPUT: OutputProperty = {
+const SEARCH_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Search result with memory details and similarity score',
   properties: SEARCH_RESULT_OUTPUT_PROPERTIES,

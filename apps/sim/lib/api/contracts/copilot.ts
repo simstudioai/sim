@@ -6,7 +6,7 @@ import {
   type AsyncConfirmationStatus,
 } from '@/lib/copilot/async-runs/lifecycle'
 
-export const copilotApiKeySchema = z.object({
+const copilotApiKeySchema = z.object({
   id: z.string(),
   displayKey: z.string(),
   name: z.string().nullable(),
@@ -20,11 +20,11 @@ export const deleteCopilotApiKeyQuerySchema = z.object({
   id: z.string().min(1),
 })
 
-export const generateCopilotApiKeyBodySchema = z.object({
+const generateCopilotApiKeyBodySchema = z.object({
   name: z.string().min(1, 'Name is required').max(255, 'Name is too long'),
 })
 
-export const submitCopilotFeedbackBodySchema = z.object({
+const submitCopilotFeedbackBodySchema = z.object({
   chatId: z.string().uuid('Chat ID must be a valid UUID'),
   userQuery: z.string().min(1, 'User query is required'),
   agentResponse: z.string().min(1, 'Agent response is required'),
@@ -35,9 +35,9 @@ export const submitCopilotFeedbackBodySchema = z.object({
 
 export type SubmitCopilotFeedbackBody = z.input<typeof submitCopilotFeedbackBodySchema>
 
-export const copilotCredentialsQuerySchema = z.object({})
+const copilotCredentialsQuerySchema = z.object({})
 
-export const copilotConfirmBodySchema = z.object({
+const copilotConfirmBodySchema = z.object({
   toolCallId: z.string().min(1, 'Tool call ID is required'),
   status: z.enum(
     Object.values(ASYNC_TOOL_CONFIRMATION_STATUS) as [
@@ -49,28 +49,28 @@ export const copilotConfirmBodySchema = z.object({
   message: z.string().optional(),
   data: z.unknown().optional(),
 })
-export type CopilotConfirmBody = z.input<typeof copilotConfirmBodySchema>
+type CopilotConfirmBody = z.input<typeof copilotConfirmBodySchema>
 
-export const createWorkflowCopilotChatBodySchema = z.object({
+const createWorkflowCopilotChatBodySchema = z.object({
   workspaceId: z.string().min(1),
   workflowId: z.string().min(1),
 })
-export type CreateWorkflowCopilotChatBody = z.input<typeof createWorkflowCopilotChatBodySchema>
+type CreateWorkflowCopilotChatBody = z.input<typeof createWorkflowCopilotChatBodySchema>
 
-export const copilotStatsBodySchema = z.object({
+const copilotStatsBodySchema = z.object({
   messageId: z.string(),
   diffCreated: z.boolean(),
   diffAccepted: z.boolean(),
 })
-export type CopilotStatsBody = z.input<typeof copilotStatsBodySchema>
+type CopilotStatsBody = z.input<typeof copilotStatsBodySchema>
 
-export const copilotTrainingExampleBodySchema = z.object({
+const copilotTrainingExampleBodySchema = z.object({
   json: z.string().min(1, 'JSON string is required'),
   title: z.string().min(1, 'Title is required'),
   tags: z.array(z.string()).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
-export type CopilotTrainingExampleBody = z.input<typeof copilotTrainingExampleBodySchema>
+type CopilotTrainingExampleBody = z.input<typeof copilotTrainingExampleBodySchema>
 
 const copilotTrainingOperationSchema = z.object({
   operation_type: z.string(),
@@ -78,30 +78,30 @@ const copilotTrainingOperationSchema = z.object({
   params: z.record(z.string(), z.unknown()).optional(),
 })
 
-export const copilotTrainingDataBodySchema = z.object({
+const copilotTrainingDataBodySchema = z.object({
   title: z.string().min(1, 'Title is required'),
   prompt: z.string().min(1, 'Prompt is required'),
   input: z.record(z.string(), z.unknown()),
   output: z.record(z.string(), z.unknown()),
   operations: z.array(copilotTrainingOperationSchema),
 })
-export type CopilotTrainingDataBody = z.input<typeof copilotTrainingDataBodySchema>
+type CopilotTrainingDataBody = z.input<typeof copilotTrainingDataBodySchema>
 
-export const renameCopilotChatBodySchema = z.object({
+const renameCopilotChatBodySchema = z.object({
   chatId: z.string().min(1),
   title: z.string().min(1).max(200),
 })
-export type RenameCopilotChatBody = z.input<typeof renameCopilotChatBodySchema>
+type RenameCopilotChatBody = z.input<typeof renameCopilotChatBodySchema>
 
-export const copilotToolPreferenceBodySchema = z.object({
+const copilotToolPreferenceBodySchema = z.object({
   toolId: z.string().min(1),
 })
-export type CopilotToolPreferenceBody = z.input<typeof copilotToolPreferenceBodySchema>
+type CopilotToolPreferenceBody = z.input<typeof copilotToolPreferenceBodySchema>
 
-export const copilotToolPreferenceQuerySchema = z.object({
+const copilotToolPreferenceQuerySchema = z.object({
   toolId: z.string().min(1),
 })
-export type CopilotToolPreferenceQuery = z.input<typeof copilotToolPreferenceQuerySchema>
+type CopilotToolPreferenceQuery = z.input<typeof copilotToolPreferenceQuerySchema>
 
 const copilotResourceTypeSchema = z.enum([
   'table',
@@ -112,7 +112,7 @@ const copilotResourceTypeSchema = z.enum([
   'log',
 ])
 
-export const addCopilotChatResourceBodySchema = z.object({
+const addCopilotChatResourceBodySchema = z.object({
   chatId: z.string(),
   resource: z.object({
     type: copilotResourceTypeSchema,
@@ -120,16 +120,16 @@ export const addCopilotChatResourceBodySchema = z.object({
     title: z.string(),
   }),
 })
-export type AddCopilotChatResourceBody = z.input<typeof addCopilotChatResourceBodySchema>
+type AddCopilotChatResourceBody = z.input<typeof addCopilotChatResourceBodySchema>
 
-export const removeCopilotChatResourceBodySchema = z.object({
+const removeCopilotChatResourceBodySchema = z.object({
   chatId: z.string(),
   resourceType: copilotResourceTypeSchema,
   resourceId: z.string(),
 })
-export type RemoveCopilotChatResourceBody = z.input<typeof removeCopilotChatResourceBodySchema>
+type RemoveCopilotChatResourceBody = z.input<typeof removeCopilotChatResourceBodySchema>
 
-export const reorderCopilotChatResourcesBodySchema = z.object({
+const reorderCopilotChatResourcesBodySchema = z.object({
   chatId: z.string(),
   resources: z.array(
     z.object({
@@ -139,20 +139,20 @@ export const reorderCopilotChatResourcesBodySchema = z.object({
     })
   ),
 })
-export type ReorderCopilotChatResourcesBody = z.input<typeof reorderCopilotChatResourcesBodySchema>
+type ReorderCopilotChatResourcesBody = z.input<typeof reorderCopilotChatResourcesBodySchema>
 
-export const revertCopilotCheckpointBodySchema = z.object({
+const revertCopilotCheckpointBodySchema = z.object({
   checkpointId: z.string().min(1),
 })
-export type RevertCopilotCheckpointBody = z.input<typeof revertCopilotCheckpointBodySchema>
+type RevertCopilotCheckpointBody = z.input<typeof revertCopilotCheckpointBodySchema>
 
 export const copilotChatAbortBodySchema = z.object({
   streamId: z.string().optional(),
   chatId: z.string().optional(),
 })
-export type CopilotChatAbortBody = z.input<typeof copilotChatAbortBodySchema>
+type CopilotChatAbortBody = z.input<typeof copilotChatAbortBodySchema>
 
-export const copilotChatGetQuerySchema = z
+const copilotChatGetQuerySchema = z
   .object({
     workflowId: z.string().optional(),
     workspaceId: z.string().optional(),
@@ -160,22 +160,22 @@ export const copilotChatGetQuerySchema = z
   })
   .passthrough()
 
-export const copilotModelsQuerySchema = z.object({})
+const copilotModelsQuerySchema = z.object({})
 
-export const createCopilotCheckpointBodySchema = z.object({
+const createCopilotCheckpointBodySchema = z.object({
   workflowId: z.string(),
   chatId: z.string(),
   messageId: z.string().optional(),
   workflowState: z.string(),
 })
-export type CreateCopilotCheckpointBody = z.input<typeof createCopilotCheckpointBodySchema>
+type CreateCopilotCheckpointBody = z.input<typeof createCopilotCheckpointBodySchema>
 
-export const listCopilotCheckpointsQuerySchema = z.object({
+const listCopilotCheckpointsQuerySchema = z.object({
   chatId: z.string({ error: 'chatId is required' }).min(1, 'chatId is required'),
 })
-export type ListCopilotCheckpointsQuery = z.input<typeof listCopilotCheckpointsQuerySchema>
+type ListCopilotCheckpointsQuery = z.input<typeof listCopilotCheckpointsQuerySchema>
 
-export const copilotChatStreamQuerySchema = z.object({
+const copilotChatStreamQuerySchema = z.object({
   streamId: z.string().optional().default(''),
   after: z.string().optional().default(''),
   batch: z
@@ -225,19 +225,19 @@ const copilotContentBlockSchema = z.object({
   endedAt: z.number().optional(),
 })
 
-export const copilotChatStopBodySchema = z.object({
+const copilotChatStopBodySchema = z.object({
   chatId: z.string(),
   streamId: z.string(),
   content: z.string(),
   contentBlocks: z.array(copilotContentBlockSchema).optional(),
   requestId: z.string().optional(),
 })
-export type CopilotChatStopBody = z.input<typeof copilotChatStopBodySchema>
+type CopilotChatStopBody = z.input<typeof copilotChatStopBodySchema>
 
-export const deleteCopilotChatBodySchema = z.object({
+const deleteCopilotChatBodySchema = z.object({
   chatId: z.string(),
 })
-export type DeleteCopilotChatBody = z.input<typeof deleteCopilotChatBodySchema>
+type DeleteCopilotChatBody = z.input<typeof deleteCopilotChatBodySchema>
 
 const copilotPersistedMessageSchema = z
   .object({
@@ -264,7 +264,7 @@ const copilotPersistedMessageSchema = z
   })
   .passthrough()
 
-export const updateCopilotMessagesBodySchema = z.object({
+const updateCopilotMessagesBodySchema = z.object({
   chatId: z.string(),
   messages: z.array(copilotPersistedMessageSchema),
   planArtifact: z.string().nullable().optional(),
@@ -276,12 +276,12 @@ export const updateCopilotMessagesBodySchema = z.object({
     .nullable()
     .optional(),
 })
-export type UpdateCopilotMessagesBody = z.input<typeof updateCopilotMessagesBodySchema>
+type UpdateCopilotMessagesBody = z.input<typeof updateCopilotMessagesBodySchema>
 
-export const validateCopilotApiKeyBodySchema = z.object({
+const validateCopilotApiKeyBodySchema = z.object({
   userId: z.string().min(1, 'userId is required'),
 })
-export type ValidateCopilotApiKeyBody = z.input<typeof validateCopilotApiKeyBodySchema>
+type ValidateCopilotApiKeyBody = z.input<typeof validateCopilotApiKeyBodySchema>
 
 export const listCopilotApiKeysContract = defineRouteContract({
   method: 'GET',
@@ -294,7 +294,7 @@ export const listCopilotApiKeysContract = defineRouteContract({
   },
 })
 
-export const copilotChatListItemSchema = z.object({
+const copilotChatListItemSchema = z.object({
   id: z.string(),
   title: z.string().nullable(),
   workflowId: z.string().nullable().optional(),
@@ -679,7 +679,7 @@ export const revertCopilotCheckpointContract = defineRouteContract({
   },
 })
 
-export const copilotChatAbortContract = defineRouteContract({
+const copilotChatAbortContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/chat/abort',
   body: copilotChatAbortBodySchema,

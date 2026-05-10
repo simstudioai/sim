@@ -125,7 +125,7 @@ export const DEVIN_SESSION_LIST_ITEM_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-export interface DevinSessionOutput {
+interface DevinSessionOutput {
   sessionId: string
   url: string
   status: string

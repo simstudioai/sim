@@ -24,11 +24,11 @@ const bigQueryTableSchema = z
   })
   .passthrough()
 
-export const bigQueryDatasetsBodySchema = credentialWorkflowImpersonateBodySchema.extend({
+const bigQueryDatasetsBodySchema = credentialWorkflowImpersonateBodySchema.extend({
   projectId: z.string().min(1),
 })
 
-export const bigQueryTablesBodySchema = bigQueryDatasetsBodySchema.extend({
+const bigQueryTablesBodySchema = bigQueryDatasetsBodySchema.extend({
   datasetId: z.string().min(1),
 })
 
@@ -44,14 +44,10 @@ export const bigQueryTablesSelectorContract = definePostSelector(
   z.object({ tables: z.array(bigQueryTableSchema) })
 )
 
-export type BigQueryDatasetsSelectorBody = ContractBodyInput<
-  typeof bigQueryDatasetsSelectorContract
->
-export type BigQueryTablesSelectorBody = ContractBodyInput<typeof bigQueryTablesSelectorContract>
+type BigQueryDatasetsSelectorBody = ContractBodyInput<typeof bigQueryDatasetsSelectorContract>
+type BigQueryTablesSelectorBody = ContractBodyInput<typeof bigQueryTablesSelectorContract>
 
-export type BigQueryDatasetsSelectorResponse = ContractJsonResponse<
+type BigQueryDatasetsSelectorResponse = ContractJsonResponse<
   typeof bigQueryDatasetsSelectorContract
 >
-export type BigQueryTablesSelectorResponse = ContractJsonResponse<
-  typeof bigQueryTablesSelectorContract
->
+type BigQueryTablesSelectorResponse = ContractJsonResponse<typeof bigQueryTablesSelectorContract>

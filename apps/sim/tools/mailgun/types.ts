@@ -1,10 +1,10 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface MailgunMessageHeaders {
+interface MailgunMessageHeaders {
   [key: string]: string | string[]
 }
 
-export interface MailgunMessageItem {
+interface MailgunMessageItem {
   timestamp: number
   event: string
   recipient: string
@@ -14,7 +14,7 @@ export interface MailgunMessageItem {
   [key: string]: unknown
 }
 
-export interface MailgunDomainItem {
+interface MailgunDomainItem {
   name: string
   state: string
   type: string
@@ -23,14 +23,14 @@ export interface MailgunDomainItem {
   [key: string]: unknown
 }
 
-export interface MailgunPaging {
+interface MailgunPaging {
   first?: string
   next?: string
   previous?: string
   last?: string
 }
 
-export interface MailgunMailingListMember {
+interface MailgunMailingListMember {
   address: string
   name?: string
   subscribed: boolean

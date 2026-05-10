@@ -30,7 +30,7 @@ export const AIRWEAVE_SEARCH_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete search result output definition.
  */
-export const AIRWEAVE_SEARCH_RESULT_OUTPUT: OutputProperty = {
+const AIRWEAVE_SEARCH_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Search result item with content and metadata',
   properties: AIRWEAVE_SEARCH_RESULT_OUTPUT_PROPERTIES,
@@ -61,7 +61,7 @@ export interface AirweaveSearchParams {
 /**
  * Individual search result from Airweave.
  */
-export interface AirweaveSearchResult {
+interface AirweaveSearchResult {
   entity_id: string
   source_name: string
   md_content?: string

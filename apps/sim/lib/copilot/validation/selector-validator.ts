@@ -276,7 +276,7 @@ export async function validateSelectorIds(
  * Batch validate multiple selector fields
  * Returns a map of field name to validation result
  */
-export async function validateAllSelectorFields(
+async function validateAllSelectorFields(
   fields: Array<{ fieldName: string; selectorType: string; value: string | string[] }>,
   context: { userId: string; workspaceId?: string }
 ): Promise<Map<string, SelectorValidationResult>> {

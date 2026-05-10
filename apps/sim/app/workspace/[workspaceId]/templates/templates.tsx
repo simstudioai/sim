@@ -157,8 +157,8 @@ export default function Templates({
         <div className='flex flex-1 flex-col overflow-auto bg-[var(--bg)] px-6 pt-7 pb-6'>
           <div>
             <div className='flex items-start gap-3'>
-              <div className='flex h-[26px] w-[26px] items-center justify-center rounded-md border border-[#5BA8D9] bg-[#E8F4FB] dark:border-[#1A5070] dark:bg-[#153347]'>
-                <Layout className='h-[14px] w-[14px] text-[#5BA8D9] dark:text-[#33b4ff]' />
+              <div className='flex size-[26px] items-center justify-center rounded-md border border-[#5BA8D9] bg-[#E8F4FB] dark:border-[#1A5070] dark:bg-[#153347]'>
+                <Layout className='size-[14px] text-[#5BA8D9] dark:text-[#33b4ff]' />
               </div>
               <h1 className='font-medium text-lg'>Templates</h1>
             </div>
@@ -169,7 +169,7 @@ export default function Templates({
 
           <div className='mt-3.5 flex items-center justify-between'>
             <div className='flex h-[32px] w-[400px] items-center gap-1.5 rounded-lg bg-[var(--surface-4)] px-2'>
-              <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+              <Search className='size-[14px] text-[var(--text-subtle)]' />
               <Input
                 placeholder='Search'
                 value={searchQuery}

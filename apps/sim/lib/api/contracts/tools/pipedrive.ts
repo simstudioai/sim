@@ -13,7 +13,7 @@ const pipedriveDownloadedFileSchema = z.object({
   size: z.number(),
 })
 
-export const pipedriveGetFilesResponseSchema = z.object({
+const pipedriveGetFilesResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     files: z.array(z.unknown()),
@@ -25,7 +25,7 @@ export const pipedriveGetFilesResponseSchema = z.object({
   }),
 })
 
-export const pipedriveGetFilesBodySchema = z.object({
+const pipedriveGetFilesBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   sort: z.enum(['id', 'update_time']).optional().nullable(),
   limit: z.string().optional().nullable(),
@@ -40,6 +40,6 @@ export const pipedriveGetFilesContract = defineRouteContract({
   response: { mode: 'json', schema: pipedriveGetFilesResponseSchema },
 })
 
-export type PipedriveGetFilesBody = ContractBody<typeof pipedriveGetFilesContract>
-export type PipedriveGetFilesBodyInput = ContractBodyInput<typeof pipedriveGetFilesContract>
-export type PipedriveGetFilesResponse = ContractJsonResponse<typeof pipedriveGetFilesContract>
+type PipedriveGetFilesBody = ContractBody<typeof pipedriveGetFilesContract>
+type PipedriveGetFilesBodyInput = ContractBodyInput<typeof pipedriveGetFilesContract>
+type PipedriveGetFilesResponse = ContractJsonResponse<typeof pipedriveGetFilesContract>

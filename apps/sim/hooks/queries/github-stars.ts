@@ -5,7 +5,7 @@ import { getStarsContract } from '@/lib/api/contracts'
 /**
  * Query key factory for GitHub stars queries
  */
-export const githubStarsKeys = {
+const githubStarsKeys = {
   all: ['githubStars'] as const,
   count: () => [...githubStarsKeys.all, 'count'] as const,
 }
@@ -14,7 +14,7 @@ export const githubStarsKeys = {
  * Fallback star count shown before the first fetch resolves. Centralized here
  * so every consumer of `useGitHubStars` renders the same placeholder.
  */
-export const GITHUB_STARS_FALLBACK = '27.8k'
+const GITHUB_STARS_FALLBACK = '27.8k'
 
 async function fetchGitHubStars(signal?: AbortSignal): Promise<string> {
   const data = await requestJson(getStarsContract, { signal })

@@ -4,7 +4,7 @@ import type { WorkflowFolder } from '@/stores/folders/types'
 
 const EMPTY_FOLDERS: WorkflowFolder[] = []
 
-export function getFolders(workspaceId: string): WorkflowFolder[] {
+function getFolders(workspaceId: string): WorkflowFolder[] {
   return (
     getQueryClient().getQueryData<WorkflowFolder[]>(folderKeys.list(workspaceId)) ?? EMPTY_FOLDERS
   )

@@ -166,7 +166,7 @@ export function TransferOwnershipDialog({
                                 : 'hover-hover:bg-[var(--surface-hover)]'
                             )}
                           >
-                            <Avatar className='h-8 w-8 shrink-0'>
+                            <Avatar className='size-8 shrink-0'>
                               {m.image && <AvatarImage src={m.image} alt={m.name} />}
                               <AvatarFallback
                                 style={{ background: getUserColor(m.userId || m.email) }}

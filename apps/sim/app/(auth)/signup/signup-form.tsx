@@ -530,8 +530,8 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
           <button type='submit' disabled={isLoading} className={cn('!mt-6', AUTH_SUBMIT_BTN)}>
             {isLoading ? (
               <span className='flex items-center gap-2'>
-                <Loader className='h-4 w-4' animate />
-                Creating account...
+                <Loader className='size-4' animate />
+                Creating account…
               </span>
             ) : (
               'Create account'
@@ -628,9 +628,7 @@ export default function SignupPage({
   isProduction,
 }: SignupFormProps) {
   return (
-    <Suspense
-      fallback={<div className='flex h-screen items-center justify-center'>Loading...</div>}
-    >
+    <Suspense fallback={<div className='flex h-screen items-center justify-center'>Loading…</div>}>
       <SignupFormContent
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}

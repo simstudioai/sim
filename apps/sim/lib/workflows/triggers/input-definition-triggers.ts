@@ -7,7 +7,7 @@
  * Note: External triggers like webhook/schedule are NOT included here because
  * they receive input from external event payloads, not user-defined inputFormat.
  */
-export const INPUT_DEFINITION_TRIGGER_TYPES = [
+const INPUT_DEFINITION_TRIGGER_TYPES = [
   'starter',
   'start',
   'start_trigger',

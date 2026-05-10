@@ -161,15 +161,15 @@ export function Tables() {
         id: table.id,
         cells: {
           name: {
-            icon: <TableIcon className='h-[14px] w-[14px]' />,
+            icon: <TableIcon className='size-[14px]' />,
             label: table.name,
           },
           columns: {
-            icon: <Columns3 className='h-[14px] w-[14px]' />,
+            icon: <Columns3 className='size-[14px]' />,
             label: String(table.schema.columns.length),
           },
           rows: {
-            icon: <Rows3 className='h-[14px] w-[14px]' />,
+            icon: <Rows3 className='size-[14px]' />,
             label: String(table.rowCount),
           },
           created: timeCell(table.createdAt),
@@ -237,10 +237,10 @@ export function Tables() {
             src={m.image}
             alt={m.name}
             referrerPolicy='no-referrer'
-            className='h-[14px] w-[14px] rounded-full border border-[var(--border)] object-cover'
+            className='size-[14px] rounded-full border border-[var(--border)] object-cover'
           />
         ) : (
-          <span className='flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+          <span className='flex size-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
             {m.name.charAt(0).toUpperCase()}
           </span>
         ),

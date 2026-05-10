@@ -4,6 +4,7 @@ import remarkBreaks from 'remark-breaks'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { BLOCK_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
@@ -518,10 +519,13 @@ export const NoteBlock = memo(function NoteBlock({
   return (
     <div className='group relative'>
       <div
+        role='button'
+        tabIndex={0}
         className={cn(
           'note-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-lg border border-[var(--border)] bg-[var(--surface-2)] [&:active]:cursor-grabbing'
         )}
         onClick={handleClick}
+        onKeyDown={(event) => handleKeyboardActivation(event, handleClick)}
       >
         <ActionBar blockId={id} blockType={type} disabled={!canEditWorkflow} />
 
@@ -542,7 +546,7 @@ export const NoteBlock = memo(function NoteBlock({
         <div className='relative overflow-hidden p-2'>
           <div className='relative max-w-full break-all'>
             {isEmpty ? (
-              <p className='text-[var(--text-placeholder)] text-sm'>Add note...</p>
+              <p className='text-[var(--text-placeholder)] text-sm'>Add note…</p>
             ) : (
               <NoteMarkdown content={content} />
             )}

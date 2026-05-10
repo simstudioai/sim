@@ -10,7 +10,7 @@ const logger = createLogger('McpAuthMiddleware')
 
 export type McpPermissionLevel = 'read' | 'write' | 'admin'
 
-export interface McpAuthContext {
+interface McpAuthContext {
   userId: string
   userName?: string | null
   userEmail?: string | null

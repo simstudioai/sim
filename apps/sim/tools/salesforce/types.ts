@@ -12,7 +12,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Output definition for Account sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_account.htm
  */
-export const ACCOUNT_OUTPUT_PROPERTIES = {
+const ACCOUNT_OUTPUT_PROPERTIES = {
   Id: { type: 'string', description: 'Unique 18-character Salesforce record identifier' },
   Name: { type: 'string', description: 'Account name (required, max 255 characters)' },
   Type: {
@@ -100,7 +100,7 @@ export const ACCOUNT_OUTPUT_PROPERTIES = {
 /**
  * Complete Account object output definition for single record
  */
-export const ACCOUNT_OUTPUT: OutputProperty = {
+const ACCOUNT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Salesforce Account object',
   properties: ACCOUNT_OUTPUT_PROPERTIES,
@@ -109,7 +109,7 @@ export const ACCOUNT_OUTPUT: OutputProperty = {
 /**
  * Accounts array output definition for list operations
  */
-export const ACCOUNTS_OUTPUT: OutputProperty = {
+const ACCOUNTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Account objects',
   items: {
@@ -122,7 +122,7 @@ export const ACCOUNTS_OUTPUT: OutputProperty = {
  * Output definition for Contact sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_contact.htm
  */
-export const CONTACT_OUTPUT_PROPERTIES = {
+const CONTACT_OUTPUT_PROPERTIES = {
   Id: { type: 'string', description: 'Unique 18-character Salesforce record identifier' },
   AccountId: { type: 'string', description: 'ID of the associated account', optional: true },
   LastName: { type: 'string', description: 'Last name (required, max 80 characters)' },
@@ -204,7 +204,7 @@ export const CONTACT_OUTPUT_PROPERTIES = {
 /**
  * Complete Contact object output definition for single record
  */
-export const CONTACT_OUTPUT: OutputProperty = {
+const CONTACT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Salesforce Contact object',
   properties: CONTACT_OUTPUT_PROPERTIES,
@@ -213,7 +213,7 @@ export const CONTACT_OUTPUT: OutputProperty = {
 /**
  * Contacts array output definition for list operations
  */
-export const CONTACTS_OUTPUT: OutputProperty = {
+const CONTACTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Contact objects',
   items: {
@@ -226,7 +226,7 @@ export const CONTACTS_OUTPUT: OutputProperty = {
  * Output definition for Lead sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_lead.htm
  */
-export const LEAD_OUTPUT_PROPERTIES = {
+const LEAD_OUTPUT_PROPERTIES = {
   Id: { type: 'string', description: 'Unique 18-character Salesforce record identifier' },
   LastName: { type: 'string', description: 'Last name (required, max 80 characters)' },
   FirstName: { type: 'string', description: 'First name (max 40 characters)', optional: true },
@@ -312,7 +312,7 @@ export const LEAD_OUTPUT_PROPERTIES = {
 /**
  * Complete Lead object output definition for single record
  */
-export const LEAD_OUTPUT: OutputProperty = {
+const LEAD_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Salesforce Lead object',
   properties: LEAD_OUTPUT_PROPERTIES,
@@ -321,7 +321,7 @@ export const LEAD_OUTPUT: OutputProperty = {
 /**
  * Leads array output definition for list operations
  */
-export const LEADS_OUTPUT: OutputProperty = {
+const LEADS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Lead objects',
   items: {
@@ -334,7 +334,7 @@ export const LEADS_OUTPUT: OutputProperty = {
  * Output definition for Opportunity sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_opportunity.htm
  */
-export const OPPORTUNITY_OUTPUT_PROPERTIES = {
+const OPPORTUNITY_OUTPUT_PROPERTIES = {
   Id: { type: 'string', description: 'Unique 18-character Salesforce record identifier' },
   AccountId: { type: 'string', description: 'ID of the associated account', optional: true },
   Name: { type: 'string', description: 'Opportunity name (required, max 120 characters)' },
@@ -414,7 +414,7 @@ export const OPPORTUNITY_OUTPUT_PROPERTIES = {
 /**
  * Complete Opportunity object output definition for single record
  */
-export const OPPORTUNITY_OUTPUT: OutputProperty = {
+const OPPORTUNITY_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Salesforce Opportunity object',
   properties: OPPORTUNITY_OUTPUT_PROPERTIES,
@@ -423,7 +423,7 @@ export const OPPORTUNITY_OUTPUT: OutputProperty = {
 /**
  * Opportunities array output definition for list operations
  */
-export const OPPORTUNITIES_OUTPUT: OutputProperty = {
+const OPPORTUNITIES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Opportunity objects',
   items: {
@@ -436,7 +436,7 @@ export const OPPORTUNITIES_OUTPUT: OutputProperty = {
  * Output definition for Case sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_case.htm
  */
-export const CASE_OUTPUT_PROPERTIES = {
+const CASE_OUTPUT_PROPERTIES = {
   Id: { type: 'string', description: 'Unique 18-character Salesforce record identifier' },
   CaseNumber: { type: 'string', description: 'Auto-generated case number (read-only)' },
   ContactId: { type: 'string', description: 'ID of the associated contact', optional: true },
@@ -517,7 +517,7 @@ export const CASE_OUTPUT_PROPERTIES = {
 /**
  * Complete Case object output definition for single record
  */
-export const CASE_OUTPUT: OutputProperty = {
+const CASE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Salesforce Case object',
   properties: CASE_OUTPUT_PROPERTIES,
@@ -526,7 +526,7 @@ export const CASE_OUTPUT: OutputProperty = {
 /**
  * Cases array output definition for list operations
  */
-export const CASES_OUTPUT: OutputProperty = {
+const CASES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Case objects',
   items: {
@@ -539,7 +539,7 @@ export const CASES_OUTPUT: OutputProperty = {
  * Output definition for Task sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_task.htm
  */
-export const TASK_OUTPUT_PROPERTIES = {
+const TASK_OUTPUT_PROPERTIES = {
   Id: { type: 'string', description: 'Unique 18-character Salesforce record identifier' },
   WhoId: {
     type: 'string',
@@ -619,7 +619,7 @@ export const TASK_OUTPUT_PROPERTIES = {
 /**
  * Complete Task object output definition for single record
  */
-export const TASK_OUTPUT: OutputProperty = {
+const TASK_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Salesforce Task object',
   properties: TASK_OUTPUT_PROPERTIES,
@@ -628,7 +628,7 @@ export const TASK_OUTPUT: OutputProperty = {
 /**
  * Tasks array output definition for list operations
  */
-export const TASKS_OUTPUT: OutputProperty = {
+const TASKS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Task objects',
   items: {
@@ -641,7 +641,7 @@ export const TASKS_OUTPUT: OutputProperty = {
  * Output definition for Report list item
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_analytics.meta/api_analytics/sforce_analytics_rest_api_get_reportlist.htm
  */
-export const REPORT_LIST_ITEM_OUTPUT_PROPERTIES = {
+const REPORT_LIST_ITEM_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Report ID' },
   name: { type: 'string', description: 'Report name' },
   url: { type: 'string', description: 'URL to access the report', optional: true },
@@ -689,7 +689,7 @@ export const REPORT_LIST_ITEM_OUTPUT_PROPERTIES = {
 /**
  * Reports array output definition
  */
-export const REPORTS_OUTPUT: OutputProperty = {
+const REPORTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Report objects',
   items: {
@@ -702,7 +702,7 @@ export const REPORTS_OUTPUT: OutputProperty = {
  * Output definition for Dashboard list item
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_analytics.meta/api_analytics/sforce_analytics_rest_api_getbasic_dashboardlist.htm
  */
-export const DASHBOARD_LIST_ITEM_OUTPUT_PROPERTIES = {
+const DASHBOARD_LIST_ITEM_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Dashboard ID' },
   name: { type: 'string', description: 'Dashboard name' },
   url: { type: 'string', description: 'URL to access the dashboard', optional: true },
@@ -739,7 +739,7 @@ export const DASHBOARD_LIST_ITEM_OUTPUT_PROPERTIES = {
 /**
  * Dashboards array output definition
  */
-export const DASHBOARDS_OUTPUT: OutputProperty = {
+const DASHBOARDS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Dashboard objects',
   items: {
@@ -752,7 +752,7 @@ export const DASHBOARDS_OUTPUT: OutputProperty = {
  * Output definition for Report Type list item
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_analytics.meta/api_analytics/sforce_analytics_rest_api_list_reporttypes.htm
  */
-export const REPORT_TYPE_OUTPUT_PROPERTIES = {
+const REPORT_TYPE_OUTPUT_PROPERTIES = {
   apiName: { type: 'string', description: 'API name of the report type' },
   label: { type: 'string', description: 'Display label of the report type' },
   describeUrl: { type: 'string', description: 'URL to describe the report type', optional: true },
@@ -766,7 +766,7 @@ export const REPORT_TYPE_OUTPUT_PROPERTIES = {
 /**
  * Report types array output definition
  */
-export const REPORT_TYPES_OUTPUT: OutputProperty = {
+const REPORT_TYPES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Report Type objects',
   items: {
@@ -779,7 +779,7 @@ export const REPORT_TYPES_OUTPUT: OutputProperty = {
  * Output definition for sObject describe field metadata
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_sobject_describe.htm
  */
-export const FIELD_DESCRIBE_OUTPUT_PROPERTIES = {
+const FIELD_DESCRIBE_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'API name of the field' },
   label: { type: 'string', description: 'Display label of the field' },
   type: {
@@ -843,7 +843,7 @@ export const FIELD_DESCRIBE_OUTPUT_PROPERTIES = {
 /**
  * Fields array output definition
  */
-export const FIELDS_OUTPUT: OutputProperty = {
+const FIELDS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of field metadata objects',
   items: {
@@ -856,7 +856,7 @@ export const FIELDS_OUTPUT: OutputProperty = {
  * Output definition for sObject list item from describeGlobal
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_describeGlobal.htm
  */
-export const SOBJECT_LIST_ITEM_OUTPUT_PROPERTIES = {
+const SOBJECT_LIST_ITEM_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'API name of the object' },
   label: { type: 'string', description: 'Display label of the object' },
   labelPlural: { type: 'string', description: 'Plural display label', optional: true },
@@ -894,7 +894,7 @@ export const SOBJECT_LIST_ITEM_OUTPUT_PROPERTIES = {
 /**
  * sObjects array output definition
  */
-export const SOBJECTS_OUTPUT: OutputProperty = {
+const SOBJECTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of sObject metadata',
   items: {
@@ -950,7 +950,7 @@ export const SOBJECT_DELETE_OUTPUT_PROPERTIES = {
  * These fields are returned by all SOQL query endpoints.
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/dome_query.htm
  */
-export const QUERY_PAGING_OUTPUT_PROPERTIES = {
+const QUERY_PAGING_OUTPUT_PROPERTIES = {
   nextRecordsUrl: {
     type: 'string',
     description: 'URL to fetch the next batch of records (present when done is false)',
@@ -978,7 +978,7 @@ export const QUERY_PAGING_OUTPUT: OutputProperty = {
 /**
  * Output definition for response metadata (computed fields, not from Salesforce API)
  */
-export const RESPONSE_METADATA_OUTPUT_PROPERTIES = {
+const RESPONSE_METADATA_OUTPUT_PROPERTIES = {
   totalReturned: {
     type: 'number',
     description: 'Number of records returned in this response',
@@ -1220,7 +1220,7 @@ export const REFRESH_DASHBOARD_OUTPUT_PROPERTIES = {
 /**
  * Base parameters shared by all Salesforce operations
  */
-export interface BaseSalesforceParams {
+interface BaseSalesforceParams {
   accessToken: string
   idToken?: string
   instanceUrl?: string
@@ -1229,13 +1229,13 @@ export interface BaseSalesforceParams {
 /**
  * Common paging structure for list operations
  */
-export interface SalesforcePaging {
+interface SalesforcePaging {
   nextRecordsUrl?: string
   totalSize: number
   done: boolean
 }
 
-export interface SalesforceAccount {
+interface SalesforceAccount {
   Id: string
   Name: string
   Type?: string

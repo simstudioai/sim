@@ -7,7 +7,7 @@ type CopilotWorkflowState = {
   parallels?: Record<string, any>
 }
 
-export function formatWorkflowStateForCopilot(state: CopilotWorkflowState): string {
+function formatWorkflowStateForCopilot(state: CopilotWorkflowState): string {
   const workflowState = {
     blocks: state.blocks || {},
     edges: state.edges || [],
@@ -25,13 +25,13 @@ export function formatNormalizedWorkflowForCopilot(
   return formatWorkflowStateForCopilot(normalized)
 }
 
-export function normalizeWorkflowName(name?: string | null): string {
+function normalizeWorkflowName(name?: string | null): string {
   return String(name || '')
     .trim()
     .toLowerCase()
 }
 
-export function extractWorkflowNames(workflows: Array<{ name?: string | null }>): string[] {
+function extractWorkflowNames(workflows: Array<{ name?: string | null }>): string[] {
   return workflows
     .map((workflow) => (typeof workflow?.name === 'string' ? workflow.name : null))
     .filter((name): name is string => Boolean(name))

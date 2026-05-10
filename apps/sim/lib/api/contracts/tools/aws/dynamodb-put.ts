@@ -37,6 +37,6 @@ export const awsDynamodbPutContract = defineRouteContract({
   body: PutSchema,
   response: { mode: 'json', schema: PutResponseSchema },
 })
-export type AwsDynamodbPutRequest = ContractBodyInput<typeof awsDynamodbPutContract>
-export type AwsDynamodbPutBody = ContractBody<typeof awsDynamodbPutContract>
-export type AwsDynamodbPutResponse = ContractJsonResponse<typeof awsDynamodbPutContract>
+type AwsDynamodbPutRequest = ContractBodyInput<typeof awsDynamodbPutContract>
+type AwsDynamodbPutBody = ContractBody<typeof awsDynamodbPutContract>
+type AwsDynamodbPutResponse = ContractJsonResponse<typeof awsDynamodbPutContract>

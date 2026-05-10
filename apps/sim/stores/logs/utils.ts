@@ -15,7 +15,7 @@ export const MAX_LOG_DETAILS_WIDTH_RATIO = 0.6
  * Returns the maximum log details panel width (60% of viewport width).
  * Falls back to a reasonable default for SSR.
  */
-export const getMaxLogDetailsWidth = () =>
+const getMaxLogDetailsWidth = () =>
   typeof window !== 'undefined' ? window.innerWidth * MAX_LOG_DETAILS_WIDTH_RATIO : 1040
 
 /**

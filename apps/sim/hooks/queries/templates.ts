@@ -9,7 +9,6 @@ import {
   listTemplatesContract,
   starTemplateContract,
   type TemplateContractData,
-  type TemplateCreator,
   type TemplateDetailContractResponse,
   type TemplateListFilters,
   type TemplatesContractResponse,
@@ -21,7 +20,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('TemplateQueries')
 
-export const templateKeys = {
+const templateKeys = {
   all: ['templates'] as const,
   lists: () => [...templateKeys.all, 'list'] as const,
   list: (filters?: TemplateListFilters) => [...templateKeys.lists(), filters ?? {}] as const,
@@ -30,8 +29,6 @@ export const templateKeys = {
   byWorkflows: () => [...templateKeys.all, 'byWorkflow'] as const,
   byWorkflow: (workflowId?: string) => [...templateKeys.byWorkflows(), workflowId ?? ''] as const,
 }
-
-export type { TemplateCreator, TemplateListFilters }
 
 type TemplateApi = TemplateContractData
 
@@ -89,7 +86,7 @@ async function fetchTemplateByWorkflow(
   return result.data?.[0] || null
 }
 
-export function useTemplates(
+function useTemplates(
   filters?: TemplateListFilters,
   options?: {
     enabled?: boolean

@@ -24,7 +24,7 @@ const adminV1ReferralCampaignAppliesTo = [
   'team_25000',
 ] as const
 
-export const adminV1PromoCodeSchema = z.object({
+const adminV1PromoCodeSchema = z.object({
   id: z.string(),
   code: z.string(),
   couponId: z.string(),
@@ -40,7 +40,7 @@ export const adminV1PromoCodeSchema = z.object({
   createdAt: z.string(),
 })
 
-export const adminV1ReferralCampaignQuerySchema = z.object({
+const adminV1ReferralCampaignQuerySchema = z.object({
   limit: z
     .preprocess((value) => {
       const queryValue = lastQueryValue(value)
@@ -57,7 +57,7 @@ export const adminV1ReferralCampaignQuerySchema = z.object({
     .transform((active) => (active === undefined ? undefined : active === 'true')),
 })
 
-export const adminV1ReferralCampaignBodySchema = z
+const adminV1ReferralCampaignBodySchema = z
   .object({
     name: z
       .string({ error: 'name is required and must be a non-empty string' })
@@ -166,12 +166,10 @@ export type AdminV1ListReferralCampaignsQuery = ContractQuery<
 export type AdminV1CreateReferralCampaignBodyInput = ContractBodyInput<
   typeof adminV1CreateReferralCampaignContract
 >
-export type AdminV1CreateReferralCampaignBody = ContractBody<
-  typeof adminV1CreateReferralCampaignContract
->
-export type AdminV1ListReferralCampaignsResponse = ContractJsonResponse<
+type AdminV1CreateReferralCampaignBody = ContractBody<typeof adminV1CreateReferralCampaignContract>
+type AdminV1ListReferralCampaignsResponse = ContractJsonResponse<
   typeof adminV1ListReferralCampaignsContract
 >
-export type AdminV1CreateReferralCampaignResponse = ContractJsonResponse<
+type AdminV1CreateReferralCampaignResponse = ContractJsonResponse<
   typeof adminV1CreateReferralCampaignContract
 >

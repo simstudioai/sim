@@ -1,4 +1,4 @@
-export const API_ENDPOINTS = {
+const API_ENDPOINTS = {
   ENVIRONMENT: '/api/environment',
   SETTINGS: '/api/users/me/settings',
   WORKFLOWS: '/api/workflows',

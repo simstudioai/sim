@@ -13,13 +13,13 @@ export const helpFormBodySchema = z.object({
   message: z.string().min(1, 'Message is required'),
   type: z.enum(['bug', 'feedback', 'feature_request', 'other']),
 })
-export type HelpFormBody = z.input<typeof helpFormBodySchema>
+type HelpFormBody = z.input<typeof helpFormBodySchema>
 
 export const emailPreviewQuerySchema = z.object({
   template: z.string().optional(),
 })
 
-export const integrationRequestBodySchema = z.object({
+const integrationRequestBodySchema = z.object({
   integrationName: z
     .string()
     .trim()
@@ -29,9 +29,9 @@ export const integrationRequestBodySchema = z.object({
   email: z.string().email('A valid email is required'),
   useCase: z.string().max(2000).optional(),
 })
-export type IntegrationRequestBody = z.input<typeof integrationRequestBodySchema>
+type IntegrationRequestBody = z.input<typeof integrationRequestBodySchema>
 
-export const integrationRequestResponseSchema = z.object({
+const integrationRequestResponseSchema = z.object({
   success: z.literal(true),
   message: z.string(),
 })
@@ -92,7 +92,7 @@ export const getStarsContract = defineRouteContract({
   },
 })
 
-export const getStatusContract = defineRouteContract({
+const getStatusContract = defineRouteContract({
   method: 'GET',
   path: '/api/status',
   response: {

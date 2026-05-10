@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 
-export const byokProviderIdSchema = z.enum([
+const byokProviderIdSchema = z.enum([
   'openai',
   'anthropic',
   'google',
@@ -19,7 +19,7 @@ export const byokProviderIdSchema = z.enum([
   'cohere',
 ])
 
-export const byokKeySchema = z.object({
+const byokKeySchema = z.object({
   id: z.string(),
   providerId: byokProviderIdSchema,
   maskedKey: z.string(),
@@ -30,7 +30,7 @@ export const byokKeySchema = z.object({
 
 export type BYOKKey = z.output<typeof byokKeySchema>
 
-export const byokKeyMutationSchema = z.object({
+const byokKeyMutationSchema = z.object({
   id: z.string(),
   providerId: byokProviderIdSchema,
   maskedKey: z.string(),
@@ -38,16 +38,16 @@ export const byokKeyMutationSchema = z.object({
   updatedAt: z.string().optional(),
 })
 
-export const byokWorkspaceParamsSchema = z.object({
+const byokWorkspaceParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-export const upsertByokKeyBodySchema = z.object({
+const upsertByokKeyBodySchema = z.object({
   providerId: byokProviderIdSchema,
   apiKey: z.string().min(1, 'API key is required'),
 })
 
-export const deleteByokKeyBodySchema = z.object({
+const deleteByokKeyBodySchema = z.object({
   providerId: byokProviderIdSchema,
 })
 

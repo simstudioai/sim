@@ -6,7 +6,7 @@ import {
 import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contracts/types'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 
-export const slackSendMessageBodySchema = z
+const slackSendMessageBodySchema = z
   .object({
     accessToken: z.string().min(1, 'Access token is required'),
     channel: z.string().optional().nullable(),
@@ -20,7 +20,7 @@ export const slackSendMessageBodySchema = z
     message: 'Either channel or userId is required',
   })
 
-export const slackReadMessagesBodySchema = z
+const slackReadMessagesBodySchema = z
   .object({
     accessToken: z.string().min(1, 'Access token is required'),
     channel: z.string().optional().nullable(),
@@ -38,20 +38,20 @@ export const slackReadMessagesBodySchema = z
     message: 'Either channel or userId is required',
   })
 
-export const slackReactionBodySchema = z.object({
+const slackReactionBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   channel: z.string().min(1, 'Channel is required'),
   timestamp: z.string().min(1, 'Message timestamp is required'),
   name: z.string().min(1, 'Emoji name is required'),
 })
 
-export const slackDeleteMessageBodySchema = z.object({
+const slackDeleteMessageBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   channel: z.string().min(1, 'Channel is required'),
   timestamp: z.string().min(1, 'Message timestamp is required'),
 })
 
-export const slackUpdateMessageBodySchema = z.object({
+const slackUpdateMessageBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   channel: z.string().min(1, 'Channel is required'),
   timestamp: z.string().min(1, 'Message timestamp is required'),
@@ -59,7 +59,7 @@ export const slackUpdateMessageBodySchema = z.object({
   blocks: slackBlocksSchema.optional().nullable(),
 })
 
-export const slackSendEphemeralBodySchema = z.object({
+const slackSendEphemeralBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   channel: z.string().min(1, 'Channel ID is required'),
   user: z.string().min(1, 'User ID is required'),
@@ -68,7 +68,7 @@ export const slackSendEphemeralBodySchema = z.object({
   blocks: slackBlocksSchema.optional().nullable(),
 })
 
-export const slackDownloadBodySchema = z.object({
+const slackDownloadBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   fileId: z.string().min(1, 'File ID is required'),
   fileName: z.string().optional().nullable(),
@@ -107,18 +107,18 @@ export const slackDownloadContract = defineCommunicationToolContract(
   slackDownloadBodySchema
 )
 
-export type SlackSendMessageBody = ContractBodyInput<typeof slackSendMessageContract>
-export type SlackReadMessagesBody = ContractBodyInput<typeof slackReadMessagesContract>
-export type SlackReactionBody = ContractBodyInput<typeof slackAddReactionContract>
-export type SlackDeleteMessageBody = ContractBodyInput<typeof slackDeleteMessageContract>
-export type SlackUpdateMessageBody = ContractBodyInput<typeof slackUpdateMessageContract>
-export type SlackSendEphemeralBody = ContractBodyInput<typeof slackSendEphemeralContract>
-export type SlackDownloadBody = ContractBodyInput<typeof slackDownloadContract>
+type SlackSendMessageBody = ContractBodyInput<typeof slackSendMessageContract>
+type SlackReadMessagesBody = ContractBodyInput<typeof slackReadMessagesContract>
+type SlackReactionBody = ContractBodyInput<typeof slackAddReactionContract>
+type SlackDeleteMessageBody = ContractBodyInput<typeof slackDeleteMessageContract>
+type SlackUpdateMessageBody = ContractBodyInput<typeof slackUpdateMessageContract>
+type SlackSendEphemeralBody = ContractBodyInput<typeof slackSendEphemeralContract>
+type SlackDownloadBody = ContractBodyInput<typeof slackDownloadContract>
 
-export type SlackSendMessageResponse = ContractJsonResponse<typeof slackSendMessageContract>
-export type SlackReadMessagesResponse = ContractJsonResponse<typeof slackReadMessagesContract>
-export type SlackReactionResponse = ContractJsonResponse<typeof slackAddReactionContract>
-export type SlackDeleteMessageResponse = ContractJsonResponse<typeof slackDeleteMessageContract>
-export type SlackUpdateMessageResponse = ContractJsonResponse<typeof slackUpdateMessageContract>
-export type SlackSendEphemeralResponse = ContractJsonResponse<typeof slackSendEphemeralContract>
-export type SlackDownloadResponse = ContractJsonResponse<typeof slackDownloadContract>
+type SlackSendMessageResponse = ContractJsonResponse<typeof slackSendMessageContract>
+type SlackReadMessagesResponse = ContractJsonResponse<typeof slackReadMessagesContract>
+type SlackReactionResponse = ContractJsonResponse<typeof slackAddReactionContract>
+type SlackDeleteMessageResponse = ContractJsonResponse<typeof slackDeleteMessageContract>
+type SlackUpdateMessageResponse = ContractJsonResponse<typeof slackUpdateMessageContract>
+type SlackSendEphemeralResponse = ContractJsonResponse<typeof slackSendEphemeralContract>
+type SlackDownloadResponse = ContractJsonResponse<typeof slackDownloadContract>

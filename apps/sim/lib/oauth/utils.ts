@@ -10,7 +10,7 @@ import type {
  * Centralized human-readable descriptions for OAuth scopes.
  * Used by the OAuth Required Modal and available for any UI that needs to display scope info.
  */
-export const SCOPE_DESCRIPTIONS: Record<string, string> = {
+const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // Google scopes
   'https://www.googleapis.com/auth/gmail.send': 'Send emails',
   'https://www.googleapis.com/auth/gmail.labels': 'View and manage email labels',

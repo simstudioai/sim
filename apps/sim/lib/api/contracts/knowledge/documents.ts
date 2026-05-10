@@ -13,7 +13,7 @@ import {
 } from '@/lib/api/contracts/knowledge/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const documentTagFilterSchema = z.object({
+const documentTagFilterSchema = z.object({
   tagSlot: z.string().min(1),
   fieldType: z.enum(['text', 'number', 'date', 'boolean']),
   operator: z.string().min(1),
@@ -53,7 +53,7 @@ export const listKnowledgeDocumentsQuerySchema = z.object({
     }),
 })
 
-export const createDocumentBodySchema = z.object({
+const createDocumentBodySchema = z.object({
   filename: z.string().min(1, 'Filename is required'),
   fileUrl: z.string().url('File URL must be valid'),
   fileSize: z.number().min(1, 'File size must be greater than 0'),
@@ -68,7 +68,7 @@ export const createDocumentBodySchema = z.object({
   documentTagsData: z.string().optional(),
 })
 
-export const bulkCreateDocumentsBodySchema = z.object({
+const bulkCreateDocumentsBodySchema = z.object({
   documents: z.array(createDocumentBodySchema),
   processingOptions: z
     .object({
@@ -90,15 +90,15 @@ const createKnowledgeDocumentsBodyDiscriminatedUnion = z.discriminatedUnion('bul
   singleCreateDocumentBodySchema,
 ])
 
-export const createKnowledgeDocumentsBodySchema = z
+const createKnowledgeDocumentsBodySchema = z
   .object({ bulk: z.boolean().default(false) })
   .passthrough()
   .pipe(createKnowledgeDocumentsBodyDiscriminatedUnion)
-export type CreateKnowledgeDocumentsBody = z.input<typeof createKnowledgeDocumentsBodySchema>
-export type BulkCreateDocumentsBody = z.input<typeof bulkCreateDocumentsBodySchema>
-export type SingleCreateDocumentBody = z.input<typeof singleCreateDocumentBodySchema>
+type CreateKnowledgeDocumentsBody = z.input<typeof createKnowledgeDocumentsBodySchema>
+type BulkCreateDocumentsBody = z.input<typeof bulkCreateDocumentsBodySchema>
+type SingleCreateDocumentBody = z.input<typeof singleCreateDocumentBodySchema>
 
-export const upsertDocumentBodySchema = z.object({
+const upsertDocumentBodySchema = z.object({
   documentId: z.string().optional(),
   filename: z.string().min(1, 'Filename is required'),
   fileUrl: z.string().min(1, 'File URL is required'),
@@ -113,9 +113,9 @@ export const upsertDocumentBodySchema = z.object({
     .optional(),
   workflowId: z.string().optional(),
 })
-export type UpsertDocumentBody = z.output<typeof upsertDocumentBodySchema>
+type UpsertDocumentBody = z.output<typeof upsertDocumentBodySchema>
 
-export const bulkCreateDocumentsResponseSchema = z.object({
+const bulkCreateDocumentsResponseSchema = z.object({
   total: z.number(),
   documentsCreated: z.array(
     z.object({
@@ -134,7 +134,7 @@ export const bulkCreateDocumentsResponseSchema = z.object({
     .passthrough(),
 })
 
-export const updateDocumentBodySchema = z.object({
+const updateDocumentBodySchema = z.object({
   filename: z.string().min(1, 'Filename is required').optional(),
   enabled: z.boolean().optional(),
   chunkCount: z.number().min(0).optional(),
@@ -163,9 +163,9 @@ export const updateDocumentBodySchema = z.object({
   boolean3: z.string().optional(),
 })
 
-export const updateDocumentTagsBodySchema = z.record(z.string(), z.string())
+const updateDocumentTagsBodySchema = z.record(z.string(), z.string())
 
-export const bulkDocumentOperationBodySchema = z
+const bulkDocumentOperationBodySchema = z
   .object({
     operation: z.enum(['enable', 'disable', 'delete']),
     documentIds: z.array(z.string()).min(1).max(100).optional(),
@@ -176,7 +176,7 @@ export const bulkDocumentOperationBodySchema = z
     message: 'Either selectAll must be true or documentIds must be provided',
   })
 
-export const bulkDocumentOperationDataSchema = z.object({
+const bulkDocumentOperationDataSchema = z.object({
   operation: z.string().optional(),
   successCount: z.number(),
   failedCount: z.number().optional(),
@@ -186,7 +186,7 @@ export const bulkDocumentOperationDataSchema = z.object({
 })
 export type BulkDocumentOperationData = z.output<typeof bulkDocumentOperationDataSchema>
 
-export const documentDataSchema = z
+const documentDataSchema = z
   .object({
     id: z.string(),
     knowledgeBaseId: z.string(),
@@ -227,10 +227,10 @@ export const documentDataSchema = z
   .passthrough()
 export type DocumentData = z.output<typeof documentDataSchema>
 
-export const documentsPaginationSchema = paginationSchema
-export type DocumentsPagination = z.output<typeof documentsPaginationSchema>
+const documentsPaginationSchema = paginationSchema
+type DocumentsPagination = z.output<typeof documentsPaginationSchema>
 
-export const knowledgeDocumentsDataSchema = z.object({
+const knowledgeDocumentsDataSchema = z.object({
   documents: z.array(documentDataSchema),
   pagination: documentsPaginationSchema,
 })

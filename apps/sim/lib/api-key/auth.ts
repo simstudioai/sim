@@ -92,7 +92,7 @@ export async function authenticateApiKey(inputKey: string, storedKey: string): P
  * @param apiKey - The plain text API key to encrypt
  * @returns Promise<string> - The encrypted key
  */
-export async function encryptApiKeyForStorage(apiKey: string): Promise<string> {
+async function encryptApiKeyForStorage(apiKey: string): Promise<string> {
   try {
     const { encrypted } = await encryptApiKey(apiKey)
     return encrypted
@@ -133,7 +133,7 @@ export async function createApiKey(useStorage = true): Promise<{
  * @param encryptedKey - The encrypted API key from the database
  * @returns Promise<string> - The decrypted API key
  */
-export async function decryptApiKeyFromStorage(encryptedKey: string): Promise<string> {
+async function decryptApiKeyFromStorage(encryptedKey: string): Promise<string> {
   try {
     const { decrypted } = await decryptApiKey(encryptedKey)
     return decrypted
@@ -197,7 +197,7 @@ export function formatApiKeyForDisplay(apiKey: string): string {
  * @param encryptedKey - The encrypted API key from the database
  * @returns Promise<string> - The last 4 characters
  */
-export async function getEncryptedApiKeyLast4(encryptedKey: string): Promise<string> {
+async function getEncryptedApiKeyLast4(encryptedKey: string): Promise<string> {
   try {
     if (isEncryptedKey(encryptedKey)) {
       const decryptedKey = await decryptApiKeyFromStorage(encryptedKey)

@@ -24,7 +24,7 @@ export interface TypeformInsightsParams {
 }
 
 // This is the actual output data structure from the API
-export interface TypeformInsightsData {
+interface TypeformInsightsData {
   fields: Array<{
     dropoffs: number
     id: string

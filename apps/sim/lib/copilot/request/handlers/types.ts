@@ -51,7 +51,7 @@ export function addContentBlock(
   })
 }
 
-export function stampBlockEnd(block: ContentBlock): void {
+function stampBlockEnd(block: ContentBlock): void {
   if (block.endedAt === undefined) block.endedAt = Date.now()
 }
 

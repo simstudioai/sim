@@ -64,7 +64,7 @@ export function buildBlockExecutionError(details: BlockExecutionErrorDetails): E
   return error
 }
 
-export function buildHTTPError(config: {
+function buildHTTPError(config: {
   status: number
   url?: string
   method?: string

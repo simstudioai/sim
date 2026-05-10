@@ -58,7 +58,7 @@ export interface GoogleContactsSearchParams extends BaseGoogleContactsParams {
   pageSize?: number
 }
 
-export type GoogleContactsToolParams =
+type GoogleContactsToolParams =
   | GoogleContactsCreateParams
   | GoogleContactsGetParams
   | GoogleContactsListParams

@@ -1,14 +1,14 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const formAuthTypeSchema = z.enum(['public', 'password', 'email'])
-export type FormAuthType = z.output<typeof formAuthTypeSchema>
+const formAuthTypeSchema = z.enum(['public', 'password', 'email'])
+type FormAuthType = z.output<typeof formAuthTypeSchema>
 
 export const formIdParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-export const formStatusParamsSchema = z.object({
+const formStatusParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
 })
 
@@ -20,33 +20,33 @@ export const formIdentifierValidationQuerySchema = z.object({
     .max(100, 'Identifier must be 100 characters or less'),
 })
 
-export const formIdentifierParamsSchema = z.object({
+const formIdentifierParamsSchema = z.object({
   identifier: z.string().min(1),
 })
-export type FormIdentifierParams = z.output<typeof formIdentifierParamsSchema>
+type FormIdentifierParams = z.output<typeof formIdentifierParamsSchema>
 
 export const formSubmitBodySchema = z.object({
   formData: z.record(z.string(), z.unknown()).optional(),
   password: z.string().optional(),
   email: z.string().email('Invalid email format').optional().or(z.literal('')),
 })
-export type FormSubmitBody = z.output<typeof formSubmitBodySchema>
+type FormSubmitBody = z.output<typeof formSubmitBodySchema>
 
-export const formIdentifierValidationResponseSchema = z.object({
+const formIdentifierValidationResponseSchema = z.object({
   available: z.boolean(),
   error: z.string().nullable().optional(),
 })
 
-export const formFieldConfigSchema = z.object({
+const formFieldConfigSchema = z.object({
   name: z.string(),
   type: z.string(),
   label: z.string(),
   description: z.string().optional(),
   required: z.boolean().optional(),
 })
-export type FormFieldConfig = z.output<typeof formFieldConfigSchema>
+type FormFieldConfig = z.output<typeof formFieldConfigSchema>
 
-export const formCustomizationsSchema = z.object({
+const formCustomizationsSchema = z.object({
   primaryColor: z.string().optional(),
   welcomeMessage: z.string().max(500, 'Welcome message must be 500 characters or less').optional(),
   thankYouTitle: z.string().max(100, 'Thank you title must be 100 characters or less').optional(),
@@ -57,9 +57,9 @@ export const formCustomizationsSchema = z.object({
   logoUrl: z.string().url('Logo URL must be a valid URL').optional().or(z.literal('')),
   fieldConfigs: z.array(formFieldConfigSchema).optional(),
 })
-export type FormCustomizations = z.output<typeof formCustomizationsSchema>
+type FormCustomizations = z.output<typeof formCustomizationsSchema>
 
-export const existingFormSchema = z.object({
+const existingFormSchema = z.object({
   id: z.string(),
   identifier: z.string(),
   title: z.string(),
@@ -71,9 +71,9 @@ export const existingFormSchema = z.object({
   showBranding: z.boolean(),
   isActive: z.boolean(),
 })
-export type ExistingForm = z.output<typeof existingFormSchema>
+type ExistingForm = z.output<typeof existingFormSchema>
 
-export const formStatusResponseSchema = z.object({
+const formStatusResponseSchema = z.object({
   isDeployed: z.boolean(),
   form: z
     .object({
@@ -84,13 +84,13 @@ export const formStatusResponseSchema = z.object({
     })
     .nullable(),
 })
-export type FormStatusResponse = z.output<typeof formStatusResponseSchema>
+type FormStatusResponse = z.output<typeof formStatusResponseSchema>
 
-export const getFormDetailResponseSchema = z.object({
+const getFormDetailResponseSchema = z.object({
   form: existingFormSchema,
 })
 
-export const createFormBodySchema = z.object({
+const createFormBodySchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
   identifier: z
     .string()
@@ -109,9 +109,9 @@ export const createFormBodySchema = z.object({
   allowedEmails: z.array(z.string()).optional().default([]),
   showBranding: z.boolean().optional().default(true),
 })
-export type CreateFormInput = z.input<typeof createFormBodySchema>
+type CreateFormInput = z.input<typeof createFormBodySchema>
 
-export const updateFormBodySchema = z.object({
+const updateFormBodySchema = z.object({
   identifier: z
     .string()
     .min(1, 'Identifier is required')
@@ -135,16 +135,16 @@ export const updateFormBodySchema = z.object({
   showBranding: z.boolean().optional(),
   isActive: z.boolean().optional(),
 })
-export type UpdateFormInput = z.input<typeof updateFormBodySchema>
+type UpdateFormInput = z.input<typeof updateFormBodySchema>
 
-export const createFormResponseSchema = z.object({
+const createFormResponseSchema = z.object({
   id: z.string(),
   formUrl: z.string(),
   message: z.string(),
 })
-export type CreateFormResponse = z.output<typeof createFormResponseSchema>
+type CreateFormResponse = z.output<typeof createFormResponseSchema>
 
-export const formMutationResponseSchema = z.object({
+const formMutationResponseSchema = z.object({
   message: z.string(),
 })
 
@@ -158,7 +158,7 @@ export const getFormStatusContract = defineRouteContract({
   },
 })
 
-export const getFormDetailContract = defineRouteContract({
+const getFormDetailContract = defineRouteContract({
   method: 'GET',
   path: '/api/form/manage/[id]',
   params: formIdParamsSchema,
@@ -189,7 +189,7 @@ export const updateFormContract = defineRouteContract({
   },
 })
 
-export const deleteFormContract = defineRouteContract({
+const deleteFormContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/form/manage/[id]',
   params: formIdParamsSchema,
@@ -199,7 +199,7 @@ export const deleteFormContract = defineRouteContract({
   },
 })
 
-export const validateFormIdentifierContract = defineRouteContract({
+const validateFormIdentifierContract = defineRouteContract({
   method: 'GET',
   path: '/api/form/validate',
   query: formIdentifierValidationQuerySchema,

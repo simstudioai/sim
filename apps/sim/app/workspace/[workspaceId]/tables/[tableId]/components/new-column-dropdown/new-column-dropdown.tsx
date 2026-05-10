@@ -19,7 +19,7 @@ const VISIBLE_COLUMN_TYPE_OPTIONS = isWorkflowColumnsEnabledClient
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
 
-const HEADER_ADD_COLUMN_ICON = <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+const HEADER_ADD_COLUMN_ICON = <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
 
 interface NewColumnDropdownProps {
   /** `'header'` renders the page-header trigger (subtle Button); `'inline-header'` renders
@@ -55,7 +55,7 @@ export function NewColumnDropdown({
             className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
             disabled={disabled}
           >
-            <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+            <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
             <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
           </button>
         )}
@@ -69,7 +69,7 @@ export function NewColumnDropdown({
               : () => onPickType(option.type as ColumnDefinition['type'])
           return (
             <DropdownMenuItem key={option.type} onSelect={onSelect}>
-              <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+              <Icon className='size-[14px] text-[var(--text-icon)]' />
               {option.label}
             </DropdownMenuItem>
           )

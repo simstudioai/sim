@@ -97,8 +97,8 @@ export function ThinkingBlock({
         onClick={() => setExpanded((prev) => !prev)}
         className='flex cursor-pointer items-center gap-2'
       >
-        <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-          <BrainIcon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+        <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
+          <BrainIcon className='size-[14px] text-[var(--text-icon)]' />
         </div>
         <span className='font-base text-[var(--text-body)] text-sm'>{label}</span>
         <ChevronDown

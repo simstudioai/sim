@@ -14,14 +14,14 @@ const agiloftFileOutputSchema = z.object({
   size: z.number(),
 })
 
-export const agiloftRetrieveResponseSchema = z.object({
+const agiloftRetrieveResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     file: agiloftFileOutputSchema,
   }),
 })
 
-export const agiloftAttachResponseSchema = z.object({
+const agiloftAttachResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     recordId: z.string(),
@@ -31,7 +31,7 @@ export const agiloftAttachResponseSchema = z.object({
   }),
 })
 
-export const agiloftRetrieveBodySchema = z.object({
+const agiloftRetrieveBodySchema = z.object({
   instanceUrl: z.string().min(1, 'Instance URL is required'),
   knowledgeBase: z.string().min(1, 'Knowledge base is required'),
   login: z.string().min(1, 'Login is required'),
@@ -42,7 +42,7 @@ export const agiloftRetrieveBodySchema = z.object({
   position: z.string().min(1, 'Position is required'),
 })
 
-export const agiloftAttachBodySchema = z.object({
+const agiloftAttachBodySchema = z.object({
   instanceUrl: z.string().min(1, 'Instance URL is required'),
   knowledgeBase: z.string().min(1, 'Knowledge base is required'),
   login: z.string().min(1, 'Login is required'),
@@ -68,9 +68,9 @@ export const agiloftAttachContract = defineRouteContract({
   response: { mode: 'json', schema: agiloftAttachResponseSchema },
 })
 
-export type AgiloftRetrieveBody = ContractBody<typeof agiloftRetrieveContract>
-export type AgiloftRetrieveBodyInput = ContractBodyInput<typeof agiloftRetrieveContract>
-export type AgiloftRetrieveResponse = ContractJsonResponse<typeof agiloftRetrieveContract>
-export type AgiloftAttachBody = ContractBody<typeof agiloftAttachContract>
-export type AgiloftAttachBodyInput = ContractBodyInput<typeof agiloftAttachContract>
-export type AgiloftAttachResponse = ContractJsonResponse<typeof agiloftAttachContract>
+type AgiloftRetrieveBody = ContractBody<typeof agiloftRetrieveContract>
+type AgiloftRetrieveBodyInput = ContractBodyInput<typeof agiloftRetrieveContract>
+type AgiloftRetrieveResponse = ContractJsonResponse<typeof agiloftRetrieveContract>
+type AgiloftAttachBody = ContractBody<typeof agiloftAttachContract>
+type AgiloftAttachBodyInput = ContractBodyInput<typeof agiloftAttachContract>
+type AgiloftAttachResponse = ContractJsonResponse<typeof agiloftAttachContract>

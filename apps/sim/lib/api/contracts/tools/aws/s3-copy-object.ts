@@ -34,6 +34,6 @@ export const awsS3CopyObjectContract = defineRouteContract({
   body: S3CopyObjectSchema,
   response: { mode: 'json', schema: S3CopyObjectResponseSchema },
 })
-export type AwsS3CopyObjectRequest = ContractBodyInput<typeof awsS3CopyObjectContract>
-export type AwsS3CopyObjectBody = ContractBody<typeof awsS3CopyObjectContract>
-export type AwsS3CopyObjectResponse = ContractJsonResponse<typeof awsS3CopyObjectContract>
+type AwsS3CopyObjectRequest = ContractBodyInput<typeof awsS3CopyObjectContract>
+type AwsS3CopyObjectBody = ContractBody<typeof awsS3CopyObjectContract>
+type AwsS3CopyObjectResponse = ContractJsonResponse<typeof awsS3CopyObjectContract>

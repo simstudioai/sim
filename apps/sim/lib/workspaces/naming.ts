@@ -5,7 +5,7 @@
 import { requestJson } from '@/lib/api/client/request'
 import { type FolderApi, listFoldersContract } from '@/lib/api/contracts/folders'
 
-export interface NameableEntity {
+interface NameableEntity {
   name: string
 }
 
@@ -69,7 +69,7 @@ const WORKSPACE_NOUNS = [
  * @param prefix - Prefix for the name (e.g., "Folder", "Subfolder")
  * @returns Next available name (e.g., "Folder 3")
  */
-export function generateIncrementalName<T extends NameableEntity>(
+function generateIncrementalName<T extends NameableEntity>(
   existingEntities: T[],
   prefix: string
 ): string {
@@ -88,7 +88,7 @@ export function generateIncrementalName<T extends NameableEntity>(
 /**
  * Generates a random cosmos-themed workspace name
  */
-export function generateWorkspaceName(): string {
+function generateWorkspaceName(): string {
   return WORKSPACE_NOUNS[Math.floor(Math.random() * WORKSPACE_NOUNS.length)]
 }
 
@@ -113,10 +113,7 @@ export async function generateFolderName(workspaceId: string): Promise<string> {
 /**
  * Generates the next subfolder name for a parent folder
  */
-export async function generateSubfolderName(
-  workspaceId: string,
-  parentFolderId: string
-): Promise<string> {
+async function generateSubfolderName(workspaceId: string, parentFolderId: string): Promise<string> {
   const folders = await fetchWorkspaceFolders(workspaceId)
 
   const subfolders = folders.filter((folder) => folder.parentId === parentFolderId)

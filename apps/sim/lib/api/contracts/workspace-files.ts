@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const workspaceFileScopeSchema = z.enum(['active', 'archived', 'all'])
+const workspaceFileScopeSchema = z.enum(['active', 'archived', 'all'])
 
 export const workspaceFilesParamsSchema = z.object({
   id: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),
@@ -15,18 +15,18 @@ export const listWorkspaceFilesQuerySchema = z.object({
   scope: workspaceFileScopeSchema.default('active'),
 })
 
-export const renameWorkspaceFileBodySchema = z.object({
+const renameWorkspaceFileBodySchema = z.object({
   name: z
     .string({ error: 'Name is required' })
     .refine((name) => name.trim().length > 0, { message: 'Name is required' }),
 })
 
-export const updateWorkspaceFileContentBodySchema = z.object({
+const updateWorkspaceFileContentBodySchema = z.object({
   content: z.string(),
   encoding: z.enum(['base64', 'utf-8']).optional(),
 })
 
-export const workspaceFileRecordSchema = z.object({
+const workspaceFileRecordSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
   name: z.string(),
@@ -163,13 +163,13 @@ export const workspaceFileCompiledCheckContract = defineRouteContract({
   },
 })
 
-export const workspacePresignedUploadBodySchema = z.object({
+const workspacePresignedUploadBodySchema = z.object({
   fileName: z.string().min(1, 'fileName is required'),
   contentType: z.string().min(1, 'contentType is required'),
   fileSize: z.number().nonnegative('fileSize must be a non-negative number'),
 })
 
-export type WorkspacePresignedUploadBody = z.input<typeof workspacePresignedUploadBodySchema>
+type WorkspacePresignedUploadBody = z.input<typeof workspacePresignedUploadBodySchema>
 
 const workspacePresignedFileInfoSchema = z.object({
   path: z.string(),
@@ -198,13 +198,13 @@ export const workspacePresignedUploadContract = defineRouteContract({
   },
 })
 
-export const registerWorkspaceFileBodySchema = z.object({
+const registerWorkspaceFileBodySchema = z.object({
   key: z.string().min(1, 'key is required'),
   name: z.string().min(1, 'name is required'),
   contentType: z.string().min(1, 'contentType is required'),
 })
 
-export type RegisterWorkspaceFileBody = z.input<typeof registerWorkspaceFileBodySchema>
+type RegisterWorkspaceFileBody = z.input<typeof registerWorkspaceFileBodySchema>
 
 const registeredWorkspaceFileSchema = z.object({
   id: z.string(),
@@ -223,7 +223,7 @@ const registerWorkspaceFileResponseSchema = z.object({
   isDuplicate: z.boolean().optional(),
 })
 
-export type RegisterWorkspaceFileResponse = z.output<typeof registerWorkspaceFileResponseSchema>
+type RegisterWorkspaceFileResponse = z.output<typeof registerWorkspaceFileResponseSchema>
 
 export const registerWorkspaceFileContract = defineRouteContract({
   method: 'POST',

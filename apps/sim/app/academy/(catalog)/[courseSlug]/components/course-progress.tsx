@@ -68,9 +68,9 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                     className='flex items-center gap-3 rounded-[8px] border border-[#2A2A2A] bg-[#222] px-4 py-3 text-[14px] transition-colors hover:border-[#3A3A3A] hover:bg-[#272727]'
                   >
                     {completedIds.has(lesson.id) ? (
-                      <CheckCircle2 className='h-4 w-4 flex-shrink-0 text-[#4CAF50]' />
+                      <CheckCircle2 className='size-4 flex-shrink-0 text-[#4CAF50]' />
                     ) : (
-                      <Circle className='h-4 w-4 flex-shrink-0 text-[#444]' />
+                      <Circle className='size-4 flex-shrink-0 text-[#444]' />
                     )}
                     <span className='flex-1 text-[#ECECEC]'>{lesson.title}</span>
                     <span className='text-[#555] text-[12px] capitalize'>{lesson.lessonType}</span>
@@ -93,7 +93,7 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
             {certificate ? (
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-3'>
-                  <GraduationCap className='h-6 w-6 text-[#4CAF50]' />
+                  <GraduationCap className='size-6 text-[#4CAF50]' />
                   <div>
                     <p className='font-[430] text-[#ECECEC] text-[15px]'>Certificate issued!</p>
                     <p className='font-mono text-[#666] text-[13px]'>
@@ -106,13 +106,13 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                   className='flex items-center gap-1.5 rounded-[5px] bg-[#4CAF50] px-4 py-2 font-[430] text-[#1C1C1C] text-[13px] transition-colors hover:bg-[#5DBF61]'
                 >
                   View certificate
-                  <ExternalLink className='h-3.5 w-3.5' />
+                  <ExternalLink className='size-3.5' />
                 </Link>
               </div>
             ) : (
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-3'>
-                  <GraduationCap className='h-6 w-6 text-[#4CAF50]' />
+                  <GraduationCap className='size-6 text-[#4CAF50]' />
                   <div>
                     <p className='font-[430] text-[#ECECEC] text-[15px]'>Course Complete!</p>
                     <p className='text-[#666] text-[13px]'>
@@ -136,7 +136,7 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                     }
                     className='flex items-center gap-2 rounded-[5px] bg-[#ECECEC] px-4 py-2 font-[430] text-[#1C1C1C] text-[13px] transition-colors hover:bg-white disabled:opacity-50'
                   >
-                    {isPending && <Loader className='h-3.5 w-3.5' animate />}
+                    {isPending && <Loader className='size-3.5' animate />}
                     {isPending ? 'Issuing…' : 'Get certificate'}
                   </button>
                 ) : (

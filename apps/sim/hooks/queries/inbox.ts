@@ -5,8 +5,6 @@ import {
   addInboxSenderContract,
   getInboxConfigContract,
   type InboxConfig,
-  type InboxMember,
-  type InboxSender,
   type InboxSendersResponseBody,
   type InboxTask,
   type InboxTaskStatus,
@@ -17,11 +15,11 @@ import {
   updateInboxConfigContract,
 } from '@/lib/api/contracts'
 
-export type { InboxConfig, InboxMember, InboxSender, InboxSendersResponseBody }
+export type { InboxConfig, InboxSendersResponseBody }
 export type InboxTaskItem = InboxTask
-export type InboxTasksResponse = InboxTasksResponseBody
+type InboxTasksResponse = InboxTasksResponseBody
 
-export const inboxKeys = {
+const inboxKeys = {
   all: ['inbox'] as const,
   configs: () => [...inboxKeys.all, 'config'] as const,
   config: (workspaceId: string) => [...inboxKeys.configs(), workspaceId] as const,

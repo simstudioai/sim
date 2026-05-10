@@ -170,7 +170,7 @@ export function ScheduledTasks() {
         id: item.id,
         cells: {
           task: {
-            icon: <Calendar className='h-[14px] w-[14px]' />,
+            icon: <Calendar className='size-[14px]' />,
             label: item.prompt,
           },
           schedule: { label: getScheduleDescription(item) },

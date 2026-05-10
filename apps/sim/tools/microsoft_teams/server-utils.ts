@@ -14,7 +14,7 @@ import type { GraphApiErrorResponse, GraphDriveItem } from '@/tools/microsoft_te
 const MAX_TEAMS_FILE_SIZE = 4 * 1024 * 1024
 
 /** Output format for uploaded files */
-export interface TeamsFileOutput {
+interface TeamsFileOutput {
   name: string
   mimeType: string
   data: string
@@ -22,7 +22,7 @@ export interface TeamsFileOutput {
 }
 
 /** Attachment reference for Teams message */
-export interface TeamsAttachmentRef {
+interface TeamsAttachmentRef {
   id: string
   contentType: 'reference'
   contentUrl: string

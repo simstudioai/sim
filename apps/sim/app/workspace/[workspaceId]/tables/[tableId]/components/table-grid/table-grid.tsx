@@ -2907,7 +2907,7 @@ export function TableGrid({
   if (!isLoadingTable && !tableData) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <TableX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
+        <TableX className='size-[32px] text-[var(--text-muted)]' />
         <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>Table not found</h2>
           <p className='text-[var(--text-muted)] text-small'>
@@ -2973,20 +2973,20 @@ export function TableGrid({
                   <tr>
                     <th className={CELL_HEADER_CHECKBOX}>
                       <div className='flex items-center justify-center'>
-                        <Skeleton className='h-[14px] w-[14px] rounded-xs' />
+                        <Skeleton className='size-[14px] rounded-xs' />
                       </div>
                     </th>
                     {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
                       <th key={i} className={CELL_HEADER}>
                         <div className='flex h-[20px] min-w-0 items-center gap-1.5'>
-                          <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
+                          <Skeleton className='size-[14px] shrink-0 rounded-xs' />
                           <Skeleton className='h-[14px]' style={{ width: `${56 + i * 16}px` }} />
                         </div>
                       </th>
                     ))}
                     <th className={CELL_HEADER}>
                       <div className='flex h-[20px] items-center gap-2'>
-                        <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
+                        <Skeleton className='size-[14px] shrink-0 rounded-xs' />
                         <Skeleton className='h-[14px] w-[72px]' />
                       </div>
                     </th>

@@ -8,7 +8,7 @@ import {
   adminV1SubscriptionSchema,
 } from '@/lib/api/contracts/v1/admin/shared'
 
-export const adminV1UserSchema = z.object({
+const adminV1UserSchema = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string(),
@@ -18,7 +18,7 @@ export const adminV1UserSchema = z.object({
   updatedAt: z.string(),
 })
 
-export const adminV1UserBillingSchema = z.object({
+const adminV1UserBillingSchema = z.object({
   userId: z.string(),
   userName: z.string(),
   userEmail: z.string(),
@@ -46,7 +46,7 @@ export const adminV1UserBillingSchema = z.object({
   totalCopilotCalls: z.number(),
 })
 
-export const adminV1UserBillingWithSubscriptionSchema = adminV1UserBillingSchema.extend({
+const adminV1UserBillingWithSubscriptionSchema = adminV1UserBillingSchema.extend({
   subscriptions: z.array(adminV1SubscriptionSchema),
   organizationMemberships: z.array(
     z.object({
@@ -57,7 +57,7 @@ export const adminV1UserBillingWithSubscriptionSchema = adminV1UserBillingSchema
   ),
 })
 
-export const adminV1UpdateUserBillingBodySchema = z.object({
+const adminV1UpdateUserBillingBodySchema = z.object({
   currentUsageLimit: z
     .union([
       z
@@ -122,11 +122,9 @@ export const adminV1UpdateUserBillingContract = defineRouteContract({
   },
 })
 
-export type AdminV1ListUsersResponse = ContractJsonResponse<typeof adminV1ListUsersContract>
-export type AdminV1GetUserResponse = ContractJsonResponse<typeof adminV1GetUserContract>
-export type AdminV1GetUserBillingResponse = ContractJsonResponse<
-  typeof adminV1GetUserBillingContract
->
-export type AdminV1UpdateUserBillingResponse = ContractJsonResponse<
+type AdminV1ListUsersResponse = ContractJsonResponse<typeof adminV1ListUsersContract>
+type AdminV1GetUserResponse = ContractJsonResponse<typeof adminV1GetUserContract>
+type AdminV1GetUserBillingResponse = ContractJsonResponse<typeof adminV1GetUserBillingContract>
+type AdminV1UpdateUserBillingResponse = ContractJsonResponse<
   typeof adminV1UpdateUserBillingContract
 >

@@ -7,7 +7,7 @@ import {
 } from '@/lib/api/contracts/types'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
-export const supabaseStorageUploadBodySchema = z.object({
+const supabaseStorageUploadBodySchema = z.object({
   projectId: z
     .string()
     .min(1, 'Project ID is required')
@@ -28,7 +28,5 @@ export const supabaseStorageUploadContract = defineRouteContract({
   response: { mode: 'json', schema: supabaseStorageUploadResponseSchema },
 })
 
-export type SupabaseStorageUploadRequest = ContractBodyInput<typeof supabaseStorageUploadContract>
-export type SupabaseStorageUploadResponse = ContractJsonResponse<
-  typeof supabaseStorageUploadContract
->
+type SupabaseStorageUploadRequest = ContractBodyInput<typeof supabaseStorageUploadContract>
+type SupabaseStorageUploadResponse = ContractJsonResponse<typeof supabaseStorageUploadContract>

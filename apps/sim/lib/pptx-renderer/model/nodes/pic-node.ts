@@ -5,7 +5,7 @@
 import type { SafeXmlNode } from '../../parser/xml-parser'
 import { type BaseNodeData, parseBaseProps } from './base-node'
 
-export interface CropRect {
+interface CropRect {
   top: number
   bottom: number
   left: number

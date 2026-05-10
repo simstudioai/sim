@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { motion, useInView } from 'framer-motion'
+import { domAnimation, LazyMotion, m, useInView } from 'framer-motion'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
 interface PermissionFeature {
@@ -59,7 +59,7 @@ const INITIAL_ACCESS_STATE = Object.fromEntries(
 function CheckboxIcon({ checked, color }: { checked: boolean; color: string }) {
   return (
     <div
-      className='h-[6px] w-[6px] shrink-0 rounded-full transition-colors duration-200'
+      className='size-[6px] shrink-0 rounded-full transition-colors duration-200'
       style={{
         backgroundColor: checked ? color : 'transparent',
         border: checked ? 'none' : '1.5px solid #3A3A3A',
@@ -75,7 +75,7 @@ function ProviderPreviewIcon({ providerId }: { providerId?: string }) {
   if (!ProviderIcon) return null
 
   return (
-    <div className='relative flex h-[14px] w-[14px] shrink-0 items-center justify-center opacity-50 brightness-0 invert'>
+    <div className='relative flex size-[14px] shrink-0 items-center justify-center opacity-50 brightness-0 invert'>
       <ProviderIcon className='!h-[14px] !w-[14px]' />
     </div>
   )
@@ -103,7 +103,7 @@ function FeatureToggleItem({
   onToggle,
 }: FeatureToggleItemProps) {
   return (
-    <motion.div
+    <m.div
       key={feature.key}
       role='button'
       tabIndex={0}
@@ -127,7 +127,7 @@ function FeatureToggleItem({
       <span className={textClassName} style={{ color: enabled ? '#F6F6F6AA' : '#F6F6F640' }}>
         {feature.name}
       </span>
-    </motion.div>
+    </m.div>
   )
 }
 
@@ -137,76 +137,78 @@ export function AccessControlPanel() {
   const [accessState, setAccessState] = useState<Record<string, boolean>>(INITIAL_ACCESS_STATE)
 
   return (
-    <div ref={ref}>
-      <div className='lg:hidden'>
-        {PERMISSION_CATEGORIES.map((category, catIdx) => {
-          const offsetBefore = PERMISSION_CATEGORIES.slice(0, catIdx).reduce(
-            (sum, c) => sum + c.features.length,
-            0
-          )
+    <LazyMotion features={domAnimation}>
+      <div ref={ref}>
+        <div className='lg:hidden'>
+          {PERMISSION_CATEGORIES.map((category, catIdx) => {
+            const offsetBefore = PERMISSION_CATEGORIES.slice(0, catIdx).reduce(
+              (sum, c) => sum + c.features.length,
+              0
+            )
 
-          return (
+            return (
+              <div key={category.label} className={catIdx > 0 ? 'mt-4' : ''}>
+                <span className='font-[430] font-season text-[#F6F6F6]/55 text-[10px] uppercase leading-none tracking-[0.08em]'>
+                  {category.label}
+                </span>
+                <div className='mt-2 grid grid-cols-2 gap-x-4 gap-y-2'>
+                  {category.features.map((feature, featIdx) => (
+                    <FeatureToggleItem
+                      key={feature.key}
+                      feature={feature}
+                      enabled={accessState[feature.key]}
+                      color={category.color}
+                      isInView={isInView}
+                      delay={0.05 + (offsetBefore + featIdx) * 0.04}
+                      textClassName='truncate font-[430] font-season text-[13px] leading-none tracking-[0.02em]'
+                      transition={{ duration: 0.3 }}
+                      onToggle={() =>
+                        setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Desktop -- categorized grid */}
+        <div className='hidden lg:block'>
+          {PERMISSION_CATEGORIES.map((category, catIdx) => (
             <div key={category.label} className={catIdx > 0 ? 'mt-4' : ''}>
               <span className='font-[430] font-season text-[#F6F6F6]/55 text-[10px] uppercase leading-none tracking-[0.08em]'>
                 {category.label}
               </span>
               <div className='mt-2 grid grid-cols-2 gap-x-4 gap-y-2'>
-                {category.features.map((feature, featIdx) => (
-                  <FeatureToggleItem
-                    key={feature.key}
-                    feature={feature}
-                    enabled={accessState[feature.key]}
-                    color={category.color}
-                    isInView={isInView}
-                    delay={0.05 + (offsetBefore + featIdx) * 0.04}
-                    textClassName='truncate font-[430] font-season text-[13px] leading-none tracking-[0.02em]'
-                    transition={{ duration: 0.3 }}
-                    onToggle={() =>
-                      setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
-                    }
-                  />
-                ))}
+                {category.features.map((feature, featIdx) => {
+                  const currentIndex =
+                    PERMISSION_CATEGORIES.slice(0, catIdx).reduce(
+                      (sum, c) => sum + c.features.length,
+                      0
+                    ) + featIdx
+
+                  return (
+                    <FeatureToggleItem
+                      key={feature.key}
+                      feature={feature}
+                      enabled={accessState[feature.key]}
+                      color={category.color}
+                      isInView={isInView}
+                      delay={0.1 + currentIndex * 0.04}
+                      textClassName='truncate font-[430] font-season text-[11px] leading-none tracking-[0.02em] transition-opacity duration-200'
+                      transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+                      onToggle={() =>
+                        setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
+                      }
+                    />
+                  )
+                })}
               </div>
             </div>
-          )
-        })}
+          ))}
+        </div>
       </div>
-
-      {/* Desktop -- categorized grid */}
-      <div className='hidden lg:block'>
-        {PERMISSION_CATEGORIES.map((category, catIdx) => (
-          <div key={category.label} className={catIdx > 0 ? 'mt-4' : ''}>
-            <span className='font-[430] font-season text-[#F6F6F6]/55 text-[10px] uppercase leading-none tracking-[0.08em]'>
-              {category.label}
-            </span>
-            <div className='mt-2 grid grid-cols-2 gap-x-4 gap-y-2'>
-              {category.features.map((feature, featIdx) => {
-                const currentIndex =
-                  PERMISSION_CATEGORIES.slice(0, catIdx).reduce(
-                    (sum, c) => sum + c.features.length,
-                    0
-                  ) + featIdx
-
-                return (
-                  <FeatureToggleItem
-                    key={feature.key}
-                    feature={feature}
-                    enabled={accessState[feature.key]}
-                    color={category.color}
-                    isInView={isInView}
-                    delay={0.1 + currentIndex * 0.04}
-                    textClassName='truncate font-[430] font-season text-[11px] leading-none tracking-[0.02em] transition-opacity duration-200'
-                    transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-                    onToggle={() =>
-                      setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
-                    }
-                  />
-                )
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+    </LazyMotion>
   )
 }

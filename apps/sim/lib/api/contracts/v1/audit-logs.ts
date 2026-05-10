@@ -10,11 +10,11 @@ const optionalQueryString = z.preprocess(
   z.string().optional()
 )
 
-export const v1AuditLogParamsSchema = z.object({
+const v1AuditLogParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-export const v1ListAuditLogsQuerySchema = z.object({
+const v1ListAuditLogsQuerySchema = z.object({
   action: z.string().optional(),
   resourceType: z.string().optional(),
   resourceId: z.string().optional(),
@@ -31,10 +31,10 @@ export const v1ListAuditLogsQuerySchema = z.object({
   cursor: z.string().optional(),
 })
 
-export type V1ListAuditLogsQuery = z.output<typeof v1ListAuditLogsQuerySchema>
-export type V1AuditLogParams = z.output<typeof v1AuditLogParamsSchema>
+type V1ListAuditLogsQuery = z.output<typeof v1ListAuditLogsQuerySchema>
+type V1AuditLogParams = z.output<typeof v1AuditLogParamsSchema>
 
-export const v1AdminAuditLogsQuerySchema = z.object({
+const v1AdminAuditLogsQuerySchema = z.object({
   action: optionalQueryString,
   resourceType: optionalQueryString,
   resourceId: optionalQueryString,

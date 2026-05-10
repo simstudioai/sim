@@ -17,7 +17,7 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 
 const SEARCH_ICON = (
-  <Search className='pointer-events-none h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+  <Search className='pointer-events-none size-[14px] shrink-0 text-[var(--text-icon)]' />
 )
 
 type SortDirection = 'asc' | 'desc'
@@ -126,7 +126,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
             <PopoverPrimitive.Root>
               <PopoverPrimitive.Trigger asChild>
                 <Button variant='subtle' className='px-2 py-1 text-caption'>
-                  <ListFilter className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+                  <ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
                   Filter
                 </Button>
               </PopoverPrimitive.Trigger>
@@ -182,7 +182,7 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
       {search.tags?.length || search.value ? (
         <button
           type='button'
-          className='mr-0.5 flex h-[14px] w-[14px] shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover-hover:text-[var(--text-secondary)]'
+          className='mr-0.5 flex size-[14px] shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover-hover:text-[var(--text-secondary)]'
           onClick={search.onClearAll ?? (() => search.onChange(''))}
         >
           <span className='text-caption'>✕</span>
@@ -242,7 +242,7 @@ const SortDropdown = memo(function SortDropdown({ config }: { config: SortConfig
               {Icon && <Icon />}
               {option.label}
               {DirectionIcon && (
-                <DirectionIcon className='ml-auto h-[12px] w-[12px] text-[var(--text-tertiary)]' />
+                <DirectionIcon className='ml-auto size-[12px] text-[var(--text-tertiary)]' />
               )}
             </DropdownMenuItem>
           )

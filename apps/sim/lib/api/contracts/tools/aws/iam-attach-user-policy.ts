@@ -26,8 +26,6 @@ export const awsIamAttachUserPolicyContract = defineRouteContract({
   body: Schema,
   response: { mode: 'json', schema: z.object({ message: z.string() }) },
 })
-export type AwsIamAttachUserPolicyRequest = ContractBodyInput<typeof awsIamAttachUserPolicyContract>
-export type AwsIamAttachUserPolicyBody = ContractBody<typeof awsIamAttachUserPolicyContract>
-export type AwsIamAttachUserPolicyResponse = ContractJsonResponse<
-  typeof awsIamAttachUserPolicyContract
->
+type AwsIamAttachUserPolicyRequest = ContractBodyInput<typeof awsIamAttachUserPolicyContract>
+type AwsIamAttachUserPolicyBody = ContractBody<typeof awsIamAttachUserPolicyContract>
+type AwsIamAttachUserPolicyResponse = ContractJsonResponse<typeof awsIamAttachUserPolicyContract>

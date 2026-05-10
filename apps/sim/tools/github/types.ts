@@ -8,7 +8,7 @@ import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 /**
  * Output definition for GitHub user objects
  */
-export const USER_OUTPUT_PROPERTIES = {
+const USER_OUTPUT_PROPERTIES = {
   login: { type: 'string', description: 'GitHub username' },
   id: { type: 'number', description: 'User ID' },
   avatar_url: { type: 'string', description: 'Avatar image URL' },
@@ -52,7 +52,7 @@ export const USER_FULL_OUTPUT = {
 /**
  * Output definition for Git author/committer objects (name, email, date)
  */
-export const GIT_ACTOR_OUTPUT_PROPERTIES = {
+const GIT_ACTOR_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Name' },
   email: { type: 'string', description: 'Email address' },
   date: { type: 'string', description: 'Timestamp (ISO 8601)' },
@@ -61,7 +61,7 @@ export const GIT_ACTOR_OUTPUT_PROPERTIES = {
 /**
  * Complete Git actor output definition
  */
-export const GIT_ACTOR_OUTPUT = {
+const GIT_ACTOR_OUTPUT = {
   type: 'object',
   description: 'Git actor (author/committer)',
   properties: GIT_ACTOR_OUTPUT_PROPERTIES,
@@ -70,7 +70,7 @@ export const GIT_ACTOR_OUTPUT = {
 /**
  * Output definition for commit tree objects
  */
-export const COMMIT_TREE_OUTPUT_PROPERTIES = {
+const COMMIT_TREE_OUTPUT_PROPERTIES = {
   sha: { type: 'string', description: 'Tree SHA' },
   url: { type: 'string', description: 'Tree API URL' },
 } as const satisfies Record<string, OutputProperty>
@@ -78,7 +78,7 @@ export const COMMIT_TREE_OUTPUT_PROPERTIES = {
 /**
  * Complete commit tree output definition
  */
-export const COMMIT_TREE_OUTPUT = {
+const COMMIT_TREE_OUTPUT = {
   type: 'object',
   description: 'Tree object',
   properties: COMMIT_TREE_OUTPUT_PROPERTIES,
@@ -87,7 +87,7 @@ export const COMMIT_TREE_OUTPUT = {
 /**
  * Output definition for commit verification objects
  */
-export const COMMIT_VERIFICATION_OUTPUT_PROPERTIES = {
+const COMMIT_VERIFICATION_OUTPUT_PROPERTIES = {
   verified: { type: 'boolean', description: 'Whether signature is verified' },
   reason: { type: 'string', description: 'Verification reason' },
   signature: { type: 'string', description: 'GPG signature', optional: true },
@@ -97,7 +97,7 @@ export const COMMIT_VERIFICATION_OUTPUT_PROPERTIES = {
 /**
  * Complete commit verification output definition
  */
-export const COMMIT_VERIFICATION_OUTPUT = {
+const COMMIT_VERIFICATION_OUTPUT = {
   type: 'object',
   description: 'Signature verification',
   properties: COMMIT_VERIFICATION_OUTPUT_PROPERTIES,
@@ -106,7 +106,7 @@ export const COMMIT_VERIFICATION_OUTPUT = {
 /**
  * Output definition for core commit data (the 'commit' field in GitHub API responses)
  */
-export const COMMIT_DATA_OUTPUT_PROPERTIES = {
+const COMMIT_DATA_OUTPUT_PROPERTIES = {
   url: { type: 'string', description: 'Commit API URL' },
   message: { type: 'string', description: 'Commit message' },
   comment_count: { type: 'number', description: 'Number of comments' },
@@ -128,7 +128,7 @@ export const COMMIT_DATA_OUTPUT = {
 /**
  * Output definition for commit stats objects
  */
-export const COMMIT_STATS_OUTPUT_PROPERTIES = {
+const COMMIT_STATS_OUTPUT_PROPERTIES = {
   additions: { type: 'number', description: 'Lines added' },
   deletions: { type: 'number', description: 'Lines deleted' },
   total: { type: 'number', description: 'Total changes' },
@@ -171,7 +171,7 @@ export const COMMIT_FILE_OUTPUT_PROPERTIES = {
 /**
  * Complete commit file output definition
  */
-export const COMMIT_FILE_OUTPUT = {
+const COMMIT_FILE_OUTPUT = {
   type: 'object',
   description: 'Changed file (diff entry)',
   properties: COMMIT_FILE_OUTPUT_PROPERTIES,
@@ -189,7 +189,7 @@ export const COMMIT_PARENT_OUTPUT_PROPERTIES = {
 /**
  * Complete parent commit output definition
  */
-export const COMMIT_PARENT_OUTPUT = {
+const COMMIT_PARENT_OUTPUT = {
   type: 'object',
   description: 'Parent commit reference',
   properties: COMMIT_PARENT_OUTPUT_PROPERTIES,
@@ -209,7 +209,7 @@ export const COMMIT_SUMMARY_OUTPUT_PROPERTIES = {
 /**
  * Output definition for repository objects in search results
  */
-export const SEARCH_REPO_OUTPUT_PROPERTIES = {
+const SEARCH_REPO_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Repository ID' },
   node_id: { type: 'string', description: 'GraphQL node ID' },
   name: { type: 'string', description: 'Repository name' },
@@ -222,7 +222,7 @@ export const SEARCH_REPO_OUTPUT_PROPERTIES = {
 /**
  * Complete search repository output definition
  */
-export const SEARCH_REPO_OUTPUT = {
+const SEARCH_REPO_OUTPUT = {
   type: 'object',
   description: 'Repository containing the commit',
   properties: SEARCH_REPO_OUTPUT_PROPERTIES,
@@ -305,7 +305,7 @@ export const SOURCE_REPO_OUTPUT_PROPERTIES = {
 /**
  * Output definition for branch reference objects (head/base in PRs)
  */
-export const BRANCH_REF_OUTPUT_PROPERTIES = {
+const BRANCH_REF_OUTPUT_PROPERTIES = {
   label: { type: 'string', description: 'Branch label (owner:branch)' },
   ref: { type: 'string', description: 'Branch name' },
   sha: { type: 'string', description: 'Commit SHA' },
@@ -323,7 +323,7 @@ export const BRANCH_REF_OUTPUT = {
 /**
  * Output definition for commit reference in branches (sha and url)
  */
-export const COMMIT_REF_OUTPUT_PROPERTIES = {
+const COMMIT_REF_OUTPUT_PROPERTIES = {
   sha: { type: 'string', description: 'Commit SHA' },
   url: { type: 'string', description: 'Commit API URL' },
 } as const satisfies Record<string, OutputProperty>
@@ -331,7 +331,7 @@ export const COMMIT_REF_OUTPUT_PROPERTIES = {
 /**
  * Complete commit reference output definition
  */
-export const COMMIT_REF_OUTPUT = {
+const COMMIT_REF_OUTPUT = {
   type: 'object',
   description: 'Commit reference info',
   properties: COMMIT_REF_OUTPUT_PROPERTIES,
@@ -349,7 +349,7 @@ export const BRANCH_OUTPUT_PROPERTIES = {
 /**
  * Complete branch output definition
  */
-export const BRANCH_OUTPUT = {
+const BRANCH_OUTPUT = {
   type: 'object',
   description: 'Branch object',
   properties: BRANCH_OUTPUT_PROPERTIES,
@@ -368,7 +368,7 @@ export const GIT_REF_OUTPUT_PROPERTIES = {
 /**
  * Complete git reference output definition
  */
-export const GIT_REF_OUTPUT = {
+const GIT_REF_OUTPUT = {
   type: 'object',
   description: 'Git reference object',
   properties: GIT_REF_OUTPUT_PROPERTIES,
@@ -410,7 +410,7 @@ export const BRANCH_PROTECTION_OUTPUT_PROPERTIES = {
 /**
  * Complete branch protection output definition
  */
-export const BRANCH_PROTECTION_OUTPUT = {
+const BRANCH_PROTECTION_OUTPUT = {
   type: 'object',
   description: 'Branch protection configuration',
   properties: BRANCH_PROTECTION_OUTPUT_PROPERTIES,
@@ -427,7 +427,7 @@ export const DELETE_BRANCH_OUTPUT_PROPERTIES = {
 /**
  * Extended output definition for milestone creator user objects (V2 tools)
  */
-export const MILESTONE_CREATOR_OUTPUT_PROPERTIES = {
+const MILESTONE_CREATOR_OUTPUT_PROPERTIES = {
   login: { type: 'string', description: 'Username' },
   id: { type: 'number', description: 'User ID' },
   node_id: { type: 'string', description: 'GraphQL node ID' },
@@ -472,7 +472,7 @@ export const MILESTONE_V2_OUTPUT_PROPERTIES = {
 /**
  * Output definition for GitHub Project V2 objects
  */
-export const PROJECT_V2_OUTPUT_PROPERTIES = {
+const PROJECT_V2_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Project node ID' },
   title: { type: 'string', description: 'Project title' },
   number: { type: 'number', description: 'Project number' },
@@ -485,7 +485,7 @@ export const PROJECT_V2_OUTPUT_PROPERTIES = {
 /**
  * Extended output definition for V2 project objects (full API response)
  */
-export const PROJECT_V2_FULL_OUTPUT_PROPERTIES = {
+const PROJECT_V2_FULL_OUTPUT_PROPERTIES = {
   ...PROJECT_V2_OUTPUT_PROPERTIES,
   readme: { type: 'string', description: 'Project readme', optional: true },
   createdAt: { type: 'string', description: 'Creation timestamp' },
@@ -495,7 +495,7 @@ export const PROJECT_V2_FULL_OUTPUT_PROPERTIES = {
 /**
  * Output definition for gist file objects
  */
-export const GIST_FILE_OUTPUT_PROPERTIES = {
+const GIST_FILE_OUTPUT_PROPERTIES = {
   filename: { type: 'string', description: 'File name' },
   type: { type: 'string', description: 'MIME type' },
   language: { type: 'string', description: 'Programming language', optional: true },
@@ -508,7 +508,7 @@ export const GIST_FILE_OUTPUT_PROPERTIES = {
 /**
  * Output definition for gist owner objects (extended user info)
  */
-export const GIST_OWNER_OUTPUT_PROPERTIES = {
+const GIST_OWNER_OUTPUT_PROPERTIES = {
   login: { type: 'string', description: 'Username' },
   id: { type: 'number', description: 'User ID' },
   node_id: { type: 'string', description: 'GraphQL node ID' },
@@ -569,7 +569,7 @@ export const GIST_FILES_OUTPUT = {
  * Output definition for GitHub label objects
  * @see https://docs.github.com/en/rest/issues/labels
  */
-export const LABEL_OUTPUT_PROPERTIES = {
+const LABEL_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Label ID' },
   node_id: { type: 'string', description: 'GraphQL node ID' },
   url: { type: 'string', description: 'API URL' },
@@ -592,7 +592,7 @@ export const LABEL_OUTPUT = {
  * Output definition for GitHub milestone objects
  * @see https://docs.github.com/en/rest/issues/milestones
  */
-export const MILESTONE_OUTPUT_PROPERTIES = {
+const MILESTONE_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Milestone ID' },
   node_id: { type: 'string', description: 'GraphQL node ID' },
   number: { type: 'number', description: 'Milestone number' },
@@ -734,7 +734,7 @@ export const WORKFLOW_OUTPUT_PROPERTIES = {
  * Output definition for head commit in workflow runs
  * @see https://docs.github.com/en/rest/actions/workflow-runs
  */
-export const HEAD_COMMIT_OUTPUT_PROPERTIES = {
+const HEAD_COMMIT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Commit SHA' },
   tree_id: { type: 'string', description: 'Tree SHA' },
   message: { type: 'string', description: 'Commit message' },
@@ -754,7 +754,7 @@ export const HEAD_COMMIT_OUTPUT = {
 /**
  * Output definition for PR references in workflow runs
  */
-export const PR_REFERENCE_OUTPUT_PROPERTIES = {
+const PR_REFERENCE_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Pull request ID' },
   number: { type: 'number', description: 'Pull request number' },
   url: { type: 'string', description: 'API URL' },
@@ -772,7 +772,7 @@ export const PR_REFERENCE_OUTPUT = {
 /**
  * Output definition for referenced workflows in workflow runs
  */
-export const REFERENCED_WORKFLOW_OUTPUT_PROPERTIES = {
+const REFERENCED_WORKFLOW_OUTPUT_PROPERTIES = {
   path: { type: 'string', description: 'Path to referenced workflow' },
   sha: { type: 'string', description: 'Commit SHA of referenced workflow' },
   ref: { type: 'string', description: 'Git ref of referenced workflow', optional: true },
@@ -1836,7 +1836,7 @@ export interface GetTreeParams extends BaseGitHubParams {
 }
 
 // File/Content metadata interfaces
-export interface FileContentMetadata {
+interface FileContentMetadata {
   name: string
   path: string
   sha: string
@@ -1846,7 +1846,7 @@ export interface FileContentMetadata {
   html_url?: string
 }
 
-export interface FileCommitMetadata {
+interface FileCommitMetadata {
   sha: string
   message: string
   author: {
@@ -1862,7 +1862,7 @@ export interface FileCommitMetadata {
   html_url: string
 }
 
-export interface TreeItemMetadata {
+interface TreeItemMetadata {
   name: string
   path: string
   sha: string

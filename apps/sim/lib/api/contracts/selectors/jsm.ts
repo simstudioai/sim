@@ -24,40 +24,40 @@ const jsmFormIdField = z.string({ error: 'Form ID is required' }).min(1, 'Form I
 
 const jsmIdListSchema = z.union([z.string(), z.array(z.string())]).optional()
 
-export const jsmRequestTypesBodySchema = credentialWorkflowDomainBodySchema.extend({
+const jsmRequestTypesBodySchema = credentialWorkflowDomainBodySchema.extend({
   serviceDeskId: z.string().min(1),
 })
 
-export const jsmServiceDesksBodySchema = jsmBaseBodySchema.extend({
+const jsmServiceDesksBodySchema = jsmBaseBodySchema.extend({
   expand: z.string().optional(),
   start: z.string().optional(),
   limit: z.string().optional(),
 })
 
-export const jsmServiceDeskScopedBodySchema = jsmBaseBodySchema.extend({
+const jsmServiceDeskScopedBodySchema = jsmBaseBodySchema.extend({
   serviceDeskId: jsmServiceDeskIdField,
   start: z.string().optional(),
   limit: z.string().optional(),
 })
 
-export const jsmQueuesBodySchema = jsmServiceDeskScopedBodySchema.extend({
+const jsmQueuesBodySchema = jsmServiceDeskScopedBodySchema.extend({
   includeCount: z.string().optional(),
 })
 
-export const jsmRequestTypesToolBodySchema = jsmServiceDeskScopedBodySchema.extend({
+const jsmRequestTypesToolBodySchema = jsmServiceDeskScopedBodySchema.extend({
   searchQuery: z.string().optional(),
   groupId: z.string().optional(),
   expand: z.string().optional(),
 })
 
-export const jsmRequestTypeFieldsBodySchema = jsmBaseBodySchema.extend({
+const jsmRequestTypeFieldsBodySchema = jsmBaseBodySchema.extend({
   serviceDeskId: jsmServiceDeskIdField,
   requestTypeId: z
     .string({ error: 'Request Type ID is required' })
     .min(1, 'Request Type ID is required'),
 })
 
-export const jsmRequestsBodySchema = jsmBaseBodySchema.extend({
+const jsmRequestsBodySchema = jsmBaseBodySchema.extend({
   serviceDeskId: z.string().optional(),
   requestOwnership: z.string().optional(),
   requestStatus: z.string().optional(),
@@ -68,7 +68,7 @@ export const jsmRequestsBodySchema = jsmBaseBodySchema.extend({
   limit: z.string().optional(),
 })
 
-export const jsmRequestBodySchema = jsmBaseBodySchema.extend({
+const jsmRequestBodySchema = jsmBaseBodySchema.extend({
   issueIdOrKey: z.string().optional(),
   serviceDeskId: z.string().optional(),
   requestTypeId: z.string().optional(),
@@ -82,13 +82,13 @@ export const jsmRequestBodySchema = jsmBaseBodySchema.extend({
   expand: z.string().optional(),
 })
 
-export const jsmCommentBodySchema = jsmBaseBodySchema.extend({
+const jsmCommentBodySchema = jsmBaseBodySchema.extend({
   issueIdOrKey: jsmIssueIdOrKeyField,
   body: z.string({ error: 'Comment body is required' }).min(1, 'Comment body is required'),
   isPublic: z.boolean().optional(),
 })
 
-export const jsmCommentsBodySchema = jsmBaseBodySchema.extend({
+const jsmCommentsBodySchema = jsmBaseBodySchema.extend({
   issueIdOrKey: jsmIssueIdOrKeyField,
   isPublic: z.boolean().optional(),
   internal: z.boolean().optional(),
@@ -97,7 +97,7 @@ export const jsmCommentsBodySchema = jsmBaseBodySchema.extend({
   limit: z.string().optional(),
 })
 
-export const jsmTransitionBodySchema = jsmBaseBodySchema.extend({
+const jsmTransitionBodySchema = jsmBaseBodySchema.extend({
   issueIdOrKey: jsmIssueIdOrKeyField,
   transitionId: z
     .string({ error: 'Transition ID is required' })
@@ -105,16 +105,13 @@ export const jsmTransitionBodySchema = jsmBaseBodySchema.extend({
   comment: z.string().optional(),
 })
 
-export const jsmIssuePaginationBodySchema = jsmBaseBodySchema.extend({
+const jsmIssuePaginationBodySchema = jsmBaseBodySchema.extend({
   issueIdOrKey: jsmIssueIdOrKeyField,
   start: z.string().optional(),
   limit: z.string().optional(),
 })
 
-export const jsmSlaBodySchema = jsmIssuePaginationBodySchema
-export const jsmTransitionsBodySchema = jsmIssuePaginationBodySchema
-
-export const jsmApprovalsBodySchema = jsmBaseBodySchema.extend({
+const jsmApprovalsBodySchema = jsmBaseBodySchema.extend({
   action: z.string({ error: 'Action is required' }).min(1, 'Action is required'),
   issueIdOrKey: jsmIssueIdOrKeyField,
   approvalId: z.string().optional(),
@@ -123,7 +120,7 @@ export const jsmApprovalsBodySchema = jsmBaseBodySchema.extend({
   limit: z.string().optional(),
 })
 
-export const jsmParticipantsBodySchema = jsmBaseBodySchema.extend({
+const jsmParticipantsBodySchema = jsmBaseBodySchema.extend({
   action: z.string({ error: 'Action is required' }).min(1, 'Action is required'),
   issueIdOrKey: jsmIssueIdOrKeyField,
   accountIds: z.union([z.string(), z.array(z.string())]).optional(),
@@ -131,7 +128,7 @@ export const jsmParticipantsBodySchema = jsmBaseBodySchema.extend({
   limit: z.string().optional(),
 })
 
-export const jsmCustomersBodySchema = jsmBaseBodySchema.extend({
+const jsmCustomersBodySchema = jsmBaseBodySchema.extend({
   serviceDeskId: jsmServiceDeskIdField,
   query: z.string().optional(),
   start: z.string().optional(),
@@ -140,45 +137,45 @@ export const jsmCustomersBodySchema = jsmBaseBodySchema.extend({
   emails: jsmIdListSchema,
 })
 
-export const jsmOrganizationBodySchema = jsmBaseBodySchema.extend({
+const jsmOrganizationBodySchema = jsmBaseBodySchema.extend({
   action: z.string({ error: 'Action is required' }).min(1, 'Action is required'),
   name: z.string().optional(),
   serviceDeskId: z.string().optional(),
   organizationId: z.string().optional(),
 })
 
-export const jsmIssueFormsBodySchema = jsmBaseBodySchema.extend({
+const jsmIssueFormsBodySchema = jsmBaseBodySchema.extend({
   issueIdOrKey: jsmIssueIdOrKeyField,
 })
 
-export const jsmIssueFormBodySchema = jsmIssueFormsBodySchema.extend({
+const jsmIssueFormBodySchema = jsmIssueFormsBodySchema.extend({
   formId: jsmFormIdField,
 })
 
-export const jsmAttachFormBodySchema = jsmIssueFormsBodySchema.extend({
+const jsmAttachFormBodySchema = jsmIssueFormsBodySchema.extend({
   formTemplateId: z
     .string({ error: 'Form template ID is required' })
     .min(1, 'Form template ID is required'),
 })
 
-export const jsmSaveFormAnswersBodySchema = jsmIssueFormBodySchema.extend({
+const jsmSaveFormAnswersBodySchema = jsmIssueFormBodySchema.extend({
   answers: z.custom<Record<string, unknown>>(
     (value) => typeof value === 'object' && value !== null && !Array.isArray(value),
     { message: 'Answers object is required' }
   ),
 })
 
-export const jsmProjectFormTemplatesBodySchema = jsmBaseBodySchema.extend({
+const jsmProjectFormTemplatesBodySchema = jsmBaseBodySchema.extend({
   projectIdOrKey: z
     .string({ error: 'Project ID or key is required' })
     .min(1, 'Project ID or key is required'),
 })
 
-export const jsmProjectFormStructureBodySchema = jsmProjectFormTemplatesBodySchema.extend({
+const jsmProjectFormStructureBodySchema = jsmProjectFormTemplatesBodySchema.extend({
   formId: jsmFormIdField,
 })
 
-export const jsmCopyFormsBodySchema = jsmBaseBodySchema.extend({
+const jsmCopyFormsBodySchema = jsmBaseBodySchema.extend({
   sourceIssueIdOrKey: z
     .string({ error: 'Source issue ID or key is required' })
     .min(1, 'Source issue ID or key is required'),
@@ -236,10 +233,13 @@ export const jsmTransitionContract = defineJsmToolContract(
   '/api/tools/jsm/transition',
   jsmTransitionBodySchema
 )
-export const jsmSlaContract = defineJsmToolContract('/api/tools/jsm/sla', jsmSlaBodySchema)
+export const jsmSlaContract = defineJsmToolContract(
+  '/api/tools/jsm/sla',
+  jsmIssuePaginationBodySchema
+)
 export const jsmTransitionsContract = defineJsmToolContract(
   '/api/tools/jsm/transitions',
-  jsmTransitionsBodySchema
+  jsmIssuePaginationBodySchema
 )
 export const jsmApprovalsContract = defineJsmToolContract(
   '/api/tools/jsm/approvals',
@@ -314,38 +314,34 @@ export const jsmCopyFormsContract = defineJsmToolContract(
   jsmCopyFormsBodySchema
 )
 
-export type JsmServiceDesksBody = ContractBody<typeof jsmServiceDesksContract>
-export type JsmQueuesBody = ContractBody<typeof jsmQueuesContract>
-export type JsmRequestTypesBody = ContractBody<typeof jsmRequestTypesContract>
-export type JsmRequestTypeFieldsBody = ContractBody<typeof jsmRequestTypeFieldsContract>
-export type JsmRequestsBody = ContractBody<typeof jsmRequestsContract>
-export type JsmRequestBody = ContractBody<typeof jsmRequestContract>
-export type JsmCommentBody = ContractBody<typeof jsmCommentContract>
-export type JsmCommentsBody = ContractBody<typeof jsmCommentsContract>
-export type JsmTransitionBody = ContractBody<typeof jsmTransitionContract>
-export type JsmSlaBody = ContractBody<typeof jsmSlaContract>
-export type JsmTransitionsBody = ContractBody<typeof jsmTransitionsContract>
-export type JsmApprovalsBody = ContractBody<typeof jsmApprovalsContract>
-export type JsmParticipantsBody = ContractBody<typeof jsmParticipantsContract>
-export type JsmCustomersBody = ContractBody<typeof jsmCustomersContract>
-export type JsmOrganizationsBody = ContractBody<typeof jsmOrganizationsContract>
-export type JsmOrganizationBody = ContractBody<typeof jsmOrganizationContract>
-export type JsmIssueFormsBody = ContractBody<typeof jsmIssueFormsContract>
-export type JsmAttachFormBody = ContractBody<typeof jsmAttachFormContract>
-export type JsmGetFormBody = ContractBody<typeof jsmGetFormContract>
-export type JsmSubmitFormBody = ContractBody<typeof jsmSubmitFormContract>
-export type JsmDeleteFormBody = ContractBody<typeof jsmDeleteFormContract>
-export type JsmExternaliseFormBody = ContractBody<typeof jsmExternaliseFormContract>
-export type JsmInternaliseFormBody = ContractBody<typeof jsmInternaliseFormContract>
-export type JsmReopenFormBody = ContractBody<typeof jsmReopenFormContract>
-export type JsmSaveFormAnswersBody = ContractBody<typeof jsmSaveFormAnswersContract>
-export type JsmFormAnswersBody = ContractBody<typeof jsmFormAnswersContract>
-export type JsmProjectFormTemplatesBody = ContractBody<typeof jsmProjectFormTemplatesContract>
-export type JsmProjectFormStructureBody = ContractBody<typeof jsmProjectFormStructureContract>
-export type JsmCopyFormsBody = ContractBody<typeof jsmCopyFormsContract>
-export type JsmServiceDesksSelectorResponse = ContractJsonResponse<
-  typeof jsmServiceDesksSelectorContract
->
-export type JsmRequestTypesSelectorResponse = ContractJsonResponse<
-  typeof jsmRequestTypesSelectorContract
->
+type JsmServiceDesksBody = ContractBody<typeof jsmServiceDesksContract>
+type JsmQueuesBody = ContractBody<typeof jsmQueuesContract>
+type JsmRequestTypesBody = ContractBody<typeof jsmRequestTypesContract>
+type JsmRequestTypeFieldsBody = ContractBody<typeof jsmRequestTypeFieldsContract>
+type JsmRequestsBody = ContractBody<typeof jsmRequestsContract>
+type JsmRequestBody = ContractBody<typeof jsmRequestContract>
+type JsmCommentBody = ContractBody<typeof jsmCommentContract>
+type JsmCommentsBody = ContractBody<typeof jsmCommentsContract>
+type JsmTransitionBody = ContractBody<typeof jsmTransitionContract>
+type JsmSlaBody = ContractBody<typeof jsmSlaContract>
+type JsmTransitionsBody = ContractBody<typeof jsmTransitionsContract>
+type JsmApprovalsBody = ContractBody<typeof jsmApprovalsContract>
+type JsmParticipantsBody = ContractBody<typeof jsmParticipantsContract>
+type JsmCustomersBody = ContractBody<typeof jsmCustomersContract>
+type JsmOrganizationsBody = ContractBody<typeof jsmOrganizationsContract>
+type JsmOrganizationBody = ContractBody<typeof jsmOrganizationContract>
+type JsmIssueFormsBody = ContractBody<typeof jsmIssueFormsContract>
+type JsmAttachFormBody = ContractBody<typeof jsmAttachFormContract>
+type JsmGetFormBody = ContractBody<typeof jsmGetFormContract>
+type JsmSubmitFormBody = ContractBody<typeof jsmSubmitFormContract>
+type JsmDeleteFormBody = ContractBody<typeof jsmDeleteFormContract>
+type JsmExternaliseFormBody = ContractBody<typeof jsmExternaliseFormContract>
+type JsmInternaliseFormBody = ContractBody<typeof jsmInternaliseFormContract>
+type JsmReopenFormBody = ContractBody<typeof jsmReopenFormContract>
+type JsmSaveFormAnswersBody = ContractBody<typeof jsmSaveFormAnswersContract>
+type JsmFormAnswersBody = ContractBody<typeof jsmFormAnswersContract>
+type JsmProjectFormTemplatesBody = ContractBody<typeof jsmProjectFormTemplatesContract>
+type JsmProjectFormStructureBody = ContractBody<typeof jsmProjectFormStructureContract>
+type JsmCopyFormsBody = ContractBody<typeof jsmCopyFormsContract>
+type JsmServiceDesksSelectorResponse = ContractJsonResponse<typeof jsmServiceDesksSelectorContract>
+type JsmRequestTypesSelectorResponse = ContractJsonResponse<typeof jsmRequestTypesSelectorContract>

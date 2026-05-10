@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const ttsStreamBodySchema = z
+const ttsStreamBodySchema = z
   .object({
     text: z.string().min(1),
     voiceId: z.string().min(1),

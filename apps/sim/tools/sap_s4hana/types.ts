@@ -1,7 +1,7 @@
 import type { ToolResponse } from '@/tools/types'
 
-export type SapDeploymentType = 'cloud_public' | 'cloud_private' | 'on_premise'
-export type SapAuthType = 'oauth_client_credentials' | 'basic'
+type SapDeploymentType = 'cloud_public' | 'cloud_private' | 'on_premise'
+type SapAuthType = 'oauth_client_credentials' | 'basic'
 
 export interface SapBaseParams {
   deploymentType?: SapDeploymentType
@@ -16,7 +16,7 @@ export interface SapBaseParams {
   password?: string
 }
 
-export interface ProxyOutput {
+interface ProxyOutput {
   status: number
   data: unknown
 }
@@ -297,7 +297,7 @@ export interface CreatePurchaseRequisitionParams extends SapBaseParams {
   body?: Record<string, unknown> | string
 }
 
-export type ODataMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE' | 'MERGE'
+type ODataMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE' | 'MERGE'
 
 export interface ODataQueryParams extends SapBaseParams {
   service: string

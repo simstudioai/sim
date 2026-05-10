@@ -137,7 +137,7 @@ export async function fetchHostedContentsForChannelMessage(params: {
  * These are files shared in Teams that are stored in SharePoint/OneDrive.
  *
  */
-export async function downloadReferenceAttachment(params: {
+async function downloadReferenceAttachment(params: {
   accessToken: string
   attachment: MicrosoftTeamsAttachment
 }): Promise<ToolFileData | null> {

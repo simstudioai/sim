@@ -162,7 +162,7 @@ export function AutocompleteSearch({
         <DropdownMenuPrimitive.Trigger asChild>
           <div className='relative flex h-[32px] w-[400px] items-center rounded-lg bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
             {/* Search Icon */}
-            <Search className='mr-1.5 ml-2 h-[14px] w-[14px] flex-shrink-0 text-[var(--text-subtle)]' />
+            <Search className='mr-1.5 ml-2 size-[14px] flex-shrink-0 text-[var(--text-subtle)]' />
 
             {/* Scrollable container for badges */}
             <div className='flex flex-1 items-center gap-1.5 overflow-x-auto pr-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
@@ -191,7 +191,7 @@ export function AutocompleteSearch({
                     {filter.operator !== '=' && filter.operator}
                     {truncateFilterValue(filter.field, filter.originalValue)}
                   </span>
-                  <X className='h-3 w-3 shrink-0' />
+                  <X className='size-3 shrink-0' />
                 </Badge>
               ))}
 
@@ -213,7 +213,7 @@ export function AutocompleteSearch({
                   <span className='max-w-[150px] truncate text-[var(--text-primary)]'>
                     "{textSearch}"
                   </span>
-                  <X className='h-3 w-3 shrink-0' />
+                  <X className='size-3 shrink-0' />
                 </Badge>
               )}
 
@@ -236,10 +236,10 @@ export function AutocompleteSearch({
               <Button
                 type='button'
                 variant='ghost'
-                className='mr-2 ml-1.5 h-[14px] w-[14px] flex-shrink-0 p-0 text-[var(--text-subtle)] hover-hover:text-[var(--text-secondary)]'
+                className='mr-2 ml-1.5 size-[14px] flex-shrink-0 p-0 text-[var(--text-subtle)] hover-hover:text-[var(--text-secondary)]'
                 onClick={clearAll}
               >
-                <X className='h-[14px] w-[14px]' />
+                <X className='size-[14px]' />
               </Button>
             )}
           </div>

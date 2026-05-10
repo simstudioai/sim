@@ -122,7 +122,7 @@ export function useBillingUsageNotifications(): boolean {
   return data?.billingUsageNotificationsEnabled ?? true
 }
 
-export function useErrorNotificationsEnabled(): boolean {
+function useErrorNotificationsEnabled(): boolean {
   const { data } = useGeneralSettings()
   return data?.errorNotificationsEnabled ?? true
 }

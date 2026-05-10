@@ -13,7 +13,7 @@ import type { ColumnDefinition } from './types'
  * non-alphanum runs collapse to `_`, leading digits get a `c_` prefix, empty
  * results fall back to `output`.
  */
-export function slugifyColumnName(value: string): string {
+function slugifyColumnName(value: string): string {
   let slug = value
     .toLowerCase()
     .replace(/[^a-z0-9_]+/g, '_')

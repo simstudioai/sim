@@ -87,7 +87,7 @@ export function linearSetupInstructions(eventType: string, additionalNotes?: str
 /**
  * Generate setup instructions for automatic Linear webhook creation (v2 triggers)
  */
-export function linearV2SetupInstructions(eventType: string, additionalNotes?: string): string {
+function linearV2SetupInstructions(eventType: string, additionalNotes?: string): string {
   const instructions = [
     'Enter your Linear API Key above. You can create one in Linear at <a href="https://linear.app/settings/api" target="_blank" rel="noopener noreferrer">Settings &gt; API &gt; Personal API keys</a>.',
     'Optionally enter a <strong>Team ID</strong> to scope the webhook to a single team. Leave it empty to receive events from all public teams. You can find Team IDs in Linear under <a href="https://linear.app/settings" target="_blank" rel="noopener noreferrer">Settings &gt; Teams</a> or via the API.',
@@ -110,7 +110,7 @@ export function linearV2SetupInstructions(eventType: string, additionalNotes?: s
 /**
  * V2 trigger dropdown options with _v2 suffixed IDs
  */
-export const linearV2TriggerOptions = [
+const linearV2TriggerOptions = [
   { label: 'Issue Created', id: 'linear_issue_created_v2' },
   { label: 'Issue Updated', id: 'linear_issue_updated_v2' },
   { label: 'Issue Removed', id: 'linear_issue_removed_v2' },
@@ -220,7 +220,7 @@ export const userOutputs = {
 /**
  * Shared team output schema
  */
-export const teamOutputs = {
+const teamOutputs = {
   id: {
     type: 'string',
     description: 'Team ID',
@@ -250,7 +250,7 @@ export const teamOutputs = {
 /**
  * Shared state output schema
  */
-export const stateOutputs = {
+const stateOutputs = {
   id: {
     type: 'string',
     description: 'State ID',

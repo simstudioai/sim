@@ -35,15 +35,15 @@ export type AsyncConfirmationStatus =
 
 export type AsyncTerminalConfirmationStatus = AsyncConfirmationStatus
 
-export type AsyncConfirmationProgressStatus =
+type AsyncConfirmationProgressStatus =
   | typeof ASYNC_TOOL_STATUS.pending
   | typeof ASYNC_TOOL_STATUS.running
 
 export type AsyncEphemeralConfirmationStatus = typeof ASYNC_TOOL_CONFIRMATION_STATUS.background
 
-export type AsyncConfirmationStateStatus = AsyncConfirmationProgressStatus | AsyncConfirmationStatus
+type AsyncConfirmationStateStatus = AsyncConfirmationProgressStatus | AsyncConfirmationStatus
 
-export type AsyncPromiseStatus = typeof ASYNC_TOOL_STATUS.running | AsyncTerminalConfirmationStatus
+type AsyncPromiseStatus = typeof ASYNC_TOOL_STATUS.running | AsyncTerminalConfirmationStatus
 
 export type AsyncCompletionData = unknown
 
@@ -59,7 +59,7 @@ export interface AsyncCompletionEnvelope {
   timestamp?: string
 }
 
-export type AsyncCompletionSnapshot = Pick<
+type AsyncCompletionSnapshot = Pick<
   AsyncCompletionEnvelope,
   'status' | 'message' | 'data' | 'timestamp'
 >

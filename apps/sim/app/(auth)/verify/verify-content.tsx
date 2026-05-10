@@ -117,7 +117,7 @@ function VerificationForm({
           >
             {isLoading ? (
               <span className='flex items-center gap-2'>
-                <Loader className='h-4 w-4' animate />
+                <Loader className='size-4' animate />
                 Verifying...
               </span>
             ) : (

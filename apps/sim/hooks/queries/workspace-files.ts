@@ -44,7 +44,7 @@ export const workspaceFilesKeys = {
 /**
  * Storage info type
  */
-export interface StorageInfo {
+interface StorageInfo {
   usedBytes: number
   limitBytes: number
   percentUsed: number
@@ -187,7 +187,7 @@ async function fetchStorageInfo(signal?: AbortSignal): Promise<StorageInfo | nul
 /**
  * Hook to fetch storage info
  */
-export function useStorageInfo(enabled = true) {
+function useStorageInfo(enabled = true) {
   return useQuery({
     queryKey: workspaceFilesKeys.storageInfo(),
     queryFn: ({ signal }) => fetchStorageInfo(signal),

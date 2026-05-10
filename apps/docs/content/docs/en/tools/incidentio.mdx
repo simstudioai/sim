@@ -64,20 +64,8 @@ List incidents from incident.io. Returns a list of incidents with their details 
 |   ↳ `mode` | string | Incident mode \(standard, retrospective, test\) |
 |   ↳ `call_url` | string | Video call URL |
 |   ↳ `severity` | object | Incident severity |
-|     ↳ `id` | string | Severity ID |
-|     ↳ `name` | string | Severity name \(e.g., Critical, Major, Minor\) |
-|     ↳ `description` | string | Severity description |
-|     ↳ `rank` | number | Severity rank \(lower = more severe\) |
 |   ↳ `status` | object | Current incident status |
-|     ↳ `id` | string | Status ID |
-|     ↳ `name` | string | Status name |
-|     ↳ `description` | string | Status description |
-|     ↳ `category` | string | Status category \(triage, active, post-incident, closed\) |
 |   ↳ `incident_type` | object | Incident type |
-|     ↳ `id` | string | Incident type ID |
-|     ↳ `name` | string | Incident type name |
-|     ↳ `description` | string | Incident type description |
-|     ↳ `is_default` | boolean | Whether this is the default incident type |
 |   ↳ `created_at` | string | When the incident was created \(ISO 8601\) |
 |   ↳ `updated_at` | string | When the incident was last updated \(ISO 8601\) |
 |   ↳ `incident_url` | string | URL to the incident page |

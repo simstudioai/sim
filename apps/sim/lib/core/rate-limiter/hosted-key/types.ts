@@ -1,6 +1,6 @@
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter/storage'
 
-export type HostedKeyRateLimitMode = 'per_request' | 'custom'
+type HostedKeyRateLimitMode = 'per_request' | 'custom'
 
 /**
  * Simple per-request rate limit configuration.
@@ -32,7 +32,7 @@ export interface CustomRateLimit {
  * A single dimension for custom rate limiting.
  * Each dimension has its own token bucket.
  */
-export interface RateLimitDimension {
+interface RateLimitDimension {
   /** Dimension name (e.g., 'tokens', 'search_units') - used in storage key */
   name: string
   /** Limit per minute for this dimension */

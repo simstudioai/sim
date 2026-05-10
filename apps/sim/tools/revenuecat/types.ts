@@ -5,7 +5,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Based on official RevenueCat API v1 documentation.
  */
 
-export const SUBSCRIPTION_OUTPUT_PROPERTIES = {
+const SUBSCRIPTION_OUTPUT_PROPERTIES = {
   store_transaction_id: {
     type: 'string',
     description: 'Store transaction identifier',
@@ -75,7 +75,7 @@ export const SUBSCRIPTION_OUTPUT_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-export const ENTITLEMENT_OUTPUT_PROPERTIES = {
+const ENTITLEMENT_OUTPUT_PROPERTIES = {
   expires_date: {
     type: 'string',
     description: 'ISO 8601 expiration date (null for non-expiring entitlements)',
@@ -94,7 +94,7 @@ export const ENTITLEMENT_OUTPUT_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-export const SUBSCRIBER_OUTPUT_PROPERTIES = {
+const SUBSCRIBER_OUTPUT_PROPERTIES = {
   first_seen: { type: 'string', description: 'ISO 8601 date when subscriber was first seen' },
   last_seen: {
     type: 'string',
@@ -151,7 +151,7 @@ export const SUBSCRIBER_OUTPUT: OutputProperty = {
   properties: SUBSCRIBER_OUTPUT_PROPERTIES,
 }
 
-export const OFFERING_PACKAGE_OUTPUT_PROPERTIES = {
+const OFFERING_PACKAGE_OUTPUT_PROPERTIES = {
   identifier: { type: 'string', description: 'Package identifier' },
   platform_product_identifier: {
     type: 'string',
@@ -242,7 +242,7 @@ export async function throwIfRevenueCatError(response: Response): Promise<void> 
 /**
  * Base params interface for RevenueCat API calls
  */
-export interface RevenueCatBaseParams {
+interface RevenueCatBaseParams {
   apiKey: string
 }
 

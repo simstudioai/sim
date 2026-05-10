@@ -19,12 +19,12 @@ import {
   updateMcpServerContract,
 } from '@/lib/api/contracts/mcp'
 import { sanitizeForHttp, sanitizeHeaders } from '@/lib/mcp/shared'
-import type { McpServerStatusConfig, McpTool, McpTransport, StoredMcpTool } from '@/lib/mcp/types'
+import type { McpTool, McpTransport, StoredMcpTool } from '@/lib/mcp/types'
 import { workflowMcpServerKeys } from '@/hooks/queries/workflow-mcp-servers'
 
 const logger = createLogger('McpQueries')
 
-export type { McpServerStatusConfig, McpTool, StoredMcpTool }
+export type { McpTool, StoredMcpTool }
 
 export const mcpKeys = {
   all: ['mcp'] as const,
@@ -39,7 +39,7 @@ export type { McpServer }
 /**
  * Input for creating/updating an MCP server (distinct from McpServerConfig in types.ts)
  */
-export interface McpServerInput {
+interface McpServerInput {
   name: string
   transport: McpTransport
   url?: string

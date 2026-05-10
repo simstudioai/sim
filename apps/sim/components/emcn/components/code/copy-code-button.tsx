@@ -19,7 +19,7 @@ export function CopyCodeButton({ code, className }: CopyCodeButtonProps) {
       onClick={() => copy(code)}
       className={cn('flex items-center gap-1 rounded px-1.5 py-0.5 text-xs', className)}
     >
-      {copied ? <Check className='h-[14px] w-[14px]' /> : <Copy className='h-[14px] w-[14px]' />}
+      {copied ? <Check className='size-[14px]' /> : <Copy className='size-[14px]' />}
     </Button>
   )
 }

@@ -37,6 +37,6 @@ export const awsS3PutObjectContract = defineRouteContract({
   body: S3PutObjectSchema,
   response: { mode: 'json', schema: S3PutObjectResponseSchema },
 })
-export type AwsS3PutObjectRequest = ContractBodyInput<typeof awsS3PutObjectContract>
-export type AwsS3PutObjectBody = ContractBody<typeof awsS3PutObjectContract>
-export type AwsS3PutObjectResponse = ContractJsonResponse<typeof awsS3PutObjectContract>
+type AwsS3PutObjectRequest = ContractBodyInput<typeof awsS3PutObjectContract>
+type AwsS3PutObjectBody = ContractBody<typeof awsS3PutObjectContract>
+type AwsS3PutObjectResponse = ContractJsonResponse<typeof awsS3PutObjectContract>

@@ -31,6 +31,6 @@ export const awsSesGetAccountContract = defineRouteContract({
   body: GetAccountSchema,
   response: { mode: 'json', schema: GetAccountResponseSchema },
 })
-export type AwsSesGetAccountRequest = ContractBodyInput<typeof awsSesGetAccountContract>
-export type AwsSesGetAccountBody = ContractBody<typeof awsSesGetAccountContract>
-export type AwsSesGetAccountResponse = ContractJsonResponse<typeof awsSesGetAccountContract>
+type AwsSesGetAccountRequest = ContractBodyInput<typeof awsSesGetAccountContract>
+type AwsSesGetAccountBody = ContractBody<typeof awsSesGetAccountContract>
+type AwsSesGetAccountResponse = ContractJsonResponse<typeof awsSesGetAccountContract>

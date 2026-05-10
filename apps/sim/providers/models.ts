@@ -52,7 +52,7 @@ export interface ModelCapabilities {
   memory?: boolean
 }
 
-export interface ModelDefinition {
+interface ModelDefinition {
   id: string
   pricing: ModelPricing
   capabilities: ModelCapabilities

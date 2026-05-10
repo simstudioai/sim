@@ -35,7 +35,7 @@ export const USER_OUTPUT_PROPERTIES = {
 /**
  * User object output definition.
  */
-export const USER_OUTPUT: OutputProperty = {
+const USER_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Jira user object',
   properties: USER_OUTPUT_PROPERTIES,
@@ -45,7 +45,7 @@ export const USER_OUTPUT: OutputProperty = {
  * Status object properties from Jira API v3.
  * Based on IssueBean.fields.status structure.
  */
-export const STATUS_OUTPUT_PROPERTIES = {
+const STATUS_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Status ID' },
   name: { type: 'string', description: 'Status name (e.g., Open, In Progress, Done)' },
   description: { type: 'string', description: 'Status description', optional: true },
@@ -74,7 +74,7 @@ export const STATUS_OUTPUT_PROPERTIES = {
 /**
  * Status object output definition.
  */
-export const STATUS_OUTPUT: OutputProperty = {
+const STATUS_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Issue status',
   properties: STATUS_OUTPUT_PROPERTIES,
@@ -84,7 +84,7 @@ export const STATUS_OUTPUT: OutputProperty = {
  * Issue type object properties from Jira API v3.
  * Based on IssueBean.fields.issuetype structure.
  */
-export const ISSUE_TYPE_OUTPUT_PROPERTIES = {
+const ISSUE_TYPE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Issue type ID' },
   name: { type: 'string', description: 'Issue type name (e.g., Task, Bug, Story, Epic)' },
   description: { type: 'string', description: 'Issue type description', optional: true },
@@ -95,7 +95,7 @@ export const ISSUE_TYPE_OUTPUT_PROPERTIES = {
 /**
  * Issue type object output definition.
  */
-export const ISSUE_TYPE_OUTPUT: OutputProperty = {
+const ISSUE_TYPE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Issue type',
   properties: ISSUE_TYPE_OUTPUT_PROPERTIES,
@@ -105,7 +105,7 @@ export const ISSUE_TYPE_OUTPUT: OutputProperty = {
  * Project object properties from Jira API v3.
  * Based on IssueBean.fields.project structure.
  */
-export const PROJECT_OUTPUT_PROPERTIES = {
+const PROJECT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Project ID' },
   key: { type: 'string', description: 'Project key (e.g., PROJ)' },
   name: { type: 'string', description: 'Project name' },
@@ -119,7 +119,7 @@ export const PROJECT_OUTPUT_PROPERTIES = {
 /**
  * Project object output definition.
  */
-export const PROJECT_OUTPUT: OutputProperty = {
+const PROJECT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Jira project',
   properties: PROJECT_OUTPUT_PROPERTIES,
@@ -129,7 +129,7 @@ export const PROJECT_OUTPUT: OutputProperty = {
  * Priority object properties from Jira API v3.
  * Based on IssueBean.fields.priority structure.
  */
-export const PRIORITY_OUTPUT_PROPERTIES = {
+const PRIORITY_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Priority ID' },
   name: { type: 'string', description: 'Priority name (e.g., Highest, High, Medium, Low, Lowest)' },
   iconUrl: { type: 'string', description: 'URL to the priority icon', optional: true },
@@ -138,7 +138,7 @@ export const PRIORITY_OUTPUT_PROPERTIES = {
 /**
  * Priority object output definition.
  */
-export const PRIORITY_OUTPUT: OutputProperty = {
+const PRIORITY_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Issue priority',
   properties: PRIORITY_OUTPUT_PROPERTIES,
@@ -148,7 +148,7 @@ export const PRIORITY_OUTPUT: OutputProperty = {
  * Resolution object properties from Jira API v3.
  * Based on IssueBean.fields.resolution structure.
  */
-export const RESOLUTION_OUTPUT_PROPERTIES = {
+const RESOLUTION_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Resolution ID' },
   name: { type: 'string', description: "Resolution name (e.g., Fixed, Duplicate, Won't Fix)" },
   description: { type: 'string', description: 'Resolution description', optional: true },
@@ -157,7 +157,7 @@ export const RESOLUTION_OUTPUT_PROPERTIES = {
 /**
  * Resolution object output definition.
  */
-export const RESOLUTION_OUTPUT: OutputProperty = {
+const RESOLUTION_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Issue resolution',
   properties: RESOLUTION_OUTPUT_PROPERTIES,
@@ -168,7 +168,7 @@ export const RESOLUTION_OUTPUT: OutputProperty = {
  * Component object properties from Jira API v3.
  * Based on IssueBean.fields.components structure.
  */
-export const COMPONENT_OUTPUT_PROPERTIES = {
+const COMPONENT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Component ID' },
   name: { type: 'string', description: 'Component name' },
   description: { type: 'string', description: 'Component description', optional: true },
@@ -178,7 +178,7 @@ export const COMPONENT_OUTPUT_PROPERTIES = {
  * Version object properties from Jira API v3.
  * Based on IssueBean.fields.fixVersions / versions structure.
  */
-export const VERSION_OUTPUT_PROPERTIES = {
+const VERSION_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Version ID' },
   name: { type: 'string', description: 'Version name' },
   released: { type: 'boolean', description: 'Whether the version is released', optional: true },
@@ -189,7 +189,7 @@ export const VERSION_OUTPUT_PROPERTIES = {
  * Time tracking object properties from Jira API v3.
  * Based on IssueBean.fields.timetracking structure.
  */
-export const TIME_TRACKING_OUTPUT_PROPERTIES = {
+const TIME_TRACKING_OUTPUT_PROPERTIES = {
   originalEstimate: {
     type: 'string',
     description: 'Original estimate in human-readable format (e.g., 1w 2d)',
@@ -225,7 +225,7 @@ export const TIME_TRACKING_OUTPUT_PROPERTIES = {
 /**
  * Time tracking object output definition.
  */
-export const TIME_TRACKING_OUTPUT: OutputProperty = {
+const TIME_TRACKING_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Time tracking information',
   properties: TIME_TRACKING_OUTPUT_PROPERTIES,
@@ -236,7 +236,7 @@ export const TIME_TRACKING_OUTPUT: OutputProperty = {
  * Issue link object properties from Jira API v3.
  * Based on IssueBean.fields.issuelinks structure.
  */
-export const ISSUE_LINK_ITEM_PROPERTIES = {
+const ISSUE_LINK_ITEM_PROPERTIES = {
   id: { type: 'string', description: 'Issue link ID' },
   type: {
     type: 'object',
@@ -275,7 +275,7 @@ export const ISSUE_LINK_ITEM_PROPERTIES = {
 /**
  * Subtask item properties from Jira API v3.
  */
-export const SUBTASK_ITEM_PROPERTIES = {
+const SUBTASK_ITEM_PROPERTIES = {
   id: { type: 'string', description: 'Subtask issue ID' },
   key: { type: 'string', description: 'Subtask issue key' },
   summary: { type: 'string', description: 'Subtask summary' },
@@ -318,7 +318,7 @@ export const COMMENT_ITEM_PROPERTIES = {
 /**
  * Comment object output definition.
  */
-export const COMMENT_OUTPUT: OutputProperty = {
+const COMMENT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Jira comment object',
   properties: COMMENT_ITEM_PROPERTIES,
@@ -327,7 +327,7 @@ export const COMMENT_OUTPUT: OutputProperty = {
 /**
  * Comments array output definition.
  */
-export const COMMENTS_OUTPUT: OutputProperty = {
+const COMMENTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Jira comments',
   items: {
@@ -364,7 +364,7 @@ export const ATTACHMENT_ITEM_PROPERTIES = {
 /**
  * Attachment object output definition.
  */
-export const ATTACHMENT_OUTPUT: OutputProperty = {
+const ATTACHMENT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Jira attachment object',
   properties: ATTACHMENT_ITEM_PROPERTIES,
@@ -373,7 +373,7 @@ export const ATTACHMENT_OUTPUT: OutputProperty = {
 /**
  * Attachments array output definition.
  */
-export const ATTACHMENTS_OUTPUT: OutputProperty = {
+const ATTACHMENTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Jira attachments',
   items: {
@@ -411,7 +411,7 @@ export const WORKLOG_ITEM_PROPERTIES = {
 /**
  * Worklog object output definition.
  */
-export const WORKLOG_OUTPUT: OutputProperty = {
+const WORKLOG_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Jira worklog object',
   properties: WORKLOG_ITEM_PROPERTIES,
@@ -420,7 +420,7 @@ export const WORKLOG_OUTPUT: OutputProperty = {
 /**
  * Worklogs array output definition.
  */
-export const WORKLOGS_OUTPUT: OutputProperty = {
+const WORKLOGS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Jira worklogs',
   items: {
@@ -433,7 +433,7 @@ export const WORKLOGS_OUTPUT: OutputProperty = {
  * Transition object properties from Jira API v3.
  * Based on GET /rest/api/3/issue/{issueIdOrKey}/transitions response.
  */
-export const TRANSITION_ITEM_PROPERTIES = {
+const TRANSITION_ITEM_PROPERTIES = {
   id: { type: 'string', description: 'Transition ID' },
   name: { type: 'string', description: 'Transition name (e.g., Start Progress, Done)' },
   hasScreen: {
@@ -633,7 +633,7 @@ export const ISSUE_ITEM_PROPERTIES = {
 /**
  * Issue object output definition.
  */
-export const ISSUE_OUTPUT: OutputProperty = {
+const ISSUE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Jira issue object',
   properties: ISSUE_ITEM_PROPERTIES,
@@ -642,7 +642,7 @@ export const ISSUE_OUTPUT: OutputProperty = {
 /**
  * Issues array output definition for search endpoints.
  */
-export const ISSUES_OUTPUT: OutputProperty = {
+const ISSUES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Jira issues',
   items: {
@@ -743,7 +743,7 @@ export const TIMESTAMP_OUTPUT: OutputProperty = {
 /**
  * Common issue key output property.
  */
-export const ISSUE_KEY_OUTPUT: OutputProperty = {
+const ISSUE_KEY_OUTPUT: OutputProperty = {
   type: 'string',
   description: 'Jira issue key (e.g., PROJ-123)',
 }
@@ -1033,7 +1033,7 @@ export interface JiraWriteResponse extends ToolResponse {
   }
 }
 
-export interface JiraIssue {
+interface JiraIssue {
   key: string
   summary: string
   status: string
@@ -1042,14 +1042,14 @@ export interface JiraIssue {
   updated: string
 }
 
-export interface JiraProject {
+interface JiraProject {
   id: string
   key: string
   name: string
   url: string
 }
 
-export interface JiraCloudResource {
+interface JiraCloudResource {
   id: string
   url: string
   name: string

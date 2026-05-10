@@ -39,7 +39,7 @@ export type {
   CredentialSetMembership,
 }
 
-export const credentialSetKeys = {
+const credentialSetKeys = {
   all: ['credentialSets'] as const,
   lists: () => [...credentialSetKeys.all, 'list'] as const,
   list: (organizationId?: string) =>
@@ -54,7 +54,7 @@ export const credentialSetKeys = {
   invitations: () => [...credentialSetKeys.all, 'invitations'] as const,
 }
 
-export async function fetchCredentialSets(
+async function fetchCredentialSets(
   organizationId: string,
   signal?: AbortSignal
 ): Promise<CredentialSet[]> {

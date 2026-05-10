@@ -31,7 +31,7 @@ export type JobType =
   | 'cleanup-tasks'
   | 'run-data-drain'
 
-export type AsyncExecutionCorrelationSource = 'workflow' | 'schedule' | 'webhook'
+type AsyncExecutionCorrelationSource = 'workflow' | 'schedule' | 'webhook'
 
 export interface AsyncExecutionCorrelation {
   executionId: string

@@ -59,7 +59,7 @@ export function createEvent<TInput extends CreateEventInput>(
   } as CreateEventResult<TInput>
 }
 
-export function isEventRecord(value: unknown): value is PersistedStreamEventEnvelope {
+function isEventRecord(value: unknown): value is PersistedStreamEventEnvelope {
   return parsePersistedStreamEventEnvelope(value).ok
 }
 

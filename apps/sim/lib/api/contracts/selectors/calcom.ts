@@ -22,9 +22,7 @@ export const calcomSchedulesSelectorContract = definePostSelector(
   z.object({ schedules: z.array(idNameSchema) })
 )
 
-export type CalcomEventTypesSelectorResponse = ContractJsonResponse<
+type CalcomEventTypesSelectorResponse = ContractJsonResponse<
   typeof calcomEventTypesSelectorContract
 >
-export type CalcomSchedulesSelectorResponse = ContractJsonResponse<
-  typeof calcomSchedulesSelectorContract
->
+type CalcomSchedulesSelectorResponse = ContractJsonResponse<typeof calcomSchedulesSelectorContract>

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const storageUsageSchema = z.object({
+const storageUsageSchema = z.object({
   usedBytes: z.number(),
   limitBytes: z.number(),
   percentUsed: z.number(),

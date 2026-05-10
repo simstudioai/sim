@@ -4,7 +4,6 @@ import { requestJson } from '@/lib/api/client/request'
 import {
   type ConnectorData,
   type ConnectorDetailData,
-  type ConnectorDocumentData,
   type ConnectorDocumentsData,
   createKnowledgeConnectorContract,
   deleteKnowledgeConnectorContract,
@@ -22,7 +21,7 @@ const logger = createLogger('KnowledgeConnectorQueries')
 
 export type { ConnectorData, ConnectorDetailData, SyncLogData }
 
-export const connectorKeys = {
+const connectorKeys = {
   all: (knowledgeBaseId: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'connectors'] as const,
   list: (knowledgeBaseId?: string) =>
@@ -97,7 +96,7 @@ export function useConnectorDetail(knowledgeBaseId?: string, connectorId?: strin
   })
 }
 
-export interface CreateConnectorParams {
+interface CreateConnectorParams {
   knowledgeBaseId: string
   connectorType: string
   credentialId?: string
@@ -131,7 +130,7 @@ export function useCreateConnector() {
   })
 }
 
-export interface UpdateConnectorParams {
+interface UpdateConnectorParams {
   knowledgeBaseId: string
   connectorId: string
   updates: {
@@ -167,7 +166,7 @@ export function useUpdateConnector() {
   })
 }
 
-export interface DeleteConnectorParams {
+interface DeleteConnectorParams {
   knowledgeBaseId: string
   connectorId: string
   deleteDocuments?: boolean
@@ -197,7 +196,7 @@ export function useDeleteConnector() {
   })
 }
 
-export interface TriggerSyncParams {
+interface TriggerSyncParams {
   knowledgeBaseId: string
   connectorId: string
 }
@@ -221,9 +220,7 @@ export function useTriggerSync() {
   })
 }
 
-export type { ConnectorDocumentData }
-
-export const connectorDocumentKeys = {
+const connectorDocumentKeys = {
   list: (knowledgeBaseId?: string, connectorId?: string) =>
     [...connectorKeys.detail(knowledgeBaseId, connectorId), 'documents'] as const,
 }

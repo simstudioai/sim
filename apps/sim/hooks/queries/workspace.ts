@@ -14,10 +14,8 @@ import {
   type WorkspaceCreationPolicy,
   type WorkspaceMember,
   type WorkspacePermissions,
-  type WorkspacePermissionsViewer,
   type WorkspaceQueryScope,
   type WorkspacesResponse,
-  type WorkspaceUser,
 } from '@/lib/api/contracts'
 
 /**
@@ -38,14 +36,7 @@ export const workspaceKeys = {
   adminList: (userId: string | undefined) => [...workspaceKeys.adminLists(), userId ?? ''] as const,
 }
 
-export type {
-  Workspace,
-  WorkspaceCreationPolicy,
-  WorkspaceMember,
-  WorkspacePermissions,
-  WorkspacePermissionsViewer,
-  WorkspaceUser,
-}
+export type { Workspace, WorkspaceCreationPolicy, WorkspaceMember, WorkspacePermissions }
 
 async function fetchWorkspaces(
   scope: WorkspaceQueryScope = 'active',

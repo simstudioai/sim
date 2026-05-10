@@ -10,7 +10,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 /**
  * Output definition for nested state objects in issue responses
  */
-export const STATE_OUTPUT_PROPERTIES = {
+const STATE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'State ID' },
   name: { type: 'string', description: 'State name (e.g., "Todo", "In Progress")' },
   type: { type: 'string', description: 'State type (unstarted, started, completed, canceled)' },
@@ -19,7 +19,7 @@ export const STATE_OUTPUT_PROPERTIES = {
 /**
  * Complete state object output definition
  */
-export const STATE_OUTPUT: OutputProperty = {
+const STATE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Workflow state/status',
   properties: STATE_OUTPUT_PROPERTIES,
@@ -28,7 +28,7 @@ export const STATE_OUTPUT: OutputProperty = {
 /**
  * Output definition for nested assignee/user objects
  */
-export const USER_OUTPUT_PROPERTIES = {
+const USER_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'User ID' },
   name: { type: 'string', description: 'User name' },
   email: { type: 'string', description: 'User email' },
@@ -37,7 +37,7 @@ export const USER_OUTPUT_PROPERTIES = {
 /**
  * Complete user object output definition
  */
-export const USER_OUTPUT: OutputProperty = {
+const USER_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'User object',
   properties: USER_OUTPUT_PROPERTIES,
@@ -59,7 +59,7 @@ export const USER_FULL_OUTPUT_PROPERTIES = {
 /**
  * Output definition for nested team objects
  */
-export const TEAM_OUTPUT_PROPERTIES = {
+const TEAM_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Team ID' },
   name: { type: 'string', description: 'Team name' },
 } as const satisfies Record<string, OutputProperty>
@@ -67,7 +67,7 @@ export const TEAM_OUTPUT_PROPERTIES = {
 /**
  * Complete team object output definition
  */
-export const TEAM_OUTPUT: OutputProperty = {
+const TEAM_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Team object',
   properties: TEAM_OUTPUT_PROPERTIES,
@@ -86,7 +86,7 @@ export const TEAM_FULL_OUTPUT_PROPERTIES = {
 /**
  * Output definition for nested label objects
  */
-export const LABEL_OUTPUT_PROPERTIES = {
+const LABEL_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Label ID' },
   name: { type: 'string', description: 'Label name' },
   color: { type: 'string', description: 'Label color (hex)' },
@@ -95,7 +95,7 @@ export const LABEL_OUTPUT_PROPERTIES = {
 /**
  * Complete labels array output definition
  */
-export const LABELS_OUTPUT: OutputProperty = {
+const LABELS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Issue labels',
   items: {
@@ -122,7 +122,7 @@ export const LABEL_FULL_OUTPUT_PROPERTIES = {
 /**
  * Output definition for nested cycle objects
  */
-export const CYCLE_OUTPUT_PROPERTIES = {
+const CYCLE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Cycle ID' },
   number: { type: 'number', description: 'Cycle number' },
   name: { type: 'string', description: 'Cycle name' },
@@ -131,7 +131,7 @@ export const CYCLE_OUTPUT_PROPERTIES = {
 /**
  * Complete cycle object output definition
  */
-export const CYCLE_OUTPUT: OutputProperty = {
+const CYCLE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Cycle/sprint object',
   properties: CYCLE_OUTPUT_PROPERTIES,
@@ -155,7 +155,7 @@ export const CYCLE_FULL_OUTPUT_PROPERTIES = {
 /**
  * Output definition for nested project objects
  */
-export const PROJECT_OUTPUT_PROPERTIES = {
+const PROJECT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Project ID' },
   name: { type: 'string', description: 'Project name' },
 } as const satisfies Record<string, OutputProperty>
@@ -163,7 +163,7 @@ export const PROJECT_OUTPUT_PROPERTIES = {
 /**
  * Complete project object output definition
  */
-export const PROJECT_OUTPUT: OutputProperty = {
+const PROJECT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Project object',
   properties: PROJECT_OUTPUT_PROPERTIES,
@@ -198,7 +198,7 @@ export const PROJECT_FULL_OUTPUT_PROPERTIES = {
 /**
  * Output definition for nested issue objects (minimal)
  */
-export const ISSUE_MINIMAL_OUTPUT_PROPERTIES = {
+const ISSUE_MINIMAL_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Issue ID' },
   title: { type: 'string', description: 'Issue title' },
 } as const satisfies Record<string, OutputProperty>
@@ -206,7 +206,7 @@ export const ISSUE_MINIMAL_OUTPUT_PROPERTIES = {
 /**
  * Complete issue minimal object output definition
  */
-export const ISSUE_MINIMAL_OUTPUT: OutputProperty = {
+const ISSUE_MINIMAL_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Issue object',
   properties: ISSUE_MINIMAL_OUTPUT_PROPERTIES,
@@ -298,7 +298,7 @@ export const WORKFLOW_STATE_OUTPUT_PROPERTIES = {
 /**
  * Output definition for issue relation objects
  */
-export const ISSUE_RELATION_OUTPUT_PROPERTIES = {
+const ISSUE_RELATION_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Relation ID' },
   type: { type: 'string', description: 'Relation type (blocks, duplicate, related)' },
   issue: ISSUE_MINIMAL_OUTPUT,
@@ -308,7 +308,7 @@ export const ISSUE_RELATION_OUTPUT_PROPERTIES = {
 /**
  * Output definition for favorite objects
  */
-export const FAVORITE_OUTPUT_PROPERTIES = {
+const FAVORITE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Favorite ID' },
   type: { type: 'string', description: 'Favorite type (issue, project, cycle)' },
   issue: ISSUE_MINIMAL_OUTPUT,
@@ -319,7 +319,7 @@ export const FAVORITE_OUTPUT_PROPERTIES = {
 /**
  * Output definition for project update objects
  */
-export const PROJECT_UPDATE_OUTPUT_PROPERTIES = {
+const PROJECT_UPDATE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Project update ID' },
   body: { type: 'string', description: 'Update body (Markdown)' },
   health: { type: 'string', description: 'Project health (onTrack, atRisk, offTrack)' },
@@ -330,7 +330,7 @@ export const PROJECT_UPDATE_OUTPUT_PROPERTIES = {
 /**
  * Output definition for notification objects
  */
-export const NOTIFICATION_OUTPUT_PROPERTIES = {
+const NOTIFICATION_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Notification ID' },
   type: { type: 'string', description: 'Notification type' },
   createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
@@ -367,7 +367,7 @@ export const CUSTOMER_OUTPUT_PROPERTIES = {
 /**
  * Output definition for customer need/request objects
  */
-export const CUSTOMER_NEED_OUTPUT_PROPERTIES = {
+const CUSTOMER_NEED_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Customer need ID' },
   body: { type: 'string', description: 'Need body/description' },
   priority: { type: 'number', description: 'Priority (0-4)' },
@@ -450,7 +450,7 @@ export const PROJECT_MILESTONE_OUTPUT_PROPERTIES = {
 /**
  * Output definition for nested project milestone objects
  */
-export const PROJECT_MILESTONE_MINIMAL_OUTPUT_PROPERTIES = {
+const PROJECT_MILESTONE_MINIMAL_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Project milestone ID' },
   name: { type: 'string', description: 'Milestone name' },
 } as const satisfies Record<string, OutputProperty>
@@ -522,7 +522,7 @@ export const ISSUE_LIST_OUTPUT_PROPERTIES = {
 
 // ===== Core Types =====
 
-export interface LinearIssue {
+interface LinearIssue {
   id: string
   title: string
   description?: string
@@ -553,7 +553,7 @@ export interface LinearIssue {
   url?: string
 }
 
-export interface LinearComment {
+interface LinearComment {
   id: string
   body: string
   createdAt: string
@@ -569,7 +569,7 @@ export interface LinearComment {
   }
 }
 
-export interface LinearProject {
+interface LinearProject {
   id: string
   name: string
   description?: string
@@ -591,7 +591,7 @@ export interface LinearProject {
   url?: string
 }
 
-export interface LinearUser {
+interface LinearUser {
   id: string
   name: string
   email: string
@@ -601,14 +601,14 @@ export interface LinearUser {
   avatarUrl?: string
 }
 
-export interface LinearTeam {
+interface LinearTeam {
   id: string
   name: string
   key: string
   description?: string
 }
 
-export interface LinearLabel {
+interface LinearLabel {
   id: string
   name: string
   color: string
@@ -623,7 +623,7 @@ export interface LinearLabel {
   }
 }
 
-export interface LinearWorkflowState {
+interface LinearWorkflowState {
   id: string
   name: string
   description?: string
@@ -639,7 +639,7 @@ export interface LinearWorkflowState {
   }
 }
 
-export interface LinearCycle {
+interface LinearCycle {
   id: string
   number: number
   name?: string
@@ -1235,7 +1235,7 @@ export interface LinearGetActiveCycleResponse extends ToolResponse {
   }
 }
 
-export interface LinearAttachment {
+interface LinearAttachment {
   id: string
   title?: string
   subtitle?: string
@@ -1272,7 +1272,7 @@ export interface LinearDeleteAttachmentResponse extends ToolResponse {
   }
 }
 
-export interface LinearIssueRelation {
+interface LinearIssueRelation {
   id: string
   type: string
   issue: {
@@ -1307,7 +1307,7 @@ export interface LinearDeleteIssueRelationResponse extends ToolResponse {
   }
 }
 
-export interface LinearFavorite {
+interface LinearFavorite {
   id: string
   type: string
   issue?: {
@@ -1340,7 +1340,7 @@ export interface LinearListFavoritesResponse extends ToolResponse {
   }
 }
 
-export interface LinearProjectUpdate {
+interface LinearProjectUpdate {
   id: string
   body: string
   health: string
@@ -1367,7 +1367,7 @@ export interface LinearListProjectUpdatesResponse extends ToolResponse {
   }
 }
 
-export interface LinearNotification {
+interface LinearNotification {
   id: string
   type: string
   createdAt: string
@@ -1396,7 +1396,7 @@ export interface LinearUpdateNotificationResponse extends ToolResponse {
 
 // ===== Customer Types =====
 
-export interface LinearCustomer {
+interface LinearCustomer {
   id: string
   name: string
   domains: string[]
@@ -1449,7 +1449,7 @@ export interface LinearListCustomersResponse extends ToolResponse {
 
 // ===== Customer Need (Request) Types =====
 
-export interface LinearCustomerNeed {
+interface LinearCustomerNeed {
   id: string
   body?: string
   priority: number
@@ -1579,7 +1579,7 @@ export interface LinearMergeCustomersResponse extends ToolResponse {
 
 // ===== Customer Status Types =====
 
-export interface LinearCustomerStatus {
+interface LinearCustomerStatus {
   id: string
   name: string
   description?: string
@@ -1651,7 +1651,7 @@ export interface LinearListCustomerStatusesResponse extends ToolResponse {
 
 // ===== Customer Tier Types =====
 
-export interface LinearCustomerTier {
+interface LinearCustomerTier {
   id: string
   name: string
   displayName: string
@@ -1722,7 +1722,7 @@ export interface LinearListCustomerTiersResponse extends ToolResponse {
 
 // ===== Project Label Types =====
 
-export interface LinearProjectLabel {
+interface LinearProjectLabel {
   id: string
   name: string
   description?: string
@@ -1818,7 +1818,7 @@ export interface LinearRemoveLabelFromProjectResponse extends ToolResponse {
 
 // ===== Project Milestone Types =====
 
-export interface LinearProjectMilestone {
+interface LinearProjectMilestone {
   id: string
   name: string
   description?: string
@@ -1889,7 +1889,7 @@ export interface LinearListProjectMilestonesResponse extends ToolResponse {
 
 // ===== Project Status Types =====
 
-export interface LinearProjectStatus {
+interface LinearProjectStatus {
   id: string
   name: string
   description?: string

@@ -1,17 +1,11 @@
 import type {
-  BlockData,
-  BlockLayoutState,
   BlockState,
-  DragStartPosition,
   Loop,
-  LoopBlock,
   LoopConfig,
   Parallel,
-  ParallelBlock,
   ParallelConfig,
   Position,
   SubBlockState,
-  Subflow,
   SubflowType,
   Variable,
   WorkflowState,
@@ -19,25 +13,17 @@ import type {
 import type { Edge } from 'reactflow'
 
 export type {
-  BlockData,
-  BlockLayoutState,
   BlockState,
-  DragStartPosition,
   Loop,
-  LoopBlock,
   LoopConfig,
   Parallel,
-  ParallelBlock,
   ParallelConfig,
   Position,
   SubBlockState,
-  Subflow,
   SubflowType,
   Variable,
   WorkflowState,
 }
-export { isValidSubflowType, SUBFLOW_TYPES } from '@sim/workflow-types/workflow'
-
 export interface WorkflowActions {
   updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void
   batchUpdateBlocksWithParent: (

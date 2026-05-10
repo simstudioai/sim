@@ -25,6 +25,6 @@ export const awsIamDeleteUserContract = defineRouteContract({
   body: Schema,
   response: { mode: 'json', schema: z.object({ message: z.string() }) },
 })
-export type AwsIamDeleteUserRequest = ContractBodyInput<typeof awsIamDeleteUserContract>
-export type AwsIamDeleteUserBody = ContractBody<typeof awsIamDeleteUserContract>
-export type AwsIamDeleteUserResponse = ContractJsonResponse<typeof awsIamDeleteUserContract>
+type AwsIamDeleteUserRequest = ContractBodyInput<typeof awsIamDeleteUserContract>
+type AwsIamDeleteUserBody = ContractBody<typeof awsIamDeleteUserContract>
+type AwsIamDeleteUserResponse = ContractJsonResponse<typeof awsIamDeleteUserContract>

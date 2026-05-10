@@ -7,7 +7,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
 import type { BlockState, SubBlockState } from '@/stores/workflows/workflow/types'
 
-export type WorkflowSearchMode = 'text' | 'resource' | 'all'
+type WorkflowSearchMode = 'text' | 'resource' | 'all'
 
 export type WorkflowSearchMatchKind =
   | 'text'
@@ -42,7 +42,7 @@ export interface WorkflowSearchResourceMeta {
   key?: string
 }
 
-export type WorkflowSearchTarget =
+type WorkflowSearchTarget =
   | { kind: 'subblock' }
   | { kind: 'subflow'; fieldId: WorkflowSearchSubflowFieldId }
 
@@ -70,7 +70,7 @@ export interface WorkflowSearchMatch {
   reason?: string
 }
 
-export interface WorkflowSearchSubBlockState extends Omit<SubBlockState, 'value'> {
+interface WorkflowSearchSubBlockState extends Omit<SubBlockState, 'value'> {
   value: unknown
 }
 
@@ -129,7 +129,7 @@ export interface WorkflowSearchReplaceSubflowUpdate {
   matchIds: string[]
 }
 
-export interface WorkflowSearchReplaceSkipped {
+interface WorkflowSearchReplaceSkipped {
   matchId: string
   reason: string
 }

@@ -55,7 +55,7 @@ export default function WorkflowsPage() {
       <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>
         <div className='workflow-container flex h-full items-center justify-center bg-[var(--bg)]'>
           <div
-            className='h-[18px] w-[18px] animate-spin rounded-full'
+            className='size-[18px] animate-spin rounded-full'
             style={{
               background:
                 'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',

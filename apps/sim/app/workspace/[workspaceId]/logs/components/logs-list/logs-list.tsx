@@ -9,6 +9,7 @@ import { Badge, buttonVariants, Loader } from '@/components/emcn'
 import type { WorkflowLogSummary } from '@/lib/api/contracts/logs'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   DELETED_WORKFLOW_COLOR,
@@ -70,11 +71,14 @@ const LogRow = memo(
     return (
       <div
         ref={isSelected ? selectedRowRef : null}
+        role='button'
+        tabIndex={0}
         className={cn(
           'relative flex h-[44px] cursor-pointer items-center px-6 hover-hover:bg-[var(--surface-3)] dark:hover-hover:bg-[var(--surface-4)]',
           isSelected && 'bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'
         )}
         onClick={handleClick}
+        onKeyDown={(event) => handleKeyboardActivation(event, handleClick)}
         onMouseEnter={handleMouseEnter}
         onContextMenu={handleContextMenu}
       >
@@ -83,7 +87,7 @@ const LogRow = memo(
             className={`flex ${LOG_COLUMNS.workflow.width} ${LOG_COLUMNS.workflow.minWidth} items-center gap-2 pr-2`}
           >
             <div
-              className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
+              className='size-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
               style={{
                 backgroundColor: workflowColor,
                 borderColor: workflowBorderColor(workflowColor),
@@ -122,7 +126,7 @@ const LogRow = memo(
             {log.trigger ? (
               <TriggerBadge trigger={log.trigger} />
             ) : (
-              <span className='font-medium text-[var(--text-primary)] text-caption'>—</span>
+              <span className='font-medium text-[var(--text-primary)] text-caption'>None</span>
             )}
           </div>
 
@@ -146,7 +150,7 @@ const LogRow = memo(
             aria-label='Open resume console'
             onClick={(e) => e.stopPropagation()}
           >
-            <ArrowUpRight className='h-[14px] w-[14px]' />
+            <ArrowUpRight className='size-[14px]' />
           </Link>
         )}
       </div>
@@ -196,8 +200,8 @@ function Row({
         <div ref={loaderRef} className='flex items-center gap-2 text-[var(--text-secondary)]'>
           {isFetchingNextPage ? (
             <>
-              <Loader className='h-[16px] w-[16px]' animate />
-              <span className='text-small'>Loading more...</span>
+              <Loader className='size-[16px]' animate />
+              <span className='text-small'>Loading more…</span>
             </>
           ) : (
             <span className='text-small'>Scroll to load more</span>

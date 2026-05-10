@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface GoogleVaultCommonParams {
+interface GoogleVaultCommonParams {
   accessToken: string
   matterId: string
 }
@@ -43,13 +43,13 @@ export interface GoogleVaultListMattersExportParams extends GoogleVaultCommonPar
   exportId?: string
 }
 
-export interface GoogleVaultListMattersExportResponse extends ToolResponse {
+interface GoogleVaultListMattersExportResponse extends ToolResponse {
   output: any
 }
 
-export type GoogleVaultHoldView = 'BASIC_HOLD' | 'FULL_HOLD'
+type GoogleVaultHoldView = 'BASIC_HOLD' | 'FULL_HOLD'
 
-export type GoogleVaultCorpus = 'MAIL' | 'DRIVE' | 'GROUPS' | 'HANGOUTS_CHAT' | 'VOICE'
+type GoogleVaultCorpus = 'MAIL' | 'DRIVE' | 'GROUPS' | 'HANGOUTS_CHAT' | 'VOICE'
 
 export interface GoogleVaultCreateMattersHoldsParams extends GoogleVaultCommonParams {
   holdName: string
@@ -68,6 +68,6 @@ export interface GoogleVaultListMattersHoldsParams extends GoogleVaultCommonPara
   holdId?: string
 }
 
-export interface GoogleVaultListMattersHoldsResponse extends ToolResponse {
+interface GoogleVaultListMattersHoldsResponse extends ToolResponse {
   output: any
 }

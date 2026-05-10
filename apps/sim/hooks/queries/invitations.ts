@@ -15,13 +15,11 @@ import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
-export const invitationKeys = {
+const invitationKeys = {
   all: ['invitations'] as const,
   lists: () => [...invitationKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...invitationKeys.lists(), workspaceId] as const,
 }
-
-export type { PendingInvitationRow }
 
 export interface WorkspaceInvitation {
   email: string

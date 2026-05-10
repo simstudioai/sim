@@ -1,7 +1,7 @@
 import { isEqual, omit } from 'es-toolkit'
 import type { McpToolSchema, StoredMcpToolReference } from '@/lib/mcp/types'
 
-export type McpToolIssueType =
+type McpToolIssueType =
   | 'server_not_found'
   | 'server_error'
   | 'tool_not_found'
@@ -42,7 +42,7 @@ export function hasSchemaChanged(
  * Validates server-level connectivity for an MCP server.
  * Checks: server existence, connection status, URL changes.
  */
-export function getMcpServerIssue(
+function getMcpServerIssue(
   serverId: string,
   serverUrl: string | undefined,
   servers: ServerState[]

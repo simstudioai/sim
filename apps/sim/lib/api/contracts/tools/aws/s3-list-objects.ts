@@ -40,6 +40,6 @@ export const awsS3ListObjectsContract = defineRouteContract({
   body: S3ListObjectsSchema,
   response: { mode: 'json', schema: S3ListObjectsResponseSchema },
 })
-export type AwsS3ListObjectsRequest = ContractBodyInput<typeof awsS3ListObjectsContract>
-export type AwsS3ListObjectsBody = ContractBody<typeof awsS3ListObjectsContract>
-export type AwsS3ListObjectsResponse = ContractJsonResponse<typeof awsS3ListObjectsContract>
+type AwsS3ListObjectsRequest = ContractBodyInput<typeof awsS3ListObjectsContract>
+type AwsS3ListObjectsBody = ContractBody<typeof awsS3ListObjectsContract>
+type AwsS3ListObjectsResponse = ContractJsonResponse<typeof awsS3ListObjectsContract>

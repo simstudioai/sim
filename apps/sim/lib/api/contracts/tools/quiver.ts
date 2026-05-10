@@ -12,7 +12,7 @@ const quiverCommonBodySchema = z.object({
   presence_penalty: z.number().min(-2).max(2).optional().nullable(),
 })
 
-export const quiverTextToSvgBodySchema = quiverCommonBodySchema.extend({
+const quiverTextToSvgBodySchema = quiverCommonBodySchema.extend({
   prompt: z.string().min(1),
   instructions: z.string().optional().nullable(),
   references: z
@@ -22,7 +22,7 @@ export const quiverTextToSvgBodySchema = quiverCommonBodySchema.extend({
   n: z.number().int().min(1).max(16).optional().nullable(),
 })
 
-export const quiverImageToSvgBodySchema = quiverCommonBodySchema.extend({
+const quiverImageToSvgBodySchema = quiverCommonBodySchema.extend({
   image: z.union([FileInputSchema, z.string()]),
   auto_crop: z.boolean().optional().nullable(),
   target_size: z.number().int().min(128).max(4096).optional().nullable(),

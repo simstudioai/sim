@@ -10,16 +10,16 @@ export function normalizeCredentialEnvKey(raw: string): string {
   return wrappedMatch ? wrappedMatch[1] : trimmed
 }
 
-export const workspaceCredentialTypeSchema = z.enum([
+const workspaceCredentialTypeSchema = z.enum([
   'oauth',
   'env_workspace',
   'env_personal',
   'service_account',
 ])
-export const workspaceCredentialRoleSchema = z.enum(['admin', 'member'])
-export const workspaceCredentialMemberStatusSchema = z.enum(['active', 'pending', 'revoked'])
+const workspaceCredentialRoleSchema = z.enum(['admin', 'member'])
+const workspaceCredentialMemberStatusSchema = z.enum(['active', 'pending', 'revoked'])
 
-export const workspaceCredentialSchema = z.object({
+const workspaceCredentialSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
   type: workspaceCredentialTypeSchema,
@@ -38,16 +38,16 @@ export const workspaceCredentialSchema = z.object({
 
 export type WorkspaceCredentialType = z.output<typeof workspaceCredentialTypeSchema>
 export type WorkspaceCredentialRole = z.output<typeof workspaceCredentialRoleSchema>
-export type WorkspaceCredentialMemberStatus = z.output<typeof workspaceCredentialMemberStatusSchema>
+type WorkspaceCredentialMemberStatus = z.output<typeof workspaceCredentialMemberStatusSchema>
 export type WorkspaceCredential = z.output<typeof workspaceCredentialSchema>
 
-export const credentialsListQuerySchema = z.object({
+const credentialsListQuerySchema = z.object({
   workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
   type: workspaceCredentialTypeSchema.optional(),
   providerId: z.string().optional(),
 })
 
-export const credentialIdParamsSchema = z.object({
+const credentialIdParamsSchema = z.object({
   id: z.string().min(1),
 })
 
@@ -108,7 +108,7 @@ export const serviceAccountJsonSchema = z
     }
   })
 
-export const createCredentialBodySchema = z
+const createCredentialBodySchema = z
   .object({
     workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
     type: workspaceCredentialTypeSchema,
@@ -195,7 +195,7 @@ export const createCredentialBodySchema = z
     }
   })
 
-export const updateCredentialByIdBodySchema = z
+const updateCredentialByIdBodySchema = z
   .object({
     displayName: z.string().trim().min(1).max(255).optional(),
     description: z.string().trim().max(500).nullish(),
@@ -217,7 +217,7 @@ export const leaveCredentialQuerySchema = z.object({
   credentialId: z.string().min(1),
 })
 
-export const workspaceCredentialMemberSchema = z.object({
+const workspaceCredentialMemberSchema = z.object({
   id: z.string(),
   userId: z.string(),
   role: workspaceCredentialRoleSchema,
@@ -233,7 +233,7 @@ export const workspaceCredentialMemberSchema = z.object({
 
 export type WorkspaceCredentialMember = z.output<typeof workspaceCredentialMemberSchema>
 
-export const createCredentialDraftBodySchema = z.object({
+const createCredentialDraftBodySchema = z.object({
   workspaceId: z.string().min(1),
   providerId: z.string().min(1),
   displayName: z.string().min(1),
@@ -241,16 +241,16 @@ export const createCredentialDraftBodySchema = z.object({
   credentialId: z.string().min(1).optional(),
 })
 
-export const upsertWorkspaceCredentialMemberBodySchema = z.object({
+const upsertWorkspaceCredentialMemberBodySchema = z.object({
   userId: z.string().min(1),
   role: workspaceCredentialRoleSchema.default('member'),
 })
 
-export const removeWorkspaceCredentialMemberQuerySchema = z.object({
+const removeWorkspaceCredentialMemberQuerySchema = z.object({
   userId: z.string().min(1),
 })
 
-export const oauthCredentialSchema = z.object({
+const oauthCredentialSchema = z.object({
   id: z.string(),
   name: z.string(),
   provider: z.custom<OAuthProvider>((value) => typeof value === 'string'),

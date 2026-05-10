@@ -16,7 +16,7 @@ interface RequestResetFormProps {
   className?: string
 }
 
-export function RequestResetForm({
+function RequestResetForm({
   email,
   onEmailChange,
   onSubmit,
@@ -67,8 +67,8 @@ export function RequestResetForm({
       <button type='submit' disabled={isSubmitting} className={AUTH_SUBMIT_BTN}>
         {isSubmitting ? (
           <span className='flex items-center gap-2'>
-            <Loader className='h-4 w-4' animate />
-            Sending...
+            <Loader className='size-4' animate />
+            Sending…
           </span>
         ) : (
           'Send Reset Link'
@@ -232,8 +232,8 @@ export function SetNewPasswordForm({
       <button type='submit' disabled={isSubmitting || !token} className={AUTH_SUBMIT_BTN}>
         {isSubmitting ? (
           <span className='flex items-center gap-2'>
-            <Loader className='h-4 w-4' animate />
-            Resetting...
+            <Loader className='size-4' animate />
+            Resetting…
           </span>
         ) : (
           'Reset Password'

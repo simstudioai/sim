@@ -26,6 +26,6 @@ export const awsIamAddUserToGroupContract = defineRouteContract({
   body: Schema,
   response: { mode: 'json', schema: z.object({ message: z.string() }) },
 })
-export type AwsIamAddUserToGroupRequest = ContractBodyInput<typeof awsIamAddUserToGroupContract>
-export type AwsIamAddUserToGroupBody = ContractBody<typeof awsIamAddUserToGroupContract>
-export type AwsIamAddUserToGroupResponse = ContractJsonResponse<typeof awsIamAddUserToGroupContract>
+type AwsIamAddUserToGroupRequest = ContractBodyInput<typeof awsIamAddUserToGroupContract>
+type AwsIamAddUserToGroupBody = ContractBody<typeof awsIamAddUserToGroupContract>
+type AwsIamAddUserToGroupResponse = ContractJsonResponse<typeof awsIamAddUserToGroupContract>

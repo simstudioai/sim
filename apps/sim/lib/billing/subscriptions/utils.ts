@@ -58,21 +58,21 @@ export function getFreeTierLimit(): number {
 /**
  * Get the pro tier limit from env or fallback to default
  */
-export function getProTierLimit(): number {
+function getProTierLimit(): number {
   return envNumber(env.PRO_TIER_COST_LIMIT, DEFAULT_PRO_TIER_COST_LIMIT)
 }
 
 /**
  * Get the team tier limit per seat from env or fallback to default
  */
-export function getTeamTierLimitPerSeat(): number {
+function getTeamTierLimitPerSeat(): number {
   return envNumber(env.TEAM_TIER_COST_LIMIT, DEFAULT_TEAM_TIER_COST_LIMIT)
 }
 
 /**
  * Get the enterprise tier limit per seat from env or fallback to default
  */
-export function getEnterpriseTierLimitPerSeat(): number {
+function getEnterpriseTierLimitPerSeat(): number {
   return envNumber(env.ENTERPRISE_TIER_COST_LIMIT, DEFAULT_ENTERPRISE_TIER_COST_LIMIT)
 }
 

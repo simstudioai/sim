@@ -23,7 +23,7 @@ import { SYSTEM_SUBBLOCK_IDS, TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/co
  * - Duplicated in loops/parallels state (source of truth is there, not block.data)
  * - Duplicated in subBlocks (user config comes from subBlocks, block.data is just a copy)
  */
-export const EXCLUDED_BLOCK_DATA_FIELDS: readonly string[] = [
+const EXCLUDED_BLOCK_DATA_FIELDS: readonly string[] = [
   // Visual/layout fields
   'width', // Container dimensions from autolayout
   'height', // Container dimensions from autolayout
@@ -306,13 +306,13 @@ export function sortEdges(
 }
 
 /** Block with optional diff markers added by copilot */
-export type BlockWithDiffMarkers = BlockState & {
+type BlockWithDiffMarkers = BlockState & {
   is_diff?: string
   field_diffs?: Record<string, unknown>
 }
 
 /** SubBlock with optional diff marker */
-export type SubBlockWithDiffMarker = {
+type SubBlockWithDiffMarker = {
   id: string
   type: string
   value: unknown
@@ -333,7 +333,7 @@ interface NormalizedSubBlock {
 }
 
 /** Normalized workflow state structure */
-export interface NormalizedWorkflowState {
+interface NormalizedWorkflowState {
   blocks: Record<string, NormalizedBlock>
   edges: Array<{
     source: string
@@ -367,9 +367,7 @@ export interface ExtractedBlockFields {
  * @param data - The block data object
  * @returns Normalized data object
  */
-export function normalizeBlockData(
-  data: Record<string, unknown> | undefined
-): Record<string, unknown> {
+function normalizeBlockData(data: Record<string, unknown> | undefined): Record<string, unknown> {
   const normalized: Record<string, unknown> = {}
 
   for (const [key, value] of Object.entries(data || {})) {

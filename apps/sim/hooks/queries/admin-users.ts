@@ -5,7 +5,7 @@ import { client } from '@/lib/auth/auth-client'
 
 const logger = createLogger('AdminUsersQuery')
 
-export const adminUserKeys = {
+const adminUserKeys = {
   all: ['adminUsers'] as const,
   lists: () => [...adminUserKeys.all, 'list'] as const,
   list: (offset: number, limit: number, searchQuery: string) =>

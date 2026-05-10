@@ -3,14 +3,14 @@ import type { ToolResponse } from '@/tools/types'
 /**
  * Base params shared by all PagerDuty endpoints.
  */
-export interface PagerDutyBaseParams {
+interface PagerDutyBaseParams {
   apiKey: string
 }
 
 /**
  * Params that require a From header for write operations.
  */
-export interface PagerDutyWriteParams extends PagerDutyBaseParams {
+interface PagerDutyWriteParams extends PagerDutyBaseParams {
   fromEmail: string
 }
 

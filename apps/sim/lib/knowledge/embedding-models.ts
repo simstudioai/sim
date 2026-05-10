@@ -9,7 +9,7 @@ export const EMBEDDING_DIMENSIONS = 1536 as const
 
 export const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small'
 
-export type EmbeddingProviderKind = 'openai' | 'azure-openai' | 'gemini'
+type EmbeddingProviderKind = 'openai' | 'azure-openai' | 'gemini'
 
 export type TokenizerProviderId = 'openai' | 'google'
 

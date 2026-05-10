@@ -3,7 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 /**
  * Common parameters for all Greptile tools
  */
-export interface GreptileBaseParams {
+interface GreptileBaseParams {
   apiKey: string
   githubToken: string
 }
@@ -11,7 +11,7 @@ export interface GreptileBaseParams {
 /**
  * Repository identifier format
  */
-export interface GreptileRepository {
+interface GreptileRepository {
   remote: 'github' | 'gitlab'
   branch: string
   repository: string
@@ -31,7 +31,7 @@ export interface GreptileQueryParams extends GreptileBaseParams {
 /**
  * Source reference in query/search results
  */
-export interface GreptileSource {
+interface GreptileSource {
   repository: string
   remote: string
   branch: string

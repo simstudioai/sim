@@ -4,7 +4,7 @@
 
 import type { COLUMN_TYPES } from './constants'
 
-export type ColumnValue = string | number | boolean | null | Date
+type ColumnValue = string | number | boolean | null | Date
 export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
 
 /** Row data mapping column names to values. */

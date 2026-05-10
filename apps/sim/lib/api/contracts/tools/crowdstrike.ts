@@ -150,7 +150,7 @@ const getSensorAggregatesSchema = baseRequestSchema.extend({
   aggregateQuery: aggregateQuerySchema,
 })
 
-export const crowdstrikeQueryBodySchema = z.discriminatedUnion('operation', [
+const crowdstrikeQueryBodySchema = z.discriminatedUnion('operation', [
   querySensorsSchema,
   getSensorDetailsSchema,
   getSensorAggregatesSchema,
@@ -166,6 +166,6 @@ export const crowdstrikeQueryContract = defineRouteContract({
   },
 })
 
-export type CrowdstrikeQueryBody = ContractBody<typeof crowdstrikeQueryContract>
-export type CrowdstrikeQueryBodyInput = ContractBodyInput<typeof crowdstrikeQueryContract>
-export type CrowdstrikeQueryResponse = ContractJsonResponse<typeof crowdstrikeQueryContract>
+type CrowdstrikeQueryBody = ContractBody<typeof crowdstrikeQueryContract>
+type CrowdstrikeQueryBodyInput = ContractBodyInput<typeof crowdstrikeQueryContract>
+type CrowdstrikeQueryResponse = ContractJsonResponse<typeof crowdstrikeQueryContract>

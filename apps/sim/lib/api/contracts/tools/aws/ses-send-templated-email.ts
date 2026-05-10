@@ -35,10 +35,8 @@ export const awsSesSendTemplatedEmailContract = defineRouteContract({
   body: SendTemplatedEmailSchema,
   response: { mode: 'json', schema: SendTemplatedEmailResponseSchema },
 })
-export type AwsSesSendTemplatedEmailRequest = ContractBodyInput<
-  typeof awsSesSendTemplatedEmailContract
->
-export type AwsSesSendTemplatedEmailBody = ContractBody<typeof awsSesSendTemplatedEmailContract>
-export type AwsSesSendTemplatedEmailResponse = ContractJsonResponse<
+type AwsSesSendTemplatedEmailRequest = ContractBodyInput<typeof awsSesSendTemplatedEmailContract>
+type AwsSesSendTemplatedEmailBody = ContractBody<typeof awsSesSendTemplatedEmailContract>
+type AwsSesSendTemplatedEmailResponse = ContractJsonResponse<
   typeof awsSesSendTemplatedEmailContract
 >

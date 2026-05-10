@@ -46,7 +46,7 @@ export function filterToRules(filter: Filter | null): FilterRule[] {
 }
 
 /** Converts a single UI sort rule to a Sort object for API queries. */
-export function sortRuleToSort(rule: SortRule | null): Sort | null {
+function sortRuleToSort(rule: SortRule | null): Sort | null {
   if (!rule || !rule.column) return null
   return { [rule.column]: rule.direction }
 }
@@ -66,7 +66,7 @@ export function sortRulesToSort(rules: SortRule[]): Sort | null {
 }
 
 /** Converts a Sort object back to UI sort rules. */
-export function sortToRules(sort: Sort | null): SortRule[] {
+function sortToRules(sort: Sort | null): SortRule[] {
   if (!sort) return []
 
   return Object.entries(sort).map(([column, direction]) => ({

@@ -29,8 +29,6 @@ export const awsStsGetAccessKeyInfoContract = defineRouteContract({
   body: GetAccessKeyInfoSchema,
   response: { mode: 'json', schema: GetAccessKeyInfoResponseSchema },
 })
-export type AwsStsGetAccessKeyInfoRequest = ContractBodyInput<typeof awsStsGetAccessKeyInfoContract>
-export type AwsStsGetAccessKeyInfoBody = ContractBody<typeof awsStsGetAccessKeyInfoContract>
-export type AwsStsGetAccessKeyInfoResponse = ContractJsonResponse<
-  typeof awsStsGetAccessKeyInfoContract
->
+type AwsStsGetAccessKeyInfoRequest = ContractBodyInput<typeof awsStsGetAccessKeyInfoContract>
+type AwsStsGetAccessKeyInfoBody = ContractBody<typeof awsStsGetAccessKeyInfoContract>
+type AwsStsGetAccessKeyInfoResponse = ContractJsonResponse<typeof awsStsGetAccessKeyInfoContract>

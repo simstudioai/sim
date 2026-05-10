@@ -18,7 +18,7 @@ const confluenceSpaceSchema = z
   })
   .passthrough()
 
-export const confluencePagesBodySchema = z.object({
+const confluencePagesBodySchema = z.object({
   domain: z.string().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   cloudId: optionalString,
@@ -31,7 +31,7 @@ export const confluencePagesBodySchema = z.object({
  * (max 255 chars). Used as a `superRefine` so multiple
  * methods (POST/PUT/DELETE) on `/api/tools/confluence/page` can share it.
  */
-export function refineConfluencePageId(data: { pageId: string }, ctx: z.RefinementCtx): void {
+function refineConfluencePageId(data: { pageId: string }, ctx: z.RefinementCtx): void {
   const validation = validateAlphanumericId(data.pageId, 'pageId', 255)
   if (!validation.isValid) {
     ctx.addIssue({
@@ -49,10 +49,10 @@ const confluencePageBaseSchema = z.object({
   pageId: z.string().min(1, 'Page ID is required'),
 })
 
-export const confluencePageBodySchema = confluencePageBaseSchema.superRefine(refineConfluencePageId)
+const confluencePageBodySchema = confluencePageBaseSchema.superRefine(refineConfluencePageId)
 
 /** Body schema for `PUT /api/tools/confluence/page`. */
-export const confluenceUpdatePageBodySchema = confluencePageBaseSchema
+const confluenceUpdatePageBodySchema = confluencePageBaseSchema
   .extend({
     title: optionalString,
     body: z.object({ value: optionalString }).optional(),
@@ -61,7 +61,7 @@ export const confluenceUpdatePageBodySchema = confluencePageBaseSchema
   .superRefine(refineConfluencePageId)
 
 /** Body schema for `DELETE /api/tools/confluence/page`. */
-export const confluenceDeletePageBodySchema = confluencePageBaseSchema
+const confluenceDeletePageBodySchema = confluencePageBaseSchema
   .extend({
     purge: z.boolean().optional(),
   })
@@ -112,142 +112,134 @@ const confluenceBlogPostScopedSchema = confluenceBaseSchema
   })
   .superRefine((data, ctx) => addAlphanumericIdIssue(data, 'blogPostId', 'blog post ID', ctx))
 
-export const confluenceDeleteAttachmentBodySchema = confluenceBaseSchema.extend({
+const confluenceDeleteAttachmentBodySchema = confluenceBaseSchema.extend({
   attachmentId: z
     .string({ error: 'Attachment ID is required' })
     .min(1, 'Attachment ID is required'),
 })
 
-export const confluenceListAttachmentsQuerySchema = confluencePageScopedSchema.extend({
+const confluenceListAttachmentsQuerySchema = confluencePageScopedSchema.extend({
   limit: z.string().optional().default('50'),
   cursor: z.string().optional(),
 })
 
-export const confluenceCreateCommentBodySchema = confluencePageScopedSchema.extend({
+const confluenceCreateCommentBodySchema = confluencePageScopedSchema.extend({
   comment: z.string({ error: 'Comment is required' }).min(1, 'Comment is required'),
 })
 
-export const confluenceListCommentsQuerySchema = confluencePageScopedSchema.extend({
+const confluenceListCommentsQuerySchema = confluencePageScopedSchema.extend({
   limit: z.string().optional().default('25'),
   bodyFormat: z.string().optional().default('storage'),
   cursor: z.string().optional(),
 })
 
-export const confluenceUpdateCommentBodySchema = confluenceCommentScopedSchema.extend({
+const confluenceUpdateCommentBodySchema = confluenceCommentScopedSchema.extend({
   comment: z.string().min(1, 'Comment is required'),
 })
 
-export const confluenceDeleteCommentBodySchema = confluenceCommentScopedSchema
-
-export const confluenceCreatePageBodySchema = confluenceSpaceScopedSchema.extend({
+const confluenceCreatePageBodySchema = confluenceSpaceScopedSchema.extend({
   title: z.string({ error: 'Title is required' }).min(1, 'Title is required'),
   content: z.string({ error: 'Content is required' }).min(1, 'Content is required'),
   parentId: z.string().optional(),
 })
 
-export const confluenceLabelMutationBodySchema = confluencePageScopedSchema.extend({
+const confluenceLabelMutationBodySchema = confluencePageScopedSchema.extend({
   labelName: z.string({ error: 'Label name is required' }).min(1, 'Label name is required'),
   prefix: z.string().optional(),
 })
 
-export const confluenceListLabelsQuerySchema = confluencePageScopedSchema.extend({
+const confluenceListLabelsQuerySchema = confluencePageScopedSchema.extend({
   limit: z.string().optional().default('25'),
   cursor: z.string().optional(),
 })
 
-export const confluenceListPagePropertiesQuerySchema = confluencePageScopedSchema.extend({
+const confluenceListPagePropertiesQuerySchema = confluencePageScopedSchema.extend({
   limit: z.string().optional().default('50'),
   cursor: z.string().optional(),
 })
 
-export const confluenceCreatePagePropertyBodySchema = confluencePageScopedSchema.extend({
+const confluenceCreatePagePropertyBodySchema = confluencePageScopedSchema.extend({
   key: z.string({ error: 'Property key is required' }).min(1, 'Property key is required'),
   value: z.unknown(),
 })
 
-export const confluenceUpdatePagePropertyBodySchema = confluenceCreatePagePropertyBodySchema.extend(
-  {
-    propertyId: z.string({ error: 'Property ID is required' }).min(1, 'Property ID is required'),
-    versionNumber: z.number().min(1).optional(),
-  }
-)
+const confluenceUpdatePagePropertyBodySchema = confluenceCreatePagePropertyBodySchema.extend({
+  propertyId: z.string({ error: 'Property ID is required' }).min(1, 'Property ID is required'),
+  versionNumber: z.number().min(1).optional(),
+})
 
-export const confluenceDeletePagePropertyBodySchema = confluencePageScopedSchema.extend({
+const confluenceDeletePagePropertyBodySchema = confluencePageScopedSchema.extend({
   propertyId: z.string({ error: 'Property ID is required' }).min(1, 'Property ID is required'),
 })
 
-export const confluenceGetSpaceQuerySchema = confluenceSpaceScopedSchema
-export const confluenceCreateSpaceBodySchema = confluenceBaseSchema.extend({
+const confluenceGetSpaceQuerySchema = confluenceSpaceScopedSchema
+const confluenceCreateSpaceBodySchema = confluenceBaseSchema.extend({
   name: z.string({ error: 'Space name is required' }).min(1, 'Space name is required'),
   key: z.string({ error: 'Space key is required' }).min(1, 'Space key is required'),
   description: z.string().optional(),
 })
-export const confluenceUpdateSpaceBodySchema = confluenceSpaceScopedSchema.extend({
+const confluenceUpdateSpaceBodySchema = confluenceSpaceScopedSchema.extend({
   name: z.string().optional(),
   description: z.string().optional(),
 })
-export const confluenceDeleteSpaceBodySchema = confluenceSpaceScopedSchema
-
-export const confluencePageChildrenBodySchema = confluencePageScopedSchema.extend({
+const confluencePageChildrenBodySchema = confluencePageScopedSchema.extend({
   limit: z.number().optional().default(50),
   cursor: z.string().optional(),
 })
 
-export const confluencePageDescendantsBodySchema = confluencePageChildrenBodySchema
-
-export const confluencePageAncestorsBodySchema = confluencePageScopedSchema.extend({
+const confluencePageAncestorsBodySchema = confluencePageScopedSchema.extend({
   limit: z.number().optional().default(25),
 })
 
-export const confluencePageVersionsBodySchema = confluencePageScopedSchema.extend({
+const confluencePageVersionsBodySchema = confluencePageScopedSchema.extend({
   versionNumber: z.union([z.string(), z.number()]).optional(),
   limit: z.number().optional().default(50),
   cursor: z.string().optional(),
 })
 
-export const confluencePagesByLabelQuerySchema = confluenceBaseSchema.extend({
+const confluencePagesByLabelQuerySchema = confluenceBaseSchema.extend({
   labelId: z.string({ error: 'Label ID is required' }).min(1, 'Label ID is required'),
   limit: z.string().optional().default('50'),
   cursor: z.string().optional(),
 })
 
-export const confluenceSearchBodySchema = confluenceBaseSchema.extend({
+const confluenceSearchBodySchema = confluenceBaseSchema.extend({
   query: z.string({ error: 'Search query is required' }).min(1, 'Search query is required'),
   limit: z.number().optional().default(25),
 })
 
-export const confluenceSearchInSpaceBodySchema = confluenceBaseSchema.extend({
+const confluenceSearchInSpaceBodySchema = confluenceBaseSchema.extend({
   spaceKey: z.string({ error: 'Space key is required' }).min(1, 'Space key is required'),
   query: z.string().optional(),
   limit: z.number().optional().default(25),
   contentType: z.string().optional(),
 })
 
-export const confluenceSpaceBlogPostsBodySchema = confluenceSpaceScopedSchema.extend({
+const confluenceSpaceBlogPostsBodySchema = confluenceSpaceScopedSchema.extend({
   limit: z.number().optional().default(25),
   status: z.string().optional(),
   bodyFormat: z.string().optional(),
   cursor: z.string().optional(),
 })
 
-export const confluenceSpaceLabelsQuerySchema = confluenceSpaceScopedSchema.extend({
+const confluenceSpaceLabelsQuerySchema = confluenceSpaceScopedSchema.extend({
   limit: z.string().optional().default('25'),
   cursor: z.string().optional(),
 })
 
-export const confluenceSpacePagesBodySchema = confluenceSpaceScopedSchema.extend({
+const confluenceSpacePagesBodySchema = confluenceSpaceScopedSchema.extend({
   limit: z.number().optional().default(50),
   status: z.string().optional(),
   bodyFormat: z.string().optional(),
   cursor: z.string().optional(),
 })
 
-export const confluenceSpacePermissionsBodySchema = confluenceSpaceScopedSchema.extend({
+const confluenceSpacePermissionsBodySchema = confluenceSpaceScopedSchema.extend({
   limit: z.number().optional().default(50),
   cursor: z.string().optional(),
 })
 
-export const confluenceSpacePropertiesBodySchema = confluenceSpaceScopedSchema.extend({
+const confluenceSpacePropertiesBodySchema = confluenceSpaceScopedSchema.extend({
   action: z.string().optional(),
   key: z.string().optional(),
   value: z.unknown().optional(),
@@ -256,12 +248,12 @@ export const confluenceSpacePropertiesBodySchema = confluenceSpaceScopedSchema.e
   cursor: z.string().optional(),
 })
 
-export const confluenceListSpacesQuerySchema = confluenceBaseSchema.extend({
+const confluenceListSpacesQuerySchema = confluenceBaseSchema.extend({
   limit: z.string().optional().default('25'),
   cursor: z.string().optional(),
 })
 
-export const confluenceTasksBodySchema = confluenceBaseSchema.extend({
+const confluenceTasksBodySchema = confluenceBaseSchema.extend({
   action: z.string().optional(),
   taskId: z.string().optional(),
   status: z.string().optional(),
@@ -272,44 +264,42 @@ export const confluenceTasksBodySchema = confluenceBaseSchema.extend({
   cursor: z.string().optional(),
 })
 
-export const confluenceUploadAttachmentBodySchema = confluencePageScopedSchema.extend({
+const confluenceUploadAttachmentBodySchema = confluencePageScopedSchema.extend({
   file: z.unknown().refine((value) => Boolean(value), { message: 'File is required' }),
   fileName: z.string().optional(),
   comment: z.string().optional(),
 })
 
-export const confluenceUserBodySchema = confluenceBaseSchema.extend({
+const confluenceUserBodySchema = confluenceBaseSchema.extend({
   accountId: z.string({ error: 'Account ID is required' }).min(1, 'Account ID is required'),
 })
 
-export const confluenceGetBlogPostBodySchema = confluenceBlogPostScopedSchema.extend({
+const confluenceGetBlogPostBodySchema = confluenceBlogPostScopedSchema.extend({
   bodyFormat: z.string().optional(),
 })
 
-export const confluenceCreateBlogPostBodySchema = confluenceSpaceScopedSchema.extend({
+const confluenceCreateBlogPostBodySchema = confluenceSpaceScopedSchema.extend({
   title: z.string({ error: 'Title is required' }).min(1, 'Title is required'),
   content: z.string({ error: 'Content is required' }).min(1, 'Content is required'),
   status: z.enum(['current', 'draft']).optional(),
 })
 
-export const confluenceBlogPostOperationBodySchema = z.union([
+const confluenceBlogPostOperationBodySchema = z.union([
   confluenceCreateBlogPostBodySchema,
   confluenceGetBlogPostBodySchema,
 ])
 
-export const confluenceListBlogPostsQuerySchema = confluenceBaseSchema.extend({
+const confluenceListBlogPostsQuerySchema = confluenceBaseSchema.extend({
   limit: z.string().optional().default('25'),
   status: z.string().optional(),
   sort: z.string().optional(),
   cursor: z.string().optional(),
 })
 
-export const confluenceUpdateBlogPostBodySchema = confluenceBlogPostScopedSchema.extend({
+const confluenceUpdateBlogPostBodySchema = confluenceBlogPostScopedSchema.extend({
   title: z.string().optional(),
   content: z.string().optional(),
 })
-
-export const confluenceDeleteBlogPostBodySchema = confluenceBlogPostScopedSchema
 
 const defineConfluencePostContract = <TBody extends z.ZodType>(path: string, body: TBody) =>
   defineRouteContract({
@@ -359,7 +349,7 @@ const defineConfluenceGetContract = <TQuery extends z.ZodType>(path: string, que
     },
   })
 
-export const confluenceSpacesSelectorBodySchema = credentialWorkflowDomainBodySchema.extend({
+const confluenceSpacesSelectorBodySchema = credentialWorkflowDomainBodySchema.extend({
   cursor: optionalString,
 })
 
@@ -414,7 +404,7 @@ export const confluenceUpdateBlogPostContract = defineConfluencePutContract(
 )
 export const confluenceDeleteBlogPostContract = defineConfluenceDeleteContract(
   '/api/tools/confluence/blogposts',
-  confluenceDeleteBlogPostBodySchema
+  confluenceBlogPostScopedSchema
 )
 export const confluenceCreateCommentContract = defineConfluencePostContract(
   '/api/tools/confluence/comments',
@@ -430,7 +420,7 @@ export const confluenceUpdateCommentContract = defineConfluencePutContract(
 )
 export const confluenceDeleteCommentContract = defineConfluenceDeleteContract(
   '/api/tools/confluence/comment',
-  confluenceDeleteCommentBodySchema
+  confluenceCommentScopedSchema
 )
 export const confluenceCreatePageContract = defineConfluencePostContract(
   '/api/tools/confluence/create-page',
@@ -478,7 +468,7 @@ export const confluenceUpdateSpaceContract = defineConfluencePutContract(
 )
 export const confluenceDeleteSpaceContract = defineConfluenceDeleteContract(
   '/api/tools/confluence/space',
-  confluenceDeleteSpaceBodySchema
+  confluenceSpaceScopedSchema
 )
 export const confluencePageChildrenContract = defineConfluencePostContract(
   '/api/tools/confluence/page-children',
@@ -486,7 +476,7 @@ export const confluencePageChildrenContract = defineConfluencePostContract(
 )
 export const confluencePageDescendantsContract = defineConfluencePostContract(
   '/api/tools/confluence/page-descendants',
-  confluencePageDescendantsBodySchema
+  confluencePageChildrenBodySchema
 )
 export const confluencePageAncestorsContract = defineConfluencePostContract(
   '/api/tools/confluence/page-ancestors',
@@ -545,64 +535,50 @@ export const confluenceUserContract = defineConfluencePostContract(
   confluenceUserBodySchema
 )
 
-export type ConfluencePagesBody = ContractBody<typeof confluencePagesSelectorContract>
-export type ConfluencePageBody = ContractBody<typeof confluencePageSelectorContract>
-export type ConfluenceUpdatePageBody = ContractBody<typeof confluenceUpdatePageContract>
-export type ConfluenceDeletePageBody = ContractBody<typeof confluenceDeletePageContract>
-export type ConfluenceDeleteAttachmentBody = ContractBody<typeof confluenceDeleteAttachmentContract>
-export type ConfluenceListAttachmentsQuery = ContractQuery<typeof confluenceListAttachmentsContract>
-export type ConfluenceListBlogPostsQuery = ContractQuery<typeof confluenceListBlogPostsContract>
-export type ConfluenceBlogPostOperationBody = ContractBody<
-  typeof confluenceBlogPostOperationContract
->
-export type ConfluenceUpdateBlogPostBody = ContractBody<typeof confluenceUpdateBlogPostContract>
-export type ConfluenceDeleteBlogPostBody = ContractBody<typeof confluenceDeleteBlogPostContract>
-export type ConfluenceCreateCommentBody = ContractBody<typeof confluenceCreateCommentContract>
-export type ConfluenceListCommentsQuery = ContractQuery<typeof confluenceListCommentsContract>
-export type ConfluenceUpdateCommentBody = ContractBody<typeof confluenceUpdateCommentContract>
-export type ConfluenceDeleteCommentBody = ContractBody<typeof confluenceDeleteCommentContract>
-export type ConfluenceCreatePageBody = ContractBody<typeof confluenceCreatePageContract>
-export type ConfluenceLabelMutationBody = ContractBody<typeof confluenceLabelMutationContract>
-export type ConfluenceListLabelsQuery = ContractQuery<typeof confluenceListLabelsContract>
-export type ConfluenceDeleteLabelBody = ContractBody<typeof confluenceDeleteLabelContract>
-export type ConfluenceListPagePropertiesQuery = ContractQuery<
-  typeof confluenceListPagePropertiesContract
->
-export type ConfluenceCreatePagePropertyBody = ContractBody<
-  typeof confluenceCreatePagePropertyContract
->
-export type ConfluenceUpdatePagePropertyBody = ContractBody<
-  typeof confluenceUpdatePagePropertyContract
->
-export type ConfluenceDeletePagePropertyBody = ContractBody<
-  typeof confluenceDeletePagePropertyContract
->
-export type ConfluenceGetSpaceQuery = ContractQuery<typeof confluenceGetSpaceContract>
-export type ConfluenceCreateSpaceBody = ContractBody<typeof confluenceCreateSpaceContract>
-export type ConfluenceUpdateSpaceBody = ContractBody<typeof confluenceUpdateSpaceContract>
-export type ConfluenceDeleteSpaceBody = ContractBody<typeof confluenceDeleteSpaceContract>
-export type ConfluencePageChildrenBody = ContractBody<typeof confluencePageChildrenContract>
-export type ConfluencePageDescendantsBody = ContractBody<typeof confluencePageDescendantsContract>
-export type ConfluencePageAncestorsBody = ContractBody<typeof confluencePageAncestorsContract>
-export type ConfluencePageVersionsBody = ContractBody<typeof confluencePageVersionsContract>
-export type ConfluencePagesByLabelQuery = ContractQuery<typeof confluencePagesByLabelContract>
-export type ConfluenceSearchBody = ContractBody<typeof confluenceSearchContract>
-export type ConfluenceSearchInSpaceBody = ContractBody<typeof confluenceSearchInSpaceContract>
-export type ConfluenceSpaceBlogPostsBody = ContractBody<typeof confluenceSpaceBlogPostsContract>
-export type ConfluenceSpaceLabelsQuery = ContractQuery<typeof confluenceSpaceLabelsContract>
-export type ConfluenceSpacePagesBody = ContractBody<typeof confluenceSpacePagesContract>
-export type ConfluenceSpacePermissionsBody = ContractBody<typeof confluenceSpacePermissionsContract>
-export type ConfluenceSpacePropertiesBody = ContractBody<typeof confluenceSpacePropertiesContract>
-export type ConfluenceListSpacesQuery = ContractQuery<typeof confluenceListSpacesContract>
-export type ConfluenceTasksBody = ContractBody<typeof confluenceTasksContract>
-export type ConfluenceUploadAttachmentBody = ContractBody<typeof confluenceUploadAttachmentContract>
-export type ConfluenceUserBody = ContractBody<typeof confluenceUserContract>
-export type ConfluenceSpacesSelectorResponse = ContractJsonResponse<
+type ConfluencePagesBody = ContractBody<typeof confluencePagesSelectorContract>
+type ConfluencePageBody = ContractBody<typeof confluencePageSelectorContract>
+type ConfluenceUpdatePageBody = ContractBody<typeof confluenceUpdatePageContract>
+type ConfluenceDeletePageBody = ContractBody<typeof confluenceDeletePageContract>
+type ConfluenceDeleteAttachmentBody = ContractBody<typeof confluenceDeleteAttachmentContract>
+type ConfluenceListAttachmentsQuery = ContractQuery<typeof confluenceListAttachmentsContract>
+type ConfluenceListBlogPostsQuery = ContractQuery<typeof confluenceListBlogPostsContract>
+type ConfluenceBlogPostOperationBody = ContractBody<typeof confluenceBlogPostOperationContract>
+type ConfluenceUpdateBlogPostBody = ContractBody<typeof confluenceUpdateBlogPostContract>
+type ConfluenceDeleteBlogPostBody = ContractBody<typeof confluenceDeleteBlogPostContract>
+type ConfluenceCreateCommentBody = ContractBody<typeof confluenceCreateCommentContract>
+type ConfluenceListCommentsQuery = ContractQuery<typeof confluenceListCommentsContract>
+type ConfluenceUpdateCommentBody = ContractBody<typeof confluenceUpdateCommentContract>
+type ConfluenceDeleteCommentBody = ContractBody<typeof confluenceDeleteCommentContract>
+type ConfluenceCreatePageBody = ContractBody<typeof confluenceCreatePageContract>
+type ConfluenceLabelMutationBody = ContractBody<typeof confluenceLabelMutationContract>
+type ConfluenceListLabelsQuery = ContractQuery<typeof confluenceListLabelsContract>
+type ConfluenceDeleteLabelBody = ContractBody<typeof confluenceDeleteLabelContract>
+type ConfluenceListPagePropertiesQuery = ContractQuery<typeof confluenceListPagePropertiesContract>
+type ConfluenceCreatePagePropertyBody = ContractBody<typeof confluenceCreatePagePropertyContract>
+type ConfluenceUpdatePagePropertyBody = ContractBody<typeof confluenceUpdatePagePropertyContract>
+type ConfluenceDeletePagePropertyBody = ContractBody<typeof confluenceDeletePagePropertyContract>
+type ConfluenceGetSpaceQuery = ContractQuery<typeof confluenceGetSpaceContract>
+type ConfluenceCreateSpaceBody = ContractBody<typeof confluenceCreateSpaceContract>
+type ConfluenceUpdateSpaceBody = ContractBody<typeof confluenceUpdateSpaceContract>
+type ConfluenceDeleteSpaceBody = ContractBody<typeof confluenceDeleteSpaceContract>
+type ConfluencePageChildrenBody = ContractBody<typeof confluencePageChildrenContract>
+type ConfluencePageDescendantsBody = ContractBody<typeof confluencePageDescendantsContract>
+type ConfluencePageAncestorsBody = ContractBody<typeof confluencePageAncestorsContract>
+type ConfluencePageVersionsBody = ContractBody<typeof confluencePageVersionsContract>
+type ConfluencePagesByLabelQuery = ContractQuery<typeof confluencePagesByLabelContract>
+type ConfluenceSearchBody = ContractBody<typeof confluenceSearchContract>
+type ConfluenceSearchInSpaceBody = ContractBody<typeof confluenceSearchInSpaceContract>
+type ConfluenceSpaceBlogPostsBody = ContractBody<typeof confluenceSpaceBlogPostsContract>
+type ConfluenceSpaceLabelsQuery = ContractQuery<typeof confluenceSpaceLabelsContract>
+type ConfluenceSpacePagesBody = ContractBody<typeof confluenceSpacePagesContract>
+type ConfluenceSpacePermissionsBody = ContractBody<typeof confluenceSpacePermissionsContract>
+type ConfluenceSpacePropertiesBody = ContractBody<typeof confluenceSpacePropertiesContract>
+type ConfluenceListSpacesQuery = ContractQuery<typeof confluenceListSpacesContract>
+type ConfluenceTasksBody = ContractBody<typeof confluenceTasksContract>
+type ConfluenceUploadAttachmentBody = ContractBody<typeof confluenceUploadAttachmentContract>
+type ConfluenceUserBody = ContractBody<typeof confluenceUserContract>
+type ConfluenceSpacesSelectorResponse = ContractJsonResponse<
   typeof confluenceSpacesSelectorContract
 >
-export type ConfluencePagesSelectorResponse = ContractJsonResponse<
-  typeof confluencePagesSelectorContract
->
-export type ConfluencePageSelectorResponse = ContractJsonResponse<
-  typeof confluencePageSelectorContract
->
+type ConfluencePagesSelectorResponse = ContractJsonResponse<typeof confluencePagesSelectorContract>
+type ConfluencePageSelectorResponse = ContractJsonResponse<typeof confluencePageSelectorContract>

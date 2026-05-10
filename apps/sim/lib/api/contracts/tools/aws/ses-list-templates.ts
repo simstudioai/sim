@@ -37,6 +37,6 @@ export const awsSesListTemplatesContract = defineRouteContract({
   body: ListTemplatesSchema,
   response: { mode: 'json', schema: ListTemplatesResponseSchema },
 })
-export type AwsSesListTemplatesRequest = ContractBodyInput<typeof awsSesListTemplatesContract>
-export type AwsSesListTemplatesBody = ContractBody<typeof awsSesListTemplatesContract>
-export type AwsSesListTemplatesResponse = ContractJsonResponse<typeof awsSesListTemplatesContract>
+type AwsSesListTemplatesRequest = ContractBodyInput<typeof awsSesListTemplatesContract>
+type AwsSesListTemplatesBody = ContractBody<typeof awsSesListTemplatesContract>
+type AwsSesListTemplatesResponse = ContractJsonResponse<typeof awsSesListTemplatesContract>

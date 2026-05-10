@@ -43,6 +43,6 @@ export const awsIamListUsersContract = defineRouteContract({
   body: Schema,
   response: { mode: 'json', schema: ListUsersResponseSchema },
 })
-export type AwsIamListUsersRequest = ContractBodyInput<typeof awsIamListUsersContract>
-export type AwsIamListUsersBody = ContractBody<typeof awsIamListUsersContract>
-export type AwsIamListUsersResponse = ContractJsonResponse<typeof awsIamListUsersContract>
+type AwsIamListUsersRequest = ContractBodyInput<typeof awsIamListUsersContract>
+type AwsIamListUsersBody = ContractBody<typeof awsIamListUsersContract>
+type AwsIamListUsersResponse = ContractJsonResponse<typeof awsIamListUsersContract>

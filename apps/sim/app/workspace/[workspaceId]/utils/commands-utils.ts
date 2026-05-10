@@ -6,7 +6,7 @@ import type { GlobalCommand } from '@/app/workspace/[workspaceId]/providers/glob
  * Components must use these identifiers (via {@link createCommand}) rather than
  * ad-hoc ids or shortcuts to ensure a single source of truth.
  */
-export type CommandId =
+type CommandId =
   | 'accept-diff-changes'
   | 'add-agent'
   | 'add-workflow'
@@ -27,7 +27,7 @@ export type CommandId =
  * This central registry defines the keyboard shortcut and default behavior
  * for whether the command is allowed inside editable elements.
  */
-export interface CommandDefinition {
+interface CommandDefinition {
   /** Stable identifier for the command. */
   id: CommandId
   /** Shortcut string in the form "Mod+Shift+A", "Mod+Enter", etc. */
@@ -44,7 +44,7 @@ export interface CommandDefinition {
  *
  * All global commands must be declared here to be usable.
  */
-export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
+const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
   'accept-diff-changes': {
     id: 'accept-diff-changes',
     shortcut: 'Mod+Shift+Enter',

@@ -2,17 +2,17 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
 
-export const dataDrainSourceSchema = z.enum(SOURCE_TYPES)
-export const dataDrainDestinationTypeSchema = z.enum(DESTINATION_TYPES)
-export const dataDrainCadenceSchema = z.enum(CADENCE_TYPES)
-export const dataDrainRunStatusSchema = z.enum(['running', 'success', 'failed'])
-export const dataDrainRunTriggerSchema = z.enum(['cron', 'manual'])
+const dataDrainSourceSchema = z.enum(SOURCE_TYPES)
+const dataDrainDestinationTypeSchema = z.enum(DESTINATION_TYPES)
+const dataDrainCadenceSchema = z.enum(CADENCE_TYPES)
+const dataDrainRunStatusSchema = z.enum(['running', 'success', 'failed'])
+const dataDrainRunTriggerSchema = z.enum(['cron', 'manual'])
 
-export const dataDrainOrgParamsSchema = z.object({
+const dataDrainOrgParamsSchema = z.object({
   id: z.string().min(1, 'organization id is required'),
 })
 
-export const dataDrainParamsSchema = z.object({
+const dataDrainParamsSchema = z.object({
   id: z.string().min(1, 'organization id is required'),
   drainId: z.string().min(1, 'drain id is required'),
 })
@@ -48,7 +48,7 @@ const webhookCredentialsBodySchema = z.object({
  * `destinationCredentials`. On update, omitting `destinationCredentials`
  * leaves the encrypted blob in place.
  */
-export const dataDrainDestinationBodySchema = z.discriminatedUnion('destinationType', [
+const dataDrainDestinationBodySchema = z.discriminatedUnion('destinationType', [
   z.object({
     destinationType: z.literal('s3'),
     destinationConfig: s3ConfigBodySchema,
@@ -68,7 +68,7 @@ const drainCommonBodyFieldsSchema = z.object({
   enabled: z.boolean().optional(),
 })
 
-export const createDataDrainBodySchema = z.intersection(
+const createDataDrainBodySchema = z.intersection(
   drainCommonBodyFieldsSchema,
   dataDrainDestinationBodySchema
 )
@@ -82,7 +82,7 @@ export const createDataDrainBodySchema = z.intersection(
  * structural shape is still enforced — just at the route layer rather than at
  * the contract boundary.
  */
-export const updateDataDrainBodySchema = drainCommonBodyFieldsSchema.partial().extend({
+const updateDataDrainBodySchema = drainCommonBodyFieldsSchema.partial().extend({
   destinationType: dataDrainDestinationTypeSchema.optional(),
   destinationConfig: z.record(z.string(), z.unknown()).optional(),
   destinationCredentials: z.record(z.string(), z.unknown()).optional(),
@@ -123,15 +123,15 @@ export type DataDrain = z.output<typeof dataDrainSchema>
 export type CreateDataDrainBody = z.input<typeof createDataDrainBodySchema>
 export type UpdateDataDrainBody = z.input<typeof updateDataDrainBodySchema>
 
-export const dataDrainListResponseSchema = z.object({
+const dataDrainListResponseSchema = z.object({
   drains: z.array(dataDrainSchema),
 })
 
-export const dataDrainResponseSchema = z.object({
+const dataDrainResponseSchema = z.object({
   drain: dataDrainSchema,
 })
 
-export const dataDrainRunSchema = z.object({
+const dataDrainRunSchema = z.object({
   id: z.string(),
   drainId: z.string(),
   status: dataDrainRunStatusSchema,
@@ -148,15 +148,15 @@ export const dataDrainRunSchema = z.object({
 
 export type DataDrainRun = z.output<typeof dataDrainRunSchema>
 
-export const dataDrainRunListResponseSchema = z.object({
+const dataDrainRunListResponseSchema = z.object({
   runs: z.array(dataDrainRunSchema),
 })
 
-export const runDataDrainResponseSchema = z.object({
+const runDataDrainResponseSchema = z.object({
   jobId: z.string(),
 })
 
-export const testDataDrainResponseSchema = z.object({
+const testDataDrainResponseSchema = z.object({
   ok: z.literal(true),
 })
 

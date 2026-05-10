@@ -266,7 +266,7 @@ export const CompleteJob: ToolCatalogEntry = {
   },
 }
 
-export const ContextWrite: ToolCatalogEntry = {
+const ContextWrite: ToolCatalogEntry = {
   id: 'context_write',
   name: 'context_write',
   route: 'go',
@@ -898,7 +898,7 @@ export const DownloadToWorkspaceFile: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-export const EditContent: ToolCatalogEntry = {
+const EditContent: ToolCatalogEntry = {
   id: 'edit_content',
   name: 'edit_content',
   route: 'sim',
@@ -974,7 +974,7 @@ export const EditWorkflow: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-export const File: ToolCatalogEntry = {
+const File: ToolCatalogEntry = {
   id: 'file',
   name: 'file',
   route: 'subagent',
@@ -2202,7 +2202,7 @@ export const Research: ToolCatalogEntry = {
   internal: true,
 }
 
-export const Respond: ToolCatalogEntry = {
+const Respond: ToolCatalogEntry = {
   id: 'respond',
   name: 'respond',
   route: 'sim',
@@ -2263,7 +2263,7 @@ export const RevertToVersion: ToolCatalogEntry = {
   requiredPermission: 'admin',
 }
 
-export const Run: ToolCatalogEntry = {
+const Run: ToolCatalogEntry = {
   id: 'run',
   name: 'run',
   route: 'subagent',
@@ -2520,7 +2520,7 @@ export const SearchOnline: ToolCatalogEntry = {
   },
 }
 
-export const SearchPatterns: ToolCatalogEntry = {
+const SearchPatterns: ToolCatalogEntry = {
   id: 'search_patterns',
   name: 'search_patterns',
   route: 'go',
@@ -3215,7 +3215,7 @@ export const WorkspaceFile: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-export const KnowledgeBaseOperation = {
+const KnowledgeBaseOperation = {
   create: 'create',
   get: 'get',
   query: 'query',
@@ -3238,7 +3238,7 @@ export const KnowledgeBaseOperation = {
 export type KnowledgeBaseOperation =
   (typeof KnowledgeBaseOperation)[keyof typeof KnowledgeBaseOperation]
 
-export const KnowledgeBaseOperationValues = [
+const KnowledgeBaseOperationValues = [
   KnowledgeBaseOperation.create,
   KnowledgeBaseOperation.get,
   KnowledgeBaseOperation.query,
@@ -3258,7 +3258,7 @@ export const KnowledgeBaseOperationValues = [
   KnowledgeBaseOperation.syncConnector,
 ] as const
 
-export const ManageCredentialOperation = {
+const ManageCredentialOperation = {
   rename: 'rename',
   delete: 'delete',
 } as const
@@ -3266,12 +3266,12 @@ export const ManageCredentialOperation = {
 export type ManageCredentialOperation =
   (typeof ManageCredentialOperation)[keyof typeof ManageCredentialOperation]
 
-export const ManageCredentialOperationValues = [
+const ManageCredentialOperationValues = [
   ManageCredentialOperation.rename,
   ManageCredentialOperation.delete,
 ] as const
 
-export const ManageCustomToolOperation = {
+const ManageCustomToolOperation = {
   add: 'add',
   edit: 'edit',
   delete: 'delete',
@@ -3281,7 +3281,7 @@ export const ManageCustomToolOperation = {
 export type ManageCustomToolOperation =
   (typeof ManageCustomToolOperation)[keyof typeof ManageCustomToolOperation]
 
-export const ManageCustomToolOperationValues = [
+const ManageCustomToolOperationValues = [
   ManageCustomToolOperation.add,
   ManageCustomToolOperation.edit,
   ManageCustomToolOperation.delete,
@@ -3298,7 +3298,7 @@ export const ManageJobOperation = {
 
 export type ManageJobOperation = (typeof ManageJobOperation)[keyof typeof ManageJobOperation]
 
-export const ManageJobOperationValues = [
+const ManageJobOperationValues = [
   ManageJobOperation.create,
   ManageJobOperation.list,
   ManageJobOperation.get,
@@ -3316,7 +3316,7 @@ export const ManageMcpToolOperation = {
 export type ManageMcpToolOperation =
   (typeof ManageMcpToolOperation)[keyof typeof ManageMcpToolOperation]
 
-export const ManageMcpToolOperationValues = [
+const ManageMcpToolOperationValues = [
   ManageMcpToolOperation.add,
   ManageMcpToolOperation.edit,
   ManageMcpToolOperation.delete,
@@ -3332,14 +3332,14 @@ export const ManageSkillOperation = {
 
 export type ManageSkillOperation = (typeof ManageSkillOperation)[keyof typeof ManageSkillOperation]
 
-export const ManageSkillOperationValues = [
+const ManageSkillOperationValues = [
   ManageSkillOperation.add,
   ManageSkillOperation.edit,
   ManageSkillOperation.delete,
   ManageSkillOperation.list,
 ] as const
 
-export const MaterializeFileOperation = {
+const MaterializeFileOperation = {
   save: 'save',
   import: 'import',
   table: 'table',
@@ -3349,14 +3349,14 @@ export const MaterializeFileOperation = {
 export type MaterializeFileOperation =
   (typeof MaterializeFileOperation)[keyof typeof MaterializeFileOperation]
 
-export const MaterializeFileOperationValues = [
+const MaterializeFileOperationValues = [
   MaterializeFileOperation.save,
   MaterializeFileOperation.import,
   MaterializeFileOperation.table,
   MaterializeFileOperation.knowledgeBase,
 ] as const
 
-export const UserMemoryOperation = {
+const UserMemoryOperation = {
   add: 'add',
   search: 'search',
   delete: 'delete',
@@ -3366,7 +3366,7 @@ export const UserMemoryOperation = {
 
 export type UserMemoryOperation = (typeof UserMemoryOperation)[keyof typeof UserMemoryOperation]
 
-export const UserMemoryOperationValues = [
+const UserMemoryOperationValues = [
   UserMemoryOperation.add,
   UserMemoryOperation.search,
   UserMemoryOperation.delete,
@@ -3374,7 +3374,7 @@ export const UserMemoryOperationValues = [
   UserMemoryOperation.list,
 ] as const
 
-export const UserTableOperation = {
+const UserTableOperation = {
   create: 'create',
   createFromFile: 'create_from_file',
   importFile: 'import_file',
@@ -3407,7 +3407,7 @@ export const UserTableOperation = {
 
 export type UserTableOperation = (typeof UserTableOperation)[keyof typeof UserTableOperation]
 
-export const UserTableOperationValues = [
+const UserTableOperationValues = [
   UserTableOperation.create,
   UserTableOperation.createFromFile,
   UserTableOperation.importFile,
@@ -3447,7 +3447,7 @@ export const WorkspaceFileOperation = {
 export type WorkspaceFileOperation =
   (typeof WorkspaceFileOperation)[keyof typeof WorkspaceFileOperation]
 
-export const WorkspaceFileOperationValues = [
+const WorkspaceFileOperationValues = [
   WorkspaceFileOperation.append,
   WorkspaceFileOperation.update,
   WorkspaceFileOperation.patch,

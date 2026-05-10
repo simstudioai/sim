@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-export const adminV1DefaultLimit = 50
-export const adminV1MaxLimit = 250
+const adminV1DefaultLimit = 50
+const adminV1MaxLimit = 250
 
 export const lastQueryValue = (value: unknown) => (Array.isArray(value) ? value.at(-1) : value)
 
@@ -85,9 +85,9 @@ export const adminV1SubscriptionSchema = z.object({
   metadata: z.unknown(),
 })
 
-export type AdminV1IdParamsInput = z.input<typeof adminV1IdParamsSchema>
-export type AdminV1IdParams = z.output<typeof adminV1IdParamsSchema>
-export type AdminV1PaginationQueryInput = z.input<typeof adminV1PaginationQuerySchema>
-export type AdminV1PaginationQuery = z.output<typeof adminV1PaginationQuerySchema>
-export type AdminV1ExportFormatQueryInput = z.input<typeof adminV1ExportFormatQuerySchema>
-export type AdminV1ExportFormatQuery = z.output<typeof adminV1ExportFormatQuerySchema>
+type AdminV1IdParamsInput = z.input<typeof adminV1IdParamsSchema>
+type AdminV1IdParams = z.output<typeof adminV1IdParamsSchema>
+type AdminV1PaginationQueryInput = z.input<typeof adminV1PaginationQuerySchema>
+type AdminV1PaginationQuery = z.output<typeof adminV1PaginationQuerySchema>
+type AdminV1ExportFormatQueryInput = z.input<typeof adminV1ExportFormatQuerySchema>
+type AdminV1ExportFormatQuery = z.output<typeof adminV1ExportFormatQuerySchema>

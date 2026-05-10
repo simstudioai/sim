@@ -6,7 +6,7 @@ import { CREDENTIAL_SET } from '@/executor/constants'
 import { useCredentialSetDetail } from '@/hooks/queries/credential-sets'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 
-export const oauthCredentialKeys = {
+const oauthCredentialKeys = {
   all: ['oauthCredentials'] as const,
   list: (providerId?: string, workspaceId?: string, workflowId?: string) =>
     [
@@ -105,11 +105,7 @@ export function useOAuthCredentials(
   })
 }
 
-export function useOAuthCredentialDetail(
-  credentialId?: string,
-  workflowId?: string,
-  enabled = true
-) {
+function useOAuthCredentialDetail(credentialId?: string, workflowId?: string, enabled = true) {
   return useQuery<Credential[]>({
     queryKey: oauthCredentialKeys.detail(credentialId, workflowId),
     queryFn: ({ signal }) => fetchOAuthCredentialDetail(credentialId ?? '', workflowId, signal),

@@ -184,11 +184,11 @@ function OAuthConsentInner() {
             className='rounded-[10px]'
           />
         ) : (
-          <div className='flex h-12 w-12 items-center justify-center rounded-[10px] bg-[var(--landing-bg-elevated)] font-medium text-[var(--landing-text-muted)] text-lg'>
+          <div className='flex size-12 items-center justify-center rounded-[10px] bg-[var(--landing-bg-elevated)] font-medium text-[var(--landing-text-muted)] text-lg'>
             {(clientName ?? '?').charAt(0).toUpperCase()}
           </div>
         )}
-        <ArrowLeftRight className='h-5 w-5 text-[var(--landing-text-muted)]' />
+        <ArrowLeftRight className='size-5 text-[var(--landing-text-muted)]' />
         <Image
           src='/new/logo/colorized-bg.svg'
           alt='Sim'
@@ -220,7 +220,7 @@ function OAuthConsentInner() {
               unoptimized
             />
           ) : (
-            <div className='flex h-8 w-8 items-center justify-center rounded-full bg-[var(--landing-bg-elevated)] font-medium text-[var(--landing-text-muted)] text-small'>
+            <div className='flex size-8 items-center justify-center rounded-full bg-[var(--landing-bg-elevated)] font-medium text-[var(--landing-text-muted)] text-small'>
               {(session.user.name ?? session.user.email ?? '?').charAt(0).toUpperCase()}
             </div>
           )}
@@ -278,7 +278,7 @@ function OAuthConsentInner() {
         >
           {submitting ? (
             <span className='flex items-center gap-2'>
-              <Loader className='h-4 w-4' animate />
+              <Loader className='size-4' animate />
               Authorizing...
             </span>
           ) : (

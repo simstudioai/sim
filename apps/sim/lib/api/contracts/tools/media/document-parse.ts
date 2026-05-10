@@ -9,7 +9,7 @@ const textractQuerySchema = z.object({
   Pages: z.array(z.string()).optional(),
 })
 
-export const textractParseBodySchema = z
+const textractParseBodySchema = z
   .object({
     accessKeyId: z.string().min(1, 'AWS Access Key ID is required'),
     secretAccessKey: z.string().min(1, 'AWS Secret Access Key is required'),
@@ -46,7 +46,7 @@ export const textractParseBodySchema = z
     }
   })
 
-export const reductoParseBodySchema = z.object({
+const reductoParseBodySchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
   filePath: z.string().optional(),
   file: RawFileInputSchema.optional(),
@@ -54,7 +54,7 @@ export const reductoParseBodySchema = z.object({
   tableOutputFormat: z.enum(['html', 'md']).optional(),
 })
 
-export const pulseParseBodySchema = z.object({
+const pulseParseBodySchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
   filePath: z.string().optional(),
   file: RawFileInputSchema.optional(),
@@ -66,7 +66,7 @@ export const pulseParseBodySchema = z.object({
   chunkSize: z.number().optional(),
 })
 
-export const extendParseBodySchema = z.object({
+const extendParseBodySchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
   filePath: z.string().optional(),
   file: RawFileInputSchema.optional(),
@@ -75,7 +75,7 @@ export const extendParseBodySchema = z.object({
   engine: z.enum(['parse_performance', 'parse_light']).optional(),
 })
 
-export const mistralParseBodySchema = z.object({
+const mistralParseBodySchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
   filePath: z.string().min(1, 'File path is required').optional(),
   fileData: FileInputSchema.optional(),

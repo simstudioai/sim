@@ -6,7 +6,7 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
 const FREE_EMAIL_DOMAINS = new Set(freeEmailDomains)
 
-export const DEMO_REQUEST_COMPANY_SIZE_VALUES = [
+const DEMO_REQUEST_COMPANY_SIZE_VALUES = [
   '1_10',
   '11_50',
   '51_200',
@@ -63,13 +63,13 @@ export const demoRequestSchema = z.object({
 })
 
 export type DemoRequestPayload = z.infer<typeof demoRequestSchema>
-export type DemoRequestBody = z.input<typeof demoRequestSchema>
+type DemoRequestBody = z.input<typeof demoRequestSchema>
 
 export function getDemoRequestCompanySizeLabel(value: DemoRequestPayload['companySize']): string {
   return DEMO_REQUEST_COMPANY_SIZE_OPTIONS.find((option) => option.value === value)?.label ?? value
 }
 
-export const demoRequestResponseSchema = z.object({
+const demoRequestResponseSchema = z.object({
   success: z.literal(true),
   message: z.string(),
 })

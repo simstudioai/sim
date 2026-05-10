@@ -1,5 +1,5 @@
 /** Color palette for workspace accents, aligned with the workflow color family. */
-export const WORKSPACE_COLORS = [
+const WORKSPACE_COLORS = [
   '#2ABBF8', // Blue
   '#22c55e', // Green
   '#FFCC02', // Yellow
@@ -27,7 +27,7 @@ const APP_COLORS = [
  * User color palette matching terminal.tsx RUN_ID_COLORS
  * These colors are used consistently across cursors, avatars, and terminal run IDs
  */
-export const USER_COLORS = [
+const USER_COLORS = [
   '#4ADE80', // Green
   '#F472B6', // Pink
   '#60C5FF', // Blue
@@ -90,7 +90,7 @@ function buildGradient(fromColor: string, toColor: string, rotationSeed: number)
   return `linear-gradient(${rotation}deg, ${fromColor}, ${toColor})`
 }
 
-export function getPresenceColors(
+function getPresenceColors(
   identifier: string | number,
   explicitColor?: string
 ): PresenceColorPalette {
@@ -137,7 +137,7 @@ export function getUserColor(userId: string): string {
  * @param userIds - Array of user IDs to map
  * @returns Map of user ID to color index
  */
-export function createUserColorMap(userIds: string[]): Map<string, number> {
+function createUserColorMap(userIds: string[]): Map<string, number> {
   const colorMap = new Map<string, number>()
   let colorIndex = 0
 

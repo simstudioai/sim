@@ -551,7 +551,7 @@ export const mcpService = new McpService()
 /**
  * Setup process signal handlers for graceful shutdown
  */
-export function setupMcpServiceCleanup() {
+function setupMcpServiceCleanup() {
   if (isTest) {
     return
   }

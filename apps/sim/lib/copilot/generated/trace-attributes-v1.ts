@@ -538,11 +538,11 @@ export const TraceAttr = {
   WorkspaceName: 'workspace.name',
 } as const
 
-export type TraceAttrKey = keyof typeof TraceAttr
-export type TraceAttrValue = (typeof TraceAttr)[TraceAttrKey]
+type TraceAttrKey = keyof typeof TraceAttr
+type TraceAttrValue = (typeof TraceAttr)[TraceAttrKey]
 
 /** Readonly sorted list of every canonical custom attribute key. */
-export const TraceAttrValues: readonly TraceAttrValue[] = [
+const TraceAttrValues: readonly TraceAttrValue[] = [
   'abort.backend',
   'abort.found',
   'abort.redis_result',

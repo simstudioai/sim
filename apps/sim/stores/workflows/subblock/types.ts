@@ -7,7 +7,7 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
  */
 export type SubBlockValue = unknown
 
-export interface SubBlockStoreState {
+interface SubBlockStoreState {
   workflowValues: Record<string, Record<string, Record<string, SubBlockValue>>> // Store values per workflow ID
 }
 

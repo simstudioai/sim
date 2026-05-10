@@ -9,7 +9,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Output definition for table column objects from introspection.
  * @see https://www.postgresql.org/docs/current/infoschema-columns.html
  */
-export const POSTGRES_COLUMN_OUTPUT_PROPERTIES = {
+const POSTGRES_COLUMN_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Column name' },
   type: { type: 'string', description: 'Data type (e.g., integer, varchar, timestamp)' },
   nullable: { type: 'boolean', description: 'Whether the column allows NULL values' },
@@ -30,7 +30,7 @@ export const POSTGRES_COLUMN_OUTPUT_PROPERTIES = {
 /**
  * Complete column output definition
  */
-export const POSTGRES_COLUMN_OUTPUT: OutputProperty = {
+const POSTGRES_COLUMN_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'PostgreSQL table column',
   properties: POSTGRES_COLUMN_OUTPUT_PROPERTIES,
@@ -39,7 +39,7 @@ export const POSTGRES_COLUMN_OUTPUT: OutputProperty = {
 /**
  * Output definition for foreign key constraint objects.
  */
-export const POSTGRES_FOREIGN_KEY_OUTPUT_PROPERTIES = {
+const POSTGRES_FOREIGN_KEY_OUTPUT_PROPERTIES = {
   column: { type: 'string', description: 'Local column name' },
   referencesTable: { type: 'string', description: 'Referenced table name' },
   referencesColumn: { type: 'string', description: 'Referenced column name' },
@@ -49,7 +49,7 @@ export const POSTGRES_FOREIGN_KEY_OUTPUT_PROPERTIES = {
  * Output definition for index objects.
  * @see https://www.postgresql.org/docs/current/catalog-pg-index.html
  */
-export const POSTGRES_INDEX_OUTPUT_PROPERTIES = {
+const POSTGRES_INDEX_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Index name' },
   columns: {
     type: 'array',
@@ -99,7 +99,7 @@ export const POSTGRES_TABLE_OUTPUT_PROPERTIES = {
 /**
  * Complete table schema output definition
  */
-export const POSTGRES_TABLE_OUTPUT: OutputProperty = {
+const POSTGRES_TABLE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'PostgreSQL table schema information',
   properties: POSTGRES_TABLE_OUTPUT_PROPERTIES,
@@ -142,7 +142,7 @@ export interface PostgresIntrospectParams extends PostgresConnectionConfig {
   schema?: string
 }
 
-export interface PostgresBaseResponse extends ToolResponse {
+interface PostgresBaseResponse extends ToolResponse {
   output: {
     message: string
     rows: unknown[]
@@ -157,7 +157,7 @@ export interface PostgresUpdateResponse extends PostgresBaseResponse {}
 export interface PostgresDeleteResponse extends PostgresBaseResponse {}
 export interface PostgresExecuteResponse extends PostgresBaseResponse {}
 
-export interface TableColumn {
+interface TableColumn {
   name: string
   type: string
   nullable: boolean
@@ -170,7 +170,7 @@ export interface TableColumn {
   }
 }
 
-export interface TableSchema {
+interface TableSchema {
   name: string
   schema: string
   columns: TableColumn[]

@@ -218,7 +218,7 @@ const ResourceTabItem = memo(function ResourceTabItem({
                 aria-label={`Close ${displayName}`}
               >
                 <svg
-                  className='h-[10px] w-[10px] text-[var(--text-icon)]'
+                  className='size-[10px] text-[var(--text-icon)]'
                   viewBox='0 0 24 24'
                   fill='none'
                   stroke='currentColor'

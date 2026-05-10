@@ -16,7 +16,7 @@ const logger = createLogger('CreatorProfileQuery')
 /**
  * Query key factories for creator profiles
  */
-export const creatorProfileKeys = {
+const creatorProfileKeys = {
   all: ['creatorProfile'] as const,
   list: () => [...creatorProfileKeys.all, 'list'] as const,
   profile: (userId: string) => [...creatorProfileKeys.all, 'profile', userId] as const,
@@ -26,7 +26,7 @@ export const creatorProfileKeys = {
 /**
  * Organization type
  */
-export type Organization = CreatorOrganization
+type Organization = CreatorOrganization
 
 /**
  * Creator profile type
@@ -45,7 +45,7 @@ async function fetchOrganizations(signal?: AbortSignal): Promise<Organization[]>
 /**
  * Hook to fetch organizations
  */
-export function useOrganizations() {
+function useOrganizations() {
   return useQuery({
     queryKey: creatorProfileKeys.organizations(),
     queryFn: ({ signal }) => fetchOrganizations(signal),
@@ -94,7 +94,7 @@ async function fetchCreatorProfile(
 /**
  * Hook to fetch creator profile
  */
-export function useCreatorProfile(userId: string) {
+function useCreatorProfile(userId: string) {
   return useQuery({
     queryKey: creatorProfileKeys.profile(userId),
     queryFn: ({ signal }) => fetchCreatorProfile(userId, signal),
@@ -117,7 +117,7 @@ interface SaveProfileParams {
   existingProfileId?: string
 }
 
-export function useSaveCreatorProfile() {
+function useSaveCreatorProfile() {
   const queryClient = useQueryClient()
 
   return useMutation({

@@ -87,31 +87,6 @@ Create a new Zoom meeting
 |   ↳ `h323_password` | string | H.323/SIP room system password |
 |   ↳ `pstn_password` | string | PSTN password for phone dial-in |
 |   ↳ `encrypted_password` | string | Encrypted password for joining |
-|   ↳ `settings` | object | Meeting settings |
-|     ↳ `host_video` | boolean | Start with host video on |
-|     ↳ `participant_video` | boolean | Start with participant video on |
-|     ↳ `join_before_host` | boolean | Allow participants to join before host |
-|     ↳ `mute_upon_entry` | boolean | Mute participants upon entry |
-|     ↳ `watermark` | boolean | Add watermark when viewing shared screen |
-|     ↳ `audio` | string | Audio options: both, telephony, or voip |
-|     ↳ `auto_recording` | string | Auto recording: local, cloud, or none |
-|     ↳ `waiting_room` | boolean | Enable waiting room |
-|     ↳ `meeting_authentication` | boolean | Require meeting authentication |
-|     ↳ `approval_type` | number | Approval type: 0=auto, 1=manual, 2=none |
-|   ↳ `recurrence` | object | Recurrence settings for recurring meetings |
-|     ↳ `type` | number | Recurrence type: 1=daily, 2=weekly, 3=monthly |
-|     ↳ `repeat_interval` | number | Interval between recurring meetings |
-|     ↳ `weekly_days` | string | Days of week for weekly recurrence \(1-7, comma-separated\) |
-|     ↳ `monthly_day` | number | Day of month for monthly recurrence |
-|     ↳ `monthly_week` | number | Week of month for monthly recurrence |
-|     ↳ `monthly_week_day` | number | Day of week for monthly recurrence |
-|     ↳ `end_times` | number | Number of occurrences |
-|     ↳ `end_date_time` | string | End date time in ISO 8601 format |
-|   ↳ `occurrences` | array | Meeting occurrences for recurring meetings |
-|     ↳ `occurrence_id` | string | Occurrence ID |
-|     ↳ `start_time` | string | Start time in ISO 8601 format |
-|     ↳ `duration` | number | Duration in minutes |
-|     ↳ `status` | string | Occurrence status |
 
 ### `zoom_list_meetings`
 
@@ -184,31 +159,6 @@ Get details of a specific Zoom meeting
 |   ↳ `h323_password` | string | H.323/SIP room system password |
 |   ↳ `pstn_password` | string | PSTN password for phone dial-in |
 |   ↳ `encrypted_password` | string | Encrypted password for joining |
-|   ↳ `settings` | object | Meeting settings |
-|     ↳ `host_video` | boolean | Start with host video on |
-|     ↳ `participant_video` | boolean | Start with participant video on |
-|     ↳ `join_before_host` | boolean | Allow participants to join before host |
-|     ↳ `mute_upon_entry` | boolean | Mute participants upon entry |
-|     ↳ `watermark` | boolean | Add watermark when viewing shared screen |
-|     ↳ `audio` | string | Audio options: both, telephony, or voip |
-|     ↳ `auto_recording` | string | Auto recording: local, cloud, or none |
-|     ↳ `waiting_room` | boolean | Enable waiting room |
-|     ↳ `meeting_authentication` | boolean | Require meeting authentication |
-|     ↳ `approval_type` | number | Approval type: 0=auto, 1=manual, 2=none |
-|   ↳ `recurrence` | object | Recurrence settings for recurring meetings |
-|     ↳ `type` | number | Recurrence type: 1=daily, 2=weekly, 3=monthly |
-|     ↳ `repeat_interval` | number | Interval between recurring meetings |
-|     ↳ `weekly_days` | string | Days of week for weekly recurrence \(1-7, comma-separated\) |
-|     ↳ `monthly_day` | number | Day of month for monthly recurrence |
-|     ↳ `monthly_week` | number | Week of month for monthly recurrence |
-|     ↳ `monthly_week_day` | number | Day of week for monthly recurrence |
-|     ↳ `end_times` | number | Number of occurrences |
-|     ↳ `end_date_time` | string | End date time in ISO 8601 format |
-|   ↳ `occurrences` | array | Meeting occurrences for recurring meetings |
-|     ↳ `occurrence_id` | string | Occurrence ID |
-|     ↳ `start_time` | string | Start time in ISO 8601 format |
-|     ↳ `duration` | number | Duration in minutes |
-|     ↳ `status` | string | Occurrence status |
 
 ### `zoom_update_meeting`
 
@@ -305,18 +255,6 @@ List all cloud recordings for a Zoom user
 |   ↳ `total_size` | number | Total size of all recordings in bytes |
 |   ↳ `recording_count` | number | Number of recording files |
 |   ↳ `share_url` | string | URL to share recordings |
-|   ↳ `recording_files` | array | List of recording files |
-|     ↳ `id` | string | Recording file ID |
-|     ↳ `meeting_id` | string | Meeting ID associated with the recording |
-|     ↳ `recording_start` | string | Start time of the recording |
-|     ↳ `recording_end` | string | End time of the recording |
-|     ↳ `file_type` | string | Type of recording file \(MP4, M4A, etc.\) |
-|     ↳ `file_extension` | string | File extension |
-|     ↳ `file_size` | number | File size in bytes |
-|     ↳ `play_url` | string | URL to play the recording |
-|     ↳ `download_url` | string | URL to download the recording |
-|     ↳ `status` | string | Recording status |
-|     ↳ `recording_type` | string | Type of recording \(shared_screen, audio_only, etc.\) |
 | `pageInfo` | object | Pagination information |
 |   ↳ `from` | string | Start date of query range |
 |   ↳ `to` | string | End date of query range |
@@ -353,18 +291,6 @@ Get all recordings for a specific Zoom meeting
 |   ↳ `total_size` | number | Total size of all recordings in bytes |
 |   ↳ `recording_count` | number | Number of recording files |
 |   ↳ `share_url` | string | URL to share recordings |
-|   ↳ `recording_files` | array | List of recording files |
-|     ↳ `id` | string | Recording file ID |
-|     ↳ `meeting_id` | string | Meeting ID associated with the recording |
-|     ↳ `recording_start` | string | Start time of the recording |
-|     ↳ `recording_end` | string | End time of the recording |
-|     ↳ `file_type` | string | Type of recording file \(MP4, M4A, etc.\) |
-|     ↳ `file_extension` | string | File extension |
-|     ↳ `file_size` | number | File size in bytes |
-|     ↳ `play_url` | string | URL to play the recording |
-|     ↳ `download_url` | string | URL to download the recording |
-|     ↳ `status` | string | Recording status |
-|     ↳ `recording_type` | string | Type of recording \(shared_screen, audio_only, etc.\) |
 | `files` | file[] | Downloaded recording files |
 
 ### `zoom_delete_recording`

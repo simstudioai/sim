@@ -4,18 +4,18 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const booleanQuerySchema = booleanQueryFlagSchema.optional().default(false)
 
-export const templateStatusSchema = z.enum(['pending', 'approved', 'rejected'])
+const templateStatusSchema = z.enum(['pending', 'approved', 'rejected'])
 
 export const templateIdParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-export const templateDetailsSchema = z.object({
+const templateDetailsSchema = z.object({
   tagline: z.string().optional(),
   about: z.string().optional(),
 })
 
-export const templateCreatorSchema = z.object({
+const templateCreatorSchema = z.object({
   id: z.string(),
   name: z.string(),
   referenceType: z.enum(['user', 'organization']),
@@ -36,7 +36,7 @@ export const templateCreatorSchema = z.object({
 })
 export type TemplateCreator = z.output<typeof templateCreatorSchema>
 
-export const templateSchema = z.object({
+const templateSchema = z.object({
   id: z.string(),
   workflowId: z.string().nullable(),
   name: z.string(),
@@ -56,7 +56,7 @@ export const templateSchema = z.object({
 })
 export type TemplateContractData = z.output<typeof templateSchema>
 
-export const templateListQuerySchema = z.object({
+const templateListQuerySchema = z.object({
   limit: z.coerce.number().optional().default(50),
   offset: z.coerce.number().optional().default(0),
   search: z.string().optional(),
@@ -66,7 +66,7 @@ export const templateListQuerySchema = z.object({
 })
 export type TemplateListFilters = z.input<typeof templateListQuerySchema>
 
-export const templatesResponseSchema = z.object({
+const templatesResponseSchema = z.object({
   data: z.array(templateSchema),
   pagination: z.object({
     total: z.number(),
@@ -78,12 +78,12 @@ export const templatesResponseSchema = z.object({
 })
 export type TemplatesContractResponse = z.output<typeof templatesResponseSchema>
 
-export const templateDetailResponseSchema = z.object({
+const templateDetailResponseSchema = z.object({
   data: templateSchema,
 })
 export type TemplateDetailContractResponse = z.output<typeof templateDetailResponseSchema>
 
-export const createTemplateBodySchema = z.object({
+const createTemplateBodySchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
   name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
   details: templateDetailsSchema.optional(),
@@ -92,12 +92,12 @@ export const createTemplateBodySchema = z.object({
 })
 export type CreateTemplateInput = z.input<typeof createTemplateBodySchema>
 
-export const createTemplateResponseSchema = z.object({
+const createTemplateResponseSchema = z.object({
   id: z.string(),
   message: z.string(),
 })
 
-export const updateTemplateBodySchema = z.object({
+const updateTemplateBodySchema = z.object({
   name: z.string().min(1).max(100).optional(),
   details: templateDetailsSchema.optional(),
   creatorId: z.string().optional(),
@@ -107,16 +107,16 @@ export const updateTemplateBodySchema = z.object({
 })
 export type UpdateTemplateInput = z.input<typeof updateTemplateBodySchema>
 
-export const updateTemplateResponseSchema = z.object({
+const updateTemplateResponseSchema = z.object({
   data: templateSchema,
   message: z.string(),
 })
 
-export const deleteTemplateResponseSchema = z.object({
+const deleteTemplateResponseSchema = z.object({
   success: z.literal(true),
 })
 
-export const templateStarResponseSchema = z.object({
+const templateStarResponseSchema = z.object({
   message: z.string(),
 })
 
@@ -181,7 +181,7 @@ export const starTemplateContract = defineRouteContract({
   },
 })
 
-export const useTemplateBodySchema = z
+const useTemplateBodySchema = z
   .object({
     workspaceId: z.string().optional(),
     connectToTemplate: z.boolean().optional().default(false),
@@ -189,7 +189,7 @@ export const useTemplateBodySchema = z
   .passthrough()
 export type UseTemplateBody = z.input<typeof useTemplateBodySchema>
 
-export const useTemplateResponseSchema = z.object({
+const useTemplateResponseSchema = z.object({
   message: z.string(),
   workflowId: z.string(),
   workspaceId: z.string(),
@@ -206,14 +206,14 @@ export const useTemplateContract = defineRouteContract({
   },
 })
 
-export const updateTemplateOgImageBodySchema = z
+const updateTemplateOgImageBodySchema = z
   .object({
     imageData: z.string().min(1, 'imageData is required (base64-encoded PNG)'),
   })
   .strict()
 export type UpdateTemplateOgImageBody = z.input<typeof updateTemplateOgImageBodySchema>
 
-export const updateTemplateOgImageResponseSchema = z.object({
+const updateTemplateOgImageResponseSchema = z.object({
   success: z.literal(true),
   ogImageUrl: z.string(),
 })

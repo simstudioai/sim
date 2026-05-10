@@ -10,7 +10,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 /**
  * Output definition for source objects where emails were found
  */
-export const SOURCE_OUTPUT_PROPERTIES = {
+const SOURCE_OUTPUT_PROPERTIES = {
   domain: { type: 'string', description: 'Domain where the email was found' },
   uri: { type: 'string', description: 'Full URL of the source page' },
   extracted_on: {
@@ -39,7 +39,7 @@ export const SOURCES_OUTPUT: OutputProperty = {
 /**
  * Output definition for verification objects
  */
-export const VERIFICATION_OUTPUT_PROPERTIES = {
+const VERIFICATION_OUTPUT_PROPERTIES = {
   date: {
     type: 'string',
     description: 'Date when the email was verified (YYYY-MM-DD)',
@@ -64,7 +64,7 @@ export const VERIFICATION_OUTPUT: OutputProperty = {
 /**
  * Output definition for email objects in domain search responses
  */
-export const EMAIL_OUTPUT_PROPERTIES = {
+const EMAIL_OUTPUT_PROPERTIES = {
   value: { type: 'string', description: 'The email address' },
   type: { type: 'string', description: 'Email type: personal or generic (role-based)' },
   confidence: {
@@ -108,7 +108,7 @@ export const EMAILS_OUTPUT: OutputProperty = {
 /**
  * Output definition for department breakdown in email count
  */
-export const DEPARTMENT_OUTPUT_PROPERTIES = {
+const DEPARTMENT_OUTPUT_PROPERTIES = {
   executive: { type: 'number', description: 'Number of executive department emails' },
   it: { type: 'number', description: 'Number of IT department emails' },
   finance: { type: 'number', description: 'Number of finance department emails' },
@@ -137,7 +137,7 @@ export const DEPARTMENT_OUTPUT: OutputProperty = {
 /**
  * Output definition for seniority breakdown in email count
  */
-export const SENIORITY_OUTPUT_PROPERTIES = {
+const SENIORITY_OUTPUT_PROPERTIES = {
   junior: { type: 'number', description: 'Number of junior-level emails' },
   senior: { type: 'number', description: 'Number of senior-level emails' },
   executive: { type: 'number', description: 'Number of executive-level emails' },
@@ -157,7 +157,7 @@ export const SENIORITY_OUTPUT: OutputProperty = {
  * Hunter Discover returns minimal info per company — use Domain Search or
  * Company Enrichment for richer data on a specific result.
  */
-export const DISCOVER_RESULT_OUTPUT_PROPERTIES = {
+const DISCOVER_RESULT_OUTPUT_PROPERTIES = {
   domain: { type: 'string', description: 'Company domain' },
   organization: { type: 'string', description: 'Organization name' },
   personal_emails: { type: 'number', description: 'Count of personal emails' },
@@ -178,7 +178,7 @@ export const DISCOVER_RESULTS_OUTPUT: OutputProperty = {
 }
 
 // Common parameters for all Hunter.io tools
-export interface HunterBaseParams {
+interface HunterBaseParams {
   apiKey: string
 }
 
@@ -191,7 +191,7 @@ export interface HunterDiscoverParams extends HunterBaseParams {
   technology?: string
 }
 
-export interface HunterDiscoverResult {
+interface HunterDiscoverResult {
   domain: string
   organization: string
   personal_emails: number

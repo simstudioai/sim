@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 
-export type CanvasMode = 'cursor' | 'hand'
+type CanvasMode = 'cursor' | 'hand'
 
 interface CanvasModeState {
   mode: CanvasMode

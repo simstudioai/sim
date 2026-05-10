@@ -4,7 +4,7 @@ import type { TriggerOutput } from '@/triggers/types'
 /**
  * Dropdown options for the Ashby trigger type selector.
  */
-export const ashbyTriggerOptions = [
+const ashbyTriggerOptions = [
   { label: 'Application Submitted', id: 'ashby_application_submit' },
   { label: 'Candidate Stage Change', id: 'ashby_candidate_stage_change' },
   { label: 'Candidate Hired', id: 'ashby_candidate_hire' },
@@ -41,7 +41,7 @@ export function isAshbyEventMatch(triggerId: string, action: string): boolean {
  * Generates setup instructions for Ashby webhooks.
  * Webhooks are automatically created/deleted via the Ashby API.
  */
-export function ashbySetupInstructions(eventType: string): string {
+function ashbySetupInstructions(eventType: string): string {
   const instructions = [
     'Enter your Ashby API Key above. You can find your API key in Ashby at <strong>Settings &gt; API Keys</strong>.',
     `The webhook for <strong>${eventType}</strong> events will be automatically created in Ashby when you save the trigger.`,

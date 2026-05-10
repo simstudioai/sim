@@ -16,9 +16,7 @@ import {
 
 const logger = createLogger('useSpeechToText')
 
-export { MAX_SESSION_MS } from '@/lib/speech/config'
-
-export type PermissionState = 'prompt' | 'granted' | 'denied'
+type PermissionState = 'prompt' | 'granted' | 'denied'
 
 interface UseSpeechToTextProps {
   onTranscript: (text: string) => void

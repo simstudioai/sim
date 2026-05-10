@@ -552,8 +552,6 @@ async function applyHostedKeyCostToResult(
 
 import { normalizeToolId } from '@/tools/normalize'
 
-export { normalizeToolId } from '@/tools/normalize'
-
 /**
  * Maximum request body size in bytes before we warn/error about size limits.
  * Next.js 16 has a default middleware/proxy body limit of 10MB.

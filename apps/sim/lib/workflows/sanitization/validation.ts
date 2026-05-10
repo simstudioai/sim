@@ -299,7 +299,7 @@ export function validateWorkflowState(
  * Validate tool reference for a specific block
  * Returns null if valid, error message if invalid
  */
-export function validateToolReference(
+function validateToolReference(
   toolId: string | undefined,
   blockType: string,
   blockName?: string

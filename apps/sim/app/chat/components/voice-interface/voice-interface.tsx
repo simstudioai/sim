@@ -514,12 +514,12 @@ export function VoiceInterface({
   const getButtonContent = () => {
     if (state === 'agent_speaking') {
       return (
-        <svg className='h-6 w-6' viewBox='0 0 24 24' fill='currentColor'>
+        <svg className='size-6' viewBox='0 0 24 24' fill='currentColor'>
           <rect x='6' y='6' width='12' height='12' rx='2' />
         </svg>
       )
     }
-    return isMuted ? <MicOff className='h-6 w-6' /> : <Mic className='h-6 w-6' />
+    return isMuted ? <MicOff className='size-6' /> : <Mic className='size-6' />
   }
 
   return (
@@ -565,9 +565,9 @@ export function VoiceInterface({
             onClick={handleCallEnd}
             variant='outline'
             size='icon'
-            className='h-14 w-14 rounded-full border-[var(--border-1)] hover:bg-[var(--landing-bg-elevated)]'
+            className='size-14 rounded-full border-[var(--border-1)] hover:bg-[var(--landing-bg-elevated)]'
           >
-            <Phone className='h-6 w-6 rotate-[135deg]' />
+            <Phone className='size-6 rotate-[135deg]' />
           </Button>
 
           <Button

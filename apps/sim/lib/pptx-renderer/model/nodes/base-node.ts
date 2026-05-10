@@ -5,7 +5,7 @@
 import { angleToDeg, emuToPx } from '../../parser/units'
 import type { SafeXmlNode } from '../../parser/xml-parser'
 
-export type NodeType = 'shape' | 'picture' | 'table' | 'group' | 'chart' | 'unknown'
+type NodeType = 'shape' | 'picture' | 'table' | 'group' | 'chart' | 'unknown'
 
 export interface Position {
   x: number
@@ -23,7 +23,7 @@ export interface PlaceholderInfo {
 }
 
 /** Shape-level hyperlink click action (from cNvPr > a:hlinkClick). */
-export interface HlinkAction {
+interface HlinkAction {
   /** Action URI, e.g. "ppaction://hlinksldjump", "ppaction://hlinkpres", or empty for URL links. */
   action?: string
   /** Relationship ID for the target (slide, URL, etc.). */

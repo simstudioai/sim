@@ -263,7 +263,7 @@ export function TemplateProfile() {
             <div className='flex flex-col gap-2'>
               <Skeleton className='h-5 w-[50px]' />
               <div className='flex items-center gap-2.5'>
-                <Skeleton className='h-9 w-9 flex-shrink-0 rounded-full' />
+                <Skeleton className='size-9 flex-shrink-0 rounded-full' />
                 <Skeleton className='h-9 flex-1' />
               </div>
             </div>
@@ -332,13 +332,16 @@ export function TemplateProfile() {
             </span>
             <div className='flex items-center gap-2.5'>
               <div className='relative'>
-                <div
-                  className={`group relative flex h-9 w-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border transition-all hover-hover:bg-[var(--bg)] ${
+                <button
+                  type='button'
+                  className={`group relative flex h-9 w-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border p-0 transition-all hover-hover:bg-[var(--bg)] ${
                     profilePictureUrl && !imageLoadError
                       ? 'border-transparent'
                       : 'border-[var(--border)]'
                   }`}
                   onClick={handleProfilePictureClick}
+                  disabled={isUploadingProfilePicture}
+                  aria-label='Change profile picture'
                 >
                   {(() => {
                     if (profilePictureUrl && !imageLoadError) {
@@ -364,7 +367,7 @@ export function TemplateProfile() {
                         </span>
                       )
                     }
-                    return <AgentIcon className='h-4 w-4 text-[var(--text-muted)]' />
+                    return <AgentIcon className='size-4 text-[var(--text-muted)]' />
                   })()}
                   <div
                     className={`absolute inset-0 flex items-center justify-center rounded-full bg-black/50 transition-opacity ${
@@ -374,12 +377,12 @@ export function TemplateProfile() {
                     }`}
                   >
                     {isUploadingProfilePicture ? (
-                      <div className='h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent' />
+                      <div className='size-3 animate-spin rounded-full border-2 border-white border-t-transparent' />
                     ) : (
-                      <Camera className='h-3 w-3 text-white' />
+                      <Camera className='size-3 text-white' />
                     )}
                   </div>
-                </div>
+                </button>
                 <input
                   type='file'
                   accept='image/png,image/jpeg,image/jpg'
@@ -431,7 +434,7 @@ export function TemplateProfile() {
 
             <div>
               <div className='relative'>
-                <XIcon className='-translate-y-1/2 absolute top-1/2 left-[10px] h-[14px] w-[14px] text-[var(--text-muted)]' />
+                <XIcon className='-translate-y-1/2 absolute top-1/2 left-[10px] size-[14px] text-[var(--text-muted)]' />
                 <Input
                   placeholder='x.com/username'
                   value={formData.xUrl}
@@ -446,7 +449,7 @@ export function TemplateProfile() {
 
             <div>
               <div className='relative'>
-                <Linkedin className='-translate-y-1/2 absolute top-1/2 left-[10px] h-[14px] w-[14px] text-[var(--text-muted)]' />
+                <Linkedin className='-translate-y-1/2 absolute top-1/2 left-[10px] size-[14px] text-[var(--text-muted)]' />
                 <Input
                   placeholder='linkedin.com/in/username'
                   value={formData.linkedinUrl}
@@ -463,7 +466,7 @@ export function TemplateProfile() {
 
             <div>
               <div className='relative'>
-                <Globe className='-translate-y-1/2 absolute top-1/2 left-[10px] h-[14px] w-[14px] text-[var(--text-muted)]' />
+                <Globe className='-translate-y-1/2 absolute top-1/2 left-[10px] size-[14px] text-[var(--text-muted)]' />
                 <Input
                   placeholder='yourwebsite.com'
                   value={formData.websiteUrl}
@@ -478,7 +481,7 @@ export function TemplateProfile() {
 
             <div>
               <div className='relative'>
-                <Mail className='-translate-y-1/2 absolute top-1/2 left-[10px] h-[14px] w-[14px] text-[var(--text-muted)]' />
+                <Mail className='-translate-y-1/2 absolute top-1/2 left-[10px] size-[14px] text-[var(--text-muted)]' />
                 <Input
                   placeholder='contact@example.com'
                   type='email'

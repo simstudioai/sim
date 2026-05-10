@@ -93,7 +93,7 @@ export function safeConsoleStringify(value: unknown): string {
 /**
  * Produces a terminal-safe representation of any value.
  */
-export function normalizeConsoleValue(value: unknown, depth = 0): unknown {
+function normalizeConsoleValue(value: unknown, depth = 0): unknown {
   if (value === null || value === undefined) {
     return value
   }

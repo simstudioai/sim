@@ -7,7 +7,7 @@ const logger = createLogger('StripeClient')
 /**
  * Check if Stripe credentials are valid
  */
-export function hasValidStripeCredentials(): boolean {
+function hasValidStripeCredentials(): boolean {
   return !!env.STRIPE_SECRET_KEY
 }
 
@@ -66,7 +66,7 @@ const stripeClientSingleton = createStripeClientSingleton()
  * Get the Stripe client instance
  * @returns Stripe client or null if credentials are not available
  */
-export function getStripeClient(): Stripe | null {
+function getStripeClient(): Stripe | null {
   return stripeClientSingleton.getInstance()
 }
 

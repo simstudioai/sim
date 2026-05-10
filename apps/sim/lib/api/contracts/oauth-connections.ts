@@ -6,13 +6,13 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const oauthAccountSummarySchema = z.object({
+const oauthAccountSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
 })
 export type OAuthAccountSummary = z.output<typeof oauthAccountSummarySchema>
 
-export const oauthConnectionSchema = z.object({
+const oauthConnectionSchema = z.object({
   provider: z.string(),
   baseProvider: z.string(),
   featureType: z.string(),
@@ -23,7 +23,7 @@ export const oauthConnectionSchema = z.object({
 })
 export type OAuthConnection = z.output<typeof oauthConnectionSchema>
 
-export const disconnectOAuthBodySchema = z.object({
+const disconnectOAuthBodySchema = z.object({
   provider: z.string({ error: 'Provider is required' }).min(1, 'Provider is required'),
   providerId: z.string().optional(),
   accountId: z.string().optional(),
@@ -33,7 +33,7 @@ export const connectedAccountsQuerySchema = z.object({
   provider: z.string().min(1).optional(),
 })
 
-export const connectedAccountSchema = z.object({
+const connectedAccountSchema = z.object({
   id: z.string(),
   accountId: z.string(),
   providerId: z.string(),
@@ -41,7 +41,7 @@ export const connectedAccountSchema = z.object({
 })
 export type ConnectedAccount = z.output<typeof connectedAccountSchema>
 
-export const trelloTokenBodySchema = z.object({
+const trelloTokenBodySchema = z.object({
   token: z.string().min(1),
   state: z.string().min(1, 'state is required'),
 })
@@ -69,7 +69,7 @@ export const oauthTokenRequestBodySchema = z
     'Either credentialId or (credentialAccountUserId + providerId) is required'
   )
 
-export const oauthTokenGetQuerySchema = z.object({
+const oauthTokenGetQuerySchema = z.object({
   credentialId: z
     .string({
       error: 'Credential ID is required',
@@ -77,7 +77,7 @@ export const oauthTokenGetQuerySchema = z.object({
     .min(1, 'Credential ID is required'),
 })
 
-export const oauthTokenPostQuerySchema = z.object({
+const oauthTokenPostQuerySchema = z.object({
   userId: z.string().min(1).optional(),
 })
 
@@ -128,11 +128,11 @@ export const shopifyStoreCookieSchema = z.object({
   returnUrl: z.string().optional(),
 })
 
-export const oauthAuthorizeParamsQuerySchema = z.object({
+const oauthAuthorizeParamsQuerySchema = z.object({
   consent_code: z.string({ error: 'consent_code is required' }).min(1, 'consent_code is required'),
 })
 
-export const oauthAuthorizeParamsResponseSchema = z.object({
+const oauthAuthorizeParamsResponseSchema = z.object({
   client_id: z.string(),
   redirect_uri: z.string(),
   scope: z.string(),
@@ -215,7 +215,7 @@ export const trelloCallbackContract = defineRouteContract({
   response: { mode: 'text' },
 })
 
-export type StoreTrelloTokenBody = ContractBody<typeof storeTrelloTokenContract>
-export type StoreTrelloTokenBodyInput = ContractBodyInput<typeof storeTrelloTokenContract>
-export type StoreTrelloTokenResponse = ContractJsonResponse<typeof storeTrelloTokenContract>
-export type OAuthAuthorizeParamsResponse = ContractJsonResponse<typeof oauthAuthorizeParamsContract>
+type StoreTrelloTokenBody = ContractBody<typeof storeTrelloTokenContract>
+type StoreTrelloTokenBodyInput = ContractBodyInput<typeof storeTrelloTokenContract>
+type StoreTrelloTokenResponse = ContractJsonResponse<typeof storeTrelloTokenContract>
+type OAuthAuthorizeParamsResponse = ContractJsonResponse<typeof oauthAuthorizeParamsContract>

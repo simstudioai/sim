@@ -10,7 +10,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 /**
  * Output definition for OCR image bounding box objects
  */
-export const MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES = {
+const MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Image identifier (e.g., img-0.jpeg)' },
   top_left_x: { type: 'number', description: 'Top-left X coordinate in pixels' },
   top_left_y: { type: 'number', description: 'Top-left Y coordinate in pixels' },
@@ -26,7 +26,7 @@ export const MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete OCR image output definition
  */
-export const MISTRAL_OCR_IMAGE_OUTPUT: OutputProperty = {
+const MISTRAL_OCR_IMAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Extracted image with bounding box',
   properties: MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES,
@@ -35,7 +35,7 @@ export const MISTRAL_OCR_IMAGE_OUTPUT: OutputProperty = {
 /**
  * Output definition for page dimension objects
  */
-export const MISTRAL_OCR_DIMENSIONS_OUTPUT_PROPERTIES = {
+const MISTRAL_OCR_DIMENSIONS_OUTPUT_PROPERTIES = {
   dpi: { type: 'number', description: 'Dots per inch' },
   height: { type: 'number', description: 'Page height in pixels' },
   width: { type: 'number', description: 'Page width in pixels' },
@@ -44,7 +44,7 @@ export const MISTRAL_OCR_DIMENSIONS_OUTPUT_PROPERTIES = {
 /**
  * Complete page dimensions output definition
  */
-export const MISTRAL_OCR_DIMENSIONS_OUTPUT: OutputProperty = {
+const MISTRAL_OCR_DIMENSIONS_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Page dimensions',
   properties: MISTRAL_OCR_DIMENSIONS_OUTPUT_PROPERTIES,
@@ -53,7 +53,7 @@ export const MISTRAL_OCR_DIMENSIONS_OUTPUT: OutputProperty = {
 /**
  * Output definition for OCR page objects
  */
-export const MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES = {
+const MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES = {
   index: { type: 'number', description: 'Page index (zero-based)' },
   markdown: { type: 'string', description: 'Extracted markdown content' },
   images: {
@@ -89,7 +89,7 @@ export const MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete OCR page output definition
  */
-export const MISTRAL_OCR_PAGE_OUTPUT: OutputProperty = {
+const MISTRAL_OCR_PAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'OCR processed page',
   properties: MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES,
@@ -98,7 +98,7 @@ export const MISTRAL_OCR_PAGE_OUTPUT: OutputProperty = {
 /**
  * Output definition for usage info objects
  */
-export const MISTRAL_OCR_USAGE_OUTPUT_PROPERTIES = {
+const MISTRAL_OCR_USAGE_OUTPUT_PROPERTIES = {
   pages_processed: { type: 'number', description: 'Total number of pages processed' },
   doc_size_bytes: { type: 'number', description: 'Document file size in bytes', optional: true },
 } as const satisfies Record<string, OutputProperty>
@@ -106,7 +106,7 @@ export const MISTRAL_OCR_USAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete usage info output definition
  */
-export const MISTRAL_OCR_USAGE_OUTPUT: OutputProperty = {
+const MISTRAL_OCR_USAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Usage and processing statistics',
   properties: MISTRAL_OCR_USAGE_OUTPUT_PROPERTIES,
@@ -115,7 +115,7 @@ export const MISTRAL_OCR_USAGE_OUTPUT: OutputProperty = {
 /**
  * Output definition for parser metadata objects
  */
-export const MISTRAL_PARSER_METADATA_OUTPUT_PROPERTIES = {
+const MISTRAL_PARSER_METADATA_OUTPUT_PROPERTIES = {
   jobId: { type: 'string', description: 'Unique job identifier' },
   fileType: { type: 'string', description: 'File type (e.g., pdf)' },
   fileName: { type: 'string', description: 'Original file name' },
@@ -131,7 +131,7 @@ export const MISTRAL_PARSER_METADATA_OUTPUT_PROPERTIES = {
 /**
  * Complete parser metadata output definition
  */
-export const MISTRAL_PARSER_METADATA_OUTPUT: OutputProperty = {
+const MISTRAL_PARSER_METADATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Processing metadata',
   properties: MISTRAL_PARSER_METADATA_OUTPUT_PROPERTIES,
@@ -160,12 +160,12 @@ export interface MistralParserV2Input {
   imageMinSize?: number
 }
 
-export interface MistralOcrUsageInfo {
+interface MistralOcrUsageInfo {
   pagesProcessed: number
   docSizeBytes: number | null
 }
 
-export interface MistralParserMetadata {
+interface MistralParserMetadata {
   jobId: string
   fileType: string
   fileName: string
@@ -178,7 +178,7 @@ export interface MistralParserMetadata {
   processedAt: string
 }
 
-export interface MistralParserOutputData {
+interface MistralParserOutputData {
   content: string
   metadata: MistralParserMetadata
 }
@@ -187,7 +187,7 @@ export interface MistralParserOutput extends ToolResponse {
   output: MistralParserOutputData
 }
 
-export interface MistralOcrImage {
+interface MistralOcrImage {
   id: string
   top_left_x: number
   top_left_y: number
@@ -196,13 +196,13 @@ export interface MistralOcrImage {
   image_base64?: string
 }
 
-export interface MistralOcrDimensions {
+interface MistralOcrDimensions {
   dpi: number
   height: number
   width: number
 }
 
-export interface MistralOcrPage {
+interface MistralOcrPage {
   index: number
   markdown: string
   images: MistralOcrImage[]
@@ -213,7 +213,7 @@ export interface MistralOcrPage {
   footer: string | null
 }
 
-export interface MistralOcrUsageInfoRaw {
+interface MistralOcrUsageInfoRaw {
   pages_processed: number
   doc_size_bytes: number | null
 }

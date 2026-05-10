@@ -37,7 +37,7 @@ interface GmailEmail {
   internalDate?: string
 }
 
-export interface SimplifiedEmail {
+interface SimplifiedEmail {
   id: string
   threadId: string
   subject: string
@@ -52,7 +52,7 @@ export interface SimplifiedEmail {
   attachments: GmailAttachment[]
 }
 
-export interface GmailWebhookPayload {
+interface GmailWebhookPayload {
   email: SimplifiedEmail
   timestamp: string
   rawEmail?: GmailEmail

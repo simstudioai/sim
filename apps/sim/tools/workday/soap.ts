@@ -12,7 +12,7 @@ const WORKDAY_SERVICES = {
 
 export type WorkdayServiceKey = keyof typeof WORKDAY_SERVICES
 
-export interface WorkdaySoapResult {
+interface WorkdaySoapResult {
   Response_Data?: Record<string, unknown>
   Response_Results?: {
     Total_Results?: number | string
@@ -50,7 +50,7 @@ export interface WorkdayWorkerSoap {
   Worker_Data?: WorkdayWorkerDataSoap
 }
 
-export interface WorkdayWorkerDataSoap {
+interface WorkdayWorkerDataSoap {
   Personal_Data?: Record<string, unknown>
   Employment_Data?: Record<string, unknown>
   Compensation_Data?: WorkdayCompensationDataSoap
@@ -95,7 +95,7 @@ export interface WorkdayOrganizationSoap {
   Organization_Data?: WorkdayOrganizationDataSoap
 }
 
-export interface WorkdayOrganizationDataSoap {
+interface WorkdayOrganizationDataSoap {
   Organization_Type_Reference?: WorkdayReference
   Organization_Subtype_Reference?: WorkdayReference
   Inactive?: boolean | string
@@ -177,11 +177,7 @@ export interface WorkdayClient {
  *
  * @throws Error if tenantUrl is not a trusted Workday-hosted URL (SSRF guard)
  */
-export function buildServiceUrl(
-  tenantUrl: string,
-  tenant: string,
-  service: WorkdayServiceKey
-): string {
+function buildServiceUrl(tenantUrl: string, tenant: string, service: WorkdayServiceKey): string {
   const validation = validateWorkdayTenantUrl(tenantUrl)
   if (!validation.isValid) {
     throw new Error(validation.error ?? 'Invalid tenantUrl')
@@ -195,11 +191,7 @@ export function buildServiceUrl(
  * Builds the WSDL URL for a Workday SOAP service. Retained for backwards compatibility
  * with any external consumers; the runtime no longer fetches the WSDL.
  */
-export function buildWsdlUrl(
-  tenantUrl: string,
-  tenant: string,
-  service: WorkdayServiceKey
-): string {
+function buildWsdlUrl(tenantUrl: string, tenant: string, service: WorkdayServiceKey): string {
   return `${buildServiceUrl(tenantUrl, tenant, service)}?wsdl`
 }
 

@@ -29,7 +29,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeploymentQueries')
 
-export type { ChatDeploymentStatus, ChatDetail, DeploymentVersionsResponse }
+export type { ChatDetail, DeploymentVersionsResponse }
 
 /**
  * Query key factory for deployment-related queries
@@ -202,10 +202,7 @@ async function fetchChatDeploymentStatus(
  * Hook to fetch chat deployment status for a workflow.
  * Returns whether a chat is deployed and basic deployment info.
  */
-export function useChatDeploymentStatus(
-  workflowId: string | null,
-  options?: { enabled?: boolean }
-) {
+function useChatDeploymentStatus(workflowId: string | null, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: deploymentKeys.chatStatus(workflowId),
     queryFn: ({ signal }) => fetchChatDeploymentStatus(workflowId!, signal),
@@ -228,7 +225,7 @@ async function fetchChatDetail(chatId: string, signal?: AbortSignal): Promise<Ch
  * Hook to fetch chat detail by chat ID.
  * Returns full chat configuration including customizations and auth settings.
  */
-export function useChatDetail(chatId: string | null, options?: { enabled?: boolean }) {
+function useChatDetail(chatId: string | null, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: deploymentKeys.chatDetail(chatId),
     queryFn: ({ signal }) => fetchChatDetail(chatId!, signal),

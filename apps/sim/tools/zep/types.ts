@@ -30,7 +30,7 @@ export const THREAD_OUTPUT_PROPERTIES = {
 /**
  * Complete thread object output definition.
  */
-export const THREAD_OUTPUT: OutputProperty = {
+const THREAD_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Zep thread object',
   properties: THREAD_OUTPUT_PROPERTIES,
@@ -73,7 +73,7 @@ export const USER_OUTPUT_PROPERTIES = {
 /**
  * Complete user object output definition.
  */
-export const USER_OUTPUT: OutputProperty = {
+const USER_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Zep user object',
   properties: USER_OUTPUT_PROPERTIES,
@@ -84,7 +84,7 @@ export const USER_OUTPUT: OutputProperty = {
  * @see https://help.getzep.com/adding-messages
  * @see https://help.getzep.com/sdk-reference/thread/message/update
  */
-export const MESSAGE_OUTPUT_PROPERTIES = {
+const MESSAGE_OUTPUT_PROPERTIES = {
   uuid: { type: 'string', description: 'Message UUID' },
   role: { type: 'string', description: 'Message role (user, assistant, system, tool)' },
   roleType: { type: 'string', description: 'Role type (AI, human, tool)', optional: true },
@@ -102,7 +102,7 @@ export const MESSAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete message object output definition.
  */
-export const MESSAGE_OUTPUT: OutputProperty = {
+const MESSAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Zep message object',
   properties: MESSAGE_OUTPUT_PROPERTIES,
@@ -172,7 +172,7 @@ export interface ZepResponse extends ToolResponse {
 /**
  * Thread object interface for type safety.
  */
-export interface ZepThread {
+interface ZepThread {
   threadId: string
   userId: string
   uuid?: string
@@ -185,7 +185,7 @@ export interface ZepThread {
 /**
  * User object interface for type safety.
  */
-export interface ZepUser {
+interface ZepUser {
   userId: string
   email?: string
   firstName?: string
@@ -199,7 +199,7 @@ export interface ZepUser {
 /**
  * Message object interface for type safety.
  */
-export interface ZepMessage {
+interface ZepMessage {
   uuid: string
   role: string
   roleType?: string

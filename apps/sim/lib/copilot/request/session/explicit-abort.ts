@@ -5,7 +5,7 @@ import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { AbortReason } from '@/lib/copilot/request/session/abort'
 import { env } from '@/lib/core/config/env'
 
-export const DEFAULT_EXPLICIT_ABORT_TIMEOUT_MS = 3000
+const DEFAULT_EXPLICIT_ABORT_TIMEOUT_MS = 3000
 
 export async function requestExplicitStreamAbort(params: {
   streamId: string

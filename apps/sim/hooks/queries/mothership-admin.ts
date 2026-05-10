@@ -52,7 +52,7 @@ async function mothershipGet(
   return res.json()
 }
 
-export const mothershipKeys = {
+const mothershipKeys = {
   all: ['mothership-admin'] as const,
   requests: (env: MothershipEnv, start: string, end: string, userId?: string) =>
     [...mothershipKeys.all, 'requests', env, start, end, userId] as const,
@@ -110,11 +110,7 @@ export function useMothershipLicenses(environment: MothershipEnv) {
   })
 }
 
-export function useMothershipLicenseDetails(
-  environment: MothershipEnv,
-  id?: string,
-  name?: string
-) {
+function useMothershipLicenseDetails(environment: MothershipEnv, id?: string, name?: string) {
   return useQuery({
     queryKey: mothershipKeys.licenseDetails(environment, id, name),
     queryFn: ({ signal }) =>

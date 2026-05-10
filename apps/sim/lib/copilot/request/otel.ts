@@ -59,7 +59,7 @@ function isGenAIMessageCaptureEnabled(): boolean {
 // Anything that doesn't resolve to an explicit-stop reason (plain
 // AbortError with no identifiable cause, timeout-flavored aborts,
 // arbitrary Error instances) returns false and gets `status=error`.
-export function isExplicitUserStopError(err: unknown): boolean {
+function isExplicitUserStopError(err: unknown): boolean {
   if (err == null) return false
   if (typeof err === 'string') return isExplicitStopReason(err)
   if (typeof err === 'object') {

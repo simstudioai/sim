@@ -304,7 +304,7 @@ export async function getTagDefinitionById(
 /**
  * Update tags on all documents and chunks when a tag value is changed
  */
-export async function updateTagValuesInDocumentsAndChunks(
+async function updateTagValuesInDocumentsAndChunks(
   knowledgeBaseId: string,
   tagSlot: string,
   oldValue: string | null,

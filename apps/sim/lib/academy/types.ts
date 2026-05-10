@@ -4,7 +4,7 @@
  */
 import type { academyCertificate } from '@sim/db/schema'
 
-export type LessonType = 'video' | 'exercise' | 'quiz' | 'mixed'
+type LessonType = 'video' | 'exercise' | 'quiz' | 'mixed'
 
 export interface Course {
   /** Stable ID — stored on certificates; never change after launch */
@@ -17,7 +17,7 @@ export interface Course {
   modules: Module[]
 }
 
-export interface Module {
+interface Module {
   id: string
   title: string
   description?: string
@@ -37,7 +37,7 @@ export interface Lesson {
   quizConfig?: QuizDefinition
 }
 
-export type AcademyCertStatus = 'active' | 'revoked' | 'expired'
+type AcademyCertStatus = 'active' | 'revoked' | 'expired'
 
 export interface CertificateMetadata {
   /** Recipient name at time of issuance */

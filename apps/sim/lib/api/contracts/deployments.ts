@@ -8,26 +8,26 @@ const deployedWorkflowStateSchema = z.custom<WorkflowState>(
   'Expected workflow state'
 )
 
-export const deploymentVersionParamsSchema = z.object({
+const deploymentVersionParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
   version: z.coerce.number().int().positive(),
 })
 
-export const deploymentVersionOrActiveParamsSchema = z.object({
+const deploymentVersionOrActiveParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
   version: z.union([z.number().int().positive(), z.literal('active')]),
 })
 
-export const deploymentVersionRouteParamsSchema = z.object({
+const deploymentVersionRouteParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
   version: z.string().min(1, 'Invalid version'),
 })
 
-export const updatePublicApiBodySchema = z.object({
+const updatePublicApiBodySchema = z.object({
   isPublicApi: z.boolean(),
 })
 
-export type UpdatePublicApiBody = z.input<typeof updatePublicApiBodySchema>
+type UpdatePublicApiBody = z.input<typeof updatePublicApiBodySchema>
 
 const deploymentVersionMetadataFieldsSchema = z.object({
   name: z
@@ -43,25 +43,22 @@ const deploymentVersionMetadataFieldsSchema = z.object({
     .nullable()
     .optional(),
 })
-export const updateDeploymentVersionMetadataBodySchema =
-  deploymentVersionMetadataFieldsSchema.refine(
-    (data) => data.name !== undefined || data.description !== undefined,
-    {
-      message: 'At least one of name or description must be provided',
-    }
-  )
+const updateDeploymentVersionMetadataBodySchema = deploymentVersionMetadataFieldsSchema.refine(
+  (data) => data.name !== undefined || data.description !== undefined,
+  {
+    message: 'At least one of name or description must be provided',
+  }
+)
 
-export type UpdateDeploymentVersionMetadataBody = z.input<
-  typeof updateDeploymentVersionMetadataBodySchema
->
+type UpdateDeploymentVersionMetadataBody = z.input<typeof updateDeploymentVersionMetadataBodySchema>
 
-export const activateDeploymentVersionBodySchema = z.object({
+const activateDeploymentVersionBodySchema = z.object({
   isActive: z.literal(true),
 })
 
-export type ActivateDeploymentVersionBody = z.input<typeof activateDeploymentVersionBodySchema>
+type ActivateDeploymentVersionBody = z.input<typeof activateDeploymentVersionBodySchema>
 
-export const deploymentVersionPatchBodySchema = deploymentVersionMetadataFieldsSchema
+const deploymentVersionPatchBodySchema = deploymentVersionMetadataFieldsSchema
   .extend({
     isActive: z.literal(true).optional(),
   })
@@ -72,7 +69,7 @@ export const deploymentVersionPatchBodySchema = deploymentVersionMetadataFieldsS
     }
   )
 
-export const deploymentInfoResponseSchema = z.object({
+const deploymentInfoResponseSchema = z.object({
   isDeployed: z.boolean(),
   deployedAt: z.string().nullable().optional(),
   apiKey: z.string().nullable().optional(),
@@ -83,9 +80,9 @@ export const deploymentInfoResponseSchema = z.object({
 
 export type DeploymentInfoResponse = z.output<typeof deploymentInfoResponseSchema>
 export type DeployWorkflowResponse = DeploymentInfoResponse
-export type UndeployWorkflowResponse = DeploymentInfoResponse
+type UndeployWorkflowResponse = DeploymentInfoResponse
 
-export const deploymentVersionSchema = z.object({
+const deploymentVersionSchema = z.object({
   id: z.string(),
   version: z.number(),
   name: z.string().nullable().optional(),
@@ -96,15 +93,15 @@ export const deploymentVersionSchema = z.object({
   deployedBy: z.string().nullable().optional(),
 })
 
-export type DeploymentVersion = z.output<typeof deploymentVersionSchema>
+type DeploymentVersion = z.output<typeof deploymentVersionSchema>
 
-export const deploymentVersionsResponseSchema = z.object({
+const deploymentVersionsResponseSchema = z.object({
   versions: z.array(deploymentVersionSchema),
 })
 
 export type DeploymentVersionsResponse = z.output<typeof deploymentVersionsResponseSchema>
 
-export const chatDeploymentStatusSchema = z.object({
+const chatDeploymentStatusSchema = z.object({
   isDeployed: z.boolean(),
   deployment: z
     .object({
@@ -117,7 +114,7 @@ export const chatDeploymentStatusSchema = z.object({
 
 export type ChatDeploymentStatus = z.output<typeof chatDeploymentStatusSchema>
 
-export const chatDetailSchema = z.object({
+const chatDetailSchema = z.object({
   id: z.string(),
   identifier: z.string(),
   title: z.string(),
@@ -150,19 +147,19 @@ export const chatDetailSchema = z.object({
 
 export type ChatDetail = z.output<typeof chatDetailSchema>
 
-export const updatePublicApiResponseSchema = z.object({
+const updatePublicApiResponseSchema = z.object({
   isPublicApi: z.boolean(),
 })
 
-export type UpdatePublicApiResponse = z.output<typeof updatePublicApiResponseSchema>
+type UpdatePublicApiResponse = z.output<typeof updatePublicApiResponseSchema>
 
-export const deployedWorkflowStateResponseSchema = z.object({
+const deployedWorkflowStateResponseSchema = z.object({
   deployedState: deployedWorkflowStateSchema.nullable(),
 })
 
-export type DeployedWorkflowStateResponse = z.output<typeof deployedWorkflowStateResponseSchema>
+type DeployedWorkflowStateResponse = z.output<typeof deployedWorkflowStateResponseSchema>
 
-export const updateDeploymentVersionMetadataResponseSchema = z.object({
+const updateDeploymentVersionMetadataResponseSchema = z.object({
   name: z.string().nullable(),
   description: z.string().nullable(),
 })
@@ -171,7 +168,7 @@ export type UpdateDeploymentVersionMetadataResponse = z.output<
   typeof updateDeploymentVersionMetadataResponseSchema
 >
 
-export const activateDeploymentVersionResponseSchema = z.object({
+const activateDeploymentVersionResponseSchema = z.object({
   success: z.literal(true),
   deployedAt: z.string(),
   warnings: z.array(z.string()).optional(),

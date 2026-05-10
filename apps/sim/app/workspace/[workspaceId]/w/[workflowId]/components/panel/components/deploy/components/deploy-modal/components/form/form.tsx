@@ -379,7 +379,7 @@ export function FormDeploy({
               />
               {isCheckingIdentifier ? (
                 <div className='-translate-y-1/2 absolute top-1/2 right-2'>
-                  <Loader className='h-4 w-4 text-[var(--text-tertiary)]' animate />
+                  <Loader className='size-4 text-[var(--text-tertiary)]' animate />
                 </div>
               ) : (
                 identifierValidationPassed &&
@@ -387,7 +387,7 @@ export function FormDeploy({
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <div className='-translate-y-1/2 absolute top-1/2 right-2'>
-                        <Check className='h-4 w-4 text-[var(--brand-accent)]' />
+                        <Check className='size-4 text-[var(--brand-accent)]' />
                       </div>
                     </Tooltip.Trigger>
                     <Tooltip.Content>
@@ -479,7 +479,7 @@ export function FormDeploy({
                 onClick={() => setShowPasswordField(!showPasswordField)}
                 className='-translate-y-1/2 absolute top-1/2 right-[8px] text-[var(--text-secondary)]'
               >
-                {showPasswordField ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
+                {showPasswordField ? <EyeOff className='size-4' /> : <Eye className='size-4' />}
               </button>
             </div>
             {errors.password && (

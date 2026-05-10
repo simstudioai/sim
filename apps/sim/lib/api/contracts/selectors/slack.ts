@@ -14,7 +14,7 @@ const slackUserSchema = z
   .object({ id: z.string(), name: z.string(), real_name: z.string() })
   .passthrough()
 
-export const slackUsersBodySchema = credentialWorkflowBodySchema.extend({
+const slackUsersBodySchema = credentialWorkflowBodySchema.extend({
   userId: z.string().optional(),
 })
 
@@ -42,8 +42,6 @@ export const slackUsersListOrDetailContract = definePostSelector(
   z.union([z.object({ user: slackUserSchema }), z.object({ users: z.array(slackUserSchema) })])
 )
 
-export type SlackChannelsSelectorResponse = ContractJsonResponse<
-  typeof slackChannelsSelectorContract
->
-export type SlackUsersSelectorResponse = ContractJsonResponse<typeof slackUsersSelectorContract>
-export type SlackUserSelectorResponse = ContractJsonResponse<typeof slackUserSelectorContract>
+type SlackChannelsSelectorResponse = ContractJsonResponse<typeof slackChannelsSelectorContract>
+type SlackUsersSelectorResponse = ContractJsonResponse<typeof slackUsersSelectorContract>
+type SlackUserSelectorResponse = ContractJsonResponse<typeof slackUserSelectorContract>

@@ -3,6 +3,7 @@ import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position, useReactFlow } from 'reactflow'
 import { Badge } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { type DiffStatus, hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -171,16 +172,20 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
 
         {/* Header Section */}
         <div
+          role='button'
+          tabIndex={0}
+          aria-label={`Select ${blockName}`}
           onClick={() => setCurrentBlockId(id)}
+          onKeyDown={(event) => handleKeyboardActivation(event, () => setCurrentBlockId(id))}
           className='workflow-drag-handle flex cursor-grab items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-2 pr-3 pl-2 [&:active]:cursor-grabbing'
           style={{ pointerEvents: 'auto' }}
         >
           <div className='flex min-w-0 flex-1 items-center gap-2.5'>
             <div
-              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-md'
+              className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-md'
               style={{ backgroundColor: isEnabled ? blockIconBg : 'gray' }}
             >
-              <BlockIcon className='h-[16px] w-[16px] text-white' />
+              <BlockIcon className='size-[16px] text-white' />
             </div>
             <span
               className={cn(
@@ -205,14 +210,20 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
          * DOM children), so enabling pointer events here doesn't block them.
          */}
         <div
+          role='button'
+          tabIndex={isPreview ? -1 : 0}
+          aria-label={`Select ${blockName}`}
           className='workflow-drag-handle absolute inset-0 top-[44px] cursor-grab rounded-b-[8px] [&:active]:cursor-grabbing'
           style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
           onClick={() => setCurrentBlockId(id)}
+          onKeyDown={(event) => handleKeyboardActivation(event, () => setCurrentBlockId(id))}
         />
 
         {!isPreview && canEditWorkflow && (
           <div
-            className='absolute right-[8px] bottom-2 z-20 flex h-[32px] w-[32px] cursor-se-resize items-center justify-center text-muted-foreground'
+            role='separator'
+            aria-orientation='horizontal'
+            className='absolute right-[8px] bottom-2 z-20 flex size-[32px] cursor-se-resize items-center justify-center text-muted-foreground'
             style={{ pointerEvents: 'auto' }}
           />
         )}

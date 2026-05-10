@@ -124,7 +124,7 @@ export interface OAuthProviderConfig {
   defaultService: string
 }
 
-export type OAuthAuthType = 'oauth' | 'service_account'
+type OAuthAuthType = 'oauth' | 'service_account'
 
 export interface OAuthServiceConfig {
   name: string

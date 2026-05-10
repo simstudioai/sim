@@ -106,7 +106,7 @@ export interface SelectorPage {
   nextCursor?: string
 }
 
-export interface SelectorPageArgs extends SelectorQueryArgs {
+interface SelectorPageArgs extends SelectorQueryArgs {
   cursor?: string
 }
 

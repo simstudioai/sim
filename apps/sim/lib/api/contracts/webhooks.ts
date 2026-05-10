@@ -1,19 +1,19 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const webhooksRouteQuerySchema = z.object({
+const webhooksRouteQuerySchema = z.object({
   workflowId: z.string().optional(),
   blockId: z.string().optional(),
 })
 
-export const webhooksByBlockQuerySchema = z.object({
+const webhooksByBlockQuerySchema = z.object({
   workflowId: z.string().min(1),
   blockId: z.string().min(1),
 })
 
-export const webhookProviderConfigSchema = z.record(z.string(), z.unknown())
+const webhookProviderConfigSchema = z.record(z.string(), z.unknown())
 
-export const webhookDataSchema = z
+const webhookDataSchema = z
   .object({
     id: z.string(),
     path: z.string().optional(),
@@ -24,7 +24,7 @@ export const webhookDataSchema = z
 
 export type WebhookData = z.output<typeof webhookDataSchema>
 
-export const webhookListItemSchema = z.object({
+const webhookListItemSchema = z.object({
   webhook: webhookDataSchema,
   workflow: z
     .object({
@@ -34,9 +34,9 @@ export const webhookListItemSchema = z.object({
     .optional(),
 })
 
-export type WebhookListItem = z.output<typeof webhookListItemSchema>
+type WebhookListItem = z.output<typeof webhookListItemSchema>
 
-export const webhookUpsertBodySchema = z
+const webhookUpsertBodySchema = z
   .object({
     workflowId: z.string().optional(),
     path: z.string().optional(),
@@ -46,13 +46,13 @@ export const webhookUpsertBodySchema = z
   })
   .strict()
 
-export type WebhookUpsertBody = z.input<typeof webhookUpsertBodySchema>
+type WebhookUpsertBody = z.input<typeof webhookUpsertBodySchema>
 
-export const webhookIdParamsSchema = z.object({
+const webhookIdParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-export const webhookPatchBodySchema = z
+const webhookPatchBodySchema = z
   .object({
     isActive: z.boolean().optional(),
     failedCount: z
@@ -63,13 +63,13 @@ export const webhookPatchBodySchema = z
       .optional(),
   })
   .strict()
-export type WebhookPatchBody = z.input<typeof webhookPatchBodySchema>
+type WebhookPatchBody = z.input<typeof webhookPatchBodySchema>
 
-export const webhookPollingParamsSchema = z.object({
+const webhookPollingParamsSchema = z.object({
   provider: z.string().min(1),
 })
 
-export const webhookTriggerParamsSchema = z.object({
+const webhookTriggerParamsSchema = z.object({
   path: z.string().min(1),
 })
 
@@ -121,7 +121,7 @@ export const agentMailMessageSchema = z
   })
   .passthrough()
 
-export const listWebhooksByBlockResponseSchema = z.object({
+const listWebhooksByBlockResponseSchema = z.object({
   webhooks: z.array(webhookListItemSchema),
 })
 

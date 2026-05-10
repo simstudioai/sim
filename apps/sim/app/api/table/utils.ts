@@ -11,22 +11,22 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableUtils')
 
-export interface TableAccessResult {
+interface TableAccessResult {
   hasAccess: true
   table: TableDefinition
 }
 
-export interface TableAccessDenied {
+interface TableAccessDenied {
   hasAccess: false
   notFound?: boolean
   reason?: string
 }
 
-export type TableAccessCheck = TableAccessResult | TableAccessDenied
+type TableAccessCheck = TableAccessResult | TableAccessDenied
 
 export type AccessResult = { ok: true; table: TableDefinition } | { ok: false; status: 404 | 403 }
 
-export interface ApiErrorResponse {
+interface ApiErrorResponse {
   error: string
   details?: unknown
 }
@@ -35,7 +35,7 @@ export interface ApiErrorResponse {
  * Check if a user has read access to a table.
  * Read access requires any workspace permission (read, write, or admin).
  */
-export async function checkTableAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
+async function checkTableAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
   const table = await getTableById(tableId)
 
   if (!table) {
@@ -54,10 +54,7 @@ export async function checkTableAccess(tableId: string, userId: string): Promise
  * Check if a user has write access to a table.
  * Write access requires write or admin workspace permission.
  */
-export async function checkTableWriteAccess(
-  tableId: string,
-  userId: string
-): Promise<TableAccessCheck> {
+async function checkTableWriteAccess(tableId: string, userId: string): Promise<TableAccessCheck> {
   const table = await getTableById(tableId)
 
   if (!table) {
@@ -111,7 +108,7 @@ export function accessError(
  * Converts a TableAccessDenied result to an appropriate HTTP response.
  * Use with checkTableAccess or checkTableWriteAccess.
  */
-export function tableAccessError(
+function tableAccessError(
   result: TableAccessDenied,
   requestId: string,
   context?: string
@@ -122,12 +119,12 @@ export function tableAccessError(
   return NextResponse.json({ error: message }, { status })
 }
 
-export async function verifyTableWorkspace(tableId: string, workspaceId: string): Promise<boolean> {
+async function verifyTableWorkspace(tableId: string, workspaceId: string): Promise<boolean> {
   const table = await getTableById(tableId)
   return table?.workspaceId === workspaceId
 }
 
-export function errorResponse(
+function errorResponse(
   message: string,
   status: number,
   details?: unknown
@@ -139,23 +136,23 @@ export function errorResponse(
   return NextResponse.json(body, { status })
 }
 
-export function badRequestResponse(message: string, details?: unknown) {
+function badRequestResponse(message: string, details?: unknown) {
   return errorResponse(message, 400, details)
 }
 
-export function unauthorizedResponse(message = 'Authentication required') {
+function unauthorizedResponse(message = 'Authentication required') {
   return errorResponse(message, 401)
 }
 
-export function forbiddenResponse(message = 'Access denied') {
+function forbiddenResponse(message = 'Access denied') {
   return errorResponse(message, 403)
 }
 
-export function notFoundResponse(message = 'Resource not found') {
+function notFoundResponse(message = 'Resource not found') {
   return errorResponse(message, 404)
 }
 
-export function serverErrorResponse(message = 'Internal server error') {
+function serverErrorResponse(message = 'Internal server error') {
   return errorResponse(message, 500)
 }
 
@@ -163,9 +160,9 @@ export function serverErrorResponse(message = 'Internal server error') {
  * Re-exports from `lib/api/contracts/tables` so existing routes that import
  * these names keep working while sharing a single source of truth.
  */
-export const CreateColumnSchema = createTableColumnBodySchema
-export const UpdateColumnSchema = updateTableColumnBodySchema
-export const DeleteColumnSchema = deleteTableColumnBodySchema
+const CreateColumnSchema = createTableColumnBodySchema
+const UpdateColumnSchema = updateTableColumnBodySchema
+const DeleteColumnSchema = deleteTableColumnBodySchema
 
 export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
   return {

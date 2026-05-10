@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const v1FileParamsSchema = z.object({
+const v1FileParamsSchema = z.object({
   fileId: z.string({ error: 'File ID is required' }).min(1, 'File ID is required'),
 })
 
-export const v1WorkspaceIdQuerySchema = z.object({
+const v1WorkspaceIdQuerySchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId query parameter is required'),
 })
 
@@ -13,9 +13,9 @@ export const v1UploadFileFormFieldsSchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId form field is required'),
 })
 
-export type V1FileParams = z.output<typeof v1FileParamsSchema>
-export type V1WorkspaceIdQuery = z.output<typeof v1WorkspaceIdQuerySchema>
-export type V1UploadFileFormFields = z.output<typeof v1UploadFileFormFieldsSchema>
+type V1FileParams = z.output<typeof v1FileParamsSchema>
+type V1WorkspaceIdQuery = z.output<typeof v1WorkspaceIdQuerySchema>
+type V1UploadFileFormFields = z.output<typeof v1UploadFileFormFieldsSchema>
 
 const v1FilesResponseSchema = z
   .object({
@@ -34,7 +34,7 @@ export const v1ListFilesContract = defineRouteContract({
   },
 })
 
-export const v1UploadFileContract = defineRouteContract({
+const v1UploadFileContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/files',
   response: {

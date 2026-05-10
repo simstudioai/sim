@@ -490,10 +490,7 @@ export function hasCloudStorage(): boolean {
  * Get S3 bucket and key information for a storage key
  * Useful for services that need direct S3 access (e.g., AWS Textract async)
  */
-export function getS3InfoForKey(
-  key: string,
-  context: StorageContext
-): { bucket: string; key: string } {
+function getS3InfoForKey(key: string, context: StorageContext): { bucket: string; key: string } {
   if (!USE_S3_STORAGE) {
     throw new Error('S3 storage is not configured. Cannot retrieve S3 info for key.')
   }

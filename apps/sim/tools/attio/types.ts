@@ -1,7 +1,7 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Reusable actor shape returned by the Attio API */
-export const ACTOR_OUTPUT_PROPERTIES = {
+const ACTOR_OUTPUT_PROPERTIES = {
   type: {
     type: 'string',
     description: 'The actor type (e.g. workspace-member, api-token, system)',
@@ -10,19 +10,19 @@ export const ACTOR_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Reusable linked-record shape returned by the Attio API */
-export const LINKED_RECORD_OUTPUT_PROPERTIES = {
+const LINKED_RECORD_OUTPUT_PROPERTIES = {
   targetObjectId: { type: 'string', description: 'The linked object ID' },
   targetRecordId: { type: 'string', description: 'The linked record ID' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Reusable assignee shape returned by the Attio API */
-export const ASSIGNEE_OUTPUT_PROPERTIES = {
+const ASSIGNEE_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'The assignee actor type (e.g. workspace-member)' },
   id: { type: 'string', description: 'The assignee actor ID' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Shared output properties for record identifiers (raw API shape, snake_case keys) */
-export const RECORD_ID_OUTPUT_PROPERTIES = {
+const RECORD_ID_OUTPUT_PROPERTIES = {
   workspace_id: { type: 'string', description: 'The workspace ID' },
   object_id: { type: 'string', description: 'The object ID' },
   record_id: { type: 'string', description: 'The record ID' },
@@ -241,7 +241,7 @@ export const WEBHOOK_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Raw Attio record shape from the API */
-export interface AttioRecord {
+interface AttioRecord {
   id: { workspace_id: string; object_id: string; record_id: string }
   created_at: string
   web_url: string
@@ -249,7 +249,7 @@ export interface AttioRecord {
 }
 
 /** Raw Attio note shape from the API */
-export interface AttioNote {
+interface AttioNote {
   id: { workspace_id: string; note_id: string }
   parent_object: string
   parent_record_id: string
@@ -263,7 +263,7 @@ export interface AttioNote {
 }
 
 /** Raw Attio task shape from the API */
-export interface AttioTask {
+interface AttioTask {
   id: { workspace_id: string; task_id: string }
   content_plaintext: string
   deadline_at: string | null

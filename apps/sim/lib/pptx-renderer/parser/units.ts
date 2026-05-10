@@ -15,7 +15,7 @@ export function emuToPx(emu: number): number {
 }
 
 /** EMU to points. */
-export function emuToPt(emu: number): number {
+function emuToPt(emu: number): number {
   return emu / 12700
 }
 
@@ -30,12 +30,12 @@ export function pctToDecimal(pct: number): number {
 }
 
 /** Hundredths of a point to points (used for font sizes in OOXML). */
-export function hundredthPtToPt(val: number): number {
+function hundredthPtToPt(val: number): number {
   return val / 100
 }
 
 /** Points to pixels (at 96 DPI). */
-export function ptToPx(pt: number): number {
+function ptToPx(pt: number): number {
   return (pt * 96) / 72
 }
 
@@ -43,7 +43,7 @@ export function ptToPx(pt: number): number {
  * Heuristic: detect whether a value is in EMU or points.
  * Values with abs > 20000 are almost certainly EMU (a single point = 12700 EMU).
  */
-export function detectUnit(value: number): 'emu' | 'point' {
+function detectUnit(value: number): 'emu' | 'point' {
   return Math.abs(value) > 20000 ? 'emu' : 'point'
 }
 
@@ -51,7 +51,7 @@ export function detectUnit(value: number): 'emu' | 'point' {
  * Smart conversion to pixels: auto-detects whether the value is EMU or points
  * and converts accordingly.
  */
-export function smartToPx(value: number): number {
+function smartToPx(value: number): number {
   if (detectUnit(value) === 'emu') {
     return emuToPx(value)
   }

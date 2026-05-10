@@ -28,11 +28,7 @@ import type {
   WorkflowSearchMatch,
   WorkflowSearchReplacementOption,
 } from '@/lib/workflows/search-replace/types'
-import {
-  fetchKnowledgeBase,
-  fetchKnowledgeBases,
-  knowledgeKeys,
-} from '@/hooks/queries/kb/knowledge'
+import { fetchKnowledgeBase, fetchKnowledgeBases } from '@/hooks/queries/kb/knowledge'
 import {
   fetchOAuthCredentialDetail,
   fetchOAuthCredentials,
@@ -646,5 +642,3 @@ export function flattenWorkflowSearchReplacementOptions(
 ): WorkflowSearchReplacementOption[] {
   return optionGroups.flatMap((group) => group.data ?? [])
 }
-
-export { knowledgeKeys }

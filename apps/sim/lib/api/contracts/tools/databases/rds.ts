@@ -19,25 +19,24 @@ const rdsConnectionBodySchema = z.object({
   database: z.string().optional(),
 })
 
-export const rdsQueryBodySchema = rdsConnectionBodySchema.extend({
+const rdsQueryBodySchema = rdsConnectionBodySchema.extend({
   query: z.string().min(1, 'Query is required'),
 })
 
-export const rdsExecuteBodySchema = rdsQueryBodySchema
-export const rdsInsertBodySchema = rdsConnectionBodySchema.extend({
+const rdsInsertBodySchema = rdsConnectionBodySchema.extend({
   table: z.string().min(1, 'Table name is required'),
   data: nonEmptyRecordSchema('Data object must have at least one field'),
 })
-export const rdsUpdateBodySchema = rdsConnectionBodySchema.extend({
+const rdsUpdateBodySchema = rdsConnectionBodySchema.extend({
   table: z.string().min(1, 'Table name is required'),
   data: nonEmptyRecordSchema('Data object must have at least one field'),
   conditions: nonEmptyRecordSchema('At least one condition is required'),
 })
-export const rdsDeleteBodySchema = rdsConnectionBodySchema.extend({
+const rdsDeleteBodySchema = rdsConnectionBodySchema.extend({
   table: z.string().min(1, 'Table name is required'),
   conditions: nonEmptyRecordSchema('At least one condition is required'),
 })
-export const rdsIntrospectBodySchema = rdsConnectionBodySchema.extend({
+const rdsIntrospectBodySchema = rdsConnectionBodySchema.extend({
   schema: z.string().optional(),
   engine: z.enum(['aurora-postgresql', 'aurora-mysql']).optional(),
 })
@@ -52,7 +51,7 @@ export const rdsQueryContract = defineRouteContract({
 export const rdsExecuteContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/rds/execute',
-  body: rdsExecuteBodySchema,
+  body: rdsQueryBodySchema,
   response: { mode: 'json', schema: sqlRowsResponseSchema },
 })
 
@@ -84,15 +83,15 @@ export const rdsIntrospectContract = defineRouteContract({
   response: { mode: 'json', schema: introspectionResponseSchema },
 })
 
-export type RdsQueryRequest = ContractBodyInput<typeof rdsQueryContract>
-export type RdsQueryResponse = ContractJsonResponse<typeof rdsQueryContract>
-export type RdsExecuteRequest = ContractBodyInput<typeof rdsExecuteContract>
-export type RdsExecuteResponse = ContractJsonResponse<typeof rdsExecuteContract>
-export type RdsInsertRequest = ContractBodyInput<typeof rdsInsertContract>
-export type RdsInsertResponse = ContractJsonResponse<typeof rdsInsertContract>
-export type RdsUpdateRequest = ContractBodyInput<typeof rdsUpdateContract>
-export type RdsUpdateResponse = ContractJsonResponse<typeof rdsUpdateContract>
-export type RdsDeleteRequest = ContractBodyInput<typeof rdsDeleteContract>
-export type RdsDeleteResponse = ContractJsonResponse<typeof rdsDeleteContract>
-export type RdsIntrospectRequest = ContractBodyInput<typeof rdsIntrospectContract>
-export type RdsIntrospectResponse = ContractJsonResponse<typeof rdsIntrospectContract>
+type RdsQueryRequest = ContractBodyInput<typeof rdsQueryContract>
+type RdsQueryResponse = ContractJsonResponse<typeof rdsQueryContract>
+type RdsExecuteRequest = ContractBodyInput<typeof rdsExecuteContract>
+type RdsExecuteResponse = ContractJsonResponse<typeof rdsExecuteContract>
+type RdsInsertRequest = ContractBodyInput<typeof rdsInsertContract>
+type RdsInsertResponse = ContractJsonResponse<typeof rdsInsertContract>
+type RdsUpdateRequest = ContractBodyInput<typeof rdsUpdateContract>
+type RdsUpdateResponse = ContractJsonResponse<typeof rdsUpdateContract>
+type RdsDeleteRequest = ContractBodyInput<typeof rdsDeleteContract>
+type RdsDeleteResponse = ContractJsonResponse<typeof rdsDeleteContract>
+type RdsIntrospectRequest = ContractBodyInput<typeof rdsIntrospectContract>
+type RdsIntrospectResponse = ContractJsonResponse<typeof rdsIntrospectContract>

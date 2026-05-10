@@ -40,28 +40,28 @@ const multipartCompletedUploadSchema = z.object({
   key: z.string(),
 })
 
-export const initiateMultipartResponseSchema = z.object({
+const initiateMultipartResponseSchema = z.object({
   uploadId: z.string(),
   key: z.string(),
   uploadToken: z.string(),
 })
 
-export const getMultipartPartUrlsResponseSchema = z.object({
+const getMultipartPartUrlsResponseSchema = z.object({
   presignedUrls: z.array(multipartPartUrlSchema),
 })
 
-export const completeMultipartResponseSchema = z.union([
+const completeMultipartResponseSchema = z.union([
   multipartCompletedUploadSchema,
   z.object({
     results: z.array(multipartCompletedUploadSchema),
   }),
 ])
 
-export const abortMultipartResponseSchema = z.object({
+const abortMultipartResponseSchema = z.object({
   success: z.literal(true),
 })
 
-export const multipartUploadResponseSchema = z.union([
+const multipartUploadResponseSchema = z.union([
   initiateMultipartResponseSchema,
   getMultipartPartUrlsResponseSchema,
   completeMultipartResponseSchema,
@@ -87,7 +87,7 @@ function requirePasswordOrPrivateKey<S extends z.ZodType>(schema: S): S {
   ) as S
 }
 
-export const boxUploadBodySchema = z.object({
+const boxUploadBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   parentFolderId: z.string().min(1, 'Parent folder ID is required'),
   file: FileInputSchema.optional().nullable(),
@@ -95,7 +95,7 @@ export const boxUploadBodySchema = z.object({
   fileName: z.string().optional().nullable(),
 })
 
-export const dropboxUploadBodySchema = z.object({
+const dropboxUploadBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   path: z.string().min(1, 'Destination path is required'),
   file: FileInputSchema.optional().nullable(),
@@ -106,7 +106,7 @@ export const dropboxUploadBodySchema = z.object({
   mute: z.boolean().optional().nullable(),
 })
 
-export const wordpressUploadBodySchema = z.object({
+const wordpressUploadBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   siteId: z.string().min(1, 'Site ID is required'),
   file: RawFileInputSchema.optional().nullable(),
@@ -117,7 +117,7 @@ export const wordpressUploadBodySchema = z.object({
   description: z.string().optional().nullable(),
 })
 
-export const sftpListBodySchema = requirePasswordOrPrivateKey(
+const sftpListBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     remotePath: z.string().min(1, 'Remote path is required'),
@@ -125,7 +125,7 @@ export const sftpListBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const sftpDeleteBodySchema = requirePasswordOrPrivateKey(
+const sftpDeleteBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     remotePath: z.string().min(1, 'Remote path is required'),
@@ -133,7 +133,7 @@ export const sftpDeleteBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const sftpMkdirBodySchema = requirePasswordOrPrivateKey(
+const sftpMkdirBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     remotePath: z.string().min(1, 'Remote path is required'),
@@ -141,7 +141,7 @@ export const sftpMkdirBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const sftpDownloadBodySchema = requirePasswordOrPrivateKey(
+const sftpDownloadBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     remotePath: z.string().min(1, 'Remote path is required'),
@@ -149,7 +149,7 @@ export const sftpDownloadBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const sftpUploadBodySchema = requirePasswordOrPrivateKey(
+const sftpUploadBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     remotePath: z.string().min(1, 'Remote path is required'),
@@ -161,14 +161,14 @@ export const sftpUploadBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const sshCheckCommandExistsBodySchema = requirePasswordOrPrivateKey(
+const sshCheckCommandExistsBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     commandName: z.string().min(1, 'Command name is required'),
   })
 )
 
-export const sshCheckFileExistsBodySchema = requirePasswordOrPrivateKey(
+const sshCheckFileExistsBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     path: z.string().min(1, 'Path is required'),
@@ -176,7 +176,7 @@ export const sshCheckFileExistsBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const sshCreateDirectoryBodySchema = requirePasswordOrPrivateKey(
+const sshCreateDirectoryBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     path: z.string().min(1, 'Path is required'),
@@ -185,7 +185,7 @@ export const sshCreateDirectoryBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const sshDeleteFileBodySchema = requirePasswordOrPrivateKey(
+const sshDeleteFileBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     path: z.string().min(1, 'Path is required'),
@@ -194,14 +194,14 @@ export const sshDeleteFileBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const sshDownloadFileBodySchema = requirePasswordOrPrivateKey(
+const sshDownloadFileBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     remotePath: z.string().min(1, 'Remote path is required'),
   })
 )
 
-export const sshExecuteCommandBodySchema = requirePasswordOrPrivateKey(
+const sshExecuteCommandBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     command: z.string().min(1, 'Command is required'),
@@ -209,7 +209,7 @@ export const sshExecuteCommandBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const sshExecuteScriptBodySchema = requirePasswordOrPrivateKey(
+const sshExecuteScriptBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     script: z.string().min(1, 'Script content is required'),
@@ -218,9 +218,9 @@ export const sshExecuteScriptBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const sshGetSystemInfoBodySchema = requirePasswordOrPrivateKey(z.object(connectionFields))
+const sshGetSystemInfoBodySchema = requirePasswordOrPrivateKey(z.object(connectionFields))
 
-export const sshListDirectoryBodySchema = requirePasswordOrPrivateKey(
+const sshListDirectoryBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     path: z.string().min(1, 'Path is required'),
@@ -229,7 +229,7 @@ export const sshListDirectoryBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const sshMoveRenameBodySchema = requirePasswordOrPrivateKey(
+const sshMoveRenameBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     sourcePath: z.string().min(1, 'Source path is required'),
@@ -238,7 +238,7 @@ export const sshMoveRenameBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const sshReadFileContentBodySchema = requirePasswordOrPrivateKey(
+const sshReadFileContentBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     path: z.string().min(1, 'Path is required'),
@@ -247,7 +247,7 @@ export const sshReadFileContentBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const sshUploadFileBodySchema = requirePasswordOrPrivateKey(
+const sshUploadFileBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     fileContent: z.string().min(1, 'File content is required'),
@@ -258,7 +258,7 @@ export const sshUploadFileBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const sshWriteFileContentBodySchema = requirePasswordOrPrivateKey(
+const sshWriteFileContentBodySchema = requirePasswordOrPrivateKey(
   z.object({
     ...connectionFields,
     path: z.string().min(1, 'Path is required'),
@@ -268,7 +268,7 @@ export const sshWriteFileContentBodySchema = requirePasswordOrPrivateKey(
   })
 )
 
-export const storageContextSchema = z.enum([
+const storageContextSchema = z.enum([
   'knowledge-base',
   'chat',
   'copilot',
@@ -281,9 +281,9 @@ export const storageContextSchema = z.enum([
   'workspace-logos',
 ])
 
-export const downloadContextSchema = z.union([storageContextSchema, z.literal('general')])
+const downloadContextSchema = z.union([storageContextSchema, z.literal('general')])
 
-export const fileDownloadBodySchema = z
+const fileDownloadBodySchema = z
   .object({
     key: z.string().optional(),
     name: z.string().optional(),
@@ -298,7 +298,7 @@ export const fileDownloadBodySchema = z
   })
   .passthrough()
 
-export const fileParseBodySchema = z
+const fileParseBodySchema = z
   .object({
     filePath: z.union([z.string(), z.array(z.string())]).optional(),
     fileType: z.string().optional().default(''),
@@ -308,7 +308,7 @@ export const fileParseBodySchema = z
   })
   .passthrough()
 
-export const fileDeleteBodySchema = z
+const fileDeleteBodySchema = z
   .object({
     filePath: z.string().optional(),
     context: storageContextSchema.optional(),
@@ -316,7 +316,7 @@ export const fileDeleteBodySchema = z
   .passthrough()
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024
-export const validUploadTypes = [
+const validUploadTypes = [
   'knowledge-base',
   'chat',
   'copilot',
@@ -328,11 +328,11 @@ export const validUploadTypes = [
 
 export const uploadTypeSchema = z.enum(validUploadTypes)
 
-export const presignedUploadQuerySchema = z.object({
+const presignedUploadQuerySchema = z.object({
   type: uploadTypeSchema,
 })
 
-export const presignedUrlBodySchema = z
+const presignedUrlBodySchema = z
   .object({
     fileName: z
       .string({ error: 'fileName is required and cannot be empty' })
@@ -360,7 +360,7 @@ export const presignedUrlBodySchema = z
   })
   .passthrough()
 
-export const batchPresignedUrlBodySchema = z
+const batchPresignedUrlBodySchema = z
   .object({
     files: z
       .array(
@@ -399,7 +399,7 @@ export const batchPresignedUrlBodySchema = z
 
 export const multipartActionSchema = z.enum(['initiate', 'get-part-urls', 'complete', 'abort'])
 
-export const initiateMultipartBodySchema = z
+const initiateMultipartBodySchema = z
   .object({
     fileName: z.string(),
     contentType: z.string(),
@@ -409,17 +409,17 @@ export const initiateMultipartBodySchema = z
   })
   .passthrough()
 
-export const tokenBoundMultipartBodySchema = z
+const tokenBoundMultipartBodySchema = z
   .object({
     uploadToken: z.string().optional(),
   })
   .passthrough()
 
-export const getMultipartPartUrlsBodySchema = tokenBoundMultipartBodySchema.extend({
+const getMultipartPartUrlsBodySchema = tokenBoundMultipartBodySchema.extend({
   partNumbers: z.array(z.number()),
 })
 
-export const completeMultipartBodySchema = z
+const completeMultipartBodySchema = z
   .object({
     uploadToken: z.string().optional(),
     parts: z.unknown().optional(),
@@ -458,11 +458,11 @@ export const fileServeQuerySchema = z.object({
   raw: z.string().nullish(),
 })
 
-export const fileViewParamsSchema = z.object({
+const fileViewParamsSchema = z.object({
   id: z.string().uuid('File ID must be a valid UUID'),
 })
 
-export const fileExportParamsSchema = z.object({
+const fileExportParamsSchema = z.object({
   id: z.string().uuid('File ID must be a valid UUID'),
 })
 
@@ -487,7 +487,7 @@ export const wordpressUploadContract = defineRouteContract({
   response: { mode: 'json', schema: jsonResponseSchema },
 })
 
-export const sftpListContract = defineRouteContract({
+const sftpListContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/sftp/list',
   body: sftpListBodySchema,
@@ -634,13 +634,13 @@ export const fileDeleteContract = defineRouteContract({
   response: { mode: 'json', schema: jsonResponseSchema },
 })
 
-export const fileUploadContract = defineRouteContract({
+const fileUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/files/upload',
   response: { mode: 'json', schema: jsonResponseSchema },
 })
 
-export const presignedUploadContract = defineRouteContract({
+const presignedUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/files/presigned',
   query: presignedUploadQuerySchema,
@@ -655,7 +655,7 @@ export const presignedUploadBodyContract = defineRouteContract({
   response: { mode: 'json', schema: presignedUploadResponseSchema },
 })
 
-export const batchPresignedUploadContract = defineRouteContract({
+const batchPresignedUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/files/presigned/batch',
   query: presignedUploadQuerySchema,
@@ -670,7 +670,7 @@ export const batchPresignedUploadBodyContract = defineRouteContract({
   response: { mode: 'json', schema: batchPresignedUploadResponseSchema },
 })
 
-export const multipartUploadContract = defineRouteContract({
+const multipartUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/files/multipart',
   response: { mode: 'json', schema: multipartUploadResponseSchema },
@@ -704,7 +704,7 @@ export const abortMultipartUploadContract = defineRouteContract({
   response: { mode: 'json', schema: abortMultipartResponseSchema },
 })
 
-export const fileServeContract = defineRouteContract({
+const fileServeContract = defineRouteContract({
   method: 'GET',
   path: '/api/files/serve/[...path]',
   params: fileServeParamsSchema,
@@ -726,24 +726,24 @@ export const fileExportContract = defineRouteContract({
   response: { mode: 'binary' },
 })
 
-export type BoxUploadBody = ContractBodyInput<typeof boxUploadContract>
-export type BoxUploadResponse = ContractJsonResponse<typeof boxUploadContract>
-export type DropboxUploadBody = ContractBodyInput<typeof dropboxUploadContract>
-export type DropboxUploadResponse = ContractJsonResponse<typeof dropboxUploadContract>
-export type WordPressUploadBody = ContractBodyInput<typeof wordpressUploadContract>
-export type WordPressUploadResponse = ContractJsonResponse<typeof wordpressUploadContract>
-export type SftpDownloadBody = ContractBodyInput<typeof sftpDownloadContract>
-export type SftpUploadBody = ContractBodyInput<typeof sftpUploadContract>
-export type SftpDeleteBody = ContractBodyInput<typeof sftpDeleteContract>
-export type SftpMkdirBody = ContractBodyInput<typeof sftpMkdirContract>
-export type SshCheckCommandExistsBody = ContractBodyInput<typeof sshCheckCommandExistsContract>
-export type SshCheckFileExistsBody = ContractBodyInput<typeof sshCheckFileExistsContract>
-export type SshCreateDirectoryBody = ContractBodyInput<typeof sshCreateDirectoryContract>
-export type SshDeleteFileBody = ContractBodyInput<typeof sshDeleteFileContract>
-export type SshDownloadFileBody = ContractBodyInput<typeof sshDownloadFileContract>
-export type SshExecuteCommandBody = ContractBodyInput<typeof sshExecuteCommandContract>
-export type SshExecuteScriptBody = ContractBodyInput<typeof sshExecuteScriptContract>
-export type SshGetSystemInfoBody = ContractBodyInput<typeof sshGetSystemInfoContract>
+type BoxUploadBody = ContractBodyInput<typeof boxUploadContract>
+type BoxUploadResponse = ContractJsonResponse<typeof boxUploadContract>
+type DropboxUploadBody = ContractBodyInput<typeof dropboxUploadContract>
+type DropboxUploadResponse = ContractJsonResponse<typeof dropboxUploadContract>
+type WordPressUploadBody = ContractBodyInput<typeof wordpressUploadContract>
+type WordPressUploadResponse = ContractJsonResponse<typeof wordpressUploadContract>
+type SftpDownloadBody = ContractBodyInput<typeof sftpDownloadContract>
+type SftpUploadBody = ContractBodyInput<typeof sftpUploadContract>
+type SftpDeleteBody = ContractBodyInput<typeof sftpDeleteContract>
+type SftpMkdirBody = ContractBodyInput<typeof sftpMkdirContract>
+type SshCheckCommandExistsBody = ContractBodyInput<typeof sshCheckCommandExistsContract>
+type SshCheckFileExistsBody = ContractBodyInput<typeof sshCheckFileExistsContract>
+type SshCreateDirectoryBody = ContractBodyInput<typeof sshCreateDirectoryContract>
+type SshDeleteFileBody = ContractBodyInput<typeof sshDeleteFileContract>
+type SshDownloadFileBody = ContractBodyInput<typeof sshDownloadFileContract>
+type SshExecuteCommandBody = ContractBodyInput<typeof sshExecuteCommandContract>
+type SshExecuteScriptBody = ContractBodyInput<typeof sshExecuteScriptContract>
+type SshGetSystemInfoBody = ContractBodyInput<typeof sshGetSystemInfoContract>
 export type SshListDirectoryBody = ContractBodyInput<typeof sshListDirectoryContract>
 export type SshMoveRenameBody = ContractBodyInput<typeof sshMoveRenameContract>
 export type SshReadFileContentBody = ContractBodyInput<typeof sshReadFileContentContract>

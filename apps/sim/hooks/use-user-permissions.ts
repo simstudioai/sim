@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { useSession } from '@/lib/auth/auth-client'
 import type { WorkspacePermissions } from '@/hooks/queries/workspace'
 
-export type PermissionType = 'admin' | 'write' | 'read'
+type PermissionType = 'admin' | 'write' | 'read'
 
 const logger = createLogger('useUserPermissions')
 

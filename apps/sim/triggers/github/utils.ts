@@ -1,7 +1,7 @@
 /**
  * Shared repository output schema
  */
-export const repositoryOutputs = {
+const repositoryOutputs = {
   id: {
     type: 'number',
     description: 'Repository ID',
@@ -93,7 +93,7 @@ export const repositoryOutputs = {
 /**
  * Shared sender/user output schema
  */
-export const userOutputs = {
+const userOutputs = {
   login: {
     type: 'string',
     description: 'Username',

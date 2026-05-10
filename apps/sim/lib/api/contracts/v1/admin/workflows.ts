@@ -9,7 +9,7 @@ import {
 } from '@/lib/api/contracts/v1/admin/shared'
 import { workflowStateSchema } from '@/lib/api/contracts/workflows'
 
-export const adminV1WorkflowVersionParamsSchema = adminV1IdParamsSchema.extend({
+const adminV1WorkflowVersionParamsSchema = adminV1IdParamsSchema.extend({
   versionId: z
     .string()
     .transform((value) => Number(value))
@@ -33,19 +33,19 @@ export const adminV1WorkflowSchema = z.object({
   updatedAt: z.string(),
 })
 
-export const adminV1WorkflowDetailSchema = adminV1WorkflowSchema.extend({
+const adminV1WorkflowDetailSchema = adminV1WorkflowSchema.extend({
   blockCount: z.number(),
   edgeCount: z.number(),
 })
 
-export const adminV1WorkflowVariableSchema = z.object({
+const adminV1WorkflowVariableSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
   value: z.unknown(),
 })
 
-export const adminV1WorkflowExportStateSchema = workflowStateSchema.extend({
+const adminV1WorkflowExportStateSchema = workflowStateSchema.extend({
   metadata: z
     .object({
       name: z.string().optional(),
@@ -57,7 +57,7 @@ export const adminV1WorkflowExportStateSchema = workflowStateSchema.extend({
   variables: z.record(z.string(), adminV1WorkflowVariableSchema).optional(),
 })
 
-export const adminV1WorkflowExportPayloadSchema = z.object({
+const adminV1WorkflowExportPayloadSchema = z.object({
   version: z.literal('1.0'),
   exportedAt: z.string(),
   workflow: z.object({
@@ -71,13 +71,13 @@ export const adminV1WorkflowExportPayloadSchema = z.object({
   state: adminV1WorkflowExportStateSchema,
 })
 
-export const adminV1FolderExportPayloadSchema = z.object({
+const adminV1FolderExportPayloadSchema = z.object({
   id: z.string(),
   name: z.string(),
   parentId: z.string().nullable(),
 })
 
-export const adminV1WorkspaceExportPayloadSchema = z.object({
+const adminV1WorkspaceExportPayloadSchema = z.object({
   version: z.literal('1.0'),
   exportedAt: z.string(),
   workspace: z.object({
@@ -93,7 +93,7 @@ export const adminV1WorkspaceExportPayloadSchema = z.object({
   folders: z.array(adminV1FolderExportPayloadSchema),
 })
 
-export const adminV1FolderFullExportPayloadSchema = z.object({
+const adminV1FolderFullExportPayloadSchema = z.object({
   version: z.literal('1.0'),
   exportedAt: z.string(),
   folder: z.object({
@@ -116,13 +116,13 @@ export const adminV1ImportResultSchema = z.object({
   error: z.string().optional(),
 })
 
-export const adminV1WorkflowImportResponseSchema = z.object({
+const adminV1WorkflowImportResponseSchema = z.object({
   workflowId: z.string(),
   name: z.string(),
   success: z.literal(true),
 })
 
-export const adminV1DeploymentVersionSchema = z.object({
+const adminV1DeploymentVersionSchema = z.object({
   id: z.string(),
   version: z.number(),
   name: z.string().nullable(),
@@ -132,25 +132,25 @@ export const adminV1DeploymentVersionSchema = z.object({
   deployedByName: z.string().nullable(),
 })
 
-export const adminV1DeployResultSchema = z.object({
+const adminV1DeployResultSchema = z.object({
   isDeployed: z.literal(true),
   version: z.number(),
   deployedAt: z.string(),
   warnings: z.array(z.string()).optional(),
 })
 
-export const adminV1UndeployResultSchema = z.object({
+const adminV1UndeployResultSchema = z.object({
   isDeployed: z.literal(false),
   warnings: z.array(z.string()).optional(),
 })
 
-export const adminV1ExportWorkflowsBodySchema = z.object({
+const adminV1ExportWorkflowsBodySchema = z.object({
   ids: z
     .array(z.string(), { error: 'ids must be a non-empty array of workflow IDs' })
     .nonempty({ error: 'ids must be a non-empty array of workflow IDs' }),
 })
 
-export const adminV1WorkflowImportBodySchema = z.object({
+const adminV1WorkflowImportBodySchema = z.object({
   workspaceId: z
     .string({ error: 'workspaceId is required' })
     .min(1, { error: 'workspaceId is required' }),
@@ -278,45 +278,35 @@ export const adminV1ImportWorkflowContract = defineRouteContract({
   },
 })
 
-export type AdminV1WorkflowVersionParamsInput = z.input<typeof adminV1WorkflowVersionParamsSchema>
-export type AdminV1WorkflowVersionParams = z.output<typeof adminV1WorkflowVersionParamsSchema>
-export type AdminV1ExportWorkflowsBodyInput = z.input<typeof adminV1ExportWorkflowsBodySchema>
-export type AdminV1ExportWorkflowsBody = z.output<typeof adminV1ExportWorkflowsBodySchema>
-export type AdminV1WorkflowImportBodyInput = z.input<typeof adminV1WorkflowImportBodySchema>
-export type AdminV1WorkflowImportBody = z.output<typeof adminV1WorkflowImportBodySchema>
-export type AdminV1Workflow = z.output<typeof adminV1WorkflowSchema>
-export type AdminV1WorkflowDetail = z.output<typeof adminV1WorkflowDetailSchema>
-export type AdminV1WorkflowVariable = z.output<typeof adminV1WorkflowVariableSchema>
-export type AdminV1WorkflowExportState = z.output<typeof adminV1WorkflowExportStateSchema>
-export type AdminV1WorkflowExportPayload = z.output<typeof adminV1WorkflowExportPayloadSchema>
-export type AdminV1FolderExportPayload = z.output<typeof adminV1FolderExportPayloadSchema>
-export type AdminV1WorkspaceExportPayload = z.output<typeof adminV1WorkspaceExportPayloadSchema>
-export type AdminV1FolderFullExportPayload = z.output<typeof adminV1FolderFullExportPayloadSchema>
-export type AdminV1ImportResult = z.output<typeof adminV1ImportResultSchema>
-export type AdminV1WorkflowImportResponseBody = z.output<typeof adminV1WorkflowImportResponseSchema>
-export type AdminV1DeploymentVersion = z.output<typeof adminV1DeploymentVersionSchema>
-export type AdminV1DeployResult = z.output<typeof adminV1DeployResultSchema>
-export type AdminV1UndeployResult = z.output<typeof adminV1UndeployResultSchema>
-export type AdminV1ListWorkflowsResponse = ContractJsonResponse<typeof adminV1ListWorkflowsContract>
-export type AdminV1GetWorkflowResponse = ContractJsonResponse<typeof adminV1GetWorkflowContract>
-export type AdminV1DeleteWorkflowResponse = ContractJsonResponse<
-  typeof adminV1DeleteWorkflowContract
->
-export type AdminV1DeployWorkflowResponse = ContractJsonResponse<
-  typeof adminV1DeployWorkflowContract
->
-export type AdminV1UndeployWorkflowResponse = ContractJsonResponse<
-  typeof adminV1UndeployWorkflowContract
->
-export type AdminV1ListWorkflowVersionsResponse = ContractJsonResponse<
+type AdminV1WorkflowVersionParamsInput = z.input<typeof adminV1WorkflowVersionParamsSchema>
+type AdminV1WorkflowVersionParams = z.output<typeof adminV1WorkflowVersionParamsSchema>
+type AdminV1ExportWorkflowsBodyInput = z.input<typeof adminV1ExportWorkflowsBodySchema>
+type AdminV1ExportWorkflowsBody = z.output<typeof adminV1ExportWorkflowsBodySchema>
+type AdminV1WorkflowImportBodyInput = z.input<typeof adminV1WorkflowImportBodySchema>
+type AdminV1WorkflowImportBody = z.output<typeof adminV1WorkflowImportBodySchema>
+type AdminV1Workflow = z.output<typeof adminV1WorkflowSchema>
+type AdminV1WorkflowDetail = z.output<typeof adminV1WorkflowDetailSchema>
+type AdminV1WorkflowVariable = z.output<typeof adminV1WorkflowVariableSchema>
+type AdminV1WorkflowExportState = z.output<typeof adminV1WorkflowExportStateSchema>
+type AdminV1WorkflowExportPayload = z.output<typeof adminV1WorkflowExportPayloadSchema>
+type AdminV1FolderExportPayload = z.output<typeof adminV1FolderExportPayloadSchema>
+type AdminV1WorkspaceExportPayload = z.output<typeof adminV1WorkspaceExportPayloadSchema>
+type AdminV1FolderFullExportPayload = z.output<typeof adminV1FolderFullExportPayloadSchema>
+type AdminV1ImportResult = z.output<typeof adminV1ImportResultSchema>
+type AdminV1WorkflowImportResponseBody = z.output<typeof adminV1WorkflowImportResponseSchema>
+type AdminV1DeploymentVersion = z.output<typeof adminV1DeploymentVersionSchema>
+type AdminV1DeployResult = z.output<typeof adminV1DeployResultSchema>
+type AdminV1UndeployResult = z.output<typeof adminV1UndeployResultSchema>
+type AdminV1ListWorkflowsResponse = ContractJsonResponse<typeof adminV1ListWorkflowsContract>
+type AdminV1GetWorkflowResponse = ContractJsonResponse<typeof adminV1GetWorkflowContract>
+type AdminV1DeleteWorkflowResponse = ContractJsonResponse<typeof adminV1DeleteWorkflowContract>
+type AdminV1DeployWorkflowResponse = ContractJsonResponse<typeof adminV1DeployWorkflowContract>
+type AdminV1UndeployWorkflowResponse = ContractJsonResponse<typeof adminV1UndeployWorkflowContract>
+type AdminV1ListWorkflowVersionsResponse = ContractJsonResponse<
   typeof adminV1ListWorkflowVersionsContract
 >
-export type AdminV1ActivateWorkflowVersionResponse = ContractJsonResponse<
+type AdminV1ActivateWorkflowVersionResponse = ContractJsonResponse<
   typeof adminV1ActivateWorkflowVersionContract
 >
-export type AdminV1ExportWorkflowResponse = ContractJsonResponse<
-  typeof adminV1ExportWorkflowContract
->
-export type AdminV1ImportWorkflowResponse = ContractJsonResponse<
-  typeof adminV1ImportWorkflowContract
->
+type AdminV1ExportWorkflowResponse = ContractJsonResponse<typeof adminV1ExportWorkflowContract>
+type AdminV1ImportWorkflowResponse = ContractJsonResponse<typeof adminV1ImportWorkflowContract>

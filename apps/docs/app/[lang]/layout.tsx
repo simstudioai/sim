@@ -78,14 +78,6 @@ export default async function Layout({ children, params }: LayoutProps) {
       },
     },
     inLanguage: lang,
-    potentialAction: {
-      '@type': 'SearchAction',
-      target: {
-        '@type': 'EntryPoint',
-        urlTemplate: `${DOCS_BASE_URL}/api/search?q={search_term_string}`,
-      },
-      'query-input': 'required name=search_term_string',
-    },
   }
 
   return (

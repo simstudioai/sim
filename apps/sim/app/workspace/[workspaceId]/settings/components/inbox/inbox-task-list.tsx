@@ -79,7 +79,7 @@ export function InboxTaskList() {
       <div className='flex items-center gap-2'>
         <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
           <Search
-            className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+            className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
             strokeWidth={2}
           />
           <Input
@@ -96,7 +96,7 @@ export function InboxTaskList() {
               className='h-[32px] gap-1 px-2 text-[var(--text-secondary)] text-small'
             >
               {STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label ?? 'All statuses'}
-              <ChevronDown className='h-[12px] w-[12px]' />
+              <ChevronDown className='size-[12px]' />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
@@ -145,7 +145,8 @@ export function InboxTaskList() {
                   className={`flex flex-col gap-1 rounded-lg border border-[var(--border)] p-3 transition-colors ${
                     isClickable ? 'cursor-pointer hover-hover:bg-[var(--surface-2)]' : ''
                   }`}
-                  role={isClickable ? 'button' : undefined}
+                  role='button'
+                  aria-disabled={!isClickable}
                   tabIndex={isClickable ? 0 : undefined}
                   onClick={() => handleTaskClick(task)}
                   onKeyDown={(e) => {
@@ -161,7 +162,7 @@ export function InboxTaskList() {
                     </span>
                     <div className='flex items-center gap-1.5'>
                       {task.hasAttachments && (
-                        <Paperclip className='h-[12px] w-[12px] text-[var(--text-muted)]' />
+                        <Paperclip className='size-[12px] text-[var(--text-muted)]' />
                       )}
                       <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
                         {formatRelativeTime(task.createdAt)}
@@ -174,7 +175,7 @@ export function InboxTaskList() {
                     </span>
                     <Badge variant={statusBadge.variant} className='text-xs'>
                       {task.status === 'processing' && (
-                        <span className='mr-1 inline-block h-[6px] w-[6px] animate-pulse rounded-full bg-yellow-500' />
+                        <span className='mr-1 inline-block size-[6px] animate-pulse rounded-full bg-yellow-500' />
                       )}
                       {statusBadge.label}
                     </Badge>

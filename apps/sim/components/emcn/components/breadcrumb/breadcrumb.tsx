@@ -3,12 +3,12 @@ import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/core/utils/cn'
 
-export interface BreadcrumbItem {
+interface BreadcrumbItem {
   label: string
   href?: string
 }
 
-export interface BreadcrumbProps extends React.HTMLAttributes<HTMLElement> {
+interface BreadcrumbProps extends React.HTMLAttributes<HTMLElement> {
   items: BreadcrumbItem[]
 }
 
@@ -41,7 +41,7 @@ function Breadcrumb({ items, className, ...props }: BreadcrumbProps) {
               </span>
             )}
 
-            {!isLast && <ChevronRight className='h-[14px] w-[14px] text-[var(--text-muted)]' />}
+            {!isLast && <ChevronRight className='size-[14px] text-[var(--text-muted)]' />}
           </div>
         )
       })}

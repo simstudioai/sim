@@ -53,16 +53,6 @@ Returns companies matching a set of criteria using Hunter.io AI-powered search.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | List of companies matching the search criteria |
-|   ↳ `name` | string | Company name |
-|   ↳ `domain` | string | Company domain |
-|   ↳ `logo` | string | URL of the company logo |
-|   ↳ `linkedin_url` | string | LinkedIn profile URL of the company |
-|   ↳ `company_type` | string | Company type \(e.g., privately held, public company\) |
-|   ↳ `industry` | string | Industry of the company |
-|   ↳ `size` | string | Headcount range of the company |
-|   ↳ `location` | string | Headquarters location |
-|   ↳ `founded_year` | number | Year the company was founded |
-|   ↳ `crunchbase_url` | string | Crunchbase URL of the company |
 
 ### `hunter_domain_search`
 
@@ -85,27 +75,6 @@ Returns all the email addresses found using one given domain name, with sources.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `emails` | array | List of email addresses found for the domain \(up to 100 per request\) |
-|   ↳ `value` | string | The email address |
-|   ↳ `type` | string | Email type: personal or generic \(role-based\) |
-|   ↳ `confidence` | number | Probability score \(0-100\) that the email is correct |
-|   ↳ `first_name` | string | Person's first name |
-|   ↳ `last_name` | string | Person's last name |
-|   ↳ `position` | string | Job title/position |
-|   ↳ `position_raw` | string | Raw job title as found |
-|   ↳ `seniority` | string | Seniority level \(junior, senior, executive\) |
-|   ↳ `department` | string | Department \(executive, it, finance, management, sales, legal, support, hr, marketing, communication, education, design, health, operations\) |
-|   ↳ `linkedin` | string | LinkedIn profile URL |
-|   ↳ `twitter` | string | Twitter handle |
-|   ↳ `phone_number` | string | Phone number |
-|   ↳ `sources` | array | List of sources where the email was found \(limited to 20\) |
-|     ↳ `domain` | string | Domain where the email was found |
-|     ↳ `uri` | string | Full URL of the source page |
-|     ↳ `extracted_on` | string | Date when the email was first extracted \(YYYY-MM-DD\) |
-|     ↳ `last_seen_on` | string | Date when the email was last seen \(YYYY-MM-DD\) |
-|     ↳ `still_on_page` | boolean | Whether the email is still present on the source page |
-|   ↳ `verification` | object | Email verification information |
-|     ↳ `date` | string | Date when the email was verified \(YYYY-MM-DD\) |
-|     ↳ `status` | string | Verification status \(valid, invalid, accept_all, webmail, disposable, unknown\) |
 | `domain` | string | The searched domain name |
 | `disposable` | boolean | Whether the domain is a disposable email service |
 | `webmail` | boolean | Whether the domain is a webmail provider \(e.g., Gmail\) |
@@ -133,14 +102,7 @@ Finds the most likely email address for a person given their name and company do
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `sources` | array | List of sources where the email was found \(limited to 20\) |
-|   ↳ `domain` | string | Domain where the email was found |
-|   ↳ `uri` | string | Full URL of the source page |
-|   ↳ `extracted_on` | string | Date when the email was first extracted \(YYYY-MM-DD\) |
-|   ↳ `last_seen_on` | string | Date when the email was last seen \(YYYY-MM-DD\) |
-|   ↳ `still_on_page` | boolean | Whether the email is still present on the source page |
 | `verification` | object | Email verification information |
-|   ↳ `date` | string | Date when the email was verified \(YYYY-MM-DD\) |
-|   ↳ `status` | string | Verification status \(valid, invalid, accept_all, webmail, disposable, unknown\) |
 | `first_name` | string | Person's first name |
 | `last_name` | string | Person's last name |
 | `email` | string | The found email address |
@@ -169,11 +131,6 @@ Verifies the deliverability of an email address and provides detailed verificati
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `sources` | array | List of sources where the email was found \(limited to 20\) |
-|   ↳ `domain` | string | Domain where the email was found |
-|   ↳ `uri` | string | Full URL of the source page |
-|   ↳ `extracted_on` | string | Date when the email was first extracted \(YYYY-MM-DD\) |
-|   ↳ `last_seen_on` | string | Date when the email was last seen \(YYYY-MM-DD\) |
-|   ↳ `still_on_page` | boolean | Whether the email is still present on the source page |
 | `result` | string | Deliverability result: deliverable, undeliverable, or risky |
 | `score` | number | Deliverability score \(0-100\). Webmail and disposable emails receive an arbitrary score of 50. |
 | `email` | string | The verified email address |
@@ -240,24 +197,7 @@ Returns the total number of email addresses found for a domain or company.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `department` | object | Email count breakdown by department |
-|   ↳ `executive` | number | Number of executive department emails |
-|   ↳ `it` | number | Number of IT department emails |
-|   ↳ `finance` | number | Number of finance department emails |
-|   ↳ `management` | number | Number of management department emails |
-|   ↳ `sales` | number | Number of sales department emails |
-|   ↳ `legal` | number | Number of legal department emails |
-|   ↳ `support` | number | Number of support department emails |
-|   ↳ `hr` | number | Number of HR department emails |
-|   ↳ `marketing` | number | Number of marketing department emails |
-|   ↳ `communication` | number | Number of communication department emails |
-|   ↳ `education` | number | Number of education department emails |
-|   ↳ `design` | number | Number of design department emails |
-|   ↳ `health` | number | Number of health department emails |
-|   ↳ `operations` | number | Number of operations department emails |
 | `seniority` | object | Email count breakdown by seniority level |
-|   ↳ `junior` | number | Number of junior-level emails |
-|   ↳ `senior` | number | Number of senior-level emails |
-|   ↳ `executive` | number | Number of executive-level emails |
 | `total` | number | Total number of email addresses found |
 | `personal_emails` | number | Number of personal email addresses \(individual employees\) |
 | `generic_emails` | number | Number of generic/role-based email addresses \(e.g., contact@, info@\) |

@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const memoryIdParamsSchema = z.object({
+const memoryIdParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-export const memoryWorkspaceQuerySchema = z.object({
+const memoryWorkspaceQuerySchema = z.object({
   workspaceId: z.string().uuid('Invalid workspace ID format'),
 })
 
@@ -18,17 +18,17 @@ const agentMemoryDataSchema = z.object({
 
 const genericMemoryDataSchema = z.record(z.string(), z.unknown())
 
-export const memoryPutBodySchema = z.object({
+const memoryPutBodySchema = z.object({
   data: z.union([agentMemoryDataSchema, genericMemoryDataSchema], {
     error: 'Invalid memory data structure',
   }),
   workspaceId: z.string().uuid('Invalid workspace ID format'),
 })
-export type MemoryPutBody = z.input<typeof memoryPutBodySchema>
+type MemoryPutBody = z.input<typeof memoryPutBodySchema>
 
 export const agentMemoryDataSchemaContract = agentMemoryDataSchema
 
-export const memoryListQuerySchema = z.object({
+const memoryListQuerySchema = z.object({
   workspaceId: z.string().optional(),
   query: z.string().nullable().optional(),
   limit: z
@@ -44,16 +44,16 @@ export const memoryMessageSchema = z
   })
   .passthrough()
 
-export const memoryPostBodySchema = z
+const memoryPostBodySchema = z
   .object({
     key: z.string().optional(),
     data: z.unknown().optional(),
     workspaceId: z.string().optional(),
   })
   .passthrough()
-export type MemoryPostBody = z.input<typeof memoryPostBodySchema>
+type MemoryPostBody = z.input<typeof memoryPostBodySchema>
 
-export const memoryDeleteQuerySchema = z.object({
+const memoryDeleteQuerySchema = z.object({
   workspaceId: z.string().optional(),
   conversationId: z.string().optional(),
 })

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, domMax, LazyMotion, m } from 'framer-motion'
 
 /** Consistent color per actor -- same pattern as Collaboration section cursors. */
 const ACTOR_COLORS: Record<string, string> = {
@@ -137,7 +137,7 @@ function AuditRow({ entry, index }: AuditRowProps) {
       <div className='flex min-w-0 items-center gap-3 py-[10px] pr-4 pl-5'>
         {/* Actor avatar */}
         <div
-          className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full'
+          className='flex size-[22px] shrink-0 items-center justify-center rounded-full'
           style={{ backgroundColor: `${color}20` }}
         >
           <span className='font-[500] font-season text-[9px] leading-none' style={{ color }}>
@@ -197,29 +197,31 @@ export function AuditLogPreview() {
   }, [])
 
   return (
-    <div className='mt-5 overflow-hidden px-6 md:mt-6 md:px-8'>
-      <AnimatePresence mode='popLayout' initial={false}>
-        {entries.map((entry, index) => (
-          <motion.div
-            key={entry.id}
-            layout
-            initial={{ y: -48, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{
-              layout: {
-                type: 'tween',
-                duration: 0.32,
-                ease: [0.25, 0.46, 0.45, 0.94],
-              },
-              y: { duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] },
-              opacity: { duration: 0.25 },
-            }}
-          >
-            <AuditRow entry={entry} index={index} />
-          </motion.div>
-        ))}
-      </AnimatePresence>
-    </div>
+    <LazyMotion features={domMax}>
+      <div className='mt-5 overflow-hidden px-6 md:mt-6 md:px-8'>
+        <AnimatePresence mode='popLayout' initial={false}>
+          {entries.map((entry, index) => (
+            <m.div
+              key={entry.id}
+              layout
+              initial={{ y: -48, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{
+                layout: {
+                  type: 'tween',
+                  duration: 0.32,
+                  ease: [0.25, 0.46, 0.45, 0.94],
+                },
+                y: { duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] },
+                opacity: { duration: 0.25 },
+              }}
+            >
+              <AuditRow entry={entry} index={index} />
+            </m.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </LazyMotion>
   )
 }

@@ -4,7 +4,7 @@
  */
 import { z } from 'zod'
 
-export const enterpriseSubscriptionMetadataSchema = z.object({
+const enterpriseSubscriptionMetadataSchema = z.object({
   plan: z
     .string()
     .transform((v) => v.toLowerCase())
@@ -27,7 +27,7 @@ const enterpriseWorkspaceConcurrencyMetadataSchema = z.object({
   workspaceConcurrencyLimit: z.coerce.number().int().positive().optional(),
 })
 
-export type EnterpriseWorkspaceConcurrencyMetadata = z.infer<
+type EnterpriseWorkspaceConcurrencyMetadata = z.infer<
   typeof enterpriseWorkspaceConcurrencyMetadataSchema
 >
 
@@ -38,7 +38,7 @@ export function parseEnterpriseSubscriptionMetadata(
   return result.success ? result.data : null
 }
 
-export function parseEnterpriseWorkspaceConcurrencyMetadata(
+function parseEnterpriseWorkspaceConcurrencyMetadata(
   value: unknown
 ): EnterpriseWorkspaceConcurrencyMetadata | null {
   const result = enterpriseWorkspaceConcurrencyMetadataSchema.safeParse(value)
@@ -82,7 +82,7 @@ export interface BillingData {
   daysRemaining: number
 }
 
-export interface SubscriptionPlan {
+interface SubscriptionPlan {
   name: string
   priceId: string
   limits: {
@@ -90,7 +90,7 @@ export interface SubscriptionPlan {
   }
 }
 
-export interface BillingEntity {
+interface BillingEntity {
   id: string
   type: 'user' | 'organization'
   referenceId: string
@@ -99,7 +99,7 @@ export interface BillingEntity {
   updatedAt: Date
 }
 
-export interface BillingConfig {
+interface BillingConfig {
   id: string
   entityType: 'user' | 'organization'
   entityId: string
@@ -112,7 +112,7 @@ export interface BillingConfig {
   updatedAt: Date
 }
 
-export interface UsagePeriod {
+interface UsagePeriod {
   id: string
   entityType: 'user' | 'organization'
   entityId: string
@@ -126,12 +126,12 @@ export interface UsagePeriod {
   finalizedAt?: Date
 }
 
-export interface BillingStatus {
+interface BillingStatus {
   status: 'ok' | 'warning' | 'exceeded'
   usageData: UsageData
 }
 
-export interface TeamUsageLimit {
+interface TeamUsageLimit {
   userId: string
   userName: string
   userEmail: string
@@ -143,7 +143,7 @@ export interface TeamUsageLimit {
   limitUpdatedAt: Date | null
 }
 
-export interface BillingSummary {
+interface BillingSummary {
   userId: string
   email: string
   name: string
@@ -158,7 +158,7 @@ export interface BillingSummary {
   billingStatus: 'ok' | 'warning' | 'exceeded'
 }
 
-export interface SubscriptionAPIResponse {
+interface SubscriptionAPIResponse {
   isPaid: boolean
   isPro: boolean
   isTeam: boolean
@@ -170,7 +170,7 @@ export interface SubscriptionAPIResponse {
   usage: UsageData
 }
 
-export interface UsageLimitAPIResponse {
+interface UsageLimitAPIResponse {
   currentLimit: number
   canEdit: boolean
   minimumLimit: number
@@ -180,8 +180,8 @@ export interface UsageLimitAPIResponse {
 }
 
 // Utility Types
-export type PlanType = 'free' | 'pro' | 'team' | 'enterprise'
-export type SubscriptionStatus =
+type PlanType = 'free' | 'pro' | 'team' | 'enterprise'
+type SubscriptionStatus =
   | 'active'
   | 'canceled'
   | 'past_due'
@@ -189,25 +189,25 @@ export type SubscriptionStatus =
   | 'trialing'
   | 'incomplete'
   | 'incomplete_expired'
-export type BillingEntityType = 'user' | 'organization'
-export type BillingPeriodType = 'monthly' | 'annual'
-export type UsagePeriodStatus = 'active' | 'finalized' | 'billed'
-export type BillingStatusType = 'ok' | 'warning' | 'exceeded'
+type BillingEntityType = 'user' | 'organization'
+type BillingPeriodType = 'monthly' | 'annual'
+type UsagePeriodStatus = 'active' | 'finalized' | 'billed'
+type BillingStatusType = 'ok' | 'warning' | 'exceeded'
 
 // Error Types
-export interface BillingError {
+interface BillingError {
   code: string
   message: string
   details?: any
 }
 
-export interface UpdateUsageLimitResult {
+interface UpdateUsageLimitResult {
   success: boolean
   error?: string
 }
 
 // Hook Types for React
-export interface UseSubscriptionStateReturn {
+interface UseSubscriptionStateReturn {
   subscription: {
     isPaid: boolean
     isPro: boolean
@@ -231,7 +231,7 @@ export interface UseSubscriptionStateReturn {
   getDaysRemainingInPeriod: () => number | null
 }
 
-export interface UseUsageLimitReturn {
+interface UseUsageLimitReturn {
   currentLimit: number
   canEdit: boolean
   minimumLimit: number

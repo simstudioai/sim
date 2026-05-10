@@ -3,7 +3,7 @@ import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
 
-export const v1ListWorkflowsQuerySchema = z.object({
+const v1ListWorkflowsQuerySchema = z.object({
   workspaceId: z.string().min(1),
   folderId: z.string().optional(),
   deployedOnly: booleanQueryFlagSchema.optional().default(false),
@@ -11,7 +11,7 @@ export const v1ListWorkflowsQuerySchema = z.object({
   cursor: z.string().optional(),
 })
 
-export type V1ListWorkflowsQuery = z.output<typeof v1ListWorkflowsQuerySchema>
+type V1ListWorkflowsQuery = z.output<typeof v1ListWorkflowsQuerySchema>
 
 /**
  * Generic wrapper used by v1 admin workflow list/detail responses. `data` is

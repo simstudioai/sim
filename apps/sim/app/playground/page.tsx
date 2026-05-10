@@ -172,8 +172,8 @@ export default function PlaygroundPage() {
         <div className='absolute top-8 left-8 flex items-center gap-2'>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Button variant='ghost' onClick={() => router.back()} className='h-8 w-8 p-0'>
-                <ArrowLeft className='h-4 w-4' />
+              <Button variant='ghost' onClick={() => router.back()} className='size-8 p-0'>
+                <ArrowLeft className='size-4' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>Go back</Tooltip.Content>
@@ -182,8 +182,8 @@ export default function PlaygroundPage() {
         <div className='absolute top-8 right-8'>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Button variant='default' onClick={toggleDarkMode} className='h-8 w-8 p-0'>
-                {isDarkMode ? <Sun className='h-4 w-4' /> : <Moon className='h-4 w-4' />}
+              <Button variant='default' onClick={toggleDarkMode} className='size-8 p-0'>
+                {isDarkMode ? <Sun className='size-4' /> : <Moon className='size-4' />}
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>{isDarkMode ? 'Light mode' : 'Dark mode'}</Tooltip.Content>
@@ -826,19 +826,11 @@ export default function PlaygroundPage() {
                 <PopoverContent>
                   <PopoverBackButton />
                   <PopoverItem rootOnly>Root Item</PopoverItem>
-                  <PopoverFolder
-                    id='folder1'
-                    title='Folder 1'
-                    icon={<Folder className='h-3 w-3' />}
-                  >
+                  <PopoverFolder id='folder1' title='Folder 1' icon={<Folder className='size-3' />}>
                     <PopoverItem>Nested Item 1</PopoverItem>
                     <PopoverItem>Nested Item 2</PopoverItem>
                   </PopoverFolder>
-                  <PopoverFolder
-                    id='folder2'
-                    title='Folder 2'
-                    icon={<Folder className='h-3 w-3' />}
-                  >
+                  <PopoverFolder id='folder2' title='Folder 2' icon={<Folder className='size-3' />}>
                     <PopoverItem>Another Nested Item</PopoverItem>
                   </PopoverFolder>
                 </PopoverContent>
@@ -1030,8 +1022,8 @@ export default function PlaygroundPage() {
               ].map(({ Icon, name }) => (
                 <Tooltip.Root key={name}>
                   <Tooltip.Trigger asChild>
-                    <div className='flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-4)]'>
-                      <Icon className='h-5 w-5 text-[var(--text-secondary)]' />
+                    <div className='flex size-10 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-4)]'>
+                      <Icon className='size-5 text-[var(--text-secondary)]' />
                     </div>
                   </Tooltip.Trigger>
                   <Tooltip.Content>{name}</Tooltip.Content>

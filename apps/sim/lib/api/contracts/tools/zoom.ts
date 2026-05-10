@@ -27,7 +27,7 @@ const zoomDownloadedFileSchema = z.object({
   size: z.number(),
 })
 
-export const zoomGetRecordingsResponseSchema = z.object({
+const zoomGetRecordingsResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     recording: z.object({
@@ -48,7 +48,7 @@ export const zoomGetRecordingsResponseSchema = z.object({
   }),
 })
 
-export const zoomGetRecordingsBodySchema = z.object({
+const zoomGetRecordingsBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   meetingId: z.string().min(1, 'Meeting ID is required'),
   includeFolderItems: z.boolean().optional(),
@@ -63,6 +63,6 @@ export const zoomGetRecordingsContract = defineRouteContract({
   response: { mode: 'json', schema: zoomGetRecordingsResponseSchema },
 })
 
-export type ZoomGetRecordingsBody = ContractBody<typeof zoomGetRecordingsContract>
-export type ZoomGetRecordingsBodyInput = ContractBodyInput<typeof zoomGetRecordingsContract>
-export type ZoomGetRecordingsResponse = ContractJsonResponse<typeof zoomGetRecordingsContract>
+type ZoomGetRecordingsBody = ContractBody<typeof zoomGetRecordingsContract>
+type ZoomGetRecordingsBodyInput = ContractBodyInput<typeof zoomGetRecordingsContract>
+type ZoomGetRecordingsResponse = ContractJsonResponse<typeof zoomGetRecordingsContract>

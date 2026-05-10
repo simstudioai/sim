@@ -13,7 +13,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Default properties returned by search: createdate, email, firstname, hs_object_id, lastmodifieddate, lastname.
  * @see https://developers.hubspot.com/blog/a-developers-guide-to-hubspot-crm-objects-contacts-object
  */
-export const CONTACT_PROPERTIES_OUTPUT = {
+const CONTACT_PROPERTIES_OUTPUT = {
   email: { type: 'string', description: 'Contact email address' },
   firstname: { type: 'string', description: 'Contact first name' },
   lastname: { type: 'string', description: 'Contact last name' },
@@ -46,7 +46,7 @@ export const CONTACT_PROPERTIES_OUTPUT = {
  * @see https://developers.hubspot.com/blog/a-developers-guide-to-hubspot-crm-objects-company-object
  * @see https://knowledge.hubspot.com/properties/hubspot-crm-default-company-properties
  */
-export const COMPANY_PROPERTIES_OUTPUT = {
+const COMPANY_PROPERTIES_OUTPUT = {
   name: { type: 'string', description: 'Company name' },
   domain: { type: 'string', description: 'Company website domain (unique identifier)' },
   description: { type: 'string', description: 'Company description' },
@@ -84,7 +84,7 @@ export const COMPANY_PROPERTIES_OUTPUT = {
  * Default properties: dealname, amount, closedate, pipeline, dealstage.
  * @see https://developers.hubspot.com/blog/a-developers-guide-to-hubspot-crm-objects-deals-object
  */
-export const DEAL_PROPERTIES_OUTPUT = {
+const DEAL_PROPERTIES_OUTPUT = {
   dealname: { type: 'string', description: 'Deal name' },
   amount: { type: 'string', description: 'Deal amount' },
   dealstage: { type: 'string', description: 'Current deal stage' },
@@ -106,7 +106,7 @@ export const DEAL_PROPERTIES_OUTPUT = {
  * Paging output properties for list endpoints.
  * @see https://developers.hubspot.com/docs/guides/crm/using-object-apis
  */
-export const PAGING_OUTPUT_PROPERTIES = {
+const PAGING_OUTPUT_PROPERTIES = {
   after: { type: 'string', description: 'Cursor for next page of results' },
   link: { type: 'string', description: 'Link to next page', optional: true },
 } as const satisfies Record<string, OutputProperty>
@@ -149,7 +149,7 @@ export const METADATA_OUTPUT: OutputProperty = {
  * Common CRM record base output properties (id, createdAt, updatedAt, archived).
  * All HubSpot CRM objects share this structure.
  */
-export const CRM_RECORD_BASE_OUTPUT_PROPERTIES = {
+const CRM_RECORD_BASE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique record ID (hs_object_id)' },
   createdAt: { type: 'string', description: 'Record creation timestamp (ISO 8601)' },
   updatedAt: { type: 'string', description: 'Record last updated timestamp (ISO 8601)' },
@@ -296,7 +296,7 @@ export const DEALS_ARRAY_OUTPUT: OutputProperty = {
  * Default properties: subject, content, hs_pipeline, hs_pipeline_stage, hs_ticket_priority, hs_ticket_category.
  * @see https://developers.hubspot.com/docs/api/crm/tickets
  */
-export const TICKET_PROPERTIES_OUTPUT = {
+const TICKET_PROPERTIES_OUTPUT = {
   subject: { type: 'string', description: 'Ticket subject/name' },
   content: { type: 'string', description: 'Ticket content/description' },
   hs_pipeline: { type: 'string', description: 'Pipeline the ticket is in' },
@@ -313,7 +313,7 @@ export const TICKET_PROPERTIES_OUTPUT = {
  * Common line item properties returned by HubSpot API.
  * @see https://developers.hubspot.com/docs/api/crm/line-items
  */
-export const LINE_ITEM_PROPERTIES_OUTPUT = {
+const LINE_ITEM_PROPERTIES_OUTPUT = {
   name: { type: 'string', description: 'Line item name' },
   description: { type: 'string', description: 'Full description of the product' },
   hs_sku: { type: 'string', description: 'Unique product identifier (SKU)' },
@@ -336,7 +336,7 @@ export const LINE_ITEM_PROPERTIES_OUTPUT = {
  * Common quote properties returned by HubSpot API.
  * @see https://developers.hubspot.com/docs/api/crm/quotes
  */
-export const QUOTE_PROPERTIES_OUTPUT = {
+const QUOTE_PROPERTIES_OUTPUT = {
   hs_title: { type: 'string', description: 'Quote name/title' },
   hs_expiration_date: { type: 'string', description: 'Expiration date' },
   hs_status: { type: 'string', description: 'Quote status' },
@@ -350,7 +350,7 @@ export const QUOTE_PROPERTIES_OUTPUT = {
  * Common appointment properties returned by HubSpot API.
  * @see https://developers.hubspot.com/docs/api/crm/appointments
  */
-export const APPOINTMENT_PROPERTIES_OUTPUT = {
+const APPOINTMENT_PROPERTIES_OUTPUT = {
   hs_appointment_type: { type: 'string', description: 'Appointment type' },
   hs_meeting_title: { type: 'string', description: 'Meeting title' },
   hs_meeting_start_time: { type: 'string', description: 'Start time (ISO 8601)' },
@@ -366,7 +366,7 @@ export const APPOINTMENT_PROPERTIES_OUTPUT = {
  * Owner properties returned by HubSpot Owners API v3.
  * @see https://developers.hubspot.com/docs/api/crm/owners
  */
-export const OWNER_OUTPUT_PROPERTIES = {
+const OWNER_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Owner ID' },
   email: { type: 'string', description: 'Owner email address' },
   firstName: { type: 'string', description: 'Owner first name' },
@@ -394,7 +394,7 @@ export const OWNER_OUTPUT_PROPERTIES = {
  * Response is flat (not CRM envelope) — fields are at the top level.
  * @see https://developers.hubspot.com/docs/api/marketing/marketing-events
  */
-export const MARKETING_EVENT_OUTPUT_PROPERTIES = {
+const MARKETING_EVENT_OUTPUT_PROPERTIES = {
   objectId: { type: 'string', description: 'Unique event ID (HubSpot internal)' },
   eventName: { type: 'string', description: 'Event name' },
   eventType: { type: 'string', description: 'Event type', optional: true },
@@ -685,7 +685,7 @@ export const LISTS_ARRAY_OUTPUT: OutputProperty = {
  * Use the Owners API if you need user names.
  * @see https://developers.hubspot.com/docs/reference/api/settings/users/user-provisioning
  */
-export const USER_OUTPUT_PROPERTIES = {
+const USER_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'User ID' },
   email: { type: 'string', description: 'User email address' },
   roleId: { type: 'string', description: 'User role ID', optional: true },
@@ -712,7 +712,7 @@ export const USERS_ARRAY_OUTPUT: OutputProperty = {
 }
 
 // Common HubSpot types
-export interface HubSpotUser {
+interface HubSpotUser {
   id: string
   email: string
   firstName?: string
@@ -722,7 +722,7 @@ export interface HubSpotUser {
   superAdmin?: boolean
 }
 
-export interface HubSpotCrmObject {
+interface HubSpotCrmObject {
   id: string
   properties: Record<string, any>
   createdAt: string
@@ -732,9 +732,9 @@ export interface HubSpotCrmObject {
 }
 
 /** @deprecated Use HubSpotCrmObject instead */
-export type HubSpotContact = HubSpotCrmObject
+type HubSpotContact = HubSpotCrmObject
 
-export interface HubSpotPaging {
+interface HubSpotPaging {
   next?: {
     after: string
     link?: string
@@ -866,7 +866,7 @@ export interface HubSpotSearchContactsParams {
 }
 
 // Companies (same structure as contacts)
-export type HubSpotCompany = HubSpotCrmObject
+type HubSpotCompany = HubSpotCrmObject
 export type HubSpotListCompaniesParams = HubSpotListContactsParams
 export type HubSpotListCompaniesResponse = Omit<HubSpotListContactsResponse, 'output'> & {
   output: {
@@ -918,7 +918,7 @@ export interface HubSpotSearchCompaniesResponse extends ToolResponse {
 }
 
 // Deals
-export type HubSpotDeal = HubSpotCrmObject
+type HubSpotDeal = HubSpotCrmObject
 export type HubSpotListDealsParams = HubSpotListContactsParams
 export type HubSpotListDealsResponse = Omit<HubSpotListContactsResponse, 'output'> & {
   output: {
@@ -954,7 +954,7 @@ export interface HubSpotSearchDealsResponse extends ToolResponse {
 }
 
 // Tickets
-export type HubSpotTicket = HubSpotCrmObject
+type HubSpotTicket = HubSpotCrmObject
 export type HubSpotListTicketsParams = HubSpotListContactsParams
 export type HubSpotListTicketsResponse = ToolResponse & {
   output: {
@@ -992,7 +992,7 @@ export interface HubSpotSearchTicketsResponse extends ToolResponse {
 }
 
 // Line Items
-export type HubSpotLineItem = HubSpotCrmObject
+type HubSpotLineItem = HubSpotCrmObject
 export type HubSpotListLineItemsParams = HubSpotListContactsParams
 export type HubSpotListLineItemsResponse = ToolResponse & {
   output: {
@@ -1020,7 +1020,7 @@ export type HubSpotUpdateLineItemResponse = ToolResponse & {
 }
 
 // Quotes
-export type HubSpotQuote = HubSpotCrmObject
+type HubSpotQuote = HubSpotCrmObject
 export type HubSpotListQuotesParams = HubSpotListContactsParams
 export type HubSpotListQuotesResponse = ToolResponse & {
   output: {
@@ -1038,7 +1038,7 @@ export type HubSpotGetQuoteResponse = ToolResponse & {
 }
 
 // Appointments
-export type HubSpotAppointment = HubSpotCrmObject
+type HubSpotAppointment = HubSpotCrmObject
 export type HubSpotListAppointmentsParams = HubSpotListContactsParams
 export type HubSpotListAppointmentsResponse = ToolResponse & {
   output: {
@@ -1066,7 +1066,7 @@ export type HubSpotUpdateAppointmentResponse = ToolResponse & {
 }
 
 // Carts
-export type HubSpotCart = HubSpotCrmObject
+type HubSpotCart = HubSpotCrmObject
 export type HubSpotListCartsParams = HubSpotListContactsParams
 export type HubSpotListCartsResponse = ToolResponse & {
   output: {
@@ -1084,7 +1084,7 @@ export type HubSpotGetCartResponse = ToolResponse & {
 }
 
 // Owners
-export interface HubSpotOwner {
+interface HubSpotOwner {
   id: string
   email: string
   firstName: string
@@ -1113,7 +1113,7 @@ export interface HubSpotListOwnersResponse extends ToolResponse {
 }
 
 // Marketing Events
-export interface HubSpotMarketingEvent {
+interface HubSpotMarketingEvent {
   objectId: string
   eventName: string
   eventType?: string
@@ -1162,7 +1162,7 @@ export interface HubSpotGetMarketingEventResponse extends ToolResponse {
 }
 
 // Lists
-export interface HubSpotList {
+interface HubSpotList {
   listId: string
   name: string
   objectTypeId: string

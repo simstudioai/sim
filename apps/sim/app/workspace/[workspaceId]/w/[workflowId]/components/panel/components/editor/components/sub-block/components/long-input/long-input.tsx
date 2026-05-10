@@ -377,9 +377,9 @@ export function LongInput({
                     }
                     disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
                     aria-label='Generate content with AI'
-                    className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
+                    className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
                   >
-                    <Wand2 className='h-4 w-4' />
+                    <Wand2 className='size-4' />
                   </Button>
                 </div>
               )}
@@ -387,13 +387,15 @@ export function LongInput({
               {/* Custom resize handle */}
               {!wandHook.isStreaming && (
                 <div
-                  className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                  role='separator'
+                  aria-orientation='horizontal'
+                  className='absolute right-1 bottom-1 flex size-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
                   onMouseDown={startResize}
                   onDragStart={(e) => {
                     e.preventDefault()
                   }}
                 >
-                  <ChevronsUpDown className='h-3 w-3 text-[var(--text-muted)]' />
+                  <ChevronsUpDown className='size-3 text-[var(--text-muted)]' />
                 </div>
               )}
             </div>

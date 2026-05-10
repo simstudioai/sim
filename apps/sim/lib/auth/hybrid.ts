@@ -12,7 +12,7 @@ export const AuthType = {
   INTERNAL_JWT: 'internal_jwt',
 } as const
 
-export type AuthTypeValue = (typeof AuthType)[keyof typeof AuthType]
+type AuthTypeValue = (typeof AuthType)[keyof typeof AuthType]
 
 const API_KEY_HEADER = 'x-api-key'
 const BEARER_PREFIX = 'Bearer '

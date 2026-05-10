@@ -34,18 +34,18 @@ export function isNonEmpty(value: unknown): boolean {
 // Tag/Value Parsing Utilities
 // ============================================================================
 
-export interface Option {
+interface Option {
   label: string
   value: string
 }
 
-export interface ComponentCondition {
+interface ComponentCondition {
   field: string
   value: string | number | boolean | Array<string | number | boolean>
   not?: boolean
 }
 
-export interface UIComponentConfig {
+interface UIComponentConfig {
   type: string
   options?: Option[]
   placeholder?: string
@@ -85,7 +85,7 @@ export interface UIComponentConfig {
   }
 }
 
-export interface SubBlockConfig {
+interface SubBlockConfig {
   id: string
   type: string
   title?: string
@@ -112,7 +112,7 @@ export interface SubBlockConfig {
 
 type ToolInputBlockConfig = Pick<AppBlockConfig, 'type' | 'subBlocks' | 'tools'>
 
-export interface SchemaProperty {
+interface SchemaProperty {
   type: string
   description: string
   items?: Record<string, any>
@@ -724,7 +724,7 @@ export function createExecutionToolSchema(toolConfig: ToolConfig): ToolSchema {
  * Deep merges inputMapping objects, where LLM values fill in empty/missing user values.
  * User-provided non-empty values take precedence.
  */
-export function deepMergeInputMapping(
+function deepMergeInputMapping(
   llmInputMapping: Record<string, unknown> | undefined,
   userInputMapping: Record<string, unknown> | string | undefined
 ): Record<string, unknown> {

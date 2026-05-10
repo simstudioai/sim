@@ -1,4 +1,4 @@
-export type MothershipResourceType =
+type MothershipResourceType =
   | 'table'
   | 'file'
   | 'workflow'
@@ -13,7 +13,7 @@ export interface MothershipResource {
   title: string
 }
 
-export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
+const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   tables: 'table',
   files: 'file',
   workflows: 'workflow',

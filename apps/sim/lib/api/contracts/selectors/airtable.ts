@@ -9,7 +9,7 @@ import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 const airtableBaseSchema = idNameSchema
 const airtableTableSchema = idNameSchema
 
-export const airtableTablesBodySchema = credentialWorkflowBodySchema.extend({
+const airtableTablesBodySchema = credentialWorkflowBodySchema.extend({
   baseId: z.string().min(1, 'Base ID is required'),
 })
 
@@ -25,9 +25,5 @@ export const airtableTablesSelectorContract = definePostSelector(
   z.object({ tables: z.array(airtableTableSchema) })
 )
 
-export type AirtableBasesSelectorResponse = ContractJsonResponse<
-  typeof airtableBasesSelectorContract
->
-export type AirtableTablesSelectorResponse = ContractJsonResponse<
-  typeof airtableTablesSelectorContract
->
+type AirtableBasesSelectorResponse = ContractJsonResponse<typeof airtableBasesSelectorContract>
+type AirtableTablesSelectorResponse = ContractJsonResponse<typeof airtableTablesSelectorContract>

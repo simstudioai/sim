@@ -253,7 +253,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant='ghost' size='sm' aria-label='Drain actions'>
-                <MoreHorizontal className='h-4 w-4' />
+                <MoreHorizontal className='size-4' />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>

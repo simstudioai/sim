@@ -170,7 +170,7 @@ function WorkflowInputMapperInput({
   if (isLoading) {
     return (
       <div className='flex items-center justify-center rounded-md border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] p-8'>
-        <Loader className='h-5 w-5 text-[var(--text-muted)]' animate />
+        <Loader className='size-5 text-[var(--text-muted)]' animate />
       </div>
     )
   }
@@ -397,10 +397,10 @@ function createToolIcon(
 ) {
   return (
     <div
-      className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+      className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
       style={{ background: bgColor }}
     >
-      <IconComponent className='h-[10px] w-[10px] text-white' />
+      <IconComponent className='size-[10px] text-white' />
     </div>
   )
 }
@@ -1276,7 +1276,7 @@ export const ToolInput = memo(function ToolInput({
         serverToolItems.push({
           label: 'Back',
           value: `mcp-server-back`,
-          iconElement: <ArrowLeft className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />,
+          iconElement: <ArrowLeft className='size-[14px] text-[var(--text-tertiary)]' />,
           onSelect: () => {
             setMcpServerDrilldown(null)
           },
@@ -1431,7 +1431,7 @@ export const ToolInput = memo(function ToolInput({
           label: `${serverName} (${toolCount} tools)`,
           value: `mcp-server-folder-${serverId}`,
           iconElement: createToolIcon('#6366F1', ServerIcon),
-          suffixElement: <ChevronRight className='h-[12px] w-[12px] text-[var(--text-tertiary)]' />,
+          suffixElement: <ChevronRight className='size-[12px] text-[var(--text-tertiary)]' />,
           onSelect: () => {
             setMcpServerDrilldown(serverId)
           },
@@ -1688,6 +1688,8 @@ export const ToolInput = memo(function ToolInput({
                   'flex items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-[6.5px]',
                   (isCustomTool || hasToolBody) && 'cursor-pointer'
                 )}
+                role={isCustomTool || hasToolBody ? 'button' : undefined}
+                tabIndex={isCustomTool || hasToolBody ? 0 : undefined}
                 onClick={() => {
                   if (isCustomTool) {
                     handleEditCustomTool(toolIndex)
@@ -1695,10 +1697,19 @@ export const ToolInput = memo(function ToolInput({
                     toggleToolExpansion(toolIndex)
                   }
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    if (isCustomTool) {
+                      handleEditCustomTool(toolIndex)
+                    } else if (hasToolBody) {
+                      toggleToolExpansion(toolIndex)
+                    }
+                  }
+                }}
               >
                 <div className='flex min-w-0 flex-1 items-center gap-2'>
                   <div
-                    className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+                    className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
                     style={{
                       backgroundColor: isCustomTool
                         ? '#3B82F6'
@@ -1710,16 +1721,13 @@ export const ToolInput = memo(function ToolInput({
                     }}
                   >
                     {isCustomTool ? (
-                      <WrenchIcon className='h-[10px] w-[10px] text-white' />
+                      <WrenchIcon className='size-[10px] text-white' />
                     ) : isMcpTool ? (
-                      <IconComponent icon={McpIcon} className='h-[10px] w-[10px] text-white' />
+                      <IconComponent icon={McpIcon} className='size-[10px] text-white' />
                     ) : isWorkflowTool ? (
-                      <IconComponent icon={WorkflowIcon} className='h-[10px] w-[10px] text-white' />
+                      <IconComponent icon={WorkflowIcon} className='size-[10px] text-white' />
                     ) : (
-                      <IconComponent
-                        icon={toolBlock?.icon}
-                        className='h-[10px] w-[10px] text-white'
-                      />
+                      <IconComponent icon={toolBlock?.icon} className='size-[10px] text-white' />
                     )}
                   </div>
                   <span className='truncate font-medium text-[var(--text-primary)] text-small'>
@@ -1840,7 +1848,7 @@ export const ToolInput = memo(function ToolInput({
                           className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                           aria-label='Remove tool'
                         >
-                          <XIcon className='h-[13px] w-[13px]' />
+                          <XIcon className='size-[13px]' />
                         </button>
                       </PopoverTrigger>
                       <PopoverContent
@@ -1878,14 +1886,14 @@ export const ToolInput = memo(function ToolInput({
                       className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                       aria-label='Remove tool'
                     >
-                      <XIcon className='h-[13px] w-[13px]' />
+                      <XIcon className='size-[13px]' />
                     </button>
                   )}
                 </div>
               </div>
 
               {!isCustomTool && isExpandedForDisplay && (
-                <div className='flex flex-col gap-2.5 overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2 py-2'>
+                <div className='flex flex-col gap-2.5 overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] p-2'>
                   {/* Operation dropdown for tools with multiple operations */}
                   {(() => {
                     const hasOperations = hasMultipleOperations(tool.type)

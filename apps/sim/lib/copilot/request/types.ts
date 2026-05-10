@@ -8,7 +8,7 @@ import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/to
 export type { StreamEvent }
 
 export type LocalToolCallStatus = 'pending' | 'executing'
-export type ToolCallStatus = LocalToolCallStatus | MothershipStreamV1ToolOutcome
+type ToolCallStatus = LocalToolCallStatus | MothershipStreamV1ToolOutcome
 
 const TERMINAL_TOOL_STATUSES: ReadonlySet<ToolCallStatus> = new Set<MothershipStreamV1ToolOutcome>(
   Object.values(MothershipStreamV1ToolOutcome)
@@ -39,7 +39,7 @@ export interface ToolCallStateResult<T = unknown> {
   output?: T
 }
 
-export const ContentBlockType = {
+const ContentBlockType = {
   text: 'text',
   thinking: 'thinking',
   tool_call: 'tool_call',
@@ -47,7 +47,7 @@ export const ContentBlockType = {
   subagent_thinking: 'subagent_thinking',
   subagent: 'subagent',
 } as const
-export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType]
+type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType]
 
 export interface ContentBlock {
   type: ContentBlockType
@@ -106,7 +106,7 @@ export interface StreamingContext {
   subAgentTraceSpans?: Map<string, RequestTraceV1Span>
 }
 
-export interface FileAttachment {
+interface FileAttachment {
   id: string
   key: string
   name: string
@@ -114,7 +114,7 @@ export interface FileAttachment {
   size: number
 }
 
-export interface OrchestratorRequest {
+interface OrchestratorRequest {
   message: string
   workflowId: string
   userId: string

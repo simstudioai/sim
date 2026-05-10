@@ -60,9 +60,9 @@ export const getKnowledgeSelectorDocumentContract = defineRouteContract({
   },
 })
 
-export type ListKnowledgeSelectorDocumentsResponse = ContractJsonResponse<
+type ListKnowledgeSelectorDocumentsResponse = ContractJsonResponse<
   typeof listKnowledgeSelectorDocumentsContract
 >
-export type GetKnowledgeSelectorDocumentResponse = ContractJsonResponse<
+type GetKnowledgeSelectorDocumentResponse = ContractJsonResponse<
   typeof getKnowledgeSelectorDocumentContract
 >

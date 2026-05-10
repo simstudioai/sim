@@ -38,7 +38,7 @@ export type BillingBlockReason = 'payment_failed' | 'dispute'
 /**
  * Get all member user IDs for an organization
  */
-export async function getOrgMemberIds(organizationId: string): Promise<string[]> {
+async function getOrgMemberIds(organizationId: string): Promise<string[]> {
   const members = await db
     .select({ userId: member.userId })
     .from(member)
@@ -283,7 +283,7 @@ export interface RemoveExternalWorkspaceAccessResult {
   pendingInvitationsCancelled: number
 }
 
-export type MembershipAdditionFailureCode =
+type MembershipAdditionFailureCode =
   | 'user-not-found'
   | 'organization-not-found'
   | 'already-member'
@@ -460,7 +460,7 @@ async function revokeWorkspaceCredentialMembershipsTx({
   return revokedMemberships.length
 }
 
-export interface MembershipValidationResult {
+interface MembershipValidationResult {
   canAdd: boolean
   reason?: string
   failureCode?: MembershipAdditionFailureCode
@@ -516,7 +516,7 @@ export async function ensureUserInOrganization(
  * Validate if a user can be added to an organization.
  * Checks single-org constraint and seat availability.
  */
-export async function validateMembershipAddition(
+async function validateMembershipAddition(
   userId: string,
   organizationId: string,
   options: { acceptingInvitationId?: string } = {}

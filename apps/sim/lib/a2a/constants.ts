@@ -1,5 +1,3 @@
-export { AGENT_CARD_PATH } from '@a2a-js/sdk'
-
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 
 export const A2A_PROTOCOL_VERSION = '0.3.0'
@@ -23,7 +21,7 @@ export const A2A_DEFAULT_INPUT_MODES = ['text'] as const
 
 export const A2A_DEFAULT_OUTPUT_MODES = ['text'] as const
 
-export const A2A_CACHE = {
+const A2A_CACHE = {
   AGENT_CARD_TTL: 3600, // 1 hour
   TASK_TTL: 86400, // 24 hours
 } as const

@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const ttsToolBodySchema = z.object({
+const ttsToolBodySchema = z.object({
   text: z.string({ error: 'Missing required parameters' }).min(1, 'Missing required parameters'),
   voiceId: z.string({ error: 'Missing required parameters' }).min(1, 'Missing required parameters'),
   apiKey: z.string({ error: 'Missing required parameters' }).min(1, 'Missing required parameters'),
@@ -12,10 +12,10 @@ export const ttsToolBodySchema = z.object({
   executionId: z.string().optional(),
 })
 
-export const ttsOutputFormatSchema = z.union([z.record(z.string(), z.unknown()), z.string()])
+const ttsOutputFormatSchema = z.union([z.record(z.string(), z.unknown()), z.string()])
 export const playHtOutputFormatSchema = z.enum(['mp3', 'wav', 'ogg', 'flac', 'mulaw'])
 
-export const ttsUnifiedToolBodySchema = z
+const ttsUnifiedToolBodySchema = z
   .object({
     provider: z.enum(
       ['openai', 'deepgram', 'elevenlabs', 'cartesia', 'google', 'azure', 'playht'],

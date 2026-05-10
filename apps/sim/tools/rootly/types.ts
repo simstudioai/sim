@@ -1,7 +1,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 /** Base parameters for all Rootly API operations */
-export interface RootlyBaseParams {
+interface RootlyBaseParams {
   apiKey: string
 }
 
@@ -21,7 +21,7 @@ export interface RootlyCreateIncidentParams extends RootlyBaseParams {
   private?: boolean
 }
 
-export interface RootlyIncidentData {
+interface RootlyIncidentData {
   id: string | null
   sequentialId: number | null
   title: string
@@ -119,7 +119,7 @@ export interface RootlyCreateAlertParams extends RootlyBaseParams {
   deduplicationKey?: string
 }
 
-export interface RootlyAlertData {
+interface RootlyAlertData {
   id: string | null
   shortId: string | null
   summary: string
@@ -184,7 +184,7 @@ export interface RootlyListServicesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyServiceData {
+interface RootlyServiceData {
   id: string | null
   name: string
   slug: string | null
@@ -208,7 +208,7 @@ export interface RootlyListSeveritiesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlySeverityData {
+interface RootlySeverityData {
   id: string | null
   name: string
   slug: string | null
@@ -235,7 +235,7 @@ export interface RootlyListRetrospectivesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyRetrospectiveData {
+interface RootlyRetrospectiveData {
   id: string | null
   title: string
   status: string | null
@@ -261,7 +261,7 @@ export interface RootlyListTeamsParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyTeamData {
+interface RootlyTeamData {
   id: string | null
   name: string
   slug: string | null
@@ -285,7 +285,7 @@ export interface RootlyListEnvironmentsParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyEnvironmentData {
+interface RootlyEnvironmentData {
   id: string | null
   name: string
   slug: string | null
@@ -309,7 +309,7 @@ export interface RootlyListIncidentTypesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyIncidentTypeData {
+interface RootlyIncidentTypeData {
   id: string | null
   name: string
   slug: string | null
@@ -333,7 +333,7 @@ export interface RootlyListCausesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyCauseData {
+interface RootlyCauseData {
   id: string | null
   name: string
   slug: string | null
@@ -356,7 +356,7 @@ export interface RootlyListPlaybooksParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyPlaybookData {
+interface RootlyPlaybookData {
   id: string | null
   title: string
   summary: string | null
@@ -385,7 +385,7 @@ export interface RootlyDeleteIncidentResponse extends ToolResponse {
 }
 
 /** Action Item Data */
-export interface RootlyActionItemData {
+interface RootlyActionItemData {
   id: string | null
   summary: string
   description: string | null
@@ -436,7 +436,7 @@ export interface RootlyListFunctionalitiesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyFunctionalityData {
+interface RootlyFunctionalityData {
   id: string | null
   name: string
   slug: string | null
@@ -516,7 +516,7 @@ export interface RootlyListUsersParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyUserData {
+interface RootlyUserData {
   id: string | null
   email: string
   firstName: string | null
@@ -542,7 +542,7 @@ export interface RootlyListOnCallsParams extends RootlyBaseParams {
   serviceIds?: string
 }
 
-export interface RootlyOnCallData {
+interface RootlyOnCallData {
   id: string | null
   userId: string | null
   userName: string | null
@@ -567,7 +567,7 @@ export interface RootlyListSchedulesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyScheduleData {
+interface RootlyScheduleData {
   id: string | null
   name: string
   description: string | null
@@ -590,7 +590,7 @@ export interface RootlyListEscalationPoliciesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyEscalationPolicyData {
+interface RootlyEscalationPolicyData {
   id: string | null
   name: string
   description: string | null

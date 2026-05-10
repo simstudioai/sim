@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface MondayBoard {
+interface MondayBoard {
   id: string
   name: string
   description: string | null
@@ -11,7 +11,7 @@ export interface MondayBoard {
   updatedAt: string | null
 }
 
-export interface MondayGroup {
+interface MondayGroup {
   id: string
   title: string
   color: string
@@ -20,20 +20,20 @@ export interface MondayGroup {
   position: string
 }
 
-export interface MondayColumn {
+interface MondayColumn {
   id: string
   title: string
   type: string
 }
 
-export interface MondayColumnValue {
+interface MondayColumnValue {
   id: string
   text: string | null
   value: string | null
   type: string
 }
 
-export interface MondayItem {
+interface MondayItem {
   id: string
   name: string
   state: string | null
@@ -46,7 +46,7 @@ export interface MondayItem {
   url: string | null
 }
 
-export interface MondayUpdate {
+interface MondayUpdate {
   id: string
   body: string
   textBody: string | null

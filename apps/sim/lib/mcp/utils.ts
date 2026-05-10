@@ -22,7 +22,7 @@ export const MCP_TOOL_CORE_PARAMS = new Set(['serverId', 'serverUrl', 'toolName'
  * Sanitizes a string by removing invisible Unicode characters that cause HTTP header errors.
  * Handles characters like U+2028 (Line Separator) that can be introduced via copy-paste.
  */
-export function sanitizeForHttp(value: string): string {
+function sanitizeForHttp(value: string): string {
   return value
     .replace(/[\u2028\u2029\u200B-\u200D\uFEFF]/g, '')
     .replace(/[\x00-\x1F\x7F]/g, '')
@@ -32,7 +32,7 @@ export function sanitizeForHttp(value: string): string {
 /**
  * Sanitizes all header key-value pairs for HTTP usage.
  */
-export function sanitizeHeaders(
+function sanitizeHeaders(
   headers: Record<string, string> | undefined
 ): Record<string, string> | undefined {
   if (!headers) return headers

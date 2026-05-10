@@ -23,7 +23,7 @@ import { webflowSelectors } from '@/hooks/selectors/providers/webflow/selectors'
 import { zoomSelectors } from '@/hooks/selectors/providers/zoom/selectors'
 import type { SelectorDefinition, SelectorKey, SelectorOption } from '@/hooks/selectors/types'
 
-export const selectorRegistry = {
+const selectorRegistry = {
   ...airtableSelectors,
   ...asanaSelectors,
   ...attioSelectors,

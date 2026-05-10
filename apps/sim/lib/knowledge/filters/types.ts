@@ -5,27 +5,27 @@
 /**
  * Text filter operators
  */
-export type TextOperator = 'eq' | 'neq' | 'contains' | 'not_contains' | 'starts_with' | 'ends_with'
+type TextOperator = 'eq' | 'neq' | 'contains' | 'not_contains' | 'starts_with' | 'ends_with'
 
 /**
  * Number filter operators
  */
-export type NumberOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'between'
+type NumberOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'between'
 
 /**
  * Date filter operators
  */
-export type DateOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'between'
+type DateOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'between'
 
 /**
  * Boolean filter operators
  */
-export type BooleanOperator = 'eq' | 'neq'
+type BooleanOperator = 'eq' | 'neq'
 
 /**
  * All filter operators union
  */
-export type FilterOperator = TextOperator | NumberOperator | DateOperator | BooleanOperator
+type FilterOperator = TextOperator | NumberOperator | DateOperator | BooleanOperator
 
 /**
  * Field types supported for filtering
@@ -35,7 +35,7 @@ export type FilterFieldType = 'text' | 'number' | 'date' | 'boolean'
 /**
  * Logical operators for combining filters
  */
-export type LogicalOperator = 'AND' | 'OR'
+type LogicalOperator = 'AND' | 'OR'
 
 /**
  * Base filter condition interface
@@ -48,7 +48,7 @@ interface BaseFilterCondition {
 /**
  * Text filter condition
  */
-export interface TextFilterCondition extends BaseFilterCondition {
+interface TextFilterCondition extends BaseFilterCondition {
   fieldType: 'text'
   operator: TextOperator
   value: string
@@ -57,7 +57,7 @@ export interface TextFilterCondition extends BaseFilterCondition {
 /**
  * Number filter condition
  */
-export interface NumberFilterCondition extends BaseFilterCondition {
+interface NumberFilterCondition extends BaseFilterCondition {
   fieldType: 'number'
   operator: NumberOperator
   value: number
@@ -67,7 +67,7 @@ export interface NumberFilterCondition extends BaseFilterCondition {
 /**
  * Date filter condition
  */
-export interface DateFilterCondition extends BaseFilterCondition {
+interface DateFilterCondition extends BaseFilterCondition {
   fieldType: 'date'
   operator: DateOperator
   value: string // ISO date string
@@ -77,7 +77,7 @@ export interface DateFilterCondition extends BaseFilterCondition {
 /**
  * Boolean filter condition
  */
-export interface BooleanFilterCondition extends BaseFilterCondition {
+interface BooleanFilterCondition extends BaseFilterCondition {
   fieldType: 'boolean'
   operator: BooleanOperator
   value: boolean
@@ -86,7 +86,7 @@ export interface BooleanFilterCondition extends BaseFilterCondition {
 /**
  * Union of all filter conditions
  */
-export type FilterCondition =
+type FilterCondition =
   | TextFilterCondition
   | NumberFilterCondition
   | DateFilterCondition
@@ -95,7 +95,7 @@ export type FilterCondition =
 /**
  * Filter group with logical operator
  */
-export interface FilterGroup {
+interface FilterGroup {
   operator: LogicalOperator
   conditions: FilterCondition[]
 }
@@ -104,7 +104,7 @@ export interface FilterGroup {
  * Complete filter query structure
  * Supports nested groups with AND/OR logic
  */
-export interface TagFilter {
+interface TagFilter {
   rootOperator: LogicalOperator
   groups: FilterGroup[]
 }
@@ -112,7 +112,7 @@ export interface TagFilter {
 /**
  * Simplified flat filter structure for simple use cases
  */
-export interface SimpleTagFilter {
+interface SimpleTagFilter {
   operator: LogicalOperator
   conditions: FilterCondition[]
 }
@@ -129,7 +129,7 @@ export interface OperatorInfo {
 /**
  * Text operators metadata
  */
-export const TEXT_OPERATORS: OperatorInfo[] = [
+const TEXT_OPERATORS: OperatorInfo[] = [
   { value: 'eq', label: 'equals' },
   { value: 'neq', label: 'not equals' },
   { value: 'contains', label: 'contains' },
@@ -141,7 +141,7 @@ export const TEXT_OPERATORS: OperatorInfo[] = [
 /**
  * Number operators metadata
  */
-export const NUMBER_OPERATORS: OperatorInfo[] = [
+const NUMBER_OPERATORS: OperatorInfo[] = [
   { value: 'eq', label: 'equals' },
   { value: 'neq', label: 'not equals' },
   { value: 'gt', label: 'greater than' },
@@ -154,7 +154,7 @@ export const NUMBER_OPERATORS: OperatorInfo[] = [
 /**
  * Date operators metadata
  */
-export const DATE_OPERATORS: OperatorInfo[] = [
+const DATE_OPERATORS: OperatorInfo[] = [
   { value: 'eq', label: 'equals' },
   { value: 'neq', label: 'not equals' },
   { value: 'gt', label: 'after' },
@@ -167,7 +167,7 @@ export const DATE_OPERATORS: OperatorInfo[] = [
 /**
  * Boolean operators metadata
  */
-export const BOOLEAN_OPERATORS: OperatorInfo[] = [
+const BOOLEAN_OPERATORS: OperatorInfo[] = [
   { value: 'eq', label: 'is' },
   { value: 'neq', label: 'is not' },
 ]

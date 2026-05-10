@@ -18,7 +18,5 @@ export const notionPagesSelectorContract = definePostSelector(
   z.object({ pages: z.array(idNameSchema) })
 )
 
-export type NotionDatabasesSelectorResponse = ContractJsonResponse<
-  typeof notionDatabasesSelectorContract
->
-export type NotionPagesSelectorResponse = ContractJsonResponse<typeof notionPagesSelectorContract>
+type NotionDatabasesSelectorResponse = ContractJsonResponse<typeof notionDatabasesSelectorContract>
+type NotionPagesSelectorResponse = ContractJsonResponse<typeof notionPagesSelectorContract>

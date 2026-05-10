@@ -43,16 +43,16 @@ const optionalJsonObjectQuerySchema = <T>(label: string) =>
       return z.NEVER
     })
 
-export const v1TableRowsQuerySchema = tableRowsQuerySchema.extend({
+const v1TableRowsQuerySchema = tableRowsQuerySchema.extend({
   filter: optionalJsonObjectQuerySchema<Filter>('filter'),
   sort: optionalJsonObjectQuerySchema<Sort>('sort'),
 })
 
-export const v1ListTablesQuerySchema = z.object({
+const v1ListTablesQuerySchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId query parameter is required'),
 })
 
-export const v1CreateTableBodySchema = createTableBodySchema.omit({
+const v1CreateTableBodySchema = createTableBodySchema.omit({
   initialRowCount: true,
 })
 
@@ -60,12 +60,12 @@ export const v1CreateTableBodySchema = createTableBodySchema.omit({
  * Public API insert row body — no caller-controlled `position`. Server places
  * new rows at the tail; ordering by index is an in-app affordance only.
  */
-export const v1InsertTableRowBodySchema = insertTableRowBodySchema.omit({ position: true })
+const v1InsertTableRowBodySchema = insertTableRowBodySchema.omit({ position: true })
 
 /**
  * Public API batch insert body — no `positions`. Same rationale as above.
  */
-export const v1BatchInsertTableRowsBodySchema = z.object({
+const v1BatchInsertTableRowsBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   rows: z
     .array(rowDataSchema)
@@ -76,16 +76,16 @@ export const v1BatchInsertTableRowsBodySchema = z.object({
     ),
 })
 
-export const v1CreateTableRowsBodySchema = z.union([
+const v1CreateTableRowsBodySchema = z.union([
   v1BatchInsertTableRowsBodySchema,
   v1InsertTableRowBodySchema,
 ])
 
-export type V1ListTablesQuery = z.output<typeof v1ListTablesQuerySchema>
-export type V1TableRowsQuery = z.output<typeof v1TableRowsQuerySchema>
-export type V1InsertTableRowBody = z.output<typeof v1InsertTableRowBodySchema>
-export type V1BatchInsertTableRowsBody = z.output<typeof v1BatchInsertTableRowsBodySchema>
-export type V1CreateTableRowsBody = z.output<typeof v1CreateTableRowsBodySchema>
+type V1ListTablesQuery = z.output<typeof v1ListTablesQuerySchema>
+type V1TableRowsQuery = z.output<typeof v1TableRowsQuerySchema>
+type V1InsertTableRowBody = z.output<typeof v1InsertTableRowBodySchema>
+type V1BatchInsertTableRowsBody = z.output<typeof v1BatchInsertTableRowsBodySchema>
+type V1CreateTableRowsBody = z.output<typeof v1CreateTableRowsBodySchema>
 
 const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
   z.object({
@@ -192,7 +192,7 @@ export const v1CreateTableRowContract = defineRouteContract({
   },
 })
 
-export const v1BatchCreateTableRowsContract = defineRouteContract({
+const v1BatchCreateTableRowsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/tables/[tableId]/rows',
   params: tableIdParamsSchema,

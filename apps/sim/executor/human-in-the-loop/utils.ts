@@ -25,7 +25,7 @@ export function generatePauseContextId(
   return contextId
 }
 
-export function buildTriggerBlockId(nodeId: string): string {
+function buildTriggerBlockId(nodeId: string): string {
   if (nodeId.includes('__response')) {
     return nodeId.replace('__response', '__trigger')
   }

@@ -186,7 +186,7 @@ export function assignLayers(
 /**
  * Groups nodes by their layer number
  */
-export function groupByLayer(nodes: Map<string, GraphNode>): Map<number, GraphNode[]> {
+function groupByLayer(nodes: Map<string, GraphNode>): Map<number, GraphNode[]> {
   const layers = new Map<number, GraphNode[]>()
 
   for (const node of nodes.values()) {
@@ -275,7 +275,7 @@ const CONTAINER_VERTICAL_CLEARANCE = 120
  * (condition blocks have handles at different heights for each branch).
  * Target handles are also calculated per-block to ensure precise alignment.
  */
-export function calculatePositions(
+function calculatePositions(
   layers: Map<number, GraphNode[]>,
   edges: Edge[],
   options: LayoutOptions = {}

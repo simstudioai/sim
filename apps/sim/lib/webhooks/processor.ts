@@ -182,7 +182,7 @@ export function handleProviderReachabilityTest(
  * Format error response based on provider requirements.
  * Delegates to the provider handler registry.
  */
-export function formatProviderErrorResponse(
+function formatProviderErrorResponse(
   webhookRecord: { provider: string },
   error: string,
   status: number
@@ -224,7 +224,7 @@ export function handlePreDeploymentVerification(
   return null
 }
 
-export async function findWebhookAndWorkflow(
+async function findWebhookAndWorkflow(
   options: WebhookProcessorOptions
 ): Promise<{ webhook: any; workflow: any } | null> {
   if (options.webhookId) {

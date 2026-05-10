@@ -14,7 +14,7 @@ export interface PIIValidationInput {
   requestId: string
 }
 
-export interface DetectedPIIEntity {
+interface DetectedPIIEntity {
   type: string
   start: number
   end: number
@@ -239,4 +239,4 @@ export const SUPPORTED_PII_ENTITIES = {
   TH_TNIN: 'Thai National ID Number',
 } as const
 
-export type PIIEntityType = keyof typeof SUPPORTED_PII_ENTITIES
+type PIIEntityType = keyof typeof SUPPORTED_PII_ENTITIES

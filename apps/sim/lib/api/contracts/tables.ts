@@ -21,7 +21,7 @@ const domainObjectSchema = <T>() => z.custom<T>(isRecord)
  * Column types are a fixed enum derived from `COLUMN_TYPES` so callers cannot
  * send arbitrary strings the server would reject downstream.
  */
-export const columnTypeSchema = z.enum(COLUMN_TYPES)
+const columnTypeSchema = z.enum(COLUMN_TYPES)
 
 /**
  * Identifier for tables/columns: starts with letter or underscore, contains
@@ -58,7 +58,7 @@ const descriptionSchema = z
     `Description must be ${TABLE_LIMITS.MAX_DESCRIPTION_LENGTH} characters or less`
   )
 
-export const tableScopeSchema = z.enum(['active', 'archived', 'all'])
+const tableScopeSchema = z.enum(['active', 'archived', 'all'])
 
 export const tableIdParamsSchema = z.object({
   tableId: z.string().min(1),
@@ -77,7 +77,7 @@ export const getTableQuerySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
-export const tableColumnSchema = z.object({
+const tableColumnSchema = z.object({
   name: columnNameSchema,
   type: columnTypeSchema,
   required: z.boolean().optional().default(false),
@@ -100,7 +100,7 @@ export const createTableBodySchema = z.object({
   initialRowCount: z.number().int().min(0).max(100).optional(),
 })
 
-export const renameTableBodySchema = z.object({
+const renameTableBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   name: tableNameSchema,
 })
@@ -132,19 +132,19 @@ export const deleteTableColumnBodySchema = z.object({
   columnName: columnNameSchema,
 })
 
-export const tableMetadataSchema = z.object({
+const tableMetadataSchema = z.object({
   columnWidths: z.record(z.string(), z.number().positive()).optional(),
   columnOrder: z.array(z.string()).optional(),
 }) satisfies z.ZodType<TableMetadata>
 
-export const updateTableMetadataBodySchema = z.object({
+const updateTableMetadataBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   metadata: tableMetadataSchema,
 })
 
 export const rowDataSchema = domainObjectSchema<RowData>()
-export const tableDefinitionSchema = domainObjectSchema<TableDefinition>()
-export const tableRowSchema = domainObjectSchema<TableRow>()
+const tableDefinitionSchema = domainObjectSchema<TableDefinition>()
+const tableRowSchema = domainObjectSchema<TableRow>()
 
 export const insertTableRowBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
@@ -163,7 +163,7 @@ export const upsertTableRowBodySchema = z.object({
   conflictTarget: z.string().min(1).optional(),
 })
 
-export const batchInsertTableRowsBodySchema = z
+const batchInsertTableRowsBodySchema = z
   .object({
     workspaceId: z.string().min(1, 'Workspace ID is required'),
     rows: z
@@ -189,7 +189,7 @@ export const batchInsertTableRowsBodySchema = z
  * literal field. Order matters: the batch schema is checked first so payloads
  * that include `rows` are routed to batch insert.
  */
-export const insertTableRowsBodySchema = z.union([
+const insertTableRowsBodySchema = z.union([
   batchInsertTableRowsBodySchema,
   insertTableRowBodySchema,
 ])
@@ -241,7 +241,7 @@ const optionalPositiveLimit = (max: number, label: string) =>
       .optional()
   )
 
-export const deleteTableRowBodySchema = z.object({
+const deleteTableRowBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
@@ -537,7 +537,7 @@ export type UpdateTableRowBodyInput = z.input<typeof updateTableRowBodySchema>
 // form-field* in the routes (not as a single contract body).
 // ============================================================================
 
-export const csvFileSchema = z
+const csvFileSchema = z
   .unknown()
   .superRefine((value, ctx) => {
     if (typeof File === 'undefined' || !(value instanceof File)) {
@@ -733,11 +733,11 @@ const workflowGroupOutputColumnSchema = z.object({
   workflowGroupId: z.string().min(1),
 })
 
-export const groupIdParamsSchema = tableIdParamsSchema.extend({
+const groupIdParamsSchema = tableIdParamsSchema.extend({
   groupId: z.string().min(1),
 })
 
-export const addWorkflowGroupBodySchema = z.object({
+const addWorkflowGroupBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   group: z.object({
     id: z.string().min(1),
@@ -773,7 +773,7 @@ const workflowGroupMappingUpdateSchema = z.object({
   path: z.string().min(1),
 })
 
-export const updateWorkflowGroupBodySchema = z.object({
+const updateWorkflowGroupBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   groupId: z.string().min(1),
   workflowId: z.string().min(1).optional(),
@@ -791,7 +791,7 @@ export const updateWorkflowGroupBodySchema = z.object({
   autoRun: z.boolean().optional(),
 })
 
-export const deleteWorkflowGroupBodySchema = z.object({
+const deleteWorkflowGroupBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   groupId: z.string().min(1),
 })
@@ -841,7 +841,7 @@ export const deleteWorkflowGroupContract = defineRouteContract({
  *  - `all`     — every running/pending cell in the table
  *  - `row`     — every running/pending cell for a specific row (`rowId` required)
  */
-export const cancelTableRunsBodySchema = z
+const cancelTableRunsBodySchema = z
   .object({
     workspaceId: z.string().min(1, 'Workspace ID is required'),
     scope: z.enum(['all', 'row']),
@@ -883,7 +883,7 @@ export const cancelTableRunsContract = defineRouteContract({
  * action-bar Play/Refresh, column-header menu) reduces to a `groupIds` +
  * optional `rowIds` shape. AI uses the `run_column` tool op.
  */
-export const runColumnBodySchema = z.object({
+const runColumnBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   groupIds: z.array(z.string().min(1)).min(1),
   runMode: z.enum(['all', 'incomplete']).default('all'),
@@ -915,7 +915,7 @@ export type RunColumnBodyInput = z.input<typeof runColumnBodySchema>
  *  builds a run-column payload. Single source of truth for the literal pair. */
 export type RunMode = NonNullable<RunColumnBodyInput['runMode']>
 
-export const tableEventStreamQuerySchema = z.object({
+const tableEventStreamQuerySchema = z.object({
   from: z.preprocess((value) => {
     if (typeof value !== 'string') return 0
     const parsed = Number.parseInt(value, 10)

@@ -1,8 +1,8 @@
 import type { OneDriveToolParams } from '@/tools/onedrive/types'
 
-export type ExcelCell = string | number | boolean | null
-export type ExcelArrayValues = ExcelCell[][]
-export type ExcelObjectValues = Array<Record<string, ExcelCell>>
+type ExcelCell = string | number | boolean | null
+type ExcelArrayValues = ExcelCell[][]
+type ExcelObjectValues = Array<Record<string, ExcelCell>>
 export type NormalizedExcelValues = ExcelArrayValues | ExcelObjectValues
 
 /**

@@ -6,7 +6,7 @@ import {
 } from '@/lib/api/contracts/selectors/shared'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 
-export const linearProjectsBodySchema = credentialWorkflowBodySchema.extend({
+const linearProjectsBodySchema = credentialWorkflowBodySchema.extend({
   teamId: z.string().min(1),
 })
 
@@ -22,7 +22,5 @@ export const linearProjectsSelectorContract = definePostSelector(
   z.object({ projects: z.array(idNameSchema) })
 )
 
-export type LinearTeamsSelectorResponse = ContractJsonResponse<typeof linearTeamsSelectorContract>
-export type LinearProjectsSelectorResponse = ContractJsonResponse<
-  typeof linearProjectsSelectorContract
->
+type LinearTeamsSelectorResponse = ContractJsonResponse<typeof linearTeamsSelectorContract>
+type LinearProjectsSelectorResponse = ContractJsonResponse<typeof linearProjectsSelectorContract>

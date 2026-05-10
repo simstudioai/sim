@@ -6,7 +6,7 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const mailSendResponseSchema = z.object({
+const mailSendResponseSchema = z.object({
   success: z.literal(true),
   message: z.string(),
   data: z
@@ -16,7 +16,7 @@ export const mailSendResponseSchema = z.object({
     .nullable(),
 })
 
-export const mailSendBodySchema = z.object({
+const mailSendBodySchema = z.object({
   fromAddress: z.string().min(1, 'From address is required'),
   to: z.string().min(1, 'To email is required'),
   subject: z.string().min(1, 'Subject is required'),
@@ -46,6 +46,6 @@ export const mailSendContract = defineRouteContract({
   response: { mode: 'json', schema: mailSendResponseSchema },
 })
 
-export type MailSendBody = ContractBody<typeof mailSendContract>
-export type MailSendBodyInput = ContractBodyInput<typeof mailSendContract>
-export type MailSendResponse = ContractJsonResponse<typeof mailSendContract>
+type MailSendBody = ContractBody<typeof mailSendContract>
+type MailSendBodyInput = ContractBodyInput<typeof mailSendContract>
+type MailSendResponse = ContractJsonResponse<typeof mailSendContract>

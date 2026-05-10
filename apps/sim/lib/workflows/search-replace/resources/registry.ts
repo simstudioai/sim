@@ -345,7 +345,7 @@ const WORKFLOW_SEARCH_SUBBLOCK_RESOURCES: Partial<
   'project-selector': { kind: 'selector-resource', codec: scalarResourceCodec },
 }
 
-export function getWorkflowSearchResourceKindDefinition(
+function getWorkflowSearchResourceKindDefinition(
   kind: WorkflowSearchMatchKind
 ): WorkflowSearchResourceKindDefinition | null {
   return kind === 'text' ? null : WORKFLOW_SEARCH_RESOURCE_KINDS[kind]
@@ -369,7 +369,7 @@ export function normalizeWorkflowSearchResourceReplacement(
   )
 }
 
-export function getWorkflowSearchSubBlockResourceDefinition(
+function getWorkflowSearchSubBlockResourceDefinition(
   subBlockConfig?: Pick<SubBlockConfig, 'type'>
 ): WorkflowSearchSubBlockResourceDefinition | null {
   if (!subBlockConfig) return null

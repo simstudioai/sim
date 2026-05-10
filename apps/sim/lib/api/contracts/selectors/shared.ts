@@ -9,7 +9,7 @@ export const optionalString = z.string().optional()
  * where the wire is permissive but server-side handlers expect an optional
  * string.
  */
-export const nullableOptionalString = z
+const nullableOptionalString = z
   .string()
   .nullish()
   .transform((value) => value ?? undefined)

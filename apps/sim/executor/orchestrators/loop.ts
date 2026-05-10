@@ -30,7 +30,7 @@ const logger = createLogger('LoopOrchestrator')
 
 const LOOP_CONDITION_TIMEOUT_MS = 5000
 
-export type LoopRoute = typeof EDGE.LOOP_CONTINUE | typeof EDGE.LOOP_EXIT
+type LoopRoute = typeof EDGE.LOOP_CONTINUE | typeof EDGE.LOOP_EXIT
 
 export interface LoopContinuationResult {
   shouldContinue: boolean

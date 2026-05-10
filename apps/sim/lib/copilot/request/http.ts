@@ -7,11 +7,11 @@ import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecyc
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 
-export const NotificationStatus = {
+const NotificationStatus = {
   pending: 'pending',
   ...ASYNC_TOOL_CONFIRMATION_STATUS,
 } as const
-export type NotificationStatus = (typeof NotificationStatus)[keyof typeof NotificationStatus]
+type NotificationStatus = (typeof NotificationStatus)[keyof typeof NotificationStatus]
 
 export interface CopilotAuthResult {
   userId: string | null

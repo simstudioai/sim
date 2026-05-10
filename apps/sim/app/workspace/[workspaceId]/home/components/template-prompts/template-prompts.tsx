@@ -183,10 +183,10 @@ const WorkflowMiniBlock = memo(function WorkflowMiniBlock({
         className={`flex items-center gap-1 px-[5px] py-[3px] ${hasRows ? 'border-[var(--border-1)] border-b' : ''}`}
       >
         <div
-          className='flex h-[11px] w-[11px] shrink-0 items-center justify-center rounded-[3px]'
+          className='flex size-[11px] shrink-0 items-center justify-center rounded-[3px]'
           style={{ backgroundColor: color }}
         >
-          <Icon className='h-[7px] w-[7px] text-white' />
+          <Icon className='size-[7px] text-white' />
         </div>
         <span className='truncate font-medium text-[6.5px] text-[var(--text-body)]'>{name}</span>
       </div>
@@ -382,7 +382,7 @@ const TemplateCard = memo(function TemplateCard({ template, onSelect }: Template
           )}
         </div>
         <div className='flex items-center gap-1.5 border-[var(--border-1)] border-t bg-[var(--white)] px-3 py-2 transition-colors group-hover:bg-[var(--surface-2)] dark:bg-[var(--surface-4)]'>
-          <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+          <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
           <span className='text-[var(--text-body)] text-small'>{template.title}</span>
         </div>
       </div>

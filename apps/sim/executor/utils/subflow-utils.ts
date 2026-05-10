@@ -46,7 +46,7 @@ export function isLoopSentinelNodeId(nodeId: string): boolean {
   )
 }
 
-export function isParallelSentinelNodeId(nodeId: string): boolean {
+function isParallelSentinelNodeId(nodeId: string): boolean {
   return (
     nodeId.startsWith(PARALLEL.SENTINEL.PREFIX) &&
     (nodeId.endsWith(PARALLEL.SENTINEL.START_SUFFIX) ||
@@ -54,7 +54,7 @@ export function isParallelSentinelNodeId(nodeId: string): boolean {
   )
 }
 
-export function isSentinelNodeId(nodeId: string): boolean {
+function isSentinelNodeId(nodeId: string): boolean {
   return isLoopSentinelNodeId(nodeId) || isParallelSentinelNodeId(nodeId)
 }
 

@@ -1505,6 +1505,6 @@ export type { FileReadResult } from '@/lib/copilot/vfs/file-reader'
  * Sanitize a name for use as a VFS path segment.
  * Delegates to {@link normalizeVfsSegment} so workspace file paths match DB lookups.
  */
-export function sanitizeName(name: string): string {
+function sanitizeName(name: string): string {
   return normalizeVfsSegment(name)
 }

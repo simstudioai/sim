@@ -13,7 +13,7 @@ import { AuthMode } from '@/blocks/types'
 import type { BlockState, SubBlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 // Credential types based on actual patterns in the codebase
-export enum CredentialType {
+enum CredentialType {
   OAUTH = 'oauth',
   SECRET = 'secret', // password: true (covers API keys, bot tokens, passwords, etc.)
 }
@@ -333,7 +333,7 @@ export function sanitizeCredentials(
  * Sanitize workflow state for export (preserves env vars)
  * Convenience wrapper for workflow export
  */
-export function sanitizeForExport(
+function sanitizeForExport(
   state: Partial<WorkflowState> | null | undefined
 ): SanitizedWorkflowState {
   return sanitizeWorkflowForSharing(state, { preserveEnvVars: true })

@@ -1,14 +1,7 @@
 import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
-export type TtsProvider =
-  | 'openai'
-  | 'deepgram'
-  | 'elevenlabs'
-  | 'cartesia'
-  | 'google'
-  | 'azure'
-  | 'playht'
+type TtsProvider = 'openai' | 'deepgram' | 'elevenlabs' | 'cartesia' | 'google' | 'azure' | 'playht'
 
 // OpenAI TTS Types
 export interface OpenAiTtsParams {
@@ -142,7 +135,7 @@ export interface TtsResponse {
 }
 
 // Voice options for different providers
-export const OPENAI_VOICES = {
+const OPENAI_VOICES = {
   // All voices work with all models
   alloy: 'Alloy (neutral, balanced)',
   ash: 'Ash (masculine, clear)',
@@ -156,7 +149,7 @@ export const OPENAI_VOICES = {
   verse: 'Verse (poetic, expressive)',
 } as const
 
-export const DEEPGRAM_VOICES = {
+const DEEPGRAM_VOICES = {
   // Aura-1 English voices (legacy)
   'aura-asteria-en': 'Asteria (Aura-1, American, warm female)',
   'aura-luna-en': 'Luna (Aura-1, American, professional female)',
@@ -228,7 +221,7 @@ export const DEEPGRAM_VOICES = {
   'aura-2-antonio-es': 'Antonio (Aura-2, Spanish male)',
 } as const
 
-export const ELEVENLABS_MODELS = {
+const ELEVENLABS_MODELS = {
   // V2 Models
   eleven_turbo_v2_5: 'Turbo v2.5 (faster, improved)',
   eleven_flash_v2_5: 'Flash v2.5 (ultra-fast, 75ms latency)',
@@ -240,7 +233,7 @@ export const ELEVENLABS_MODELS = {
   eleven_multilingual_v1: 'Multilingual v1',
 } as const
 
-export const CARTESIA_MODELS = {
+const CARTESIA_MODELS = {
   sonic: 'Sonic (English, low latency)',
   'sonic-2': 'Sonic 2 (English, improved)',
   'sonic-turbo': 'Sonic Turbo (English, ultra-fast)',
@@ -248,13 +241,13 @@ export const CARTESIA_MODELS = {
   'sonic-multilingual': 'Sonic Multilingual (100+ languages)',
 } as const
 
-export const GOOGLE_VOICE_GENDERS = {
+const GOOGLE_VOICE_GENDERS = {
   MALE: 'Male',
   FEMALE: 'Female',
   NEUTRAL: 'Neutral',
 } as const
 
-export const GOOGLE_AUDIO_ENCODINGS = {
+const GOOGLE_AUDIO_ENCODINGS = {
   LINEAR16: 'LINEAR16 (uncompressed)',
   MP3: 'MP3 (compressed)',
   OGG_OPUS: 'OGG Opus (compressed)',
@@ -262,7 +255,7 @@ export const GOOGLE_AUDIO_ENCODINGS = {
   ALAW: 'ALAW (8kHz)',
 } as const
 
-export const AZURE_OUTPUT_FORMATS = {
+const AZURE_OUTPUT_FORMATS = {
   'riff-8khz-16bit-mono-pcm': 'PCM 8kHz 16-bit',
   'riff-24khz-16bit-mono-pcm': 'PCM 24kHz 16-bit',
   'audio-24khz-48kbitrate-mono-mp3': 'MP3 24kHz 48kbps',
@@ -270,13 +263,13 @@ export const AZURE_OUTPUT_FORMATS = {
   'audio-48khz-96kbitrate-mono-mp3': 'MP3 48kHz 96kbps (high quality)',
 } as const
 
-export const PLAYHT_QUALITY_LEVELS = {
+const PLAYHT_QUALITY_LEVELS = {
   draft: 'Draft (fastest)',
   standard: 'Standard (recommended)',
   premium: 'Premium (best quality)',
 } as const
 
-export const PLAYHT_OUTPUT_FORMATS = {
+const PLAYHT_OUTPUT_FORMATS = {
   mp3: 'MP3',
   wav: 'WAV',
   ogg: 'OGG',
@@ -285,7 +278,7 @@ export const PLAYHT_OUTPUT_FORMATS = {
 } as const
 
 // Audio format MIME types
-export const AUDIO_MIME_TYPES: Record<string, string> = {
+const AUDIO_MIME_TYPES: Record<string, string> = {
   mp3: 'audio/mpeg',
   opus: 'audio/opus',
   aac: 'audio/aac',

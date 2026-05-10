@@ -193,8 +193,6 @@ export function buildOutputsByBlockId(
 }
 
 /** Type-narrowing helper used by readers that can't assume `executions` is set. */
-export function readExecutions(
-  row: { executions?: RowExecutions } | null | undefined
-): RowExecutions {
+function readExecutions(row: { executions?: RowExecutions } | null | undefined): RowExecutions {
   return row?.executions ?? {}
 }

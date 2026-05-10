@@ -6,13 +6,13 @@ import { angleToDeg, emuToPx } from '../../parser/units'
 import type { SafeXmlNode } from '../../parser/xml-parser'
 import { type BaseNodeData, parseBaseProps } from './base-node'
 
-export interface TextRun {
+interface TextRun {
   text: string
   /** @internal Raw XML node — opaque to consumers. Use serializePresentation() for JSON-safe data. */
   properties?: SafeXmlNode
 }
 
-export interface TextParagraph {
+interface TextParagraph {
   /** @internal Raw XML node — opaque to consumers. Use serializePresentation() for JSON-safe data. */
   properties?: SafeXmlNode
   runs: TextRun[]
@@ -38,7 +38,7 @@ export interface LineEndInfo {
 }
 
 /** Text box bounds in shape-local coordinates (used by diagram shapes with txXfrm). */
-export interface TextBoxBounds {
+interface TextBoxBounds {
   x: number
   y: number
   w: number

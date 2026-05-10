@@ -6,7 +6,7 @@ export interface GrepMatch {
   content: string
 }
 
-export type GrepOutputMode = 'content' | 'files_with_matches' | 'count'
+type GrepOutputMode = 'content' | 'files_with_matches' | 'count'
 
 export interface GrepOptions {
   maxResults?: number

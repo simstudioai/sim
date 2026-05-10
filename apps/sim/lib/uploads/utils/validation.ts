@@ -80,7 +80,7 @@ export const SUPPORTED_CODE_EXTENSIONS = [
   'mmd',
 ] as const
 
-export type SupportedCodeExtension = (typeof SUPPORTED_CODE_EXTENSIONS)[number]
+type SupportedCodeExtension = (typeof SUPPORTED_CODE_EXTENSIONS)[number]
 
 export const SUPPORTED_AUDIO_EXTENSIONS = [
   'mp3',
@@ -112,10 +112,10 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
 ] as const
 
 export type SupportedDocumentExtension = (typeof SUPPORTED_DOCUMENT_EXTENSIONS)[number]
-export type SupportedAudioExtension = (typeof SUPPORTED_AUDIO_EXTENSIONS)[number]
-export type SupportedVideoExtension = (typeof SUPPORTED_VIDEO_EXTENSIONS)[number]
-export type SupportedImageExtension = (typeof SUPPORTED_IMAGE_EXTENSIONS)[number]
-export type SupportedMediaExtension =
+type SupportedAudioExtension = (typeof SUPPORTED_AUDIO_EXTENSIONS)[number]
+type SupportedVideoExtension = (typeof SUPPORTED_VIDEO_EXTENSIONS)[number]
+type SupportedImageExtension = (typeof SUPPORTED_IMAGE_EXTENSIONS)[number]
+type SupportedMediaExtension =
   | SupportedDocumentExtension
   | SupportedAudioExtension
   | SupportedVideoExtension
@@ -180,15 +180,15 @@ export const SUPPORTED_VIDEO_MIME_TYPES: Record<SupportedVideoExtension, string[
 }
 
 export const ACCEPTED_FILE_TYPES = Object.values(SUPPORTED_MIME_TYPES).flat()
-export const ACCEPTED_AUDIO_TYPES = Object.values(SUPPORTED_AUDIO_MIME_TYPES).flat()
-export const ACCEPTED_VIDEO_TYPES = Object.values(SUPPORTED_VIDEO_MIME_TYPES).flat()
-export const ACCEPTED_MEDIA_TYPES = [
+const ACCEPTED_AUDIO_TYPES = Object.values(SUPPORTED_AUDIO_MIME_TYPES).flat()
+const ACCEPTED_VIDEO_TYPES = Object.values(SUPPORTED_VIDEO_MIME_TYPES).flat()
+const ACCEPTED_MEDIA_TYPES = [
   ...ACCEPTED_FILE_TYPES,
   ...ACCEPTED_AUDIO_TYPES,
   ...ACCEPTED_VIDEO_TYPES,
 ]
 
-export const ACCEPTED_FILE_EXTENSIONS = SUPPORTED_DOCUMENT_EXTENSIONS.map((ext) => `.${ext}`)
+const ACCEPTED_FILE_EXTENSIONS = SUPPORTED_DOCUMENT_EXTENSIONS.map((ext) => `.${ext}`)
 
 export const ACCEPT_ATTRIBUTE = [...ACCEPTED_FILE_TYPES, ...ACCEPTED_FILE_EXTENSIONS].join(',')
 

@@ -1,13 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export type LangsmithRunType =
-  | 'tool'
-  | 'chain'
-  | 'llm'
-  | 'retriever'
-  | 'embedding'
-  | 'prompt'
-  | 'parser'
+type LangsmithRunType = 'tool' | 'chain' | 'llm' | 'retriever' | 'embedding' | 'prompt' | 'parser'
 
 export interface LangsmithRunPayload {
   id?: string

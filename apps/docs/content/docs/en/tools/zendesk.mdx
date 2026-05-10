@@ -80,15 +80,6 @@ Retrieve a list of tickets from Zendesk with optional filtering
 |   ↳ `url` | string | API URL of the ticket |
 |   ↳ `external_id` | string | External ID for linking to external records |
 |   ↳ `via` | object | How the ticket was created |
-|     ↳ `channel` | string | Channel through which the ticket was created \(e.g., email, web, api\) |
-|     ↳ `source` | object | Source details for the channel |
-|       ↳ `from` | object | Information about the source sender |
-|         ↳ `address` | string | Email address or other identifier |
-|         ↳ `name` | string | Name of the sender |
-|       ↳ `to` | object | Information about the recipient |
-|         ↳ `address` | string | Email address or other identifier |
-|         ↳ `name` | string | Name of the recipient |
-|       ↳ `rel` | string | Relationship type |
 |   ↳ `created_at` | string | When the ticket was created \(ISO 8601 format\) |
 |   ↳ `updated_at` | string | When the ticket was last updated \(ISO 8601 format\) |
 |   ↳ `type` | string | Ticket type \(problem, incident, question, task\) |
@@ -113,13 +104,8 @@ Retrieve a list of tickets from Zendesk with optional filtering
 |   ↳ `due_at` | string | Due date for task tickets \(ISO 8601 format\) |
 |   ↳ `tags` | array | Tags associated with the ticket |
 |   ↳ `custom_fields` | array | Custom ticket fields |
-|     ↳ `id` | number | Custom field ID |
-|     ↳ `value` | string | Custom field value |
 |   ↳ `custom_status_id` | number | Custom status ID |
 |   ↳ `satisfaction_rating` | object | Customer satisfaction rating |
-|     ↳ `id` | number | Satisfaction rating ID |
-|     ↳ `score` | string | Rating score \(e.g., good, bad, offered, unoffered\) |
-|     ↳ `comment` | string | Comment left with the rating |
 |   ↳ `sharing_agreement_ids` | array | Sharing agreement IDs |
 |   ↳ `followup_ids` | array | IDs of follow-up tickets |
 |   ↳ `brand_id` | number | Brand ID the ticket belongs to |
@@ -129,12 +115,7 @@ Retrieve a list of tickets from Zendesk with optional filtering
 |   ↳ `ticket_form_id` | number | Ticket form ID |
 |   ↳ `generated_timestamp` | number | Unix timestamp of the ticket generation |
 | `paging` | object | Cursor-based pagination information |
-|   ↳ `after_cursor` | string | Cursor for fetching the next page of results |
-|   ↳ `has_more` | boolean | Whether more results are available |
-|   ↳ `next_page` | string | URL for next page of results |
 | `metadata` | object | Response metadata |
-|   ↳ `total_returned` | number | Number of items returned in this response |
-|   ↳ `has_more` | boolean | Whether more items are available |
 
 ### `zendesk_get_ticket`
 
@@ -158,15 +139,6 @@ Get a single ticket by ID from Zendesk
 |   ↳ `url` | string | API URL of the ticket |
 |   ↳ `external_id` | string | External ID for linking to external records |
 |   ↳ `via` | object | How the ticket was created |
-|     ↳ `channel` | string | Channel through which the ticket was created \(e.g., email, web, api\) |
-|     ↳ `source` | object | Source details for the channel |
-|       ↳ `from` | object | Information about the source sender |
-|         ↳ `address` | string | Email address or other identifier |
-|         ↳ `name` | string | Name of the sender |
-|       ↳ `to` | object | Information about the recipient |
-|         ↳ `address` | string | Email address or other identifier |
-|         ↳ `name` | string | Name of the recipient |
-|       ↳ `rel` | string | Relationship type |
 |   ↳ `created_at` | string | When the ticket was created \(ISO 8601 format\) |
 |   ↳ `updated_at` | string | When the ticket was last updated \(ISO 8601 format\) |
 |   ↳ `type` | string | Ticket type \(problem, incident, question, task\) |
@@ -191,13 +163,8 @@ Get a single ticket by ID from Zendesk
 |   ↳ `due_at` | string | Due date for task tickets \(ISO 8601 format\) |
 |   ↳ `tags` | array | Tags associated with the ticket |
 |   ↳ `custom_fields` | array | Custom ticket fields |
-|     ↳ `id` | number | Custom field ID |
-|     ↳ `value` | string | Custom field value |
 |   ↳ `custom_status_id` | number | Custom status ID |
 |   ↳ `satisfaction_rating` | object | Customer satisfaction rating |
-|     ↳ `id` | number | Satisfaction rating ID |
-|     ↳ `score` | string | Rating score \(e.g., good, bad, offered, unoffered\) |
-|     ↳ `comment` | string | Comment left with the rating |
 |   ↳ `sharing_agreement_ids` | array | Sharing agreement IDs |
 |   ↳ `followup_ids` | array | IDs of follow-up tickets |
 |   ↳ `brand_id` | number | Brand ID the ticket belongs to |
@@ -239,15 +206,6 @@ Create a new ticket in Zendesk with support for custom fields
 |   ↳ `url` | string | API URL of the ticket |
 |   ↳ `external_id` | string | External ID for linking to external records |
 |   ↳ `via` | object | How the ticket was created |
-|     ↳ `channel` | string | Channel through which the ticket was created \(e.g., email, web, api\) |
-|     ↳ `source` | object | Source details for the channel |
-|       ↳ `from` | object | Information about the source sender |
-|         ↳ `address` | string | Email address or other identifier |
-|         ↳ `name` | string | Name of the sender |
-|       ↳ `to` | object | Information about the recipient |
-|         ↳ `address` | string | Email address or other identifier |
-|         ↳ `name` | string | Name of the recipient |
-|       ↳ `rel` | string | Relationship type |
 |   ↳ `created_at` | string | When the ticket was created \(ISO 8601 format\) |
 |   ↳ `updated_at` | string | When the ticket was last updated \(ISO 8601 format\) |
 |   ↳ `type` | string | Ticket type \(problem, incident, question, task\) |
@@ -272,13 +230,8 @@ Create a new ticket in Zendesk with support for custom fields
 |   ↳ `due_at` | string | Due date for task tickets \(ISO 8601 format\) |
 |   ↳ `tags` | array | Tags associated with the ticket |
 |   ↳ `custom_fields` | array | Custom ticket fields |
-|     ↳ `id` | number | Custom field ID |
-|     ↳ `value` | string | Custom field value |
 |   ↳ `custom_status_id` | number | Custom status ID |
 |   ↳ `satisfaction_rating` | object | Customer satisfaction rating |
-|     ↳ `id` | number | Satisfaction rating ID |
-|     ↳ `score` | string | Rating score \(e.g., good, bad, offered, unoffered\) |
-|     ↳ `comment` | string | Comment left with the rating |
 |   ↳ `sharing_agreement_ids` | array | Sharing agreement IDs |
 |   ↳ `followup_ids` | array | IDs of follow-up tickets |
 |   ↳ `brand_id` | number | Brand ID the ticket belongs to |
@@ -307,20 +260,6 @@ Create multiple tickets in Zendesk at once (max 100)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `job_status` | object | Job status object for bulk operations |
-|   ↳ `id` | string | Automatically assigned job ID |
-|   ↳ `url` | string | URL to poll for status updates |
-|   ↳ `status` | string | Current job status \(queued, working, failed, completed\) |
-|   ↳ `job_type` | string | Category of background task |
-|   ↳ `total` | number | Total number of tasks in this job |
-|   ↳ `progress` | number | Number of tasks already completed |
-|   ↳ `message` | string | Message from the job worker |
-|   ↳ `results` | array | Array of result objects from the job |
-|     ↳ `id` | number | ID of the created or updated resource |
-|     ↳ `index` | number | Position of the result in the batch |
-|     ↳ `action` | string | Action performed \(e.g., create, update\) |
-|     ↳ `success` | boolean | Whether the operation succeeded |
-|     ↳ `status` | string | Status message \(e.g., Updated, Created\) |
-|     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
 ### `zendesk_update_ticket`
@@ -354,15 +293,6 @@ Update an existing ticket in Zendesk with support for custom fields
 |   ↳ `url` | string | API URL of the ticket |
 |   ↳ `external_id` | string | External ID for linking to external records |
 |   ↳ `via` | object | How the ticket was created |
-|     ↳ `channel` | string | Channel through which the ticket was created \(e.g., email, web, api\) |
-|     ↳ `source` | object | Source details for the channel |
-|       ↳ `from` | object | Information about the source sender |
-|         ↳ `address` | string | Email address or other identifier |
-|         ↳ `name` | string | Name of the sender |
-|       ↳ `to` | object | Information about the recipient |
-|         ↳ `address` | string | Email address or other identifier |
-|         ↳ `name` | string | Name of the recipient |
-|       ↳ `rel` | string | Relationship type |
 |   ↳ `created_at` | string | When the ticket was created \(ISO 8601 format\) |
 |   ↳ `updated_at` | string | When the ticket was last updated \(ISO 8601 format\) |
 |   ↳ `type` | string | Ticket type \(problem, incident, question, task\) |
@@ -387,13 +317,8 @@ Update an existing ticket in Zendesk with support for custom fields
 |   ↳ `due_at` | string | Due date for task tickets \(ISO 8601 format\) |
 |   ↳ `tags` | array | Tags associated with the ticket |
 |   ↳ `custom_fields` | array | Custom ticket fields |
-|     ↳ `id` | number | Custom field ID |
-|     ↳ `value` | string | Custom field value |
 |   ↳ `custom_status_id` | number | Custom status ID |
 |   ↳ `satisfaction_rating` | object | Customer satisfaction rating |
-|     ↳ `id` | number | Satisfaction rating ID |
-|     ↳ `score` | string | Rating score \(e.g., good, bad, offered, unoffered\) |
-|     ↳ `comment` | string | Comment left with the rating |
 |   ↳ `sharing_agreement_ids` | array | Sharing agreement IDs |
 |   ↳ `followup_ids` | array | IDs of follow-up tickets |
 |   ↳ `brand_id` | number | Brand ID the ticket belongs to |
@@ -427,20 +352,6 @@ Update multiple tickets in Zendesk at once (max 100)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `job_status` | object | Job status object for bulk operations |
-|   ↳ `id` | string | Automatically assigned job ID |
-|   ↳ `url` | string | URL to poll for status updates |
-|   ↳ `status` | string | Current job status \(queued, working, failed, completed\) |
-|   ↳ `job_type` | string | Category of background task |
-|   ↳ `total` | number | Total number of tasks in this job |
-|   ↳ `progress` | number | Number of tasks already completed |
-|   ↳ `message` | string | Message from the job worker |
-|   ↳ `results` | array | Array of result objects from the job |
-|     ↳ `id` | number | ID of the created or updated resource |
-|     ↳ `index` | number | Position of the result in the batch |
-|     ↳ `action` | string | Action performed \(e.g., create, update\) |
-|     ↳ `success` | boolean | Whether the operation succeeded |
-|     ↳ `status` | string | Status message \(e.g., Updated, Created\) |
-|     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
 ### `zendesk_delete_ticket`
@@ -483,20 +394,6 @@ Merge multiple tickets into a target ticket
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `job_status` | object | Job status object for bulk operations |
-|   ↳ `id` | string | Automatically assigned job ID |
-|   ↳ `url` | string | URL to poll for status updates |
-|   ↳ `status` | string | Current job status \(queued, working, failed, completed\) |
-|   ↳ `job_type` | string | Category of background task |
-|   ↳ `total` | number | Total number of tasks in this job |
-|   ↳ `progress` | number | Number of tasks already completed |
-|   ↳ `message` | string | Message from the job worker |
-|   ↳ `results` | array | Array of result objects from the job |
-|     ↳ `id` | number | ID of the created or updated resource |
-|     ↳ `index` | number | Position of the result in the batch |
-|     ↳ `action` | string | Action performed \(e.g., create, update\) |
-|     ↳ `success` | boolean | Whether the operation succeeded |
-|     ↳ `status` | string | Status message \(e.g., Updated, Created\) |
-|     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The merge job ID |
 | `target_ticket_id` | string | The target ticket ID that tickets were merged into |
 
@@ -532,9 +429,6 @@ Retrieve a list of users from Zendesk with optional filtering
 |   ↳ `phone` | string | Phone number |
 |   ↳ `shared_phone_number` | boolean | Whether the phone number is shared |
 |   ↳ `photo` | object | User photo details |
-|     ↳ `content_url` | string | URL to the photo |
-|     ↳ `file_name` | string | Photo file name |
-|     ↳ `size` | number | File size in bytes |
 |   ↳ `locale` | string | Locale \(e.g., en-US\) |
 |   ↳ `locale_id` | number | Locale ID |
 |   ↳ `organization_id` | number | Primary organization ID |
@@ -563,12 +457,7 @@ Retrieve a list of users from Zendesk with optional filtering
 |   ↳ `shared_agent` | boolean | Whether the agent is shared from a different Zendesk |
 |   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `paging` | object | Cursor-based pagination information |
-|   ↳ `after_cursor` | string | Cursor for fetching the next page of results |
-|   ↳ `has_more` | boolean | Whether more results are available |
-|   ↳ `next_page` | string | URL for next page of results |
 | `metadata` | object | Response metadata |
-|   ↳ `total_returned` | number | Number of items returned in this response |
-|   ↳ `has_more` | boolean | Whether more items are available |
 
 ### `zendesk_get_user`
 
@@ -599,9 +488,6 @@ Get a single user by ID from Zendesk
 |   ↳ `phone` | string | Phone number |
 |   ↳ `shared_phone_number` | boolean | Whether the phone number is shared |
 |   ↳ `photo` | object | User photo details |
-|     ↳ `content_url` | string | URL to the photo |
-|     ↳ `file_name` | string | Photo file name |
-|     ↳ `size` | number | File size in bytes |
 |   ↳ `locale` | string | Locale \(e.g., en-US\) |
 |   ↳ `locale_id` | number | Locale ID |
 |   ↳ `organization_id` | number | Primary organization ID |
@@ -659,9 +545,6 @@ Get the currently authenticated user from Zendesk
 |   ↳ `phone` | string | Phone number |
 |   ↳ `shared_phone_number` | boolean | Whether the phone number is shared |
 |   ↳ `photo` | object | User photo details |
-|     ↳ `content_url` | string | URL to the photo |
-|     ↳ `file_name` | string | Photo file name |
-|     ↳ `size` | number | File size in bytes |
 |   ↳ `locale` | string | Locale \(e.g., en-US\) |
 |   ↳ `locale_id` | number | Locale ID |
 |   ↳ `organization_id` | number | Primary organization ID |
@@ -723,9 +606,6 @@ Search for users in Zendesk using a query string
 |   ↳ `phone` | string | Phone number |
 |   ↳ `shared_phone_number` | boolean | Whether the phone number is shared |
 |   ↳ `photo` | object | User photo details |
-|     ↳ `content_url` | string | URL to the photo |
-|     ↳ `file_name` | string | Photo file name |
-|     ↳ `size` | number | File size in bytes |
 |   ↳ `locale` | string | Locale \(e.g., en-US\) |
 |   ↳ `locale_id` | number | Locale ID |
 |   ↳ `organization_id` | number | Primary organization ID |
@@ -754,12 +634,7 @@ Search for users in Zendesk using a query string
 |   ↳ `shared_agent` | boolean | Whether the agent is shared from a different Zendesk |
 |   ↳ `remote_photo_url` | string | URL to a remote photo |
 | `paging` | object | Cursor-based pagination information |
-|   ↳ `after_cursor` | string | Cursor for fetching the next page of results |
-|   ↳ `has_more` | boolean | Whether more results are available |
-|   ↳ `next_page` | string | URL for next page of results |
 | `metadata` | object | Response metadata |
-|   ↳ `total_returned` | number | Number of items returned in this response |
-|   ↳ `has_more` | boolean | Whether more items are available |
 
 ### `zendesk_create_user`
 
@@ -797,9 +672,6 @@ Create a new user in Zendesk
 |   ↳ `phone` | string | Phone number |
 |   ↳ `shared_phone_number` | boolean | Whether the phone number is shared |
 |   ↳ `photo` | object | User photo details |
-|     ↳ `content_url` | string | URL to the photo |
-|     ↳ `file_name` | string | Photo file name |
-|     ↳ `size` | number | File size in bytes |
 |   ↳ `locale` | string | Locale \(e.g., en-US\) |
 |   ↳ `locale_id` | number | Locale ID |
 |   ↳ `organization_id` | number | Primary organization ID |
@@ -847,20 +719,6 @@ Create multiple users in Zendesk using bulk import
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `job_status` | object | Job status object for bulk operations |
-|   ↳ `id` | string | Automatically assigned job ID |
-|   ↳ `url` | string | URL to poll for status updates |
-|   ↳ `status` | string | Current job status \(queued, working, failed, completed\) |
-|   ↳ `job_type` | string | Category of background task |
-|   ↳ `total` | number | Total number of tasks in this job |
-|   ↳ `progress` | number | Number of tasks already completed |
-|   ↳ `message` | string | Message from the job worker |
-|   ↳ `results` | array | Array of result objects from the job |
-|     ↳ `id` | number | ID of the created or updated resource |
-|     ↳ `index` | number | Position of the result in the batch |
-|     ↳ `action` | string | Action performed \(e.g., create, update\) |
-|     ↳ `success` | boolean | Whether the operation succeeded |
-|     ↳ `status` | string | Status message \(e.g., Updated, Created\) |
-|     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
 ### `zendesk_update_user`
@@ -900,9 +758,6 @@ Update an existing user in Zendesk
 |   ↳ `phone` | string | Phone number |
 |   ↳ `shared_phone_number` | boolean | Whether the phone number is shared |
 |   ↳ `photo` | object | User photo details |
-|     ↳ `content_url` | string | URL to the photo |
-|     ↳ `file_name` | string | Photo file name |
-|     ↳ `size` | number | File size in bytes |
 |   ↳ `locale` | string | Locale \(e.g., en-US\) |
 |   ↳ `locale_id` | number | Locale ID |
 |   ↳ `organization_id` | number | Primary organization ID |
@@ -950,20 +805,6 @@ Update multiple users in Zendesk using bulk update
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `job_status` | object | Job status object for bulk operations |
-|   ↳ `id` | string | Automatically assigned job ID |
-|   ↳ `url` | string | URL to poll for status updates |
-|   ↳ `status` | string | Current job status \(queued, working, failed, completed\) |
-|   ↳ `job_type` | string | Category of background task |
-|   ↳ `total` | number | Total number of tasks in this job |
-|   ↳ `progress` | number | Number of tasks already completed |
-|   ↳ `message` | string | Message from the job worker |
-|   ↳ `results` | array | Array of result objects from the job |
-|     ↳ `id` | number | ID of the created or updated resource |
-|     ↳ `index` | number | Position of the result in the batch |
-|     ↳ `action` | string | Action performed \(e.g., create, update\) |
-|     ↳ `success` | boolean | Whether the operation succeeded |
-|     ↳ `status` | string | Status message \(e.g., Updated, Created\) |
-|     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
 ### `zendesk_delete_user`
@@ -1020,12 +861,7 @@ Retrieve a list of organizations from Zendesk
 |   ↳ `updated_at` | string | When the organization was last updated \(ISO 8601 format\) |
 |   ↳ `external_id` | string | External ID for linking to external records |
 | `paging` | object | Cursor-based pagination information |
-|   ↳ `after_cursor` | string | Cursor for fetching the next page of results |
-|   ↳ `has_more` | boolean | Whether more results are available |
-|   ↳ `next_page` | string | URL for next page of results |
 | `metadata` | object | Response metadata |
-|   ↳ `total_returned` | number | Number of items returned in this response |
-|   ↳ `has_more` | boolean | Whether more items are available |
 
 ### `zendesk_get_organization`
 
@@ -1096,12 +932,7 @@ Autocomplete organizations in Zendesk by name prefix (for name matching/autocomp
 |   ↳ `updated_at` | string | When the organization was last updated \(ISO 8601 format\) |
 |   ↳ `external_id` | string | External ID for linking to external records |
 | `paging` | object | Cursor-based pagination information |
-|   ↳ `after_cursor` | string | Cursor for fetching the next page of results |
-|   ↳ `has_more` | boolean | Whether more results are available |
-|   ↳ `next_page` | string | URL for next page of results |
 | `metadata` | object | Response metadata |
-|   ↳ `total_returned` | number | Number of items returned in this response |
-|   ↳ `has_more` | boolean | Whether more items are available |
 
 ### `zendesk_create_organization`
 
@@ -1160,20 +991,6 @@ Create multiple organizations in Zendesk using bulk import
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `job_status` | object | Job status object for bulk operations |
-|   ↳ `id` | string | Automatically assigned job ID |
-|   ↳ `url` | string | URL to poll for status updates |
-|   ↳ `status` | string | Current job status \(queued, working, failed, completed\) |
-|   ↳ `job_type` | string | Category of background task |
-|   ↳ `total` | number | Total number of tasks in this job |
-|   ↳ `progress` | number | Number of tasks already completed |
-|   ↳ `message` | string | Message from the job worker |
-|   ↳ `results` | array | Array of result objects from the job |
-|     ↳ `id` | number | ID of the created or updated resource |
-|     ↳ `index` | number | Position of the result in the batch |
-|     ↳ `action` | string | Action performed \(e.g., create, update\) |
-|     ↳ `success` | boolean | Whether the operation succeeded |
-|     ↳ `status` | string | Status message \(e.g., Updated, Created\) |
-|     ↳ `error` | string | Error message if operation failed |
 | `job_id` | string | The bulk operation job ID |
 
 ### `zendesk_update_organization`
@@ -1257,12 +1074,7 @@ Unified search across tickets, users, and organizations in Zendesk
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `paging` | object | Cursor-based pagination information |
-|   ↳ `after_cursor` | string | Cursor for fetching the next page of results |
-|   ↳ `has_more` | boolean | Whether more results are available |
-|   ↳ `next_page` | string | URL for next page of results |
 | `metadata` | object | Response metadata |
-|   ↳ `total_returned` | number | Number of items returned in this response |
-|   ↳ `has_more` | boolean | Whether more items are available |
 | `results` | array | Array of result objects \(tickets, users, or organizations depending on search query\) |
 
 ### `zendesk_search_count`

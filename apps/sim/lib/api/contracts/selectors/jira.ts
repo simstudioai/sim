@@ -18,14 +18,14 @@ const jiraIssueSectionSchema = z
   })
   .passthrough()
 
-export const jiraProjectsQuerySchema = z.object({
+const jiraProjectsQuerySchema = z.object({
   domain: z.string().trim().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   cloudId: optionalString,
   query: optionalString,
 })
 
-export const jiraProjectBodySchema = z.object({
+const jiraProjectBodySchema = z.object({
   domain: z.string().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   cloudId: optionalString,
@@ -35,7 +35,7 @@ export const jiraProjectBodySchema = z.object({
 /**
  * GET `/api/tools/jira/issues` query.
  */
-export const jiraIssuesQuerySchema = z.object({
+const jiraIssuesQuerySchema = z.object({
   domain: z.string().trim().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   cloudId: optionalString,
@@ -56,21 +56,21 @@ export const jiraIssuesQuerySchema = z.object({
     .default(0),
 })
 
-export const jiraIssuesBodySchema = z.object({
+const jiraIssuesBodySchema = z.object({
   domain: z.string().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   cloudId: optionalString,
   issueKeys: z.array(z.string().min(1)).default([]),
 })
 
-export const jiraParentReferenceSchema = z.union([
+const jiraParentReferenceSchema = z.union([
   z.string().min(1),
   z.object({ key: z.string().min(1) }).passthrough(),
   z.object({ id: z.string().min(1) }).passthrough(),
 ])
-export type JiraParentReference = z.input<typeof jiraParentReferenceSchema>
+type JiraParentReference = z.input<typeof jiraParentReferenceSchema>
 
-export const jiraWriteBodySchema = z.object({
+const jiraWriteBodySchema = z.object({
   domain: z.string({ error: 'Domain is required' }).min(1, 'Domain is required'),
   accessToken: z.string({ error: 'Access token is required' }).min(1, 'Access token is required'),
   projectId: z.string({ error: 'Project ID is required' }).min(1, 'Project ID is required'),
@@ -91,7 +91,7 @@ export const jiraWriteBodySchema = z.object({
   fixVersions: z.array(z.string()).optional(),
 })
 
-export const jiraUpdateBodySchema = z.object({
+const jiraUpdateBodySchema = z.object({
   domain: z.string().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   issueKey: z.string().min(1, 'Issue key is required'),
@@ -111,7 +111,7 @@ export const jiraUpdateBodySchema = z.object({
   cloudId: z.string().optional(),
 })
 
-export const jiraAddAttachmentBodySchema = z.object({
+const jiraAddAttachmentBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   domain: z.string().min(1, 'Domain is required'),
   issueKey: z.string().min(1, 'Issue key is required'),
@@ -245,14 +245,14 @@ export const jiraAddAttachmentContract = defineRouteContract({
   response: { mode: 'json', schema: jiraAddAttachmentResponseSchema },
 })
 
-export type JiraProjectsQuery = ContractQuery<typeof jiraProjectsSelectorContract>
-export type JiraProjectBody = ContractBody<typeof jiraProjectSelectorContract>
-export type JiraIssuesQuery = ContractQuery<typeof jiraIssuesSelectorContract>
-export type JiraIssuesBody = ContractBody<typeof jiraIssueSelectorContract>
-export type JiraWriteBody = ContractBody<typeof jiraWriteContract>
-export type JiraUpdateBody = ContractBody<typeof jiraUpdateContract>
-export type JiraAddAttachmentBody = ContractBody<typeof jiraAddAttachmentContract>
-export type JiraProjectsSelectorResponse = ContractJsonResponse<typeof jiraProjectsSelectorContract>
-export type JiraProjectSelectorResponse = ContractJsonResponse<typeof jiraProjectSelectorContract>
-export type JiraIssuesSelectorResponse = ContractJsonResponse<typeof jiraIssuesSelectorContract>
-export type JiraIssueSelectorResponse = ContractJsonResponse<typeof jiraIssueSelectorContract>
+type JiraProjectsQuery = ContractQuery<typeof jiraProjectsSelectorContract>
+type JiraProjectBody = ContractBody<typeof jiraProjectSelectorContract>
+type JiraIssuesQuery = ContractQuery<typeof jiraIssuesSelectorContract>
+type JiraIssuesBody = ContractBody<typeof jiraIssueSelectorContract>
+type JiraWriteBody = ContractBody<typeof jiraWriteContract>
+type JiraUpdateBody = ContractBody<typeof jiraUpdateContract>
+type JiraAddAttachmentBody = ContractBody<typeof jiraAddAttachmentContract>
+type JiraProjectsSelectorResponse = ContractJsonResponse<typeof jiraProjectsSelectorContract>
+type JiraProjectSelectorResponse = ContractJsonResponse<typeof jiraProjectSelectorContract>
+type JiraIssuesSelectorResponse = ContractJsonResponse<typeof jiraIssuesSelectorContract>
+type JiraIssueSelectorResponse = ContractJsonResponse<typeof jiraIssueSelectorContract>

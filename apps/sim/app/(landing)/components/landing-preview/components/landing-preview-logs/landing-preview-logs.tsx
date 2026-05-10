@@ -174,12 +174,12 @@ export function LandingPreviewLogs() {
       <div className='border-[var(--border)] border-b px-6 py-2.5'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-3'>
-            <Library className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+            <Library className='size-[14px] text-[var(--text-icon)]' />
             <h1 className='font-medium text-[var(--text-body)] text-sm'>Logs</h1>
           </div>
           <div className='flex items-center gap-1'>
             <div className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
-              <Download className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+              <Download className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
               Export
             </div>
             <button
@@ -213,7 +213,7 @@ export function LandingPreviewLogs() {
       <div className='border-[var(--border)] border-b px-6 py-2.5'>
         <div className='flex items-center justify-between'>
           <div className='flex flex-1 items-center gap-2.5'>
-            <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+            <Search className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
             <input
               type='text'
               value={search}
@@ -224,7 +224,7 @@ export function LandingPreviewLogs() {
           </div>
           <div className='flex items-center gap-1.5'>
             <div className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
-              <ListFilter className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+              <ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
               Filter
             </div>
             <button
@@ -232,7 +232,7 @@ export function LandingPreviewLogs() {
               onClick={() => handleSort(sortKey ?? 'workflowName')}
               className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-3)]'
             >
-              <ArrowUpDown className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+              <ArrowUpDown className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
               Sort
             </button>
           </div>
@@ -266,7 +266,7 @@ export function LandingPreviewLogs() {
                     )}
                   >
                     {label}
-                    {sortKey === key && <ArrowUpDown className='h-[10px] w-[10px] opacity-60' />}
+                    {sortKey === key && <ArrowUpDown className='size-[10px] opacity-60' />}
                   </button>
                 </th>
               ))}
@@ -281,7 +281,7 @@ export function LandingPreviewLogs() {
                 <td className='px-6 align-middle'>
                   <div className='flex items-center gap-2'>
                     <div
-                      className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
+                      className='size-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
                       style={{
                         backgroundColor: log.workflowColor,
                         borderColor: workflowBorderColor(log.workflowColor),

@@ -7,32 +7,32 @@ import {
 } from '@/lib/api/contracts/knowledge/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const nextAvailableSlotQuerySchema = z.object({
+const nextAvailableSlotQuerySchema = z.object({
   fieldType: z.string().min(1),
 })
 
-export const createTagDefinitionBodySchema = z.object({
+const createTagDefinitionBodySchema = z.object({
   tagSlot: z.string().min(1, 'Tag slot is required'),
   displayName: z.string().min(1, 'Display name is required'),
   fieldType: z.string().min(1, 'Invalid field type'),
 })
 
-export const documentTagDefinitionInputSchema = z.object({
+const documentTagDefinitionInputSchema = z.object({
   tagSlot: z.string().min(1, 'Tag slot is required'),
   displayName: z.string().min(1, 'Display name is required').max(100, 'Display name too long'),
   fieldType: z.string().default('text'),
   _originalDisplayName: z.string().optional(),
 })
 
-export const saveDocumentTagDefinitionsBodySchema = z.object({
+const saveDocumentTagDefinitionsBodySchema = z.object({
   definitions: z.array(documentTagDefinitionInputSchema),
 })
 
-export const deleteDocumentTagDefinitionsQuerySchema = z.object({
+const deleteDocumentTagDefinitionsQuerySchema = z.object({
   action: z.enum(['cleanup', 'all']).optional(),
 })
 
-export const tagDefinitionDataSchema = z.object({
+const tagDefinitionDataSchema = z.object({
   id: z.string(),
   tagSlot: z.string(),
   displayName: z.string(),
@@ -44,7 +44,7 @@ export const tagDefinitionDataSchema = z.object({
 export type TagDefinitionData = z.output<typeof tagDefinitionDataSchema>
 export type DocumentTagDefinitionData = TagDefinitionData
 
-export const nextAvailableSlotDataSchema = z.object({
+const nextAvailableSlotDataSchema = z.object({
   nextAvailableSlot: z.string().nullable(),
   fieldType: z.string(),
   usedSlots: z.array(z.string()),
@@ -53,7 +53,7 @@ export const nextAvailableSlotDataSchema = z.object({
 })
 export type NextAvailableSlotData = z.output<typeof nextAvailableSlotDataSchema>
 
-export const saveDocumentTagDefinitionsDataSchema = z
+const saveDocumentTagDefinitionsDataSchema = z
   .object({
     created: z.array(tagDefinitionDataSchema).optional(),
     updated: z.array(tagDefinitionDataSchema).optional(),
@@ -62,13 +62,13 @@ export const saveDocumentTagDefinitionsDataSchema = z
   .or(z.array(tagDefinitionDataSchema))
 export type SaveDocumentTagDefinitionsResult = z.output<typeof saveDocumentTagDefinitionsDataSchema>
 
-export const tagUsageDocumentSchema = z.object({
+const tagUsageDocumentSchema = z.object({
   id: z.string(),
   name: z.string(),
   tagValue: z.string(),
 })
 
-export const tagUsageDataSchema = z.object({
+const tagUsageDataSchema = z.object({
   tagName: z.string(),
   tagSlot: z.string(),
   documentCount: z.number(),

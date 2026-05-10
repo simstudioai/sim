@@ -21,19 +21,19 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
  */
 
 /** Simpler chunking config used by the public API (no `strategy`). */
-export const v1ChunkingConfigSchema = z.object({
+const v1ChunkingConfigSchema = z.object({
   maxSize: z.number().min(100).max(4000).default(1024),
   minSize: z.number().min(1).max(2000).default(100),
   overlap: z.number().min(0).max(500).default(200),
 })
 
 /** GET `/api/v1/knowledge` — list knowledge bases scoped to a workspace. */
-export const v1ListKnowledgeBasesQuerySchema = z.object({
+const v1ListKnowledgeBasesQuerySchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId query parameter is required'),
 })
 
 /** POST `/api/v1/knowledge` — create a knowledge base. */
-export const v1CreateKnowledgeBaseBodySchema = z.object({
+const v1CreateKnowledgeBaseBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   name: z.string().min(1, 'Name is required').max(255, 'Name must be 255 characters or less'),
   description: z.string().max(1000, 'Description must be 1000 characters or less').optional(),
@@ -45,12 +45,12 @@ export const v1CreateKnowledgeBaseBodySchema = z.object({
 })
 
 /** GET/DELETE `/api/v1/knowledge/[id]` — workspace scope param. */
-export const v1KnowledgeWorkspaceQuerySchema = z.object({
+const v1KnowledgeWorkspaceQuerySchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId query parameter is required'),
 })
 
 /** PUT `/api/v1/knowledge/[id]` — partial update with workspace scope in body. */
-export const v1UpdateKnowledgeBaseBodySchema = z
+const v1UpdateKnowledgeBaseBodySchema = z
   .object({
     workspaceId: z.string().min(1, 'Workspace ID is required'),
     name: z.string().min(1).max(255, 'Name must be 255 characters or less').optional(),
@@ -72,7 +72,7 @@ export const v1UpdateKnowledgeBaseBodySchema = z
   )
 
 /** GET `/api/v1/knowledge/[id]/documents` — list documents (defaults differ from in-app list). */
-export const v1ListKnowledgeDocumentsQuerySchema = z.object({
+const v1ListKnowledgeDocumentsQuerySchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId query parameter is required'),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
@@ -97,7 +97,7 @@ export const v1ListKnowledgeDocumentsQuerySchema = z.object({
  * slot) and a default operator. Distinct from the in-app
  * `documentTagFilterSchema`, which is slot-based and used for list filtering.
  */
-export const v1SearchTagFilterSchema = z.object({
+const v1SearchTagFilterSchema = z.object({
   tagName: z.string(),
   fieldType: z.enum(['text', 'number', 'date', 'boolean']).optional(),
   operator: z.string().default('eq'),
@@ -106,7 +106,7 @@ export const v1SearchTagFilterSchema = z.object({
 })
 
 /** POST `/api/v1/knowledge/search` body. */
-export const v1KnowledgeSearchBodySchema = z
+const v1KnowledgeSearchBodySchema = z
   .object({
     workspaceId: z.string().min(1, 'Workspace ID is required'),
     knowledgeBaseIds: z.union([
@@ -131,12 +131,12 @@ export const v1KnowledgeSearchBodySchema = z
     }
   )
 
-export type V1ListKnowledgeBasesQuery = z.output<typeof v1ListKnowledgeBasesQuerySchema>
-export type V1CreateKnowledgeBaseBody = z.output<typeof v1CreateKnowledgeBaseBodySchema>
-export type V1KnowledgeWorkspaceQuery = z.output<typeof v1KnowledgeWorkspaceQuerySchema>
-export type V1UpdateKnowledgeBaseBody = z.output<typeof v1UpdateKnowledgeBaseBodySchema>
-export type V1ListKnowledgeDocumentsQuery = z.output<typeof v1ListKnowledgeDocumentsQuerySchema>
-export type V1KnowledgeSearchBody = z.output<typeof v1KnowledgeSearchBodySchema>
+type V1ListKnowledgeBasesQuery = z.output<typeof v1ListKnowledgeBasesQuerySchema>
+type V1CreateKnowledgeBaseBody = z.output<typeof v1CreateKnowledgeBaseBodySchema>
+type V1KnowledgeWorkspaceQuery = z.output<typeof v1KnowledgeWorkspaceQuerySchema>
+type V1UpdateKnowledgeBaseBody = z.output<typeof v1UpdateKnowledgeBaseBodySchema>
+type V1ListKnowledgeDocumentsQuery = z.output<typeof v1ListKnowledgeDocumentsQuerySchema>
+type V1KnowledgeSearchBody = z.output<typeof v1KnowledgeSearchBodySchema>
 
 const v1KnowledgeApiResponseSchema = successResponseSchema(z.unknown()).passthrough()
 

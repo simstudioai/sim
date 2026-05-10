@@ -116,7 +116,7 @@ function InlineDateEditor({
           'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
         )}
       />
-      <div className='absolute top-full left-0 h-0 w-0'>
+      <div className='absolute top-full left-0 size-0'>
         <DatePicker
           mode='single'
           value={pickerValue}
@@ -156,18 +156,15 @@ function InlineTextEditor({
     } else {
       input.select()
     }
-
-    const forwardWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      const container = input.closest('[data-table-scroll]') as HTMLElement | null
-      if (container) {
-        container.scrollBy(e.deltaX, e.deltaY)
-      }
-    }
-
-    input.addEventListener('wheel', forwardWheel, { passive: false })
-    return () => input.removeEventListener('wheel', forwardWheel)
   }, [])
+
+  const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    e.preventDefault()
+    const container = e.currentTarget.closest('[data-table-scroll]') as HTMLElement | null
+    if (container) {
+      container.scrollBy(e.deltaX, e.deltaY)
+    }
+  }
 
   const doSave = (reason: SaveReason) => {
     if (doneRef.current) return
@@ -203,6 +200,7 @@ function InlineTextEditor({
       value={draft ?? ''}
       onChange={(e) => setDraft(e.target.value)}
       onKeyDown={handleKeyDown}
+      onWheel={handleWheel}
       onBlur={() => doSave('blur')}
       className='w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
     />

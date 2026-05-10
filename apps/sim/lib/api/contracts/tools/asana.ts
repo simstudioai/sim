@@ -79,13 +79,13 @@ const asanaGetTaskResponseSchema = z.union([
   asanaTasksResponseSchema,
 ])
 
-export const asanaAddCommentBodySchema = z.object({
+const asanaAddCommentBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   taskGid: z.string().min(1, 'Task GID is required'),
   text: z.string().min(1, 'Comment text is required'),
 })
 
-export const asanaCreateTaskBodySchema = z.object({
+const asanaCreateTaskBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   name: z.string().min(1, 'Task name is required'),
   workspace: z.string().min(1, 'Workspace GID is required'),
@@ -94,12 +94,12 @@ export const asanaCreateTaskBodySchema = z.object({
   due_on: z.string().nullish(),
 })
 
-export const asanaGetProjectsBodySchema = z.object({
+const asanaGetProjectsBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   workspace: z.string().min(1, 'Workspace is required'),
 })
 
-export const asanaGetTaskBodySchema = z.object({
+const asanaGetTaskBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   taskGid: z.string().nullish(),
   workspace: z.string().nullish(),
@@ -107,7 +107,7 @@ export const asanaGetTaskBodySchema = z.object({
   limit: z.union([z.string(), z.number()]).nullish(),
 })
 
-export const asanaSearchTasksBodySchema = z.object({
+const asanaSearchTasksBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   workspace: z.string().min(1, 'Workspace is required'),
   text: z.string().nullish(),
@@ -116,7 +116,7 @@ export const asanaSearchTasksBodySchema = z.object({
   completed: z.boolean().nullish(),
 })
 
-export const asanaUpdateTaskBodySchema = z.object({
+const asanaUpdateTaskBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   taskGid: z.string().min(1, 'Task GID is required'),
   name: z.string().nullish(),
@@ -168,21 +168,21 @@ export const asanaUpdateTaskContract = defineRouteContract({
   response: { mode: 'json', schema: asanaTaskMutationResponseSchema },
 })
 
-export type AsanaAddCommentBody = ContractBody<typeof asanaAddCommentContract>
-export type AsanaAddCommentBodyInput = ContractBodyInput<typeof asanaAddCommentContract>
-export type AsanaAddCommentResponse = ContractJsonResponse<typeof asanaAddCommentContract>
-export type AsanaCreateTaskBody = ContractBody<typeof asanaCreateTaskContract>
-export type AsanaCreateTaskBodyInput = ContractBodyInput<typeof asanaCreateTaskContract>
-export type AsanaCreateTaskResponse = ContractJsonResponse<typeof asanaCreateTaskContract>
-export type AsanaGetProjectsBody = ContractBody<typeof asanaGetProjectsContract>
-export type AsanaGetProjectsBodyInput = ContractBodyInput<typeof asanaGetProjectsContract>
-export type AsanaGetProjectsResponse = ContractJsonResponse<typeof asanaGetProjectsContract>
-export type AsanaGetTaskBody = ContractBody<typeof asanaGetTaskContract>
-export type AsanaGetTaskBodyInput = ContractBodyInput<typeof asanaGetTaskContract>
-export type AsanaGetTaskResponse = ContractJsonResponse<typeof asanaGetTaskContract>
-export type AsanaSearchTasksBody = ContractBody<typeof asanaSearchTasksContract>
-export type AsanaSearchTasksBodyInput = ContractBodyInput<typeof asanaSearchTasksContract>
-export type AsanaSearchTasksResponse = ContractJsonResponse<typeof asanaSearchTasksContract>
-export type AsanaUpdateTaskBody = ContractBody<typeof asanaUpdateTaskContract>
-export type AsanaUpdateTaskBodyInput = ContractBodyInput<typeof asanaUpdateTaskContract>
-export type AsanaUpdateTaskResponse = ContractJsonResponse<typeof asanaUpdateTaskContract>
+type AsanaAddCommentBody = ContractBody<typeof asanaAddCommentContract>
+type AsanaAddCommentBodyInput = ContractBodyInput<typeof asanaAddCommentContract>
+type AsanaAddCommentResponse = ContractJsonResponse<typeof asanaAddCommentContract>
+type AsanaCreateTaskBody = ContractBody<typeof asanaCreateTaskContract>
+type AsanaCreateTaskBodyInput = ContractBodyInput<typeof asanaCreateTaskContract>
+type AsanaCreateTaskResponse = ContractJsonResponse<typeof asanaCreateTaskContract>
+type AsanaGetProjectsBody = ContractBody<typeof asanaGetProjectsContract>
+type AsanaGetProjectsBodyInput = ContractBodyInput<typeof asanaGetProjectsContract>
+type AsanaGetProjectsResponse = ContractJsonResponse<typeof asanaGetProjectsContract>
+type AsanaGetTaskBody = ContractBody<typeof asanaGetTaskContract>
+type AsanaGetTaskBodyInput = ContractBodyInput<typeof asanaGetTaskContract>
+type AsanaGetTaskResponse = ContractJsonResponse<typeof asanaGetTaskContract>
+type AsanaSearchTasksBody = ContractBody<typeof asanaSearchTasksContract>
+type AsanaSearchTasksBodyInput = ContractBodyInput<typeof asanaSearchTasksContract>
+type AsanaSearchTasksResponse = ContractJsonResponse<typeof asanaSearchTasksContract>
+type AsanaUpdateTaskBody = ContractBody<typeof asanaUpdateTaskContract>
+type AsanaUpdateTaskBodyInput = ContractBodyInput<typeof asanaUpdateTaskContract>
+type AsanaUpdateTaskResponse = ContractJsonResponse<typeof asanaUpdateTaskContract>

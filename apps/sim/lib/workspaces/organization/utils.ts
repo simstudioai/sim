@@ -34,7 +34,7 @@ export function isAdminOrOwner(
 /**
  * Calculate seat usage for an organization
  */
-export function calculateSeatUsage(organization: Organization | null | undefined): {
+function calculateSeatUsage(organization: Organization | null | undefined): {
   used: number
   members: number
   pending: number
@@ -60,7 +60,7 @@ export function calculateSeatUsage(organization: Organization | null | undefined
  * Get used seats from an organization
  * Alias for calculateSeatUsage
  */
-export function getUsedSeats(organization: Organization | null | undefined) {
+function getUsedSeats(organization: Organization | null | undefined) {
   return calculateSeatUsage(organization)
 }
 
@@ -78,7 +78,7 @@ export function generateSlug(name: string): string {
 /**
  * Validate organization slug format
  */
-export function validateSlug(slug: string): boolean {
+function validateSlug(slug: string): boolean {
   const slugRegex = /^[a-z0-9-_]+$/
   return slugRegex.test(slug)
 }
@@ -86,6 +86,6 @@ export function validateSlug(slug: string): boolean {
 /**
  * Validate email format
  */
-export function validateEmail(email: string): boolean {
+function validateEmail(email: string): boolean {
   return quickValidateEmail(email.trim().toLowerCase()).isValid
 }

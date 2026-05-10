@@ -16,7 +16,7 @@ export type DestinationType = (typeof DESTINATION_TYPES)[number]
 
 export const CADENCE_TYPES = ['hourly', 'daily'] as const
 
-export type CadenceType = (typeof CADENCE_TYPES)[number]
+type CadenceType = (typeof CADENCE_TYPES)[number]
 
 export const RUN_TRIGGERS = ['cron', 'manual'] as const
 
@@ -65,12 +65,12 @@ export interface DeliveryMetadata {
   runStartedAt: Date
 }
 
-export interface DeliveryResult {
+interface DeliveryResult {
   /** Stable identifier for the written object: e.g. `s3://bucket/key` or `https://host/path`. */
   locator: string
 }
 
-export interface DrainDeliverySession {
+interface DrainDeliverySession {
   deliver(input: {
     body: Buffer
     contentType: 'application/x-ndjson'

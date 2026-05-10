@@ -7,7 +7,7 @@ import type { ToolFileData } from '@/tools/types'
 /**
  * Sends a message to a Slack channel using chat.postMessage
  */
-export async function postSlackMessage(
+async function postSlackMessage(
   accessToken: string,
   channel: string,
   text: string,
@@ -34,7 +34,7 @@ export async function postSlackMessage(
 /**
  * Creates a default message object when the API doesn't return one
  */
-export function createDefaultMessageObject(
+function createDefaultMessageObject(
   ts: string,
   text: string,
   channel: string
@@ -50,7 +50,7 @@ export function createDefaultMessageObject(
 /**
  * Formats the success response for a sent message
  */
-export function formatMessageSuccessResponse(
+function formatMessageSuccessResponse(
   data: any,
   text: string
 ): {
@@ -69,7 +69,7 @@ export function formatMessageSuccessResponse(
 /**
  * Uploads files to Slack and returns the uploaded file IDs
  */
-export async function uploadFilesToSlack(
+async function uploadFilesToSlack(
   files: any[],
   accessToken: string,
   requestId: string,
@@ -136,7 +136,7 @@ export async function uploadFilesToSlack(
 /**
  * Completes the file upload process by associating files with a channel
  */
-export async function completeSlackFileUpload(
+async function completeSlackFileUpload(
   uploadedFileIds: string[],
   channel: string,
   text: string,
@@ -163,11 +163,7 @@ export async function completeSlackFileUpload(
 /**
  * Creates a message object for file uploads
  */
-export function createFileMessageObject(
-  text: string,
-  channel: string,
-  files: any[]
-): Record<string, any> {
+function createFileMessageObject(text: string, channel: string, files: any[]): Record<string, any> {
   const fileTs = files?.[0]?.created?.toString() || (Date.now() / 1000).toString()
   return {
     type: 'message',

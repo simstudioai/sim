@@ -1,7 +1,7 @@
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
-export const EMAILBISON_TRIGGER_TO_EVENT_TYPE = {
+const EMAILBISON_TRIGGER_TO_EVENT_TYPE = {
   emailbison_email_sent: 'email_sent',
   emailbison_lead_first_contacted: 'lead_first_contacted',
   emailbison_lead_replied: 'lead_replied',
@@ -89,7 +89,7 @@ export function buildEmailBisonExtraFields(triggerId: string): SubBlockConfig[] 
   ]
 }
 
-export function buildEmailBisonOutputs(): Record<string, TriggerOutput> {
+function buildEmailBisonOutputs(): Record<string, TriggerOutput> {
   return {
     eventType: { type: 'string', description: 'Email Bison webhook event type' },
     eventName: { type: 'string', description: 'Human-readable Email Bison event name' },

@@ -11,11 +11,11 @@ import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-
 
 const logger = createLogger('CopilotToolResultFiles')
 
-export const OUTPUT_PATH_TOOLS: Set<string> = new Set([FunctionExecute.id, UserTable.id])
+const OUTPUT_PATH_TOOLS: Set<string> = new Set([FunctionExecute.id, UserTable.id])
 
 type OutputFormat = 'json' | 'csv' | 'txt' | 'md' | 'html'
 
-export const EXT_TO_FORMAT: Record<string, OutputFormat> = {
+const EXT_TO_FORMAT: Record<string, OutputFormat> = {
   '.json': 'json',
   '.csv': 'csv',
   '.txt': 'txt',
@@ -83,7 +83,7 @@ export function extractTabularData(output: unknown): Record<string, unknown>[] |
   return null
 }
 
-export function escapeCsvValue(value: unknown): string {
+function escapeCsvValue(value: unknown): string {
   if (value === null || value === undefined) return ''
   const str = typeof value === 'object' ? JSON.stringify(value) : String(value)
   if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
@@ -92,7 +92,7 @@ export function escapeCsvValue(value: unknown): string {
   return str
 }
 
-export function convertRowsToCsv(rows: Record<string, unknown>[]): string {
+function convertRowsToCsv(rows: Record<string, unknown>[]): string {
   if (rows.length === 0) return ''
 
   const headerSet = new Set<string>()

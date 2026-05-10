@@ -285,7 +285,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
           <div className='flex flex-1 items-center justify-end pr-5 lg:hidden'>
             <button
               type='button'
-              className='flex h-[32px] w-[32px] items-center justify-center rounded-[5px] transition-colors hover:bg-[var(--landing-bg-elevated)]'
+              className='flex size-[32px] items-center justify-center rounded-[5px] transition-colors hover:bg-[var(--landing-bg-elevated)]'
               onClick={() => setMobileMenuOpen((prev) => !prev)}
               aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={mobileMenuOpen}
@@ -337,7 +337,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                   className='flex items-center gap-2 px-5 py-3.5 text-[var(--landing-text)] transition-colors active:bg-[var(--landing-bg-elevated)]'
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <GithubOutlineIcon className='h-[14px] w-[14px]' />
+                  <GithubOutlineIcon className='size-[14px]' />
                   GitHub
                 </a>
               </li>

@@ -16,7 +16,7 @@ const BATCH_TRIGGER_CHUNK_SIZE = 1000
 
 export type CleanupJobType = 'cleanup-logs' | 'cleanup-soft-deletes' | 'cleanup-tasks'
 
-export type OrganizationRetentionKey =
+type OrganizationRetentionKey =
   | 'logRetentionHours'
   | 'softDeleteRetentionHours'
   | 'taskCleanupHours'
@@ -25,7 +25,7 @@ export type OrganizationRetentionSettings = {
   [K in OrganizationRetentionKey]: number | null
 }
 
-export type NonEnterprisePlan = Exclude<PlanCategory, 'enterprise'>
+type NonEnterprisePlan = Exclude<PlanCategory, 'enterprise'>
 
 const NON_ENTERPRISE_PLANS = ['free', 'pro', 'team'] as const satisfies readonly NonEnterprisePlan[]
 
@@ -65,7 +65,7 @@ export const CLEANUP_CONFIG = {
  * Bulk-lookup workspace IDs for a non-enterprise plan category. Enterprise is
  * per-workspace (routed through the owning organization's retention config).
  */
-export async function resolveWorkspaceIdsForPlan(plan: NonEnterprisePlan): Promise<string[]> {
+async function resolveWorkspaceIdsForPlan(plan: NonEnterprisePlan): Promise<string[]> {
   if (plan === 'free') {
     const rows = await db
       .select({ id: workspace.id })

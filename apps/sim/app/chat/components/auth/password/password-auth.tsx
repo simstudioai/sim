@@ -97,7 +97,6 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
                             passwordErrors.length > 0 &&
                             'border-red-500 focus:border-red-500'
                         )}
-                        autoFocus
                       />
                       <button
                         type='button'
@@ -135,8 +134,8 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
                 >
                   {authenticate.isPending ? (
                     <span className='flex items-center gap-2'>
-                      <Loader className='h-4 w-4' animate />
-                      Authenticating...
+                      <Loader className='size-4' animate />
+                      Authenticating…
                     </span>
                   ) : (
                     'Continue'

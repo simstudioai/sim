@@ -32,7 +32,7 @@ export const AbortReason = {
   ExplicitAbortFetchTimeout: 'timeout:go_explicit_abort_fetch',
 } as const
 
-export type AbortReasonValue = (typeof AbortReason)[keyof typeof AbortReason]
+type AbortReasonValue = (typeof AbortReason)[keyof typeof AbortReason]
 
 /**
  * True iff `reason` indicates the user explicitly triggered the abort

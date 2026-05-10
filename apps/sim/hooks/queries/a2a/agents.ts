@@ -20,12 +20,12 @@ import {
   updateA2AAgentContract,
 } from '@/lib/api/contracts/a2a-agents'
 
-export type { A2AAgent, A2AAgentCard }
+export type { A2AAgent }
 
 /**
  * Query keys for A2A agents
  */
-export const a2aAgentKeys = {
+const a2aAgentKeys = {
   all: ['a2a-agents'] as const,
   lists: () => [...a2aAgentKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...a2aAgentKeys.lists(), workspaceId] as const,
@@ -50,7 +50,7 @@ async function fetchA2AAgents(workspaceId: string, signal?: AbortSignal): Promis
 /**
  * Hook to list A2A agents for a workspace
  */
-export function useA2AAgents(workspaceId: string) {
+function useA2AAgents(workspaceId: string) {
   return useQuery({
     queryKey: a2aAgentKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchA2AAgents(workspaceId, signal),
@@ -72,7 +72,7 @@ async function fetchA2AAgentCard(agentId: string, signal?: AbortSignal): Promise
 /**
  * Hook to get a single A2A agent card (discovery document)
  */
-export function useA2AAgentCard(agentId: string) {
+function useA2AAgentCard(agentId: string) {
   return useQuery({
     queryKey: a2aAgentKeys.detail(agentId),
     queryFn: ({ signal }) => fetchA2AAgentCard(agentId, signal),
@@ -81,7 +81,7 @@ export function useA2AAgentCard(agentId: string) {
   })
 }
 
-export type CreateA2AAgentParams = CreateA2AAgentBody
+type CreateA2AAgentParams = CreateA2AAgentBody
 
 /**
  * Create a new A2A agent
@@ -112,7 +112,7 @@ export function useCreateA2AAgent() {
   })
 }
 
-export type UpdateA2AAgentParams = UpdateA2AAgentBody & {
+type UpdateA2AAgentParams = UpdateA2AAgentBody & {
   agentId: string
 }
 
@@ -184,7 +184,7 @@ export function useDeleteA2AAgent() {
 /**
  * Publish/unpublish agent params
  */
-export interface PublishA2AAgentParams {
+interface PublishA2AAgentParams {
   agentId: string
   workspaceId: string
   action: 'publish' | 'unpublish' | 'refresh'

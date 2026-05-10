@@ -225,7 +225,7 @@ export function markRunToolManuallyStopped(workflowId: string): string | null {
   return toolCallId
 }
 
-export function isRunToolActiveForId(toolCallId: string): boolean {
+function isRunToolActiveForId(toolCallId: string): boolean {
   for (const activeId of activeRunToolByWorkflowId.values()) {
     if (activeId === toolCallId) return true
   }

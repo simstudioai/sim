@@ -13,12 +13,12 @@ import {
   defineRouteContract,
 } from '@/lib/api/contracts/types'
 
-export const mysqlQueryBodySchema = sqlQueryBodySchema
-export const mysqlExecuteBodySchema = sqlQueryBodySchema
-export const mysqlInsertBodySchema = sqlInsertBodySchema
-export const mysqlUpdateBodySchema = sqlUpdateBodySchema
-export const mysqlDeleteBodySchema = sqlDeleteBodySchema
-export const mysqlIntrospectBodySchema = sqlConnectionBodySchema
+const mysqlQueryBodySchema = sqlQueryBodySchema
+const mysqlExecuteBodySchema = sqlQueryBodySchema
+const mysqlInsertBodySchema = sqlInsertBodySchema
+const mysqlUpdateBodySchema = sqlUpdateBodySchema
+const mysqlDeleteBodySchema = sqlDeleteBodySchema
+const mysqlIntrospectBodySchema = sqlConnectionBodySchema
 
 export const mysqlQueryContract = defineRouteContract({
   method: 'POST',
@@ -62,15 +62,15 @@ export const mysqlIntrospectContract = defineRouteContract({
   response: { mode: 'json', schema: introspectionResponseSchema },
 })
 
-export type MySQLQueryRequest = ContractBodyInput<typeof mysqlQueryContract>
-export type MySQLQueryResponse = ContractJsonResponse<typeof mysqlQueryContract>
-export type MySQLExecuteRequest = ContractBodyInput<typeof mysqlExecuteContract>
-export type MySQLExecuteResponse = ContractJsonResponse<typeof mysqlExecuteContract>
-export type MySQLInsertRequest = ContractBodyInput<typeof mysqlInsertContract>
-export type MySQLInsertResponse = ContractJsonResponse<typeof mysqlInsertContract>
-export type MySQLUpdateRequest = ContractBodyInput<typeof mysqlUpdateContract>
-export type MySQLUpdateResponse = ContractJsonResponse<typeof mysqlUpdateContract>
-export type MySQLDeleteRequest = ContractBodyInput<typeof mysqlDeleteContract>
-export type MySQLDeleteResponse = ContractJsonResponse<typeof mysqlDeleteContract>
-export type MySQLIntrospectRequest = ContractBodyInput<typeof mysqlIntrospectContract>
-export type MySQLIntrospectResponse = ContractJsonResponse<typeof mysqlIntrospectContract>
+type MySQLQueryRequest = ContractBodyInput<typeof mysqlQueryContract>
+type MySQLQueryResponse = ContractJsonResponse<typeof mysqlQueryContract>
+type MySQLExecuteRequest = ContractBodyInput<typeof mysqlExecuteContract>
+type MySQLExecuteResponse = ContractJsonResponse<typeof mysqlExecuteContract>
+type MySQLInsertRequest = ContractBodyInput<typeof mysqlInsertContract>
+type MySQLInsertResponse = ContractJsonResponse<typeof mysqlInsertContract>
+type MySQLUpdateRequest = ContractBodyInput<typeof mysqlUpdateContract>
+type MySQLUpdateResponse = ContractJsonResponse<typeof mysqlUpdateContract>
+type MySQLDeleteRequest = ContractBodyInput<typeof mysqlDeleteContract>
+type MySQLDeleteResponse = ContractJsonResponse<typeof mysqlDeleteContract>
+type MySQLIntrospectRequest = ContractBodyInput<typeof mysqlIntrospectContract>
+type MySQLIntrospectResponse = ContractJsonResponse<typeof mysqlIntrospectContract>

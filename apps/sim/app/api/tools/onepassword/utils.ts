@@ -86,7 +86,7 @@ export interface NormalizedItemOverview {
 }
 
 /** Normalized field shape matching the Connect API response. */
-export interface NormalizedField {
+interface NormalizedField {
   id: string
   label: string
   type: ConnectFieldType
@@ -197,7 +197,7 @@ const CONNECT_TO_SDK_FIELD_TYPE: Record<string, `${ItemFieldType}`> = {
   CREDIT_CARD_TYPE: 'CreditCardType',
 }
 
-export type ConnectionMode = 'service_account' | 'connect'
+type ConnectionMode = 'service_account' | 'connect'
 
 export interface CredentialParams {
   connectionMode?: ConnectionMode | null

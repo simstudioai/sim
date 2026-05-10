@@ -9,11 +9,11 @@ import {
 } from '@/lib/api/contracts/selectors/shared'
 import type { ContractBody, ContractJsonResponse, ContractQuery } from '@/lib/api/contracts/types'
 
-export const sharepointListsBodySchema = credentialWorkflowBodySchema.extend({
+const sharepointListsBodySchema = credentialWorkflowBodySchema.extend({
   siteId: z.string().min(1),
 })
 
-export const sharepointSitesBodySchema = credentialWorkflowBodySchema.extend({
+const sharepointSitesBodySchema = credentialWorkflowBodySchema.extend({
   query: optionalString,
 })
 
@@ -46,15 +46,9 @@ export const sharepointSiteSelectorContract = defineGetSelector(
   z.object({ site: fileOptionSchema.optional() }).passthrough()
 )
 
-export type SharepointListsSelectorResponse = ContractJsonResponse<
-  typeof sharepointListsSelectorContract
->
-export type SharepointListsSelectorBody = ContractBody<typeof sharepointListsSelectorContract>
-export type SharepointSitesSelectorResponse = ContractJsonResponse<
-  typeof sharepointSitesSelectorContract
->
-export type SharepointSitesSelectorBody = ContractBody<typeof sharepointSitesSelectorContract>
-export type SharepointSiteSelectorResponse = ContractJsonResponse<
-  typeof sharepointSiteSelectorContract
->
-export type SharepointSiteSelectorQuery = ContractQuery<typeof sharepointSiteSelectorContract>
+type SharepointListsSelectorResponse = ContractJsonResponse<typeof sharepointListsSelectorContract>
+type SharepointListsSelectorBody = ContractBody<typeof sharepointListsSelectorContract>
+type SharepointSitesSelectorResponse = ContractJsonResponse<typeof sharepointSitesSelectorContract>
+type SharepointSitesSelectorBody = ContractBody<typeof sharepointSitesSelectorContract>
+type SharepointSiteSelectorResponse = ContractJsonResponse<typeof sharepointSiteSelectorContract>
+type SharepointSiteSelectorQuery = ContractQuery<typeof sharepointSiteSelectorContract>

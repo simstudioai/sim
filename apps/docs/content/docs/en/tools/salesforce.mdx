@@ -54,12 +54,7 @@ Retrieve accounts from Salesforce CRM
 | `success` | boolean | Operation success status |
 | `output` | object | Accounts data |
 |   ↳ `paging` | object | Pagination information from Salesforce API |
-|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
-|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
-|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
 |   ↳ `metadata` | object | Response metadata |
-|     ↳ `totalReturned` | number | Number of records returned in this response |
-|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `accounts` | array | Array of account objects |
 |   ↳ `success` | boolean | Salesforce operation success |
 
@@ -174,12 +169,7 @@ Get contact(s) from Salesforce - single contact if ID provided, or list if not
 | `success` | boolean | Operation success status |
 | `output` | object | Contact\(s\) data |
 |   ↳ `paging` | object | Pagination information from Salesforce API |
-|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
-|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
-|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
 |   ↳ `metadata` | object | Response metadata |
-|     ↳ `totalReturned` | number | Number of records returned in this response |
-|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `contacts` | array | Array of contacts \(list query\) |
 |   ↳ `contact` | object | Single contact \(by ID\) |
 |   ↳ `singleContact` | boolean | Whether single contact was returned |
@@ -296,12 +286,7 @@ Get lead(s) from Salesforce
 | `success` | boolean | Operation success status |
 | `output` | object | Lead data |
 |   ↳ `paging` | object | Pagination information from Salesforce API |
-|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
-|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
-|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
 |   ↳ `metadata` | object | Response metadata |
-|     ↳ `totalReturned` | number | Number of records returned in this response |
-|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `lead` | object | Single lead object \(when leadId provided\) |
 |   ↳ `leads` | array | Array of lead objects \(when listing\) |
 |   ↳ `singleLead` | boolean | Whether single lead was returned |
@@ -410,12 +395,7 @@ Get opportunity(ies) from Salesforce
 | `success` | boolean | Operation success status |
 | `output` | object | Opportunity data |
 |   ↳ `paging` | object | Pagination information from Salesforce API |
-|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
-|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
-|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
 |   ↳ `metadata` | object | Response metadata |
-|     ↳ `totalReturned` | number | Number of records returned in this response |
-|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `opportunity` | object | Single opportunity object \(when opportunityId provided\) |
 |   ↳ `opportunities` | array | Array of opportunity objects \(when listing\) |
 |   ↳ `success` | boolean | Operation success status |
@@ -519,12 +499,7 @@ Get case(s) from Salesforce
 | `success` | boolean | Operation success status |
 | `output` | object | Case data |
 |   ↳ `paging` | object | Pagination information from Salesforce API |
-|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
-|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
-|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
 |   ↳ `metadata` | object | Response metadata |
-|     ↳ `totalReturned` | number | Number of records returned in this response |
-|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `case` | object | Single case object \(when caseId provided\) |
 |   ↳ `cases` | array | Array of case objects \(when listing\) |
 |   ↳ `success` | boolean | Operation success status |
@@ -625,12 +600,7 @@ Get task(s) from Salesforce
 | `success` | boolean | Operation success status |
 | `output` | object | Task data |
 |   ↳ `paging` | object | Pagination information from Salesforce API |
-|     ↳ `nextRecordsUrl` | string | URL to fetch the next batch of records \(present when done is false\) |
-|     ↳ `totalSize` | number | Total number of records matching the query \(may exceed records returned\) |
-|     ↳ `done` | boolean | Whether all records have been returned \(false if more batches exist\) |
 |   ↳ `metadata` | object | Response metadata |
-|     ↳ `totalReturned` | number | Number of records returned in this response |
-|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `task` | object | Single task object \(when taskId provided\) |
 |   ↳ `tasks` | array | Array of task objects \(when listing\) |
 |   ↳ `success` | boolean | Operation success status |
@@ -903,8 +873,6 @@ Execute a custom SOQL query to retrieve data from Salesforce
 |   ↳ `records` | array | Array of sObject records matching the query |
 |   ↳ `query` | string | The executed SOQL query |
 |   ↳ `metadata` | object | Response metadata |
-|     ↳ `totalReturned` | number | Number of records returned in this response |
-|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_query_more`
@@ -927,8 +895,6 @@ Retrieve additional query results using the nextRecordsUrl from a previous query
 | `output` | object | Query results |
 |   ↳ `records` | array | Array of sObject records matching the query |
 |   ↳ `metadata` | object | Response metadata |
-|     ↳ `totalReturned` | number | Number of records returned in this response |
-|     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_describe_object`
@@ -952,30 +918,6 @@ Get metadata and field information for a Salesforce object
 |   ↳ `objectName` | string | API name of the object \(e.g., Account, Contact\) |
 |   ↳ `label` | string | Human-readable singular label for the object |
 |   ↳ `labelPlural` | string | Human-readable plural label for the object |
-|   ↳ `fields` | array | Array of field metadata objects |
-|     ↳ `name` | string | API name of the field |
-|     ↳ `label` | string | Display label of the field |
-|     ↳ `type` | string | Field data type \(string, boolean, int, double, date, etc.\) |
-|     ↳ `length` | number | Maximum length for text fields |
-|     ↳ `precision` | number | Precision for numeric fields |
-|     ↳ `scale` | number | Scale for numeric fields |
-|     ↳ `nillable` | boolean | Whether the field can be null |
-|     ↳ `unique` | boolean | Whether values must be unique |
-|     ↳ `createable` | boolean | Whether field can be set on create |
-|     ↳ `updateable` | boolean | Whether field can be updated |
-|     ↳ `defaultedOnCreate` | boolean | Whether field has default value on create |
-|     ↳ `calculated` | boolean | Whether field is a formula field |
-|     ↳ `autoNumber` | boolean | Whether field is auto-number |
-|     ↳ `externalId` | boolean | Whether field is an external ID |
-|     ↳ `idLookup` | boolean | Whether field can be used in ID lookup |
-|     ↳ `inlineHelpText` | string | Help text for the field |
-|     ↳ `picklistValues` | array | Available picklist values for picklist fields |
-|     ↳ `referenceTo` | array | Objects this field can reference \(for lookup fields\) |
-|     ↳ `relationshipName` | string | Relationship name for lookup fields |
-|     ↳ `custom` | boolean | Whether this is a custom field |
-|     ↳ `filterable` | boolean | Whether field can be used in SOQL filter |
-|     ↳ `groupable` | boolean | Whether field can be used in GROUP BY |
-|     ↳ `sortable` | boolean | Whether field can be used in ORDER BY |
 |   ↳ `keyPrefix` | string | Three-character prefix used in record IDs \(e.g., "001" for Account\) |
 |   ↳ `queryable` | boolean | Whether the object can be queried via SOQL |
 |   ↳ `createable` | boolean | Whether records can be created for this object |
@@ -1003,23 +945,6 @@ Get a list of all available Salesforce objects
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
 | `output` | object | Objects list |
-|   ↳ `objects` | array | Array of sObject metadata |
-|     ↳ `name` | string | API name of the object |
-|     ↳ `label` | string | Display label of the object |
-|     ↳ `labelPlural` | string | Plural display label |
-|     ↳ `keyPrefix` | string | Three-character ID prefix |
-|     ↳ `custom` | boolean | Whether this is a custom object |
-|     ↳ `queryable` | boolean | Whether object can be queried |
-|     ↳ `createable` | boolean | Whether records can be created |
-|     ↳ `updateable` | boolean | Whether records can be updated |
-|     ↳ `deletable` | boolean | Whether records can be deleted |
-|     ↳ `searchable` | boolean | Whether object is searchable |
-|     ↳ `triggerable` | boolean | Whether triggers are supported |
-|     ↳ `layoutable` | boolean | Whether page layouts are supported |
-|     ↳ `replicateable` | boolean | Whether object can be replicated |
-|     ↳ `retrieveable` | boolean | Whether records can be retrieved |
-|     ↳ `undeletable` | boolean | Whether records can be undeleted |
-|     ↳ `urls` | object | URLs for accessing object resources |
 |   ↳ `encoding` | string | Character encoding for the organization \(e.g., UTF-8\) |
 |   ↳ `maxBatchSize` | number | Maximum number of records that can be returned in a single query batch \(typically 200\) |
 |   ↳ `totalReturned` | number | Number of objects returned |

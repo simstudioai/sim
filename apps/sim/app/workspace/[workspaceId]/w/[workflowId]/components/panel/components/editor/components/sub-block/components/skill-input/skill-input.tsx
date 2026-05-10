@@ -5,6 +5,7 @@ import { Plus, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
 import { AgentSkillsIcon } from '@/components/icons'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { SkillModal } from '@/app/workspace/[workspaceId]/settings/components/skills/components/skill-modal'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SkillDefinition } from '@/hooks/queries/skills'
@@ -139,19 +140,27 @@ export function SkillInput({
                 className='group relative flex flex-col overflow-hidden rounded-sm border border-[var(--border-1)] transition-all duration-200 ease-in-out'
               >
                 <div
+                  role='group'
+                  tabIndex={fullSkill && !disabled && !isPreview ? 0 : undefined}
+                  aria-label={resolveSkillName(stored)}
                   className='flex cursor-pointer items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-[6.5px]'
                   onClick={() => {
                     if (fullSkill && !disabled && !isPreview) {
                       setEditingSkill(fullSkill)
                     }
                   }}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget || !fullSkill || disabled || isPreview)
+                      return
+                    handleKeyboardActivation(event, () => setEditingSkill(fullSkill))
+                  }}
                 >
                   <div className='flex min-w-0 flex-1 items-center gap-2'>
                     <div
-                      className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+                      className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
                       style={{ backgroundColor: '#e0e0e0' }}
                     >
-                      <AgentSkillsIcon className='h-[10px] w-[10px] text-[var(--border)]' />
+                      <AgentSkillsIcon className='size-[10px] text-[var(--border)]' />
                     </div>
                     <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                       {resolveSkillName(stored)}
@@ -168,7 +177,7 @@ export function SkillInput({
                         className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                         aria-label='Remove skill'
                       >
-                        <XIcon className='h-[13px] w-[13px]' />
+                        <XIcon className='size-[13px]' />
                       </button>
                     )}
                   </div>

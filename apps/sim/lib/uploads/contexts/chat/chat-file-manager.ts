@@ -84,7 +84,7 @@ export async function processChatFiles(
  * @param requestId Unique request identifier
  * @returns UserFile object with upload result
  */
-export async function uploadChatFile(
+async function uploadChatFile(
   file: ChatFile,
   executionContext: ChatExecutionContext,
   requestId: string,

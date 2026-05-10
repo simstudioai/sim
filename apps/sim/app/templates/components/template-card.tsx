@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { VerifiedBadge } from '@/components/ui/verified-badge'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks/registry'
 import { useStarTemplate } from '@/hooks/queries/templates'
@@ -37,7 +38,7 @@ export function TemplateCardSkeleton({ className }: { className?: string }) {
           {Array.from({ length: 3 }).map((_, index) => (
             <div
               key={index}
-              className='h-[18px] w-[18px] animate-pulse rounded-sm bg-[var(--surface-5)]'
+              className='size-[18px] animate-pulse rounded-sm bg-[var(--surface-5)]'
             />
           ))}
         </div>
@@ -45,13 +46,13 @@ export function TemplateCardSkeleton({ className }: { className?: string }) {
 
       <div className='mt-3.5 flex items-center justify-between'>
         <div className='flex items-center gap-1.5'>
-          <div className='h-[20px] w-[20px] animate-pulse rounded-full bg-[var(--surface-5)]' />
+          <div className='size-[20px] animate-pulse rounded-full bg-[var(--surface-5)]' />
           <div className='h-3 w-20 animate-pulse rounded bg-[var(--surface-5)]' />
         </div>
         <div className='flex items-center gap-1.5'>
-          <div className='h-3 w-3 animate-pulse rounded bg-[var(--surface-5)]' />
+          <div className='size-3 animate-pulse rounded bg-[var(--surface-5)]' />
           <div className='h-3 w-6 animate-pulse rounded bg-[var(--surface-5)]' />
-          <div className='h-3 w-3 animate-pulse rounded bg-[var(--surface-5)]' />
+          <div className='size-3 animate-pulse rounded bg-[var(--surface-5)]' />
           <div className='h-3 w-6 animate-pulse rounded bg-[var(--surface-5)]' />
         </div>
       </div>
@@ -193,7 +194,13 @@ function TemplateCardInner({
 
   return (
     <div
+      role='button'
+      tabIndex={0}
       onClick={handleCardClick}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        handleKeyboardActivation(event, () => router.push(templateUrl))
+      }}
       className={cn('w-full cursor-pointer rounded-lg bg-[var(--surface-3)] p-2', className)}
     >
       <div
@@ -230,18 +237,18 @@ function TemplateCardInner({
                 return (
                   <div
                     key={index}
-                    className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+                    className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
                     style={{
                       background: blockConfig.bgColor || 'gray',
                       marginLeft: index > 0 ? '-4px' : '0',
                     }}
                   >
-                    <blockConfig.icon className='h-[10px] w-[10px] text-white' />
+                    <blockConfig.icon className='size-[10px] text-white' />
                   </div>
                 )
               })}
               <div
-                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--surface-7)]'
+                className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--surface-7)]'
                 style={{ marginLeft: '-4px' }}
               >
                 <span className='font-medium text-[var(--text-primary)] text-micro'>
@@ -257,13 +264,13 @@ function TemplateCardInner({
               return (
                 <div
                   key={index}
-                  className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+                  className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
                   style={{
                     background: blockConfig.bgColor || 'gray',
                     marginLeft: index > 0 ? '-4px' : '0',
                   }}
                 >
-                  <blockConfig.icon className='h-[10px] w-[10px] text-white' />
+                  <blockConfig.icon className='size-[10px] text-white' />
                 </div>
               )
             })
@@ -289,8 +296,8 @@ function TemplateCardInner({
               unoptimized
             />
           ) : (
-            <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-7)]'>
-              <User className='h-[12px] w-[12px] text-[var(--text-muted)]' />
+            <div className='flex size-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-7)]'>
+              <User className='size-[12px] text-[var(--text-muted)]' />
             </div>
           )}
           <div className='flex min-w-0 items-center gap-1'>
@@ -302,7 +309,7 @@ function TemplateCardInner({
         </div>
 
         <div className='flex flex-shrink-0 items-center gap-1.5 font-medium text-[var(--text-muted)] text-caption'>
-          <User className='h-[12px] w-[12px]' />
+          <User className='size-[12px]' />
           <span>{usageCount}</span>
           <Star
             onClick={handleStarClick}

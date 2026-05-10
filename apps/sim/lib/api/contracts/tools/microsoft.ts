@@ -11,11 +11,11 @@ const excelValuesSchema = z.union([
   z.array(z.record(z.string(), excelCellSchema)),
 ])
 
-export const accessTokenSchema = z.string().min(1, 'Access token is required')
-export const messageIdSchema = z.string().min(1, 'Message ID is required')
-export const destinationIdSchema = z.string().min(1, 'Destination folder ID is required')
+const accessTokenSchema = z.string().min(1, 'Access token is required')
+const messageIdSchema = z.string().min(1, 'Message ID is required')
+const destinationIdSchema = z.string().min(1, 'Destination folder ID is required')
 
-export const outlookSendBodySchema = z.object({
+const outlookSendBodySchema = z.object({
   accessToken: accessTokenSchema,
   to: z.string().min(1, 'Recipient email is required'),
   subject: z.string().min(1, 'Subject is required'),
@@ -27,20 +27,20 @@ export const outlookSendBodySchema = z.object({
   attachments: RawFileInputArraySchema.optional().nullable(),
 })
 
-export const outlookDraftBodySchema = outlookSendBodySchema.omit({
+const outlookDraftBodySchema = outlookSendBodySchema.omit({
   replyToMessageId: true,
 })
 
-export const outlookDeleteBodySchema = z.object({
+const outlookDeleteBodySchema = z.object({
   accessToken: accessTokenSchema,
   messageId: messageIdSchema,
 })
 
-export const outlookCopyMoveBodySchema = outlookDeleteBodySchema.extend({
+const outlookCopyMoveBodySchema = outlookDeleteBodySchema.extend({
   destinationId: destinationIdSchema,
 })
 
-export const teamsWriteChannelBodySchema = z.object({
+const teamsWriteChannelBodySchema = z.object({
   accessToken: accessTokenSchema,
   teamId: z.string().min(1, 'Team ID is required'),
   channelId: z.string().min(1, 'Channel ID is required'),
@@ -48,20 +48,20 @@ export const teamsWriteChannelBodySchema = z.object({
   files: RawFileInputArraySchema.optional().nullable(),
 })
 
-export const teamsWriteChatBodySchema = z.object({
+const teamsWriteChatBodySchema = z.object({
   accessToken: accessTokenSchema,
   chatId: z.string().min(1, 'Chat ID is required'),
   content: z.string().min(1, 'Message content is required'),
   files: RawFileInputArraySchema.optional().nullable(),
 })
 
-export const teamsDeleteChatMessageBodySchema = z.object({
+const teamsDeleteChatMessageBodySchema = z.object({
   accessToken: accessTokenSchema,
   chatId: z.string().min(1, 'Chat ID is required'),
   messageId: messageIdSchema,
 })
 
-export const onedriveUploadBodySchema = z.object({
+const onedriveUploadBodySchema = z.object({
   accessToken: accessTokenSchema,
   fileName: z.string().min(1, 'File name is required'),
   file: RawFileInputSchema.optional(),
@@ -71,13 +71,13 @@ export const onedriveUploadBodySchema = z.object({
   conflictBehavior: z.enum(['fail', 'replace', 'rename']).optional().nullable(),
 })
 
-export const onedriveDownloadBodySchema = z.object({
+const onedriveDownloadBodySchema = z.object({
   accessToken: accessTokenSchema,
   fileId: z.string().min(1, 'File ID is required'),
   fileName: z.string().optional().nullable(),
 })
 
-export const sharepointUploadBodySchema = z.object({
+const sharepointUploadBodySchema = z.object({
   accessToken: accessTokenSchema,
   siteId: z.string().default('root'),
   driveId: z.string().optional().nullable(),
@@ -86,7 +86,7 @@ export const sharepointUploadBodySchema = z.object({
   files: RawFileInputArraySchema.optional().nullable(),
 })
 
-export const dataverseUploadFileBodySchema = z.object({
+const dataverseUploadFileBodySchema = z.object({
   accessToken: accessTokenSchema,
   environmentUrl: z.string().min(1, 'Environment URL is required'),
   entitySetName: z.string().min(1, 'Entity set name is required'),
@@ -197,17 +197,17 @@ export const dataverseUploadFileContract = defineRouteContract({
   response: { mode: 'json', schema: toolJsonResponseSchema },
 })
 
-export type OutlookSendBody = ContractBody<typeof outlookSendContract>
-export type OutlookDraftBody = ContractBody<typeof outlookDraftContract>
-export type OutlookDeleteBody = ContractBody<typeof outlookDeleteContract>
-export type OutlookCopyBody = ContractBody<typeof outlookCopyContract>
-export type OutlookMoveBody = ContractBody<typeof outlookMoveContract>
-export type OutlookMarkReadBody = ContractBody<typeof outlookMarkReadContract>
-export type OutlookMarkUnreadBody = ContractBody<typeof outlookMarkUnreadContract>
-export type TeamsWriteChannelBody = ContractBody<typeof teamsWriteChannelContract>
-export type TeamsWriteChatBody = ContractBody<typeof teamsWriteChatContract>
-export type TeamsDeleteChatMessageBody = ContractBody<typeof teamsDeleteChatMessageContract>
-export type OneDriveUploadBody = ContractBody<typeof onedriveUploadContract>
-export type OneDriveDownloadBody = ContractBody<typeof onedriveDownloadContract>
-export type SharepointUploadBody = ContractBody<typeof sharepointUploadContract>
-export type DataverseUploadFileBody = z.output<typeof dataverseUploadFileBodySchema>
+type OutlookSendBody = ContractBody<typeof outlookSendContract>
+type OutlookDraftBody = ContractBody<typeof outlookDraftContract>
+type OutlookDeleteBody = ContractBody<typeof outlookDeleteContract>
+type OutlookCopyBody = ContractBody<typeof outlookCopyContract>
+type OutlookMoveBody = ContractBody<typeof outlookMoveContract>
+type OutlookMarkReadBody = ContractBody<typeof outlookMarkReadContract>
+type OutlookMarkUnreadBody = ContractBody<typeof outlookMarkUnreadContract>
+type TeamsWriteChannelBody = ContractBody<typeof teamsWriteChannelContract>
+type TeamsWriteChatBody = ContractBody<typeof teamsWriteChatContract>
+type TeamsDeleteChatMessageBody = ContractBody<typeof teamsDeleteChatMessageContract>
+type OneDriveUploadBody = ContractBody<typeof onedriveUploadContract>
+type OneDriveDownloadBody = ContractBody<typeof onedriveDownloadContract>
+type SharepointUploadBody = ContractBody<typeof sharepointUploadContract>
+type DataverseUploadFileBody = z.output<typeof dataverseUploadFileBodySchema>

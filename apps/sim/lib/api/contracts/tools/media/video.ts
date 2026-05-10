@@ -6,7 +6,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 export const videoProviders = ['runway', 'veo', 'luma', 'minimax', 'falai'] as const
 const MISSING_VIDEO_FIELDS_ERROR = 'Missing required fields: provider, apiKey, and prompt'
 
-export const videoToolBodySchema = z
+const videoToolBodySchema = z
   .object({
     provider: z
       .string({ error: MISSING_VIDEO_FIELDS_ERROR })

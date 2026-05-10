@@ -10,7 +10,7 @@ const booleanQueryParamSchema = z
   .optional()
   .default(false)
 
-export const billingUpdateCostBodySchema = z.object({
+const billingUpdateCostBodySchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
   cost: z.number().min(0, 'Cost must be a non-negative number'),
   model: z.string().min(1, 'Model is required'),
@@ -23,7 +23,7 @@ export const billingUpdateCostBodySchema = z.object({
 })
 export type BillingUpdateCostBody = z.input<typeof billingUpdateCostBodySchema>
 
-export const billingSwitchPlanBodySchema = z.object({
+const billingSwitchPlanBodySchema = z.object({
   targetPlanName: z.string(),
   interval: z.enum(['month', 'year']).optional(),
 })
@@ -35,7 +35,7 @@ export const billingQuerySchema = z.object({
   includeOrg: booleanQueryParamSchema,
 })
 
-export const billingUsageDataSchema = z
+const billingUsageDataSchema = z
   .object({
     current: z.number(),
     limit: z.number(),
@@ -51,7 +51,7 @@ export const billingUsageDataSchema = z
   })
   .passthrough()
 
-export const subscriptionBillingDataSchema = z
+const subscriptionBillingDataSchema = z
   .object({
     type: z.enum(['individual', 'organization']),
     plan: z.string(),
@@ -88,7 +88,7 @@ export const subscriptionBillingDataSchema = z
   })
   .passthrough()
 
-export const subscriptionApiResponseSchema = z
+const subscriptionApiResponseSchema = z
   .object({
     success: z.boolean(),
     context: z.string(),
@@ -96,7 +96,7 @@ export const subscriptionApiResponseSchema = z
   })
   .passthrough()
 
-export const organizationBillingMemberSchema = z
+const organizationBillingMemberSchema = z
   .object({
     id: z.string().optional(),
     userId: z.string().optional(),
@@ -129,7 +129,7 @@ export const organizationBillingDataSchema = z
   })
   .passthrough()
 
-export const organizationBillingApiResponseSchema = z
+const organizationBillingApiResponseSchema = z
   .object({
     success: z.boolean(),
     context: z.literal('organization'),
@@ -141,7 +141,7 @@ export const organizationBillingApiResponseSchema = z
   })
   .passthrough()
 
-export const usageLimitDataSchema = z
+const usageLimitDataSchema = z
   .object({
     currentLimit: z.number(),
     canEdit: z.boolean(),
@@ -153,13 +153,13 @@ export const usageLimitDataSchema = z
   })
   .passthrough()
 
-export const usageQuerySchema = z.object({
+const usageQuerySchema = z.object({
   context: z.enum(['user', 'organization']).optional().default('user'),
   userId: z.string().optional(),
   organizationId: z.string().optional(),
 })
 
-export const updateUsageLimitBodySchema = z
+const updateUsageLimitBodySchema = z
   .object({
     limit: z.number().min(0, 'Limit must be a non-negative number'),
     context: z.enum(['user', 'organization']).optional().default('user'),
@@ -169,7 +169,7 @@ export const updateUsageLimitBodySchema = z
     message: 'Organization ID is required when context is organization',
   })
 
-export const usageLimitApiResponseSchema = z
+const usageLimitApiResponseSchema = z
   .object({
     success: z.boolean(),
     context: z.string(),
@@ -179,7 +179,7 @@ export const usageLimitApiResponseSchema = z
   })
   .passthrough()
 
-export const organizationUsageLimitApiResponseSchema = z
+const organizationUsageLimitApiResponseSchema = z
   .object({
     success: z.boolean(),
     context: z.literal('organization'),
@@ -189,7 +189,7 @@ export const organizationUsageLimitApiResponseSchema = z
   })
   .passthrough()
 
-export const purchaseCreditsBodySchema = z.object({
+const purchaseCreditsBodySchema = z.object({
   amount: z.number().min(10).max(1000),
   requestId: z.string().uuid(),
 })
@@ -204,7 +204,7 @@ const successResponseSchema = z.object({
   success: z.boolean(),
 })
 
-export const getBillingContract = defineRouteContract({
+const getBillingContract = defineRouteContract({
   method: 'GET',
   path: '/api/billing',
   query: billingQuerySchema,
@@ -293,14 +293,14 @@ export const createBillingPortalContract = defineRouteContract({
   },
 })
 
-export const billingSwitchPlanResponseSchema = z.object({
+const billingSwitchPlanResponseSchema = z.object({
   success: z.literal(true),
   plan: z.string().optional(),
   interval: z.enum(['month', 'year']).optional(),
   message: z.string().optional(),
 })
 
-export const billingUpdateCostResponseSchema = z.object({
+const billingUpdateCostResponseSchema = z.object({
   success: z.literal(true),
   message: z.string().optional(),
   data: z.object({

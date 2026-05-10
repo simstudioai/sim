@@ -20,9 +20,9 @@ import type {
   OrchestratorResult,
 } from '@/lib/copilot/request/types'
 
-export type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome
+type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome
 
-export interface PersistedToolCall {
+interface PersistedToolCall {
   id: string
   name: string
   state: PersistedToolState
@@ -57,7 +57,7 @@ export interface PersistedFileAttachment {
   size: number
 }
 
-export interface PersistedMessageContext {
+interface PersistedMessageContext {
   kind: string
   label: string
   workflowId?: string

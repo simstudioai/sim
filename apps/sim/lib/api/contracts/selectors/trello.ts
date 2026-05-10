@@ -15,4 +15,4 @@ export const trelloBoardsSelectorContract = definePostSelector(
   z.object({ boards: z.array(trelloBoardSchema) })
 )
 
-export type TrelloBoardsSelectorResponse = ContractJsonResponse<typeof trelloBoardsSelectorContract>
+type TrelloBoardsSelectorResponse = ContractJsonResponse<typeof trelloBoardsSelectorContract>

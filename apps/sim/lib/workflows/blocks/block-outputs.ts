@@ -252,7 +252,7 @@ function applyInputFormatToOutputs(
   return applyInputFormatFields(normalizedInputFormat, outputs)
 }
 
-export function getBlockOutputs(
+function getBlockOutputs(
   blockType: string,
   subBlocks?: Record<string, SubBlockWithValue>,
   triggerMode?: boolean,
@@ -312,7 +312,7 @@ export function getBlockOutputs(
   return applyInputFormatToOutputs(blockType, blockConfig, subBlocks, filteredOutputs)
 }
 
-export function getResponseFormatOutputs(
+function getResponseFormatOutputs(
   subBlocks?: Record<string, SubBlockWithValue>,
   blockId = 'block'
 ): OutputDefinition | undefined {
@@ -336,7 +336,7 @@ export function getResponseFormatOutputs(
   return outputs
 }
 
-export function getEvaluatorMetricOutputs(
+function getEvaluatorMetricOutputs(
   subBlocks?: Record<string, SubBlockWithValue>
 ): OutputDefinition | undefined {
   const metricsValue = subBlocks?.metrics?.value
@@ -617,7 +617,7 @@ function generateOutputPaths(outputs: Record<string, any>, prefix = ''): string[
  * @param subBlocks - SubBlock values to pass to the tool selector
  * @returns Outputs schema for the tool, or empty object on error
  */
-export function getToolOutputs(
+function getToolOutputs(
   blockConfig: BlockConfig,
   subBlocks?: Record<string, SubBlockWithValue>,
   options?: { includeHidden?: boolean }

@@ -8,7 +8,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 /**
  * Output definition for attendee objects in booking responses
  */
-export const ATTENDEE_OUTPUT_PROPERTIES = {
+const ATTENDEE_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Attendee name' },
   email: { type: 'string', description: 'Attendee actual email address' },
   displayEmail: {
@@ -24,7 +24,7 @@ export const ATTENDEE_OUTPUT_PROPERTIES = {
 /**
  * Output definition for host objects in booking responses
  */
-export const HOST_OUTPUT_PROPERTIES = {
+const HOST_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Host user ID' },
   name: { type: 'string', description: 'Host display name' },
   email: { type: 'string', description: 'Host actual email address' },
@@ -39,7 +39,7 @@ export const HOST_OUTPUT_PROPERTIES = {
 /**
  * Output definition for event type objects in booking responses
  */
-export const EVENT_TYPE_OUTPUT_PROPERTIES = {
+const EVENT_TYPE_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Event type ID' },
   slug: { type: 'string', description: 'Event type slug' },
 } as const satisfies Record<string, OutputProperty>
@@ -193,7 +193,7 @@ export const BOOKING_DATA_OUTPUT_PROPERTIES = {
 /**
  * Pagination output properties for list endpoints
  */
-export const PAGINATION_OUTPUT_PROPERTIES = {
+const PAGINATION_OUTPUT_PROPERTIES = {
   totalItems: { type: 'number', description: 'Total number of items' },
   remainingItems: { type: 'number', description: 'Remaining items after current page' },
   returnedItems: { type: 'number', description: 'Number of items returned in this response' },
@@ -207,7 +207,7 @@ export const PAGINATION_OUTPUT_PROPERTIES = {
 /**
  * Complete pagination output definition
  */
-export const PAGINATION_OUTPUT: OutputProperty = {
+const PAGINATION_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pagination metadata',
   properties: PAGINATION_OUTPUT_PROPERTIES,
@@ -216,7 +216,7 @@ export const PAGINATION_OUTPUT: OutputProperty = {
 /**
  * Output definition for availability intervals in schedule responses
  */
-export const AVAILABILITY_OUTPUT_PROPERTIES = {
+const AVAILABILITY_OUTPUT_PROPERTIES = {
   days: {
     type: 'array',
     description: 'Days of the week (Monday, Tuesday, etc.)',
@@ -229,7 +229,7 @@ export const AVAILABILITY_OUTPUT_PROPERTIES = {
 /**
  * Output definition for schedule override objects
  */
-export const OVERRIDE_OUTPUT_PROPERTIES = {
+const OVERRIDE_OUTPUT_PROPERTIES = {
   date: { type: 'string', description: 'Date in YYYY-MM-DD format' },
   startTime: { type: 'string', description: 'Start time in HH:MM format' },
   endTime: { type: 'string', description: 'End time in HH:MM format' },
@@ -238,7 +238,7 @@ export const OVERRIDE_OUTPUT_PROPERTIES = {
 /**
  * Complete availability array output definition
  */
-export const AVAILABILITY_OUTPUT: OutputProperty = {
+const AVAILABILITY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Availability windows',
   items: {
@@ -250,7 +250,7 @@ export const AVAILABILITY_OUTPUT: OutputProperty = {
 /**
  * Complete overrides array output definition
  */
-export const OVERRIDES_OUTPUT: OutputProperty = {
+const OVERRIDES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Date-specific availability overrides',
   items: {
@@ -275,7 +275,7 @@ export const SCHEDULE_DATA_OUTPUT_PROPERTIES = {
 /**
  * Common event type data output properties
  */
-export const EVENT_TYPE_DATA_OUTPUT_PROPERTIES = {
+const EVENT_TYPE_DATA_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Event type ID' },
   title: { type: 'string', description: 'Event type title' },
   slug: { type: 'string', description: 'URL-friendly slug' },
@@ -362,7 +362,7 @@ export interface CalcomCreateEventTypeParams {
   disableGuests?: boolean
 }
 
-export interface CalcomEventType {
+interface CalcomEventType {
   id: number
   title: string
   slug: string
@@ -446,7 +446,7 @@ export interface CalcomDeleteEventTypeResponse extends ToolResponse {
 /**
  * Common attendee structure for Cal.com bookings
  */
-export interface CalcomAttendee {
+interface CalcomAttendee {
   name: string
   email?: string
   timeZone: string
@@ -456,7 +456,7 @@ export interface CalcomAttendee {
 /**
  * Common booking structure returned by Cal.com API
  */
-export interface CalcomBooking {
+interface CalcomBooking {
   uid: string
   title: string
   description?: string
@@ -625,7 +625,7 @@ export interface CalcomAvailability {
 /**
  * Schedule object returned by Cal.com API
  */
-export interface CalcomSchedule {
+interface CalcomSchedule {
   id: number
   name: string
   timeZone: string

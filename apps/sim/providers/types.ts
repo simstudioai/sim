@@ -25,15 +25,15 @@ export interface ModelPricing {
   updatedAt: string // Last updated date
 }
 
-export type ModelPricingMap = Record<string, ModelPricing>
+type ModelPricingMap = Record<string, ModelPricing>
 
-export interface TokenInfo {
+interface TokenInfo {
   input?: number
   output?: number
   total?: number
 }
 
-export interface TransformedResponse {
+interface TransformedResponse {
   content: string
   tokens?: TokenInfo
 }
@@ -101,7 +101,7 @@ export interface ProviderResponse {
   interactionId?: string
 }
 
-export type ToolUsageControl = 'auto' | 'force' | 'none'
+type ToolUsageControl = 'auto' | 'force' | 'none'
 
 export interface ProviderToolConfig {
   id: string

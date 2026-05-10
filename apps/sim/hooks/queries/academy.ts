@@ -3,7 +3,7 @@ import type { AcademyCertificate } from '@/lib/academy/types'
 import { requestJson } from '@/lib/api/client/request'
 import { getAcademyCertificateContract, issueAcademyCertificateContract } from '@/lib/api/contracts'
 
-export const academyKeys = {
+const academyKeys = {
   all: ['academy'] as const,
   certificates: () => [...academyKeys.all, 'certificate'] as const,
   certificate: (courseId: string) => [...academyKeys.certificates(), courseId] as const,

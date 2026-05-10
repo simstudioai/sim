@@ -128,13 +128,6 @@ List envelopes from your DocuSign account with optional filters
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `envelopes` | array | Array of DocuSign envelopes |
-|   ↳ `envelopeId` | string | Unique envelope identifier |
-|   ↳ `status` | string | Envelope status \(created, sent, delivered, completed, declined, voided\) |
-|   ↳ `emailSubject` | string | Email subject line |
-|   ↳ `sentDateTime` | string | ISO 8601 datetime when envelope was sent |
-|   ↳ `completedDateTime` | string | ISO 8601 datetime when envelope was completed |
-|   ↳ `createdDateTime` | string | ISO 8601 datetime when envelope was created |
-|   ↳ `statusChangedDateTime` | string | ISO 8601 datetime of last status change |
 | `totalSetSize` | number | Total number of matching envelopes |
 | `resultSetSize` | number | Number of envelopes returned in this response |
 
@@ -191,12 +184,6 @@ List available templates in your DocuSign account
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `templates` | array | Array of DocuSign templates |
-|   ↳ `templateId` | string | Template identifier |
-|   ↳ `name` | string | Template name |
-|   ↳ `description` | string | Template description |
-|   ↳ `shared` | boolean | Whether template is shared |
-|   ↳ `created` | string | ISO 8601 creation date |
-|   ↳ `lastModified` | string | ISO 8601 last modified date |
 | `totalSetSize` | number | Total number of matching templates |
 | `resultSetSize` | number | Number of templates returned in this response |
 
@@ -215,12 +202,6 @@ Get the recipient status details for a DocuSign envelope
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `signers` | array | Array of DocuSign recipients |
-|   ↳ `recipientId` | string | Recipient identifier |
-|   ↳ `name` | string | Recipient name |
-|   ↳ `email` | string | Recipient email address |
-|   ↳ `status` | string | Recipient signing status \(sent, delivered, completed, declined\) |
-|   ↳ `signedDateTime` | string | ISO 8601 datetime when recipient signed |
-|   ↳ `deliveredDateTime` | string | ISO 8601 datetime when delivered to recipient |
 | `carbonCopies` | array | Array of carbon copy recipients |
 |   ↳ `recipientId` | string | Recipient ID |
 |   ↳ `name` | string | Recipient name |

@@ -14,39 +14,38 @@ export const AbortBackend = {
   Redis: 'redis',
 } as const
 
-export type AbortBackendKey = keyof typeof AbortBackend
-export type AbortBackendValue = (typeof AbortBackend)[AbortBackendKey]
+type AbortBackendKey = keyof typeof AbortBackend
+type AbortBackendValue = (typeof AbortBackend)[AbortBackendKey]
 
-export const AbortRedisResult = {
+const AbortRedisResult = {
   Error: 'error',
   Ok: 'ok',
   Slow: 'slow',
 } as const
 
-export type AbortRedisResultKey = keyof typeof AbortRedisResult
-export type AbortRedisResultValue = (typeof AbortRedisResult)[AbortRedisResultKey]
+type AbortRedisResultKey = keyof typeof AbortRedisResult
+type AbortRedisResultValue = (typeof AbortRedisResult)[AbortRedisResultKey]
 
-export const AuthKeyMatch = {
+const AuthKeyMatch = {
   Enterprise: 'enterprise',
   None: 'none',
   User: 'user',
 } as const
 
-export type AuthKeyMatchKey = keyof typeof AuthKeyMatch
-export type AuthKeyMatchValue = (typeof AuthKeyMatch)[AuthKeyMatchKey]
+type AuthKeyMatchKey = keyof typeof AuthKeyMatch
+type AuthKeyMatchValue = (typeof AuthKeyMatch)[AuthKeyMatchKey]
 
-export const BillingAnalyticsOutcome = {
+const BillingAnalyticsOutcome = {
   Duplicate: 'duplicate',
   RetriesExhausted: 'retries_exhausted',
   Success: 'success',
   Unknown: 'unknown',
 } as const
 
-export type BillingAnalyticsOutcomeKey = keyof typeof BillingAnalyticsOutcome
-export type BillingAnalyticsOutcomeValue =
-  (typeof BillingAnalyticsOutcome)[BillingAnalyticsOutcomeKey]
+type BillingAnalyticsOutcomeKey = keyof typeof BillingAnalyticsOutcome
+type BillingAnalyticsOutcomeValue = (typeof BillingAnalyticsOutcome)[BillingAnalyticsOutcomeKey]
 
-export const BillingFlushOutcome = {
+const BillingFlushOutcome = {
   CheckpointAlreadyClaimed: 'checkpoint_already_claimed',
   CheckpointLoadFailed: 'checkpoint_load_failed',
   Flushed: 'flushed',
@@ -55,8 +54,8 @@ export const BillingFlushOutcome = {
   SkippedUnconfigured: 'skipped_unconfigured',
 } as const
 
-export type BillingFlushOutcomeKey = keyof typeof BillingFlushOutcome
-export type BillingFlushOutcomeValue = (typeof BillingFlushOutcome)[BillingFlushOutcomeKey]
+type BillingFlushOutcomeKey = keyof typeof BillingFlushOutcome
+type BillingFlushOutcomeValue = (typeof BillingFlushOutcome)[BillingFlushOutcomeKey]
 
 export const BillingRouteOutcome = {
   AuthFailed: 'auth_failed',
@@ -67,8 +66,8 @@ export const BillingRouteOutcome = {
   InvalidBody: 'invalid_body',
 } as const
 
-export type BillingRouteOutcomeKey = keyof typeof BillingRouteOutcome
-export type BillingRouteOutcomeValue = (typeof BillingRouteOutcome)[BillingRouteOutcomeKey]
+type BillingRouteOutcomeKey = keyof typeof BillingRouteOutcome
+type BillingRouteOutcomeValue = (typeof BillingRouteOutcome)[BillingRouteOutcomeKey]
 
 export const CopilotAbortOutcome = {
   BadRequest: 'bad_request',
@@ -82,16 +81,16 @@ export const CopilotAbortOutcome = {
   Unauthorized: 'unauthorized',
 } as const
 
-export type CopilotAbortOutcomeKey = keyof typeof CopilotAbortOutcome
-export type CopilotAbortOutcomeValue = (typeof CopilotAbortOutcome)[CopilotAbortOutcomeKey]
+type CopilotAbortOutcomeKey = keyof typeof CopilotAbortOutcome
+type CopilotAbortOutcomeValue = (typeof CopilotAbortOutcome)[CopilotAbortOutcomeKey]
 
 export const CopilotBranchKind = {
   Workflow: 'workflow',
   Workspace: 'workspace',
 } as const
 
-export type CopilotBranchKindKey = keyof typeof CopilotBranchKind
-export type CopilotBranchKindValue = (typeof CopilotBranchKind)[CopilotBranchKindKey]
+type CopilotBranchKindKey = keyof typeof CopilotBranchKind
+type CopilotBranchKindValue = (typeof CopilotBranchKind)[CopilotBranchKindKey]
 
 export const CopilotChatFinalizeOutcome = {
   AppendedAssistant: 'appended_assistant',
@@ -100,8 +99,8 @@ export const CopilotChatFinalizeOutcome = {
   StaleUserMessage: 'stale_user_message',
 } as const
 
-export type CopilotChatFinalizeOutcomeKey = keyof typeof CopilotChatFinalizeOutcome
-export type CopilotChatFinalizeOutcomeValue =
+type CopilotChatFinalizeOutcomeKey = keyof typeof CopilotChatFinalizeOutcome
+type CopilotChatFinalizeOutcomeValue =
   (typeof CopilotChatFinalizeOutcome)[CopilotChatFinalizeOutcomeKey]
 
 export const CopilotChatPersistOutcome = {
@@ -109,8 +108,8 @@ export const CopilotChatPersistOutcome = {
   ChatNotFound: 'chat_not_found',
 } as const
 
-export type CopilotChatPersistOutcomeKey = keyof typeof CopilotChatPersistOutcome
-export type CopilotChatPersistOutcomeValue =
+type CopilotChatPersistOutcomeKey = keyof typeof CopilotChatPersistOutcome
+type CopilotChatPersistOutcomeValue =
   (typeof CopilotChatPersistOutcome)[CopilotChatPersistOutcomeKey]
 
 export const CopilotConfirmOutcome = {
@@ -124,8 +123,8 @@ export const CopilotConfirmOutcome = {
   ValidationError: 'validation_error',
 } as const
 
-export type CopilotConfirmOutcomeKey = keyof typeof CopilotConfirmOutcome
-export type CopilotConfirmOutcomeValue = (typeof CopilotConfirmOutcome)[CopilotConfirmOutcomeKey]
+type CopilotConfirmOutcomeKey = keyof typeof CopilotConfirmOutcome
+type CopilotConfirmOutcomeValue = (typeof CopilotConfirmOutcome)[CopilotConfirmOutcomeKey]
 
 export const CopilotFinalizeOutcome = {
   Aborted: 'aborted',
@@ -133,32 +132,31 @@ export const CopilotFinalizeOutcome = {
   Success: 'success',
 } as const
 
-export type CopilotFinalizeOutcomeKey = keyof typeof CopilotFinalizeOutcome
-export type CopilotFinalizeOutcomeValue = (typeof CopilotFinalizeOutcome)[CopilotFinalizeOutcomeKey]
+type CopilotFinalizeOutcomeKey = keyof typeof CopilotFinalizeOutcome
+type CopilotFinalizeOutcomeValue = (typeof CopilotFinalizeOutcome)[CopilotFinalizeOutcomeKey]
 
 export const CopilotLeg = {
   SimToGo: 'sim_to_go',
 } as const
 
-export type CopilotLegKey = keyof typeof CopilotLeg
-export type CopilotLegValue = (typeof CopilotLeg)[CopilotLegKey]
+type CopilotLegKey = keyof typeof CopilotLeg
+type CopilotLegValue = (typeof CopilotLeg)[CopilotLegKey]
 
 export const CopilotOutputFileOutcome = {
   Failed: 'failed',
   Uploaded: 'uploaded',
 } as const
 
-export type CopilotOutputFileOutcomeKey = keyof typeof CopilotOutputFileOutcome
-export type CopilotOutputFileOutcomeValue =
-  (typeof CopilotOutputFileOutcome)[CopilotOutputFileOutcomeKey]
+type CopilotOutputFileOutcomeKey = keyof typeof CopilotOutputFileOutcome
+type CopilotOutputFileOutcomeValue = (typeof CopilotOutputFileOutcome)[CopilotOutputFileOutcomeKey]
 
 export const CopilotRecoveryOutcome = {
   GapDetected: 'gap_detected',
   InRange: 'in_range',
 } as const
 
-export type CopilotRecoveryOutcomeKey = keyof typeof CopilotRecoveryOutcome
-export type CopilotRecoveryOutcomeValue = (typeof CopilotRecoveryOutcome)[CopilotRecoveryOutcomeKey]
+type CopilotRecoveryOutcomeKey = keyof typeof CopilotRecoveryOutcome
+type CopilotRecoveryOutcomeValue = (typeof CopilotRecoveryOutcome)[CopilotRecoveryOutcomeKey]
 
 export const CopilotRequestCancelReason = {
   ClientDisconnect: 'client_disconnect',
@@ -167,18 +165,18 @@ export const CopilotRequestCancelReason = {
   Unknown: 'unknown',
 } as const
 
-export type CopilotRequestCancelReasonKey = keyof typeof CopilotRequestCancelReason
-export type CopilotRequestCancelReasonValue =
+type CopilotRequestCancelReasonKey = keyof typeof CopilotRequestCancelReason
+type CopilotRequestCancelReasonValue =
   (typeof CopilotRequestCancelReason)[CopilotRequestCancelReasonKey]
 
-export const CopilotResourcesOp = {
+const CopilotResourcesOp = {
   Delete: 'delete',
   None: 'none',
   Upsert: 'upsert',
 } as const
 
-export type CopilotResourcesOpKey = keyof typeof CopilotResourcesOp
-export type CopilotResourcesOpValue = (typeof CopilotResourcesOp)[CopilotResourcesOpKey]
+type CopilotResourcesOpKey = keyof typeof CopilotResourcesOp
+type CopilotResourcesOpValue = (typeof CopilotResourcesOp)[CopilotResourcesOpKey]
 
 export const CopilotResumeOutcome = {
   BatchDelivered: 'batch_delivered',
@@ -188,8 +186,8 @@ export const CopilotResumeOutcome = {
   TerminalDelivered: 'terminal_delivered',
 } as const
 
-export type CopilotResumeOutcomeKey = keyof typeof CopilotResumeOutcome
-export type CopilotResumeOutcomeValue = (typeof CopilotResumeOutcome)[CopilotResumeOutcomeKey]
+type CopilotResumeOutcomeKey = keyof typeof CopilotResumeOutcome
+type CopilotResumeOutcomeValue = (typeof CopilotResumeOutcome)[CopilotResumeOutcomeKey]
 
 export const CopilotSseCloseReason = {
   Aborted: 'aborted',
@@ -201,8 +199,8 @@ export const CopilotSseCloseReason = {
   Timeout: 'timeout',
 } as const
 
-export type CopilotSseCloseReasonKey = keyof typeof CopilotSseCloseReason
-export type CopilotSseCloseReasonValue = (typeof CopilotSseCloseReason)[CopilotSseCloseReasonKey]
+type CopilotSseCloseReasonKey = keyof typeof CopilotSseCloseReason
+type CopilotSseCloseReasonValue = (typeof CopilotSseCloseReason)[CopilotSseCloseReasonKey]
 
 export const CopilotStopOutcome = {
   ChatNotFound: 'chat_not_found',
@@ -213,16 +211,16 @@ export const CopilotStopOutcome = {
   ValidationError: 'validation_error',
 } as const
 
-export type CopilotStopOutcomeKey = keyof typeof CopilotStopOutcome
-export type CopilotStopOutcomeValue = (typeof CopilotStopOutcome)[CopilotStopOutcomeKey]
+type CopilotStopOutcomeKey = keyof typeof CopilotStopOutcome
+type CopilotStopOutcomeValue = (typeof CopilotStopOutcome)[CopilotStopOutcomeKey]
 
 export const CopilotSurface = {
   Copilot: 'copilot',
   Mothership: 'mothership',
 } as const
 
-export type CopilotSurfaceKey = keyof typeof CopilotSurface
-export type CopilotSurfaceValue = (typeof CopilotSurface)[CopilotSurfaceKey]
+type CopilotSurfaceKey = keyof typeof CopilotSurface
+type CopilotSurfaceValue = (typeof CopilotSurface)[CopilotSurfaceKey]
 
 export const CopilotTableOutcome = {
   EmptyContent: 'empty_content',
@@ -236,17 +234,16 @@ export const CopilotTableOutcome = {
   Wrote: 'wrote',
 } as const
 
-export type CopilotTableOutcomeKey = keyof typeof CopilotTableOutcome
-export type CopilotTableOutcomeValue = (typeof CopilotTableOutcome)[CopilotTableOutcomeKey]
+type CopilotTableOutcomeKey = keyof typeof CopilotTableOutcome
+type CopilotTableOutcomeValue = (typeof CopilotTableOutcome)[CopilotTableOutcomeKey]
 
-export const CopilotTableSourceFormat = {
+const CopilotTableSourceFormat = {
   Csv: 'csv',
   Json: 'json',
 } as const
 
-export type CopilotTableSourceFormatKey = keyof typeof CopilotTableSourceFormat
-export type CopilotTableSourceFormatValue =
-  (typeof CopilotTableSourceFormat)[CopilotTableSourceFormatKey]
+type CopilotTableSourceFormatKey = keyof typeof CopilotTableSourceFormat
+type CopilotTableSourceFormatValue = (typeof CopilotTableSourceFormat)[CopilotTableSourceFormatKey]
 
 export const CopilotTransport = {
   Batch: 'batch',
@@ -254,8 +251,8 @@ export const CopilotTransport = {
   Stream: 'stream',
 } as const
 
-export type CopilotTransportKey = keyof typeof CopilotTransport
-export type CopilotTransportValue = (typeof CopilotTransport)[CopilotTransportKey]
+type CopilotTransportKey = keyof typeof CopilotTransport
+type CopilotTransportValue = (typeof CopilotTransport)[CopilotTransportKey]
 
 export const CopilotValidateOutcome = {
   InternalAuthFailed: 'internal_auth_failed',
@@ -266,8 +263,8 @@ export const CopilotValidateOutcome = {
   UserNotFound: 'user_not_found',
 } as const
 
-export type CopilotValidateOutcomeKey = keyof typeof CopilotValidateOutcome
-export type CopilotValidateOutcomeValue = (typeof CopilotValidateOutcome)[CopilotValidateOutcomeKey]
+type CopilotValidateOutcomeKey = keyof typeof CopilotValidateOutcome
+type CopilotValidateOutcomeValue = (typeof CopilotValidateOutcome)[CopilotValidateOutcomeKey]
 
 export const CopilotVfsOutcome = {
   PassthroughFitsBudget: 'passthrough_fits_budget',
@@ -279,8 +276,8 @@ export const CopilotVfsOutcome = {
   Resized: 'resized',
 } as const
 
-export type CopilotVfsOutcomeKey = keyof typeof CopilotVfsOutcome
-export type CopilotVfsOutcomeValue = (typeof CopilotVfsOutcome)[CopilotVfsOutcomeKey]
+type CopilotVfsOutcomeKey = keyof typeof CopilotVfsOutcome
+type CopilotVfsOutcomeValue = (typeof CopilotVfsOutcome)[CopilotVfsOutcomeKey]
 
 export const CopilotVfsReadOutcome = {
   BinaryPlaceholder: 'binary_placeholder',
@@ -294,8 +291,8 @@ export const CopilotVfsReadOutcome = {
   TextTooLarge: 'text_too_large',
 } as const
 
-export type CopilotVfsReadOutcomeKey = keyof typeof CopilotVfsReadOutcome
-export type CopilotVfsReadOutcomeValue = (typeof CopilotVfsReadOutcome)[CopilotVfsReadOutcomeKey]
+type CopilotVfsReadOutcomeKey = keyof typeof CopilotVfsReadOutcome
+type CopilotVfsReadOutcomeValue = (typeof CopilotVfsReadOutcome)[CopilotVfsReadOutcomeKey]
 
 export const CopilotVfsReadPath = {
   Binary: 'binary',
@@ -304,10 +301,10 @@ export const CopilotVfsReadPath = {
   Text: 'text',
 } as const
 
-export type CopilotVfsReadPathKey = keyof typeof CopilotVfsReadPath
-export type CopilotVfsReadPathValue = (typeof CopilotVfsReadPath)[CopilotVfsReadPathKey]
+type CopilotVfsReadPathKey = keyof typeof CopilotVfsReadPath
+type CopilotVfsReadPathValue = (typeof CopilotVfsReadPath)[CopilotVfsReadPathKey]
 
-export const LlmErrorStage = {
+const LlmErrorStage = {
   BuildRequest: 'build_request',
   Decode: 'decode',
   HttpBuild: 'http_build',
@@ -317,19 +314,19 @@ export const LlmErrorStage = {
   StreamClose: 'stream_close',
 } as const
 
-export type LlmErrorStageKey = keyof typeof LlmErrorStage
-export type LlmErrorStageValue = (typeof LlmErrorStage)[LlmErrorStageKey]
+type LlmErrorStageKey = keyof typeof LlmErrorStage
+type LlmErrorStageValue = (typeof LlmErrorStage)[LlmErrorStageKey]
 
-export const RateLimitOutcome = {
+const RateLimitOutcome = {
   Allowed: 'allowed',
   IncrError: 'incr_error',
   Limited: 'limited',
 } as const
 
-export type RateLimitOutcomeKey = keyof typeof RateLimitOutcome
-export type RateLimitOutcomeValue = (typeof RateLimitOutcome)[RateLimitOutcomeKey]
+type RateLimitOutcomeKey = keyof typeof RateLimitOutcome
+type RateLimitOutcomeValue = (typeof RateLimitOutcome)[RateLimitOutcomeKey]
 
-export const ToolAsyncWaiterResolution = {
+const ToolAsyncWaiterResolution = {
   ContextCancelled: 'context_cancelled',
   Poll: 'poll',
   Pubsub: 'pubsub',
@@ -340,33 +337,33 @@ export const ToolAsyncWaiterResolution = {
   Unknown: 'unknown',
 } as const
 
-export type ToolAsyncWaiterResolutionKey = keyof typeof ToolAsyncWaiterResolution
-export type ToolAsyncWaiterResolutionValue =
+type ToolAsyncWaiterResolutionKey = keyof typeof ToolAsyncWaiterResolution
+type ToolAsyncWaiterResolutionValue =
   (typeof ToolAsyncWaiterResolution)[ToolAsyncWaiterResolutionKey]
 
-export const ToolErrorKind = {
+const ToolErrorKind = {
   Dispatch: 'dispatch',
   NotFound: 'not_found',
 } as const
 
-export type ToolErrorKindKey = keyof typeof ToolErrorKind
-export type ToolErrorKindValue = (typeof ToolErrorKind)[ToolErrorKindKey]
+type ToolErrorKindKey = keyof typeof ToolErrorKind
+type ToolErrorKindValue = (typeof ToolErrorKind)[ToolErrorKindKey]
 
-export const ToolExecutor = {
+const ToolExecutor = {
   Client: 'client',
   Go: 'go',
   Sim: 'sim',
 } as const
 
-export type ToolExecutorKey = keyof typeof ToolExecutor
-export type ToolExecutorValue = (typeof ToolExecutor)[ToolExecutorKey]
+type ToolExecutorKey = keyof typeof ToolExecutor
+type ToolExecutorValue = (typeof ToolExecutor)[ToolExecutorKey]
 
-export const ToolStoreStatus = {
+const ToolStoreStatus = {
   Cancelled: 'cancelled',
   Completed: 'completed',
   Failed: 'failed',
   Pending: 'pending',
 } as const
 
-export type ToolStoreStatusKey = keyof typeof ToolStoreStatus
-export type ToolStoreStatusValue = (typeof ToolStoreStatus)[ToolStoreStatusKey]
+type ToolStoreStatusKey = keyof typeof ToolStoreStatus
+type ToolStoreStatusValue = (typeof ToolStoreStatus)[ToolStoreStatusKey]

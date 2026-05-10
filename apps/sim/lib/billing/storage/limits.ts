@@ -31,7 +31,7 @@ function gbToBytes(gb: number): number {
  * Get storage limits from environment variables with fallback to constants
  * Returns limits in bytes
  */
-export function getStorageLimits() {
+function getStorageLimits() {
   return {
     free: gbToBytes(
       Number.parseInt(getEnv('FREE_STORAGE_LIMIT_GB') || String(DEFAULT_FREE_STORAGE_LIMIT_GB))
@@ -54,7 +54,7 @@ export function getStorageLimits() {
  * Get storage limit for a specific plan
  * Returns limit in bytes
  */
-export function getStorageLimitForPlan(plan: string, metadata?: any): number {
+function getStorageLimitForPlan(plan: string, metadata?: any): number {
   const limits = getStorageLimits()
 
   if (isEnterprise(plan)) {

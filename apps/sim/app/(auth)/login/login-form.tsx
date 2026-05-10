@@ -454,7 +454,7 @@ export default function LoginPage({
           <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
             {isLoading ? (
               <span className='flex items-center gap-2'>
-                <Loader className='h-4 w-4' animate />
+                <Loader className='size-4' animate />
                 Signing in...
               </span>
             ) : (
@@ -569,7 +569,7 @@ export default function LoginPage({
                 <button type='submit' disabled={isSubmittingReset} className={AUTH_SUBMIT_BTN}>
                   {isSubmittingReset ? (
                     <span className='flex items-center gap-2'>
-                      <Loader className='h-4 w-4' animate />
+                      <Loader className='size-4' animate />
                       Sending...
                     </span>
                   ) : (

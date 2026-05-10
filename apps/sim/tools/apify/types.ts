@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface ApifyActor {
+interface ApifyActor {
   id: string
   name: string
   username: string
@@ -21,7 +21,7 @@ export interface RunActorParams {
   build?: string // Actor build to run (e.g., "latest", "beta", build tag/number)
 }
 
-export interface ApifyRun {
+interface ApifyRun {
   id: string
   actId: string
   status:

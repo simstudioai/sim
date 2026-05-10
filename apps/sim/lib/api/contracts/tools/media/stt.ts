@@ -3,16 +3,16 @@ import { userFileSchema } from '@/lib/api/contracts/primitives'
 import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const sttProviders = ['whisper', 'deepgram', 'elevenlabs', 'assemblyai', 'gemini'] as const
+const sttProviders = ['whisper', 'deepgram', 'elevenlabs', 'assemblyai', 'gemini'] as const
 const MISSING_STT_FIELDS_ERROR = 'Missing required fields: provider and apiKey'
 
-export const sttUserFileSchema = userFileSchema.extend({
+const sttUserFileSchema = userFileSchema.extend({
   type: z.string().optional().default(''),
 })
 
-export const sttUserFileInputSchema = z.union([sttUserFileSchema, z.array(sttUserFileSchema)])
+const sttUserFileInputSchema = z.union([sttUserFileSchema, z.array(sttUserFileSchema)])
 
-export const sttToolBodySchema = z
+const sttToolBodySchema = z
   .object({
     provider: z
       .string({ error: MISSING_STT_FIELDS_ERROR })

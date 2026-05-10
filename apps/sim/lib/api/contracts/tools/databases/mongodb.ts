@@ -45,7 +45,7 @@ const booleanStringSchema = z
     return false
   })
 
-export const mongodbQueryBodySchema = mongoConnectionBodySchema.extend({
+const mongodbQueryBodySchema = mongoConnectionBodySchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   query: z
     .union([z.string(), z.object({}).passthrough()])
@@ -77,7 +77,7 @@ export const mongodbQueryBodySchema = mongoConnectionBodySchema.extend({
     }),
 })
 
-export const mongodbExecuteBodySchema = mongoConnectionBodySchema.extend({
+const mongodbExecuteBodySchema = mongoConnectionBodySchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   pipeline: z
     .union([z.string(), z.array(z.object({}).passthrough())])
@@ -92,7 +92,7 @@ export const mongodbExecuteBodySchema = mongoConnectionBodySchema.extend({
     }),
 })
 
-export const mongodbInsertBodySchema = mongoConnectionBodySchema.extend({
+const mongodbInsertBodySchema = mongoConnectionBodySchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   documents: z
     .union([z.array(z.record(z.string(), z.unknown())), z.string()])
@@ -112,7 +112,7 @@ export const mongodbInsertBodySchema = mongoConnectionBodySchema.extend({
     }),
 })
 
-export const mongodbUpdateBodySchema = mongoConnectionBodySchema.extend({
+const mongodbUpdateBodySchema = mongoConnectionBodySchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   filter: mongoJsonStringOrObjectSchema('Filter is required for MongoDB Update').refine(
     (val) => val !== '{}',
@@ -123,7 +123,7 @@ export const mongodbUpdateBodySchema = mongoConnectionBodySchema.extend({
   multi: booleanStringSchema,
 })
 
-export const mongodbDeleteBodySchema = mongoConnectionBodySchema.extend({
+const mongodbDeleteBodySchema = mongoConnectionBodySchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   filter: mongoJsonStringOrObjectSchema('Filter is required for MongoDB Delete').refine(
     (val) => val !== '{}',
@@ -132,7 +132,7 @@ export const mongodbDeleteBodySchema = mongoConnectionBodySchema.extend({
   multi: booleanStringSchema,
 })
 
-export const mongodbIntrospectBodySchema = z
+const mongodbIntrospectBodySchema = z
   .object({
     host: z.string().min(1, 'Host is required'),
     port: z.coerce.number().int().positive('Port must be a positive integer'),
@@ -189,15 +189,15 @@ export const mongodbIntrospectContract = defineRouteContract({
   response: { mode: 'json', schema: introspectionResponseSchema },
 })
 
-export type MongoDBQueryRequest = ContractBodyInput<typeof mongodbQueryContract>
-export type MongoDBQueryResponse = ContractJsonResponse<typeof mongodbQueryContract>
-export type MongoDBExecuteRequest = ContractBodyInput<typeof mongodbExecuteContract>
-export type MongoDBExecuteResponse = ContractJsonResponse<typeof mongodbExecuteContract>
-export type MongoDBInsertRequest = ContractBodyInput<typeof mongodbInsertContract>
-export type MongoDBInsertResponse = ContractJsonResponse<typeof mongodbInsertContract>
-export type MongoDBUpdateRequest = ContractBodyInput<typeof mongodbUpdateContract>
-export type MongoDBUpdateResponse = ContractJsonResponse<typeof mongodbUpdateContract>
-export type MongoDBDeleteRequest = ContractBodyInput<typeof mongodbDeleteContract>
-export type MongoDBDeleteResponse = ContractJsonResponse<typeof mongodbDeleteContract>
-export type MongoDBIntrospectRequest = ContractBodyInput<typeof mongodbIntrospectContract>
-export type MongoDBIntrospectResponse = ContractJsonResponse<typeof mongodbIntrospectContract>
+type MongoDBQueryRequest = ContractBodyInput<typeof mongodbQueryContract>
+type MongoDBQueryResponse = ContractJsonResponse<typeof mongodbQueryContract>
+type MongoDBExecuteRequest = ContractBodyInput<typeof mongodbExecuteContract>
+type MongoDBExecuteResponse = ContractJsonResponse<typeof mongodbExecuteContract>
+type MongoDBInsertRequest = ContractBodyInput<typeof mongodbInsertContract>
+type MongoDBInsertResponse = ContractJsonResponse<typeof mongodbInsertContract>
+type MongoDBUpdateRequest = ContractBodyInput<typeof mongodbUpdateContract>
+type MongoDBUpdateResponse = ContractJsonResponse<typeof mongodbUpdateContract>
+type MongoDBDeleteRequest = ContractBodyInput<typeof mongodbDeleteContract>
+type MongoDBDeleteResponse = ContractJsonResponse<typeof mongodbDeleteContract>
+type MongoDBIntrospectRequest = ContractBodyInput<typeof mongodbIntrospectContract>
+type MongoDBIntrospectResponse = ContractJsonResponse<typeof mongodbIntrospectContract>

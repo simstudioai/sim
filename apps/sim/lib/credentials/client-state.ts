@@ -4,7 +4,7 @@ export const PENDING_OAUTH_CREDENTIAL_DRAFT_KEY = 'sim.pending-oauth-credential-
 export const PENDING_CREDENTIAL_CREATE_REQUEST_KEY = 'sim.pending-credential-create-request'
 export const PENDING_CREDENTIAL_CREATE_REQUEST_EVENT = 'sim:pending-credential-create-request'
 
-export interface PendingOAuthCredentialDraft {
+interface PendingOAuthCredentialDraft {
   workspaceId: string
   providerId: string
   displayName: string
@@ -95,7 +95,7 @@ export const ADD_CONNECTOR_SEARCH_PARAM = 'addConnector' as const
 
 const OAUTH_RETURN_CONTEXT_KEY = 'sim.oauth-return-context'
 
-export type OAuthReturnOrigin = 'workflow' | 'integrations' | 'kb-connectors'
+type OAuthReturnOrigin = 'workflow' | 'integrations' | 'kb-connectors'
 
 interface OAuthReturnBase {
   displayName: string

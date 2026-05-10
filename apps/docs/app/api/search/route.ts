@@ -6,17 +6,53 @@ import { generateSearchEmbedding } from '@/lib/embeddings'
 export const runtime = 'nodejs'
 export const revalidate = 0
 
+type SearchRequestBody = {
+  query?: unknown
+  q?: unknown
+  locale?: unknown
+  limit?: unknown
+}
+
+const DEFAULT_SEARCH_LIMIT = 10
+
+function getStringParam(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function getSearchLimit(value: unknown): number {
+  const limit = Number.parseInt(String(value ?? DEFAULT_SEARCH_LIMIT), 10)
+  return Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_SEARCH_LIMIT
+}
+
+async function getSearchParams(request: NextRequest) {
+  const contentType = request.headers.get('content-type') ?? ''
+  let body: SearchRequestBody = {}
+
+  if (contentType.includes('application/json')) {
+    body = (await request.json()) as SearchRequestBody
+  } else if (
+    contentType.includes('application/x-www-form-urlencoded') ||
+    contentType.includes('multipart/form-data')
+  ) {
+    const formData = await request.formData()
+    body = Object.fromEntries(formData.entries())
+  }
+
+  return {
+    query: getStringParam(body.query) || getStringParam(body.q) || '',
+    locale: getStringParam(body.locale) || 'en',
+    limit: getSearchLimit(body.limit),
+  }
+}
+
 /**
  * Hybrid search API endpoint
  * - English: Vector embeddings + keyword search
  * - Other languages: Keyword search only
  */
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams
-    const query = searchParams.get('query') || searchParams.get('q') || ''
-    const locale = searchParams.get('locale') || 'en'
-    const limit = Number.parseInt(searchParams.get('limit') || '10', 10)
+    const { query, locale, limit } = await getSearchParams(request)
 
     if (!query || query.trim().length === 0) {
       return NextResponse.json([])

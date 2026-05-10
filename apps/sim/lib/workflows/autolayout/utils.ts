@@ -304,7 +304,7 @@ export function createBoundingBox(
 /**
  * Checks if two bounding boxes overlap (with optional margin)
  */
-export function boxesOverlap(box1: BoundingBox, box2: BoundingBox, margin = 0): boolean {
+function boxesOverlap(box1: BoundingBox, box2: BoundingBox, margin = 0): boolean {
   return !(
     box1.x + box1.width + margin <= box2.x ||
     box2.x + box2.width + margin <= box1.x ||

@@ -14,7 +14,7 @@ import {
 
 const adminV1OutboxStatuses = ['pending', 'processing', 'completed', 'dead_letter'] as const
 
-export const adminV1OutboxQuerySchema = z.object({
+const adminV1OutboxQuerySchema = z.object({
   status: z.preprocess(
     lastQueryValue,
     z

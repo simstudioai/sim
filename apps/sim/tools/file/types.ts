@@ -54,7 +54,7 @@ export interface FileParserV3Output extends ToolResponse {
 }
 
 /** API response structure for single file parse */
-export interface FileParseApiResponse {
+interface FileParseApiResponse {
   success: boolean
   output?: FileParseResult
   content?: string
@@ -64,7 +64,7 @@ export interface FileParseApiResponse {
 }
 
 /** API response structure for multiple file parse */
-export interface FileParseApiMultiResponse {
+interface FileParseApiMultiResponse {
   success: boolean
   results: Array<{
     success: boolean

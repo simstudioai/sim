@@ -7,7 +7,7 @@ import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 
-export const LOG_COLUMNS = {
+const LOG_COLUMNS = {
   workflow: { width: 'w-[22%]', minWidth: 'min-w-[140px]', label: 'Workflow' },
   date: { width: 'w-[18%]', minWidth: 'min-w-[140px]', label: 'Date' },
   status: { width: 'w-[12%]', minWidth: 'min-w-[100px]', label: 'Status' },

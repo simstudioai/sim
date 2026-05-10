@@ -26,7 +26,7 @@ const logger = createLogger('WorkflowStreaming')
 
 const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype']
 
-export interface StreamingConfig {
+interface StreamingConfig {
   selectedOutputs?: string[]
   isSecureMode?: boolean
   workflowTriggerType?: 'api' | 'chat'
@@ -35,7 +35,7 @@ export interface StreamingConfig {
   timeoutMs?: number
 }
 
-export type StreamingExecutorFn = (callbacks: {
+type StreamingExecutorFn = (callbacks: {
   onStream: (streamingExec: StreamingExecution) => Promise<void>
   onBlockComplete: (blockId: string, output: unknown) => Promise<void>
   abortSignal: AbortSignal

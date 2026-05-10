@@ -7,7 +7,7 @@ export const speechTokenBodySchema = z
   })
   .passthrough()
 
-export const speechTokenResponseSchema = z.object({
+const speechTokenResponseSchema = z.object({
   token: z.string(),
 })
 

@@ -61,7 +61,7 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
   return { isValid: true }
 }
 
-export function sanitizeIdentifier(identifier: string): string {
+function sanitizeIdentifier(identifier: string): string {
   if (identifier.includes('.')) {
     const parts = identifier.split('.')
     return parts.map((part) => sanitizeSingleIdentifier(part)).join('.')

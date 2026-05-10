@@ -54,7 +54,7 @@ export function parseResponseFormat(responseFormat?: string | object): any {
  * Accepts a JSON string or an array. Each entry must have
  * `role` (string) and `content` (string).
  */
-export function resolveMessages(raw: unknown): Array<{ role: string; content: string }> {
+function resolveMessages(raw: unknown): Array<{ role: string; content: string }> {
   if (!raw) {
     throw new Error('Messages input is required')
   }
@@ -84,7 +84,7 @@ export function resolveMessages(raw: unknown): Array<{ role: string; content: st
  * Try to parse the LLM response content as structured JSON and spread
  * the fields into the block output. Falls back to returning raw content.
  */
-export function processStructuredResponse(
+function processStructuredResponse(
   result: { content?: string; model?: string; tokens?: any },
   defaultModel: string
 ): BlockOutput {

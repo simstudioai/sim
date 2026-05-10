@@ -9,7 +9,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Output definition for Reddit post (Link) objects.
  * Implements votable and created interfaces per Reddit API docs.
  */
-export const POST_OUTPUT_PROPERTIES = {
+const POST_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Post ID' },
   name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
   title: { type: 'string', description: 'Post title (may contain newlines)' },
@@ -55,7 +55,7 @@ export const POST_OUTPUT_PROPERTIES = {
  * Output definition for Reddit comment objects.
  * Implements votable and created interfaces per Reddit API docs.
  */
-export const COMMENT_OUTPUT_PROPERTIES = {
+const COMMENT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Comment ID' },
   name: { type: 'string', description: 'Thing fullname (t1_xxxxx)' },
   author: { type: 'string', description: 'Commenter account name' },
@@ -90,7 +90,7 @@ export const COMMENT_OUTPUT_PROPERTIES = {
 /**
  * Simplified post output properties for listing responses (most commonly used fields)
  */
-export const POST_LISTING_OUTPUT_PROPERTIES = {
+const POST_LISTING_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Post ID' },
   name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
   title: { type: 'string', description: 'Post title' },
@@ -109,7 +109,7 @@ export const POST_LISTING_OUTPUT_PROPERTIES = {
 /**
  * Simplified comment output properties for listing responses
  */
-export const COMMENT_LISTING_OUTPUT_PROPERTIES = {
+const COMMENT_LISTING_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Comment ID' },
   name: { type: 'string', description: 'Thing fullname (t1_xxxxx)' },
   author: { type: 'string', description: 'Comment author' },
@@ -122,7 +122,7 @@ export const COMMENT_LISTING_OUTPUT_PROPERTIES = {
 /**
  * Comment with nested replies output definition
  */
-export const COMMENT_WITH_REPLIES_OUTPUT_PROPERTIES = {
+const COMMENT_WITH_REPLIES_OUTPUT_PROPERTIES = {
   ...COMMENT_LISTING_OUTPUT_PROPERTIES,
   replies: {
     type: 'array',
@@ -134,7 +134,7 @@ export const COMMENT_WITH_REPLIES_OUTPUT_PROPERTIES = {
 /**
  * Post metadata output for get_comments tool
  */
-export const POST_METADATA_OUTPUT_PROPERTIES = {
+const POST_METADATA_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Post ID' },
   name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
   title: { type: 'string', description: 'Post title' },
@@ -148,7 +148,7 @@ export const POST_METADATA_OUTPUT_PROPERTIES = {
 /**
  * Complete posts array output definition
  */
-export const POSTS_ARRAY_OUTPUT: OutputProperty = {
+const POSTS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of posts with title, author, URL, score, comments count, and metadata',
   items: {
@@ -160,7 +160,7 @@ export const POSTS_ARRAY_OUTPUT: OutputProperty = {
 /**
  * Complete comments array output definition with nested replies
  */
-export const COMMENTS_ARRAY_OUTPUT: OutputProperty = {
+const COMMENTS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Nested comments with author, body, score, timestamps, and replies',
   items: {
@@ -172,7 +172,7 @@ export const COMMENTS_ARRAY_OUTPUT: OutputProperty = {
 /**
  * Post metadata output definition for get_comments tool
  */
-export const POST_METADATA_OUTPUT: OutputProperty = {
+const POST_METADATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Post information including ID, title, author, content, and metadata',
   properties: POST_METADATA_OUTPUT_PROPERTIES,
@@ -181,7 +181,7 @@ export const POST_METADATA_OUTPUT: OutputProperty = {
 /**
  * Write operation success output properties
  */
-export const WRITE_SUCCESS_OUTPUT_PROPERTIES = {
+const WRITE_SUCCESS_OUTPUT_PROPERTIES = {
   success: { type: 'boolean', description: 'Whether the operation was successful' },
   message: { type: 'string', description: 'Success or error message' },
 } as const satisfies Record<string, OutputProperty>
@@ -189,7 +189,7 @@ export const WRITE_SUCCESS_OUTPUT_PROPERTIES = {
 /**
  * Submit post response data output properties
  */
-export const SUBMIT_POST_DATA_OUTPUT_PROPERTIES = {
+const SUBMIT_POST_DATA_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'New post ID' },
   name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
   url: { type: 'string', description: 'Post URL from API response' },
@@ -199,7 +199,7 @@ export const SUBMIT_POST_DATA_OUTPUT_PROPERTIES = {
 /**
  * Submit post data output definition
  */
-export const SUBMIT_POST_DATA_OUTPUT: OutputProperty = {
+const SUBMIT_POST_DATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Post data including ID, name, URL, and permalink',
   properties: SUBMIT_POST_DATA_OUTPUT_PROPERTIES,
@@ -208,7 +208,7 @@ export const SUBMIT_POST_DATA_OUTPUT: OutputProperty = {
 /**
  * Reply comment response data output properties
  */
-export const REPLY_DATA_OUTPUT_PROPERTIES = {
+const REPLY_DATA_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'New comment ID' },
   name: { type: 'string', description: 'Thing fullname (t1_xxxxx)' },
   permalink: { type: 'string', description: 'Comment permalink' },
@@ -218,7 +218,7 @@ export const REPLY_DATA_OUTPUT_PROPERTIES = {
 /**
  * Reply data output definition
  */
-export const REPLY_DATA_OUTPUT: OutputProperty = {
+const REPLY_DATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Comment data including ID, name, permalink, and body',
   properties: REPLY_DATA_OUTPUT_PROPERTIES,
@@ -227,7 +227,7 @@ export const REPLY_DATA_OUTPUT: OutputProperty = {
 /**
  * Edit response data output properties
  */
-export const EDIT_DATA_OUTPUT_PROPERTIES = {
+const EDIT_DATA_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Edited thing ID' },
   body: { type: 'string', description: 'Updated comment body (for comments)' },
   selftext: { type: 'string', description: 'Updated post text (for self posts)' },
@@ -236,7 +236,7 @@ export const EDIT_DATA_OUTPUT_PROPERTIES = {
 /**
  * Edit data output definition
  */
-export const EDIT_DATA_OUTPUT: OutputProperty = {
+const EDIT_DATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Updated content data',
   properties: EDIT_DATA_OUTPUT_PROPERTIES,

@@ -3,7 +3,7 @@ import { defineCommunicationToolContract } from '@/lib/api/contracts/tools/commu
 import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contracts/types'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 
-export const smtpSendBodySchema = z.object({
+const smtpSendBodySchema = z.object({
   smtpHost: z.string().min(1, 'SMTP host is required'),
   smtpPort: z.number().min(1).max(65535, 'Port must be between 1 and 65535'),
   smtpUsername: z.string().min(1, 'SMTP username is required'),
@@ -21,7 +21,7 @@ export const smtpSendBodySchema = z.object({
   attachments: RawFileInputArraySchema.optional().nullable(),
 })
 
-export const sendGridSendMailBodySchema = z.object({
+const sendGridSendMailBodySchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
   from: z.string().min(1, 'From email is required'),
   fromName: z.string().optional().nullable(),
@@ -48,8 +48,8 @@ export const sendGridSendMailContract = defineCommunicationToolContract(
   sendGridSendMailBodySchema
 )
 
-export type SmtpSendBody = ContractBodyInput<typeof smtpSendContract>
-export type SendGridSendMailBody = ContractBodyInput<typeof sendGridSendMailContract>
+type SmtpSendBody = ContractBodyInput<typeof smtpSendContract>
+type SendGridSendMailBody = ContractBodyInput<typeof sendGridSendMailContract>
 
-export type SmtpSendResponse = ContractJsonResponse<typeof smtpSendContract>
-export type SendGridSendMailResponse = ContractJsonResponse<typeof sendGridSendMailContract>
+type SmtpSendResponse = ContractJsonResponse<typeof smtpSendContract>
+type SendGridSendMailResponse = ContractJsonResponse<typeof sendGridSendMailContract>

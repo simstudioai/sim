@@ -26,18 +26,18 @@ const adminPaginationValueSchema = (defaultValue: number, normalize: (value: num
     return normalize(parsed)
   })
 
-export const adminPaginationQuerySchema = z.object({
+const adminPaginationQuerySchema = z.object({
   limit: adminPaginationValueSchema(DEFAULT_LIMIT, (limit) =>
     limit < 1 ? DEFAULT_LIMIT : Math.min(limit, MAX_LIMIT)
   ),
   offset: adminPaginationValueSchema(0, (offset) => (offset < 0 ? 0 : offset)),
 })
 
-export const adminIdParamsSchema = z.object({
+const adminIdParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-export const adminWorkflowVersionParamsSchema = z.object({
+const adminWorkflowVersionParamsSchema = z.object({
   id: z.string().min(1),
   versionId: z
     .string()
@@ -47,16 +47,16 @@ export const adminWorkflowVersionParamsSchema = z.object({
     }),
 })
 
-export const adminWorkspaceMemberParamsSchema = z.object({
+const adminWorkspaceMemberParamsSchema = z.object({
   id: z.string().min(1),
   memberId: z.string().min(1),
 })
 
-export const adminExportFormatQuerySchema = z.object({
+const adminExportFormatQuerySchema = z.object({
   format: z.preprocess(lastQueryValue, z.enum(['zip', 'json']).catch('zip')),
 })
 
-export const adminDeleteWorkspaceMemberQuerySchema = z.object({
+const adminDeleteWorkspaceMemberQuerySchema = z.object({
   userId: z.preprocess(
     lastQueryValue,
     z
@@ -65,26 +65,26 @@ export const adminDeleteWorkspaceMemberQuerySchema = z.object({
   ),
 })
 
-export const adminWorkspaceMemberBodySchema = z.object({
+const adminWorkspaceMemberBodySchema = z.object({
   userId: z.string({ error: 'userId is required' }).min(1, { error: 'userId is required' }),
   permissions: workspacePermissionSchema.refine((value) => value !== null, {
     error: 'permissions must be "admin", "write", or "read"',
   }),
 })
 
-export const adminUpdateWorkspaceMemberBodySchema = z.object({
+const adminUpdateWorkspaceMemberBodySchema = z.object({
   permissions: workspacePermissionSchema.refine((value) => value !== null, {
     error: 'permissions must be "admin", "write", or "read"',
   }),
 })
 
-export const adminExportWorkflowsBodySchema = z.object({
+const adminExportWorkflowsBodySchema = z.object({
   ids: z
     .array(z.string(), { error: 'ids must be a non-empty array of workflow IDs' })
     .nonempty({ error: 'ids must be a non-empty array of workflow IDs' }),
 })
 
-export const adminWorkflowImportBodySchema = z.object({
+const adminWorkflowImportBodySchema = z.object({
   workspaceId: z
     .string({ error: 'workspaceId is required' })
     .min(1, { error: 'workspaceId is required' }),
@@ -96,14 +96,14 @@ export const adminWorkflowImportBodySchema = z.object({
   ]),
 })
 
-export const adminWorkspaceImportQuerySchema = z.object({
+const adminWorkspaceImportQuerySchema = z.object({
   createFolders: z
     .preprocess(lastQueryValue, z.enum(['true', 'false']).catch('true'))
     .transform((value) => value !== 'false'),
   rootFolderName: queryStringSchema,
 })
 
-export const adminWorkspaceImportBodySchema = z.object({
+const adminWorkspaceImportBodySchema = z.object({
   workflows: z.array(
     z.object({
       content: z.union([z.string(), z.record(z.string(), z.unknown())]),
@@ -114,14 +114,14 @@ export const adminWorkspaceImportBodySchema = z.object({
   ),
 })
 
-export const adminPaginationMetaSchema = z.object({
+const adminPaginationMetaSchema = z.object({
   total: z.number(),
   limit: z.number(),
   offset: z.number(),
   hasMore: z.boolean(),
 })
 
-export const adminWorkspaceSchema = z.object({
+const adminWorkspaceSchema = z.object({
   id: z.string(),
   name: z.string(),
   ownerId: z.string(),
@@ -129,12 +129,12 @@ export const adminWorkspaceSchema = z.object({
   updatedAt: z.string(),
 })
 
-export const adminWorkspaceDetailSchema = adminWorkspaceSchema.extend({
+const adminWorkspaceDetailSchema = adminWorkspaceSchema.extend({
   workflowCount: z.number(),
   folderCount: z.number(),
 })
 
-export const adminFolderSchema = z.object({
+const adminFolderSchema = z.object({
   id: z.string(),
   name: z.string(),
   parentId: z.string().nullable(),
@@ -144,7 +144,7 @@ export const adminFolderSchema = z.object({
   updatedAt: z.string(),
 })
 
-export const adminWorkflowSchema = z.object({
+const adminWorkflowSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
@@ -159,12 +159,12 @@ export const adminWorkflowSchema = z.object({
   updatedAt: z.string(),
 })
 
-export const adminWorkflowDetailSchema = adminWorkflowSchema.extend({
+const adminWorkflowDetailSchema = adminWorkflowSchema.extend({
   blockCount: z.number(),
   edgeCount: z.number(),
 })
 
-export const adminWorkspaceMemberSchema = z.object({
+const adminWorkspaceMemberSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
   userId: z.string(),
@@ -176,14 +176,14 @@ export const adminWorkspaceMemberSchema = z.object({
   userImage: z.string().nullable(),
 })
 
-export const adminWorkflowVariableSchema = z.object({
+const adminWorkflowVariableSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
   value: z.unknown(),
 })
 
-export const adminWorkflowExportStateSchema = workflowStateSchema.extend({
+const adminWorkflowExportStateSchema = workflowStateSchema.extend({
   metadata: z
     .object({
       name: z.string().optional(),
@@ -195,7 +195,7 @@ export const adminWorkflowExportStateSchema = workflowStateSchema.extend({
   variables: z.record(z.string(), adminWorkflowVariableSchema).optional(),
 })
 
-export const adminWorkflowExportPayloadSchema = z.object({
+const adminWorkflowExportPayloadSchema = z.object({
   version: z.literal('1.0'),
   exportedAt: z.string(),
   workflow: z.object({
@@ -209,13 +209,13 @@ export const adminWorkflowExportPayloadSchema = z.object({
   state: adminWorkflowExportStateSchema,
 })
 
-export const adminFolderExportPayloadSchema = z.object({
+const adminFolderExportPayloadSchema = z.object({
   id: z.string(),
   name: z.string(),
   parentId: z.string().nullable(),
 })
 
-export const adminWorkspaceExportPayloadSchema = z.object({
+const adminWorkspaceExportPayloadSchema = z.object({
   version: z.literal('1.0'),
   exportedAt: z.string(),
   workspace: z.object({
@@ -231,7 +231,7 @@ export const adminWorkspaceExportPayloadSchema = z.object({
   folders: z.array(adminFolderExportPayloadSchema),
 })
 
-export const adminFolderFullExportPayloadSchema = z.object({
+const adminFolderFullExportPayloadSchema = z.object({
   version: z.literal('1.0'),
   exportedAt: z.string(),
   folder: z.object({
@@ -247,26 +247,26 @@ export const adminFolderFullExportPayloadSchema = z.object({
   folders: z.array(adminFolderExportPayloadSchema),
 })
 
-export const adminImportResultSchema = z.object({
+const adminImportResultSchema = z.object({
   workflowId: z.string(),
   name: z.string(),
   success: z.boolean(),
   error: z.string().optional(),
 })
 
-export const adminWorkflowImportResponseSchema = z.object({
+const adminWorkflowImportResponseSchema = z.object({
   workflowId: z.string(),
   name: z.string(),
   success: z.literal(true),
 })
 
-export const adminWorkspaceImportResponseSchema = z.object({
+const adminWorkspaceImportResponseSchema = z.object({
   imported: z.number(),
   failed: z.number(),
   results: z.array(adminImportResultSchema),
 })
 
-export const adminDeploymentVersionSchema = z.object({
+const adminDeploymentVersionSchema = z.object({
   id: z.string(),
   version: z.number(),
   name: z.string().nullable(),
@@ -276,14 +276,14 @@ export const adminDeploymentVersionSchema = z.object({
   deployedByName: z.string().nullable(),
 })
 
-export const adminDeployResultSchema = z.object({
+const adminDeployResultSchema = z.object({
   isDeployed: z.literal(true),
   version: z.number(),
   deployedAt: z.string(),
   warnings: z.array(z.string()).optional(),
 })
 
-export const adminUndeployResultSchema = z.object({
+const adminUndeployResultSchema = z.object({
   isDeployed: z.literal(false),
 })
 
@@ -296,7 +296,7 @@ const adminListResponseSchema = <TSchema extends z.ZodType>(schema: TSchema) =>
     pagination: adminPaginationMetaSchema,
   })
 
-export const adminListWorkflowsContract = defineRouteContract({
+const adminListWorkflowsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/admin/workflows',
   query: adminPaginationQuerySchema,
@@ -306,7 +306,7 @@ export const adminListWorkflowsContract = defineRouteContract({
   },
 })
 
-export const adminGetWorkflowContract = defineRouteContract({
+const adminGetWorkflowContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/admin/workflows/[id]',
   params: adminIdParamsSchema,
@@ -316,7 +316,7 @@ export const adminGetWorkflowContract = defineRouteContract({
   },
 })
 
-export const adminDeleteWorkflowContract = defineRouteContract({
+const adminDeleteWorkflowContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v1/admin/workflows/[id]',
   params: adminIdParamsSchema,
@@ -329,7 +329,7 @@ export const adminDeleteWorkflowContract = defineRouteContract({
   },
 })
 
-export const adminDeployWorkflowContract = defineRouteContract({
+const adminDeployWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/admin/workflows/[id]/deploy',
   params: adminIdParamsSchema,
@@ -339,7 +339,7 @@ export const adminDeployWorkflowContract = defineRouteContract({
   },
 })
 
-export const adminUndeployWorkflowContract = defineRouteContract({
+const adminUndeployWorkflowContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v1/admin/workflows/[id]/deploy',
   params: adminIdParamsSchema,
@@ -349,7 +349,7 @@ export const adminUndeployWorkflowContract = defineRouteContract({
   },
 })
 
-export const adminListWorkflowVersionsContract = defineRouteContract({
+const adminListWorkflowVersionsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/admin/workflows/[id]/versions',
   params: adminIdParamsSchema,
@@ -363,7 +363,7 @@ export const adminListWorkflowVersionsContract = defineRouteContract({
   },
 })
 
-export const adminActivateWorkflowVersionContract = defineRouteContract({
+const adminActivateWorkflowVersionContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/admin/workflows/[id]/versions/[versionId]/activate',
   params: adminWorkflowVersionParamsSchema,
@@ -380,7 +380,7 @@ export const adminActivateWorkflowVersionContract = defineRouteContract({
   },
 })
 
-export const adminExportWorkflowContract = defineRouteContract({
+const adminExportWorkflowContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/admin/workflows/[id]/export',
   params: adminIdParamsSchema,
@@ -390,7 +390,7 @@ export const adminExportWorkflowContract = defineRouteContract({
   },
 })
 
-export const adminExportWorkflowsContract = defineRouteContract({
+const adminExportWorkflowsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/admin/workflows/export',
   query: adminExportFormatQuerySchema,
@@ -400,7 +400,7 @@ export const adminExportWorkflowsContract = defineRouteContract({
   },
 })
 
-export const adminImportWorkflowContract = defineRouteContract({
+const adminImportWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/admin/workflows/import',
   body: adminWorkflowImportBodySchema,
@@ -410,7 +410,7 @@ export const adminImportWorkflowContract = defineRouteContract({
   },
 })
 
-export const adminListWorkspacesContract = defineRouteContract({
+const adminListWorkspacesContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/admin/workspaces',
   query: adminPaginationQuerySchema,
@@ -420,7 +420,7 @@ export const adminListWorkspacesContract = defineRouteContract({
   },
 })
 
-export const adminGetWorkspaceContract = defineRouteContract({
+const adminGetWorkspaceContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/admin/workspaces/[id]',
   params: adminIdParamsSchema,
@@ -430,7 +430,7 @@ export const adminGetWorkspaceContract = defineRouteContract({
   },
 })
 
-export const adminListWorkspaceWorkflowsContract = defineRouteContract({
+const adminListWorkspaceWorkflowsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/admin/workspaces/[id]/workflows',
   params: adminIdParamsSchema,
@@ -441,7 +441,7 @@ export const adminListWorkspaceWorkflowsContract = defineRouteContract({
   },
 })
 
-export const adminDeleteWorkspaceWorkflowsContract = defineRouteContract({
+const adminDeleteWorkspaceWorkflowsContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v1/admin/workspaces/[id]/workflows',
   params: adminIdParamsSchema,
@@ -454,7 +454,7 @@ export const adminDeleteWorkspaceWorkflowsContract = defineRouteContract({
   },
 })
 
-export const adminListWorkspaceFoldersContract = defineRouteContract({
+const adminListWorkspaceFoldersContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/admin/workspaces/[id]/folders',
   params: adminIdParamsSchema,
@@ -465,7 +465,7 @@ export const adminListWorkspaceFoldersContract = defineRouteContract({
   },
 })
 
-export const adminExportWorkspaceContract = defineRouteContract({
+const adminExportWorkspaceContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/admin/workspaces/[id]/export',
   params: adminIdParamsSchema,
@@ -475,7 +475,7 @@ export const adminExportWorkspaceContract = defineRouteContract({
   },
 })
 
-export const adminImportWorkspaceContract = defineRouteContract({
+const adminImportWorkspaceContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/admin/workspaces/[id]/import',
   params: adminIdParamsSchema,
@@ -486,7 +486,7 @@ export const adminImportWorkspaceContract = defineRouteContract({
   },
 })
 
-export const adminListWorkspaceMembersContract = defineRouteContract({
+const adminListWorkspaceMembersContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/admin/workspaces/[id]/members',
   params: adminIdParamsSchema,
@@ -497,7 +497,7 @@ export const adminListWorkspaceMembersContract = defineRouteContract({
   },
 })
 
-export const adminCreateWorkspaceMemberContract = defineRouteContract({
+const adminCreateWorkspaceMemberContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/admin/workspaces/[id]/members',
   params: adminIdParamsSchema,
@@ -512,7 +512,7 @@ export const adminCreateWorkspaceMemberContract = defineRouteContract({
   },
 })
 
-export const adminDeleteWorkspaceMemberContract = defineRouteContract({
+const adminDeleteWorkspaceMemberContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v1/admin/workspaces/[id]/members',
   params: adminIdParamsSchema,
@@ -529,7 +529,7 @@ export const adminDeleteWorkspaceMemberContract = defineRouteContract({
   },
 })
 
-export const adminGetWorkspaceMemberContract = defineRouteContract({
+const adminGetWorkspaceMemberContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/admin/workspaces/[id]/members/[memberId]',
   params: adminWorkspaceMemberParamsSchema,
@@ -539,7 +539,7 @@ export const adminGetWorkspaceMemberContract = defineRouteContract({
   },
 })
 
-export const adminUpdateWorkspaceMemberContract = defineRouteContract({
+const adminUpdateWorkspaceMemberContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v1/admin/workspaces/[id]/members/[memberId]',
   params: adminWorkspaceMemberParamsSchema,
@@ -550,7 +550,7 @@ export const adminUpdateWorkspaceMemberContract = defineRouteContract({
   },
 })
 
-export const adminRemoveWorkspaceMemberContract = defineRouteContract({
+const adminRemoveWorkspaceMemberContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v1/admin/workspaces/[id]/members/[memberId]',
   params: adminWorkspaceMemberParamsSchema,
@@ -567,7 +567,7 @@ export const adminRemoveWorkspaceMemberContract = defineRouteContract({
   },
 })
 
-export const adminExportFolderContract = defineRouteContract({
+const adminExportFolderContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/admin/folders/[id]/export',
   params: adminIdParamsSchema,

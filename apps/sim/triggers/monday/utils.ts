@@ -1,7 +1,7 @@
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
-export const mondayTriggerOptions = [
+const mondayTriggerOptions = [
   { label: 'Item Created', id: 'monday_item_created' },
   { label: 'Column Value Changed', id: 'monday_column_changed' },
   { label: 'Status Changed', id: 'monday_status_changed' },
@@ -29,7 +29,7 @@ export const MONDAY_EVENT_TYPE_MAP: Record<string, string> = {
   monday_update_created: 'create_update',
 }
 
-export function mondaySetupInstructions(eventType: string): string {
+function mondaySetupInstructions(eventType: string): string {
   const instructions = [
     `This trigger automatically subscribes to <strong>${eventType}</strong> events on the specified board.`,
     'Select your <strong>Monday.com account</strong> above.',

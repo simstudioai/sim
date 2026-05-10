@@ -4,6 +4,7 @@ import React from 'react'
 import { Button, Checkbox } from '@/components/emcn'
 import { PlayOutline, Square } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getUnmetGroupDeps } from '@/lib/table/deps'
 import type { SaveReason } from '../../types'
@@ -182,12 +183,19 @@ export const DataRow = React.memo(function DataRow({
           )}
         >
           <div
+            role='checkbox'
+            tabIndex={0}
+            aria-checked={isRowSelected}
+            aria-label={`Select row ${rowIndex + 1}`}
             className='group/checkbox flex h-[20px] shrink-0 items-center justify-center'
             style={{ width: numDivWidth }}
             onMouseDown={(e) => {
               if (e.button !== 0) return
               onRowToggle(rowIndex, e.shiftKey)
             }}
+            onKeyDown={(event) =>
+              handleKeyboardActivation(event, () => onRowToggle(rowIndex, event.shiftKey))
+            }
           >
             <span
               className={cn(
@@ -216,7 +224,7 @@ export const DataRow = React.memo(function DataRow({
               // mr-px keeps the hover bg off the cell's right border — without
               // it the rounded-rect background paints over the divider line
               // while the button is hovered.
-              className='mr-px h-[20px] w-[20px] shrink-0 px-0 py-0 text-[var(--text-primary)] hover-hover:bg-[var(--surface-2)]'
+              className='mr-px size-[20px] shrink-0 p-0 text-[var(--text-primary)] hover-hover:bg-[var(--surface-2)]'
               onClick={() => {
                 if (runningCount > 0) {
                   onStopRow(row.id)
@@ -226,9 +234,9 @@ export const DataRow = React.memo(function DataRow({
               }}
             >
               {runningCount > 0 ? (
-                <Square className='h-[12px] w-[12px]' />
+                <Square className='size-[12px]' />
               ) : (
-                <PlayOutline className='h-[12px] w-[12px]' />
+                <PlayOutline className='size-[12px]' />
               )}
             </Button>
           )}

@@ -9,7 +9,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 /**
  * Output definition for thumbnail image objects
  */
-export const WIKIPEDIA_THUMBNAIL_OUTPUT_PROPERTIES = {
+const WIKIPEDIA_THUMBNAIL_OUTPUT_PROPERTIES = {
   source: { type: 'string', description: 'Thumbnail image URL' },
   width: { type: 'number', description: 'Thumbnail width in pixels' },
   height: { type: 'number', description: 'Thumbnail height in pixels' },
@@ -18,7 +18,7 @@ export const WIKIPEDIA_THUMBNAIL_OUTPUT_PROPERTIES = {
 /**
  * Complete thumbnail output definition
  */
-export const WIKIPEDIA_THUMBNAIL_OUTPUT: OutputProperty = {
+const WIKIPEDIA_THUMBNAIL_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Thumbnail image data',
   optional: true,
@@ -28,7 +28,7 @@ export const WIKIPEDIA_THUMBNAIL_OUTPUT: OutputProperty = {
 /**
  * Output definition for content URL objects (desktop/mobile)
  */
-export const WIKIPEDIA_CONTENT_URL_OUTPUT_PROPERTIES = {
+const WIKIPEDIA_CONTENT_URL_OUTPUT_PROPERTIES = {
   page: { type: 'string', description: 'Page URL' },
   revisions: { type: 'string', description: 'Revisions URL', optional: true },
   edit: { type: 'string', description: 'Edit URL', optional: true },
@@ -38,7 +38,7 @@ export const WIKIPEDIA_CONTENT_URL_OUTPUT_PROPERTIES = {
 /**
  * Complete content URLs output definition
  */
-export const WIKIPEDIA_CONTENT_URLS_OUTPUT_PROPERTIES = {
+const WIKIPEDIA_CONTENT_URLS_OUTPUT_PROPERTIES = {
   desktop: {
     type: 'object',
     description: 'Desktop URLs',
@@ -54,7 +54,7 @@ export const WIKIPEDIA_CONTENT_URLS_OUTPUT_PROPERTIES = {
 /**
  * Complete content URLs output definition
  */
-export const WIKIPEDIA_CONTENT_URLS_OUTPUT: OutputProperty = {
+const WIKIPEDIA_CONTENT_URLS_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'URLs to access the page',
   properties: WIKIPEDIA_CONTENT_URLS_OUTPUT_PROPERTIES,
@@ -63,7 +63,7 @@ export const WIKIPEDIA_CONTENT_URLS_OUTPUT: OutputProperty = {
 /**
  * Output definition for page summary objects
  */
-export const WIKIPEDIA_PAGE_SUMMARY_OUTPUT_PROPERTIES = {
+const WIKIPEDIA_PAGE_SUMMARY_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'Page type (standard, disambiguation, etc.)' },
   title: { type: 'string', description: 'Page title' },
   displaytitle: { type: 'string', description: 'Display title with formatting' },
@@ -97,7 +97,7 @@ export const WIKIPEDIA_PAGE_SUMMARY_OUTPUT_PROPERTIES = {
 /**
  * Complete page summary output definition
  */
-export const WIKIPEDIA_PAGE_SUMMARY_OUTPUT: OutputProperty = {
+const WIKIPEDIA_PAGE_SUMMARY_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Wikipedia page summary and metadata',
   properties: WIKIPEDIA_PAGE_SUMMARY_OUTPUT_PROPERTIES,
@@ -106,7 +106,7 @@ export const WIKIPEDIA_PAGE_SUMMARY_OUTPUT: OutputProperty = {
 /**
  * Output definition for search result items
  */
-export const WIKIPEDIA_SEARCH_RESULT_OUTPUT_PROPERTIES = {
+const WIKIPEDIA_SEARCH_RESULT_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Result index' },
   key: { type: 'string', description: 'URL-friendly page key' },
   title: { type: 'string', description: 'Page title' },
@@ -132,7 +132,7 @@ export const WIKIPEDIA_SEARCH_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete search result output definition
  */
-export const WIKIPEDIA_SEARCH_RESULT_OUTPUT: OutputProperty = {
+const WIKIPEDIA_SEARCH_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Wikipedia search result',
   properties: WIKIPEDIA_SEARCH_RESULT_OUTPUT_PROPERTIES,
@@ -141,7 +141,7 @@ export const WIKIPEDIA_SEARCH_RESULT_OUTPUT: OutputProperty = {
 /**
  * Output definition for page content objects
  */
-export const WIKIPEDIA_PAGE_CONTENT_OUTPUT_PROPERTIES = {
+const WIKIPEDIA_PAGE_CONTENT_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Page title' },
   pageid: { type: 'number', description: 'Wikipedia page ID' },
   html: { type: 'string', description: 'Full HTML content of the page' },
@@ -155,7 +155,7 @@ export const WIKIPEDIA_PAGE_CONTENT_OUTPUT_PROPERTIES = {
 /**
  * Complete page content output definition
  */
-export const WIKIPEDIA_PAGE_CONTENT_OUTPUT: OutputProperty = {
+const WIKIPEDIA_PAGE_CONTENT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Full HTML content and metadata of the Wikipedia page',
   properties: WIKIPEDIA_PAGE_CONTENT_OUTPUT_PROPERTIES,
@@ -164,7 +164,7 @@ export const WIKIPEDIA_PAGE_CONTENT_OUTPUT: OutputProperty = {
 /**
  * Output definition for random page objects (subset of summary)
  */
-export const WIKIPEDIA_RANDOM_PAGE_OUTPUT_PROPERTIES = {
+const WIKIPEDIA_RANDOM_PAGE_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'Page type' },
   title: { type: 'string', description: 'Page title' },
   displaytitle: { type: 'string', description: 'Display title' },
@@ -195,7 +195,7 @@ export const WIKIPEDIA_RANDOM_PAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete random page output definition
  */
-export const WIKIPEDIA_RANDOM_PAGE_OUTPUT: OutputProperty = {
+const WIKIPEDIA_RANDOM_PAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Random Wikipedia page data',
   properties: WIKIPEDIA_RANDOM_PAGE_OUTPUT_PROPERTIES,
@@ -206,7 +206,7 @@ export interface WikipediaPageSummaryParams {
   pageTitle: string
 }
 
-export interface WikipediaPageSummary {
+interface WikipediaPageSummary {
   type: string
   title: string
   displaytitle: string
@@ -260,7 +260,7 @@ export interface WikipediaSearchParams {
   searchLimit?: number
 }
 
-export interface WikipediaSearchResult {
+interface WikipediaSearchResult {
   id: number
   key: string
   title: string
@@ -291,7 +291,7 @@ export interface WikipediaPageContentParams {
   pageTitle: string
 }
 
-export interface WikipediaPageContent {
+interface WikipediaPageContent {
   title: string
   pageid: number
   html: string
@@ -309,7 +309,7 @@ export interface WikipediaPageContentResponse extends ToolResponse {
 }
 
 // Random Page tool types
-export interface WikipediaRandomPage {
+interface WikipediaRandomPage {
   type: string
   title: string
   displaytitle: string

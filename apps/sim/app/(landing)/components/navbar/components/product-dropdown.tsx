@@ -87,7 +87,7 @@ function DropdownLink({ link }: { link: ProductLink }) {
       {...props}
       className='group/item flex items-start gap-2.5 rounded-[5px] px-2.5 py-2 transition-colors hover:bg-[var(--landing-bg-elevated)]'
     >
-      <Icon className='mt-0.5 h-[15px] w-[15px] shrink-0 text-[var(--landing-text-icon)]' />
+      <Icon className='mt-0.5 size-[15px] shrink-0 text-[var(--landing-text-icon)]' />
       <div className='flex flex-col'>
         <span className='font-[430] font-season text-[13px] text-white leading-tight'>
           {link.label}

@@ -37,7 +37,7 @@ export interface EnvVarResolveOptions {
  * - `onMissing: 'keep'` - Unknown patterns pass through (e.g., Grafana's `{{instance}}`)
  * - `deep: false` - Only processes strings by default; set `true` for nested objects
  */
-export const ENV_VAR_RESOLVE_DEFAULTS: Required<Omit<EnvVarResolveOptions, 'missingKeys'>> = {
+const ENV_VAR_RESOLVE_DEFAULTS: Required<Omit<EnvVarResolveOptions, 'missingKeys'>> = {
   resolveExactMatch: true,
   allowEmbedded: true,
   trimKeys: true,

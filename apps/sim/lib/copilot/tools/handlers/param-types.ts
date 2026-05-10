@@ -218,7 +218,7 @@ export interface DeleteWorkspaceMcpServerParams {
   serverId: string
 }
 
-export type OpenResourceType = MothershipResourceType
+type OpenResourceType = MothershipResourceType
 
 export interface OpenResourceItem {
   type?: OpenResourceType

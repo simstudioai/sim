@@ -689,7 +689,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                       disabled={connectSlack.isPending}
                       className='flex items-center gap-2'
                     >
-                      <SlackIcon className='h-[11px] w-[11px]' />
+                      <SlackIcon className='size-[11px]' />
                       {connectSlack.isPending ? 'Connecting...' : 'Connect Slack'}
                     </Button>
                   </div>
@@ -771,7 +771,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                         }}
                       >
                         {level}
-                        <X className='h-3 w-3' />
+                        <X className='size-3' />
                       </Badge>
                     ))}
                   </div>
@@ -817,7 +817,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                         }}
                       >
                         {trigger}
-                        <X className='h-3 w-3' />
+                        <X className='size-3' />
                       </Badge>
                     ))}
                     {formData.triggerFilter.length > 6 && (
@@ -897,7 +897,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                         }}
                       >
                         {labels[key]}
-                        <X className='h-3 w-3' />
+                        <X className='size-3' />
                       </Badge>
                     ))}
                     {selected.length > 2 && (
@@ -1249,7 +1249,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                 variant='primary'
                 disabled={isLoading}
               >
-                <Plus className='mr-1.5 h-[13px] w-[13px]' />
+                <Plus className='mr-1.5 size-[13px]' />
                 Add
               </Button>
             )}

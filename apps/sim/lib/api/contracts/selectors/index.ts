@@ -120,7 +120,7 @@ export * from '@/lib/api/contracts/selectors/wealthbox'
 export * from '@/lib/api/contracts/selectors/webflow'
 export * from '@/lib/api/contracts/selectors/zoom'
 
-export const selectorContractsByPath = {
+const selectorContractsByPath = {
   '/api/tools/airtable/bases': airtableBasesSelectorContract,
   '/api/tools/airtable/tables': airtableTablesSelectorContract,
   '/api/tools/asana/workspaces': asanaWorkspacesSelectorContract,
@@ -186,4 +186,4 @@ export const selectorContractsByPath = {
   '/api/tools/cloudwatch/describe-log-streams': cloudwatchLogStreamsSelectorContract,
 } as const
 
-export type SelectorContractPath = keyof typeof selectorContractsByPath
+type SelectorContractPath = keyof typeof selectorContractsByPath

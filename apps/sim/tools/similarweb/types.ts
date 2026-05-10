@@ -3,7 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 /**
  * Common parameters for all SimilarWeb API endpoints
  */
-export interface SimilarwebBaseParams {
+interface SimilarwebBaseParams {
   apiKey: string
   domain: string
 }
@@ -11,7 +11,7 @@ export interface SimilarwebBaseParams {
 /**
  * Parameters for time-series endpoints (visits, bounce rate, etc.)
  */
-export interface SimilarwebTimeSeriesParams extends SimilarwebBaseParams {
+interface SimilarwebTimeSeriesParams extends SimilarwebBaseParams {
   country: string
   granularity: 'daily' | 'weekly' | 'monthly'
   startDate?: string

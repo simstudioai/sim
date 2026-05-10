@@ -32,7 +32,7 @@ const searchCostSchema = z.object({
   }),
 })
 
-export const searchToolResponseSchema = z.object({
+const searchToolResponseSchema = z.object({
   results: z.array(searchResultSchema),
   query: z.string(),
   totalResults: z.number(),
@@ -40,7 +40,7 @@ export const searchToolResponseSchema = z.object({
   cost: searchCostSchema,
 })
 
-export const searchToolBodySchema = z.object({
+const searchToolBodySchema = z.object({
   query: z.string().min(1),
 })
 
@@ -51,6 +51,6 @@ export const searchToolContract = defineRouteContract({
   response: { mode: 'json', schema: searchToolResponseSchema },
 })
 
-export type SearchToolBody = ContractBody<typeof searchToolContract>
-export type SearchToolBodyInput = ContractBodyInput<typeof searchToolContract>
-export type SearchToolResponse = ContractJsonResponse<typeof searchToolContract>
+type SearchToolBody = ContractBody<typeof searchToolContract>
+type SearchToolBodyInput = ContractBodyInput<typeof searchToolContract>
+type SearchToolResponse = ContractJsonResponse<typeof searchToolContract>

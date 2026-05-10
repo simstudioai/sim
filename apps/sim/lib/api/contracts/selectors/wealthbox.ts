@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { defineGetSelector, optionalString } from '@/lib/api/contracts/selectors/shared'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 
-export const WEALTHBOX_ITEM_TYPES = ['note', 'contact', 'task'] as const
+const WEALTHBOX_ITEM_TYPES = ['note', 'contact', 'task'] as const
 
 const wealthboxItemSchema = z.object({
   id: z.string(),
@@ -21,7 +21,7 @@ const wealthboxItemResponseSchema = z.object({
   item: wealthboxItemSchema.optional(),
 })
 
-export const wealthboxItemsQuerySchema = z.object({
+const wealthboxItemsQuerySchema = z.object({
   credentialId: z.string().min(1),
   type: z.preprocess(
     (value) => (value === '' || value === undefined ? 'contact' : value),
@@ -33,7 +33,7 @@ export const wealthboxItemsQuerySchema = z.object({
   ),
 })
 
-export const wealthboxItemQuerySchema = z.object({
+const wealthboxItemQuerySchema = z.object({
   credentialId: z.preprocess(
     (value) => value ?? '',
     z.string().min(1, 'Credential ID is required')
@@ -69,9 +69,7 @@ export const wealthboxOAuthItemContract = defineGetSelector(
   wealthboxItemResponseSchema
 )
 
-export type WealthboxItemsSelectorResponse = ContractJsonResponse<
-  typeof wealthboxItemsSelectorContract
->
-export type WealthboxItemResponse = ContractJsonResponse<typeof wealthboxItemContract>
-export type WealthboxOAuthItemsResponse = ContractJsonResponse<typeof wealthboxOAuthItemsContract>
-export type WealthboxOAuthItemResponse = ContractJsonResponse<typeof wealthboxOAuthItemContract>
+type WealthboxItemsSelectorResponse = ContractJsonResponse<typeof wealthboxItemsSelectorContract>
+type WealthboxItemResponse = ContractJsonResponse<typeof wealthboxItemContract>
+type WealthboxOAuthItemsResponse = ContractJsonResponse<typeof wealthboxOAuthItemsContract>
+type WealthboxOAuthItemResponse = ContractJsonResponse<typeof wealthboxOAuthItemContract>

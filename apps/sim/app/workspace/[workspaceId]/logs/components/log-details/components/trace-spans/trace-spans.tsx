@@ -271,12 +271,12 @@ function InputOutputSection({
                         e.stopPropagation()
                         handleCopy()
                       }}
-                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                      className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                     >
                       {copied ? (
-                        <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
+                        <Check className='size-[10px] text-[var(--text-success)]' />
                       ) : (
-                        <Clipboard className='h-[10px] w-[10px]' />
+                        <Clipboard className='size-[10px]' />
                       )}
                     </Button>
                   </Tooltip.Trigger>
@@ -291,9 +291,9 @@ function InputOutputSection({
                         e.stopPropagation()
                         activateSearch()
                       }}
-                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                      className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                     >
-                      <Search className='h-[10px] w-[10px]' />
+                      <Search className='size-[10px]' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>Search</Tooltip.Content>
@@ -305,6 +305,7 @@ function InputOutputSection({
           {/* Search Overlay */}
           {isSearchActive && (
             <div
+              role='presentation'
               className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-sm'
               onClick={(e) => e.stopPropagation()}
             >
@@ -331,7 +332,7 @@ function InputOutputSection({
                 disabled={matchCount === 0}
                 aria-label='Previous match'
               >
-                <ArrowUp className='h-[12px] w-[12px]' />
+                <ArrowUp className='size-[12px]' />
               </Button>
               <Button
                 variant='ghost'
@@ -340,7 +341,7 @@ function InputOutputSection({
                 disabled={matchCount === 0}
                 aria-label='Next match'
               >
-                <ArrowDown className='h-[12px] w-[12px]' />
+                <ArrowDown className='size-[12px]' />
               </Button>
               <Button
                 variant='ghost'
@@ -348,7 +349,7 @@ function InputOutputSection({
                 onClick={closeSearch}
                 aria-label='Close search'
               >
-                <X className='h-[12px] w-[12px]' />
+                <X className='size-[12px]' />
               </Button>
             </div>
           )}
@@ -493,29 +494,29 @@ const TraceSpanNode = memo(function TraceSpanNode({
           'group flex items-center justify-between gap-2 py-1.5',
           isToggleable && 'cursor-pointer'
         )}
-        onClick={isToggleable ? () => onToggleNode(spanId) : undefined}
-        onKeyDown={
-          isToggleable
-            ? (e) => {
+        {...(isToggleable
+          ? {
+              onClick: () => onToggleNode(spanId),
+              onKeyDown: (e: React.KeyboardEvent) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
                   onToggleNode(spanId)
                 }
-              }
-            : undefined
-        }
-        role={isToggleable ? 'button' : undefined}
-        tabIndex={isToggleable ? 0 : undefined}
-        aria-expanded={isToggleable ? isExpanded : undefined}
-        aria-label={isToggleable ? (isExpanded ? 'Collapse' : 'Expand') : undefined}
+              },
+              role: 'button' as const,
+              tabIndex: 0,
+              'aria-expanded': isExpanded,
+              'aria-label': isExpanded ? 'Collapse' : 'Expand',
+            }
+          : {})}
       >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           {!isIterationType(span.type) && (
             <div
-              className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+              className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
               style={{ background: bgColor }}
             >
-              {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+              {BlockIcon && <BlockIcon className='size-[9px] text-white' />}
             </div>
           )}
           <span
@@ -526,7 +527,7 @@ const TraceSpanNode = memo(function TraceSpanNode({
           </span>
           {isToggleable && (
             <ChevronDown
-              className='h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-colors transition-transform duration-100 group-hover:text-[var(--text-primary)]'
+              className='size-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-colors transition-transform duration-100 group-hover:text-[var(--text-primary)]'
               style={{
                 transform: `translateY(-0.25px) ${isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)'}`,
               }}

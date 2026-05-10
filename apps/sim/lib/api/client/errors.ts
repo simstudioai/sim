@@ -62,7 +62,7 @@ function normalizeIssue(raw: unknown): ValidationIssue | null {
  * Returns an empty array when the error isn't a recognised validation shape so
  * callers can fall back to toast/log paths.
  */
-export function extractValidationIssues(error: unknown): ValidationIssue[] {
+function extractValidationIssues(error: unknown): ValidationIssue[] {
   if (!error || typeof error !== 'object') return []
 
   if (isApiClientError(error)) {

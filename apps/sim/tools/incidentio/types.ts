@@ -10,7 +10,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Output definition for severity objects.
  * @see https://api-docs.incident.io/#tag/Severities
  */
-export const INCIDENTIO_SEVERITY_OUTPUT_PROPERTIES = {
+const INCIDENTIO_SEVERITY_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Severity ID' },
   name: { type: 'string', description: 'Severity name (e.g., Critical, Major, Minor)' },
   description: { type: 'string', description: 'Severity description' },
@@ -21,7 +21,7 @@ export const INCIDENTIO_SEVERITY_OUTPUT_PROPERTIES = {
  * Output definition for status objects.
  * @see https://api-docs.incident.io/#tag/Incident-Statuses
  */
-export const INCIDENTIO_STATUS_OUTPUT_PROPERTIES = {
+const INCIDENTIO_STATUS_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Status ID' },
   name: { type: 'string', description: 'Status name' },
   description: { type: 'string', description: 'Status description' },
@@ -35,7 +35,7 @@ export const INCIDENTIO_STATUS_OUTPUT_PROPERTIES = {
  * Output definition for incident type objects.
  * @see https://api-docs.incident.io/#tag/Incident-Types
  */
-export const INCIDENTIO_INCIDENT_TYPE_OUTPUT_PROPERTIES = {
+const INCIDENTIO_INCIDENT_TYPE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Incident type ID' },
   name: { type: 'string', description: 'Incident type name' },
   description: { type: 'string', description: 'Incident type description' },
@@ -46,7 +46,7 @@ export const INCIDENTIO_INCIDENT_TYPE_OUTPUT_PROPERTIES = {
  * Output definition for user objects.
  * @see https://api-docs.incident.io/#tag/Users
  */
-export const INCIDENTIO_USER_OUTPUT_PROPERTIES = {
+const INCIDENTIO_USER_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'User ID' },
   name: { type: 'string', description: 'User display name' },
   email: { type: 'string', description: 'User email address' },
@@ -102,7 +102,7 @@ export const INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES = {
 /**
  * Complete incident output definition
  */
-export const INCIDENTIO_INCIDENT_OUTPUT: OutputProperty = {
+const INCIDENTIO_INCIDENT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Incident.io incident object',
   properties: INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES,
@@ -112,7 +112,7 @@ export const INCIDENTIO_INCIDENT_OUTPUT: OutputProperty = {
  * Output definition for action objects.
  * @see https://api-docs.incident.io/#tag/Actions
  */
-export const INCIDENTIO_ACTION_OUTPUT_PROPERTIES = {
+const INCIDENTIO_ACTION_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Action ID' },
   description: { type: 'string', description: 'Action description' },
   assignee: {
@@ -132,7 +132,7 @@ export const INCIDENTIO_ACTION_OUTPUT_PROPERTIES = {
 /**
  * Complete action output definition
  */
-export const INCIDENTIO_ACTION_OUTPUT: OutputProperty = {
+const INCIDENTIO_ACTION_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Incident.io action object',
   properties: INCIDENTIO_ACTION_OUTPUT_PROPERTIES,
@@ -142,7 +142,7 @@ export const INCIDENTIO_ACTION_OUTPUT: OutputProperty = {
  * Output definition for follow-up objects.
  * @see https://api-docs.incident.io/#tag/Follow-ups
  */
-export const INCIDENTIO_FOLLOW_UP_OUTPUT_PROPERTIES = {
+const INCIDENTIO_FOLLOW_UP_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Follow-up ID' },
   title: { type: 'string', description: 'Follow-up title' },
   description: { type: 'string', description: 'Follow-up description', optional: true },
@@ -162,7 +162,7 @@ export const INCIDENTIO_FOLLOW_UP_OUTPUT_PROPERTIES = {
 /**
  * Complete follow-up output definition
  */
-export const INCIDENTIO_FOLLOW_UP_OUTPUT: OutputProperty = {
+const INCIDENTIO_FOLLOW_UP_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Incident.io follow-up object',
   properties: INCIDENTIO_FOLLOW_UP_OUTPUT_PROPERTIES,
@@ -172,7 +172,7 @@ export const INCIDENTIO_FOLLOW_UP_OUTPUT: OutputProperty = {
  * Output definition for workflow objects.
  * @see https://api-docs.incident.io/#tag/Workflows
  */
-export const INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES = {
+const INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Workflow ID' },
   name: { type: 'string', description: 'Workflow name' },
   state: { type: 'string', description: 'Workflow state (active, draft, disabled)' },
@@ -184,7 +184,7 @@ export const INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES = {
 /**
  * Complete workflow output definition
  */
-export const INCIDENTIO_WORKFLOW_OUTPUT: OutputProperty = {
+const INCIDENTIO_WORKFLOW_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Incident.io workflow object',
   properties: INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES,
@@ -194,7 +194,7 @@ export const INCIDENTIO_WORKFLOW_OUTPUT: OutputProperty = {
  * Output definition for custom field objects.
  * @see https://api-docs.incident.io/#tag/Custom-Fields
  */
-export const INCIDENTIO_CUSTOM_FIELD_OUTPUT_PROPERTIES = {
+const INCIDENTIO_CUSTOM_FIELD_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Custom field ID' },
   name: { type: 'string', description: 'Custom field name' },
   description: { type: 'string', description: 'Custom field description', optional: true },
@@ -209,7 +209,7 @@ export const INCIDENTIO_CUSTOM_FIELD_OUTPUT_PROPERTIES = {
 /**
  * Complete custom field output definition
  */
-export const INCIDENTIO_CUSTOM_FIELD_OUTPUT: OutputProperty = {
+const INCIDENTIO_CUSTOM_FIELD_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Incident.io custom field object',
   properties: INCIDENTIO_CUSTOM_FIELD_OUTPUT_PROPERTIES,
@@ -219,7 +219,7 @@ export const INCIDENTIO_CUSTOM_FIELD_OUTPUT: OutputProperty = {
  * Output definition for schedule objects.
  * @see https://api-docs.incident.io/#tag/Schedules
  */
-export const INCIDENTIO_SCHEDULE_OUTPUT_PROPERTIES = {
+const INCIDENTIO_SCHEDULE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Schedule ID' },
   name: { type: 'string', description: 'Schedule name' },
   timezone: { type: 'string', description: 'Schedule timezone' },
@@ -230,7 +230,7 @@ export const INCIDENTIO_SCHEDULE_OUTPUT_PROPERTIES = {
 /**
  * Complete schedule output definition
  */
-export const INCIDENTIO_SCHEDULE_OUTPUT: OutputProperty = {
+const INCIDENTIO_SCHEDULE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Incident.io schedule object',
   properties: INCIDENTIO_SCHEDULE_OUTPUT_PROPERTIES,
@@ -240,7 +240,7 @@ export const INCIDENTIO_SCHEDULE_OUTPUT: OutputProperty = {
  * Output definition for incident role objects.
  * @see https://api-docs.incident.io/#tag/Incident-Roles
  */
-export const INCIDENTIO_INCIDENT_ROLE_OUTPUT_PROPERTIES = {
+const INCIDENTIO_INCIDENT_ROLE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Incident role ID' },
   name: { type: 'string', description: 'Role name' },
   description: { type: 'string', description: 'Role description', optional: true },
@@ -255,7 +255,7 @@ export const INCIDENTIO_INCIDENT_ROLE_OUTPUT_PROPERTIES = {
 /**
  * Complete incident role output definition
  */
-export const INCIDENTIO_INCIDENT_ROLE_OUTPUT: OutputProperty = {
+const INCIDENTIO_INCIDENT_ROLE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Incident.io incident role object',
   properties: INCIDENTIO_INCIDENT_ROLE_OUTPUT_PROPERTIES,
@@ -271,7 +271,7 @@ export const INCIDENTIO_PAGINATION_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 // Common parameters for all incident.io tools
-export interface IncidentioBaseParams {
+interface IncidentioBaseParams {
   apiKey: string
 }
 
@@ -281,7 +281,7 @@ export interface IncidentioIncidentsListParams extends IncidentioBaseParams {
   after?: string
 }
 
-export interface IncidentioIncident {
+interface IncidentioIncident {
   id: string
   name: string
   summary?: string
@@ -341,7 +341,7 @@ export interface IncidentioIncidentsShowParams extends IncidentioBaseParams {
   id: string
 }
 
-export interface IncidentioIncidentDetailed extends IncidentioIncident {
+interface IncidentioIncidentDetailed extends IncidentioIncident {
   description?: string
   mode?: string
   permalink?: string
@@ -398,7 +398,7 @@ export interface IncidentioActionsListParams extends IncidentioBaseParams {
   incident_id?: string
 }
 
-export interface IncidentioAction {
+interface IncidentioAction {
   id: string
   description: string
   assignee?: {
@@ -447,7 +447,7 @@ export interface IncidentioFollowUpsListParams extends IncidentioBaseParams {
   incident_id?: string
 }
 
-export interface IncidentioFollowUp {
+interface IncidentioFollowUp {
   id: string
   title: string
   description?: string
@@ -499,7 +499,7 @@ export interface IncidentioFollowUpsShowResponse extends ToolResponse {
 }
 
 // Workflow types
-export interface Workflow {
+interface Workflow {
   id: string
   name: string
   state: 'active' | 'draft' | 'disabled'
@@ -584,9 +584,9 @@ export interface WorkflowsDeleteResponse extends ToolResponse {
 }
 
 // Custom field types
-export type CustomFieldType = 'text' | 'single_select' | 'multi_select' | 'numeric' | 'link'
+type CustomFieldType = 'text' | 'single_select' | 'multi_select' | 'numeric' | 'link'
 
-export interface CustomField {
+interface CustomField {
   id: string
   name: string
   description?: string
@@ -596,7 +596,7 @@ export interface CustomField {
   options?: CustomFieldOption[]
 }
 
-export interface CustomFieldOption {
+interface CustomFieldOption {
   id: string
   value: string
   sort_key: number
@@ -665,7 +665,7 @@ export interface IncidentioUsersListParams extends IncidentioBaseParams {
   after?: string
 }
 
-export interface IncidentioUser {
+interface IncidentioUser {
   id: string
   name: string
   email: string
@@ -697,7 +697,7 @@ export interface IncidentioUsersShowResponse extends ToolResponse {
 // Severities list tool types
 export interface IncidentioSeveritiesListParams extends IncidentioBaseParams {}
 
-export interface IncidentioSeverity {
+interface IncidentioSeverity {
   id: string
   name: string
   description: string
@@ -713,7 +713,7 @@ export interface IncidentioSeveritiesListResponse extends ToolResponse {
 // Incident statuses list tool types
 export interface IncidentioIncidentStatusesListParams extends IncidentioBaseParams {}
 
-export interface IncidentioIncidentStatus {
+interface IncidentioIncidentStatus {
   id: string
   name: string
   description: string
@@ -729,7 +729,7 @@ export interface IncidentioIncidentStatusesListResponse extends ToolResponse {
 // Incident types list tool types
 export interface IncidentioIncidentTypesListParams extends IncidentioBaseParams {}
 
-export interface IncidentioIncidentType {
+interface IncidentioIncidentType {
   id: string
   name: string
   description: string
@@ -792,7 +792,7 @@ export type IncidentioResponse =
 // Escalations types
 export interface IncidentioEscalationsListParams extends IncidentioBaseParams {}
 
-export interface IncidentioEscalation {
+interface IncidentioEscalation {
   id: string
   name: string
   created_at?: string
@@ -834,7 +834,7 @@ export interface IncidentioSchedulesListParams extends IncidentioBaseParams {
   after?: string
 }
 
-export interface IncidentioSchedule {
+interface IncidentioSchedule {
   id: string
   name: string
   timezone: string
@@ -898,7 +898,7 @@ export interface IncidentioSchedulesDeleteResponse extends ToolResponse {
 }
 
 // Incident Roles types
-export interface IncidentioIncidentRole {
+interface IncidentioIncidentRole {
   id: string
   name: string
   description?: string
@@ -966,7 +966,7 @@ export interface IncidentioIncidentRolesDeleteResponse extends ToolResponse {
 }
 
 // Incident Timestamps types
-export interface IncidentioIncidentTimestamp {
+interface IncidentioIncidentTimestamp {
   id: string
   name: string
   rank: number
@@ -993,7 +993,7 @@ export interface IncidentioIncidentTimestampsShowResponse extends ToolResponse {
 }
 
 // Incident Updates types
-export interface IncidentioIncidentUpdate {
+interface IncidentioIncidentUpdate {
   id: string
   incident_id: string
   message: string
@@ -1033,7 +1033,7 @@ export interface IncidentioIncidentUpdatesListResponse extends ToolResponse {
 }
 
 // Schedule Entries types
-export interface IncidentioScheduleEntry {
+interface IncidentioScheduleEntry {
   id: string
   schedule_id: string
   user: {
@@ -1068,7 +1068,7 @@ export interface IncidentioScheduleEntriesListResponse extends ToolResponse {
 }
 
 // Schedule Overrides types
-export interface IncidentioScheduleOverride {
+interface IncidentioScheduleOverride {
   id: string
   rotation_id: string
   schedule_id: string
@@ -1100,7 +1100,7 @@ export interface IncidentioScheduleOverridesCreateResponse extends ToolResponse 
 }
 
 // Escalation Paths types
-export interface IncidentioEscalationPathTarget {
+interface IncidentioEscalationPathTarget {
   id: string
   type: string
   schedule_id?: string
@@ -1108,12 +1108,12 @@ export interface IncidentioEscalationPathTarget {
   urgency: string
 }
 
-export interface IncidentioEscalationPathLevel {
+interface IncidentioEscalationPathLevel {
   targets: IncidentioEscalationPathTarget[]
   time_to_ack_seconds: number
 }
 
-export interface IncidentioEscalationPath {
+interface IncidentioEscalationPath {
   id: string
   name: string
   path: IncidentioEscalationPathLevel[]

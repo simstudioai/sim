@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 import { Checkbox } from '@/components/emcn'
 import {
   ChevronDown,
@@ -50,9 +50,9 @@ const TABLE_METAS: Record<string, string> = {
   '5': 'Invoice Records',
 }
 
-const TABLE_ICON = <Table className='h-[14px] w-[14px]' />
-const COLUMNS_ICON = <Columns3 className='h-[14px] w-[14px]' />
-const ROWS_ICON = <Rows3 className='h-[14px] w-[14px]' />
+const TABLE_ICON = <Table className='size-[14px]' />
+const COLUMNS_ICON = <Columns3 className='size-[14px]' />
+const ROWS_ICON = <Rows3 className='size-[14px]' />
 
 const LIST_ROWS: PreviewRow[] = [
   {
@@ -440,7 +440,7 @@ function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
             onClick={onBack}
             className='inline-flex items-center px-2 py-1 font-medium text-[var(--text-secondary)] text-sm transition-colors hover-hover:text-[var(--text-body)]'
           >
-            <Table className='mr-3 h-[14px] w-[14px] text-[var(--text-icon)]' />
+            <Table className='mr-3 size-[14px] text-[var(--text-icon)]' />
             Tables
           </button>
           <span className='select-none text-[var(--text-icon)] text-sm'>/</span>
@@ -468,7 +468,7 @@ function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
                 return (
                   <th key={col.id} className={CELL_HEADER}>
                     <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
-                      <Icon className='h-3 w-3 shrink-0 text-[var(--text-icon)]' />
+                      <Icon className='size-3 shrink-0 text-[var(--text-icon)]' />
                       <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
                         {col.label}
                       </span>
@@ -549,36 +549,34 @@ export function LandingPreviewTables({ autoOpenTableId }: LandingPreviewTablesPr
   }, [autoOpenTableId])
 
   return (
-    <AnimatePresence mode='wait'>
-      {openTableId !== null ? (
-        <motion.div
-          key={`spreadsheet-${openTableId}`}
-          className='flex h-full flex-1 flex-col'
-          {...tableViewTransition}
-        >
-          <SpreadsheetView
-            tableId={openTableId}
-            tableName={TABLE_METAS[openTableId] ?? 'Table'}
-            onBack={() => setOpenTableId(null)}
-          />
-        </motion.div>
-      ) : (
-        <motion.div
-          key='table-list'
-          className='flex h-full flex-1 flex-col'
-          {...tableViewTransition}
-        >
-          <LandingPreviewResource
-            icon={Table}
-            title='Tables'
-            createLabel='New table'
-            searchPlaceholder='Search tables...'
-            columns={LIST_COLUMNS}
-            rows={LIST_ROWS}
-            onRowClick={(id) => setOpenTableId(id)}
-          />
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <LazyMotion features={domAnimation}>
+      <AnimatePresence mode='wait'>
+        {openTableId !== null ? (
+          <m.div
+            key={`spreadsheet-${openTableId}`}
+            className='flex h-full flex-1 flex-col'
+            {...tableViewTransition}
+          >
+            <SpreadsheetView
+              tableId={openTableId}
+              tableName={TABLE_METAS[openTableId] ?? 'Table'}
+              onBack={() => setOpenTableId(null)}
+            />
+          </m.div>
+        ) : (
+          <m.div key='table-list' className='flex h-full flex-1 flex-col' {...tableViewTransition}>
+            <LandingPreviewResource
+              icon={Table}
+              title='Tables'
+              createLabel='New table'
+              searchPlaceholder='Search tables...'
+              columns={LIST_COLUMNS}
+              rows={LIST_ROWS}
+              onRowClick={(id) => setOpenTableId(id)}
+            />
+          </m.div>
+        )}
+      </AnimatePresence>
+    </LazyMotion>
   )
 }

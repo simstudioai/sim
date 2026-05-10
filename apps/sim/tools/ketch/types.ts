@@ -72,11 +72,11 @@ export interface KetchInvokeRightResponse extends ToolResponse {
   }
 }
 
-export interface SubscriptionControlSetting {
+interface SubscriptionControlSetting {
   status: string
 }
 
-export interface SubscriptionTopicContactMethodSetting {
+interface SubscriptionTopicContactMethodSetting {
   status: string
 }
 

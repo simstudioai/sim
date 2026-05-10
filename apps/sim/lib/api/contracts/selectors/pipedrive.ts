@@ -12,6 +12,6 @@ export const pipedrivePipelinesSelectorContract = definePostSelector(
   z.object({ pipelines: z.array(idNameSchema) })
 )
 
-export type PipedrivePipelinesSelectorResponse = ContractJsonResponse<
+type PipedrivePipelinesSelectorResponse = ContractJsonResponse<
   typeof pipedrivePipelinesSelectorContract
 >

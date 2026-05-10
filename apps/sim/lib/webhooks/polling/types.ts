@@ -23,7 +23,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-export function getProviderConfigRecord(
+function getProviderConfigRecord(
   providerConfig: WebhookRecord['providerConfig']
 ): Record<string, unknown> {
   return isRecord(providerConfig) ? providerConfig : {}

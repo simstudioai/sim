@@ -30,6 +30,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndex,
@@ -324,6 +325,8 @@ function ConnectionsSection({
       {/* Resize Handle */}
       <div className='relative'>
         <div
+          role='separator'
+          aria-orientation='horizontal'
           className='absolute top-[-4px] right-0 left-0 z-30 h-[8px] cursor-ns-resize'
           onMouseDown={onResizeMouseDown}
         />
@@ -362,14 +365,21 @@ function ConnectionsSection({
             <div key={connection.blockId} className='mb-0.5 last:mb-0'>
               {/* Block header - styled like ConnectionItem */}
               <div
+                role='button'
+                tabIndex={hasFields ? 0 : undefined}
+                aria-expanded={hasFields ? isExpanded : undefined}
                 className={cn(
                   'group flex h-[26px] items-center gap-2 rounded-lg px-1.5 text-sm hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]',
                   hasFields && 'cursor-pointer'
                 )}
                 onClick={() => hasFields && toggleBlock(connection.blockId)}
+                onKeyDown={(event) => {
+                  if (!hasFields) return
+                  handleKeyboardActivation(event, () => toggleBlock(connection.blockId))
+                }}
               >
                 <div
-                  className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                  className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
                   style={{ background: bgColor }}
                 >
                   {Icon && (
@@ -434,10 +444,16 @@ function ConnectionsSection({
         {workflowVars.length > 0 && (
           <div className='mb-0.5 last:mb-0'>
             <div
+              role='button'
+              tabIndex={0}
+              aria-expanded={expandedVariables}
               className='group flex h-[26px] cursor-pointer items-center gap-2 rounded-lg px-1.5 text-sm hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
               onClick={() => setExpandedVariables(!expandedVariables)}
+              onKeyDown={(event) =>
+                handleKeyboardActivation(event, () => setExpandedVariables(!expandedVariables))
+              }
             >
-              <div className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#8B5CF6]'>
+              <div className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#8B5CF6]'>
                 <span className='font-bold text-[9px] text-white'>V</span>
               </div>
               <span
@@ -480,10 +496,16 @@ function ConnectionsSection({
         {envVars.length > 0 && (
           <div className='mb-0.5 last:mb-0'>
             <div
+              role='button'
+              tabIndex={0}
+              aria-expanded={expandedEnvVars}
               className='group flex h-[26px] cursor-pointer items-center gap-2 rounded-lg px-1.5 text-sm hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
               onClick={() => setExpandedEnvVars(!expandedEnvVars)}
+              onKeyDown={(event) =>
+                handleKeyboardActivation(event, () => setExpandedEnvVars(!expandedEnvVars))
+              }
             >
-              <div className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#6B7280]'>
+              <div className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#6B7280]'>
                 <span className='font-bold text-[9px] text-white'>E</span>
               </div>
               <span
@@ -1094,17 +1116,17 @@ function PreviewEditorContent({
         {/* Header - styled like subflow header */}
         <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <div
-            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ backgroundColor: subflowBgColor }}
           >
-            <SubflowIcon className='h-[12px] w-[12px] text-white' />
+            <SubflowIcon className='size-[12px] text-white' />
           </div>
           <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>
             {subflowName}
           </span>
           {onClose && (
             <Button variant='ghost' className='!p-1 flex-shrink-0' onClick={onClose}>
-              <X className='h-[14px] w-[14px]' />
+              <X className='size-[14px]' />
             </Button>
           )}
         </div>
@@ -1126,7 +1148,7 @@ function PreviewEditorContent({
     return (
       <div className='flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         <div className='mx-[-1px] flex items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
-          <div className='flex h-[18px] w-[18px] items-center justify-center rounded-sm bg-[var(--surface-3)]' />
+          <div className='flex size-[18px] items-center justify-center rounded-sm bg-[var(--surface-3)]' />
           <span className='font-medium text-[var(--text-primary)] text-sm'>
             {block.name || 'Unknown Block'}
           </span>
@@ -1184,10 +1206,10 @@ function PreviewEditorContent({
       <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
         {block.type !== 'note' && (
           <div
-            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ backgroundColor: blockConfig.bgColor }}
           >
-            <IconComponent icon={blockConfig.icon} className='h-[12px] w-[12px] text-white' />
+            <IconComponent icon={blockConfig.icon} className='size-[12px] text-white' />
           </div>
         )}
         <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>
@@ -1195,7 +1217,7 @@ function PreviewEditorContent({
         </span>
         {onClose && (
           <Button variant='ghost' className='!p-1 flex-shrink-0' onClick={onClose}>
-            <X className='h-[14px] w-[14px]' />
+            <X className='size-[14px]' />
           </Button>
         )}
       </div>
@@ -1269,12 +1291,12 @@ function PreviewEditorContent({
                               e.stopPropagation()
                               handleCopySection(formatValueAsJson(executionData.input), 'input')
                             }}
-                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
+                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
                           >
                             {copiedSection === 'input' ? (
-                              <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
+                              <Check className='size-[10px] text-[var(--text-success)]' />
                             ) : (
-                              <Clipboard className='h-[10px] w-[10px]' />
+                              <Clipboard className='size-[10px]' />
                             )}
                           </Button>
                         </Tooltip.Trigger>
@@ -1291,9 +1313,9 @@ function PreviewEditorContent({
                               e.stopPropagation()
                               activateSearch()
                             }}
-                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
+                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
                           >
-                            <Search className='h-[10px] w-[10px]' />
+                            <Search className='size-[10px]' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top'>Search</Tooltip.Content>
@@ -1341,12 +1363,12 @@ function PreviewEditorContent({
                               e.stopPropagation()
                               handleCopySection(formatValueAsJson(executionData.output), 'output')
                             }}
-                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
+                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
                           >
                             {copiedSection === 'output' ? (
-                              <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
+                              <Check className='size-[10px] text-[var(--text-success)]' />
                             ) : (
-                              <Clipboard className='h-[10px] w-[10px]' />
+                              <Clipboard className='size-[10px]' />
                             )}
                           </Button>
                         </Tooltip.Trigger>
@@ -1363,9 +1385,9 @@ function PreviewEditorContent({
                               e.stopPropagation()
                               activateSearch()
                             }}
-                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
+                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
                           >
-                            <Search className='h-[10px] w-[10px]' />
+                            <Search className='size-[10px]' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top'>Search</Tooltip.Content>
@@ -1387,7 +1409,7 @@ function PreviewEditorContent({
                     {resolvedIsLoadingChildWorkflow ? (
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
                         <div
-                          className='h-[18px] w-[18px] animate-spin rounded-full'
+                          className='size-[18px] animate-spin rounded-full'
                           style={{
                             background:
                               'conic-gradient(from 0deg, var(--text-tertiary) 0deg 120deg, transparent 120deg 180deg, var(--text-tertiary) 180deg 300deg, transparent 300deg 360deg)',
@@ -1416,12 +1438,12 @@ function PreviewEditorContent({
                               type='button'
                               variant='ghost'
                               onClick={handleExpandChildWorkflow}
-                              className='absolute right-[6px] bottom-1.5 z-10 h-[24px] w-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
+                              className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
                             >
                               {isExecutionMode && onDrillDown ? (
-                                <Maximize2 className='h-[12px] w-[12px]' />
+                                <Maximize2 className='size-[12px]' />
                               ) : (
-                                <ExternalLink className='h-[12px] w-[12px]' />
+                                <ExternalLink className='size-[12px]' />
                               )}
                             </Button>
                           </Tooltip.Trigger>
@@ -1501,6 +1523,7 @@ function PreviewEditorContent({
       {/* Search Overlay */}
       {isSearchActive && (
         <div
+          role='presentation'
           className='absolute top-10 right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-sm'
           onClick={(e) => e.stopPropagation()}
         >
@@ -1527,7 +1550,7 @@ function PreviewEditorContent({
             disabled={matchCount === 0}
             aria-label='Previous match'
           >
-            <ArrowUp className='h-[12px] w-[12px]' />
+            <ArrowUp className='size-[12px]' />
           </Button>
           <Button
             variant='ghost'
@@ -1536,10 +1559,10 @@ function PreviewEditorContent({
             disabled={matchCount === 0}
             aria-label='Next match'
           >
-            <ArrowDown className='h-[12px] w-[12px]' />
+            <ArrowDown className='size-[12px]' />
           </Button>
           <Button variant='ghost' className='!p-1' onClick={closeSearch} aria-label='Close search'>
-            <X className='h-[12px] w-[12px]' />
+            <X className='size-[12px]' />
           </Button>
         </div>
       )}

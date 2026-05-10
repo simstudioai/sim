@@ -4,7 +4,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { NO_EMAIL_HEADER_CONTROL_CHARS_REGEX } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
-export const CONTACT_TOPIC_VALUES = [
+const CONTACT_TOPIC_VALUES = [
   'general',
   'support',
   'integration',
@@ -63,7 +63,7 @@ export const contactRequestSchema = z.object({
 })
 
 export type ContactRequestPayload = z.infer<typeof contactRequestSchema>
-export type ContactRequestBody = z.input<typeof contactRequestSchema>
+type ContactRequestBody = z.input<typeof contactRequestSchema>
 
 export const submitContactBodySchema = contactRequestSchema.extend({
   website: z.string().optional(),
@@ -90,7 +90,7 @@ export function mapContactTopicToHelpType(topic: ContactRequestPayload['topic'])
   }
 }
 
-export const contactResponseSchema = z.object({
+const contactResponseSchema = z.object({
   success: z.literal(true),
   message: z.string(),
 })

@@ -28,7 +28,7 @@ export const A2A_ERROR_CODES = {
   AUTHENTICATION_REQUIRED: -32004,
 } as const
 
-export interface JSONRPCRequest {
+interface JSONRPCRequest {
   jsonrpc: '2.0'
   id: string | number
   method: string
@@ -46,7 +46,7 @@ export interface JSONRPCResponse {
   }
 }
 
-export interface MessageSendParams {
+interface MessageSendParams {
   message: Message
   configuration?: {
     acceptedOutputModes?: string[]
@@ -55,12 +55,12 @@ export interface MessageSendParams {
   }
 }
 
-export interface TaskIdParams {
+interface TaskIdParams {
   id: string
   historyLength?: number
 }
 
-export interface PushNotificationSetParams {
+interface PushNotificationSetParams {
   id: string
   pushNotificationConfig: PushNotificationConfig
 }
@@ -78,7 +78,7 @@ export function createError(
   return { jsonrpc: '2.0', id, error: { code, message, data } }
 }
 
-export function isJSONRPCRequest(obj: unknown): obj is JSONRPCRequest {
+function isJSONRPCRequest(obj: unknown): obj is JSONRPCRequest {
   if (!obj || typeof obj !== 'object') return false
   const r = obj as Record<string, unknown>
   return r.jsonrpc === '2.0' && typeof r.method === 'string' && r.id !== undefined
@@ -88,7 +88,7 @@ export function generateTaskId(): string {
   return generateId()
 }
 
-export function createTaskStatus(state: TaskState): { state: TaskState; timestamp: string } {
+function createTaskStatus(state: TaskState): { state: TaskState; timestamp: string } {
   return { state, timestamp: new Date().toISOString() }
 }
 

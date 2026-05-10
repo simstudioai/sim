@@ -221,10 +221,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
     [scheduleType]
   )
 
-  const resolvedTimezone = useMemo(
-    () => (showTimezone ? timezone : 'UTC'),
-    [showTimezone, timezone]
-  )
+  const resolvedTimezone = showTimezone ? timezone : 'UTC'
 
   const schedulePreview = useMemo(() => {
     if (!computedCron) return null

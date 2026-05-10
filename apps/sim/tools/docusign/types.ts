@@ -1,7 +1,7 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Common envelope output properties */
-export const ENVELOPE_OUTPUT_PROPERTIES = {
+const ENVELOPE_OUTPUT_PROPERTIES = {
   envelopeId: { type: 'string', description: 'Unique envelope identifier' },
   status: {
     type: 'string',
@@ -22,7 +22,7 @@ export const ENVELOPE_OUTPUT_PROPERTIES = {
   statusChangedDateTime: { type: 'string', description: 'ISO 8601 datetime of last status change' },
 } as const satisfies Record<string, OutputProperty>
 
-export const RECIPIENT_OUTPUT_PROPERTIES = {
+const RECIPIENT_OUTPUT_PROPERTIES = {
   recipientId: { type: 'string', description: 'Recipient identifier' },
   name: { type: 'string', description: 'Recipient name' },
   email: { type: 'string', description: 'Recipient email address' },
@@ -42,7 +42,7 @@ export const RECIPIENT_OUTPUT_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-export const TEMPLATE_OUTPUT_PROPERTIES = {
+const TEMPLATE_OUTPUT_PROPERTIES = {
   templateId: { type: 'string', description: 'Template identifier' },
   name: { type: 'string', description: 'Template name' },
   description: { type: 'string', description: 'Template description', optional: true },
@@ -51,7 +51,7 @@ export const TEMPLATE_OUTPUT_PROPERTIES = {
   lastModified: { type: 'string', description: 'ISO 8601 last modified date' },
 } as const satisfies Record<string, OutputProperty>
 
-export const ENVELOPE_OBJECT_OUTPUT: OutputProperty = {
+const ENVELOPE_OBJECT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'DocuSign envelope',
   properties: ENVELOPE_OUTPUT_PROPERTIES,
@@ -66,7 +66,7 @@ export const ENVELOPES_ARRAY_OUTPUT: OutputProperty = {
   },
 }
 
-export const RECIPIENT_OBJECT_OUTPUT: OutputProperty = {
+const RECIPIENT_OBJECT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'DocuSign recipient',
   properties: RECIPIENT_OUTPUT_PROPERTIES,

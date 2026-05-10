@@ -11,7 +11,7 @@ import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
  * Output definition for meeting settings objects
  * @see https://developers.zoom.us/docs/api/rest/reference/zoom-api/methods/#operation/meetingCreate
  */
-export const MEETING_SETTINGS_OUTPUT_PROPERTIES = {
+const MEETING_SETTINGS_OUTPUT_PROPERTIES = {
   host_video: { type: 'boolean', description: 'Start with host video on' },
   participant_video: { type: 'boolean', description: 'Start with participant video on' },
   join_before_host: { type: 'boolean', description: 'Allow participants to join before host' },
@@ -27,7 +27,7 @@ export const MEETING_SETTINGS_OUTPUT_PROPERTIES = {
 /**
  * Complete meeting settings object output definition
  */
-export const MEETING_SETTINGS_OUTPUT: OutputProperty = {
+const MEETING_SETTINGS_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Meeting settings',
   properties: MEETING_SETTINGS_OUTPUT_PROPERTIES,
@@ -37,7 +37,7 @@ export const MEETING_SETTINGS_OUTPUT: OutputProperty = {
  * Output definition for recurrence objects in recurring meetings
  * @see https://developers.zoom.us/docs/api/rest/reference/zoom-api/methods/#operation/meetingCreate
  */
-export const RECURRENCE_OUTPUT_PROPERTIES = {
+const RECURRENCE_OUTPUT_PROPERTIES = {
   type: { type: 'number', description: 'Recurrence type: 1=daily, 2=weekly, 3=monthly' },
   repeat_interval: { type: 'number', description: 'Interval between recurring meetings' },
   weekly_days: {
@@ -54,7 +54,7 @@ export const RECURRENCE_OUTPUT_PROPERTIES = {
 /**
  * Complete recurrence object output definition
  */
-export const RECURRENCE_OUTPUT: OutputProperty = {
+const RECURRENCE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Recurrence settings for recurring meetings',
   properties: RECURRENCE_OUTPUT_PROPERTIES,
@@ -64,7 +64,7 @@ export const RECURRENCE_OUTPUT: OutputProperty = {
  * Output definition for occurrence objects in recurring meetings
  * @see https://developers.zoom.us/docs/api/rest/reference/zoom-api/methods/#operation/meeting
  */
-export const OCCURRENCE_OUTPUT_PROPERTIES = {
+const OCCURRENCE_OUTPUT_PROPERTIES = {
   occurrence_id: { type: 'string', description: 'Occurrence ID' },
   start_time: { type: 'string', description: 'Start time in ISO 8601 format' },
   duration: { type: 'number', description: 'Duration in minutes' },
@@ -74,7 +74,7 @@ export const OCCURRENCE_OUTPUT_PROPERTIES = {
 /**
  * Complete occurrences array output definition
  */
-export const OCCURRENCES_OUTPUT: OutputProperty = {
+const OCCURRENCES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Meeting occurrences for recurring meetings',
   items: {
@@ -119,7 +119,7 @@ export const MEETING_OUTPUT_PROPERTIES = {
 /**
  * Output definition for meeting object (used in create/get meeting responses)
  */
-export const MEETING_OUTPUT: OutputProperty = {
+const MEETING_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Meeting object with all properties',
   properties: MEETING_OUTPUT_PROPERTIES,
@@ -146,7 +146,7 @@ export const MEETING_LIST_ITEM_OUTPUT_PROPERTIES = {
 /**
  * Output definition for meetings array in list responses
  */
-export const MEETINGS_ARRAY_OUTPUT: OutputProperty = {
+const MEETINGS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'List of meetings',
   items: {
@@ -170,7 +170,7 @@ export const MEETING_PAGE_INFO_OUTPUT_PROPERTIES = {
 /**
  * Complete page info output definition for meeting lists
  */
-export const MEETING_PAGE_INFO_OUTPUT: OutputProperty = {
+const MEETING_PAGE_INFO_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pagination information',
   properties: MEETING_PAGE_INFO_OUTPUT_PROPERTIES,
@@ -180,7 +180,7 @@ export const MEETING_PAGE_INFO_OUTPUT: OutputProperty = {
  * Output definition for recording file objects
  * @see https://developers.zoom.us/docs/api/rest/reference/zoom-api/methods/#operation/recordingGet
  */
-export const RECORDING_FILE_OUTPUT_PROPERTIES = {
+const RECORDING_FILE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Recording file ID' },
   meeting_id: { type: 'string', description: 'Meeting ID associated with the recording' },
   recording_start: { type: 'string', description: 'Start time of the recording' },
@@ -200,7 +200,7 @@ export const RECORDING_FILE_OUTPUT_PROPERTIES = {
 /**
  * Complete recording files array output definition
  */
-export const RECORDING_FILES_OUTPUT: OutputProperty = {
+const RECORDING_FILES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'List of recording files',
   items: {
@@ -232,7 +232,7 @@ export const RECORDING_OUTPUT_PROPERTIES = {
 /**
  * Complete recording object output definition
  */
-export const RECORDING_OUTPUT: OutputProperty = {
+const RECORDING_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Recording object with all files',
   properties: RECORDING_OUTPUT_PROPERTIES,
@@ -241,7 +241,7 @@ export const RECORDING_OUTPUT: OutputProperty = {
 /**
  * Output definition for recordings array in list responses
  */
-export const RECORDINGS_ARRAY_OUTPUT: OutputProperty = {
+const RECORDINGS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'List of recordings',
   items: {
@@ -265,7 +265,7 @@ export const RECORDING_PAGE_INFO_OUTPUT_PROPERTIES = {
 /**
  * Complete page info output definition for recording lists
  */
-export const RECORDING_PAGE_INFO_OUTPUT: OutputProperty = {
+const RECORDING_PAGE_INFO_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pagination information',
   properties: RECORDING_PAGE_INFO_OUTPUT_PROPERTIES,
@@ -294,7 +294,7 @@ export const PARTICIPANT_OUTPUT_PROPERTIES = {
 /**
  * Complete participants array output definition
  */
-export const PARTICIPANTS_ARRAY_OUTPUT: OutputProperty = {
+const PARTICIPANTS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'List of meeting participants',
   items: {
@@ -316,21 +316,21 @@ export const PARTICIPANT_PAGE_INFO_OUTPUT_PROPERTIES = {
 /**
  * Complete page info output definition for participant lists
  */
-export const PARTICIPANT_PAGE_INFO_OUTPUT: OutputProperty = {
+const PARTICIPANT_PAGE_INFO_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pagination information',
   properties: PARTICIPANT_PAGE_INFO_OUTPUT_PROPERTIES,
 }
 
 // Common parameters for all Zoom tools
-export interface ZoomBaseParams {
+interface ZoomBaseParams {
   accessToken: string
 }
 
 // Meeting types
-export type ZoomMeetingType = 1 | 2 | 3 | 8 // 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time
+type ZoomMeetingType = 1 | 2 | 3 | 8 // 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time
 
-export interface ZoomMeetingSettings {
+interface ZoomMeetingSettings {
   host_video?: boolean
   participant_video?: boolean
   join_before_host?: boolean
@@ -343,7 +343,7 @@ export interface ZoomMeetingSettings {
   approval_type?: 0 | 1 | 2 // 0=auto, 1=manual, 2=none
 }
 
-export interface ZoomMeeting {
+interface ZoomMeeting {
   id: number
   uuid: string
   host_id: string
@@ -381,7 +381,7 @@ export interface ZoomMeeting {
   }>
 }
 
-export interface ZoomMeetingListResponse {
+interface ZoomMeetingListResponse {
   page_count: number
   page_number: number
   page_size: number
@@ -498,7 +498,7 @@ export interface ZoomGetMeetingInvitationResponse extends ToolResponse {
 }
 
 // Recording types
-export interface ZoomRecordingFile {
+interface ZoomRecordingFile {
   id: string
   meeting_id: string
   recording_start: string
@@ -512,7 +512,7 @@ export interface ZoomRecordingFile {
   recording_type: string
 }
 
-export interface ZoomRecording {
+interface ZoomRecording {
   uuid: string
   id: number
   account_id: string
@@ -580,7 +580,7 @@ export interface ZoomDeleteRecordingResponse extends ToolResponse {
 }
 
 // Participant types
-export interface ZoomParticipant {
+interface ZoomParticipant {
   id: string
   user_id?: string
   name: string

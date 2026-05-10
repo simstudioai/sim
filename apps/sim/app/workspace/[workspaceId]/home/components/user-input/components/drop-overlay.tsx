@@ -32,7 +32,7 @@ export const DropOverlay = memo(function DropOverlay() {
         <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Drop files</span>
         <div className='flex items-center gap-2 text-[var(--text-icon)]'>
           {DROP_OVERLAY_ICONS.map((Icon, i) => (
-            <Icon key={i} className='h-[14px] w-[14px]' />
+            <Icon key={i} className='size-[14px]' />
           ))}
         </div>
       </div>

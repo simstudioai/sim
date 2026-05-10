@@ -14,6 +14,4 @@ export const asanaWorkspacesSelectorContract = definePostSelector(
   z.object({ workspaces: z.array(asanaWorkspaceSchema) })
 )
 
-export type AsanaWorkspacesSelectorResponse = ContractJsonResponse<
-  typeof asanaWorkspacesSelectorContract
->
+type AsanaWorkspacesSelectorResponse = ContractJsonResponse<typeof asanaWorkspacesSelectorContract>

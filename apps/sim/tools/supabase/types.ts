@@ -13,7 +13,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Returned by storage list operations
  * @see https://github.com/supabase/storage-js/blob/main/src/lib/types.ts
  */
-export const STORAGE_FILE_METADATA_OUTPUT_PROPERTIES = {
+const STORAGE_FILE_METADATA_OUTPUT_PROPERTIES = {
   size: { type: 'number', description: 'File size in bytes', optional: true },
   mimetype: { type: 'string', description: 'MIME type of the file', optional: true },
   cacheControl: { type: 'string', description: 'Cache control header value', optional: true },
@@ -44,7 +44,7 @@ export const STORAGE_FILE_OUTPUT_PROPERTIES = {
 /**
  * Complete storage file object output definition
  */
-export const STORAGE_FILE_OUTPUT: OutputProperty = {
+const STORAGE_FILE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Storage file object with metadata',
   properties: STORAGE_FILE_OUTPUT_PROPERTIES,
@@ -77,7 +77,7 @@ export const STORAGE_BUCKET_OUTPUT_PROPERTIES = {
 /**
  * Complete storage bucket object output definition
  */
-export const STORAGE_BUCKET_OUTPUT: OutputProperty = {
+const STORAGE_BUCKET_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Storage bucket object with configuration',
   properties: STORAGE_BUCKET_OUTPUT_PROPERTIES,
@@ -106,7 +106,7 @@ export const STORAGE_MOVE_OUTPUT_PROPERTIES = {
  * Returns: { path: string }
  * @see https://github.com/supabase/storage-js/blob/main/src/packages/StorageFileApi.ts
  */
-export const STORAGE_COPY_OUTPUT_PROPERTIES = {
+const STORAGE_COPY_OUTPUT_PROPERTIES = {
   path: { type: 'string', description: 'Path to the copied file' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -114,7 +114,7 @@ export const STORAGE_COPY_OUTPUT_PROPERTIES = {
  * Output definition for storage delete bucket response
  * Returns a confirmation message
  */
-export const STORAGE_DELETE_BUCKET_OUTPUT_PROPERTIES = {
+const STORAGE_DELETE_BUCKET_OUTPUT_PROPERTIES = {
   message: { type: 'string', description: 'Operation status message' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -153,7 +153,7 @@ export const STORAGE_DOWNLOAD_OUTPUT_PROPERTIES = {
 /**
  * Complete download file object output definition
  */
-export const STORAGE_DOWNLOAD_FILE_OUTPUT: OutputProperty = {
+const STORAGE_DOWNLOAD_FILE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Downloaded file with content and metadata',
   properties: STORAGE_DOWNLOAD_OUTPUT_PROPERTIES,
@@ -162,21 +162,21 @@ export const STORAGE_DOWNLOAD_FILE_OUTPUT: OutputProperty = {
 /**
  * Output definition for public URL response
  */
-export const STORAGE_PUBLIC_URL_OUTPUT_PROPERTIES = {
+const STORAGE_PUBLIC_URL_OUTPUT_PROPERTIES = {
   publicUrl: { type: 'string', description: 'The public URL to access the file' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
  * Output definition for signed URL response
  */
-export const STORAGE_SIGNED_URL_OUTPUT_PROPERTIES = {
+const STORAGE_SIGNED_URL_OUTPUT_PROPERTIES = {
   signedUrl: { type: 'string', description: 'The temporary signed URL to access the file' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
  * Storage files array output definition for list operations
  */
-export const STORAGE_FILES_OUTPUT: OutputProperty = {
+const STORAGE_FILES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of file objects with metadata',
   items: {
@@ -188,7 +188,7 @@ export const STORAGE_FILES_OUTPUT: OutputProperty = {
 /**
  * Storage buckets array output definition for list buckets operations
  */
-export const STORAGE_BUCKETS_OUTPUT: OutputProperty = {
+const STORAGE_BUCKETS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of bucket objects',
   items: {
@@ -200,7 +200,7 @@ export const STORAGE_BUCKETS_OUTPUT: OutputProperty = {
 /**
  * Storage deleted files array output definition
  */
-export const STORAGE_DELETED_FILES_OUTPUT: OutputProperty = {
+const STORAGE_DELETED_FILES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of deleted file objects',
   items: {
@@ -212,7 +212,7 @@ export const STORAGE_DELETED_FILES_OUTPUT: OutputProperty = {
 /**
  * Output definition for foreign key reference in column schema
  */
-export const INTROSPECT_REFERENCE_OUTPUT_PROPERTIES = {
+const INTROSPECT_REFERENCE_OUTPUT_PROPERTIES = {
   table: { type: 'string', description: 'Referenced table name' },
   column: { type: 'string', description: 'Referenced column name' },
 } as const satisfies Record<string, OutputProperty>
@@ -220,7 +220,7 @@ export const INTROSPECT_REFERENCE_OUTPUT_PROPERTIES = {
 /**
  * Output definition for introspect column schema
  */
-export const INTROSPECT_COLUMN_OUTPUT_PROPERTIES = {
+const INTROSPECT_COLUMN_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Column name' },
   type: { type: 'string', description: 'Column data type' },
   nullable: { type: 'boolean', description: 'Whether the column allows null values' },
@@ -238,7 +238,7 @@ export const INTROSPECT_COLUMN_OUTPUT_PROPERTIES = {
 /**
  * Output definition for introspect foreign key
  */
-export const INTROSPECT_FOREIGN_KEY_OUTPUT_PROPERTIES = {
+const INTROSPECT_FOREIGN_KEY_OUTPUT_PROPERTIES = {
   column: { type: 'string', description: 'Local column name' },
   referencesTable: { type: 'string', description: 'Referenced table name' },
   referencesColumn: { type: 'string', description: 'Referenced column name' },
@@ -247,7 +247,7 @@ export const INTROSPECT_FOREIGN_KEY_OUTPUT_PROPERTIES = {
 /**
  * Output definition for introspect index
  */
-export const INTROSPECT_INDEX_OUTPUT_PROPERTIES = {
+const INTROSPECT_INDEX_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Index name' },
   columns: {
     type: 'array',
@@ -297,7 +297,7 @@ export const INTROSPECT_TABLE_OUTPUT_PROPERTIES = {
 /**
  * Introspect tables array output definition
  */
-export const INTROSPECT_TABLES_OUTPUT: OutputProperty = {
+const INTROSPECT_TABLES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of table schemas with columns, keys, and indexes',
   items: {
@@ -369,7 +369,7 @@ export interface SupabaseVectorSearchParams {
   matchCount?: number
 }
 
-export interface SupabaseBaseResponse extends ToolResponse {
+interface SupabaseBaseResponse extends ToolResponse {
   output: {
     message: string
     results: any

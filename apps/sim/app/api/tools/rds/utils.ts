@@ -93,7 +93,7 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
   return { isValid: true }
 }
 
-export function sanitizeIdentifier(identifier: string): string {
+function sanitizeIdentifier(identifier: string): string {
   if (identifier.includes('.')) {
     const parts = identifier.split('.')
     return parts.map((part) => sanitizeSingleIdentifier(part)).join('.')
@@ -279,7 +279,7 @@ export interface RdsIntrospectionResult {
 /**
  * Detects the database engine by querying SELECT VERSION()
  */
-export async function detectEngine(
+async function detectEngine(
   client: RDSDataClient,
   resourceArn: string,
   secretArn: string,

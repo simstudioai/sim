@@ -242,7 +242,7 @@ export default async function PartnersPage() {
                     <ul className='space-y-1.5'>
                       {tier.requirements.map((r) => (
                         <li key={r} className='flex items-start gap-2 text-[#999] text-[13px]'>
-                          <span className='mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-[#555]' />
+                          <span className='mt-1.5 size-1 flex-shrink-0 rounded-full bg-[#555]' />
                           {r}
                         </li>
                       ))}
@@ -254,7 +254,7 @@ export default async function PartnersPage() {
                     <ul className='space-y-1.5'>
                       {tier.perks.map((p) => (
                         <li key={p} className='flex items-start gap-2 text-[#ECECEC] text-[13px]'>
-                          <span className='mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-[#4CAF50]' />
+                          <span className='mt-1.5 size-1 flex-shrink-0 rounded-full bg-[#4CAF50]' />
                           {p}
                         </li>
                       ))}

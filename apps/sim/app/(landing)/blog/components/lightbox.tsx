@@ -49,13 +49,14 @@ export function Lightbox({ isOpen, onClose, src, alt }: LightboxProps) {
       aria-label='Image viewer'
     >
       <div className='relative max-h-full max-w-full overflow-hidden rounded-xl shadow-2xl'>
-        <img
-          src={src}
-          alt={alt}
-          className='max-h-[75vh] max-w-[75vw] cursor-pointer rounded-xl object-contain'
-          loading='lazy'
-          onClick={onClose}
-        />
+        <button type='button' className='block cursor-pointer rounded-xl' onClick={onClose}>
+          <img
+            src={src}
+            alt={alt}
+            className='max-h-[75vh] max-w-[75vw] rounded-xl object-contain'
+            loading='lazy'
+          />
+        </button>
       </div>
     </div>
   )

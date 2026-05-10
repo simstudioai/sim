@@ -424,6 +424,8 @@ export function Variables({ readOnly = false }: VariablesProps) {
   return (
     <div
       ref={preventZoomRef}
+      role='dialog'
+      aria-label='Variables'
       className='fixed z-30 flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
       style={{
         left: `${actualPosition.x}px`,
@@ -438,6 +440,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
     >
       {/* Header (drag handle) */}
       <div
+        role='presentation'
         className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >

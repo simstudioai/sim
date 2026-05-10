@@ -3,7 +3,7 @@ import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
-export const visionAnalyzeBodySchema = z.object({
+const visionAnalyzeBodySchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
   imageUrl: z.string().optional().nullable(),
   imageFile: RawFileInputSchema.optional().nullable(),

@@ -14,12 +14,12 @@ import {
   defineRouteContract,
 } from '@/lib/api/contracts/types'
 
-export const postgresqlQueryBodySchema = sqlQueryBodySchema
-export const postgresqlExecuteBodySchema = sqlQueryBodySchema
-export const postgresqlInsertBodySchema = sqlInsertBodySchema
-export const postgresqlUpdateBodySchema = sqlUpdateBodySchema
-export const postgresqlDeleteBodySchema = sqlDeleteBodySchema
-export const postgresqlIntrospectBodySchema = sqlConnectionBodySchema.extend({
+const postgresqlQueryBodySchema = sqlQueryBodySchema
+const postgresqlExecuteBodySchema = sqlQueryBodySchema
+const postgresqlInsertBodySchema = sqlInsertBodySchema
+const postgresqlUpdateBodySchema = sqlUpdateBodySchema
+const postgresqlDeleteBodySchema = sqlDeleteBodySchema
+const postgresqlIntrospectBodySchema = sqlConnectionBodySchema.extend({
   schema: z.string().default('public'),
 })
 
@@ -65,15 +65,15 @@ export const postgresqlIntrospectContract = defineRouteContract({
   response: { mode: 'json', schema: introspectionResponseSchema },
 })
 
-export type PostgreSQLQueryRequest = ContractBodyInput<typeof postgresqlQueryContract>
-export type PostgreSQLQueryResponse = ContractJsonResponse<typeof postgresqlQueryContract>
-export type PostgreSQLExecuteRequest = ContractBodyInput<typeof postgresqlExecuteContract>
-export type PostgreSQLExecuteResponse = ContractJsonResponse<typeof postgresqlExecuteContract>
-export type PostgreSQLInsertRequest = ContractBodyInput<typeof postgresqlInsertContract>
-export type PostgreSQLInsertResponse = ContractJsonResponse<typeof postgresqlInsertContract>
-export type PostgreSQLUpdateRequest = ContractBodyInput<typeof postgresqlUpdateContract>
-export type PostgreSQLUpdateResponse = ContractJsonResponse<typeof postgresqlUpdateContract>
-export type PostgreSQLDeleteRequest = ContractBodyInput<typeof postgresqlDeleteContract>
-export type PostgreSQLDeleteResponse = ContractJsonResponse<typeof postgresqlDeleteContract>
-export type PostgreSQLIntrospectRequest = ContractBodyInput<typeof postgresqlIntrospectContract>
-export type PostgreSQLIntrospectResponse = ContractJsonResponse<typeof postgresqlIntrospectContract>
+type PostgreSQLQueryRequest = ContractBodyInput<typeof postgresqlQueryContract>
+type PostgreSQLQueryResponse = ContractJsonResponse<typeof postgresqlQueryContract>
+type PostgreSQLExecuteRequest = ContractBodyInput<typeof postgresqlExecuteContract>
+type PostgreSQLExecuteResponse = ContractJsonResponse<typeof postgresqlExecuteContract>
+type PostgreSQLInsertRequest = ContractBodyInput<typeof postgresqlInsertContract>
+type PostgreSQLInsertResponse = ContractJsonResponse<typeof postgresqlInsertContract>
+type PostgreSQLUpdateRequest = ContractBodyInput<typeof postgresqlUpdateContract>
+type PostgreSQLUpdateResponse = ContractJsonResponse<typeof postgresqlUpdateContract>
+type PostgreSQLDeleteRequest = ContractBodyInput<typeof postgresqlDeleteContract>
+type PostgreSQLDeleteResponse = ContractJsonResponse<typeof postgresqlDeleteContract>
+type PostgreSQLIntrospectRequest = ContractBodyInput<typeof postgresqlIntrospectContract>
+type PostgreSQLIntrospectResponse = ContractJsonResponse<typeof postgresqlIntrospectContract>

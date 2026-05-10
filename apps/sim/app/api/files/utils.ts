@@ -9,7 +9,7 @@ export interface ApiSuccessResponse {
   [key: string]: any
 }
 
-export interface ApiErrorResponse {
+interface ApiErrorResponse {
   error: string
   message?: string
 }
@@ -35,7 +35,7 @@ export class InvalidRequestError extends Error {
   }
 }
 
-export const contentTypeMap: Record<string, string> = {
+const contentTypeMap: Record<string, string> = {
   txt: 'text/plain',
   csv: 'text/csv',
   json: 'application/json',
@@ -64,7 +64,7 @@ export const contentTypeMap: Record<string, string> = {
   googleFolder: 'application/vnd.google-apps.folder',
 }
 
-export const binaryExtensions = [
+const binaryExtensions = [
   'doc',
   'docx',
   'xls',

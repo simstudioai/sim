@@ -93,7 +93,7 @@ export function convertLoopBlockToLoop(
  * @param blocks - Record of all blocks in the workflow
  * @returns Parallel object for execution engine or undefined if not a valid parallel block
  */
-export function convertParallelBlockToParallel(
+function convertParallelBlockToParallel(
   parallelBlockId: string,
   blocks: Record<string, BlockState>
 ): Parallel | undefined {
@@ -129,7 +129,7 @@ export function convertParallelBlockToParallel(
  * @param blocks - Record of all blocks in the workflow
  * @returns Array of node IDs that are direct children of this container
  */
-export function findChildNodes(containerId: string, blocks: Record<string, BlockState>): string[] {
+function findChildNodes(containerId: string, blocks: Record<string, BlockState>): string[] {
   return Object.values(blocks)
     .filter((block) => block.data?.parentId === containerId)
     .map((block) => block.id)

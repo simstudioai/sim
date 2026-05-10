@@ -10,7 +10,7 @@ import type { TableSummary } from '../types'
 /**
  * Operations that use filters and need filter-specific enrichment.
  */
-export const FILTER_OPERATIONS = new Set([
+const FILTER_OPERATIONS = new Set([
   'table_query_rows',
   'table_update_rows_by_filter',
   'table_delete_rows_by_filter',
@@ -19,7 +19,7 @@ export const FILTER_OPERATIONS = new Set([
 /**
  * Operations that need column info for data construction.
  */
-export const DATA_OPERATIONS = new Set([
+const DATA_OPERATIONS = new Set([
   'table_insert_row',
   'table_batch_insert_rows',
   'table_upsert_row',

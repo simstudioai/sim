@@ -193,6 +193,10 @@ function getTriggerIcon(
   return TriggerIcon
 }
 
+function SpinningRefreshCw(props: React.SVGProps<SVGSVGElement>) {
+  return <RefreshCw {...props} animate />
+}
+
 function formatDateShort(dateStr: string): string {
   const date = new Date(dateStr)
   const months = [
@@ -773,7 +777,7 @@ export default function Logs() {
             workflow: {
               icon: workflowColor ? (
                 <div
-                  className='h-[10px] w-[10px] rounded-[3px] border-[1.5px]'
+                  className='size-[10px] rounded-[3px] border-[1.5px]'
                   style={{
                     backgroundColor: workflowColor,
                     borderColor: workflowBorderColor(workflowColor),
@@ -1095,12 +1099,7 @@ export default function Logs() {
     ]
   )
 
-  const refreshIcon = useMemo(() => {
-    if (!isVisuallyRefreshing) return RefreshCw
-    const Spinning = (props: React.SVGProps<SVGSVGElement>) => <RefreshCw {...props} animate />
-    Spinning.displayName = 'SpinningRefresh'
-    return Spinning
-  }, [isVisuallyRefreshing])
+  const refreshIcon = isVisuallyRefreshing ? SpinningRefreshCw : RefreshCw
 
   const headerActions = useMemo<HeaderAction[]>(
     () => [
@@ -1436,7 +1435,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
               {selectedWorkflow && (
                 <div
-                  className='h-[8px] w-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
+                  className='size-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
                   style={{
                     backgroundColor: selectedWorkflow.color,
                     borderColor: workflowBorderColor(selectedWorkflow.color),

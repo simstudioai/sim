@@ -382,7 +382,7 @@ const TagIcon: React.FC<{
   color: string
 }> = ({ icon, color }) => (
   <div
-    className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded'
+    className='flex size-[14px] flex-shrink-0 items-center justify-center rounded'
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (

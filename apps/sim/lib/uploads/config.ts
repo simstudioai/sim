@@ -2,7 +2,8 @@ import { env } from '@/lib/core/config/env'
 import type { StorageConfig, StorageContext } from '@/lib/uploads/shared/types'
 
 export type { StorageConfig, StorageContext } from '@/lib/uploads/shared/types'
-export const UPLOAD_DIR = '/uploads'
+
+const UPLOAD_DIR = '/uploads'
 
 const hasS3Config = !!(env.S3_BUCKET_NAME && env.AWS_REGION)
 const hasBlobConfig = !!(
@@ -10,8 +11,8 @@ const hasBlobConfig = !!(
   ((env.AZURE_ACCOUNT_NAME && env.AZURE_ACCOUNT_KEY) || env.AZURE_CONNECTION_STRING)
 )
 
-export const USE_BLOB_STORAGE = hasBlobConfig
-export const USE_S3_STORAGE = hasS3Config && !USE_BLOB_STORAGE
+const USE_BLOB_STORAGE = hasBlobConfig
+const USE_S3_STORAGE = hasS3Config && !USE_BLOB_STORAGE
 
 export const S3_CONFIG = {
   bucket: env.S3_BUCKET_NAME || '',
@@ -35,7 +36,7 @@ export const S3_EXECUTION_FILES_CONFIG = {
   region: env.AWS_REGION || '',
 }
 
-export const BLOB_KB_CONFIG = {
+const BLOB_KB_CONFIG = {
   accountName: env.AZURE_ACCOUNT_NAME || '',
   accountKey: env.AZURE_ACCOUNT_KEY || '',
   connectionString: env.AZURE_CONNECTION_STRING || '',
@@ -61,48 +62,48 @@ export const BLOB_CHAT_CONFIG = {
   containerName: env.AZURE_STORAGE_CHAT_CONTAINER_NAME || '',
 }
 
-export const S3_COPILOT_CONFIG = {
+const S3_COPILOT_CONFIG = {
   bucket: env.S3_COPILOT_BUCKET_NAME || '',
   region: env.AWS_REGION || '',
 }
 
-export const BLOB_COPILOT_CONFIG = {
+const BLOB_COPILOT_CONFIG = {
   accountName: env.AZURE_ACCOUNT_NAME || '',
   accountKey: env.AZURE_ACCOUNT_KEY || '',
   connectionString: env.AZURE_CONNECTION_STRING || '',
   containerName: env.AZURE_STORAGE_COPILOT_CONTAINER_NAME || '',
 }
 
-export const S3_PROFILE_PICTURES_CONFIG = {
+const S3_PROFILE_PICTURES_CONFIG = {
   bucket: env.S3_PROFILE_PICTURES_BUCKET_NAME || '',
   region: env.AWS_REGION || '',
 }
 
-export const BLOB_PROFILE_PICTURES_CONFIG = {
+const BLOB_PROFILE_PICTURES_CONFIG = {
   accountName: env.AZURE_ACCOUNT_NAME || '',
   accountKey: env.AZURE_ACCOUNT_KEY || '',
   connectionString: env.AZURE_CONNECTION_STRING || '',
   containerName: env.AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME || '',
 }
 
-export const S3_OG_IMAGES_CONFIG = {
+const S3_OG_IMAGES_CONFIG = {
   bucket: env.S3_OG_IMAGES_BUCKET_NAME || '',
   region: env.AWS_REGION || '',
 }
 
-export const BLOB_OG_IMAGES_CONFIG = {
+const BLOB_OG_IMAGES_CONFIG = {
   accountName: env.AZURE_ACCOUNT_NAME || '',
   accountKey: env.AZURE_ACCOUNT_KEY || '',
   connectionString: env.AZURE_CONNECTION_STRING || '',
   containerName: env.AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME || '',
 }
 
-export const S3_WORKSPACE_LOGOS_CONFIG = {
+const S3_WORKSPACE_LOGOS_CONFIG = {
   bucket: env.S3_WORKSPACE_LOGOS_BUCKET_NAME || '',
   region: env.AWS_REGION || '',
 }
 
-export const BLOB_WORKSPACE_LOGOS_CONFIG = {
+const BLOB_WORKSPACE_LOGOS_CONFIG = {
   accountName: env.AZURE_ACCOUNT_NAME || '',
   accountKey: env.AZURE_ACCOUNT_KEY || '',
   connectionString: env.AZURE_CONNECTION_STRING || '',
@@ -271,7 +272,7 @@ function getBlobConfig(context: StorageContext): StorageConfig {
  * Check if a specific storage context is configured
  * Returns false if the context would fall back to general config but general isn't configured
  */
-export function isStorageContextConfigured(context: StorageContext): boolean {
+function isStorageContextConfigured(context: StorageContext): boolean {
   const config = getStorageConfig(context)
 
   if (USE_BLOB_STORAGE) {

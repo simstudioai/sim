@@ -26,8 +26,6 @@ export const awsIamDeleteAccessKeyContract = defineRouteContract({
   body: Schema,
   response: { mode: 'json', schema: z.object({ message: z.string() }) },
 })
-export type AwsIamDeleteAccessKeyRequest = ContractBodyInput<typeof awsIamDeleteAccessKeyContract>
-export type AwsIamDeleteAccessKeyBody = ContractBody<typeof awsIamDeleteAccessKeyContract>
-export type AwsIamDeleteAccessKeyResponse = ContractJsonResponse<
-  typeof awsIamDeleteAccessKeyContract
->
+type AwsIamDeleteAccessKeyRequest = ContractBodyInput<typeof awsIamDeleteAccessKeyContract>
+type AwsIamDeleteAccessKeyBody = ContractBody<typeof awsIamDeleteAccessKeyContract>
+type AwsIamDeleteAccessKeyResponse = ContractJsonResponse<typeof awsIamDeleteAccessKeyContract>

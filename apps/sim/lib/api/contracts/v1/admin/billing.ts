@@ -10,12 +10,12 @@ import {
   lastQueryValue,
 } from '@/lib/api/contracts/v1/admin/shared'
 
-export const adminV1ListSubscriptionsQuerySchema = adminV1PaginationQuerySchema.extend({
+const adminV1ListSubscriptionsQuerySchema = adminV1PaginationQuerySchema.extend({
   plan: adminV1QueryStringSchema,
   status: adminV1QueryStringSchema,
 })
 
-export const adminV1CancelSubscriptionQuerySchema = z.object({
+const adminV1CancelSubscriptionQuerySchema = z.object({
   atPeriodEnd: z
     .preprocess(lastQueryValue, z.unknown())
     .pipe(z.enum(['true', 'false']).catch('false'))
@@ -63,7 +63,7 @@ export const adminV1CancelSubscriptionContract = defineRouteContract({
   },
 })
 
-export const adminV1IssueCreditsBodySchema = z
+const adminV1IssueCreditsBodySchema = z
   .object({
     userId: z.string({ error: 'userId must be a string' }).optional(),
     email: z.string({ error: 'email must be a string' }).optional(),

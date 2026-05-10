@@ -43,7 +43,7 @@ export const CREDIT_TIERS = [
   { credits: 25000, dollars: 100, name: 'Max' },
 ] as const
 
-export type CreditTier = (typeof CREDIT_TIERS)[number]
+type CreditTier = (typeof CREDIT_TIERS)[number]
 
 /**
  * Daily refresh rate: 1% of plan cost per day.

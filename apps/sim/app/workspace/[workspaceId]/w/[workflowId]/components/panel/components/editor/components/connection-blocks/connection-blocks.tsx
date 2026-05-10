@@ -6,6 +6,7 @@ import clsx from 'clsx'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { ChevronDown } from '@/components/emcn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import {
   FieldItem,
   type SchemaField,
@@ -81,6 +82,9 @@ function ConnectionItem({
   return (
     <div className='mb-0.5 last:mb-0' ref={connectionRef}>
       <div
+        role='treeitem'
+        aria-expanded={hasFields ? isExpanded : undefined}
+        tabIndex={hasFields ? 0 : undefined}
         draggable
         onDragStart={(e) => onConnectionDragStart(e, connection)}
         className={clsx(
@@ -88,9 +92,13 @@ function ConnectionItem({
           hasFields && 'cursor-pointer'
         )}
         onClick={() => hasFields && onToggleExpand(connection.id)}
+        onKeyDown={(event) => {
+          if (!hasFields) return
+          handleKeyboardActivation(event, () => onToggleExpand(connection.id))
+        }}
       >
         <div
-          className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+          className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
           style={{ background: bgColor }}
         >
           {Icon && (

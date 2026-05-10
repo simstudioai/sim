@@ -18,7 +18,7 @@ import {
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 /** Concurrency limit for parallel webhook processing. Standardized across all providers. */
-export const CONCURRENCY = 10
+const CONCURRENCY = 10
 
 /** Increment the webhook's failure count. Auto-disables after MAX_CONSECUTIVE_FAILURES. */
 export async function markWebhookFailed(webhookId: string, logger: Logger): Promise<void> {

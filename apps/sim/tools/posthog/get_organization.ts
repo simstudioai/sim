@@ -6,7 +6,7 @@ export interface PostHogGetOrganizationParams {
   region?: 'us' | 'eu'
 }
 
-export interface PostHogOrganizationDetail {
+interface PostHogOrganizationDetail {
   id: string
   name: string
   slug: string

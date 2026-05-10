@@ -24,7 +24,7 @@ export function ConversationListItem({
   return (
     <div className={cn('flex w-full min-w-0 items-center gap-2', className)}>
       <span className='relative flex-shrink-0'>
-        <Blimp className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+        <Blimp className='size-[16px] text-[var(--text-icon)]' />
         {isActive && (
           <span
             className={cn(

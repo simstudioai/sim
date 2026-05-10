@@ -1,6 +1,6 @@
 import { env } from '@/lib/core/config/env'
 
-export const SIM_AGENT_API_URL_DEFAULT = 'https://copilot.sim.ai'
+const SIM_AGENT_API_URL_DEFAULT = 'https://copilot.sim.ai'
 export const SIM_AGENT_VERSION = '3.0.0'
 
 /** Resolved copilot backend URL — reads from env with fallback to default. */
@@ -31,15 +31,15 @@ export const COPILOT_STATS_API_PATH = '/api/copilot/stats'
 export const STREAM_BUFFER_MAX_DEDUP_ENTRIES = 1_000
 
 /** Approximate max inline tool-result budget before artifact/error handling takes over. */
-export const TOOL_RESULT_MAX_INLINE_TOKENS = 50_000
+const TOOL_RESULT_MAX_INLINE_TOKENS = 50_000
 
 /** Rough chars-per-token estimate used when only serialized text length is available. */
-export const TOOL_RESULT_ESTIMATED_CHARS_PER_TOKEN = 4
+const TOOL_RESULT_ESTIMATED_CHARS_PER_TOKEN = 4
 
 /** Approximate max inline tool-result size in characters. */
 export const TOOL_RESULT_MAX_INLINE_CHARS =
   TOOL_RESULT_MAX_INLINE_TOKENS * TOOL_RESULT_ESTIMATED_CHARS_PER_TOKEN
 
-export const COPILOT_MODES = ['ask', 'build', 'plan'] as const
+const COPILOT_MODES = ['ask', 'build', 'plan'] as const
 
 export const COPILOT_REQUEST_MODES = ['ask', 'build', 'plan', 'agent'] as const

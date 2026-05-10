@@ -150,7 +150,7 @@ function mirrorAbsolutePathVertically(path: string, height: number): string {
 // Preset shape registry
 // ---------------------------------------------------------------------------
 
-export const presetShapes: Map<string, PresetShapeGenerator> = new Map()
+const presetShapes: Map<string, PresetShapeGenerator> = new Map()
 
 // ===== Basic Shapes =====
 
@@ -4425,14 +4425,14 @@ presetShapes.set('funnel', (w, h) => {
 // Preset shape overlays — additional paths for 3D-like shapes (lighter top face, etc.)
 // ---------------------------------------------------------------------------
 
-export interface PresetOverlay {
+interface PresetOverlay {
   /** SVG path d-attribute for the overlay */
   path: string
   /** Fill modifier: 'lighten' brightens the base fill */
   fillModifier: 'lighten'
 }
 
-export type PresetOverlayGenerator = (
+type PresetOverlayGenerator = (
   w: number,
   h: number,
   adjustments?: Map<string, number>
@@ -4457,7 +4457,7 @@ presetOverlays.set('can', (w, h) => {
  * Get overlay paths for a preset shape (3D top faces, etc.).
  * Returns empty array if the shape has no overlays.
  */
-export function getPresetOverlays(
+function getPresetOverlays(
   shapeType: string,
   w: number,
   h: number,

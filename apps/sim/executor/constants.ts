@@ -5,7 +5,7 @@ import type { LoopType, ParallelType } from '@/lib/workflows/types'
  * Runtime-injected keys for trigger blocks that should be hidden from logs/display.
  * These are added during execution but aren't part of the block's static output schema.
  */
-export const TRIGGER_INTERNAL_KEYS = ['webhook', 'workflowId'] as const
+const TRIGGER_INTERNAL_KEYS = ['webhook', 'workflowId'] as const
 export type TriggerInternalKey = (typeof TRIGGER_INTERNAL_KEYS)[number]
 
 export function isTriggerInternalKey(key: string): key is TriggerInternalKey {
@@ -45,17 +45,9 @@ export enum BlockType {
   SENTINEL_END = 'sentinel_end',
 }
 
-export const TRIGGER_BLOCK_TYPES = [
-  BlockType.START_TRIGGER,
-  BlockType.STARTER,
-  BlockType.TRIGGER,
-] as const
+const TRIGGER_BLOCK_TYPES = [BlockType.START_TRIGGER, BlockType.STARTER, BlockType.TRIGGER] as const
 
-export const METADATA_ONLY_BLOCK_TYPES = [
-  BlockType.LOOP,
-  BlockType.PARALLEL,
-  BlockType.NOTE,
-] as const
+const METADATA_ONLY_BLOCK_TYPES = [BlockType.LOOP, BlockType.PARALLEL, BlockType.NOTE] as const
 
 export type SentinelType = 'start' | 'end'
 
@@ -141,14 +133,14 @@ export const RESERVED_BLOCK_NAMES = [
   REFERENCE.PREFIX.VARIABLE,
 ] as const
 
-export const LOOP_REFERENCE = {
+const LOOP_REFERENCE = {
   ITERATION: 'iteration',
   INDEX: 'index',
   ITEM: 'item',
   INDEX_PATH: 'loop.index',
 } as const
 
-export const PARALLEL_REFERENCE = {
+const PARALLEL_REFERENCE = {
   INDEX: 'index',
   CURRENT_ITEM: 'currentItem',
   ITEMS: 'items',
@@ -274,7 +266,7 @@ export function buildResumeUiUrl(
   return `${prefix}${PAUSE_RESUME.PATH.UI_RESUME}/${workflowId}/${executionId}`
 }
 
-export const PARSING = {
+const PARSING = {
   JSON_RADIX: 10,
   PREVIEW_LENGTH: 200,
   PREVIEW_SUFFIX: '...',
@@ -282,7 +274,7 @@ export const PARSING = {
 
 export type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files' | 'plain'
 
-export interface ConditionConfig {
+interface ConditionConfig {
   id: string
   label?: string
   condition: string
@@ -346,11 +338,11 @@ export function isAnnotationOnlyBlock(blockType: string | undefined): boolean {
   return blockType === BlockType.NOTE
 }
 
-export function supportsHandles(blockType: string | undefined): boolean {
+function supportsHandles(blockType: string | undefined): boolean {
   return !isAnnotationOnlyBlock(blockType)
 }
 
-export function getDefaultTokens() {
+function getDefaultTokens() {
   return {
     input: DEFAULTS.TOKENS.PROMPT,
     output: DEFAULTS.TOKENS.COMPLETION,
@@ -358,7 +350,7 @@ export function getDefaultTokens() {
   }
 }
 
-export function getDefaultCost() {
+function getDefaultCost() {
   return {
     input: DEFAULTS.COST.INPUT,
     output: DEFAULTS.COST.OUTPUT,
@@ -366,23 +358,23 @@ export function getDefaultCost() {
   }
 }
 
-export function buildReference(path: string): string {
+function buildReference(path: string): string {
   return `${REFERENCE.START}${path}${REFERENCE.END}`
 }
 
-export function buildLoopReference(property: string): string {
+function buildLoopReference(property: string): string {
   return buildReference(`${REFERENCE.PREFIX.LOOP}${REFERENCE.PATH_DELIMITER}${property}`)
 }
 
-export function buildParallelReference(property: string): string {
+function buildParallelReference(property: string): string {
   return buildReference(`${REFERENCE.PREFIX.PARALLEL}${REFERENCE.PATH_DELIMITER}${property}`)
 }
 
-export function buildVariableReference(variableName: string): string {
+function buildVariableReference(variableName: string): string {
   return buildReference(`${REFERENCE.PREFIX.VARIABLE}${REFERENCE.PATH_DELIMITER}${variableName}`)
 }
 
-export function buildBlockReference(blockId: string, path?: string): string {
+function buildBlockReference(blockId: string, path?: string): string {
   return buildReference(path ? `${blockId}${REFERENCE.PATH_DELIMITER}${path}` : blockId)
 }
 
@@ -390,7 +382,7 @@ export function buildLoopIndexCondition(maxIterations: number): string {
   return `${buildLoopReference(LOOP_REFERENCE.INDEX)} < ${maxIterations}`
 }
 
-export function buildEnvVarReference(varName: string): string {
+function buildEnvVarReference(varName: string): string {
   return `${REFERENCE.ENV_VAR_START}${varName}${REFERENCE.ENV_VAR_END}`
 }
 
@@ -409,7 +401,7 @@ export function extractEnvVarName(reference: string): string {
   )
 }
 
-export function extractReferenceContent(reference: string): string {
+function extractReferenceContent(reference: string): string {
   return reference.substring(REFERENCE.START.length, reference.length - REFERENCE.END.length)
 }
 
@@ -418,7 +410,7 @@ export function parseReferencePath(reference: string): string[] {
   return content.split(REFERENCE.PATH_DELIMITER)
 }
 
-export const PATTERNS = {
+const PATTERNS = {
   UUID: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,
   UUID_V4: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   UUID_PREFIX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
@@ -462,7 +454,7 @@ export function stripCustomToolPrefix(name: string): string {
     : name
 }
 
-export function stripMcpToolPrefix(name: string): string {
+function stripMcpToolPrefix(name: string): string {
   return name.startsWith(MCP.TOOL_PREFIX) ? name.slice(MCP.TOOL_PREFIX.length) : name
 }
 

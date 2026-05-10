@@ -162,7 +162,6 @@ export default function SSOForm() {
               autoCapitalize='none'
               autoComplete='email'
               autoCorrect='off'
-              autoFocus
               value={email}
               onChange={handleEmailChange}
               className={cn(
@@ -184,8 +183,8 @@ export default function SSOForm() {
         <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
           {isLoading ? (
             <span className='flex items-center gap-2'>
-              <Loader className='h-4 w-4' animate />
-              Redirecting to SSO provider...
+              <Loader className='size-4' animate />
+              Redirecting to SSO provider…
             </span>
           ) : (
             'Continue with SSO'

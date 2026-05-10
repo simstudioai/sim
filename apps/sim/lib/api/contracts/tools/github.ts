@@ -25,7 +25,7 @@ const githubCommitFileSchema = z.object({
   content: z.string().optional(),
 })
 
-export const githubLatestCommitResponseSchema = z.object({
+const githubLatestCommitResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     content: z.string(),
@@ -47,7 +47,7 @@ export const githubLatestCommitResponseSchema = z.object({
   }),
 })
 
-export const githubLatestCommitBodySchema = z.object({
+const githubLatestCommitBodySchema = z.object({
   owner: z.string().min(1, 'Owner is required'),
   repo: z.string().min(1, 'Repo is required'),
   branch: z.string().optional().nullable(),
@@ -61,6 +61,6 @@ export const githubLatestCommitContract = defineRouteContract({
   response: { mode: 'json', schema: githubLatestCommitResponseSchema },
 })
 
-export type GithubLatestCommitBody = ContractBody<typeof githubLatestCommitContract>
-export type GithubLatestCommitBodyInput = ContractBodyInput<typeof githubLatestCommitContract>
-export type GithubLatestCommitResponse = ContractJsonResponse<typeof githubLatestCommitContract>
+type GithubLatestCommitBody = ContractBody<typeof githubLatestCommitContract>
+type GithubLatestCommitBodyInput = ContractBodyInput<typeof githubLatestCommitContract>
+type GithubLatestCommitResponse = ContractJsonResponse<typeof githubLatestCommitContract>

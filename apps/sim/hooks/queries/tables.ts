@@ -210,7 +210,7 @@ interface InfiniteTableRowsParams {
   enabled?: boolean
 }
 
-export function useTableRows({
+function useTableRows({
   workspaceId,
   tableId,
   limit,
@@ -1187,7 +1187,7 @@ export async function snapshotAndMutateRows(
   return snapshots
 }
 
-export function restoreCachedWorkflowCells(
+function restoreCachedWorkflowCells(
   queryClient: ReturnType<typeof useQueryClient>,
   snapshots: RowsCacheSnapshots
 ) {

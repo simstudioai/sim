@@ -27,7 +27,7 @@ export const USER_FILE_PROPERTY_TYPES: Record<UserFileAccessibleProperty, string
 
 export const START_BLOCK_RESERVED_FIELDS = ['input', 'conversationId', 'files'] as const
 
-export type StartBlockReservedField = (typeof START_BLOCK_RESERVED_FIELDS)[number]
+type StartBlockReservedField = (typeof START_BLOCK_RESERVED_FIELDS)[number]
 
 export type LoopType = 'for' | 'forEach' | 'while' | 'doWhile'
 

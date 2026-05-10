@@ -34,7 +34,7 @@ function mapOldFieldNameToNewSubBlockId(oldFieldName: string): string {
  * @returns The aggregated config object, or null if no valid config
  */
 
-export function useTriggerConfigAggregation(
+function useTriggerConfigAggregation(
   blockId: string,
   triggerId: string | undefined
 ): Record<string, any> | null {

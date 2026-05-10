@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const notificationWorkspaceParamsSchema = z.object({
+const notificationWorkspaceParamsSchema = z.object({
   id: z.string().min(1),
 })
 
@@ -10,10 +10,10 @@ export const notificationParamsSchema = z.object({
   notificationId: z.string().min(1),
 })
 
-export const notificationTypeSchema = z.enum(['webhook', 'email', 'slack'])
-export const notificationLevelSchema = z.enum(['info', 'error'])
+const notificationTypeSchema = z.enum(['webhook', 'email', 'slack'])
+const notificationLevelSchema = z.enum(['info', 'error'])
 
-export const alertRuleSchema = z.enum([
+const alertRuleSchema = z.enum([
   'consecutive_failures',
   'failure_rate',
   'latency_threshold',
@@ -23,7 +23,7 @@ export const alertRuleSchema = z.enum([
   'error_count',
 ])
 
-export const notificationAlertConfigSchema = z.object({
+const notificationAlertConfigSchema = z.object({
   rule: alertRuleSchema,
   consecutiveFailures: z.number().int().optional(),
   failureRatePercent: z.number().int().optional(),
@@ -35,12 +35,12 @@ export const notificationAlertConfigSchema = z.object({
   errorCountThreshold: z.number().int().optional(),
 })
 
-export const notificationWebhookConfigSchema = z.object({
+const notificationWebhookConfigSchema = z.object({
   url: z.string().url(),
   secret: z.string().optional(),
 })
 
-export const notificationSlackConfigSchema = z.object({
+const notificationSlackConfigSchema = z.object({
   channelId: z.string(),
   channelName: z.string(),
   accountId: z.string(),
@@ -49,11 +49,11 @@ export const notificationSlackConfigSchema = z.object({
 export type NotificationType = z.output<typeof notificationTypeSchema>
 export type NotificationLogLevel = z.output<typeof notificationLevelSchema>
 export type NotificationAlertRule = z.output<typeof alertRuleSchema>
-export type NotificationAlertConfig = z.output<typeof notificationAlertConfigSchema>
-export type NotificationWebhookConfig = z.output<typeof notificationWebhookConfigSchema>
-export type NotificationSlackConfig = z.output<typeof notificationSlackConfigSchema>
+type NotificationAlertConfig = z.output<typeof notificationAlertConfigSchema>
+type NotificationWebhookConfig = z.output<typeof notificationWebhookConfigSchema>
+type NotificationSlackConfig = z.output<typeof notificationSlackConfigSchema>
 
-export const notificationSubscriptionSchema = z.object({
+const notificationSubscriptionSchema = z.object({
   id: z.string(),
   notificationType: notificationTypeSchema,
   workflowIds: z.array(z.string()),
@@ -75,7 +75,7 @@ export const notificationSubscriptionSchema = z.object({
 
 export type NotificationSubscription = z.output<typeof notificationSubscriptionSchema>
 
-export const createNotificationBodySchema = z.object({
+const createNotificationBodySchema = z.object({
   notificationType: notificationTypeSchema,
   workflowIds: z.array(z.string()),
   allWorkflows: z.boolean(),
@@ -91,7 +91,7 @@ export const createNotificationBodySchema = z.object({
   slackConfig: notificationSlackConfigSchema.optional(),
 })
 
-export const updateNotificationBodySchema = createNotificationBodySchema
+const updateNotificationBodySchema = createNotificationBodySchema
   .omit({ notificationType: true })
   .partial()
   .extend({
@@ -146,12 +146,12 @@ export interface NotificationServerLimits {
   maxWorkflowIds: number
 }
 
-export const NOTIFICATION_SERVER_LIMITS: NotificationServerLimits = {
+const NOTIFICATION_SERVER_LIMITS: NotificationServerLimits = {
   maxEmailRecipients: 10,
   maxWorkflowIds: 1000,
 }
 
-export function buildServerCreateNotificationSchema(limits: NotificationServerLimits) {
+function buildServerCreateNotificationSchema(limits: NotificationServerLimits) {
   return z
     .object({
       notificationType: notificationTypeSchema,
@@ -184,7 +184,7 @@ export function buildServerCreateNotificationSchema(limits: NotificationServerLi
     })
 }
 
-export function buildServerUpdateNotificationSchema(limits: NotificationServerLimits) {
+function buildServerUpdateNotificationSchema(limits: NotificationServerLimits) {
   return z
     .object({
       workflowIds: z.array(z.string()).max(limits.maxWorkflowIds).optional(),

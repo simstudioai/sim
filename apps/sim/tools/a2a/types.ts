@@ -242,7 +242,7 @@ export interface A2AGetAgentCardResponse extends ToolResponse {
   }
 }
 
-export interface A2ASendMessageFileInput {
+interface A2ASendMessageFileInput {
   type: 'file' | 'url'
   data: string
   name: string

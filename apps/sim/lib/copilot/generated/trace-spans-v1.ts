@@ -78,11 +78,11 @@ export const TraceSpan = {
   ToolExecute: 'tool.execute',
 } as const
 
-export type TraceSpanKey = keyof typeof TraceSpan
-export type TraceSpanValue = (typeof TraceSpan)[TraceSpanKey]
+type TraceSpanKey = keyof typeof TraceSpan
+type TraceSpanValue = (typeof TraceSpan)[TraceSpanKey]
 
 /** Readonly sorted list of every canonical span name. */
-export const TraceSpanValues: readonly TraceSpanValue[] = [
+const TraceSpanValues: readonly TraceSpanValue[] = [
   'anthropic.count_tokens',
   'async_tool_store.set',
   'auth.rate_limit.record',

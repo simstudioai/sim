@@ -310,7 +310,7 @@ export function Table({
           className='-translate-y-1/2 absolute top-1/2 right-[8px] opacity-0 transition-opacity group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}
         >
-          <Trash className='h-[14px] w-[14px]' />
+          <Trash className='size-[14px]' />
         </Button>
       </td>
     )

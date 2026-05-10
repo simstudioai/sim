@@ -86,11 +86,11 @@ export function generateSkillsFromWorkflow(
   return [skill]
 }
 
-export function generateDefaultAgentName(workflowName: string): string {
+function generateDefaultAgentName(workflowName: string): string {
   return sanitizeAgentName(workflowName)
 }
 
-export function validateAgentCard(card: unknown): card is AppAgentCard {
+function validateAgentCard(card: unknown): card is AppAgentCard {
   if (!card || typeof card !== 'object') return false
 
   const c = card as Record<string, unknown>
@@ -114,10 +114,7 @@ export function validateAgentCard(card: unknown): card is AppAgentCard {
   return true
 }
 
-export function mergeAgentCard(
-  existing: AppAgentCard,
-  updates: Partial<AppAgentCard>
-): AppAgentCard {
+function mergeAgentCard(existing: AppAgentCard, updates: Partial<AppAgentCard>): AppAgentCard {
   return {
     ...existing,
     ...updates,
@@ -129,7 +126,7 @@ export function mergeAgentCard(
   }
 }
 
-export function getAgentCardPaths(agentId: string) {
+function getAgentCardPaths(agentId: string) {
   const baseUrl = getBaseUrl()
   return {
     card: `${baseUrl}/api/a2a/agents/${agentId}`,

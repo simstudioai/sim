@@ -24,7 +24,7 @@ export const TAVILY_SEARCH_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete search result output definition
  */
-export const TAVILY_SEARCH_RESULT_OUTPUT: OutputProperty = {
+const TAVILY_SEARCH_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Search result item',
   properties: TAVILY_SEARCH_RESULT_OUTPUT_PROPERTIES,
@@ -41,7 +41,7 @@ export const TAVILY_IMAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete image output definition
  */
-export const TAVILY_IMAGE_OUTPUT: OutputProperty = {
+const TAVILY_IMAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Image result',
   properties: TAVILY_IMAGE_OUTPUT_PROPERTIES,
@@ -50,14 +50,14 @@ export const TAVILY_IMAGE_OUTPUT: OutputProperty = {
 /**
  * Output definition for usage statistics
  */
-export const TAVILY_USAGE_OUTPUT_PROPERTIES = {
+const TAVILY_USAGE_OUTPUT_PROPERTIES = {
   credits: { type: 'number', description: 'Number of credits consumed' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
  * Complete usage output definition
  */
-export const TAVILY_USAGE_OUTPUT: OutputProperty = {
+const TAVILY_USAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Credit usage details',
   properties: TAVILY_USAGE_OUTPUT_PROPERTIES,
@@ -81,7 +81,7 @@ export const TAVILY_EXTRACT_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete extract result output definition
  */
-export const TAVILY_EXTRACT_RESULT_OUTPUT: OutputProperty = {
+const TAVILY_EXTRACT_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Extracted content from URL',
   properties: TAVILY_EXTRACT_RESULT_OUTPUT_PROPERTIES,
@@ -98,7 +98,7 @@ export const TAVILY_FAILED_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete failed result output definition
  */
-export const TAVILY_FAILED_RESULT_OUTPUT: OutputProperty = {
+const TAVILY_FAILED_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Failed extraction result',
   properties: TAVILY_FAILED_RESULT_OUTPUT_PROPERTIES,
@@ -116,7 +116,7 @@ export const TAVILY_CRAWL_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete crawl result output definition
  */
-export const TAVILY_CRAWL_RESULT_OUTPUT: OutputProperty = {
+const TAVILY_CRAWL_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Crawled page result',
   properties: TAVILY_CRAWL_RESULT_OUTPUT_PROPERTIES,
@@ -132,13 +132,13 @@ export const TAVILY_MAP_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete map result output definition
  */
-export const TAVILY_MAP_RESULT_OUTPUT: OutputProperty = {
+const TAVILY_MAP_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Mapped URL result',
   properties: TAVILY_MAP_RESULT_OUTPUT_PROPERTIES,
 }
 
-export interface TavilySearchResult {
+interface TavilySearchResult {
   title: string
   url: string
   content: string
@@ -180,7 +180,7 @@ interface ExtractResult {
   raw_content: string
 }
 
-export interface ExtractResponse extends ToolResponse {
+interface ExtractResponse extends ToolResponse {
   output: {
     results: ExtractResult[]
     failed_results?: Array<{
@@ -219,7 +219,7 @@ interface SearchResult {
   raw_content?: string
 }
 
-export interface SearchResponse extends ToolResponse {
+interface SearchResponse extends ToolResponse {
   output: {
     query: string
     results: SearchResult[]
@@ -263,7 +263,7 @@ export interface CrawlResponse extends ToolResponse {
   }
 }
 
-export interface TavilyCrawlResponse extends ToolResponse {
+interface TavilyCrawlResponse extends ToolResponse {
   output: {
     base_url: string
     results: CrawlResult[]
@@ -300,7 +300,7 @@ export interface MapResponse extends ToolResponse {
   }
 }
 
-export interface TavilyMapResponse extends ToolResponse {
+interface TavilyMapResponse extends ToolResponse {
   output: {
     base_url: string
     results: MapResult[]

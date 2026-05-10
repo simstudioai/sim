@@ -3086,7 +3086,7 @@ function extractManualLayoutGrid(
 }
 
 /** Result of parsing chart XML: option for ECharts, optional data table info. */
-export interface ParseChartResult {
+interface ParseChartResult {
   option: echarts.EChartsOption
   dataTable?: DataTableInfo
 }
@@ -3184,7 +3184,7 @@ function mergeCartesianComboOptions(
  * Parse a chart XML (chartSpace root) into an ECharts option object and optional data table info.
  * Exported for unit testing.
  */
-export function parseChartXml(chartXml: SafeXmlNode, ctx: RenderContext): ParseChartResult {
+function parseChartXml(chartXml: SafeXmlNode, ctx: RenderContext): ParseChartResult {
   const chartCtx = createChartRenderContext(chartXml, ctx)
   const chartPalette = buildChartPalette(chartXml, chartCtx)
   // Navigate: chartSpace > chart > plotArea

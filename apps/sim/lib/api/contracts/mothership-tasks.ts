@@ -5,15 +5,15 @@ const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(v
   message: 'Expected a valid date string',
 })
 
-export const listMothershipChatsQuerySchema = z.object({
+const listMothershipChatsQuerySchema = z.object({
   workspaceId: z.string().min(1),
 })
 
-export const mothershipChatParamsSchema = z.object({
+const mothershipChatParamsSchema = z.object({
   chatId: z.string().min(1),
 })
 
-export const updateMothershipChatBodySchema = z
+const updateMothershipChatBodySchema = z
   .object({
     title: z.string().trim().min(1).max(200).optional(),
     isUnread: z.boolean().optional(),
@@ -22,15 +22,15 @@ export const updateMothershipChatBodySchema = z
     message: 'At least one field must be provided',
   })
 
-export const createMothershipChatBodySchema = z.object({
+const createMothershipChatBodySchema = z.object({
   workspaceId: z.string().min(1),
 })
-export type CreateMothershipChatBody = z.input<typeof createMothershipChatBodySchema>
+type CreateMothershipChatBody = z.input<typeof createMothershipChatBodySchema>
 
-export const markMothershipChatReadBodySchema = z.object({
+const markMothershipChatReadBodySchema = z.object({
   chatId: z.string().min(1),
 })
-export type MarkMothershipChatReadBody = z.input<typeof markMothershipChatReadBodySchema>
+type MarkMothershipChatReadBody = z.input<typeof markMothershipChatReadBodySchema>
 
 export const markMothershipChatReadContract = defineRouteContract({
   method: 'POST',
@@ -49,7 +49,7 @@ const mothershipExecuteMessageSchema = z.object({
   content: z.string(),
 })
 
-export const mothershipExecuteBodySchema = z.object({
+const mothershipExecuteBodySchema = z.object({
   messages: z.array(mothershipExecuteMessageSchema).min(1, 'At least one message is required'),
   responseFormat: z.any().optional(),
   workspaceId: z.string().min(1, 'workspaceId is required'),
@@ -60,7 +60,7 @@ export const mothershipExecuteBodySchema = z.object({
   workflowId: z.string().optional(),
   executionId: z.string().optional(),
 })
-export type MothershipExecuteBody = z.input<typeof mothershipExecuteBodySchema>
+type MothershipExecuteBody = z.input<typeof mothershipExecuteBodySchema>
 
 export const mothershipEventsQuerySchema = z
   .object({
@@ -123,7 +123,7 @@ export const adminMothershipQuerySchema = z
     endpoint: z.string().min(1, 'endpoint query param required'),
   })
   .passthrough()
-export type AdminMothershipQuery = z.output<typeof adminMothershipQuerySchema>
+type AdminMothershipQuery = z.output<typeof adminMothershipQuerySchema>
 
 const mothershipChatResourceItemSchema = z.object({
   type: z.string(),
@@ -182,7 +182,7 @@ export const removeMothershipChatResourceContract = defineRouteContract({
   },
 })
 
-export const mothershipTaskSchema = z.object({
+const mothershipTaskSchema = z.object({
   id: z.string(),
   title: z.string().nullable(),
   updatedAt: dateStringSchema,
@@ -228,10 +228,10 @@ export const deleteMothershipChatContract = defineRouteContract({
   },
 })
 
-export const forkMothershipChatBodySchema = z.object({
+const forkMothershipChatBodySchema = z.object({
   upToMessageId: z.string().min(1, 'upToMessageId is required'),
 })
-export type ForkMothershipChatBody = z.input<typeof forkMothershipChatBodySchema>
+type ForkMothershipChatBody = z.input<typeof forkMothershipChatBodySchema>
 
 export const forkMothershipChatContract = defineRouteContract({
   method: 'POST',
@@ -247,12 +247,12 @@ export const forkMothershipChatContract = defineRouteContract({
   },
 })
 
-export const createMothershipChatResponseSchema = z.object({
+const createMothershipChatResponseSchema = z.object({
   success: z.literal(true),
   id: z.string(),
 })
 
-export const mothershipExecuteResponseSchema = z
+const mothershipExecuteResponseSchema = z
   .object({
     content: z.string().optional(),
     model: z.literal('mothership'),
@@ -276,7 +276,7 @@ const mothershipChatStreamSnapshotSchema = z
   })
   .passthrough()
 
-export const getMothershipChatResponseSchema = z.object({
+const getMothershipChatResponseSchema = z.object({
   success: z.literal(true),
   chat: z
     .object({

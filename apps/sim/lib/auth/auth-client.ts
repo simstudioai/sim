@@ -48,7 +48,7 @@ export function useSession(): SessionHookResult {
   return ctx
 }
 
-export const useActiveOrganization = isOrganizationsEnabled
+const useActiveOrganization = isOrganizationsEnabled
   ? client.useActiveOrganization
   : () => ({ data: undefined, isPending: false, error: null })
 
@@ -61,4 +61,5 @@ export const useSubscription = () => {
   }
 }
 
-export const { signIn, signUp, signOut } = client
+const { signIn, signUp, signOut } = client
+export { signOut }

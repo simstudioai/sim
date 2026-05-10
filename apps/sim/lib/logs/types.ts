@@ -2,32 +2,30 @@ import type { Edge } from 'reactflow'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import type { ParentIteration, SerializableExecutionState } from '@/executor/execution/types'
 import type {
-  BlockLog,
   BlockTokens,
   IterationToolCall,
   NormalizedBlockOutput,
   ProviderTimingSegment,
 } from '@/executor/types'
-import type { Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-export type { WorkflowState, Loop, Parallel }
-export type WorkflowEdge = Edge
-export type { NormalizedBlockOutput, BlockLog }
+export type { WorkflowState }
+type WorkflowEdge = Edge
 
-export interface PricingInfo {
+interface PricingInfo {
   input: number
   output: number
   cachedInput?: number
   updatedAt: string
 }
 
-export interface TokenUsage {
+interface TokenUsage {
   input: number
   output: number
   total: number
 }
 
-export interface CostBreakdown {
+interface CostBreakdown {
   input: number
   output: number
   total: number
@@ -36,7 +34,7 @@ export interface CostBreakdown {
   pricing: PricingInfo
 }
 
-export interface ToolCall {
+interface ToolCall {
   name: string
   duration: number
   startTime: string
@@ -47,7 +45,7 @@ export interface ToolCall {
   error?: string
 }
 
-export type BlockInputData = Record<string, any>
+type BlockInputData = Record<string, any>
 export type BlockOutputData = NormalizedBlockOutput | null
 
 export interface ExecutionEnvironment {
@@ -69,7 +67,7 @@ export interface ExecutionTrigger {
   timestamp: string
 }
 
-export interface ExecutionStatus {
+interface ExecutionStatus {
   status: 'running' | 'completed' | 'failed' | 'cancelled'
   startedAt: string
   endedAt?: string
@@ -110,7 +108,7 @@ export interface WorkflowExecutionSnapshot {
 }
 
 export type WorkflowExecutionSnapshotInsert = Omit<WorkflowExecutionSnapshot, 'createdAt'>
-export type WorkflowExecutionSnapshotSelect = WorkflowExecutionSnapshot
+type WorkflowExecutionSnapshotSelect = WorkflowExecutionSnapshot
 
 export interface WorkflowExecutionLog {
   id: string
@@ -184,9 +182,9 @@ export interface WorkflowExecutionLog {
 }
 
 export type WorkflowExecutionLogInsert = Omit<WorkflowExecutionLog, 'id' | 'createdAt'>
-export type WorkflowExecutionLogSelect = WorkflowExecutionLog
+type WorkflowExecutionLogSelect = WorkflowExecutionLog
 
-export type TokenInfo = BlockTokens
+type TokenInfo = BlockTokens
 
 export interface ProviderTiming {
   duration: number
@@ -270,7 +268,7 @@ export interface TraceSpan {
   errorMessage?: string
 }
 
-export interface WorkflowExecutionSummary {
+interface WorkflowExecutionSummary {
   id: string
   workflowId: string
   workflowName: string
@@ -295,7 +293,7 @@ export interface WorkflowExecutionSummary {
   }
 }
 
-export interface WorkflowExecutionDetail extends WorkflowExecutionSummary {
+interface WorkflowExecutionDetail extends WorkflowExecutionSummary {
   environment: ExecutionEnvironment
   triggerData: ExecutionTrigger
   blockExecutions: BlockExecutionSummary[]
@@ -303,7 +301,7 @@ export interface WorkflowExecutionDetail extends WorkflowExecutionSummary {
   workflowState: WorkflowState
 }
 
-export interface BlockExecutionSummary {
+interface BlockExecutionSummary {
   id: string
   blockId: string
   blockName: string
@@ -325,7 +323,7 @@ export interface BlockExecutionSummary {
   }
 }
 
-export interface PaginatedResponse<T> {
+interface PaginatedResponse<T> {
   data: T[]
   pagination: {
     page: number
@@ -337,10 +335,10 @@ export interface PaginatedResponse<T> {
   }
 }
 
-export type WorkflowExecutionsResponse = PaginatedResponse<WorkflowExecutionSummary>
-export type BlockExecutionsResponse = PaginatedResponse<BlockExecutionSummary>
+type WorkflowExecutionsResponse = PaginatedResponse<WorkflowExecutionSummary>
+type BlockExecutionsResponse = PaginatedResponse<BlockExecutionSummary>
 
-export interface WorkflowExecutionFilters {
+interface WorkflowExecutionFilters {
   workflowIds?: string[]
   folderIds?: string[]
   triggers?: ExecutionTrigger['type'][]
@@ -355,25 +353,25 @@ export interface WorkflowExecutionFilters {
   hasErrors?: boolean
 }
 
-export interface PaginationParams {
+interface PaginationParams {
   page: number
   pageSize: number
   sortBy?: 'startedAt' | 'durationMs' | 'totalCost' | 'blockCount'
   sortOrder?: 'asc' | 'desc'
 }
 
-export interface LogsQueryParams extends WorkflowExecutionFilters, PaginationParams {
+interface LogsQueryParams extends WorkflowExecutionFilters, PaginationParams {
   includeBlockSummary?: boolean
   includeWorkflowState?: boolean
 }
 
-export interface LogsError {
+interface LogsError {
   code: 'EXECUTION_NOT_FOUND' | 'SNAPSHOT_NOT_FOUND' | 'INVALID_WORKFLOW_STATE' | 'STORAGE_ERROR'
   message: string
   details?: Record<string, unknown>
 }
 
-export interface ValidationError {
+interface ValidationError {
   field: string
   message: string
   value: unknown
@@ -391,13 +389,13 @@ export class LogsServiceError extends Error {
   }
 }
 
-export interface DatabaseOperationResult<T> {
+interface DatabaseOperationResult<T> {
   success: boolean
   data?: T
   error?: LogsServiceError
 }
 
-export interface BatchInsertResult<T> {
+interface BatchInsertResult<T> {
   inserted: T[]
   failed: Array<{
     item: T

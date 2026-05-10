@@ -303,28 +303,28 @@ export function AddDocumentsModal({
                           </span>
                           <div className='flex flex-shrink-0 items-center gap-1'>
                             {isProcessing ? (
-                              <Loader className='h-4 w-4 text-[var(--text-muted)]' animate />
+                              <Loader className='size-4 text-[var(--text-muted)]' animate />
                             ) : (
                               <>
                                 {isFailed && (
                                   <Button
                                     type='button'
                                     variant='ghost'
-                                    className='h-4 w-4 p-0'
+                                    className='size-4 p-0'
                                     onClick={() => handleRetryFile(index)}
                                     disabled={isUploading}
                                   >
-                                    <RotateCcw className='h-3 w-3' />
+                                    <RotateCcw className='size-3' />
                                   </Button>
                                 )}
                                 <Button
                                   type='button'
                                   variant='ghost'
-                                  className='h-4 w-4 p-0'
+                                  className='size-4 p-0'
                                   onClick={() => removeFile(index)}
                                   disabled={isUploading}
                                 >
-                                  <X className='h-3.5 w-3.5' />
+                                  <X className='size-3.5' />
                                 </Button>
                               </>
                             )}

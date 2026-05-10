@@ -97,7 +97,7 @@ function isPrivateOrLoopbackIPv6(host: string): boolean {
   return false
 }
 
-export function checkSapExternalUrlSafety(
+function checkSapExternalUrlSafety(
   rawUrl: string,
   label: string
 ): { ok: true; url: URL } | { ok: false; message: string } {
@@ -133,7 +133,7 @@ export function assertSafeSapExternalUrl(rawUrl: string, label: string): URL {
   return result.url
 }
 
-export const sapS4HanaProxyBodySchema = z
+const sapS4HanaProxyBodySchema = z
   .object({
     deploymentType: sapDeploymentTypeSchema.default('cloud_public'),
     authType: sapAuthTypeSchema.default('oauth_client_credentials'),

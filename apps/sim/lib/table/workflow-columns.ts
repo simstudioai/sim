@@ -29,12 +29,8 @@ const logger = createLogger('WorkflowGroupScheduler')
 import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from './deps'
 
 export {
-  areGroupDepsSatisfied,
-  areOutputsFilled,
   getUnmetGroupDeps,
-  isExecInFlight,
   optimisticallyScheduleNewlyEligibleGroups,
-  type UnmetDeps,
 } from './deps'
 
 /**
@@ -52,7 +48,7 @@ export {
  * can aggregate skip reasons into one summary log per scheduler call instead
  * of allocating a per-cell debug line.
  */
-export type EligibilityReason =
+type EligibilityReason =
   | 'eligible'
   | 'autoRun-off'
   | 'in-flight'
@@ -62,7 +58,7 @@ export type EligibilityReason =
   | 'manual-bypass'
   | 'deps-unmet'
 
-export function classifyEligibility(
+function classifyEligibility(
   group: WorkflowGroup,
   row: TableRow,
   opts?: { isManualRun?: boolean; mode?: 'all' | 'incomplete' }
@@ -87,7 +83,7 @@ export function classifyEligibility(
   return areGroupDepsSatisfied(group, row) ? 'eligible' : 'deps-unmet'
 }
 
-export function isGroupEligible(
+function isGroupEligible(
   group: WorkflowGroup,
   row: TableRow,
   opts?: { isManualRun?: boolean; mode?: 'all' | 'incomplete' }
@@ -241,7 +237,7 @@ export async function scheduleRunsForTable(
  * Re-evaluate eligibility on the rows with these ids. Sugar for callers that
  * have row ids but not materialized rows.
  */
-export async function scheduleRunsForRowIds(
+async function scheduleRunsForRowIds(
   table: TableDefinition,
   rowIds: string[],
   opts?: ScheduleOpts
@@ -552,7 +548,7 @@ export function stripGroupDeps(group: WorkflowGroup, removed: ReadonlySet<string
  * `addWorkflowGroup`, `updateWorkflowGroup`, `renameColumn`, `reorderColumns`,
  * etc. Returns a list of human-readable errors (empty if valid).
  */
-export function validateSchema(schema: TableSchema, columnOrder: string[] | undefined): string[] {
+function validateSchema(schema: TableSchema, columnOrder: string[] | undefined): string[] {
   const errors: string[] = []
   const columnsByName = new Map(schema.columns.map((c) => [c.name, c]))
   const groups = schema.workflowGroups ?? []
@@ -778,10 +774,7 @@ export async function findCellContextByExecutionId(
  * Returns groups whose output columns occupy non-contiguous positions in the
  * given columnOrder. Empty array means all groups are cohesive.
  */
-export function findSplitGroups(
-  columnOrder: string[],
-  groups: WorkflowGroup[]
-): SplitGroupReport[] {
+function findSplitGroups(columnOrder: string[], groups: WorkflowGroup[]): SplitGroupReport[] {
   const positions = new Map<string, number>()
   columnOrder.forEach((name, idx) => positions.set(name, idx))
   const reports: SplitGroupReport[] = []

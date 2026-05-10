@@ -1,16 +1,16 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-export const scheduleStatusSchema = z.enum(['active', 'disabled', 'completed'])
-export type ScheduleStatus = z.output<typeof scheduleStatusSchema>
+const scheduleStatusSchema = z.enum(['active', 'disabled', 'completed'])
+type ScheduleStatus = z.output<typeof scheduleStatusSchema>
 
-export const scheduleSourceTypeSchema = z.enum(['workflow', 'job'])
-export type ScheduleSourceType = z.output<typeof scheduleSourceTypeSchema>
+const scheduleSourceTypeSchema = z.enum(['workflow', 'job'])
+type ScheduleSourceType = z.output<typeof scheduleSourceTypeSchema>
 
-export const scheduleLifecycleSchema = z.enum(['persistent', 'until_complete'])
+const scheduleLifecycleSchema = z.enum(['persistent', 'until_complete'])
 export type ScheduleLifecycle = z.output<typeof scheduleLifecycleSchema>
 
-export const scheduleIdParamsSchema = z.object({
+const scheduleIdParamsSchema = z.object({
   id: z.string().min(1, 'Invalid schedule ID'),
 })
 
@@ -31,7 +31,7 @@ const workflowScheduleQuerySchema = z.object({
  * responses both spread the full row, so the schema describes every column
  * (with NOT NULL columns required and timestamps as ISO strings).
  */
-export const workflowScheduleRowSchema = z.object({
+const workflowScheduleRowSchema = z.object({
   id: z.string(),
   workflowId: z.string().nullable(),
   deploymentVersionId: z.string().nullable(),
@@ -74,14 +74,14 @@ export type WorkflowScheduleRow = z.output<typeof workflowScheduleRowSchema>
  * Workflow-backed rows carry the workflow name/color from `workflow` (NOT NULL
  * columns); job-backed rows synthesize `null` server-side.
  */
-export const workspaceScheduleRowSchema = workflowScheduleRowSchema.extend({
+const workspaceScheduleRowSchema = workflowScheduleRowSchema.extend({
   workflowName: z.string().nullable(),
   workflowColor: z.string().nullable(),
 })
 
 export type WorkspaceScheduleRow = z.output<typeof workspaceScheduleRowSchema>
 
-export const createScheduleBodySchema = z.object({
+const createScheduleBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   title: z.string().min(1, 'Title is required'),
   prompt: z.string().min(1, 'Prompt is required'),
@@ -94,19 +94,19 @@ export const createScheduleBodySchema = z.object({
 
 export type CreateScheduleBody = z.input<typeof createScheduleBodySchema>
 
-export const reactivateScheduleBodySchema = z.object({
+const reactivateScheduleBodySchema = z.object({
   action: z.literal('reactivate'),
 })
 
-export type ReactivateScheduleBody = z.input<typeof reactivateScheduleBodySchema>
+type ReactivateScheduleBody = z.input<typeof reactivateScheduleBodySchema>
 
-export const disableScheduleBodySchema = z.object({
+const disableScheduleBodySchema = z.object({
   action: z.literal('disable'),
 })
 
-export type DisableScheduleBody = z.input<typeof disableScheduleBodySchema>
+type DisableScheduleBody = z.input<typeof disableScheduleBodySchema>
 
-export const updateScheduleBodySchema = z.object({
+const updateScheduleBodySchema = z.object({
   action: z.literal('update'),
   title: z.string().min(1).optional(),
   prompt: z.string().min(1).optional(),
@@ -118,13 +118,13 @@ export const updateScheduleBodySchema = z.object({
 
 export type UpdateScheduleBody = z.input<typeof updateScheduleBodySchema>
 
-export const scheduleUpdateSchema = z.discriminatedUnion('action', [
+const scheduleUpdateSchema = z.discriminatedUnion('action', [
   reactivateScheduleBodySchema,
   disableScheduleBodySchema,
   updateScheduleBodySchema,
 ])
 
-export type ScheduleUpdate = z.input<typeof scheduleUpdateSchema>
+type ScheduleUpdate = z.input<typeof scheduleUpdateSchema>
 
 const messageResponseSchema = z.object({
   message: z.string(),
@@ -165,7 +165,7 @@ export const listWorkspaceSchedulesContract = defineRouteContract({
  * the route synthesizes server-side; everything else is filled in on
  * subsequent reads.
  */
-export const createScheduleResponseSchema = z.object({
+const createScheduleResponseSchema = z.object({
   schedule: z.object({
     id: z.string(),
     status: scheduleStatusSchema,
@@ -174,7 +174,7 @@ export const createScheduleResponseSchema = z.object({
   }),
 })
 
-export type CreateScheduleResponse = z.output<typeof createScheduleResponseSchema>
+type CreateScheduleResponse = z.output<typeof createScheduleResponseSchema>
 
 export const createScheduleContract = defineRouteContract({
   method: 'POST',

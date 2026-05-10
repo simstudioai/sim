@@ -8,7 +8,7 @@ import type { McpToolSchema } from './types'
  * Extended property definition for workflow tool schemas.
  * More specific than the generic McpToolSchema properties.
  */
-export interface McpToolProperty {
+interface McpToolProperty {
   [key: string]: unknown
   type: string
   description?: string
@@ -24,7 +24,7 @@ export interface McpToolInputSchema extends McpToolSchema {
   properties: Record<string, McpToolProperty>
 }
 
-export interface McpToolDefinition {
+interface McpToolDefinition {
   name: string
   description: string
   inputSchema: McpToolInputSchema
@@ -34,7 +34,7 @@ export interface McpToolDefinition {
  * File item Zod schema for MCP file inputs.
  * This is the single source of truth for file structure.
  */
-export const fileItemZodSchema = z.object({
+const fileItemZodSchema = z.object({
   name: z.string().describe('File name'),
   data: z.string().describe('Base64 encoded file content'),
   mimeType: z.string().describe('MIME type of the file'),
@@ -76,7 +76,7 @@ function fieldTypeToZod(fieldType: string | undefined, isRequired: boolean): z.Z
  * Generate Zod schema shape from InputFormatField array.
  * This is used directly by the MCP server for tool registration.
  */
-export function generateToolZodSchema(inputFormat: InputFormatField[]): z.ZodRawShape | undefined {
+function generateToolZodSchema(inputFormat: InputFormatField[]): z.ZodRawShape | undefined {
   if (!inputFormat || inputFormat.length === 0) {
     return undefined
   }
@@ -190,7 +190,7 @@ export function generateToolInputSchema(inputFormat: InputFormatField[]): McpToo
 /**
  * Generate a complete MCP tool definition from workflow metadata and input format.
  */
-export function generateToolDefinition(
+function generateToolDefinition(
   workflowName: string,
   workflowDescription: string | undefined | null,
   inputFormat: InputFormatField[],

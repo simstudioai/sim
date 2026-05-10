@@ -9,11 +9,11 @@ import {
   adminV1SubscriptionSchema,
 } from '@/lib/api/contracts/v1/admin/shared'
 
-export const adminV1OrganizationMemberParamsSchema = adminV1IdParamsSchema.extend({
+const adminV1OrganizationMemberParamsSchema = adminV1IdParamsSchema.extend({
   memberId: z.string().min(1),
 })
 
-export const adminV1OrganizationSchema = z.object({
+const adminV1OrganizationSchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
@@ -25,12 +25,12 @@ export const adminV1OrganizationSchema = z.object({
   updatedAt: z.string(),
 })
 
-export const adminV1OrganizationDetailSchema = adminV1OrganizationSchema.extend({
+const adminV1OrganizationDetailSchema = adminV1OrganizationSchema.extend({
   memberCount: z.number(),
   subscription: adminV1SubscriptionSchema.nullable(),
 })
 
-export const adminV1MemberSchema = z.object({
+const adminV1MemberSchema = z.object({
   id: z.string(),
   userId: z.string(),
   organizationId: z.string(),
@@ -40,14 +40,14 @@ export const adminV1MemberSchema = z.object({
   userEmail: z.string(),
 })
 
-export const adminV1MemberDetailSchema = adminV1MemberSchema.extend({
+const adminV1MemberDetailSchema = adminV1MemberSchema.extend({
   currentPeriodCost: z.string(),
   currentUsageLimit: z.string().nullable(),
   lastActive: z.string().nullable(),
   billingBlocked: z.boolean(),
 })
 
-export const adminV1OrganizationBillingSummarySchema = z.object({
+const adminV1OrganizationBillingSummarySchema = z.object({
   organizationId: z.string(),
   organizationName: z.string(),
   subscriptionPlan: z.string(),
@@ -66,7 +66,7 @@ export const adminV1OrganizationBillingSummarySchema = z.object({
   membersNearLimit: z.number(),
 })
 
-export const adminV1SeatAnalyticsSchema = z.object({
+const adminV1SeatAnalyticsSchema = z.object({
   organizationId: z.string(),
   organizationName: z.string(),
   currentSeats: z.number(),
@@ -89,13 +89,13 @@ export const adminV1SeatAnalyticsSchema = z.object({
   ),
 })
 
-export const adminV1CreateOrganizationBodySchema = z.object({
+const adminV1CreateOrganizationBodySchema = z.object({
   name: z.string({ error: 'name is required' }).trim().min(1, { error: 'name is required' }),
   ownerId: z.string({ error: 'ownerId is required' }).min(1, { error: 'ownerId is required' }),
   slug: z.string().optional(),
 })
 
-export const adminV1UpdateOrganizationBodySchema = z.object({
+const adminV1UpdateOrganizationBodySchema = z.object({
   name: z
     .string({ error: 'name must be a non-empty string' })
     .trim()
@@ -108,20 +108,20 @@ export const adminV1UpdateOrganizationBodySchema = z.object({
     .optional(),
 })
 
-export const adminV1AddOrganizationMemberBodySchema = z.object({
+const adminV1AddOrganizationMemberBodySchema = z.object({
   userId: z.string({ error: 'userId is required' }).min(1, { error: 'userId is required' }),
   role: z.enum(['admin', 'member'], { error: 'role must be "admin" or "member"' }),
 })
 
-export const adminV1UpdateOrganizationMemberBodySchema = z.object({
+const adminV1UpdateOrganizationMemberBodySchema = z.object({
   role: z.enum(['admin', 'member'], { error: 'role must be "admin" or "member"' }),
 })
 
-export const adminV1RemoveOrganizationMemberQuerySchema = z.object({
+const adminV1RemoveOrganizationMemberQuerySchema = z.object({
   skipBillingLogic: adminV1BooleanQuerySchema,
 })
 
-export const adminV1UpdateOrganizationBillingBodySchema = z.object({
+const adminV1UpdateOrganizationBillingBodySchema = z.object({
   orgUsageLimit: z
     .union([
       z
@@ -132,7 +132,7 @@ export const adminV1UpdateOrganizationBillingBodySchema = z.object({
     .optional(),
 })
 
-export const adminV1TransferOwnershipBodySchema = z.object({
+const adminV1TransferOwnershipBodySchema = z.object({
   newOwnerUserId: z
     .string({ error: 'newOwnerUserId is required' })
     .min(1, { error: 'newOwnerUserId is required' }),

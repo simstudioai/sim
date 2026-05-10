@@ -29,6 +29,6 @@ export const awsS3DeleteObjectContract = defineRouteContract({
   body: S3DeleteObjectSchema,
   response: { mode: 'json', schema: S3DeleteObjectResponseSchema },
 })
-export type AwsS3DeleteObjectRequest = ContractBodyInput<typeof awsS3DeleteObjectContract>
-export type AwsS3DeleteObjectBody = ContractBody<typeof awsS3DeleteObjectContract>
-export type AwsS3DeleteObjectResponse = ContractJsonResponse<typeof awsS3DeleteObjectContract>
+type AwsS3DeleteObjectRequest = ContractBodyInput<typeof awsS3DeleteObjectContract>
+type AwsS3DeleteObjectBody = ContractBody<typeof awsS3DeleteObjectContract>
+type AwsS3DeleteObjectResponse = ContractJsonResponse<typeof awsS3DeleteObjectContract>

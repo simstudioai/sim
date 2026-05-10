@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 
-export const userProfileSchema = z.object({
+const userProfileSchema = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string(),
@@ -23,7 +23,7 @@ export const getUserProfileContract = defineRouteContract({
   },
 })
 
-export const updateUserProfileBodySchema = z
+const updateUserProfileBodySchema = z
   .object({
     name: z.string().min(1, 'Name is required').optional(),
     image: z
@@ -54,14 +54,14 @@ export const updateUserProfileContract = defineRouteContract({
   },
 })
 
-export const userSettingsEmailPreferencesSchema = z.object({
+const userSettingsEmailPreferencesSchema = z.object({
   unsubscribeAll: z.boolean().optional(),
   unsubscribeMarketing: z.boolean().optional(),
   unsubscribeUpdates: z.boolean().optional(),
   unsubscribeNotifications: z.boolean().optional(),
 })
 
-export const userSettingsSchema = z.object({
+const userSettingsSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']).default('system'),
   autoConnect: z.boolean().default(true),
   telemetryEnabled: z.boolean().default(true),
@@ -77,7 +77,7 @@ export const userSettingsSchema = z.object({
 
 export type UserSettingsApi = z.output<typeof userSettingsSchema>
 
-export const updateUserSettingsBodySchema = z.object({
+const updateUserSettingsBodySchema = z.object({
   theme: z.enum(['system', 'light', 'dark']).optional(),
   autoConnect: z.boolean().optional(),
   telemetryEnabled: z.boolean().optional(),
@@ -115,7 +115,7 @@ export const updateUserSettingsContract = defineRouteContract({
   },
 })
 
-export const forgetPasswordBodySchema = z.object({
+const forgetPasswordBodySchema = z.object({
   email: z.string({ error: 'Email is required' }).email('Please provide a valid email address'),
   redirectTo: z
     .string()
@@ -144,7 +144,7 @@ export const forgetPasswordContract = defineRouteContract({
   },
 })
 
-export const resetPasswordBodySchema = z.object({
+const resetPasswordBodySchema = z.object({
   token: z.string({ error: 'Token is required' }).min(1, 'Token is required'),
   newPassword: z
     .string({ error: 'Password is required' })
@@ -170,13 +170,13 @@ export const resetPasswordContract = defineRouteContract({
   },
 })
 
-export const unsubscribeBodySchema = z.object({
+const unsubscribeBodySchema = z.object({
   email: z.string().email('Invalid email address'),
   token: z.string().min(1, 'Token is required'),
   type: z.enum(['all', 'marketing', 'updates', 'notifications']).optional().default('all'),
 })
 
-export const unsubscribeQuerySchema = z.object({
+const unsubscribeQuerySchema = z.object({
   email: z.string().min(1),
   token: z.string().min(1),
 })
@@ -190,7 +190,7 @@ const unsubscribePreferencesSchema = z
   })
   .passthrough()
 
-export const unsubscribeGetResponseSchema = z.object({
+const unsubscribeGetResponseSchema = z.object({
   success: z.literal(true),
   email: z.string(),
   token: z.string(),
@@ -199,7 +199,7 @@ export const unsubscribeGetResponseSchema = z.object({
   currentPreferences: unsubscribePreferencesSchema,
 })
 
-export const unsubscribeActionResponseSchema = z.object({
+const unsubscribeActionResponseSchema = z.object({
   success: z.literal(true),
   message: z.string(),
   email: z.string(),
@@ -245,11 +245,11 @@ export const usageLogsQuerySchema = z.object({
   cursor: z.string().optional(),
 })
 
-export const subscriptionTransferParamsSchema = z.object({
+const subscriptionTransferParamsSchema = z.object({
   id: z.string({ error: 'Subscription ID is required' }).min(1, 'Subscription ID is required'),
 })
 
-export const subscriptionTransferBodySchema = z.object({
+const subscriptionTransferBodySchema = z.object({
   organizationId: z
     .string({ error: 'organizationId is required' })
     .min(1, 'organizationId is required'),
