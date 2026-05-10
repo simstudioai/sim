@@ -173,7 +173,7 @@ export function FormField({
 
             {files.length > 0 && (
               <div className='space-y-2'>
-                {files.map((file) => (
+                {files.map((file, idx) => (
                   <div
                     key={`${file.name}-${file.size}`}
                     className='flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2'

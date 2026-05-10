@@ -125,7 +125,11 @@ export async function getAllTags(): Promise<TagWithCount[]> {
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
 }
 
-const BLOG_COMPONENT_LOADERS: Record<string, () => Promise<Record<string, React.ComponentType>>> = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const BLOG_COMPONENT_LOADERS: Record<
+  string,
+  () => Promise<Record<string, React.ComponentType<any>>>
+> = {
   enterprise: () => import('@/content/blog/enterprise/components'),
   'v0-5': () => import('@/content/blog/v0-5/components'),
 }

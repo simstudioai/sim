@@ -265,7 +265,7 @@ export function ChatDeploy({
       }
 
       await onRefetchChat()
-      setHasInitializedForm(false)
+      hasInitializedFormRef.current = false
       setFormInitCounter((c) => c + 1)
     } catch (error: any) {
       newTab?.close()
@@ -289,7 +289,7 @@ export function ChatDeploy({
       })
 
       setImageUrl(null)
-      setHasInitializedForm(false)
+      hasInitializedFormRef.current = false
       setFormInitCounter((c) => c + 1)
       await onRefetchChat()
 

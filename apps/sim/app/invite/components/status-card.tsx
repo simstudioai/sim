@@ -63,7 +63,7 @@ export function InviteStatusCard({
           </button>
         )}
 
-        {actions.map((action) => (
+        {actions.map((action, index) => (
           <button
             key={action.label}
             onClick={action.onClick}
