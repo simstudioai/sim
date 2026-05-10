@@ -116,7 +116,7 @@ export function buildPlanName(type: 'pro' | 'team', credits: number): string {
 /**
  * Get the list of valid plan names for a given category.
  */
-function getValidPlanNames(type: 'pro' | 'team'): string[] {
+export function getValidPlanNames(type: 'pro' | 'team'): string[] {
   return CREDIT_TIERS.map((t) => buildPlanName(type, t.credits))
 }
 

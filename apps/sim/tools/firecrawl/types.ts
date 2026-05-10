@@ -46,7 +46,7 @@ export const PAGE_METADATA_OUTPUT_PROPERTIES = {
 /**
  * Complete page metadata output definition
  */
-const PAGE_METADATA_OUTPUT: OutputProperty = {
+export const PAGE_METADATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Page metadata including SEO and Open Graph information',
   properties: PAGE_METADATA_OUTPUT_PROPERTIES,
@@ -56,7 +56,7 @@ const PAGE_METADATA_OUTPUT: OutputProperty = {
  * Simplified metadata for crawl responses (subset of full metadata)
  * Based on crawl data[].metadata structure from GET /v2/crawl/{id}
  */
-const CRAWL_METADATA_OUTPUT_PROPERTIES = {
+export const CRAWL_METADATA_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Page title' },
   description: { type: 'string', description: 'Page meta description', optional: true },
   language: { type: 'string', description: 'Page language code', optional: true },
@@ -83,7 +83,7 @@ const CRAWL_METADATA_OUTPUT: OutputProperty = {
  * Search result metadata properties
  * Based on search data[].metadata structure from POST /v2/search
  */
-const SEARCH_METADATA_OUTPUT_PROPERTIES = {
+export const SEARCH_METADATA_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Page title', optional: true },
   description: { type: 'string', description: 'Page meta description', optional: true },
   sourceURL: { type: 'string', description: 'Original source URL' },
@@ -147,7 +147,7 @@ export const CRAWLED_PAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete crawled page output definition
  */
-const CRAWLED_PAGE_OUTPUT: OutputProperty = {
+export const CRAWLED_PAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Crawled page data with content and metadata',
   properties: CRAWLED_PAGE_OUTPUT_PROPERTIES,
@@ -213,7 +213,7 @@ export const SEARCH_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete search result output definition
  */
-const SEARCH_RESULT_OUTPUT: OutputProperty = {
+export const SEARCH_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Search result item with optional scraped content',
   properties: SEARCH_RESULT_OUTPUT_PROPERTIES,

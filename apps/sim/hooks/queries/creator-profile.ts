@@ -45,7 +45,7 @@ async function fetchOrganizations(signal?: AbortSignal): Promise<Organization[]>
 /**
  * Hook to fetch organizations
  */
-function useOrganizations() {
+export function useOrganizations() {
   return useQuery({
     queryKey: creatorProfileKeys.organizations(),
     queryFn: ({ signal }) => fetchOrganizations(signal),
@@ -94,7 +94,7 @@ async function fetchCreatorProfile(
 /**
  * Hook to fetch creator profile
  */
-function useCreatorProfile(userId: string) {
+export function useCreatorProfile(userId: string) {
   return useQuery({
     queryKey: creatorProfileKeys.profile(userId),
     queryFn: ({ signal }) => fetchCreatorProfile(userId, signal),
@@ -117,7 +117,7 @@ interface SaveProfileParams {
   existingProfileId?: string
 }
 
-function useSaveCreatorProfile() {
+export function useSaveCreatorProfile() {
   const queryClient = useQueryClient()
 
   return useMutation({

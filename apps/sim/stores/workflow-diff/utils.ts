@@ -29,7 +29,9 @@ export function cloneWorkflowState(state: WorkflowState): WorkflowState {
   }
 }
 
-function extractSubBlockValues(workflowState: WorkflowState): Record<string, Record<string, any>> {
+export function extractSubBlockValues(
+  workflowState: WorkflowState
+): Record<string, Record<string, any>> {
   const values: Record<string, Record<string, any>> = {}
   Object.entries(workflowState.blocks || {}).forEach(([blockId, block]) => {
     values[blockId] = {}

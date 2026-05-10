@@ -31,7 +31,7 @@ const confluencePagesBodySchema = z.object({
  * (max 255 chars). Used as a `superRefine` so multiple
  * methods (POST/PUT/DELETE) on `/api/tools/confluence/page` can share it.
  */
-function refineConfluencePageId(data: { pageId: string }, ctx: z.RefinementCtx): void {
+export function refineConfluencePageId(data: { pageId: string }, ctx: z.RefinementCtx): void {
   const validation = validateAlphanumericId(data.pageId, 'pageId', 255)
   if (!validation.isValid) {
     ctx.addIssue({
@@ -42,7 +42,7 @@ function refineConfluencePageId(data: { pageId: string }, ctx: z.RefinementCtx):
   }
 }
 
-const confluencePageBaseSchema = z.object({
+export const confluencePageBaseSchema = z.object({
   domain: z.string().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   cloudId: optionalString,
@@ -77,7 +77,7 @@ const confluencePageScopedSchema = confluenceBaseSchema.extend({
   pageId: z.string({ error: 'Page ID is required' }).min(1, 'Page ID is required'),
 })
 
-const confluenceSpaceScopedSchema = confluenceBaseSchema.extend({
+export const confluenceSpaceScopedSchema = confluenceBaseSchema.extend({
   spaceId: z.string({ error: 'Space ID is required' }).min(1, 'Space ID is required'),
 })
 
@@ -100,13 +100,13 @@ function addAlphanumericIdIssue(
   }
 }
 
-const confluenceCommentScopedSchema = confluenceBaseSchema
+export const confluenceCommentScopedSchema = confluenceBaseSchema
   .extend({
     commentId: z.string().min(1, 'Comment ID is required'),
   })
   .superRefine((data, ctx) => addAlphanumericIdIssue(data, 'commentId', 'comment ID', ctx))
 
-const confluenceBlogPostScopedSchema = confluenceBaseSchema
+export const confluenceBlogPostScopedSchema = confluenceBaseSchema
   .extend({
     blogPostId: z.string({ error: 'Blog post ID is required' }).min(1, 'Blog post ID is required'),
   })
@@ -182,7 +182,7 @@ const confluenceUpdateSpaceBodySchema = confluenceSpaceScopedSchema.extend({
   name: z.string().optional(),
   description: z.string().optional(),
 })
-const confluencePageChildrenBodySchema = confluencePageScopedSchema.extend({
+export const confluencePageChildrenBodySchema = confluencePageScopedSchema.extend({
   limit: z.number().optional().default(50),
   cursor: z.string().optional(),
 })

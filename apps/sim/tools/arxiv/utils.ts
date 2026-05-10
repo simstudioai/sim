@@ -39,19 +39,23 @@ export function extractTotalResults(xmlText: string): number {
   return totalResultsMatch ? Number.parseInt(totalResultsMatch[1], 10) : 0
 }
 
-function extractXmlValue(xml: string, tagName: string): string | undefined {
+export function extractXmlValue(xml: string, tagName: string): string | undefined {
   const regex = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\/${tagName}>`)
   const match = xml.match(regex)
   return match ? match[1].trim() : undefined
 }
 
-function extractXmlAttribute(xml: string, tagName: string, attrName: string): string | undefined {
+export function extractXmlAttribute(
+  xml: string,
+  tagName: string,
+  attrName: string
+): string | undefined {
   const regex = new RegExp(`<${tagName}[^>]*${attrName}="([^"]*)"[^>]*>`)
   const match = xml.match(regex)
   return match ? match[1] : undefined
 }
 
-function extractAuthors(entryXml: string): string[] {
+export function extractAuthors(entryXml: string): string[] {
   const authors: string[] = []
   const authorRegex = /<author[^>]*>[\s\S]*?<name>([^<]+)<\/name>[\s\S]*?<\/author>/g
   let match
@@ -63,13 +67,13 @@ function extractAuthors(entryXml: string): string[] {
   return authors
 }
 
-function extractPdfLink(entryXml: string): string {
+export function extractPdfLink(entryXml: string): string {
   const linkRegex = /<link[^>]*href="([^"]*)"[^>]*title="pdf"[^>]*>/
   const match = entryXml.match(linkRegex)
   return match ? match[1] : ''
 }
 
-function extractCategories(entryXml: string): string[] {
+export function extractCategories(entryXml: string): string[] {
   const categories: string[] = []
   const categoryRegex = /<category[^>]*term="([^"]*)"[^>]*>/g
   let match
@@ -81,6 +85,6 @@ function extractCategories(entryXml: string): string[] {
   return categories
 }
 
-function cleanText(text: string): string {
+export function cleanText(text: string): string {
   return text.replace(/\s+/g, ' ').trim()
 }

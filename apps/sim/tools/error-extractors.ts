@@ -229,7 +229,10 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
 
 const EXTRACTOR_MAP = new Map<string, ErrorExtractorConfig>(ERROR_EXTRACTORS.map((e) => [e.id, e]))
 
-function extractErrorMessageWithId(errorInfo: ErrorInfo | undefined, extractorId: string): string {
+export function extractErrorMessageWithId(
+  errorInfo: ErrorInfo | undefined,
+  extractorId: string
+): string {
   const extractor = EXTRACTOR_MAP.get(extractorId)
 
   if (!extractor) {

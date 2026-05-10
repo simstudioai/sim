@@ -203,7 +203,7 @@ interface UpgradeSubscriptionParams {
   orgId?: string
 }
 
-function useUpgradeSubscription() {
+export function useUpgradeSubscription() {
   const queryClient = useQueryClient()
 
   return useMutation({

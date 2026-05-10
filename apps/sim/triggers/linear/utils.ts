@@ -87,7 +87,7 @@ export function linearSetupInstructions(eventType: string, additionalNotes?: str
 /**
  * Generate setup instructions for automatic Linear webhook creation (v2 triggers)
  */
-function linearV2SetupInstructions(eventType: string, additionalNotes?: string): string {
+export function linearV2SetupInstructions(eventType: string, additionalNotes?: string): string {
   const instructions = [
     'Enter your Linear API Key above. You can create one in Linear at <a href="https://linear.app/settings/api" target="_blank" rel="noopener noreferrer">Settings &gt; API &gt; Personal API keys</a>.',
     'Optionally enter a <strong>Team ID</strong> to scope the webhook to a single team. Leave it empty to receive events from all public teams. You can find Team IDs in Linear under <a href="https://linear.app/settings" target="_blank" rel="noopener noreferrer">Settings &gt; Teams</a> or via the API.',

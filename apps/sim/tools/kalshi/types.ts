@@ -50,7 +50,7 @@ export const KALSHI_MARKET_OUTPUT_PROPERTIES = {
 /**
  * Complete market output definition
  */
-const KALSHI_MARKET_OUTPUT: OutputProperty = {
+export const KALSHI_MARKET_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Kalshi market object',
   properties: KALSHI_MARKET_OUTPUT_PROPERTIES,
@@ -74,7 +74,7 @@ export const KALSHI_EVENT_OUTPUT_PROPERTIES = {
 /**
  * Complete event output definition
  */
-const KALSHI_EVENT_OUTPUT: OutputProperty = {
+export const KALSHI_EVENT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Kalshi event object',
   properties: KALSHI_EVENT_OUTPUT_PROPERTIES,
@@ -108,7 +108,7 @@ export const KALSHI_ORDER_OUTPUT_PROPERTIES = {
 /**
  * Complete order output definition
  */
-const KALSHI_ORDER_OUTPUT: OutputProperty = {
+export const KALSHI_ORDER_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Kalshi order object',
   properties: KALSHI_ORDER_OUTPUT_PROPERTIES,
@@ -138,7 +138,7 @@ export const KALSHI_POSITION_OUTPUT_PROPERTIES = {
 /**
  * Complete position output definition
  */
-const KALSHI_POSITION_OUTPUT: OutputProperty = {
+export const KALSHI_POSITION_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Kalshi market position object',
   properties: KALSHI_POSITION_OUTPUT_PROPERTIES,
@@ -158,7 +158,7 @@ export const KALSHI_EVENT_POSITION_OUTPUT_PROPERTIES = {
 /**
  * Complete event position output definition
  */
-const KALSHI_EVENT_POSITION_OUTPUT: OutputProperty = {
+export const KALSHI_EVENT_POSITION_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Kalshi event position object',
   properties: KALSHI_EVENT_POSITION_OUTPUT_PROPERTIES,
@@ -184,7 +184,7 @@ export const KALSHI_FILL_OUTPUT_PROPERTIES = {
 /**
  * Complete fill output definition
  */
-const KALSHI_FILL_OUTPUT: OutputProperty = {
+export const KALSHI_FILL_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Kalshi trade fill object',
   properties: KALSHI_FILL_OUTPUT_PROPERTIES,
@@ -206,7 +206,7 @@ export const KALSHI_TRADE_OUTPUT_PROPERTIES = {
 /**
  * Complete trade output definition
  */
-const KALSHI_TRADE_OUTPUT: OutputProperty = {
+export const KALSHI_TRADE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Kalshi public trade object',
   properties: KALSHI_TRADE_OUTPUT_PROPERTIES,
@@ -216,7 +216,7 @@ const KALSHI_TRADE_OUTPUT: OutputProperty = {
  * Output definition for candlestick/OHLC objects.
  * @see https://trading-api.readme.io/reference/getmarketshistory
  */
-const KALSHI_CANDLESTICK_OUTPUT_PROPERTIES = {
+export const KALSHI_CANDLESTICK_OUTPUT_PROPERTIES = {
   open_time: { type: 'string', description: 'Candle open time (ISO 8601)' },
   close_time: { type: 'string', description: 'Candle close time (ISO 8601)' },
   open: { type: 'number', description: 'Opening price in cents' },
@@ -239,7 +239,7 @@ const KALSHI_CANDLESTICK_OUTPUT: OutputProperty = {
  * Output definition for orderbook level objects.
  * @see https://trading-api.readme.io/reference/getmarketorderbook
  */
-const KALSHI_ORDERBOOK_LEVEL_OUTPUT_PROPERTIES = {
+export const KALSHI_ORDERBOOK_LEVEL_OUTPUT_PROPERTIES = {
   price: { type: 'number', description: 'Price level in cents' },
   quantity: { type: 'number', description: 'Quantity at this price level' },
 } as const satisfies Record<string, OutputProperty>
@@ -257,7 +257,7 @@ const KALSHI_ORDERBOOK_LEVEL_OUTPUT: OutputProperty = {
  * Output definition for series objects.
  * @see https://trading-api.readme.io/reference/getseries
  */
-const KALSHI_SERIES_OUTPUT_PROPERTIES = {
+export const KALSHI_SERIES_OUTPUT_PROPERTIES = {
   ticker: { type: 'string', description: 'Unique series ticker' },
   title: { type: 'string', description: 'Series title' },
   frequency: { type: 'string', description: 'Event frequency (daily, weekly, etc.)' },
@@ -284,7 +284,7 @@ const KALSHI_SERIES_OUTPUT: OutputProperty = {
  * Output definition for balance objects.
  * @see https://trading-api.readme.io/reference/getbalance
  */
-const KALSHI_BALANCE_OUTPUT_PROPERTIES = {
+export const KALSHI_BALANCE_OUTPUT_PROPERTIES = {
   balance: { type: 'number', description: 'Available balance in cents' },
   portfolio_value: { type: 'number', description: 'Total portfolio value in cents' },
 } as const satisfies Record<string, OutputProperty>
@@ -308,7 +308,7 @@ export const KALSHI_PAGING_OUTPUT_PROPERTIES = {
 /**
  * Complete paging output definition
  */
-const KALSHI_PAGING_OUTPUT: OutputProperty = {
+export const KALSHI_PAGING_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pagination information',
   properties: KALSHI_PAGING_OUTPUT_PROPERTIES,
@@ -551,7 +551,7 @@ function normalizePemKey(privateKey: string): string {
 
 // RSA-PSS signature generation for authenticated requests
 // Kalshi requires RSA-PSS with SHA256, not plain PKCS#1 v1.5
-function generateKalshiSignature(
+export function generateKalshiSignature(
   privateKey: string,
   timestamp: string,
   method: string,

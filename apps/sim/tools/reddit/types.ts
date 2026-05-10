@@ -134,7 +134,7 @@ const COMMENT_WITH_REPLIES_OUTPUT_PROPERTIES = {
 /**
  * Post metadata output for get_comments tool
  */
-const POST_METADATA_OUTPUT_PROPERTIES = {
+export const POST_METADATA_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Post ID' },
   name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
   title: { type: 'string', description: 'Post title' },
@@ -148,7 +148,7 @@ const POST_METADATA_OUTPUT_PROPERTIES = {
 /**
  * Complete posts array output definition
  */
-const POSTS_ARRAY_OUTPUT: OutputProperty = {
+export const POSTS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of posts with title, author, URL, score, comments count, and metadata',
   items: {
@@ -160,7 +160,7 @@ const POSTS_ARRAY_OUTPUT: OutputProperty = {
 /**
  * Complete comments array output definition with nested replies
  */
-const COMMENTS_ARRAY_OUTPUT: OutputProperty = {
+export const COMMENTS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Nested comments with author, body, score, timestamps, and replies',
   items: {
@@ -189,7 +189,7 @@ const WRITE_SUCCESS_OUTPUT_PROPERTIES = {
 /**
  * Submit post response data output properties
  */
-const SUBMIT_POST_DATA_OUTPUT_PROPERTIES = {
+export const SUBMIT_POST_DATA_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'New post ID' },
   name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
   url: { type: 'string', description: 'Post URL from API response' },
@@ -208,7 +208,7 @@ const SUBMIT_POST_DATA_OUTPUT: OutputProperty = {
 /**
  * Reply comment response data output properties
  */
-const REPLY_DATA_OUTPUT_PROPERTIES = {
+export const REPLY_DATA_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'New comment ID' },
   name: { type: 'string', description: 'Thing fullname (t1_xxxxx)' },
   permalink: { type: 'string', description: 'Comment permalink' },
@@ -227,7 +227,7 @@ const REPLY_DATA_OUTPUT: OutputProperty = {
 /**
  * Edit response data output properties
  */
-const EDIT_DATA_OUTPUT_PROPERTIES = {
+export const EDIT_DATA_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Edited thing ID' },
   body: { type: 'string', description: 'Updated comment body (for comments)' },
   selftext: { type: 'string', description: 'Updated post text (for self posts)' },

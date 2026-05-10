@@ -28,7 +28,7 @@ export const WEBFLOW_ITEM_OUTPUT_PROPERTIES = {
 /**
  * Complete item output definition
  */
-const WEBFLOW_ITEM_OUTPUT: OutputProperty = {
+export const WEBFLOW_ITEM_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Webflow CMS collection item',
   properties: WEBFLOW_ITEM_OUTPUT_PROPERTIES,

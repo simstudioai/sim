@@ -24,11 +24,15 @@ function parseStructuredValue(value: unknown): unknown[] | null {
   return Array.isArray(value) ? value : null
 }
 
-function isDynamicHandleBlockType(type: string | undefined): type is 'condition' | 'router_v2' {
+export function isDynamicHandleBlockType(
+  type: string | undefined
+): type is 'condition' | 'router_v2' {
   return type === 'condition' || type === 'router_v2'
 }
 
-function getDynamicHandleSubblockId(blockType: string | undefined): 'conditions' | 'routes' | null {
+export function getDynamicHandleSubblockId(
+  blockType: string | undefined
+): 'conditions' | 'routes' | null {
   if (blockType === 'condition') return 'conditions'
   if (blockType === 'router_v2') return 'routes'
   return null

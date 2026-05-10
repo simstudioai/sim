@@ -55,7 +55,7 @@ export function validateCypherQuery(query: string): { isValid: boolean; error?: 
   return { isValid: true }
 }
 
-function sanitizeLabelName(name: string): string {
+export function sanitizeLabelName(name: string): string {
   if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(name)) {
     throw new Error(
       'Invalid label name. Must start with a letter and contain only letters, numbers, and underscores.'
@@ -64,7 +64,7 @@ function sanitizeLabelName(name: string): string {
   return name
 }
 
-function sanitizePropertyKey(key: string): string {
+export function sanitizePropertyKey(key: string): string {
   if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(key)) {
     throw new Error(
       'Invalid property key. Must start with a letter and contain only letters, numbers, and underscores.'
@@ -73,7 +73,7 @@ function sanitizePropertyKey(key: string): string {
   return key
 }
 
-function sanitizeRelationshipType(type: string): string {
+export function sanitizeRelationshipType(type: string): string {
   if (!/^[A-Z][A-Z0-9_]*$/.test(type)) {
     throw new Error(
       'Invalid relationship type. Must start with an uppercase letter and contain only uppercase letters, numbers, and underscores.'

@@ -15,7 +15,7 @@ const EMPTY_SCHEMA: Record<string, unknown> = Object.freeze({ type: 'object', pr
 /**
  * Generate MCP tool parameter schema from workflow blocks.
  */
-function generateSchemaFromBlocks(blocks: Record<string, unknown>): Record<string, unknown> {
+export function generateSchemaFromBlocks(blocks: Record<string, unknown>): Record<string, unknown> {
   const inputFormat = extractInputFormatFromBlocks(blocks)
   if (!inputFormat || inputFormat.length === 0) {
     return EMPTY_SCHEMA

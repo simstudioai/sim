@@ -266,7 +266,7 @@ export const CompleteJob: ToolCatalogEntry = {
   },
 }
 
-const ContextWrite: ToolCatalogEntry = {
+export const ContextWrite: ToolCatalogEntry = {
   id: 'context_write',
   name: 'context_write',
   route: 'go',
@@ -898,7 +898,7 @@ export const DownloadToWorkspaceFile: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-const EditContent: ToolCatalogEntry = {
+export const EditContent: ToolCatalogEntry = {
   id: 'edit_content',
   name: 'edit_content',
   route: 'sim',
@@ -974,7 +974,7 @@ export const EditWorkflow: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-const File: ToolCatalogEntry = {
+export const File: ToolCatalogEntry = {
   id: 'file',
   name: 'file',
   route: 'subagent',
@@ -2202,7 +2202,7 @@ export const Research: ToolCatalogEntry = {
   internal: true,
 }
 
-const Respond: ToolCatalogEntry = {
+export const Respond: ToolCatalogEntry = {
   id: 'respond',
   name: 'respond',
   route: 'sim',
@@ -2263,7 +2263,7 @@ export const RevertToVersion: ToolCatalogEntry = {
   requiredPermission: 'admin',
 }
 
-const Run: ToolCatalogEntry = {
+export const Run: ToolCatalogEntry = {
   id: 'run',
   name: 'run',
   route: 'subagent',
@@ -2520,7 +2520,7 @@ export const SearchOnline: ToolCatalogEntry = {
   },
 }
 
-const SearchPatterns: ToolCatalogEntry = {
+export const SearchPatterns: ToolCatalogEntry = {
   id: 'search_patterns',
   name: 'search_patterns',
   route: 'go',

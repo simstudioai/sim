@@ -41,7 +41,7 @@ export function isAshbyEventMatch(triggerId: string, action: string): boolean {
  * Generates setup instructions for Ashby webhooks.
  * Webhooks are automatically created/deleted via the Ashby API.
  */
-function ashbySetupInstructions(eventType: string): string {
+export function ashbySetupInstructions(eventType: string): string {
   const instructions = [
     'Enter your Ashby API Key above. You can find your API key in Ashby at <strong>Settings &gt; API Keys</strong>.',
     `The webhook for <strong>${eventType}</strong> events will be automatically created in Ashby when you save the trigger.`,

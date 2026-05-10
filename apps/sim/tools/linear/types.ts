@@ -10,7 +10,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 /**
  * Output definition for nested state objects in issue responses
  */
-const STATE_OUTPUT_PROPERTIES = {
+export const STATE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'State ID' },
   name: { type: 'string', description: 'State name (e.g., "Todo", "In Progress")' },
   type: { type: 'string', description: 'State type (unstarted, started, completed, canceled)' },
@@ -28,7 +28,7 @@ const STATE_OUTPUT: OutputProperty = {
 /**
  * Output definition for nested assignee/user objects
  */
-const USER_OUTPUT_PROPERTIES = {
+export const USER_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'User ID' },
   name: { type: 'string', description: 'User name' },
   email: { type: 'string', description: 'User email' },
@@ -59,7 +59,7 @@ export const USER_FULL_OUTPUT_PROPERTIES = {
 /**
  * Output definition for nested team objects
  */
-const TEAM_OUTPUT_PROPERTIES = {
+export const TEAM_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Team ID' },
   name: { type: 'string', description: 'Team name' },
 } as const satisfies Record<string, OutputProperty>
@@ -95,7 +95,7 @@ const LABEL_OUTPUT_PROPERTIES = {
 /**
  * Complete labels array output definition
  */
-const LABELS_OUTPUT: OutputProperty = {
+export const LABELS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Issue labels',
   items: {
@@ -122,7 +122,7 @@ export const LABEL_FULL_OUTPUT_PROPERTIES = {
 /**
  * Output definition for nested cycle objects
  */
-const CYCLE_OUTPUT_PROPERTIES = {
+export const CYCLE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Cycle ID' },
   number: { type: 'number', description: 'Cycle number' },
   name: { type: 'string', description: 'Cycle name' },
@@ -155,7 +155,7 @@ export const CYCLE_FULL_OUTPUT_PROPERTIES = {
 /**
  * Output definition for nested project objects
  */
-const PROJECT_OUTPUT_PROPERTIES = {
+export const PROJECT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Project ID' },
   name: { type: 'string', description: 'Project name' },
 } as const satisfies Record<string, OutputProperty>
@@ -198,7 +198,7 @@ export const PROJECT_FULL_OUTPUT_PROPERTIES = {
 /**
  * Output definition for nested issue objects (minimal)
  */
-const ISSUE_MINIMAL_OUTPUT_PROPERTIES = {
+export const ISSUE_MINIMAL_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Issue ID' },
   title: { type: 'string', description: 'Issue title' },
 } as const satisfies Record<string, OutputProperty>

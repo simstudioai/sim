@@ -8,14 +8,14 @@ function hasOwnOutput(value: { output?: unknown }): value is { output: unknown }
   return Object.hasOwn(value, 'output')
 }
 
-function isSuccessfulToolCallStatus(status: TerminalToolCallStatus): boolean {
+export function isSuccessfulToolCallStatus(status: TerminalToolCallStatus): boolean {
   return (
     status === MothershipStreamV1ToolOutcome.success ||
     status === MothershipStreamV1ToolOutcome.skipped
   )
 }
 
-function createToolCallStateResult(input: {
+export function createToolCallStateResult(input: {
   success: boolean
   output?: unknown
 }): ToolCallStateResult {

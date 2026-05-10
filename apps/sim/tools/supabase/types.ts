@@ -44,7 +44,7 @@ export const STORAGE_FILE_OUTPUT_PROPERTIES = {
 /**
  * Complete storage file object output definition
  */
-const STORAGE_FILE_OUTPUT: OutputProperty = {
+export const STORAGE_FILE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Storage file object with metadata',
   properties: STORAGE_FILE_OUTPUT_PROPERTIES,
@@ -77,7 +77,7 @@ export const STORAGE_BUCKET_OUTPUT_PROPERTIES = {
 /**
  * Complete storage bucket object output definition
  */
-const STORAGE_BUCKET_OUTPUT: OutputProperty = {
+export const STORAGE_BUCKET_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Storage bucket object with configuration',
   properties: STORAGE_BUCKET_OUTPUT_PROPERTIES,
@@ -153,7 +153,7 @@ export const STORAGE_DOWNLOAD_OUTPUT_PROPERTIES = {
 /**
  * Complete download file object output definition
  */
-const STORAGE_DOWNLOAD_FILE_OUTPUT: OutputProperty = {
+export const STORAGE_DOWNLOAD_FILE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Downloaded file with content and metadata',
   properties: STORAGE_DOWNLOAD_OUTPUT_PROPERTIES,
@@ -176,7 +176,7 @@ const STORAGE_SIGNED_URL_OUTPUT_PROPERTIES = {
 /**
  * Storage files array output definition for list operations
  */
-const STORAGE_FILES_OUTPUT: OutputProperty = {
+export const STORAGE_FILES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of file objects with metadata',
   items: {
@@ -188,7 +188,7 @@ const STORAGE_FILES_OUTPUT: OutputProperty = {
 /**
  * Storage buckets array output definition for list buckets operations
  */
-const STORAGE_BUCKETS_OUTPUT: OutputProperty = {
+export const STORAGE_BUCKETS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of bucket objects',
   items: {
@@ -200,7 +200,7 @@ const STORAGE_BUCKETS_OUTPUT: OutputProperty = {
 /**
  * Storage deleted files array output definition
  */
-const STORAGE_DELETED_FILES_OUTPUT: OutputProperty = {
+export const STORAGE_DELETED_FILES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of deleted file objects',
   items: {
@@ -297,7 +297,7 @@ export const INTROSPECT_TABLE_OUTPUT_PROPERTIES = {
 /**
  * Introspect tables array output definition
  */
-const INTROSPECT_TABLES_OUTPUT: OutputProperty = {
+export const INTROSPECT_TABLES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of table schemas with columns, keys, and indexes',
   items: {

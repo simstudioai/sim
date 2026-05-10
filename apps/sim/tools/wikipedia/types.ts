@@ -9,7 +9,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 /**
  * Output definition for thumbnail image objects
  */
-const WIKIPEDIA_THUMBNAIL_OUTPUT_PROPERTIES = {
+export const WIKIPEDIA_THUMBNAIL_OUTPUT_PROPERTIES = {
   source: { type: 'string', description: 'Thumbnail image URL' },
   width: { type: 'number', description: 'Thumbnail width in pixels' },
   height: { type: 'number', description: 'Thumbnail height in pixels' },
@@ -18,7 +18,7 @@ const WIKIPEDIA_THUMBNAIL_OUTPUT_PROPERTIES = {
 /**
  * Complete thumbnail output definition
  */
-const WIKIPEDIA_THUMBNAIL_OUTPUT: OutputProperty = {
+export const WIKIPEDIA_THUMBNAIL_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Thumbnail image data',
   optional: true,
@@ -28,7 +28,7 @@ const WIKIPEDIA_THUMBNAIL_OUTPUT: OutputProperty = {
 /**
  * Output definition for content URL objects (desktop/mobile)
  */
-const WIKIPEDIA_CONTENT_URL_OUTPUT_PROPERTIES = {
+export const WIKIPEDIA_CONTENT_URL_OUTPUT_PROPERTIES = {
   page: { type: 'string', description: 'Page URL' },
   revisions: { type: 'string', description: 'Revisions URL', optional: true },
   edit: { type: 'string', description: 'Edit URL', optional: true },
@@ -38,7 +38,7 @@ const WIKIPEDIA_CONTENT_URL_OUTPUT_PROPERTIES = {
 /**
  * Complete content URLs output definition
  */
-const WIKIPEDIA_CONTENT_URLS_OUTPUT_PROPERTIES = {
+export const WIKIPEDIA_CONTENT_URLS_OUTPUT_PROPERTIES = {
   desktop: {
     type: 'object',
     description: 'Desktop URLs',
@@ -54,7 +54,7 @@ const WIKIPEDIA_CONTENT_URLS_OUTPUT_PROPERTIES = {
 /**
  * Complete content URLs output definition
  */
-const WIKIPEDIA_CONTENT_URLS_OUTPUT: OutputProperty = {
+export const WIKIPEDIA_CONTENT_URLS_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'URLs to access the page',
   properties: WIKIPEDIA_CONTENT_URLS_OUTPUT_PROPERTIES,
@@ -63,7 +63,7 @@ const WIKIPEDIA_CONTENT_URLS_OUTPUT: OutputProperty = {
 /**
  * Output definition for page summary objects
  */
-const WIKIPEDIA_PAGE_SUMMARY_OUTPUT_PROPERTIES = {
+export const WIKIPEDIA_PAGE_SUMMARY_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'Page type (standard, disambiguation, etc.)' },
   title: { type: 'string', description: 'Page title' },
   displaytitle: { type: 'string', description: 'Display title with formatting' },
@@ -97,7 +97,7 @@ const WIKIPEDIA_PAGE_SUMMARY_OUTPUT_PROPERTIES = {
 /**
  * Complete page summary output definition
  */
-const WIKIPEDIA_PAGE_SUMMARY_OUTPUT: OutputProperty = {
+export const WIKIPEDIA_PAGE_SUMMARY_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Wikipedia page summary and metadata',
   properties: WIKIPEDIA_PAGE_SUMMARY_OUTPUT_PROPERTIES,
@@ -106,7 +106,7 @@ const WIKIPEDIA_PAGE_SUMMARY_OUTPUT: OutputProperty = {
 /**
  * Output definition for search result items
  */
-const WIKIPEDIA_SEARCH_RESULT_OUTPUT_PROPERTIES = {
+export const WIKIPEDIA_SEARCH_RESULT_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Result index' },
   key: { type: 'string', description: 'URL-friendly page key' },
   title: { type: 'string', description: 'Page title' },
@@ -132,7 +132,7 @@ const WIKIPEDIA_SEARCH_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete search result output definition
  */
-const WIKIPEDIA_SEARCH_RESULT_OUTPUT: OutputProperty = {
+export const WIKIPEDIA_SEARCH_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Wikipedia search result',
   properties: WIKIPEDIA_SEARCH_RESULT_OUTPUT_PROPERTIES,
@@ -155,7 +155,7 @@ export const WIKIPEDIA_PAGE_CONTENT_OUTPUT_PROPERTIES = {
 /**
  * Complete page content output definition
  */
-const WIKIPEDIA_PAGE_CONTENT_OUTPUT: OutputProperty = {
+export const WIKIPEDIA_PAGE_CONTENT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Full HTML content and metadata of the Wikipedia page',
   properties: WIKIPEDIA_PAGE_CONTENT_OUTPUT_PROPERTIES,
@@ -164,7 +164,7 @@ const WIKIPEDIA_PAGE_CONTENT_OUTPUT: OutputProperty = {
 /**
  * Output definition for random page objects (subset of summary)
  */
-const WIKIPEDIA_RANDOM_PAGE_OUTPUT_PROPERTIES = {
+export const WIKIPEDIA_RANDOM_PAGE_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'Page type' },
   title: { type: 'string', description: 'Page title' },
   displaytitle: { type: 'string', description: 'Display title' },
@@ -195,7 +195,7 @@ const WIKIPEDIA_RANDOM_PAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete random page output definition
  */
-const WIKIPEDIA_RANDOM_PAGE_OUTPUT: OutputProperty = {
+export const WIKIPEDIA_RANDOM_PAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Random Wikipedia page data',
   properties: WIKIPEDIA_RANDOM_PAGE_OUTPUT_PROPERTIES,

@@ -23,7 +23,7 @@ import { SYSTEM_SUBBLOCK_IDS, TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/co
  * - Duplicated in loops/parallels state (source of truth is there, not block.data)
  * - Duplicated in subBlocks (user config comes from subBlocks, block.data is just a copy)
  */
-const EXCLUDED_BLOCK_DATA_FIELDS: readonly string[] = [
+export const EXCLUDED_BLOCK_DATA_FIELDS: readonly string[] = [
   // Visual/layout fields
   'width', // Container dimensions from autolayout
   'height', // Container dimensions from autolayout
@@ -367,7 +367,9 @@ export interface ExtractedBlockFields {
  * @param data - The block data object
  * @returns Normalized data object
  */
-function normalizeBlockData(data: Record<string, unknown> | undefined): Record<string, unknown> {
+export function normalizeBlockData(
+  data: Record<string, unknown> | undefined
+): Record<string, unknown> {
   const normalized: Record<string, unknown> = {}
 
   for (const [key, value] of Object.entries(data || {})) {

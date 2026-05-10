@@ -10,7 +10,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 /**
  * Output definition for OCR image bounding box objects
  */
-const MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES = {
+export const MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Image identifier (e.g., img-0.jpeg)' },
   top_left_x: { type: 'number', description: 'Top-left X coordinate in pixels' },
   top_left_y: { type: 'number', description: 'Top-left Y coordinate in pixels' },
@@ -35,7 +35,7 @@ const MISTRAL_OCR_IMAGE_OUTPUT: OutputProperty = {
 /**
  * Output definition for page dimension objects
  */
-const MISTRAL_OCR_DIMENSIONS_OUTPUT_PROPERTIES = {
+export const MISTRAL_OCR_DIMENSIONS_OUTPUT_PROPERTIES = {
   dpi: { type: 'number', description: 'Dots per inch' },
   height: { type: 'number', description: 'Page height in pixels' },
   width: { type: 'number', description: 'Page width in pixels' },
@@ -53,7 +53,7 @@ const MISTRAL_OCR_DIMENSIONS_OUTPUT: OutputProperty = {
 /**
  * Output definition for OCR page objects
  */
-const MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES = {
+export const MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES = {
   index: { type: 'number', description: 'Page index (zero-based)' },
   markdown: { type: 'string', description: 'Extracted markdown content' },
   images: {
@@ -98,7 +98,7 @@ const MISTRAL_OCR_PAGE_OUTPUT: OutputProperty = {
 /**
  * Output definition for usage info objects
  */
-const MISTRAL_OCR_USAGE_OUTPUT_PROPERTIES = {
+export const MISTRAL_OCR_USAGE_OUTPUT_PROPERTIES = {
   pages_processed: { type: 'number', description: 'Total number of pages processed' },
   doc_size_bytes: { type: 'number', description: 'Document file size in bytes', optional: true },
 } as const satisfies Record<string, OutputProperty>
@@ -115,7 +115,7 @@ const MISTRAL_OCR_USAGE_OUTPUT: OutputProperty = {
 /**
  * Output definition for parser metadata objects
  */
-const MISTRAL_PARSER_METADATA_OUTPUT_PROPERTIES = {
+export const MISTRAL_PARSER_METADATA_OUTPUT_PROPERTIES = {
   jobId: { type: 'string', description: 'Unique job identifier' },
   fileType: { type: 'string', description: 'File type (e.g., pdf)' },
   fileName: { type: 'string', description: 'Original file name' },

@@ -15,7 +15,7 @@ import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const domainObjectSchema = <T>() => z.custom<T>(isRecord)
+export const domainObjectSchema = <T>() => z.custom<T>(isRecord)
 
 /**
  * Column types are a fixed enum derived from `COLUMN_TYPES` so callers cannot

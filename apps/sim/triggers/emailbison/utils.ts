@@ -89,7 +89,7 @@ export function buildEmailBisonExtraFields(triggerId: string): SubBlockConfig[] 
   ]
 }
 
-function buildEmailBisonOutputs(): Record<string, TriggerOutput> {
+export function buildEmailBisonOutputs(): Record<string, TriggerOutput> {
   return {
     eventType: { type: 'string', description: 'Email Bison webhook event type' },
     eventName: { type: 'string', description: 'Human-readable Email Bison event name' },

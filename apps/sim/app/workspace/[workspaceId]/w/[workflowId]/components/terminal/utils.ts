@@ -655,7 +655,7 @@ export function groupEntriesByExecution(entries: ConsoleEntry[]): ExecutionGroup
 /**
  * Flattens entry tree into display order for keyboard navigation
  */
-function flattenEntryTree(nodes: EntryNode[]): ConsoleEntry[] {
+export function flattenEntryTree(nodes: EntryNode[]): ConsoleEntry[] {
   const result: ConsoleEntry[] = []
   for (const node of nodes) {
     result.push(node.entry)

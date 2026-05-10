@@ -94,7 +94,7 @@ export function extractTextContent(message: Message): string {
     .join('\n')
 }
 
-function extractDataContent(message: Message): Record<string, unknown> {
+export function extractDataContent(message: Message): Record<string, unknown> {
   const dataParts = message.parts.filter((part): part is DataPart => part.kind === 'data')
   return dataParts.reduce((acc, part) => ({ ...acc, ...part.data }), {})
 }
@@ -115,7 +115,7 @@ function getStringField(source: Record<string, unknown>, key: string): string | 
   return typeof value === 'string' ? value : undefined
 }
 
-function extractFileContent(message: Message): A2AFile[] {
+export function extractFileContent(message: Message): A2AFile[] {
   return message.parts
     .filter((part): part is FilePart => part.kind === 'file')
     .map((part) => {
@@ -154,7 +154,7 @@ function isValidBase64(str: string): boolean {
  * FileWithUri → type 'url', FileWithBytes → type 'file' with data URL
  * Files without uri or bytes, or with invalid base64, are filtered out
  */
-function convertFilesToExecutionFormat(files: A2AFile[]): ExecutionFileInput[] {
+export function convertFilesToExecutionFormat(files: A2AFile[]): ExecutionFileInput[] {
   return files
     .filter((file) => {
       // Skip files without content
@@ -206,11 +206,11 @@ export function extractWorkflowInput(message: Message): WorkflowInput | null {
   }
 }
 
-function createTextPart(text: string): Part {
+export function createTextPart(text: string): Part {
   return { kind: 'text', text }
 }
 
-function createUserMessage(text: string): Message {
+export function createUserMessage(text: string): Message {
   return {
     kind: 'message',
     messageId: generateId(),
@@ -228,11 +228,11 @@ export function createAgentMessage(text: string): Message {
   }
 }
 
-function createA2AToolId(agentId: string, skillId: string): string {
+export function createA2AToolId(agentId: string, skillId: string): string {
   return `a2a:${agentId}:${skillId}`
 }
 
-function parseA2AToolId(toolId: string): { agentId: string; skillId: string } | null {
+export function parseA2AToolId(toolId: string): { agentId: string; skillId: string } | null {
   const parts = toolId.split(':')
   if (parts.length !== 3 || parts[0] !== 'a2a') {
     return null
@@ -253,16 +253,16 @@ export function buildA2AEndpointUrl(baseUrl: string, agentId: string): string {
   return `${base}/api/a2a/serve/${agentId}`
 }
 
-function buildAgentCardUrl(baseUrl: string, agentId: string): string {
+export function buildAgentCardUrl(baseUrl: string, agentId: string): string {
   const base = baseUrl.replace(/\/$/, '')
   return `${base}/api/a2a/agents/${agentId}`
 }
 
-function getLastAgentMessage(task: Task): Message | undefined {
+export function getLastAgentMessage(task: Task): Message | undefined {
   return task.history?.filter((m) => m.role === 'agent').pop()
 }
 
-function getLastAgentMessageText(task: Task): string {
+export function getLastAgentMessageText(task: Task): string {
   const message = getLastAgentMessage(task)
   return message ? extractTextContent(message) : ''
 }

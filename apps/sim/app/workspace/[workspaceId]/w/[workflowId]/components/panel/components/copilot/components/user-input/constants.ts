@@ -205,7 +205,7 @@ export interface SlashCommand {
   label: string
 }
 
-const TOP_LEVEL_COMMANDS: readonly SlashCommand[] = [
+export const TOP_LEVEL_COMMANDS: readonly SlashCommand[] = [
   { id: 'fast', label: 'Fast' },
   { id: 'research', label: 'Research' },
   { id: 'actions', label: 'Actions' },
@@ -215,28 +215,28 @@ const TOP_LEVEL_COMMANDS: readonly SlashCommand[] = [
  * Maps UI command IDs to API command IDs.
  * Some commands have different IDs for display vs API (e.g., "actions" -> "superagent")
  */
-function getApiCommandId(uiCommandId: string): string {
+export function getApiCommandId(uiCommandId: string): string {
   const commandMapping: Record<string, string> = {
     actions: 'superagent',
   }
   return commandMapping[uiCommandId] || uiCommandId
 }
 
-const WEB_COMMANDS: readonly SlashCommand[] = [
+export const WEB_COMMANDS: readonly SlashCommand[] = [
   { id: 'search', label: 'Search' },
   { id: 'read', label: 'Read' },
   { id: 'scrape', label: 'Scrape' },
   { id: 'crawl', label: 'Crawl' },
 ] as const
 
-const ALL_SLASH_COMMANDS: readonly SlashCommand[] = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
+export const ALL_SLASH_COMMANDS: readonly SlashCommand[] = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
 
 const ALL_COMMAND_IDS = ALL_SLASH_COMMANDS.map((cmd) => cmd.id)
 
 /**
  * Get display label for a command ID
  */
-function getCommandDisplayLabel(commandId: string): string {
+export function getCommandDisplayLabel(commandId: string): string {
   const command = ALL_SLASH_COMMANDS.find((cmd) => cmd.id === commandId)
   return command?.label || commandId.charAt(0).toUpperCase() + commandId.slice(1)
 }
@@ -259,7 +259,7 @@ const MENU_STATE_TEXT_CLASSES = 'px-2 py-2 text-caption text-[var(--text-muted)]
 /**
  * Calculates the next index for circular navigation (wraps around at bounds)
  */
-function getNextIndex(current: number, direction: 'up' | 'down', maxIndex: number): number {
+export function getNextIndex(current: number, direction: 'up' | 'down', maxIndex: number): number {
   if (direction === 'down') {
     return current >= maxIndex ? 0 : current + 1
   }

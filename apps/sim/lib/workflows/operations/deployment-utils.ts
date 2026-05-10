@@ -15,7 +15,7 @@ interface InputField {
  * Gets the input format from the Start block
  * Returns an array of field definitions with name and type
  */
-function getStartBlockInputFormat(): InputField[] {
+export function getStartBlockInputFormat(): InputField[] {
   try {
     const candidates = resolveStartCandidates(useWorkflowStore.getState().blocks, {
       execution: 'api',

@@ -20,7 +20,7 @@ const onePasswordListItemsBodySchema = onePasswordGetVaultBodySchema.extend({
   filter: z.string().nullish(),
 })
 
-const onePasswordGetItemBodySchema = onePasswordGetVaultBodySchema.extend({
+export const onePasswordGetItemBodySchema = onePasswordGetVaultBodySchema.extend({
   itemId: z.string().min(1, 'Item ID is required'),
 })
 

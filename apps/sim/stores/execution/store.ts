@@ -172,7 +172,7 @@ export const useExecutionStore = create<ExecutionState & ExecutionActions>()((se
 /**
  * Convenience hook that returns the execution state for the currently active workflow.
  */
-function useCurrentWorkflowExecution(): WorkflowExecutionState {
+export function useCurrentWorkflowExecution(): WorkflowExecutionState {
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
   return useExecutionStore((state) => {
     if (!activeWorkflowId) return defaultWorkflowExecutionState

@@ -102,7 +102,7 @@ export const INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES = {
 /**
  * Complete incident output definition
  */
-const INCIDENTIO_INCIDENT_OUTPUT: OutputProperty = {
+export const INCIDENTIO_INCIDENT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Incident.io incident object',
   properties: INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES,
@@ -112,7 +112,7 @@ const INCIDENTIO_INCIDENT_OUTPUT: OutputProperty = {
  * Output definition for action objects.
  * @see https://api-docs.incident.io/#tag/Actions
  */
-const INCIDENTIO_ACTION_OUTPUT_PROPERTIES = {
+export const INCIDENTIO_ACTION_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Action ID' },
   description: { type: 'string', description: 'Action description' },
   assignee: {
@@ -142,7 +142,7 @@ const INCIDENTIO_ACTION_OUTPUT: OutputProperty = {
  * Output definition for follow-up objects.
  * @see https://api-docs.incident.io/#tag/Follow-ups
  */
-const INCIDENTIO_FOLLOW_UP_OUTPUT_PROPERTIES = {
+export const INCIDENTIO_FOLLOW_UP_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Follow-up ID' },
   title: { type: 'string', description: 'Follow-up title' },
   description: { type: 'string', description: 'Follow-up description', optional: true },
@@ -172,7 +172,7 @@ const INCIDENTIO_FOLLOW_UP_OUTPUT: OutputProperty = {
  * Output definition for workflow objects.
  * @see https://api-docs.incident.io/#tag/Workflows
  */
-const INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES = {
+export const INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Workflow ID' },
   name: { type: 'string', description: 'Workflow name' },
   state: { type: 'string', description: 'Workflow state (active, draft, disabled)' },
@@ -194,7 +194,7 @@ const INCIDENTIO_WORKFLOW_OUTPUT: OutputProperty = {
  * Output definition for custom field objects.
  * @see https://api-docs.incident.io/#tag/Custom-Fields
  */
-const INCIDENTIO_CUSTOM_FIELD_OUTPUT_PROPERTIES = {
+export const INCIDENTIO_CUSTOM_FIELD_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Custom field ID' },
   name: { type: 'string', description: 'Custom field name' },
   description: { type: 'string', description: 'Custom field description', optional: true },
@@ -219,7 +219,7 @@ const INCIDENTIO_CUSTOM_FIELD_OUTPUT: OutputProperty = {
  * Output definition for schedule objects.
  * @see https://api-docs.incident.io/#tag/Schedules
  */
-const INCIDENTIO_SCHEDULE_OUTPUT_PROPERTIES = {
+export const INCIDENTIO_SCHEDULE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Schedule ID' },
   name: { type: 'string', description: 'Schedule name' },
   timezone: { type: 'string', description: 'Schedule timezone' },
@@ -240,7 +240,7 @@ const INCIDENTIO_SCHEDULE_OUTPUT: OutputProperty = {
  * Output definition for incident role objects.
  * @see https://api-docs.incident.io/#tag/Incident-Roles
  */
-const INCIDENTIO_INCIDENT_ROLE_OUTPUT_PROPERTIES = {
+export const INCIDENTIO_INCIDENT_ROLE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Incident role ID' },
   name: { type: 'string', description: 'Role name' },
   description: { type: 'string', description: 'Role description', optional: true },

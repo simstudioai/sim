@@ -108,7 +108,7 @@ export function accessError(
  * Converts a TableAccessDenied result to an appropriate HTTP response.
  * Use with checkTableAccess or checkTableWriteAccess.
  */
-function tableAccessError(
+export function tableAccessError(
   result: TableAccessDenied,
   requestId: string,
   context?: string
@@ -124,7 +124,7 @@ async function verifyTableWorkspace(tableId: string, workspaceId: string): Promi
   return table?.workspaceId === workspaceId
 }
 
-function errorResponse(
+export function errorResponse(
   message: string,
   status: number,
   details?: unknown
@@ -136,23 +136,23 @@ function errorResponse(
   return NextResponse.json(body, { status })
 }
 
-function badRequestResponse(message: string, details?: unknown) {
+export function badRequestResponse(message: string, details?: unknown) {
   return errorResponse(message, 400, details)
 }
 
-function unauthorizedResponse(message = 'Authentication required') {
+export function unauthorizedResponse(message = 'Authentication required') {
   return errorResponse(message, 401)
 }
 
-function forbiddenResponse(message = 'Access denied') {
+export function forbiddenResponse(message = 'Access denied') {
   return errorResponse(message, 403)
 }
 
-function notFoundResponse(message = 'Resource not found') {
+export function notFoundResponse(message = 'Resource not found') {
   return errorResponse(message, 404)
 }
 
-function serverErrorResponse(message = 'Internal server error') {
+export function serverErrorResponse(message = 'Internal server error') {
   return errorResponse(message, 500)
 }
 

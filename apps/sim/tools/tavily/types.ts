@@ -24,7 +24,7 @@ export const TAVILY_SEARCH_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete search result output definition
  */
-const TAVILY_SEARCH_RESULT_OUTPUT: OutputProperty = {
+export const TAVILY_SEARCH_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Search result item',
   properties: TAVILY_SEARCH_RESULT_OUTPUT_PROPERTIES,
@@ -41,7 +41,7 @@ export const TAVILY_IMAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete image output definition
  */
-const TAVILY_IMAGE_OUTPUT: OutputProperty = {
+export const TAVILY_IMAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Image result',
   properties: TAVILY_IMAGE_OUTPUT_PROPERTIES,
@@ -50,7 +50,7 @@ const TAVILY_IMAGE_OUTPUT: OutputProperty = {
 /**
  * Output definition for usage statistics
  */
-const TAVILY_USAGE_OUTPUT_PROPERTIES = {
+export const TAVILY_USAGE_OUTPUT_PROPERTIES = {
   credits: { type: 'number', description: 'Number of credits consumed' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -81,7 +81,7 @@ export const TAVILY_EXTRACT_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete extract result output definition
  */
-const TAVILY_EXTRACT_RESULT_OUTPUT: OutputProperty = {
+export const TAVILY_EXTRACT_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Extracted content from URL',
   properties: TAVILY_EXTRACT_RESULT_OUTPUT_PROPERTIES,
@@ -98,7 +98,7 @@ export const TAVILY_FAILED_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete failed result output definition
  */
-const TAVILY_FAILED_RESULT_OUTPUT: OutputProperty = {
+export const TAVILY_FAILED_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Failed extraction result',
   properties: TAVILY_FAILED_RESULT_OUTPUT_PROPERTIES,
@@ -116,7 +116,7 @@ export const TAVILY_CRAWL_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete crawl result output definition
  */
-const TAVILY_CRAWL_RESULT_OUTPUT: OutputProperty = {
+export const TAVILY_CRAWL_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Crawled page result',
   properties: TAVILY_CRAWL_RESULT_OUTPUT_PROPERTIES,
@@ -132,7 +132,7 @@ export const TAVILY_MAP_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete map result output definition
  */
-const TAVILY_MAP_RESULT_OUTPUT: OutputProperty = {
+export const TAVILY_MAP_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Mapped URL result',
   properties: TAVILY_MAP_RESULT_OUTPUT_PROPERTIES,

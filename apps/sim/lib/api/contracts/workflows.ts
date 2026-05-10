@@ -107,7 +107,7 @@ const workflowParallelSchema = z.object({
  * types) and validation is done per-`type` at use-time by
  * `validateVariable` in `apps/sim/stores/variables/store.ts`.
  */
-const workflowVariableWriteSchema = z.object({
+export const workflowVariableWriteSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),

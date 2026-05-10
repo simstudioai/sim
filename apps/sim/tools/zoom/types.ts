@@ -11,7 +11,7 @@ import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
  * Output definition for meeting settings objects
  * @see https://developers.zoom.us/docs/api/rest/reference/zoom-api/methods/#operation/meetingCreate
  */
-const MEETING_SETTINGS_OUTPUT_PROPERTIES = {
+export const MEETING_SETTINGS_OUTPUT_PROPERTIES = {
   host_video: { type: 'boolean', description: 'Start with host video on' },
   participant_video: { type: 'boolean', description: 'Start with participant video on' },
   join_before_host: { type: 'boolean', description: 'Allow participants to join before host' },
@@ -37,7 +37,7 @@ const MEETING_SETTINGS_OUTPUT: OutputProperty = {
  * Output definition for recurrence objects in recurring meetings
  * @see https://developers.zoom.us/docs/api/rest/reference/zoom-api/methods/#operation/meetingCreate
  */
-const RECURRENCE_OUTPUT_PROPERTIES = {
+export const RECURRENCE_OUTPUT_PROPERTIES = {
   type: { type: 'number', description: 'Recurrence type: 1=daily, 2=weekly, 3=monthly' },
   repeat_interval: { type: 'number', description: 'Interval between recurring meetings' },
   weekly_days: {
@@ -74,7 +74,7 @@ const OCCURRENCE_OUTPUT_PROPERTIES = {
 /**
  * Complete occurrences array output definition
  */
-const OCCURRENCES_OUTPUT: OutputProperty = {
+export const OCCURRENCES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Meeting occurrences for recurring meetings',
   items: {
@@ -119,7 +119,7 @@ export const MEETING_OUTPUT_PROPERTIES = {
 /**
  * Output definition for meeting object (used in create/get meeting responses)
  */
-const MEETING_OUTPUT: OutputProperty = {
+export const MEETING_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Meeting object with all properties',
   properties: MEETING_OUTPUT_PROPERTIES,
@@ -146,7 +146,7 @@ export const MEETING_LIST_ITEM_OUTPUT_PROPERTIES = {
 /**
  * Output definition for meetings array in list responses
  */
-const MEETINGS_ARRAY_OUTPUT: OutputProperty = {
+export const MEETINGS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'List of meetings',
   items: {
@@ -170,7 +170,7 @@ export const MEETING_PAGE_INFO_OUTPUT_PROPERTIES = {
 /**
  * Complete page info output definition for meeting lists
  */
-const MEETING_PAGE_INFO_OUTPUT: OutputProperty = {
+export const MEETING_PAGE_INFO_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pagination information',
   properties: MEETING_PAGE_INFO_OUTPUT_PROPERTIES,
@@ -200,7 +200,7 @@ const RECORDING_FILE_OUTPUT_PROPERTIES = {
 /**
  * Complete recording files array output definition
  */
-const RECORDING_FILES_OUTPUT: OutputProperty = {
+export const RECORDING_FILES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'List of recording files',
   items: {
@@ -232,7 +232,7 @@ export const RECORDING_OUTPUT_PROPERTIES = {
 /**
  * Complete recording object output definition
  */
-const RECORDING_OUTPUT: OutputProperty = {
+export const RECORDING_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Recording object with all files',
   properties: RECORDING_OUTPUT_PROPERTIES,
@@ -241,7 +241,7 @@ const RECORDING_OUTPUT: OutputProperty = {
 /**
  * Output definition for recordings array in list responses
  */
-const RECORDINGS_ARRAY_OUTPUT: OutputProperty = {
+export const RECORDINGS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'List of recordings',
   items: {
@@ -265,7 +265,7 @@ export const RECORDING_PAGE_INFO_OUTPUT_PROPERTIES = {
 /**
  * Complete page info output definition for recording lists
  */
-const RECORDING_PAGE_INFO_OUTPUT: OutputProperty = {
+export const RECORDING_PAGE_INFO_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pagination information',
   properties: RECORDING_PAGE_INFO_OUTPUT_PROPERTIES,
@@ -294,7 +294,7 @@ export const PARTICIPANT_OUTPUT_PROPERTIES = {
 /**
  * Complete participants array output definition
  */
-const PARTICIPANTS_ARRAY_OUTPUT: OutputProperty = {
+export const PARTICIPANTS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'List of meeting participants',
   items: {
@@ -316,7 +316,7 @@ export const PARTICIPANT_PAGE_INFO_OUTPUT_PROPERTIES = {
 /**
  * Complete page info output definition for participant lists
  */
-const PARTICIPANT_PAGE_INFO_OUTPUT: OutputProperty = {
+export const PARTICIPANT_PAGE_INFO_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pagination information',
   properties: PARTICIPANT_PAGE_INFO_OUTPUT_PROPERTIES,

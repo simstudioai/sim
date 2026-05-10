@@ -28,7 +28,7 @@ const REACTION_OUTPUT_PROPERTIES = {
 /**
  * Complete reaction array output definition
  */
-const REACTIONS_OUTPUT: OutputProperty = {
+export const REACTIONS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Reactions on this message',
   items: {
@@ -41,7 +41,7 @@ const REACTIONS_OUTPUT: OutputProperty = {
  * Output definition for message edit information
  * Based on Slack API edited object structure
  */
-const MESSAGE_EDITED_OUTPUT_PROPERTIES = {
+export const MESSAGE_EDITED_OUTPUT_PROPERTIES = {
   user: { type: 'string', description: 'User ID who edited the message' },
   ts: { type: 'string', description: 'Timestamp of the edit' },
 } as const satisfies Record<string, OutputProperty>
@@ -77,7 +77,7 @@ const FILE_OUTPUT_PROPERTIES = {
 /**
  * Complete files array output definition
  */
-const FILES_OUTPUT: OutputProperty = {
+export const FILES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Files attached to the message',
   items: {
@@ -98,7 +98,7 @@ const BLOCK_OUTPUT_PROPERTIES = {
 /**
  * Complete blocks array output definition
  */
-const BLOCKS_OUTPUT: OutputProperty = {
+export const BLOCKS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Block Kit blocks in the message',
   items: {
@@ -132,7 +132,7 @@ const ATTACHMENT_OUTPUT_PROPERTIES = {
 /**
  * Complete attachments array output definition
  */
-const ATTACHMENTS_OUTPUT: OutputProperty = {
+export const ATTACHMENTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Legacy attachments on the message',
   items: {
@@ -231,7 +231,7 @@ export const MESSAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete message object output definition
  */
-const MESSAGE_OUTPUT: OutputProperty = {
+export const MESSAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Slack message object',
   properties: MESSAGE_OUTPUT_PROPERTIES,
@@ -240,7 +240,7 @@ const MESSAGE_OUTPUT: OutputProperty = {
 /**
  * Messages array output definition for list/reader tools
  */
-const MESSAGES_OUTPUT: OutputProperty = {
+export const MESSAGES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of message objects',
   items: {
@@ -305,7 +305,7 @@ export const CHANNEL_OUTPUT_PROPERTIES = {
 /**
  * Complete channel object output definition
  */
-const CHANNEL_OUTPUT: OutputProperty = {
+export const CHANNEL_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Slack channel object',
   properties: CHANNEL_OUTPUT_PROPERTIES,
@@ -314,7 +314,7 @@ const CHANNEL_OUTPUT: OutputProperty = {
 /**
  * Channels array output definition
  */
-const CHANNELS_OUTPUT: OutputProperty = {
+export const CHANNELS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of channel objects',
   items: {
@@ -456,7 +456,7 @@ export const USER_SUMMARY_OUTPUT_PROPERTIES = {
 /**
  * Complete user object output definition
  */
-const USER_OUTPUT: OutputProperty = {
+export const USER_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Slack user object',
   properties: USER_OUTPUT_PROPERTIES,
@@ -465,7 +465,7 @@ const USER_OUTPUT: OutputProperty = {
 /**
  * Users array output definition
  */
-const USERS_OUTPUT: OutputProperty = {
+export const USERS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of user objects',
   items: {

@@ -28,7 +28,7 @@ export const POINT_OUTPUT_PROPERTIES = {
 /**
  * Complete point object output definition
  */
-const POINT_OUTPUT: OutputProperty = {
+export const POINT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Point object with ID, payload, and optional vector',
   properties: POINT_OUTPUT_PROPERTIES,
@@ -58,7 +58,7 @@ export const SCORED_POINT_OUTPUT_PROPERTIES = {
 /**
  * Complete scored point object output definition
  */
-const SCORED_POINT_OUTPUT: OutputProperty = {
+export const SCORED_POINT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Scored point with ID, version, score, payload, and optional vector',
   properties: SCORED_POINT_OUTPUT_PROPERTIES,
@@ -79,7 +79,7 @@ export const UPSERT_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete upsert result output definition
  */
-const UPSERT_RESULT_OUTPUT: OutputProperty = {
+export const UPSERT_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Upsert operation result with operation ID and status',
   properties: UPSERT_RESULT_OUTPUT_PROPERTIES,

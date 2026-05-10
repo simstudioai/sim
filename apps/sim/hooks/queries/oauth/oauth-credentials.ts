@@ -105,7 +105,11 @@ export function useOAuthCredentials(
   })
 }
 
-function useOAuthCredentialDetail(credentialId?: string, workflowId?: string, enabled = true) {
+export function useOAuthCredentialDetail(
+  credentialId?: string,
+  workflowId?: string,
+  enabled = true
+) {
   return useQuery<Credential[]>({
     queryKey: oauthCredentialKeys.detail(credentialId, workflowId),
     queryFn: ({ signal }) => fetchOAuthCredentialDetail(credentialId ?? '', workflowId, signal),

@@ -62,7 +62,7 @@ export function getWorkflowSearchMatchResourceGroupKey(match: WorkflowSearchMatc
   )
 }
 
-function selectorContextMatches(
+export function selectorContextMatches(
   left: SelectorContext | undefined,
   right: SelectorContext | undefined
 ): boolean {

@@ -13,7 +13,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Output definition for usage statistics from agent execution
  * Based on Stagehand AgentResult.usage structure
  */
-const STAGEHAND_USAGE_OUTPUT_PROPERTIES = {
+export const STAGEHAND_USAGE_OUTPUT_PROPERTIES = {
   input_tokens: { type: 'number', description: 'Number of input tokens consumed' },
   output_tokens: { type: 'number', description: 'Number of output tokens generated' },
   reasoning_tokens: {
@@ -43,7 +43,7 @@ const STAGEHAND_USAGE_OUTPUT: OutputProperty = {
  * Output definition for agent action objects
  * Based on Stagehand AgentAction interface
  */
-const STAGEHAND_ACTION_OUTPUT_PROPERTIES = {
+export const STAGEHAND_ACTION_OUTPUT_PROPERTIES = {
   type: {
     type: 'string',
     description:
@@ -103,7 +103,7 @@ const STAGEHAND_ACTION_OUTPUT: OutputProperty = {
 /**
  * Actions array output definition
  */
-const STAGEHAND_ACTIONS_OUTPUT: OutputProperty = {
+export const STAGEHAND_ACTIONS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'List of all actions performed by the agent during task execution',
   items: {
@@ -135,7 +135,7 @@ export const STAGEHAND_AGENT_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete agent result output definition
  */
-const STAGEHAND_AGENT_RESULT_OUTPUT: OutputProperty = {
+export const STAGEHAND_AGENT_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Complete result from the Stagehand agent execution',
   properties: STAGEHAND_AGENT_RESULT_OUTPUT_PROPERTIES,
@@ -293,7 +293,7 @@ export interface StagehandAgentResponse extends ToolResponse {
   }
 }
 
-function jsonSchemaToZod(jsonSchema: Record<string, any>): z.ZodTypeAny {
+export function jsonSchemaToZod(jsonSchema: Record<string, any>): z.ZodTypeAny {
   if (!jsonSchema) {
     throw new Error('Invalid schema: Schema is required')
   }

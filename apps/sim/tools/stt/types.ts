@@ -27,7 +27,7 @@ export const STT_SEGMENT_OUTPUT_PROPERTIES = {
 /**
  * Complete segment output definition
  */
-const STT_SEGMENT_OUTPUT: OutputProperty = {
+export const STT_SEGMENT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Transcript segment with timing information',
   properties: STT_SEGMENT_OUTPUT_PROPERTIES,

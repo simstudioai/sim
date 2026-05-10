@@ -8,7 +8,7 @@ interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
 /**
  * Sort knowledge bases by the specified field and order
  */
-function sortKnowledgeBases(
+export function sortKnowledgeBases(
   knowledgeBases: KnowledgeBaseData[],
   sortBy: SortOption,
   sortOrder: SortOrder

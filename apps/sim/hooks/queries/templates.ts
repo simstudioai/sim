@@ -86,7 +86,7 @@ async function fetchTemplateByWorkflow(
   return result.data?.[0] || null
 }
 
-function useTemplates(
+export function useTemplates(
   filters?: TemplateListFilters,
   options?: {
     enabled?: boolean

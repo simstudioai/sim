@@ -394,7 +394,7 @@ interface MailchimpErrorResponse {
 }
 
 // Helper function to extract server prefix from API key
-function extractServerPrefix(apiKey: string): string {
+export function extractServerPrefix(apiKey: string): string {
   const parts = apiKey.split('-')
   if (parts.length < 2) {
     throw new Error('Invalid Mailchimp API key format. Expected format: key-dc (e.g., abc123-us19)')

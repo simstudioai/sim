@@ -91,7 +91,7 @@ export const OUTLOOK_MESSAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete message output definition
  */
-const OUTLOOK_MESSAGE_OUTPUT: OutputProperty = {
+export const OUTLOOK_MESSAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Outlook email message',
   properties: OUTLOOK_MESSAGE_OUTPUT_PROPERTIES,

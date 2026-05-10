@@ -78,7 +78,7 @@ export function createError(
   return { jsonrpc: '2.0', id, error: { code, message, data } }
 }
 
-function isJSONRPCRequest(obj: unknown): obj is JSONRPCRequest {
+export function isJSONRPCRequest(obj: unknown): obj is JSONRPCRequest {
   if (!obj || typeof obj !== 'object') return false
   const r = obj as Record<string, unknown>
   return r.jsonrpc === '2.0' && typeof r.method === 'string' && r.id !== undefined
@@ -88,7 +88,7 @@ export function generateTaskId(): string {
   return generateId()
 }
 
-function createTaskStatus(state: TaskState): { state: TaskState; timestamp: string } {
+export function createTaskStatus(state: TaskState): { state: TaskState; timestamp: string } {
   return { state, timestamp: new Date().toISOString() }
 }
 

@@ -9,7 +9,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Output definition for table column objects from introspection.
  * @see https://www.postgresql.org/docs/current/infoschema-columns.html
  */
-const POSTGRES_COLUMN_OUTPUT_PROPERTIES = {
+export const POSTGRES_COLUMN_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Column name' },
   type: { type: 'string', description: 'Data type (e.g., integer, varchar, timestamp)' },
   nullable: { type: 'boolean', description: 'Whether the column allows NULL values' },
@@ -99,7 +99,7 @@ export const POSTGRES_TABLE_OUTPUT_PROPERTIES = {
 /**
  * Complete table schema output definition
  */
-const POSTGRES_TABLE_OUTPUT: OutputProperty = {
+export const POSTGRES_TABLE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'PostgreSQL table schema information',
   properties: POSTGRES_TABLE_OUTPUT_PROPERTIES,

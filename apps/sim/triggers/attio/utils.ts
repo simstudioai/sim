@@ -26,7 +26,7 @@ export const attioTriggerOptions = [
   { label: 'Generic Webhook (All Events)', id: 'attio_webhook' },
 ]
 
-function attioSetupInstructions(): string {
+export function attioSetupInstructions(): string {
   const instructions = [
     '<strong>Note:</strong> Webhooks are automatically created in Attio when you deploy this workflow, and deleted when you undeploy. See the <a href="https://docs.attio.com/rest-api/guides/webhooks" target="_blank" rel="noopener noreferrer">Attio webhook documentation</a> for details.',
     'Connect your <strong>Attio account</strong> using the credential selector above.',

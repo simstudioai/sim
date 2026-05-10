@@ -31,7 +31,7 @@ type TraceEventKey = keyof typeof TraceEvent
 type TraceEventValue = (typeof TraceEvent)[TraceEventKey]
 
 /** Readonly sorted list of every canonical event name. */
-const TraceEventValues: readonly TraceEventValue[] = [
+export const TraceEventValues: readonly TraceEventValue[] = [
   'bedrock.invoke.retry_without_images',
   'copilot.output_file.error',
   'copilot.sse.first_event',

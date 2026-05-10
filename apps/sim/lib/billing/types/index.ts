@@ -38,7 +38,7 @@ export function parseEnterpriseSubscriptionMetadata(
   return result.success ? result.data : null
 }
 
-function parseEnterpriseWorkspaceConcurrencyMetadata(
+export function parseEnterpriseWorkspaceConcurrencyMetadata(
   value: unknown
 ): EnterpriseWorkspaceConcurrencyMetadata | null {
   const result = enterpriseWorkspaceConcurrencyMetadataSchema.safeParse(value)

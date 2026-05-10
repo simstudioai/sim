@@ -12,7 +12,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Output definition for Account sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_account.htm
  */
-const ACCOUNT_OUTPUT_PROPERTIES = {
+export const ACCOUNT_OUTPUT_PROPERTIES = {
   Id: { type: 'string', description: 'Unique 18-character Salesforce record identifier' },
   Name: { type: 'string', description: 'Account name (required, max 255 characters)' },
   Type: {
@@ -109,7 +109,7 @@ const ACCOUNT_OUTPUT: OutputProperty = {
 /**
  * Accounts array output definition for list operations
  */
-const ACCOUNTS_OUTPUT: OutputProperty = {
+export const ACCOUNTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Account objects',
   items: {
@@ -122,7 +122,7 @@ const ACCOUNTS_OUTPUT: OutputProperty = {
  * Output definition for Contact sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_contact.htm
  */
-const CONTACT_OUTPUT_PROPERTIES = {
+export const CONTACT_OUTPUT_PROPERTIES = {
   Id: { type: 'string', description: 'Unique 18-character Salesforce record identifier' },
   AccountId: { type: 'string', description: 'ID of the associated account', optional: true },
   LastName: { type: 'string', description: 'Last name (required, max 80 characters)' },
@@ -213,7 +213,7 @@ const CONTACT_OUTPUT: OutputProperty = {
 /**
  * Contacts array output definition for list operations
  */
-const CONTACTS_OUTPUT: OutputProperty = {
+export const CONTACTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Contact objects',
   items: {
@@ -226,7 +226,7 @@ const CONTACTS_OUTPUT: OutputProperty = {
  * Output definition for Lead sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_lead.htm
  */
-const LEAD_OUTPUT_PROPERTIES = {
+export const LEAD_OUTPUT_PROPERTIES = {
   Id: { type: 'string', description: 'Unique 18-character Salesforce record identifier' },
   LastName: { type: 'string', description: 'Last name (required, max 80 characters)' },
   FirstName: { type: 'string', description: 'First name (max 40 characters)', optional: true },
@@ -321,7 +321,7 @@ const LEAD_OUTPUT: OutputProperty = {
 /**
  * Leads array output definition for list operations
  */
-const LEADS_OUTPUT: OutputProperty = {
+export const LEADS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Lead objects',
   items: {
@@ -334,7 +334,7 @@ const LEADS_OUTPUT: OutputProperty = {
  * Output definition for Opportunity sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_opportunity.htm
  */
-const OPPORTUNITY_OUTPUT_PROPERTIES = {
+export const OPPORTUNITY_OUTPUT_PROPERTIES = {
   Id: { type: 'string', description: 'Unique 18-character Salesforce record identifier' },
   AccountId: { type: 'string', description: 'ID of the associated account', optional: true },
   Name: { type: 'string', description: 'Opportunity name (required, max 120 characters)' },
@@ -423,7 +423,7 @@ const OPPORTUNITY_OUTPUT: OutputProperty = {
 /**
  * Opportunities array output definition for list operations
  */
-const OPPORTUNITIES_OUTPUT: OutputProperty = {
+export const OPPORTUNITIES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Opportunity objects',
   items: {
@@ -436,7 +436,7 @@ const OPPORTUNITIES_OUTPUT: OutputProperty = {
  * Output definition for Case sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_case.htm
  */
-const CASE_OUTPUT_PROPERTIES = {
+export const CASE_OUTPUT_PROPERTIES = {
   Id: { type: 'string', description: 'Unique 18-character Salesforce record identifier' },
   CaseNumber: { type: 'string', description: 'Auto-generated case number (read-only)' },
   ContactId: { type: 'string', description: 'ID of the associated contact', optional: true },
@@ -526,7 +526,7 @@ const CASE_OUTPUT: OutputProperty = {
 /**
  * Cases array output definition for list operations
  */
-const CASES_OUTPUT: OutputProperty = {
+export const CASES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Case objects',
   items: {
@@ -539,7 +539,7 @@ const CASES_OUTPUT: OutputProperty = {
  * Output definition for Task sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_task.htm
  */
-const TASK_OUTPUT_PROPERTIES = {
+export const TASK_OUTPUT_PROPERTIES = {
   Id: { type: 'string', description: 'Unique 18-character Salesforce record identifier' },
   WhoId: {
     type: 'string',
@@ -628,7 +628,7 @@ const TASK_OUTPUT: OutputProperty = {
 /**
  * Tasks array output definition for list operations
  */
-const TASKS_OUTPUT: OutputProperty = {
+export const TASKS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Task objects',
   items: {
@@ -689,7 +689,7 @@ const REPORT_LIST_ITEM_OUTPUT_PROPERTIES = {
 /**
  * Reports array output definition
  */
-const REPORTS_OUTPUT: OutputProperty = {
+export const REPORTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Report objects',
   items: {
@@ -739,7 +739,7 @@ const DASHBOARD_LIST_ITEM_OUTPUT_PROPERTIES = {
 /**
  * Dashboards array output definition
  */
-const DASHBOARDS_OUTPUT: OutputProperty = {
+export const DASHBOARDS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Dashboard objects',
   items: {
@@ -766,7 +766,7 @@ const REPORT_TYPE_OUTPUT_PROPERTIES = {
 /**
  * Report types array output definition
  */
-const REPORT_TYPES_OUTPUT: OutputProperty = {
+export const REPORT_TYPES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of Salesforce Report Type objects',
   items: {
@@ -843,7 +843,7 @@ const FIELD_DESCRIBE_OUTPUT_PROPERTIES = {
 /**
  * Fields array output definition
  */
-const FIELDS_OUTPUT: OutputProperty = {
+export const FIELDS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of field metadata objects',
   items: {
@@ -894,7 +894,7 @@ const SOBJECT_LIST_ITEM_OUTPUT_PROPERTIES = {
 /**
  * sObjects array output definition
  */
-const SOBJECTS_OUTPUT: OutputProperty = {
+export const SOBJECTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of sObject metadata',
   items: {

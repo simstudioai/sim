@@ -245,7 +245,7 @@ export function getCanonicalValues(
  * Check if a block has any standalone advanced-only fields (not part of canonical pairs).
  * These require the block-level advanced mode toggle to be visible.
  */
-function hasStandaloneAdvancedFields(
+export function hasStandaloneAdvancedFields(
   subBlocks: SubBlockConfig[],
   canonicalIndex: CanonicalIndex
 ): boolean {
@@ -314,7 +314,7 @@ export function isTriggerModeSubBlock(subBlock: Pick<SubBlockConfig, 'mode'>): b
   return subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced'
 }
 
-function isTriggerConfigSubBlock(subBlock: Pick<SubBlockConfig, 'type'>): boolean {
+export function isTriggerConfigSubBlock(subBlock: Pick<SubBlockConfig, 'type'>): boolean {
   return String(subBlock.type) === 'trigger-config'
 }
 
@@ -324,7 +324,7 @@ export function shouldUseSubBlockForTriggerModeCanonicalIndex(
   return isTriggerModeSubBlock(subBlock) || isTriggerConfigSubBlock(subBlock)
 }
 
-function isPureTriggerBlockConfig(blockConfig?: TriggerVisibilityBlockConfig): boolean {
+export function isPureTriggerBlockConfig(blockConfig?: TriggerVisibilityBlockConfig): boolean {
   return Boolean(blockConfig?.triggers?.enabled && blockConfig.category === 'triggers')
 }
 

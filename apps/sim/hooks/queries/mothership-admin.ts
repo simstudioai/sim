@@ -110,7 +110,11 @@ export function useMothershipLicenses(environment: MothershipEnv) {
   })
 }
 
-function useMothershipLicenseDetails(environment: MothershipEnv, id?: string, name?: string) {
+export function useMothershipLicenseDetails(
+  environment: MothershipEnv,
+  id?: string,
+  name?: string
+) {
   return useQuery({
     queryKey: mothershipKeys.licenseDetails(environment, id, name),
     queryFn: ({ signal }) =>

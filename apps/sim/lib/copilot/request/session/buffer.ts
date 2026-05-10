@@ -159,7 +159,7 @@ export async function appendEvent(
   return envelope
 }
 
-class InvalidCursorError extends Error {
+export class InvalidCursorError extends Error {
   constructor(
     public readonly streamId: string,
     public readonly cursor: string

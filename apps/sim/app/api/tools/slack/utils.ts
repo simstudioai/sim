@@ -34,7 +34,7 @@ async function postSlackMessage(
 /**
  * Creates a default message object when the API doesn't return one
  */
-function createDefaultMessageObject(
+export function createDefaultMessageObject(
   ts: string,
   text: string,
   channel: string
@@ -50,7 +50,7 @@ function createDefaultMessageObject(
 /**
  * Formats the success response for a sent message
  */
-function formatMessageSuccessResponse(
+export function formatMessageSuccessResponse(
   data: any,
   text: string
 ): {
@@ -163,7 +163,11 @@ async function completeSlackFileUpload(
 /**
  * Creates a message object for file uploads
  */
-function createFileMessageObject(text: string, channel: string, files: any[]): Record<string, any> {
+export function createFileMessageObject(
+  text: string,
+  channel: string,
+  files: any[]
+): Record<string, any> {
   const fileTs = files?.[0]?.created?.toString() || (Date.now() / 1000).toString()
   return {
     type: 'message',

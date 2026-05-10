@@ -146,7 +146,7 @@ export function processMessageForSummary(message: GmailMessage): any {
 }
 
 // Helper function to recursively extract message body from MIME parts
-function extractMessageBody(payload: any): string {
+export function extractMessageBody(payload: any): string {
   // If the payload has a body with data, decode it
   if (payload.body?.data) {
     return Buffer.from(payload.body.data, 'base64').toString()

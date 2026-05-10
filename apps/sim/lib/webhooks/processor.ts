@@ -182,7 +182,7 @@ export function handleProviderReachabilityTest(
  * Format error response based on provider requirements.
  * Delegates to the provider handler registry.
  */
-function formatProviderErrorResponse(
+export function formatProviderErrorResponse(
   webhookRecord: { provider: string },
   error: string,
   status: number

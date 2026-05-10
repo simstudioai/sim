@@ -29,7 +29,7 @@ export const MONDAY_EVENT_TYPE_MAP: Record<string, string> = {
   monday_update_created: 'create_update',
 }
 
-function mondaySetupInstructions(eventType: string): string {
+export function mondaySetupInstructions(eventType: string): string {
   const instructions = [
     `This trigger automatically subscribes to <strong>${eventType}</strong> events on the specified board.`,
     'Select your <strong>Monday.com account</strong> above.',

@@ -338,11 +338,11 @@ export function isAnnotationOnlyBlock(blockType: string | undefined): boolean {
   return blockType === BlockType.NOTE
 }
 
-function supportsHandles(blockType: string | undefined): boolean {
+export function supportsHandles(blockType: string | undefined): boolean {
   return !isAnnotationOnlyBlock(blockType)
 }
 
-function getDefaultTokens() {
+export function getDefaultTokens() {
   return {
     input: DEFAULTS.TOKENS.PROMPT,
     output: DEFAULTS.TOKENS.COMPLETION,
@@ -350,7 +350,7 @@ function getDefaultTokens() {
   }
 }
 
-function getDefaultCost() {
+export function getDefaultCost() {
   return {
     input: DEFAULTS.COST.INPUT,
     output: DEFAULTS.COST.OUTPUT,
@@ -358,23 +358,23 @@ function getDefaultCost() {
   }
 }
 
-function buildReference(path: string): string {
+export function buildReference(path: string): string {
   return `${REFERENCE.START}${path}${REFERENCE.END}`
 }
 
-function buildLoopReference(property: string): string {
+export function buildLoopReference(property: string): string {
   return buildReference(`${REFERENCE.PREFIX.LOOP}${REFERENCE.PATH_DELIMITER}${property}`)
 }
 
-function buildParallelReference(property: string): string {
+export function buildParallelReference(property: string): string {
   return buildReference(`${REFERENCE.PREFIX.PARALLEL}${REFERENCE.PATH_DELIMITER}${property}`)
 }
 
-function buildVariableReference(variableName: string): string {
+export function buildVariableReference(variableName: string): string {
   return buildReference(`${REFERENCE.PREFIX.VARIABLE}${REFERENCE.PATH_DELIMITER}${variableName}`)
 }
 
-function buildBlockReference(blockId: string, path?: string): string {
+export function buildBlockReference(blockId: string, path?: string): string {
   return buildReference(path ? `${blockId}${REFERENCE.PATH_DELIMITER}${path}` : blockId)
 }
 
@@ -382,7 +382,7 @@ export function buildLoopIndexCondition(maxIterations: number): string {
   return `${buildLoopReference(LOOP_REFERENCE.INDEX)} < ${maxIterations}`
 }
 
-function buildEnvVarReference(varName: string): string {
+export function buildEnvVarReference(varName: string): string {
   return `${REFERENCE.ENV_VAR_START}${varName}${REFERENCE.ENV_VAR_END}`
 }
 
@@ -401,7 +401,7 @@ export function extractEnvVarName(reference: string): string {
   )
 }
 
-function extractReferenceContent(reference: string): string {
+export function extractReferenceContent(reference: string): string {
   return reference.substring(REFERENCE.START.length, reference.length - REFERENCE.END.length)
 }
 
@@ -454,7 +454,7 @@ export function stripCustomToolPrefix(name: string): string {
     : name
 }
 
-function stripMcpToolPrefix(name: string): string {
+export function stripMcpToolPrefix(name: string): string {
   return name.startsWith(MCP.TOOL_PREFIX) ? name.slice(MCP.TOOL_PREFIX.length) : name
 }
 

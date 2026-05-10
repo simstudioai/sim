@@ -8,7 +8,7 @@ import {
   formatUpdatedAt,
 } from '@/app/(landing)/models/utils'
 
-function Breadcrumbs({ items }: { items: Array<{ label: string; href?: string }> }) {
+export function Breadcrumbs({ items }: { items: Array<{ label: string; href?: string }> }) {
   return (
     <nav
       aria-label='Breadcrumb'
@@ -59,7 +59,7 @@ export function ProviderIcon({
   )
 }
 
-function StatCard({
+export function StatCard({
   label,
   value,
   compact = false,
@@ -84,7 +84,7 @@ function StatCard({
   )
 }
 
-function DetailItem({ label, value }: { label: string; value: string }) {
+export function DetailItem({ label, value }: { label: string; value: string }) {
   return (
     <div className='rounded-[5px] border border-[var(--landing-border)] bg-[var(--landing-bg-card)] px-3 py-2'>
       <p className='font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em]'>

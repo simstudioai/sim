@@ -42,7 +42,7 @@ export function hasSchemaChanged(
  * Validates server-level connectivity for an MCP server.
  * Checks: server existence, connection status, URL changes.
  */
-function getMcpServerIssue(
+export function getMcpServerIssue(
   serverId: string,
   serverUrl: string | undefined,
   servers: ServerState[]

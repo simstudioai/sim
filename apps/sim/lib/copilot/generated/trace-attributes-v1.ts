@@ -542,7 +542,7 @@ type TraceAttrKey = keyof typeof TraceAttr
 type TraceAttrValue = (typeof TraceAttr)[TraceAttrKey]
 
 /** Readonly sorted list of every canonical custom attribute key. */
-const TraceAttrValues: readonly TraceAttrValue[] = [
+export const TraceAttrValues: readonly TraceAttrValue[] = [
   'abort.backend',
   'abort.found',
   'abort.redis_result',

@@ -49,7 +49,7 @@ const chunkingConfigSchema = z
     message: 'strictBoundaries is only valid for the regex chunking strategy',
   })
 
-const createKnowledgeBaseBodySchema = z.object({
+export const createKnowledgeBaseBodySchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   workspaceId: z.string().min(1, 'Workspace ID is required'),

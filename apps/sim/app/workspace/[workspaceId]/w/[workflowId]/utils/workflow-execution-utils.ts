@@ -33,7 +33,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
  * Updates the active blocks set and ref counts for a single block.
  * Ref counting ensures a block stays active until all parallel branches for it complete.
  */
-function updateActiveBlockRefCount(
+export function updateActiveBlockRefCount(
   refCounts: Map<string, number>,
   activeSet: Set<string>,
   blockId: string,
@@ -87,7 +87,7 @@ function shouldActivateEdgeClient(
   }
 }
 
-function markOutgoingEdgesFromOutput(
+export function markOutgoingEdgesFromOutput(
   blockId: string,
   output: Record<string, any> | undefined,
   workflowEdges: Array<{
@@ -642,7 +642,7 @@ interface ExecutionTimingFields {
 /**
  * Builds timing fields for an execution-level console entry.
  */
-function buildExecutionTiming(durationMs?: number): ExecutionTimingFields {
+export function buildExecutionTiming(durationMs?: number): ExecutionTimingFields {
   const normalizedDuration = durationMs || 0
   return {
     durationMs: normalizedDuration,
@@ -774,7 +774,10 @@ interface CancelledConsoleParams {
 /**
  * Adds a console entry for execution cancellation.
  */
-function addCancelledConsoleEntry(addConsole: AddConsoleFn, params: CancelledConsoleParams): void {
+export function addCancelledConsoleEntry(
+  addConsole: AddConsoleFn,
+  params: CancelledConsoleParams
+): void {
   const timing = buildExecutionTiming(params.durationMs)
   addConsole({
     input: {},

@@ -19,7 +19,7 @@ const rdsConnectionBodySchema = z.object({
   database: z.string().optional(),
 })
 
-const rdsQueryBodySchema = rdsConnectionBodySchema.extend({
+export const rdsQueryBodySchema = rdsConnectionBodySchema.extend({
   query: z.string().min(1, 'Query is required'),
 })
 

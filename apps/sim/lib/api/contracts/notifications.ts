@@ -75,7 +75,7 @@ const notificationSubscriptionSchema = z.object({
 
 export type NotificationSubscription = z.output<typeof notificationSubscriptionSchema>
 
-const createNotificationBodySchema = z.object({
+export const createNotificationBodySchema = z.object({
   notificationType: notificationTypeSchema,
   workflowIds: z.array(z.string()),
   allWorkflows: z.boolean(),
@@ -146,12 +146,12 @@ export interface NotificationServerLimits {
   maxWorkflowIds: number
 }
 
-const NOTIFICATION_SERVER_LIMITS: NotificationServerLimits = {
+export const NOTIFICATION_SERVER_LIMITS: NotificationServerLimits = {
   maxEmailRecipients: 10,
   maxWorkflowIds: 1000,
 }
 
-function buildServerCreateNotificationSchema(limits: NotificationServerLimits) {
+export function buildServerCreateNotificationSchema(limits: NotificationServerLimits) {
   return z
     .object({
       notificationType: notificationTypeSchema,
@@ -184,7 +184,7 @@ function buildServerCreateNotificationSchema(limits: NotificationServerLimits) {
     })
 }
 
-function buildServerUpdateNotificationSchema(limits: NotificationServerLimits) {
+export function buildServerUpdateNotificationSchema(limits: NotificationServerLimits) {
   return z
     .object({
       workflowIds: z.array(z.string()).max(limits.maxWorkflowIds).optional(),

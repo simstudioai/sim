@@ -30,7 +30,7 @@ export const THREAD_OUTPUT_PROPERTIES = {
 /**
  * Complete thread object output definition.
  */
-const THREAD_OUTPUT: OutputProperty = {
+export const THREAD_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Zep thread object',
   properties: THREAD_OUTPUT_PROPERTIES,
@@ -73,7 +73,7 @@ export const USER_OUTPUT_PROPERTIES = {
 /**
  * Complete user object output definition.
  */
-const USER_OUTPUT: OutputProperty = {
+export const USER_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Zep user object',
   properties: USER_OUTPUT_PROPERTIES,
@@ -84,7 +84,7 @@ const USER_OUTPUT: OutputProperty = {
  * @see https://help.getzep.com/adding-messages
  * @see https://help.getzep.com/sdk-reference/thread/message/update
  */
-const MESSAGE_OUTPUT_PROPERTIES = {
+export const MESSAGE_OUTPUT_PROPERTIES = {
   uuid: { type: 'string', description: 'Message UUID' },
   role: { type: 'string', description: 'Message role (user, assistant, system, tool)' },
   roleType: { type: 'string', description: 'Role type (AI, human, tool)', optional: true },

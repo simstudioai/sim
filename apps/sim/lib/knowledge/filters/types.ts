@@ -129,7 +129,7 @@ export interface OperatorInfo {
 /**
  * Text operators metadata
  */
-const TEXT_OPERATORS: OperatorInfo[] = [
+export const TEXT_OPERATORS: OperatorInfo[] = [
   { value: 'eq', label: 'equals' },
   { value: 'neq', label: 'not equals' },
   { value: 'contains', label: 'contains' },
@@ -141,7 +141,7 @@ const TEXT_OPERATORS: OperatorInfo[] = [
 /**
  * Number operators metadata
  */
-const NUMBER_OPERATORS: OperatorInfo[] = [
+export const NUMBER_OPERATORS: OperatorInfo[] = [
   { value: 'eq', label: 'equals' },
   { value: 'neq', label: 'not equals' },
   { value: 'gt', label: 'greater than' },
@@ -154,7 +154,7 @@ const NUMBER_OPERATORS: OperatorInfo[] = [
 /**
  * Date operators metadata
  */
-const DATE_OPERATORS: OperatorInfo[] = [
+export const DATE_OPERATORS: OperatorInfo[] = [
   { value: 'eq', label: 'equals' },
   { value: 'neq', label: 'not equals' },
   { value: 'gt', label: 'after' },
@@ -167,7 +167,7 @@ const DATE_OPERATORS: OperatorInfo[] = [
 /**
  * Boolean operators metadata
  */
-const BOOLEAN_OPERATORS: OperatorInfo[] = [
+export const BOOLEAN_OPERATORS: OperatorInfo[] = [
   { value: 'eq', label: 'is' },
   { value: 'neq', label: 'is not' },
 ]

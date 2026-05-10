@@ -24,7 +24,7 @@ export const GOOGLE_SEARCH_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete search result item output definition
  */
-const GOOGLE_SEARCH_RESULT_OUTPUT: OutputProperty = {
+export const GOOGLE_SEARCH_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'A single search result from Google Custom Search',
   properties: GOOGLE_SEARCH_RESULT_OUTPUT_PROPERTIES,
@@ -47,7 +47,7 @@ export const GOOGLE_SEARCH_INFORMATION_OUTPUT_PROPERTIES = {
 /**
  * Complete search information output definition
  */
-const GOOGLE_SEARCH_INFORMATION_OUTPUT: OutputProperty = {
+export const GOOGLE_SEARCH_INFORMATION_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Information about the search query and results',
   properties: GOOGLE_SEARCH_INFORMATION_OUTPUT_PROPERTIES,

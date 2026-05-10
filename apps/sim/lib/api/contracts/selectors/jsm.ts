@@ -105,7 +105,7 @@ const jsmTransitionBodySchema = jsmBaseBodySchema.extend({
   comment: z.string().optional(),
 })
 
-const jsmIssuePaginationBodySchema = jsmBaseBodySchema.extend({
+export const jsmIssuePaginationBodySchema = jsmBaseBodySchema.extend({
   issueIdOrKey: jsmIssueIdOrKeyField,
   start: z.string().optional(),
   limit: z.string().optional(),
@@ -185,7 +185,7 @@ const jsmCopyFormsBodySchema = jsmBaseBodySchema.extend({
   formIds: z.array(z.string(), { error: 'formIds must be an array of form UUIDs' }).optional(),
 })
 
-const defineJsmToolContract = <TBody extends z.ZodType>(path: string, body: TBody) =>
+export const defineJsmToolContract = <TBody extends z.ZodType>(path: string, body: TBody) =>
   definePostSelector(path, body, z.unknown())
 
 export const jsmServiceDesksSelectorContract = definePostSelector(

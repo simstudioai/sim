@@ -724,7 +724,7 @@ export function createExecutionToolSchema(toolConfig: ToolConfig): ToolSchema {
  * Deep merges inputMapping objects, where LLM values fill in empty/missing user values.
  * User-provided non-empty values take precedence.
  */
-function deepMergeInputMapping(
+export function deepMergeInputMapping(
   llmInputMapping: Record<string, unknown> | undefined,
   userInputMapping: Record<string, unknown> | string | undefined
 ): Record<string, unknown> {

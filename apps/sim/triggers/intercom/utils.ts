@@ -58,7 +58,7 @@ export function buildIntercomExtraFields(triggerId: string): SubBlockConfig[] {
 /**
  * Maps trigger IDs to the Intercom webhook topics they should match.
  */
-const INTERCOM_TRIGGER_TOPIC_MAP: Record<string, string[]> = {
+export const INTERCOM_TRIGGER_TOPIC_MAP: Record<string, string[]> = {
   intercom_conversation_created: ['conversation.user.created', 'conversation.admin.single.created'],
   intercom_conversation_reply: ['conversation.user.replied', 'conversation.admin.replied'],
   intercom_conversation_closed: ['conversation.admin.closed'],

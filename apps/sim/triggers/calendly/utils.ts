@@ -13,7 +13,7 @@ export const calendlyTriggerOptions = [
 /**
  * Generate setup instructions for a specific Calendly event type
  */
-function calendlySetupInstructions(eventType: string, additionalNotes?: string): string {
+export function calendlySetupInstructions(eventType: string, additionalNotes?: string): string {
   const instructions = [
     '<strong>Note:</strong> Webhooks require a paid Calendly subscription (Professional, Teams, or Enterprise plan).',
     '<strong>Important:</strong> Calendly does not provide a UI for creating webhooks. You must create them programmatically using the API. See the <a href="https://developer.calendly.com/api-docs" target="_blank" rel="noopener noreferrer">Calendly Developer documentation</a> for details.',
@@ -325,7 +325,7 @@ export function buildRoutingFormOutputs(): Record<string, TriggerOutput> {
 /**
  * Check if a Calendly event matches the expected trigger configuration
  */
-function isCalendlyEventMatch(triggerId: string, eventType: string): boolean {
+export function isCalendlyEventMatch(triggerId: string, eventType: string): boolean {
   const eventMap: Record<string, string> = {
     calendly_invitee_created: 'invitee.created',
     calendly_invitee_canceled: 'invitee.canceled',

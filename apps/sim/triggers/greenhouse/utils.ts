@@ -39,7 +39,7 @@ export const greenhouseTriggerOptions = [
  * Maps trigger IDs to Greenhouse webhook action strings.
  * Used for event filtering in the webhook processor.
  */
-const GREENHOUSE_EVENT_MAP: Record<string, string> = {
+export const GREENHOUSE_EVENT_MAP: Record<string, string> = {
   greenhouse_candidate_hired: 'hire_candidate',
   greenhouse_new_application: 'new_candidate_application',
   greenhouse_candidate_stage_change: 'candidate_stage_change',

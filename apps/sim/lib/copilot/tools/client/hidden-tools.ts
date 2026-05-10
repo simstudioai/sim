@@ -4,6 +4,6 @@ export function isToolHiddenInUi(toolName: string | undefined): boolean {
   return !!toolName && HIDDEN_TOOL_NAMES.has(toolName)
 }
 
-function getHiddenToolNames(): ReadonlySet<string> {
+export function getHiddenToolNames(): ReadonlySet<string> {
   return HIDDEN_TOOL_NAMES
 }

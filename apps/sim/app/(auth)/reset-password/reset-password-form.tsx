@@ -16,7 +16,7 @@ interface RequestResetFormProps {
   className?: string
 }
 
-function RequestResetForm({
+export function RequestResetForm({
   email,
   onEmailChange,
   onSubmit,

@@ -15,7 +15,7 @@ export function parseJSON<T>(value: unknown, fallback: T): T {
   }
 }
 
-function parseJSONOrThrow(value: string): any {
+export function parseJSONOrThrow(value: string): any {
   try {
     return JSON.parse(value.trim())
   } catch (error) {
@@ -23,7 +23,7 @@ function parseJSONOrThrow(value: string): any {
   }
 }
 
-function normalizeJSONString(value: string): string {
+export function normalizeJSONString(value: string): string {
   return value.replace(/'/g, '"')
 }
 

@@ -4,6 +4,6 @@ export interface LoopConfigWithNodes extends SerializedLoop {
   nodes: string[]
 }
 
-function isLoopConfigWithNodes(config: SerializedLoop): config is LoopConfigWithNodes {
+export function isLoopConfigWithNodes(config: SerializedLoop): config is LoopConfigWithNodes {
   return Array.isArray((config as any).nodes)
 }

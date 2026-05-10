@@ -69,7 +69,7 @@ const WORKSPACE_NOUNS = [
  * @param prefix - Prefix for the name (e.g., "Folder", "Subfolder")
  * @returns Next available name (e.g., "Folder 3")
  */
-function generateIncrementalName<T extends NameableEntity>(
+export function generateIncrementalName<T extends NameableEntity>(
   existingEntities: T[],
   prefix: string
 ): string {
@@ -88,7 +88,7 @@ function generateIncrementalName<T extends NameableEntity>(
 /**
  * Generates a random cosmos-themed workspace name
  */
-function generateWorkspaceName(): string {
+export function generateWorkspaceName(): string {
   return WORKSPACE_NOUNS[Math.floor(Math.random() * WORKSPACE_NOUNS.length)]
 }
 

@@ -34,7 +34,7 @@ let flushTimer: NodeJS.Timeout | null = null
 /**
  * Returns true if Profound analytics is configured.
  */
-function isProfoundEnabled(): boolean {
+export function isProfoundEnabled(): boolean {
   return isHosted && Boolean(env.PROFOUND_API_KEY) && Boolean(env.PROFOUND_ENDPOINT)
 }
 

@@ -51,7 +51,7 @@ const TEMPLATE_OUTPUT_PROPERTIES = {
   lastModified: { type: 'string', description: 'ISO 8601 last modified date' },
 } as const satisfies Record<string, OutputProperty>
 
-const ENVELOPE_OBJECT_OUTPUT: OutputProperty = {
+export const ENVELOPE_OBJECT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'DocuSign envelope',
   properties: ENVELOPE_OUTPUT_PROPERTIES,
@@ -66,7 +66,7 @@ export const ENVELOPES_ARRAY_OUTPUT: OutputProperty = {
   },
 }
 
-const RECIPIENT_OBJECT_OUTPUT: OutputProperty = {
+export const RECIPIENT_OBJECT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'DocuSign recipient',
   properties: RECIPIENT_OUTPUT_PROPERTIES,

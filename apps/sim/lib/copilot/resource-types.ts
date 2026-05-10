@@ -13,7 +13,7 @@ export interface MothershipResource {
   title: string
 }
 
-const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
+export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   tables: 'table',
   files: 'file',
   workflows: 'workflow',

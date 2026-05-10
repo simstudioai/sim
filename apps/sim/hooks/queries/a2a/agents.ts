@@ -50,7 +50,7 @@ async function fetchA2AAgents(workspaceId: string, signal?: AbortSignal): Promis
 /**
  * Hook to list A2A agents for a workspace
  */
-function useA2AAgents(workspaceId: string) {
+export function useA2AAgents(workspaceId: string) {
   return useQuery({
     queryKey: a2aAgentKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchA2AAgents(workspaceId, signal),
@@ -72,7 +72,7 @@ async function fetchA2AAgentCard(agentId: string, signal?: AbortSignal): Promise
 /**
  * Hook to get a single A2A agent card (discovery document)
  */
-function useA2AAgentCard(agentId: string) {
+export function useA2AAgentCard(agentId: string) {
   return useQuery({
     queryKey: a2aAgentKeys.detail(agentId),
     queryFn: ({ signal }) => fetchA2AAgentCard(agentId, signal),

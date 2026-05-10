@@ -78,7 +78,7 @@ export function useFilterBuilder({
 }
 
 /** Manages sort rule state with add/remove/update operations. */
-function useSortBuilder({
+export function useSortBuilder({
   columns,
   sortRule,
   setSortRule,

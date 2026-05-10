@@ -44,7 +44,7 @@ interface CommandDefinition {
  *
  * All global commands must be declared here to be usable.
  */
-const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
+export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
   'accept-diff-changes': {
     id: 'accept-diff-changes',
     shortcut: 'Mod+Shift+Enter',

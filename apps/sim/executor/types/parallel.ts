@@ -4,6 +4,8 @@ export interface ParallelConfigWithNodes extends SerializedParallel {
   nodes: string[]
 }
 
-function isParallelConfigWithNodes(config: SerializedParallel): config is ParallelConfigWithNodes {
+export function isParallelConfigWithNodes(
+  config: SerializedParallel
+): config is ParallelConfigWithNodes {
   return Array.isArray((config as any).nodes)
 }

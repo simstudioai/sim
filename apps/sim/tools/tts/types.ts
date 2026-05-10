@@ -278,7 +278,7 @@ const PLAYHT_OUTPUT_FORMATS = {
 } as const
 
 // Audio format MIME types
-const AUDIO_MIME_TYPES: Record<string, string> = {
+export const AUDIO_MIME_TYPES: Record<string, string> = {
   mp3: 'audio/mpeg',
   opus: 'audio/opus',
   aac: 'audio/aac',

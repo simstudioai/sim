@@ -342,7 +342,7 @@ export function escapeShellArg(arg: string): string {
 /**
  * Validate that authentication credentials are provided
  */
-function validateAuth(params: { password?: string; privateKey?: string }): {
+export function validateAuth(params: { password?: string; privateKey?: string }): {
   isValid: boolean
   error?: string
 } {

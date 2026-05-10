@@ -333,7 +333,7 @@ export function sanitizeCredentials(
  * Sanitize workflow state for export (preserves env vars)
  * Convenience wrapper for workflow export
  */
-function sanitizeForExport(
+export function sanitizeForExport(
   state: Partial<WorkflowState> | null | undefined
 ): SanitizedWorkflowState {
   return sanitizeWorkflowForSharing(state, { preserveEnvVars: true })

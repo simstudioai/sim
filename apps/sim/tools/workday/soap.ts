@@ -177,7 +177,11 @@ export interface WorkdayClient {
  *
  * @throws Error if tenantUrl is not a trusted Workday-hosted URL (SSRF guard)
  */
-function buildServiceUrl(tenantUrl: string, tenant: string, service: WorkdayServiceKey): string {
+export function buildServiceUrl(
+  tenantUrl: string,
+  tenant: string,
+  service: WorkdayServiceKey
+): string {
   const validation = validateWorkdayTenantUrl(tenantUrl)
   if (!validation.isValid) {
     throw new Error(validation.error ?? 'Invalid tenantUrl')
@@ -191,7 +195,11 @@ function buildServiceUrl(tenantUrl: string, tenant: string, service: WorkdayServ
  * Builds the WSDL URL for a Workday SOAP service. Retained for backwards compatibility
  * with any external consumers; the runtime no longer fetches the WSDL.
  */
-function buildWsdlUrl(tenantUrl: string, tenant: string, service: WorkdayServiceKey): string {
+export function buildWsdlUrl(
+  tenantUrl: string,
+  tenant: string,
+  service: WorkdayServiceKey
+): string {
   return `${buildServiceUrl(tenantUrl, tenant, service)}?wsdl`
 }
 

@@ -623,7 +623,7 @@ type UpdateOrganizationParams = {
   orgId: string
 } & ContractBodyInput<typeof updateOrganizationContract>
 
-function useUpdateOrganization() {
+export function useUpdateOrganization() {
   const queryClient = useQueryClient()
 
   return useMutation({

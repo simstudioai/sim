@@ -90,7 +90,7 @@ function buildGradient(fromColor: string, toColor: string, rotationSeed: number)
   return `linear-gradient(${rotation}deg, ${fromColor}, ${toColor})`
 }
 
-function getPresenceColors(
+export function getPresenceColors(
   identifier: string | number,
   explicitColor?: string
 ): PresenceColorPalette {
@@ -137,7 +137,7 @@ export function getUserColor(userId: string): string {
  * @param userIds - Array of user IDs to map
  * @returns Map of user ID to color index
  */
-function createUserColorMap(userIds: string[]): Map<string, number> {
+export function createUserColorMap(userIds: string[]): Map<string, number> {
   const colorMap = new Map<string, number>()
   let colorIndex = 0
 

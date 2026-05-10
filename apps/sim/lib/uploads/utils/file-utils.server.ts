@@ -1,4 +1,4 @@
-import 'server-only'
+'use server'
 
 import type { Logger } from '@sim/logger'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'

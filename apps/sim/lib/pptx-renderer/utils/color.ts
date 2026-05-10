@@ -38,7 +38,7 @@ export function rgbToHex(r: number, g: number, b: number): string {
 /**
  * Convert RGB (0-255) to HSL (h: 0-360, s: 0-1, l: 0-1).
  */
-function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
+export function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
   const rn = r / 255
   const gn = g / 255
   const bn = b / 255
@@ -141,7 +141,7 @@ export function applyTint(hex: string, tint: number): string {
  * Apply shade modifier (mix toward black in linear RGB space).
  * shade: 0-100000 where 100000 = original color, 0 = fully black.
  */
-function applyShade(hex: string, shade: number): string {
+export function applyShade(hex: string, shade: number): string {
   const { r, g, b } = hexToRgb(hex)
   const s = shade / 100000
   return rgbToHex(
@@ -156,7 +156,7 @@ function applyShade(hex: string, shade: number): string {
  * lumMod: percentage in OOXML units (e.g., 75000 = 75%).
  * Multiplies the L channel of HSL.
  */
-function applyLumMod(hex: string, lumMod: number): string {
+export function applyLumMod(hex: string, lumMod: number): string {
   const { r, g, b } = hexToRgb(hex)
   const { h, s, l } = rgbToHsl(r, g, b)
   const newL = Math.max(0, Math.min(1, l * (lumMod / 100000)))
@@ -169,7 +169,7 @@ function applyLumMod(hex: string, lumMod: number): string {
  * lumOff: percentage offset in OOXML units (e.g., 25000 = +25%).
  * Adds to the L channel of HSL.
  */
-function applyLumOff(hex: string, lumOff: number): string {
+export function applyLumOff(hex: string, lumOff: number): string {
   const { r, g, b } = hexToRgb(hex)
   const { h, s, l } = rgbToHsl(r, g, b)
   const newL = Math.max(0, Math.min(1, l + lumOff / 100000))
@@ -182,7 +182,7 @@ function applyLumOff(hex: string, lumOff: number): string {
  * satMod: percentage in OOXML units (e.g., 120000 = 120%).
  * Multiplies the S channel of HSL.
  */
-function applySatMod(hex: string, satMod: number): string {
+export function applySatMod(hex: string, satMod: number): string {
   const { r, g, b } = hexToRgb(hex)
   const { h, s, l } = rgbToHsl(r, g, b)
   const newS = Math.max(0, Math.min(1, s * (satMod / 100000)))
@@ -195,7 +195,7 @@ function applySatMod(hex: string, satMod: number): string {
  * hueMod: percentage in OOXML units (e.g., 60000 = shift hue by ratio).
  * In OOXML, hueMod multiplies the hue value. Hue wraps around at 360.
  */
-function applyHueMod(hex: string, hueMod: number): string {
+export function applyHueMod(hex: string, hueMod: number): string {
   const { r, g, b } = hexToRgb(hex)
   const { h, s, l } = rgbToHsl(r, g, b)
   const newH = (h * (hueMod / 100000)) % 360
@@ -208,7 +208,7 @@ function applyHueMod(hex: string, hueMod: number): string {
  * hueOff: in 60000ths of a degree (OOXML ST_FixedAngle).
  * Adds to the hue channel of HSL, wrapping at 360.
  */
-function applyHueOff(hex: string, hueOff: number): string {
+export function applyHueOff(hex: string, hueOff: number): string {
   const { r, g, b } = hexToRgb(hex)
   const { h, s, l } = rgbToHsl(r, g, b)
   const offsetDeg = hueOff / 60000
@@ -222,7 +222,7 @@ function applyHueOff(hex: string, hueOff: number): string {
  * satOff: in OOXML percentage units (100000 = 100%).
  * Adds to the S channel of HSL.
  */
-function applySatOff(hex: string, satOff: number): string {
+export function applySatOff(hex: string, satOff: number): string {
   const { r, g, b } = hexToRgb(hex)
   const { h, s, l } = rgbToHsl(r, g, b)
   const newS = Math.max(0, Math.min(1, s + satOff / 100000))
@@ -234,7 +234,7 @@ function applySatOff(hex: string, satOff: number): string {
  * Convert OOXML alpha value (0-100000) to CSS opacity (0-1).
  * 100000 = fully opaque, 0 = fully transparent.
  */
-function applyAlpha(alpha: number): number {
+export function applyAlpha(alpha: number): number {
   return Math.max(0, Math.min(1, alpha / 100000))
 }
 

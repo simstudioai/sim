@@ -25,7 +25,7 @@ export interface MessageContent {
 /**
  * Mapping of MIME types to content types
  */
-const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 'video'> = {
+export const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 'video'> = {
   // Images
   'image/jpeg': 'image',
   'image/jpg': 'image',
@@ -90,14 +90,14 @@ const MIME_TYPE_MAPPING: Record<string, 'image' | 'document' | 'audio' | 'video'
 /**
  * Get the content type for a given MIME type
  */
-function getContentType(mimeType: string): 'image' | 'document' | 'audio' | 'video' | null {
+export function getContentType(mimeType: string): 'image' | 'document' | 'audio' | 'video' | null {
   return MIME_TYPE_MAPPING[mimeType.toLowerCase()] || null
 }
 
 /**
  * Check if a MIME type is supported
  */
-function isSupportedFileType(mimeType: string): boolean {
+export function isSupportedFileType(mimeType: string): boolean {
   return mimeType.toLowerCase() in MIME_TYPE_MAPPING
 }
 
@@ -131,7 +131,7 @@ export function isVideoFileType(mimeType: string): boolean {
 /**
  * Check if a MIME type is an audio or video type
  */
-function isMediaFileType(mimeType: string): boolean {
+export function isMediaFileType(mimeType: string): boolean {
   const contentType = getContentType(mimeType)
   return contentType === 'audio' || contentType === 'video'
 }

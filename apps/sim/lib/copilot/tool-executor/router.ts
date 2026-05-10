@@ -3,7 +3,7 @@ import type { ToolCallDescriptor } from './types'
 
 type ToolRouteTarget = ToolCatalogEntry['route']
 
-function isToolInCatalog(toolId: string): boolean {
+export function isToolInCatalog(toolId: string): boolean {
   return toolId in TOOL_CATALOG
 }
 
@@ -17,7 +17,7 @@ type ToolRoute = {
   subagentId?: string
 }
 
-function routeToolCall(toolId: string): ToolRoute | null {
+export function routeToolCall(toolId: string): ToolRoute | null {
   const entry = getToolEntry(toolId)
   if (!entry) return null
   return { route: entry.route, mode: entry.mode, subagentId: entry.subagentId }
@@ -27,7 +27,7 @@ export function isSimExecuted(toolId: string): boolean {
   return getToolEntry(toolId)?.route === 'sim'
 }
 
-function isGoExecuted(toolId: string): boolean {
+export function isGoExecuted(toolId: string): boolean {
   return getToolEntry(toolId)?.route === 'go'
 }
 
@@ -43,7 +43,7 @@ interface PartitionedBatch {
   unknown: ToolCallDescriptor[]
 }
 
-function partitionToolBatch(toolCalls: ToolCallDescriptor[]): PartitionedBatch {
+export function partitionToolBatch(toolCalls: ToolCallDescriptor[]): PartitionedBatch {
   const result: PartitionedBatch = { sim: [], go: [], subagent: [], client: [], unknown: [] }
 
   for (const tc of toolCalls) {

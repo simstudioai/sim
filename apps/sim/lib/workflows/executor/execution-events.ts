@@ -275,7 +275,7 @@ interface SSECallbackOptions {
 /**
  * Creates execution callbacks using a provided event sink.
  */
-function createExecutionCallbacks(options: {
+export function createExecutionCallbacks(options: {
   executionId: string
   workflowId: string
   sendEvent: (event: ExecutionEvent) => void | Promise<void>
@@ -483,7 +483,7 @@ function createExecutionCallbacks(options: {
 /**
  * Creates SSE callbacks for workflow execution streaming
  */
-function createSSECallbacks(options: SSECallbackOptions) {
+export function createSSECallbacks(options: SSECallbackOptions) {
   const { executionId, workflowId, controller, isStreamClosed, setStreamClosed } = options
 
   const sendEvent = (event: ExecutionEvent) => {

@@ -152,7 +152,7 @@ function validateWhereClause(where: string): void {
   }
 }
 
-function sanitizeIdentifier(identifier: string): string {
+export function sanitizeIdentifier(identifier: string): string {
   if (identifier.includes('.')) {
     const parts = identifier.split('.')
     return parts.map((part) => sanitizeSingleIdentifier(part)).join('.')

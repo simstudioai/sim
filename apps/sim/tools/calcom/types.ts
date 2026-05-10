@@ -193,7 +193,7 @@ export const BOOKING_DATA_OUTPUT_PROPERTIES = {
 /**
  * Pagination output properties for list endpoints
  */
-const PAGINATION_OUTPUT_PROPERTIES = {
+export const PAGINATION_OUTPUT_PROPERTIES = {
   totalItems: { type: 'number', description: 'Total number of items' },
   remainingItems: { type: 'number', description: 'Remaining items after current page' },
   returnedItems: { type: 'number', description: 'Number of items returned in this response' },
@@ -216,7 +216,7 @@ const PAGINATION_OUTPUT: OutputProperty = {
 /**
  * Output definition for availability intervals in schedule responses
  */
-const AVAILABILITY_OUTPUT_PROPERTIES = {
+export const AVAILABILITY_OUTPUT_PROPERTIES = {
   days: {
     type: 'array',
     description: 'Days of the week (Monday, Tuesday, etc.)',
@@ -250,7 +250,7 @@ const AVAILABILITY_OUTPUT: OutputProperty = {
 /**
  * Complete overrides array output definition
  */
-const OVERRIDES_OUTPUT: OutputProperty = {
+export const OVERRIDES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Date-specific availability overrides',
   items: {

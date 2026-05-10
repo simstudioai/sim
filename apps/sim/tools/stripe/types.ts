@@ -10,7 +10,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Output definition for Stripe address objects
  * @see https://docs.stripe.com/api/customers/object#customer_object-address
  */
-const ADDRESS_OUTPUT_PROPERTIES = {
+export const ADDRESS_OUTPUT_PROPERTIES = {
   line1: { type: 'string', description: 'Address line 1 (street address)', optional: true },
   line2: { type: 'string', description: 'Address line 2 (apartment, suite, etc.)', optional: true },
   city: { type: 'string', description: 'City name', optional: true },
@@ -37,7 +37,7 @@ const ADDRESS_OUTPUT: OutputProperty = {
  * Output definition for Stripe shipping objects
  * @see https://docs.stripe.com/api/customers/object#customer_object-shipping
  */
-const SHIPPING_OUTPUT_PROPERTIES = {
+export const SHIPPING_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Recipient name', optional: true },
   phone: { type: 'string', description: 'Recipient phone number', optional: true },
   address: ADDRESS_OUTPUT,
@@ -886,7 +886,7 @@ export const INVOICE_METADATA_OUTPUT_PROPERTIES = {
  * Output definition for Charge objects
  * @see https://docs.stripe.com/api/charges/object
  */
-const CHARGE_OUTPUT_PROPERTIES = {
+export const CHARGE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique identifier for the charge' },
   object: { type: 'string', description: 'String representing the object type (charge)' },
   amount: { type: 'number', description: 'Amount in smallest currency unit' },
@@ -1011,7 +1011,7 @@ const CHARGE_METADATA_OUTPUT_PROPERTIES = {
  * Output definition for Product objects
  * @see https://docs.stripe.com/api/products/object
  */
-const PRODUCT_OUTPUT_PROPERTIES = {
+export const PRODUCT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique identifier for the product' },
   object: { type: 'string', description: 'String representing the object type (product)' },
   active: {
@@ -1074,7 +1074,7 @@ const PRODUCT_METADATA_OUTPUT_PROPERTIES = {
  * Output definition for Price recurring object
  * @see https://docs.stripe.com/api/prices/object#price_object-recurring
  */
-const PRICE_RECURRING_OUTPUT_PROPERTIES = {
+export const PRICE_RECURRING_OUTPUT_PROPERTIES = {
   aggregate_usage: {
     type: 'string',
     description: 'Specifies a usage aggregation strategy',
@@ -1105,7 +1105,7 @@ const PRICE_RECURRING_OUTPUT: OutputProperty = {
  * Output definition for Price objects
  * @see https://docs.stripe.com/api/prices/object
  */
-const PRICE_OUTPUT_PROPERTIES = {
+export const PRICE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique identifier for the price' },
   object: { type: 'string', description: 'String representing the object type (price)' },
   active: { type: 'boolean', description: 'Whether the price can be used for new purchases' },
@@ -1184,7 +1184,7 @@ const PRICE_METADATA_OUTPUT_PROPERTIES = {
  * Output definition for Event request object
  * @see https://docs.stripe.com/api/events/object#event_object-request
  */
-const EVENT_REQUEST_OUTPUT_PROPERTIES = {
+export const EVENT_REQUEST_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'ID of the API request', optional: true },
   idempotency_key: {
     type: 'string',
@@ -1207,7 +1207,7 @@ const EVENT_REQUEST_OUTPUT: OutputProperty = {
  * Output definition for Event objects
  * @see https://docs.stripe.com/api/events/object
  */
-const EVENT_OUTPUT_PROPERTIES = {
+export const EVENT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique identifier for the event' },
   object: { type: 'string', description: 'String representing the object type (event)' },
   account: {
@@ -1268,7 +1268,7 @@ export const LIST_METADATA_OUTPUT_PROPERTIES = {
 /**
  * Complete list metadata output definition
  */
-const LIST_METADATA_OUTPUT: OutputProperty = {
+export const LIST_METADATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'List metadata',
   properties: LIST_METADATA_OUTPUT_PROPERTIES,

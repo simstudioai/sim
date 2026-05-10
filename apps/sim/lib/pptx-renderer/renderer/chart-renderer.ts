@@ -3184,7 +3184,7 @@ function mergeCartesianComboOptions(
  * Parse a chart XML (chartSpace root) into an ECharts option object and optional data table info.
  * Exported for unit testing.
  */
-function parseChartXml(chartXml: SafeXmlNode, ctx: RenderContext): ParseChartResult {
+export function parseChartXml(chartXml: SafeXmlNode, ctx: RenderContext): ParseChartResult {
   const chartCtx = createChartRenderContext(chartXml, ctx)
   const chartPalette = buildChartPalette(chartXml, chartCtx)
   // Navigate: chartSpace > chart > plotArea

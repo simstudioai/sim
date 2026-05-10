@@ -24,7 +24,7 @@ const adminV1PermissionGroupSchema = z.object({
   createdByEmail: z.string().nullable(),
 })
 
-const adminV1AccessControlQuerySchema = z.object({
+export const adminV1AccessControlQuerySchema = z.object({
   workspaceId: adminV1QueryStringSchema,
   organizationId: adminV1QueryStringSchema,
 })

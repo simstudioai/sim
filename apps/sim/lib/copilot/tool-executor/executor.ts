@@ -13,7 +13,7 @@ const logger = createLogger('ToolExecutor')
 
 const handlerRegistry = new Map<string, ToolHandler>()
 
-function registerHandler(toolId: string, handler: ToolHandler): void {
+export function registerHandler(toolId: string, handler: ToolHandler): void {
   handlerRegistry.set(toolId, handler)
 }
 
@@ -23,11 +23,11 @@ export function registerHandlers(entries: Record<string, ToolHandler>): void {
   }
 }
 
-function getRegisteredToolIds(): string[] {
+export function getRegisteredToolIds(): string[] {
   return Array.from(handlerRegistry.keys())
 }
 
-function hasHandler(toolId: string): boolean {
+export function hasHandler(toolId: string): boolean {
   return handlerRegistry.has(toolId)
 }
 

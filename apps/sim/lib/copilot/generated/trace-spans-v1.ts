@@ -82,7 +82,7 @@ type TraceSpanKey = keyof typeof TraceSpan
 type TraceSpanValue = (typeof TraceSpan)[TraceSpanKey]
 
 /** Readonly sorted list of every canonical span name. */
-const TraceSpanValues: readonly TraceSpanValue[] = [
+export const TraceSpanValues: readonly TraceSpanValue[] = [
   'anthropic.count_tokens',
   'async_tool_store.set',
   'auth.rate_limit.record',

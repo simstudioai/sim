@@ -241,7 +241,7 @@ export function isPathSafe(path: string): boolean {
 /**
  * Parses file permissions from mode bits to octal string representation.
  */
-function parsePermissions(mode: number): string {
+export function parsePermissions(mode: number): string {
   return `0${(mode & 0o777).toString(8)}`
 }
 

@@ -187,7 +187,7 @@ async function fetchStorageInfo(signal?: AbortSignal): Promise<StorageInfo | nul
 /**
  * Hook to fetch storage info
  */
-function useStorageInfo(enabled = true) {
+export function useStorageInfo(enabled = true) {
   return useQuery({
     queryKey: workspaceFilesKeys.storageInfo(),
     queryFn: ({ signal }) => fetchStorageInfo(signal),

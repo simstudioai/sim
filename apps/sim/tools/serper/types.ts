@@ -9,7 +9,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 /**
  * Output definition for search parameters echoed in response
  */
-const SEARCH_PARAMETERS_OUTPUT_PROPERTIES = {
+export const SEARCH_PARAMETERS_OUTPUT_PROPERTIES = {
   q: { type: 'string', description: 'The search query that was executed' },
   type: { type: 'string', description: 'Type of search performed (search, images, news, etc.)' },
   engine: { type: 'string', description: 'Search engine used (always "google")' },
@@ -40,7 +40,7 @@ const KNOWLEDGE_GRAPH_ATTRIBUTES_OUTPUT_PROPERTIES = {
  * Output definition for Knowledge Graph panel
  * Appears for entities like companies, people, places
  */
-const KNOWLEDGE_GRAPH_OUTPUT_PROPERTIES = {
+export const KNOWLEDGE_GRAPH_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Entity name/title (e.g., "OpenAI")' },
   type: {
     type: 'string',
@@ -86,7 +86,7 @@ const KNOWLEDGE_GRAPH_OUTPUT: OutputProperty = {
  * Output definition for Answer Box / Featured Snippet
  * Appears for direct answer queries
  */
-const ANSWER_BOX_OUTPUT_PROPERTIES = {
+export const ANSWER_BOX_OUTPUT_PROPERTIES = {
   snippet: { type: 'string', description: 'Answer snippet text', optional: true },
   answer: {
     type: 'string',
@@ -118,7 +118,7 @@ const SITELINK_OUTPUT_PROPERTIES = {
 /**
  * Complete sitelinks array output definition
  */
-const SITELINKS_OUTPUT: OutputProperty = {
+export const SITELINKS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Sitelinks under this result',
   optional: true,
@@ -148,7 +148,7 @@ const ORGANIC_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete organic results array output definition
  */
-const ORGANIC_RESULTS_OUTPUT: OutputProperty = {
+export const ORGANIC_RESULTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Organic search results',
   items: {
@@ -160,7 +160,7 @@ const ORGANIC_RESULTS_OUTPUT: OutputProperty = {
 /**
  * Output definition for People Also Ask questions
  */
-const PEOPLE_ALSO_ASK_OUTPUT_PROPERTIES = {
+export const PEOPLE_ALSO_ASK_OUTPUT_PROPERTIES = {
   question: { type: 'string', description: 'The question that was asked' },
   snippet: { type: 'string', description: 'A snippet of the answer', optional: true },
   title: { type: 'string', description: 'Title of the source page', optional: true },
@@ -190,7 +190,7 @@ const RELATED_SEARCH_OUTPUT_PROPERTIES = {
 /**
  * Complete related searches array output definition
  */
-const RELATED_SEARCHES_OUTPUT: OutputProperty = {
+export const RELATED_SEARCHES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Related search suggestions',
   optional: true,
@@ -214,7 +214,7 @@ const TOP_STORY_OUTPUT_PROPERTIES = {
 /**
  * Complete top stories array output definition
  */
-const TOP_STORIES_OUTPUT: OutputProperty = {
+export const TOP_STORIES_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Top stories carousel',
   optional: true,
@@ -240,7 +240,7 @@ const NEWS_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete news results array output definition
  */
-const NEWS_RESULTS_OUTPUT: OutputProperty = {
+export const NEWS_RESULTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'News search results',
   items: {
@@ -270,7 +270,7 @@ const IMAGE_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete image results array output definition
  */
-const IMAGE_RESULTS_OUTPUT: OutputProperty = {
+export const IMAGE_RESULTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Image search results',
   items: {
@@ -299,7 +299,7 @@ const VIDEO_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete video results array output definition
  */
-const VIDEO_RESULTS_OUTPUT: OutputProperty = {
+export const VIDEO_RESULTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Video search results',
   items: {
@@ -342,7 +342,7 @@ const PLACE_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete places results array output definition
  */
-const PLACES_RESULTS_OUTPUT: OutputProperty = {
+export const PLACES_RESULTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Places/maps search results',
   items: {
@@ -367,7 +367,7 @@ const SHOPPING_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete shopping results array output definition
  */
-const SHOPPING_RESULTS_OUTPUT: OutputProperty = {
+export const SHOPPING_RESULTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Shopping/product search results',
   items: {
@@ -398,7 +398,7 @@ export const SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete search result output definition
  */
-const SERPER_SEARCH_RESULT_OUTPUT: OutputProperty = {
+export const SERPER_SEARCH_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Search result item with type-specific metadata',
   properties: SERPER_SEARCH_RESULT_OUTPUT_PROPERTIES,

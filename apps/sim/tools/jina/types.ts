@@ -9,7 +9,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Output definition for usage/token information
  * Based on Jina AI API usage object
  */
-const JINA_USAGE_OUTPUT_PROPERTIES = {
+export const JINA_USAGE_OUTPUT_PROPERTIES = {
   tokens: { type: 'number', description: 'Number of tokens consumed by this request' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -75,7 +75,7 @@ export const JINA_SEARCH_RESULT_OUTPUT_PROPERTIES = {
 /**
  * Complete search result output definition
  */
-const JINA_SEARCH_RESULT_OUTPUT: OutputProperty = {
+export const JINA_SEARCH_RESULT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Search result with extracted content',
   properties: JINA_SEARCH_RESULT_OUTPUT_PROPERTIES,
@@ -84,7 +84,7 @@ const JINA_SEARCH_RESULT_OUTPUT: OutputProperty = {
 /**
  * Search results array output definition
  */
-const JINA_SEARCH_RESULTS_OUTPUT: OutputProperty = {
+export const JINA_SEARCH_RESULTS_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of search results with LLM-friendly content',
   items: {

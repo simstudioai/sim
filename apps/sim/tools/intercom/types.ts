@@ -22,7 +22,7 @@ const logger = createLogger('Intercom')
  * Output definition for location object (nested in contact)
  * Based on Intercom API location object structure
  */
-const INTERCOM_LOCATION_OUTPUT_PROPERTIES = {
+export const INTERCOM_LOCATION_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'Object type (location)' },
   city: { type: 'string', description: 'City name', optional: true },
   region: { type: 'string', description: 'Region or state name', optional: true },
@@ -59,7 +59,7 @@ const INTERCOM_SOCIAL_PROFILE_OUTPUT_PROPERTIES = {
 /**
  * Complete social profiles output definition
  */
-const INTERCOM_SOCIAL_PROFILES_OUTPUT: OutputProperty = {
+export const INTERCOM_SOCIAL_PROFILES_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Social profiles of the contact',
   optional: true,
@@ -83,7 +83,7 @@ const INTERCOM_SOCIAL_PROFILES_OUTPUT: OutputProperty = {
 /**
  * Output definition for list reference objects (used for tags, notes, companies on contacts)
  */
-const INTERCOM_LIST_REFERENCE_OUTPUT_PROPERTIES = {
+export const INTERCOM_LIST_REFERENCE_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'List type identifier' },
   url: { type: 'string', description: 'URL to fetch full list' },
   data: { type: 'array', description: 'Array of objects (up to 10)' },
@@ -107,7 +107,7 @@ const INTERCOM_LIST_REFERENCE_OUTPUT: OutputProperty = {
 /**
  * Output definition for tag objects
  */
-const INTERCOM_TAG_OUTPUT_PROPERTIES = {
+export const INTERCOM_TAG_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique identifier for the tag' },
   type: { type: 'string', description: 'Object type (tag)' },
   name: { type: 'string', description: 'Name of the tag' },
@@ -125,7 +125,7 @@ const INTERCOM_TAG_OUTPUT: OutputProperty = {
 /**
  * Tags array output definition for list endpoints
  */
-const INTERCOM_TAGS_ARRAY_OUTPUT: OutputProperty = {
+export const INTERCOM_TAGS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of tag objects',
   items: {
@@ -149,7 +149,7 @@ const INTERCOM_AVATAR_OUTPUT_PROPERTIES = {
 /**
  * Output definition for admin objects
  */
-const INTERCOM_ADMIN_OUTPUT_PROPERTIES = {
+export const INTERCOM_ADMIN_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique identifier for the admin' },
   type: { type: 'string', description: 'Object type (admin)' },
   name: { type: 'string', description: 'Name of the admin' },
@@ -197,7 +197,7 @@ const INTERCOM_ADMIN_OUTPUT: OutputProperty = {
 /**
  * Admins array output definition for list endpoints
  */
-const INTERCOM_ADMINS_ARRAY_OUTPUT: OutputProperty = {
+export const INTERCOM_ADMINS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of admin objects',
   items: {
@@ -332,7 +332,7 @@ export const INTERCOM_CONTACT_OUTPUT_PROPERTIES = {
 /**
  * Complete contact output definition
  */
-const INTERCOM_CONTACT_OUTPUT: OutputProperty = {
+export const INTERCOM_CONTACT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Intercom contact object',
   properties: INTERCOM_CONTACT_OUTPUT_PROPERTIES,
@@ -341,7 +341,7 @@ const INTERCOM_CONTACT_OUTPUT: OutputProperty = {
 /**
  * Contacts array output definition for list/search endpoints
  */
-const INTERCOM_CONTACTS_ARRAY_OUTPUT: OutputProperty = {
+export const INTERCOM_CONTACTS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of contact objects',
   items: {
@@ -449,7 +449,7 @@ const INTERCOM_COMPANY_TIMESTAMP_OUTPUT_PROPERTIES = {
 /**
  * Complete company output properties
  */
-const INTERCOM_COMPANY_OUTPUT_PROPERTIES = {
+export const INTERCOM_COMPANY_OUTPUT_PROPERTIES = {
   ...INTERCOM_COMPANY_CORE_OUTPUT_PROPERTIES,
   ...INTERCOM_COMPANY_METRICS_OUTPUT_PROPERTIES,
   ...INTERCOM_COMPANY_TIMESTAMP_OUTPUT_PROPERTIES,
@@ -486,7 +486,7 @@ const INTERCOM_COMPANY_OUTPUT: OutputProperty = {
 /**
  * Companies array output definition for list endpoints
  */
-const INTERCOM_COMPANIES_ARRAY_OUTPUT: OutputProperty = {
+export const INTERCOM_COMPANIES_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of company objects',
   items: {
@@ -800,7 +800,7 @@ const INTERCOM_CONVERSATION_CORE_OUTPUT_PROPERTIES = {
 /**
  * Complete conversation output properties
  */
-const INTERCOM_CONVERSATION_OUTPUT_PROPERTIES = {
+export const INTERCOM_CONVERSATION_OUTPUT_PROPERTIES = {
   ...INTERCOM_CONVERSATION_CORE_OUTPUT_PROPERTIES,
   source: {
     type: 'object',
@@ -863,7 +863,7 @@ const INTERCOM_CONVERSATION_OUTPUT: OutputProperty = {
 /**
  * Conversations array output definition for list/search endpoints
  */
-const INTERCOM_CONVERSATIONS_ARRAY_OUTPUT: OutputProperty = {
+export const INTERCOM_CONVERSATIONS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of conversation objects',
   items: {
@@ -918,7 +918,7 @@ const INTERCOM_TICKET_CONTACTS_OUTPUT_PROPERTIES = {
 /**
  * Complete ticket output properties
  */
-const INTERCOM_TICKET_OUTPUT_PROPERTIES = {
+export const INTERCOM_TICKET_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique identifier for the ticket' },
   type: { type: 'string', description: 'Object type (ticket)' },
   ticket_id: { type: 'string', description: 'Ticket ID shown in Intercom UI', optional: true },
@@ -992,7 +992,7 @@ const INTERCOM_PAGINATION_CURSOR_OUTPUT_PROPERTIES = {
 /**
  * Output definition for pagination objects
  */
-const INTERCOM_PAGES_OUTPUT_PROPERTIES = {
+export const INTERCOM_PAGES_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'Pages type identifier' },
   page: { type: 'number', description: 'Current page number', optional: true },
   per_page: { type: 'number', description: 'Number of results per page', optional: true },

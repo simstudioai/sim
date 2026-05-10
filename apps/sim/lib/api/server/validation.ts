@@ -99,7 +99,7 @@ export function searchParamsToObject(
   return output
 }
 
-function headersToObject(headers: Headers): Record<string, string> {
+export function headersToObject(headers: Headers): Record<string, string> {
   const output: Record<string, string> = {}
   headers.forEach((value, key) => {
     output[key] = value

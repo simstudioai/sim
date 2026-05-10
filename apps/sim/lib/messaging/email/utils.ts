@@ -23,7 +23,7 @@ export function getFromEmailAddress(): string {
 /**
  * Extract the email address from a "Name <email>" formatted string"
  */
-function extractEmailFromAddress(fromAddress: string): string | undefined {
+export function extractEmailFromAddress(fromAddress: string): string | undefined {
   const match = fromAddress.match(/<([^>]+)>/)
   if (match) {
     return match[1]

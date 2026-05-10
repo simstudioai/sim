@@ -174,7 +174,7 @@ export function formatUpdatedAt(date: string): string {
   }
 }
 
-function formatCapabilityBoolean(
+export function formatCapabilityBoolean(
   value: boolean | undefined,
   {
     positive = 'Supported',
@@ -791,7 +791,7 @@ export function getLargestContextProviderModel(provider: CatalogProvider): Catal
   )
 }
 
-function getProviderCapabilitySummary(provider: CatalogProvider): CapabilityFact[] {
+export function getProviderCapabilitySummary(provider: CatalogProvider): CapabilityFact[] {
   const reasoningCount = provider.models.filter(
     (model) => model.capabilities.reasoningEffort || model.capabilities.thinking
   ).length

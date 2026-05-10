@@ -58,7 +58,7 @@ type EligibilityReason =
   | 'manual-bypass'
   | 'deps-unmet'
 
-function classifyEligibility(
+export function classifyEligibility(
   group: WorkflowGroup,
   row: TableRow,
   opts?: { isManualRun?: boolean; mode?: 'all' | 'incomplete' }
@@ -83,7 +83,7 @@ function classifyEligibility(
   return areGroupDepsSatisfied(group, row) ? 'eligible' : 'deps-unmet'
 }
 
-function isGroupEligible(
+export function isGroupEligible(
   group: WorkflowGroup,
   row: TableRow,
   opts?: { isManualRun?: boolean; mode?: 'all' | 'incomplete' }
@@ -548,7 +548,7 @@ export function stripGroupDeps(group: WorkflowGroup, removed: ReadonlySet<string
  * `addWorkflowGroup`, `updateWorkflowGroup`, `renameColumn`, `reorderColumns`,
  * etc. Returns a list of human-readable errors (empty if valid).
  */
-function validateSchema(schema: TableSchema, columnOrder: string[] | undefined): string[] {
+export function validateSchema(schema: TableSchema, columnOrder: string[] | undefined): string[] {
   const errors: string[] = []
   const columnsByName = new Map(schema.columns.map((c) => [c.name, c]))
   const groups = schema.workflowGroups ?? []
@@ -774,7 +774,10 @@ export async function findCellContextByExecutionId(
  * Returns groups whose output columns occupy non-contiguous positions in the
  * given columnOrder. Empty array means all groups are cohesive.
  */
-function findSplitGroups(columnOrder: string[], groups: WorkflowGroup[]): SplitGroupReport[] {
+export function findSplitGroups(
+  columnOrder: string[],
+  groups: WorkflowGroup[]
+): SplitGroupReport[] {
   const positions = new Map<string, number>()
   columnOrder.forEach((name, idx) => positions.set(name, idx))
   const reports: SplitGroupReport[] = []

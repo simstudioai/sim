@@ -76,7 +76,7 @@ function fieldTypeToZod(fieldType: string | undefined, isRequired: boolean): z.Z
  * Generate Zod schema shape from InputFormatField array.
  * This is used directly by the MCP server for tool registration.
  */
-function generateToolZodSchema(inputFormat: InputFormatField[]): z.ZodRawShape | undefined {
+export function generateToolZodSchema(inputFormat: InputFormatField[]): z.ZodRawShape | undefined {
   if (!inputFormat || inputFormat.length === 0) {
     return undefined
   }
@@ -190,7 +190,7 @@ export function generateToolInputSchema(inputFormat: InputFormatField[]): McpToo
 /**
  * Generate a complete MCP tool definition from workflow metadata and input format.
  */
-function generateToolDefinition(
+export function generateToolDefinition(
   workflowName: string,
   workflowDescription: string | undefined | null,
   inputFormat: InputFormatField[],

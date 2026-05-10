@@ -97,7 +97,7 @@ function isPrivateOrLoopbackIPv6(host: string): boolean {
   return false
 }
 
-function checkSapExternalUrlSafety(
+export function checkSapExternalUrlSafety(
   rawUrl: string,
   label: string
 ): { ok: true; url: URL } | { ok: false; message: string } {

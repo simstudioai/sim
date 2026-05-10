@@ -99,7 +99,7 @@ export function getSubBlocksDependingOnChange(
   )
 }
 
-function resolveOutputType(
+export function resolveOutputType(
   outputs: Record<string, OutputFieldDefinition>
 ): Record<string, BlockOutput> {
   const resolvedOutputs: Record<string, BlockOutput> = {}

@@ -24,7 +24,7 @@ export async function resolveEnvVarsInObject<T extends Record<string, unknown>>(
 /**
  * Normalizes webhook provider config into a plain object for runtime resolution.
  */
-function normalizeWebhookProviderConfig(providerConfig: unknown): Record<string, unknown> {
+export function normalizeWebhookProviderConfig(providerConfig: unknown): Record<string, unknown> {
   if (providerConfig && typeof providerConfig === 'object' && !Array.isArray(providerConfig)) {
     return providerConfig as Record<string, unknown>
   }

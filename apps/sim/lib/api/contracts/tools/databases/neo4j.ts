@@ -10,7 +10,7 @@ import {
   defineRouteContract,
 } from '@/lib/api/contracts/types'
 
-const neo4jConnectionBodySchema = z.object({
+export const neo4jConnectionBodySchema = z.object({
   host: z.string().min(1, 'Host is required'),
   port: z.coerce.number().int().positive('Port must be a positive integer'),
   database: z.string().min(1, 'Database name is required'),
@@ -19,7 +19,7 @@ const neo4jConnectionBodySchema = z.object({
   encryption: neo4jEncryptionSchema,
 })
 
-const neo4jCypherBodySchema = neo4jConnectionBodySchema.extend({
+export const neo4jCypherBodySchema = neo4jConnectionBodySchema.extend({
   cypherQuery: z.string().min(1, 'Cypher query is required'),
   parameters: z.record(z.string(), z.unknown()).nullable().optional().default({}),
 })

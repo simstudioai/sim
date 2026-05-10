@@ -41,7 +41,7 @@ const mcpServerStatusConfigSchema = z
   })
   .passthrough()
 
-const mcpToolSchemaPropertySchema: z.ZodType<McpToolSchemaProperty> = z.lazy(() =>
+export const mcpToolSchemaPropertySchema: z.ZodType<McpToolSchemaProperty> = z.lazy(() =>
   z
     .object({
       type: z.union([z.string(), z.array(z.string())]).optional(),
@@ -55,7 +55,7 @@ const mcpToolSchemaPropertySchema: z.ZodType<McpToolSchemaProperty> = z.lazy(() 
     .passthrough()
 )
 
-const mcpToolInputSchema: z.ZodType<McpToolSchema> = z
+export const mcpToolInputSchema: z.ZodType<McpToolSchema> = z
   .object({
     type: z.literal('object'),
     properties: z.record(z.string(), mcpToolSchemaPropertySchema).optional(),

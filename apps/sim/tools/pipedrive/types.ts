@@ -48,7 +48,7 @@ export const PIPEDRIVE_LEAD_OUTPUT_PROPERTIES = {
 /**
  * Complete lead output definition
  */
-const PIPEDRIVE_LEAD_OUTPUT: OutputProperty = {
+export const PIPEDRIVE_LEAD_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pipedrive lead object',
   properties: PIPEDRIVE_LEAD_OUTPUT_PROPERTIES,
@@ -80,7 +80,7 @@ export const PIPEDRIVE_DEAL_OUTPUT_PROPERTIES = {
 /**
  * Complete deal output definition
  */
-const PIPEDRIVE_DEAL_OUTPUT: OutputProperty = {
+export const PIPEDRIVE_DEAL_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pipedrive deal object',
   properties: PIPEDRIVE_DEAL_OUTPUT_PROPERTIES,
@@ -109,7 +109,7 @@ export const PIPEDRIVE_ACTIVITY_OUTPUT_PROPERTIES = {
 /**
  * Complete activity output definition
  */
-const PIPEDRIVE_ACTIVITY_OUTPUT: OutputProperty = {
+export const PIPEDRIVE_ACTIVITY_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pipedrive activity object',
   properties: PIPEDRIVE_ACTIVITY_OUTPUT_PROPERTIES,
@@ -135,7 +135,7 @@ export const PIPEDRIVE_FILE_OUTPUT_PROPERTIES = {
 /**
  * Complete file output definition
  */
-const PIPEDRIVE_FILE_OUTPUT: OutputProperty = {
+export const PIPEDRIVE_FILE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pipedrive file object',
   properties: PIPEDRIVE_FILE_OUTPUT_PROPERTIES,
@@ -159,7 +159,7 @@ export const PIPEDRIVE_PIPELINE_OUTPUT_PROPERTIES = {
 /**
  * Complete pipeline output definition
  */
-const PIPEDRIVE_PIPELINE_OUTPUT: OutputProperty = {
+export const PIPEDRIVE_PIPELINE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pipedrive pipeline object',
   properties: PIPEDRIVE_PIPELINE_OUTPUT_PROPERTIES,
@@ -169,7 +169,7 @@ const PIPEDRIVE_PIPELINE_OUTPUT: OutputProperty = {
  * Output definition for project objects.
  * @see https://developers.pipedrive.com/docs/api/v1/Projects
  */
-const PIPEDRIVE_PROJECT_OUTPUT_PROPERTIES = {
+export const PIPEDRIVE_PROJECT_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Project ID' },
   title: { type: 'string', description: 'Project title' },
   description: { type: 'string', description: 'Project description', optional: true },
@@ -194,7 +194,7 @@ const PIPEDRIVE_PROJECT_OUTPUT: OutputProperty = {
  * Output definition for mail message objects.
  * @see https://developers.pipedrive.com/docs/api/v1/Mailbox
  */
-const PIPEDRIVE_MAIL_MESSAGE_OUTPUT_PROPERTIES = {
+export const PIPEDRIVE_MAIL_MESSAGE_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Message ID' },
   subject: { type: 'string', description: 'Email subject' },
   snippet: { type: 'string', description: 'Email snippet/preview' },
