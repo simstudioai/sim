@@ -141,7 +141,7 @@ const WIKIPEDIA_SEARCH_RESULT_OUTPUT: OutputProperty = {
 /**
  * Output definition for page content objects
  */
-const WIKIPEDIA_PAGE_CONTENT_OUTPUT_PROPERTIES = {
+export const WIKIPEDIA_PAGE_CONTENT_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Page title' },
   pageid: { type: 'number', description: 'Wikipedia page ID' },
   html: { type: 'string', description: 'Full HTML content of the page' },
