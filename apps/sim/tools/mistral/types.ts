@@ -26,7 +26,7 @@ export const MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete OCR image output definition
  */
-const MISTRAL_OCR_IMAGE_OUTPUT: OutputProperty = {
+export const MISTRAL_OCR_IMAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Extracted image with bounding box',
   properties: MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES,
@@ -44,7 +44,7 @@ export const MISTRAL_OCR_DIMENSIONS_OUTPUT_PROPERTIES = {
 /**
  * Complete page dimensions output definition
  */
-const MISTRAL_OCR_DIMENSIONS_OUTPUT: OutputProperty = {
+export const MISTRAL_OCR_DIMENSIONS_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Page dimensions',
   properties: MISTRAL_OCR_DIMENSIONS_OUTPUT_PROPERTIES,
@@ -89,7 +89,7 @@ export const MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete OCR page output definition
  */
-const MISTRAL_OCR_PAGE_OUTPUT: OutputProperty = {
+export const MISTRAL_OCR_PAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'OCR processed page',
   properties: MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES,
@@ -106,7 +106,7 @@ export const MISTRAL_OCR_USAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete usage info output definition
  */
-const MISTRAL_OCR_USAGE_OUTPUT: OutputProperty = {
+export const MISTRAL_OCR_USAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Usage and processing statistics',
   properties: MISTRAL_OCR_USAGE_OUTPUT_PROPERTIES,
@@ -131,7 +131,7 @@ export const MISTRAL_PARSER_METADATA_OUTPUT_PROPERTIES = {
 /**
  * Complete parser metadata output definition
  */
-const MISTRAL_PARSER_METADATA_OUTPUT: OutputProperty = {
+export const MISTRAL_PARSER_METADATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Processing metadata',
   properties: MISTRAL_PARSER_METADATA_OUTPUT_PROPERTIES,

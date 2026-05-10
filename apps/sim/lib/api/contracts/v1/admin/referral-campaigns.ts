@@ -24,7 +24,7 @@ const adminV1ReferralCampaignAppliesTo = [
   'team_25000',
 ] as const
 
-const adminV1PromoCodeSchema = z.object({
+export const adminV1PromoCodeSchema = z.object({
   id: z.string(),
   code: z.string(),
   couponId: z.string(),
@@ -40,7 +40,7 @@ const adminV1PromoCodeSchema = z.object({
   createdAt: z.string(),
 })
 
-const adminV1ReferralCampaignQuerySchema = z.object({
+export const adminV1ReferralCampaignQuerySchema = z.object({
   limit: z
     .preprocess((value) => {
       const queryValue = lastQueryValue(value)
@@ -57,7 +57,7 @@ const adminV1ReferralCampaignQuerySchema = z.object({
     .transform((active) => (active === undefined ? undefined : active === 'true')),
 })
 
-const adminV1ReferralCampaignBodySchema = z
+export const adminV1ReferralCampaignBodySchema = z
   .object({
     name: z
       .string({ error: 'name is required and must be a non-empty string' })

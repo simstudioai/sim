@@ -11,12 +11,15 @@ const ALLOWED_TELEMETRY_CATEGORIES = [
   'batch',
 ] as const
 
-const telemetryCategorySchema = z.enum([...ALLOWED_TELEMETRY_CATEGORIES] as [string, ...string[]])
+export const telemetryCategorySchema = z.enum([...ALLOWED_TELEMETRY_CATEGORIES] as [
+  string,
+  ...string[],
+])
 export type TelemetryCategory = z.output<typeof telemetryCategorySchema>
 
 const SENSITIVE_PATTERNS = [/password/, /token/, /secret/, /key/, /auth/, /credential/, /private/]
 
-const telemetryEventSchema = z
+export const telemetryEventSchema = z
   .object({
     category: telemetryCategorySchema,
     action: z.string().min(1),

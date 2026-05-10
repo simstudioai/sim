@@ -129,7 +129,7 @@ export const workflowVariableWriteSchema = z.object({
  * - `apps/sim/app/api/workflows/[id]/state/route.ts` (GET) on `variables`
  * - `apps/sim/app/api/workflows/[id]/variables/route.ts` (GET) on `data`
  */
-const workflowVariableReadSchema = workflowVariableWriteSchema.extend({
+export const workflowVariableReadSchema = workflowVariableWriteSchema.extend({
   workflowId: z.string(),
 })
 
@@ -182,7 +182,7 @@ export const cleanedWorkflowStateSchema = z.object({
 
 export type CleanedWorkflowState = z.output<typeof cleanedWorkflowStateSchema>
 
-const workflowScopeSchema = z.enum(['active', 'archived', 'all'])
+export const workflowScopeSchema = z.enum(['active', 'archived', 'all'])
 
 export const workflowIdParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
@@ -195,7 +195,7 @@ export const workflowListQuerySchema = z.object({
 
 export type WorkflowListItem = z.output<typeof workflowListItemSchema>
 
-const workflowListItemSchema = z.object({
+export const workflowListItemSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
@@ -209,7 +209,7 @@ const workflowListItemSchema = z.object({
   locked: z.boolean(),
 })
 
-const createWorkflowBodySchema = z.object({
+export const createWorkflowBodySchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional().default(''),
@@ -223,7 +223,7 @@ const createWorkflowBodySchema = z.object({
   deduplicate: z.boolean().optional(),
 })
 
-const createWorkflowResponseSchema = z.object({
+export const createWorkflowResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
@@ -240,7 +240,7 @@ const createWorkflowResponseSchema = z.object({
 export type CreateWorkflowBody = z.input<typeof createWorkflowBodySchema>
 export type CreateWorkflowResponse = z.output<typeof createWorkflowResponseSchema>
 
-const duplicateWorkflowBodySchema = z.object({
+export const duplicateWorkflowBodySchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   color: z.string().optional(),
@@ -249,7 +249,7 @@ const duplicateWorkflowBodySchema = z.object({
   newId: z.string().uuid().optional(),
 })
 
-const duplicateWorkflowResponseSchema = z.object({
+export const duplicateWorkflowResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
@@ -266,7 +266,7 @@ const duplicateWorkflowResponseSchema = z.object({
 export type DuplicateWorkflowBody = z.input<typeof duplicateWorkflowBodySchema>
 export type DuplicateWorkflowResponse = z.output<typeof duplicateWorkflowResponseSchema>
 
-const updateWorkflowBodySchema = z.object({
+export const updateWorkflowBodySchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   description: z.string().optional(),
   color: z.string().optional(),
@@ -277,7 +277,7 @@ const updateWorkflowBodySchema = z.object({
 
 export type UpdateWorkflowBody = z.input<typeof updateWorkflowBodySchema>
 
-const reorderWorkflowsBodySchema = z.object({
+export const reorderWorkflowsBodySchema = z.object({
   workspaceId: z.string(),
   updates: z.array(
     z.object({
@@ -290,7 +290,7 @@ const reorderWorkflowsBodySchema = z.object({
 
 export type ReorderWorkflowsBody = z.input<typeof reorderWorkflowsBodySchema>
 
-const executeWorkflowRunFromBlockSchema = z.object({
+export const executeWorkflowRunFromBlockSchema = z.object({
   startBlockId: z.string().min(1, 'Start block ID is required'),
   sourceSnapshot: z
     .object({
@@ -311,7 +311,7 @@ const executeWorkflowRunFromBlockSchema = z.object({
   executionId: z.string().optional(),
 })
 
-const executeWorkflowTriggerTypeSchema = z.enum([
+export const executeWorkflowTriggerTypeSchema = z.enum([
   'manual',
   'api',
   'schedule',
@@ -341,28 +341,28 @@ export const executeWorkflowBodySchema = z.object({
 })
 export type ExecuteWorkflowBody = z.input<typeof executeWorkflowBodySchema>
 
-const workflowVariablesBodySchema = z.object({
+export const workflowVariablesBodySchema = z.object({
   variables: z.record(z.string(), workflowVariableWriteSchema),
 })
 export type WorkflowVariablesBody = z.input<typeof workflowVariablesBodySchema>
 
-const workflowExecutionParamsSchema = z.object({
+export const workflowExecutionParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
   executionId: z.string().min(1, 'Invalid execution ID'),
 })
 
-const resumeExecutionParamsSchema = z.object({
+export const resumeExecutionParamsSchema = z.object({
   workflowId: z.string().min(1),
   executionId: z.string().min(1),
 })
 
-const resumeExecutionContextParamsSchema = z.object({
+export const resumeExecutionContextParamsSchema = z.object({
   workflowId: z.string().min(1),
   executionId: z.string().min(1),
   contextId: z.string().min(1),
 })
 
-const workflowExecutionStreamQuerySchema = z.object({
+export const workflowExecutionStreamQuerySchema = z.object({
   from: z.preprocess((value) => {
     if (typeof value !== 'string') return 0
     const parsed = Number.parseInt(value, 10)
@@ -370,11 +370,11 @@ const workflowExecutionStreamQuerySchema = z.object({
   }, z.number().int().min(0)),
 })
 
-const pausedWorkflowExecutionsQuerySchema = z.object({
+export const pausedWorkflowExecutionsQuerySchema = z.object({
   status: z.string().optional(),
 })
 
-const workflowAutoLayoutBodySchema = z.object({
+export const workflowAutoLayoutBodySchema = z.object({
   spacing: z
     .object({
       horizontal: z.number().min(100).max(1000).optional(),
@@ -404,7 +404,7 @@ export const workflowDeploymentVersionParamSchema = z.union([
 ])
 export type WorkflowDeploymentVersionParam = z.output<typeof workflowDeploymentVersionParamSchema>
 
-const workflowLogResultSchema = z.object({
+export const workflowLogResultSchema = z.object({
   success: z.boolean(),
   error: z.string().optional(),
   output: z.any(),
@@ -416,28 +416,28 @@ const workflowLogResultSchema = z.object({
     .optional(),
 })
 
-const workflowLogBodySchema = z.object({
+export const workflowLogBodySchema = z.object({
   logs: z.array(z.any()).optional(),
   executionId: z.string().min(1, 'Execution ID is required').optional(),
   result: workflowLogResultSchema.optional(),
 })
 export type WorkflowLogBody = z.input<typeof workflowLogBodySchema>
 
-const importWorkflowAsSuperuserBodySchema = z.object({
+export const importWorkflowAsSuperuserBodySchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
   targetWorkspaceId: z.string().min(1, 'Target workspace ID is required'),
 })
 
 export type ImportWorkflowAsSuperuserBody = z.input<typeof importWorkflowAsSuperuserBodySchema>
 
-const importWorkflowAsSuperuserPermissiveBodySchema = z
+export const importWorkflowAsSuperuserPermissiveBodySchema = z
   .object({
     workflowId: z.string().optional(),
     targetWorkspaceId: z.string().optional(),
   })
   .passthrough()
 
-const importWorkflowAsSuperuserResponseSchema = z.object({
+export const importWorkflowAsSuperuserResponseSchema = z.object({
   success: z.literal(true),
   newWorkflowId: z.string(),
   copilotChatsImported: z.number(),
@@ -555,7 +555,7 @@ export const listWorkflowsContract = defineRouteContract({
  * `.passthrough()` slot that forced clients to cast row fields like
  * `workspaceId` / `isDeployed` / `deployedAt` out as `unknown`.
  */
-const getWorkflowResponseDataSchema = z.object({
+export const getWorkflowResponseDataSchema = z.object({
   id: z.string(),
   userId: z.string(),
   workspaceId: z.string().nullable(),
@@ -592,7 +592,7 @@ export const getWorkflowStateContract = defineRouteContract({
   },
 })
 
-const workflowStateResponseSchema = z.object({
+export const workflowStateResponseSchema = z.object({
   blocks: z.record(z.string(), workflowBlockStateSchema),
   edges: z.array(workflowEdgeSchema),
   loops: z.record(z.string(), workflowLoopSchema),

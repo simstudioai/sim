@@ -18,7 +18,7 @@ const logger = createLogger('NotificationQueries')
 /**
  * Query key factories for notification-related queries
  */
-const notificationKeys = {
+export const notificationKeys = {
   all: ['notifications'] as const,
   lists: () => [...notificationKeys.all, 'list'] as const,
   list: (workspaceId: string | undefined) =>

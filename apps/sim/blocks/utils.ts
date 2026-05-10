@@ -16,9 +16,12 @@ import {
 } from '@/providers/models'
 import { useProvidersStore } from '@/stores/providers/store'
 
-const VERTEX_MODELS = getProviderModels('vertex')
-const BEDROCK_MODELS = getProviderModels('bedrock')
-const AZURE_MODELS = [...getProviderModels('azure-openai'), ...getProviderModels('azure-anthropic')]
+export const VERTEX_MODELS = getProviderModels('vertex')
+export const BEDROCK_MODELS = getProviderModels('bedrock')
+export const AZURE_MODELS = [
+  ...getProviderModels('azure-openai'),
+  ...getProviderModels('azure-anthropic'),
+]
 
 /**
  * Standard subblocks for Google service account impersonation.

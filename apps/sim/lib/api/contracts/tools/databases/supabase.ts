@@ -7,7 +7,7 @@ import {
 } from '@/lib/api/contracts/types'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
-const supabaseStorageUploadBodySchema = z.object({
+export const supabaseStorageUploadBodySchema = z.object({
   projectId: z
     .string()
     .min(1, 'Project ID is required')

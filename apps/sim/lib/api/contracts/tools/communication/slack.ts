@@ -6,7 +6,7 @@ import {
 import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contracts/types'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 
-const slackSendMessageBodySchema = z
+export const slackSendMessageBodySchema = z
   .object({
     accessToken: z.string().min(1, 'Access token is required'),
     channel: z.string().optional().nullable(),
@@ -20,7 +20,7 @@ const slackSendMessageBodySchema = z
     message: 'Either channel or userId is required',
   })
 
-const slackReadMessagesBodySchema = z
+export const slackReadMessagesBodySchema = z
   .object({
     accessToken: z.string().min(1, 'Access token is required'),
     channel: z.string().optional().nullable(),
@@ -38,20 +38,20 @@ const slackReadMessagesBodySchema = z
     message: 'Either channel or userId is required',
   })
 
-const slackReactionBodySchema = z.object({
+export const slackReactionBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   channel: z.string().min(1, 'Channel is required'),
   timestamp: z.string().min(1, 'Message timestamp is required'),
   name: z.string().min(1, 'Emoji name is required'),
 })
 
-const slackDeleteMessageBodySchema = z.object({
+export const slackDeleteMessageBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   channel: z.string().min(1, 'Channel is required'),
   timestamp: z.string().min(1, 'Message timestamp is required'),
 })
 
-const slackUpdateMessageBodySchema = z.object({
+export const slackUpdateMessageBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   channel: z.string().min(1, 'Channel is required'),
   timestamp: z.string().min(1, 'Message timestamp is required'),
@@ -59,7 +59,7 @@ const slackUpdateMessageBodySchema = z.object({
   blocks: slackBlocksSchema.optional().nullable(),
 })
 
-const slackSendEphemeralBodySchema = z.object({
+export const slackSendEphemeralBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   channel: z.string().min(1, 'Channel ID is required'),
   user: z.string().min(1, 'User ID is required'),
@@ -68,7 +68,7 @@ const slackSendEphemeralBodySchema = z.object({
   blocks: slackBlocksSchema.optional().nullable(),
 })
 
-const slackDownloadBodySchema = z.object({
+export const slackDownloadBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   fileId: z.string().min(1, 'File ID is required'),
   fileName: z.string().optional().nullable(),

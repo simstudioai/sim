@@ -8,7 +8,7 @@ import { getAllowedProvidersContract } from '@/lib/api/contracts'
 /**
  * Query key factory for allowed providers queries
  */
-const allowedProvidersKeys = {
+export const allowedProvidersKeys = {
   all: ['allowedProviders'] as const,
   blacklisted: () => [...allowedProvidersKeys.all, 'blacklisted'] as const,
 }

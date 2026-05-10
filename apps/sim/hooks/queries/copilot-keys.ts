@@ -15,7 +15,7 @@ const logger = createLogger('CopilotKeysQuery')
 /**
  * Query key factories for Copilot API keys
  */
-const copilotKeysKeys = {
+export const copilotKeysKeys = {
   all: ['copilot'] as const,
   keys: () => [...copilotKeysKeys.all, 'api-keys'] as const,
 }

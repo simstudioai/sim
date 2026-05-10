@@ -43,16 +43,16 @@ const optionalJsonObjectQuerySchema = <T>(label: string) =>
       return z.NEVER
     })
 
-const v1TableRowsQuerySchema = tableRowsQuerySchema.extend({
+export const v1TableRowsQuerySchema = tableRowsQuerySchema.extend({
   filter: optionalJsonObjectQuerySchema<Filter>('filter'),
   sort: optionalJsonObjectQuerySchema<Sort>('sort'),
 })
 
-const v1ListTablesQuerySchema = z.object({
+export const v1ListTablesQuerySchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId query parameter is required'),
 })
 
-const v1CreateTableBodySchema = createTableBodySchema.omit({
+export const v1CreateTableBodySchema = createTableBodySchema.omit({
   initialRowCount: true,
 })
 
@@ -60,12 +60,12 @@ const v1CreateTableBodySchema = createTableBodySchema.omit({
  * Public API insert row body — no caller-controlled `position`. Server places
  * new rows at the tail; ordering by index is an in-app affordance only.
  */
-const v1InsertTableRowBodySchema = insertTableRowBodySchema.omit({ position: true })
+export const v1InsertTableRowBodySchema = insertTableRowBodySchema.omit({ position: true })
 
 /**
  * Public API batch insert body — no `positions`. Same rationale as above.
  */
-const v1BatchInsertTableRowsBodySchema = z.object({
+export const v1BatchInsertTableRowsBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   rows: z
     .array(rowDataSchema)
@@ -76,7 +76,7 @@ const v1BatchInsertTableRowsBodySchema = z.object({
     ),
 })
 
-const v1CreateTableRowsBodySchema = z.union([
+export const v1CreateTableRowsBodySchema = z.union([
   v1BatchInsertTableRowsBodySchema,
   v1InsertTableRowBodySchema,
 ])
@@ -192,7 +192,7 @@ export const v1CreateTableRowContract = defineRouteContract({
   },
 })
 
-const v1BatchCreateTableRowsContract = defineRouteContract({
+export const v1BatchCreateTableRowsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/tables/[tableId]/rows',
   params: tableIdParamsSchema,

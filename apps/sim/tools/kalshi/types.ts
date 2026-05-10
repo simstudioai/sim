@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import type { OutputProperty } from '@/tools/types'
 
 // Base URL for Kalshi API
-const KALSHI_BASE_URL = 'https://api.elections.kalshi.com/trade-api/v2'
+export const KALSHI_BASE_URL = 'https://api.elections.kalshi.com/trade-api/v2'
 
 /**
  * Output property definitions for Kalshi Trade API responses.
@@ -229,7 +229,7 @@ export const KALSHI_CANDLESTICK_OUTPUT_PROPERTIES = {
 /**
  * Complete candlestick output definition
  */
-const KALSHI_CANDLESTICK_OUTPUT: OutputProperty = {
+export const KALSHI_CANDLESTICK_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Kalshi price candlestick/OHLC data',
   properties: KALSHI_CANDLESTICK_OUTPUT_PROPERTIES,
@@ -247,7 +247,7 @@ export const KALSHI_ORDERBOOK_LEVEL_OUTPUT_PROPERTIES = {
 /**
  * Complete orderbook level output definition
  */
-const KALSHI_ORDERBOOK_LEVEL_OUTPUT: OutputProperty = {
+export const KALSHI_ORDERBOOK_LEVEL_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Orderbook price level',
   properties: KALSHI_ORDERBOOK_LEVEL_OUTPUT_PROPERTIES,
@@ -274,7 +274,7 @@ export const KALSHI_SERIES_OUTPUT_PROPERTIES = {
 /**
  * Complete series output definition
  */
-const KALSHI_SERIES_OUTPUT: OutputProperty = {
+export const KALSHI_SERIES_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Kalshi series object',
   properties: KALSHI_SERIES_OUTPUT_PROPERTIES,
@@ -292,7 +292,7 @@ export const KALSHI_BALANCE_OUTPUT_PROPERTIES = {
 /**
  * Complete balance output definition
  */
-const KALSHI_BALANCE_OUTPUT: OutputProperty = {
+export const KALSHI_BALANCE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Kalshi account balance',
   properties: KALSHI_BALANCE_OUTPUT_PROPERTIES,

@@ -32,7 +32,7 @@ const searchCostSchema = z.object({
   }),
 })
 
-const searchToolResponseSchema = z.object({
+export const searchToolResponseSchema = z.object({
   results: z.array(searchResultSchema),
   query: z.string(),
   totalResults: z.number(),
@@ -40,7 +40,7 @@ const searchToolResponseSchema = z.object({
   cost: searchCostSchema,
 })
 
-const searchToolBodySchema = z.object({
+export const searchToolBodySchema = z.object({
   query: z.string().min(1),
 })
 

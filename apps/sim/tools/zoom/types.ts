@@ -27,7 +27,7 @@ export const MEETING_SETTINGS_OUTPUT_PROPERTIES = {
 /**
  * Complete meeting settings object output definition
  */
-const MEETING_SETTINGS_OUTPUT: OutputProperty = {
+export const MEETING_SETTINGS_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Meeting settings',
   properties: MEETING_SETTINGS_OUTPUT_PROPERTIES,
@@ -54,7 +54,7 @@ export const RECURRENCE_OUTPUT_PROPERTIES = {
 /**
  * Complete recurrence object output definition
  */
-const RECURRENCE_OUTPUT: OutputProperty = {
+export const RECURRENCE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Recurrence settings for recurring meetings',
   properties: RECURRENCE_OUTPUT_PROPERTIES,
@@ -64,7 +64,7 @@ const RECURRENCE_OUTPUT: OutputProperty = {
  * Output definition for occurrence objects in recurring meetings
  * @see https://developers.zoom.us/docs/api/rest/reference/zoom-api/methods/#operation/meeting
  */
-const OCCURRENCE_OUTPUT_PROPERTIES = {
+export const OCCURRENCE_OUTPUT_PROPERTIES = {
   occurrence_id: { type: 'string', description: 'Occurrence ID' },
   start_time: { type: 'string', description: 'Start time in ISO 8601 format' },
   duration: { type: 'number', description: 'Duration in minutes' },
@@ -180,7 +180,7 @@ export const MEETING_PAGE_INFO_OUTPUT: OutputProperty = {
  * Output definition for recording file objects
  * @see https://developers.zoom.us/docs/api/rest/reference/zoom-api/methods/#operation/recordingGet
  */
-const RECORDING_FILE_OUTPUT_PROPERTIES = {
+export const RECORDING_FILE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Recording file ID' },
   meeting_id: { type: 'string', description: 'Meeting ID associated with the recording' },
   recording_start: { type: 'string', description: 'Start time of the recording' },

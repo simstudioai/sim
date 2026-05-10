@@ -56,7 +56,7 @@ export const DEFAULT_LAYOUT_PADDING = { x: 150, y: 150 }
 /**
  * Margin for overlap detection
  */
-const OVERLAP_MARGIN = 30
+export const OVERLAP_MARGIN = 30
 
 /**
  * Maximum iterations for overlap resolution
@@ -77,19 +77,19 @@ export const CONTAINER_BLOCK_TYPES = new Set(['loop', 'parallel'])
  * Estimated height per subblock when no measured height is available.
  * Used as a heuristic for new blocks that haven't been rendered yet.
  */
-const ESTIMATED_SUBBLOCK_HEIGHT = 45
+export const ESTIMATED_SUBBLOCK_HEIGHT = 45
 
 /**
  * Bottom padding added to estimated block height
  */
-const ESTIMATED_BLOCK_BOTTOM_PADDING = 20
+export const ESTIMATED_BLOCK_BOTTOM_PADDING = 20
 
 /**
  * Maximum estimated block height when no measurement is available.
  * Prevents wildly over-estimated heights for blocks with many conditional
  * subblocks (e.g. agent blocks define ~20 subblocks but only ~5 are visible).
  */
-const MAX_ESTIMATED_BLOCK_HEIGHT = 350
+export const MAX_ESTIMATED_BLOCK_HEIGHT = 350
 
 /**
  * Default layout options

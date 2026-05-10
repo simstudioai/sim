@@ -11,11 +11,11 @@ const excelValuesSchema = z.union([
   z.array(z.record(z.string(), excelCellSchema)),
 ])
 
-const accessTokenSchema = z.string().min(1, 'Access token is required')
-const messageIdSchema = z.string().min(1, 'Message ID is required')
-const destinationIdSchema = z.string().min(1, 'Destination folder ID is required')
+export const accessTokenSchema = z.string().min(1, 'Access token is required')
+export const messageIdSchema = z.string().min(1, 'Message ID is required')
+export const destinationIdSchema = z.string().min(1, 'Destination folder ID is required')
 
-const outlookSendBodySchema = z.object({
+export const outlookSendBodySchema = z.object({
   accessToken: accessTokenSchema,
   to: z.string().min(1, 'Recipient email is required'),
   subject: z.string().min(1, 'Subject is required'),
@@ -27,20 +27,20 @@ const outlookSendBodySchema = z.object({
   attachments: RawFileInputArraySchema.optional().nullable(),
 })
 
-const outlookDraftBodySchema = outlookSendBodySchema.omit({
+export const outlookDraftBodySchema = outlookSendBodySchema.omit({
   replyToMessageId: true,
 })
 
-const outlookDeleteBodySchema = z.object({
+export const outlookDeleteBodySchema = z.object({
   accessToken: accessTokenSchema,
   messageId: messageIdSchema,
 })
 
-const outlookCopyMoveBodySchema = outlookDeleteBodySchema.extend({
+export const outlookCopyMoveBodySchema = outlookDeleteBodySchema.extend({
   destinationId: destinationIdSchema,
 })
 
-const teamsWriteChannelBodySchema = z.object({
+export const teamsWriteChannelBodySchema = z.object({
   accessToken: accessTokenSchema,
   teamId: z.string().min(1, 'Team ID is required'),
   channelId: z.string().min(1, 'Channel ID is required'),
@@ -48,20 +48,20 @@ const teamsWriteChannelBodySchema = z.object({
   files: RawFileInputArraySchema.optional().nullable(),
 })
 
-const teamsWriteChatBodySchema = z.object({
+export const teamsWriteChatBodySchema = z.object({
   accessToken: accessTokenSchema,
   chatId: z.string().min(1, 'Chat ID is required'),
   content: z.string().min(1, 'Message content is required'),
   files: RawFileInputArraySchema.optional().nullable(),
 })
 
-const teamsDeleteChatMessageBodySchema = z.object({
+export const teamsDeleteChatMessageBodySchema = z.object({
   accessToken: accessTokenSchema,
   chatId: z.string().min(1, 'Chat ID is required'),
   messageId: messageIdSchema,
 })
 
-const onedriveUploadBodySchema = z.object({
+export const onedriveUploadBodySchema = z.object({
   accessToken: accessTokenSchema,
   fileName: z.string().min(1, 'File name is required'),
   file: RawFileInputSchema.optional(),
@@ -71,13 +71,13 @@ const onedriveUploadBodySchema = z.object({
   conflictBehavior: z.enum(['fail', 'replace', 'rename']).optional().nullable(),
 })
 
-const onedriveDownloadBodySchema = z.object({
+export const onedriveDownloadBodySchema = z.object({
   accessToken: accessTokenSchema,
   fileId: z.string().min(1, 'File ID is required'),
   fileName: z.string().optional().nullable(),
 })
 
-const sharepointUploadBodySchema = z.object({
+export const sharepointUploadBodySchema = z.object({
   accessToken: accessTokenSchema,
   siteId: z.string().default('root'),
   driveId: z.string().optional().nullable(),
@@ -86,7 +86,7 @@ const sharepointUploadBodySchema = z.object({
   files: RawFileInputArraySchema.optional().nullable(),
 })
 
-const dataverseUploadFileBodySchema = z.object({
+export const dataverseUploadFileBodySchema = z.object({
   accessToken: accessTokenSchema,
   environmentUrl: z.string().min(1, 'Environment URL is required'),
   entitySetName: z.string().min(1, 'Entity set name is required'),

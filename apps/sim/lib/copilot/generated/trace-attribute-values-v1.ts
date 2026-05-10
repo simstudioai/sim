@@ -17,7 +17,7 @@ export const AbortBackend = {
 export type AbortBackendKey = keyof typeof AbortBackend
 export type AbortBackendValue = (typeof AbortBackend)[AbortBackendKey]
 
-const AbortRedisResult = {
+export const AbortRedisResult = {
   Error: 'error',
   Ok: 'ok',
   Slow: 'slow',
@@ -26,7 +26,7 @@ const AbortRedisResult = {
 export type AbortRedisResultKey = keyof typeof AbortRedisResult
 export type AbortRedisResultValue = (typeof AbortRedisResult)[AbortRedisResultKey]
 
-const AuthKeyMatch = {
+export const AuthKeyMatch = {
   Enterprise: 'enterprise',
   None: 'none',
   User: 'user',
@@ -35,7 +35,7 @@ const AuthKeyMatch = {
 export type AuthKeyMatchKey = keyof typeof AuthKeyMatch
 export type AuthKeyMatchValue = (typeof AuthKeyMatch)[AuthKeyMatchKey]
 
-const BillingAnalyticsOutcome = {
+export const BillingAnalyticsOutcome = {
   Duplicate: 'duplicate',
   RetriesExhausted: 'retries_exhausted',
   Success: 'success',
@@ -46,7 +46,7 @@ export type BillingAnalyticsOutcomeKey = keyof typeof BillingAnalyticsOutcome
 export type BillingAnalyticsOutcomeValue =
   (typeof BillingAnalyticsOutcome)[BillingAnalyticsOutcomeKey]
 
-const BillingFlushOutcome = {
+export const BillingFlushOutcome = {
   CheckpointAlreadyClaimed: 'checkpoint_already_claimed',
   CheckpointLoadFailed: 'checkpoint_load_failed',
   Flushed: 'flushed',
@@ -171,7 +171,7 @@ export type CopilotRequestCancelReasonKey = keyof typeof CopilotRequestCancelRea
 export type CopilotRequestCancelReasonValue =
   (typeof CopilotRequestCancelReason)[CopilotRequestCancelReasonKey]
 
-const CopilotResourcesOp = {
+export const CopilotResourcesOp = {
   Delete: 'delete',
   None: 'none',
   Upsert: 'upsert',
@@ -239,7 +239,7 @@ export const CopilotTableOutcome = {
 export type CopilotTableOutcomeKey = keyof typeof CopilotTableOutcome
 export type CopilotTableOutcomeValue = (typeof CopilotTableOutcome)[CopilotTableOutcomeKey]
 
-const CopilotTableSourceFormat = {
+export const CopilotTableSourceFormat = {
   Csv: 'csv',
   Json: 'json',
 } as const
@@ -307,7 +307,7 @@ export const CopilotVfsReadPath = {
 export type CopilotVfsReadPathKey = keyof typeof CopilotVfsReadPath
 export type CopilotVfsReadPathValue = (typeof CopilotVfsReadPath)[CopilotVfsReadPathKey]
 
-const LlmErrorStage = {
+export const LlmErrorStage = {
   BuildRequest: 'build_request',
   Decode: 'decode',
   HttpBuild: 'http_build',
@@ -320,7 +320,7 @@ const LlmErrorStage = {
 export type LlmErrorStageKey = keyof typeof LlmErrorStage
 export type LlmErrorStageValue = (typeof LlmErrorStage)[LlmErrorStageKey]
 
-const RateLimitOutcome = {
+export const RateLimitOutcome = {
   Allowed: 'allowed',
   IncrError: 'incr_error',
   Limited: 'limited',
@@ -329,7 +329,7 @@ const RateLimitOutcome = {
 export type RateLimitOutcomeKey = keyof typeof RateLimitOutcome
 export type RateLimitOutcomeValue = (typeof RateLimitOutcome)[RateLimitOutcomeKey]
 
-const ToolAsyncWaiterResolution = {
+export const ToolAsyncWaiterResolution = {
   ContextCancelled: 'context_cancelled',
   Poll: 'poll',
   Pubsub: 'pubsub',
@@ -344,7 +344,7 @@ export type ToolAsyncWaiterResolutionKey = keyof typeof ToolAsyncWaiterResolutio
 export type ToolAsyncWaiterResolutionValue =
   (typeof ToolAsyncWaiterResolution)[ToolAsyncWaiterResolutionKey]
 
-const ToolErrorKind = {
+export const ToolErrorKind = {
   Dispatch: 'dispatch',
   NotFound: 'not_found',
 } as const
@@ -352,7 +352,7 @@ const ToolErrorKind = {
 export type ToolErrorKindKey = keyof typeof ToolErrorKind
 export type ToolErrorKindValue = (typeof ToolErrorKind)[ToolErrorKindKey]
 
-const ToolExecutor = {
+export const ToolExecutor = {
   Client: 'client',
   Go: 'go',
   Sim: 'sim',
@@ -361,7 +361,7 @@ const ToolExecutor = {
 export type ToolExecutorKey = keyof typeof ToolExecutor
 export type ToolExecutorValue = (typeof ToolExecutor)[ToolExecutorKey]
 
-const ToolStoreStatus = {
+export const ToolStoreStatus = {
   Cancelled: 'cancelled',
   Completed: 'completed',
   Failed: 'failed',

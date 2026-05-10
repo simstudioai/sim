@@ -30,7 +30,7 @@ export const TABLE_LIMITS = {
  * (see `getTablePlanLimits`) so self-hosted deployments can raise the free-tier
  * caps that apply when billing is disabled.
  */
-const DEFAULT_TABLE_PLAN_LIMITS = {
+export const DEFAULT_TABLE_PLAN_LIMITS = {
   free: {
     maxTables: 3,
     maxRowsPerTable: 1000,

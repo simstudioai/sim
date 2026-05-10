@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const credentialSetSchema = z.object({
+export const credentialSetSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
@@ -14,7 +14,7 @@ const credentialSetSchema = z.object({
   memberCount: z.number(),
 })
 
-const credentialSetWriteSchema = z.object({
+export const credentialSetWriteSchema = z.object({
   id: z.string(),
   organizationId: z.string(),
   name: z.string(),
@@ -25,7 +25,7 @@ const credentialSetWriteSchema = z.object({
   updatedAt: z.string(),
 })
 
-const credentialSetMembershipSchema = z.object({
+export const credentialSetMembershipSchema = z.object({
   membershipId: z.string(),
   status: z.string(),
   joinedAt: z.string().nullable(),
@@ -37,7 +37,7 @@ const credentialSetMembershipSchema = z.object({
   organizationName: z.string(),
 })
 
-const credentialSetInvitationSchema = z.object({
+export const credentialSetInvitationSchema = z.object({
   invitationId: z.string(),
   token: z.string(),
   status: z.string(),
@@ -52,7 +52,7 @@ const credentialSetInvitationSchema = z.object({
   invitedByEmail: z.string().nullable(),
 })
 
-const credentialSetInvitationDetailSchema = z.object({
+export const credentialSetInvitationDetailSchema = z.object({
   id: z.string(),
   credentialSetId: z.string(),
   email: z.string().nullable(),
@@ -63,14 +63,14 @@ const credentialSetInvitationDetailSchema = z.object({
   invitedBy: z.string(),
 })
 
-const credentialSetInvitePreviewSchema = z.object({
+export const credentialSetInvitePreviewSchema = z.object({
   credentialSetName: z.string(),
   organizationName: z.string(),
   providerId: z.string().nullable(),
   email: z.string().nullable(),
 })
 
-const credentialSetMemberSchema = z.object({
+export const credentialSetMemberSchema = z.object({
   id: z.string(),
   userId: z.string(),
   status: z.string(),
@@ -98,7 +98,7 @@ export const listCredentialSetsQuerySchema = z.object({
   organizationId: z.string().min(1),
 })
 
-const createCredentialSetBodySchema = z.object({
+export const createCredentialSetBodySchema = z.object({
   organizationId: z.string().min(1),
   name: z.string().trim().min(1).max(100),
   description: z.string().max(500).optional(),
@@ -107,11 +107,11 @@ const createCredentialSetBodySchema = z.object({
 
 export type CreateCredentialSetData = z.input<typeof createCredentialSetBodySchema>
 
-const credentialSetIdParamsSchema = z.object({
+export const credentialSetIdParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-const credentialSetInviteTokenParamsSchema = z.object({
+export const credentialSetInviteTokenParamsSchema = z.object({
   token: z.string().min(1),
 })
 
@@ -120,7 +120,7 @@ export const credentialSetInvitationParamsSchema = z.object({
   invitationId: z.string().min(1),
 })
 
-const createCredentialSetInvitationBodySchema = z.object({
+export const createCredentialSetInvitationBodySchema = z.object({
   email: z.string().email().optional(),
 })
 
@@ -136,7 +136,7 @@ export const cancelCredentialSetInvitationQuerySchema = z.object({
   invitationId: z.string().min(1),
 })
 
-const updateCredentialSetBodySchema = z.object({
+export const updateCredentialSetBodySchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   description: z.string().max(500).nullable().optional(),
 })

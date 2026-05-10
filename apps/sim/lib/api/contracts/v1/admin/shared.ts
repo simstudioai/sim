@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-const adminV1DefaultLimit = 50
-const adminV1MaxLimit = 250
+export const adminV1DefaultLimit = 50
+export const adminV1MaxLimit = 250
 
 export const lastQueryValue = (value: unknown) => (Array.isArray(value) ? value.at(-1) : value)
 

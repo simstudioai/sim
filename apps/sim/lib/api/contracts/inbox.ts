@@ -5,7 +5,7 @@ export const inboxWorkspaceParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-const inboxTaskStatusSchema = z.enum([
+export const inboxTaskStatusSchema = z.enum([
   'all',
   'received',
   'processing',
@@ -14,7 +14,7 @@ const inboxTaskStatusSchema = z.enum([
   'rejected',
 ])
 
-const inboxConfigSchema = z.object({
+export const inboxConfigSchema = z.object({
   enabled: z.boolean(),
   address: z.string().nullable(),
   taskStats: z.object({
@@ -28,18 +28,18 @@ const inboxConfigSchema = z.object({
 export type InboxConfig = z.output<typeof inboxConfigSchema>
 export type InboxTaskStatus = z.output<typeof inboxTaskStatusSchema>
 
-const updateInboxConfigBodySchema = z.object({
+export const updateInboxConfigBodySchema = z.object({
   enabled: z.boolean().optional(),
   username: z.string().min(1).max(64).optional(),
 })
 
-const updateInboxConfigResponseSchema = z.object({
+export const updateInboxConfigResponseSchema = z.object({
   enabled: z.boolean(),
   address: z.string().nullable(),
   providerId: z.string().nullable().optional(),
 })
 
-const inboxSenderSchema = z.object({
+export const inboxSenderSchema = z.object({
   id: z.string(),
   email: z.string(),
   label: z.string().nullable(),
@@ -48,7 +48,7 @@ const inboxSenderSchema = z.object({
 
 export type InboxSender = z.output<typeof inboxSenderSchema>
 
-const inboxMemberSchema = z.object({
+export const inboxMemberSchema = z.object({
   email: z.string(),
   name: z.string().nullable(),
   isAutoAllowed: z.boolean(),
@@ -56,19 +56,19 @@ const inboxMemberSchema = z.object({
 
 export type InboxMember = z.output<typeof inboxMemberSchema>
 
-const inboxSendersResponseSchema = z.object({
+export const inboxSendersResponseSchema = z.object({
   senders: z.array(inboxSenderSchema),
   workspaceMembers: z.array(inboxMemberSchema),
 })
 
 export type InboxSendersResponseBody = z.output<typeof inboxSendersResponseSchema>
 
-const createInboxSenderBodySchema = z.object({
+export const createInboxSenderBodySchema = z.object({
   email: z.string().email('Invalid email address'),
   label: z.string().max(100).optional(),
 })
 
-const deleteInboxSenderBodySchema = z.object({
+export const deleteInboxSenderBodySchema = z.object({
   senderId: z.string().min(1),
 })
 
@@ -84,7 +84,7 @@ export const inboxTasksQuerySchema = z.object({
   ),
 })
 
-const inboxTaskSchema = z.object({
+export const inboxTaskSchema = z.object({
   id: z.string(),
   fromEmail: z.string(),
   fromName: z.string().nullable(),
@@ -102,7 +102,7 @@ const inboxTaskSchema = z.object({
 
 export type InboxTask = z.output<typeof inboxTaskSchema>
 
-const inboxTasksResponseSchema = z.object({
+export const inboxTasksResponseSchema = z.object({
   tasks: z.array(inboxTaskSchema),
   pagination: z.object({
     limit: z.number(),

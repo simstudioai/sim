@@ -9,7 +9,7 @@ import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
  * Output definition for lead value objects.
  * @see https://developers.pipedrive.com/docs/api/v1/Leads
  */
-const PIPEDRIVE_LEAD_VALUE_OUTPUT_PROPERTIES = {
+export const PIPEDRIVE_LEAD_VALUE_OUTPUT_PROPERTIES = {
   amount: { type: 'number', description: 'Value amount' },
   currency: { type: 'string', description: 'Currency code (e.g., USD, EUR)' },
 } as const satisfies Record<string, OutputProperty>
@@ -184,7 +184,7 @@ export const PIPEDRIVE_PROJECT_OUTPUT_PROPERTIES = {
 /**
  * Complete project output definition
  */
-const PIPEDRIVE_PROJECT_OUTPUT: OutputProperty = {
+export const PIPEDRIVE_PROJECT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pipedrive project object',
   properties: PIPEDRIVE_PROJECT_OUTPUT_PROPERTIES,
@@ -227,7 +227,7 @@ export const PIPEDRIVE_MAIL_MESSAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete mail message output definition
  */
-const PIPEDRIVE_MAIL_MESSAGE_OUTPUT: OutputProperty = {
+export const PIPEDRIVE_MAIL_MESSAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pipedrive mail message object',
   properties: PIPEDRIVE_MAIL_MESSAGE_OUTPUT_PROPERTIES,

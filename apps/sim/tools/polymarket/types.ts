@@ -1,6 +1,6 @@
 const POLYMARKET_GAMMA_URL = 'https://gamma-api.polymarket.com'
-const POLYMARKET_CLOB_URL = 'https://clob.polymarket.com'
-const POLYMARKET_DATA_URL = 'https://data-api.polymarket.com'
+export const POLYMARKET_CLOB_URL = 'https://clob.polymarket.com'
+export const POLYMARKET_DATA_URL = 'https://data-api.polymarket.com'
 
 export function buildGammaUrl(path: string): string {
   return `${POLYMARKET_GAMMA_URL}${path}`

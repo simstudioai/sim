@@ -11,7 +11,7 @@ import {
   adminV1SingleResponseSchema,
 } from '@/lib/api/contracts/v1/admin/shared'
 
-const adminV1PermissionGroupSchema = z.object({
+export const adminV1PermissionGroupSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
   workspaceName: z.string().nullable(),
@@ -29,7 +29,7 @@ export const adminV1AccessControlQuerySchema = z.object({
   organizationId: adminV1QueryStringSchema,
 })
 
-const adminV1AccessControlDeleteQuerySchema = adminV1AccessControlQuerySchema
+export const adminV1AccessControlDeleteQuerySchema = adminV1AccessControlQuerySchema
   .extend({
     reason: adminV1QueryStringSchema.default('Enterprise plan churn cleanup'),
   })

@@ -3,24 +3,24 @@ import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contract
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { RawFileInputArraySchema, RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
-const googleAccessTokenSchema = z.string().min(1, 'Access token is required')
-const gmailMessageIdSchema = z.string().min(1, 'Message ID is required')
+export const googleAccessTokenSchema = z.string().min(1, 'Access token is required')
+export const gmailMessageIdSchema = z.string().min(1, 'Message ID is required')
 
-const gmailMessageBodySchema = z.object({
+export const gmailMessageBodySchema = z.object({
   accessToken: googleAccessTokenSchema,
   messageId: gmailMessageIdSchema,
 })
 
-const gmailLabelBodySchema = gmailMessageBodySchema.extend({
+export const gmailLabelBodySchema = gmailMessageBodySchema.extend({
   labelIds: z.string().min(1, 'At least one label ID is required'),
 })
 
-const gmailMoveBodySchema = gmailMessageBodySchema.extend({
+export const gmailMoveBodySchema = gmailMessageBodySchema.extend({
   addLabelIds: z.string().min(1, 'At least one label to add is required'),
   removeLabelIds: z.string().optional().nullable(),
 })
 
-const gmailMailBodySchema = z.object({
+export const gmailMailBodySchema = z.object({
   accessToken: googleAccessTokenSchema,
   to: z.string().min(1, 'Recipient email is required'),
   subject: z.string().optional().nullable(),
@@ -33,11 +33,11 @@ const gmailMailBodySchema = z.object({
   attachments: RawFileInputArraySchema.optional().nullable(),
 })
 
-const gmailEditDraftBodySchema = gmailMailBodySchema.extend({
+export const gmailEditDraftBodySchema = gmailMailBodySchema.extend({
   draftId: z.string().min(1, 'Draft ID is required'),
 })
 
-const googleDriveUploadBodySchema = z.object({
+export const googleDriveUploadBodySchema = z.object({
   accessToken: googleAccessTokenSchema,
   fileName: z.string().min(1, 'File name is required'),
   file: RawFileInputSchema.optional().nullable(),
@@ -45,7 +45,7 @@ const googleDriveUploadBodySchema = z.object({
   folderId: z.string().optional().nullable(),
 })
 
-const googleDriveDownloadBodySchema = z.object({
+export const googleDriveDownloadBodySchema = z.object({
   accessToken: googleAccessTokenSchema,
   fileId: z.string().min(1, 'File ID is required'),
   mimeType: z.string().optional().nullable(),
@@ -53,7 +53,7 @@ const googleDriveDownloadBodySchema = z.object({
   includeRevisions: z.boolean().optional().default(true),
 })
 
-const googleVaultDownloadExportFileBodySchema = z.object({
+export const googleVaultDownloadExportFileBodySchema = z.object({
   accessToken: googleAccessTokenSchema,
   bucketName: z.string().min(1, 'Bucket name is required'),
   objectName: z.string().min(1, 'Object name is required'),

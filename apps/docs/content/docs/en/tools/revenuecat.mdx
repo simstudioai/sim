@@ -50,6 +50,36 @@ Retrieve subscriber information by app user ID
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `subscriber` | object | The subscriber object with subscriptions and entitlements |
+|   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
+|   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
+|   ↳ `original_app_user_id` | string | Original app user ID |
+|   ↳ `original_application_version` | string | iOS only. First App Store version of your app the customer installed |
+|   ↳ `original_purchase_date` | string | iOS only. Date the app was first purchased/downloaded |
+|   ↳ `management_url` | string | URL for managing the subscriber subscriptions |
+|   ↳ `subscriptions` | object | Map of product identifiers to subscription objects |
+|     ↳ `store_transaction_id` | string | Store transaction identifier |
+|     ↳ `original_transaction_id` | string | Original transaction identifier |
+|     ↳ `purchase_date` | string | ISO 8601 purchase date |
+|     ↳ `original_purchase_date` | string | ISO 8601 date of the original purchase |
+|     ↳ `expires_date` | string | ISO 8601 expiration date |
+|     ↳ `is_sandbox` | boolean | Whether this is a sandbox purchase |
+|     ↳ `unsubscribe_detected_at` | string | ISO 8601 date when unsubscribe was detected |
+|     ↳ `billing_issues_detected_at` | string | ISO 8601 date when billing issues were detected |
+|     ↳ `grace_period_expires_date` | string | ISO 8601 grace period expiration date |
+|     ↳ `ownership_type` | string | Ownership type \(purchased, family_shared\) |
+|     ↳ `period_type` | string | Period type \(normal, trial, intro, promotional, prepaid\) |
+|     ↳ `store` | string | Store the subscription was purchased from \(app_store, play_store, stripe, etc.\) |
+|     ↳ `refunded_at` | string | ISO 8601 date when subscription was refunded |
+|     ↳ `auto_resume_date` | string | ISO 8601 date when a paused subscription will auto-resume |
+|     ↳ `product_plan_identifier` | string | Google Play base plan identifier \(for products set up after Feb 2023\) |
+|   ↳ `entitlements` | object | Map of entitlement identifiers to entitlement objects |
+|     ↳ `expires_date` | string | ISO 8601 expiration date \(null for non-expiring entitlements\) |
+|     ↳ `grace_period_expires_date` | string | ISO 8601 grace period expiration date |
+|     ↳ `product_identifier` | string | Product identifier |
+|     ↳ `purchase_date` | string | ISO 8601 date of the latest purchase or renewal |
+|   ↳ `non_subscriptions` | object | Map of non-subscription product identifiers to arrays of purchase objects |
+|   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
+|   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 | `metadata` | object | Subscriber summary metadata |
 |   ↳ `app_user_id` | string | The app user ID |
 |   ↳ `first_seen` | string | ISO 8601 date when the subscriber was first seen |
@@ -102,6 +132,36 @@ Record a purchase (receipt) for a subscriber via the REST API
 | --------- | ---- | ----------- |
 | `customer` | object | Customer object returned at the top level of POST /v1/receipts \(first_seen, last_seen, original_app_user_id, original_application_version, original_sdk_version, management_url, entitlements, original_purchase_date, request_date\). Null when the response uses the `value`-wrapped envelope. |
 | `subscriber` | object | The updated subscriber object after recording the purchase |
+|   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
+|   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
+|   ↳ `original_app_user_id` | string | Original app user ID |
+|   ↳ `original_application_version` | string | iOS only. First App Store version of your app the customer installed |
+|   ↳ `original_purchase_date` | string | iOS only. Date the app was first purchased/downloaded |
+|   ↳ `management_url` | string | URL for managing the subscriber subscriptions |
+|   ↳ `subscriptions` | object | Map of product identifiers to subscription objects |
+|     ↳ `store_transaction_id` | string | Store transaction identifier |
+|     ↳ `original_transaction_id` | string | Original transaction identifier |
+|     ↳ `purchase_date` | string | ISO 8601 purchase date |
+|     ↳ `original_purchase_date` | string | ISO 8601 date of the original purchase |
+|     ↳ `expires_date` | string | ISO 8601 expiration date |
+|     ↳ `is_sandbox` | boolean | Whether this is a sandbox purchase |
+|     ↳ `unsubscribe_detected_at` | string | ISO 8601 date when unsubscribe was detected |
+|     ↳ `billing_issues_detected_at` | string | ISO 8601 date when billing issues were detected |
+|     ↳ `grace_period_expires_date` | string | ISO 8601 grace period expiration date |
+|     ↳ `ownership_type` | string | Ownership type \(purchased, family_shared\) |
+|     ↳ `period_type` | string | Period type \(normal, trial, intro, promotional, prepaid\) |
+|     ↳ `store` | string | Store the subscription was purchased from \(app_store, play_store, stripe, etc.\) |
+|     ↳ `refunded_at` | string | ISO 8601 date when subscription was refunded |
+|     ↳ `auto_resume_date` | string | ISO 8601 date when a paused subscription will auto-resume |
+|     ↳ `product_plan_identifier` | string | Google Play base plan identifier \(for products set up after Feb 2023\) |
+|   ↳ `entitlements` | object | Map of entitlement identifiers to entitlement objects |
+|     ↳ `expires_date` | string | ISO 8601 expiration date \(null for non-expiring entitlements\) |
+|     ↳ `grace_period_expires_date` | string | ISO 8601 grace period expiration date |
+|     ↳ `product_identifier` | string | Product identifier |
+|     ↳ `purchase_date` | string | ISO 8601 date of the latest purchase or renewal |
+|   ↳ `non_subscriptions` | object | Map of non-subscription product identifiers to arrays of purchase objects |
+|   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
+|   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
 ### `revenuecat_grant_entitlement`
 
@@ -123,6 +183,36 @@ Grant a promotional entitlement to a subscriber
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `subscriber` | object | The updated subscriber object after granting the entitlement |
+|   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
+|   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
+|   ↳ `original_app_user_id` | string | Original app user ID |
+|   ↳ `original_application_version` | string | iOS only. First App Store version of your app the customer installed |
+|   ↳ `original_purchase_date` | string | iOS only. Date the app was first purchased/downloaded |
+|   ↳ `management_url` | string | URL for managing the subscriber subscriptions |
+|   ↳ `subscriptions` | object | Map of product identifiers to subscription objects |
+|     ↳ `store_transaction_id` | string | Store transaction identifier |
+|     ↳ `original_transaction_id` | string | Original transaction identifier |
+|     ↳ `purchase_date` | string | ISO 8601 purchase date |
+|     ↳ `original_purchase_date` | string | ISO 8601 date of the original purchase |
+|     ↳ `expires_date` | string | ISO 8601 expiration date |
+|     ↳ `is_sandbox` | boolean | Whether this is a sandbox purchase |
+|     ↳ `unsubscribe_detected_at` | string | ISO 8601 date when unsubscribe was detected |
+|     ↳ `billing_issues_detected_at` | string | ISO 8601 date when billing issues were detected |
+|     ↳ `grace_period_expires_date` | string | ISO 8601 grace period expiration date |
+|     ↳ `ownership_type` | string | Ownership type \(purchased, family_shared\) |
+|     ↳ `period_type` | string | Period type \(normal, trial, intro, promotional, prepaid\) |
+|     ↳ `store` | string | Store the subscription was purchased from \(app_store, play_store, stripe, etc.\) |
+|     ↳ `refunded_at` | string | ISO 8601 date when subscription was refunded |
+|     ↳ `auto_resume_date` | string | ISO 8601 date when a paused subscription will auto-resume |
+|     ↳ `product_plan_identifier` | string | Google Play base plan identifier \(for products set up after Feb 2023\) |
+|   ↳ `entitlements` | object | Map of entitlement identifiers to entitlement objects |
+|     ↳ `expires_date` | string | ISO 8601 expiration date \(null for non-expiring entitlements\) |
+|     ↳ `grace_period_expires_date` | string | ISO 8601 grace period expiration date |
+|     ↳ `product_identifier` | string | Product identifier |
+|     ↳ `purchase_date` | string | ISO 8601 date of the latest purchase or renewal |
+|   ↳ `non_subscriptions` | object | Map of non-subscription product identifiers to arrays of purchase objects |
+|   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
+|   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
 ### `revenuecat_revoke_entitlement`
 
@@ -141,6 +231,36 @@ Revoke all promotional entitlements for a specific entitlement identifier
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `subscriber` | object | The updated subscriber object after revoking the entitlement |
+|   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
+|   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
+|   ↳ `original_app_user_id` | string | Original app user ID |
+|   ↳ `original_application_version` | string | iOS only. First App Store version of your app the customer installed |
+|   ↳ `original_purchase_date` | string | iOS only. Date the app was first purchased/downloaded |
+|   ↳ `management_url` | string | URL for managing the subscriber subscriptions |
+|   ↳ `subscriptions` | object | Map of product identifiers to subscription objects |
+|     ↳ `store_transaction_id` | string | Store transaction identifier |
+|     ↳ `original_transaction_id` | string | Original transaction identifier |
+|     ↳ `purchase_date` | string | ISO 8601 purchase date |
+|     ↳ `original_purchase_date` | string | ISO 8601 date of the original purchase |
+|     ↳ `expires_date` | string | ISO 8601 expiration date |
+|     ↳ `is_sandbox` | boolean | Whether this is a sandbox purchase |
+|     ↳ `unsubscribe_detected_at` | string | ISO 8601 date when unsubscribe was detected |
+|     ↳ `billing_issues_detected_at` | string | ISO 8601 date when billing issues were detected |
+|     ↳ `grace_period_expires_date` | string | ISO 8601 grace period expiration date |
+|     ↳ `ownership_type` | string | Ownership type \(purchased, family_shared\) |
+|     ↳ `period_type` | string | Period type \(normal, trial, intro, promotional, prepaid\) |
+|     ↳ `store` | string | Store the subscription was purchased from \(app_store, play_store, stripe, etc.\) |
+|     ↳ `refunded_at` | string | ISO 8601 date when subscription was refunded |
+|     ↳ `auto_resume_date` | string | ISO 8601 date when a paused subscription will auto-resume |
+|     ↳ `product_plan_identifier` | string | Google Play base plan identifier \(for products set up after Feb 2023\) |
+|   ↳ `entitlements` | object | Map of entitlement identifiers to entitlement objects |
+|     ↳ `expires_date` | string | ISO 8601 expiration date \(null for non-expiring entitlements\) |
+|     ↳ `grace_period_expires_date` | string | ISO 8601 grace period expiration date |
+|     ↳ `product_identifier` | string | Product identifier |
+|     ↳ `purchase_date` | string | ISO 8601 date of the latest purchase or renewal |
+|   ↳ `non_subscriptions` | object | Map of non-subscription product identifiers to arrays of purchase objects |
+|   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
+|   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
 ### `revenuecat_list_offerings`
 
@@ -163,6 +283,8 @@ List all offerings configured for the project
 |   ↳ `identifier` | string | Offering identifier |
 |   ↳ `description` | string | Offering description |
 |   ↳ `packages` | array | List of packages in the offering |
+|     ↳ `identifier` | string | Package identifier |
+|     ↳ `platform_product_identifier` | string | Platform-specific product identifier |
 | `metadata` | object | Offerings metadata |
 |   ↳ `count` | number | Number of offerings returned |
 |   ↳ `current_offering_id` | string | Current offering identifier |
@@ -205,6 +327,36 @@ Defer a Google Play subscription by extending its billing date by a number of da
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `subscriber` | object | The updated subscriber object after deferring the Google subscription |
+|   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
+|   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
+|   ↳ `original_app_user_id` | string | Original app user ID |
+|   ↳ `original_application_version` | string | iOS only. First App Store version of your app the customer installed |
+|   ↳ `original_purchase_date` | string | iOS only. Date the app was first purchased/downloaded |
+|   ↳ `management_url` | string | URL for managing the subscriber subscriptions |
+|   ↳ `subscriptions` | object | Map of product identifiers to subscription objects |
+|     ↳ `store_transaction_id` | string | Store transaction identifier |
+|     ↳ `original_transaction_id` | string | Original transaction identifier |
+|     ↳ `purchase_date` | string | ISO 8601 purchase date |
+|     ↳ `original_purchase_date` | string | ISO 8601 date of the original purchase |
+|     ↳ `expires_date` | string | ISO 8601 expiration date |
+|     ↳ `is_sandbox` | boolean | Whether this is a sandbox purchase |
+|     ↳ `unsubscribe_detected_at` | string | ISO 8601 date when unsubscribe was detected |
+|     ↳ `billing_issues_detected_at` | string | ISO 8601 date when billing issues were detected |
+|     ↳ `grace_period_expires_date` | string | ISO 8601 grace period expiration date |
+|     ↳ `ownership_type` | string | Ownership type \(purchased, family_shared\) |
+|     ↳ `period_type` | string | Period type \(normal, trial, intro, promotional, prepaid\) |
+|     ↳ `store` | string | Store the subscription was purchased from \(app_store, play_store, stripe, etc.\) |
+|     ↳ `refunded_at` | string | ISO 8601 date when subscription was refunded |
+|     ↳ `auto_resume_date` | string | ISO 8601 date when a paused subscription will auto-resume |
+|     ↳ `product_plan_identifier` | string | Google Play base plan identifier \(for products set up after Feb 2023\) |
+|   ↳ `entitlements` | object | Map of entitlement identifiers to entitlement objects |
+|     ↳ `expires_date` | string | ISO 8601 expiration date \(null for non-expiring entitlements\) |
+|     ↳ `grace_period_expires_date` | string | ISO 8601 grace period expiration date |
+|     ↳ `product_identifier` | string | Product identifier |
+|     ↳ `purchase_date` | string | ISO 8601 date of the latest purchase or renewal |
+|   ↳ `non_subscriptions` | object | Map of non-subscription product identifiers to arrays of purchase objects |
+|   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
+|   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
 ### `revenuecat_refund_google_subscription`
 
@@ -223,6 +375,36 @@ Refund a specific store transaction by its store transaction identifier and revo
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `subscriber` | object | The updated subscriber object after refunding the Google subscription |
+|   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
+|   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
+|   ↳ `original_app_user_id` | string | Original app user ID |
+|   ↳ `original_application_version` | string | iOS only. First App Store version of your app the customer installed |
+|   ↳ `original_purchase_date` | string | iOS only. Date the app was first purchased/downloaded |
+|   ↳ `management_url` | string | URL for managing the subscriber subscriptions |
+|   ↳ `subscriptions` | object | Map of product identifiers to subscription objects |
+|     ↳ `store_transaction_id` | string | Store transaction identifier |
+|     ↳ `original_transaction_id` | string | Original transaction identifier |
+|     ↳ `purchase_date` | string | ISO 8601 purchase date |
+|     ↳ `original_purchase_date` | string | ISO 8601 date of the original purchase |
+|     ↳ `expires_date` | string | ISO 8601 expiration date |
+|     ↳ `is_sandbox` | boolean | Whether this is a sandbox purchase |
+|     ↳ `unsubscribe_detected_at` | string | ISO 8601 date when unsubscribe was detected |
+|     ↳ `billing_issues_detected_at` | string | ISO 8601 date when billing issues were detected |
+|     ↳ `grace_period_expires_date` | string | ISO 8601 grace period expiration date |
+|     ↳ `ownership_type` | string | Ownership type \(purchased, family_shared\) |
+|     ↳ `period_type` | string | Period type \(normal, trial, intro, promotional, prepaid\) |
+|     ↳ `store` | string | Store the subscription was purchased from \(app_store, play_store, stripe, etc.\) |
+|     ↳ `refunded_at` | string | ISO 8601 date when subscription was refunded |
+|     ↳ `auto_resume_date` | string | ISO 8601 date when a paused subscription will auto-resume |
+|     ↳ `product_plan_identifier` | string | Google Play base plan identifier \(for products set up after Feb 2023\) |
+|   ↳ `entitlements` | object | Map of entitlement identifiers to entitlement objects |
+|     ↳ `expires_date` | string | ISO 8601 expiration date \(null for non-expiring entitlements\) |
+|     ↳ `grace_period_expires_date` | string | ISO 8601 grace period expiration date |
+|     ↳ `product_identifier` | string | Product identifier |
+|     ↳ `purchase_date` | string | ISO 8601 date of the latest purchase or renewal |
+|   ↳ `non_subscriptions` | object | Map of non-subscription product identifiers to arrays of purchase objects |
+|   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
+|   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
 ### `revenuecat_revoke_google_subscription`
 
@@ -241,5 +423,35 @@ Immediately revoke access to a Google Play subscription and issue a refund (Goog
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `subscriber` | object | The updated subscriber object after revoking the Google subscription |
+|   ↳ `first_seen` | string | ISO 8601 date when subscriber was first seen |
+|   ↳ `last_seen` | string | ISO 8601 date when subscriber was last seen |
+|   ↳ `original_app_user_id` | string | Original app user ID |
+|   ↳ `original_application_version` | string | iOS only. First App Store version of your app the customer installed |
+|   ↳ `original_purchase_date` | string | iOS only. Date the app was first purchased/downloaded |
+|   ↳ `management_url` | string | URL for managing the subscriber subscriptions |
+|   ↳ `subscriptions` | object | Map of product identifiers to subscription objects |
+|     ↳ `store_transaction_id` | string | Store transaction identifier |
+|     ↳ `original_transaction_id` | string | Original transaction identifier |
+|     ↳ `purchase_date` | string | ISO 8601 purchase date |
+|     ↳ `original_purchase_date` | string | ISO 8601 date of the original purchase |
+|     ↳ `expires_date` | string | ISO 8601 expiration date |
+|     ↳ `is_sandbox` | boolean | Whether this is a sandbox purchase |
+|     ↳ `unsubscribe_detected_at` | string | ISO 8601 date when unsubscribe was detected |
+|     ↳ `billing_issues_detected_at` | string | ISO 8601 date when billing issues were detected |
+|     ↳ `grace_period_expires_date` | string | ISO 8601 grace period expiration date |
+|     ↳ `ownership_type` | string | Ownership type \(purchased, family_shared\) |
+|     ↳ `period_type` | string | Period type \(normal, trial, intro, promotional, prepaid\) |
+|     ↳ `store` | string | Store the subscription was purchased from \(app_store, play_store, stripe, etc.\) |
+|     ↳ `refunded_at` | string | ISO 8601 date when subscription was refunded |
+|     ↳ `auto_resume_date` | string | ISO 8601 date when a paused subscription will auto-resume |
+|     ↳ `product_plan_identifier` | string | Google Play base plan identifier \(for products set up after Feb 2023\) |
+|   ↳ `entitlements` | object | Map of entitlement identifiers to entitlement objects |
+|     ↳ `expires_date` | string | ISO 8601 expiration date \(null for non-expiring entitlements\) |
+|     ↳ `grace_period_expires_date` | string | ISO 8601 grace period expiration date |
+|     ↳ `product_identifier` | string | Product identifier |
+|     ↳ `purchase_date` | string | ISO 8601 date of the latest purchase or renewal |
+|   ↳ `non_subscriptions` | object | Map of non-subscription product identifiers to arrays of purchase objects |
+|   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
+|   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
 

@@ -1,7 +1,7 @@
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
-const mondayTriggerOptions = [
+export const mondayTriggerOptions = [
   { label: 'Item Created', id: 'monday_item_created' },
   { label: 'Column Value Changed', id: 'monday_column_changed' },
   { label: 'Status Changed', id: 'monday_status_changed' },

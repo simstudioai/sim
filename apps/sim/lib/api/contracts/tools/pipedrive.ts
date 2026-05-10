@@ -13,7 +13,7 @@ const pipedriveDownloadedFileSchema = z.object({
   size: z.number(),
 })
 
-const pipedriveGetFilesResponseSchema = z.object({
+export const pipedriveGetFilesResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     files: z.array(z.unknown()),
@@ -25,7 +25,7 @@ const pipedriveGetFilesResponseSchema = z.object({
   }),
 })
 
-const pipedriveGetFilesBodySchema = z.object({
+export const pipedriveGetFilesBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   sort: z.enum(['id', 'update_time']).optional().nullable(),
   limit: z.string().optional().nullable(),

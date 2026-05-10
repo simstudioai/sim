@@ -30,19 +30,19 @@ export const listA2AAgentsQuerySchema = z.object({
   workspaceId: z.string({ error: 'workspaceId is required' }).min(1, 'workspaceId is required'),
 })
 
-const a2aAgentCapabilitiesSchema = z.custom<AgentCapabilities>(isRecord, {
+export const a2aAgentCapabilitiesSchema = z.custom<AgentCapabilities>(isRecord, {
   message: 'Agent capabilities must be an object',
 })
 
-const a2aAgentAuthenticationSchema = z.custom<AgentAuthentication>(isAgentAuthentication, {
+export const a2aAgentAuthenticationSchema = z.custom<AgentAuthentication>(isAgentAuthentication, {
   message: 'Agent authentication must be an object',
 })
 
-const a2aAgentSkillSchema = z.custom<AgentSkill>(isRecord, {
+export const a2aAgentSkillSchema = z.custom<AgentSkill>(isRecord, {
   message: 'Agent skill must be an object',
 })
 
-const createA2AAgentBodySchema = z
+export const createA2AAgentBodySchema = z
   .object({
     workspaceId: z.string({ error: 'workspaceId is required' }).min(1, 'workspaceId is required'),
     workflowId: z.string({ error: 'workflowId is required' }).min(1, 'workflowId is required'),
@@ -54,7 +54,7 @@ const createA2AAgentBodySchema = z
   })
   .passthrough()
 
-const updateA2AAgentBodySchema = z
+export const updateA2AAgentBodySchema = z
   .object({
     name: z.string().optional(),
     description: z.string().optional(),
@@ -67,13 +67,13 @@ const updateA2AAgentBodySchema = z
   })
   .passthrough()
 
-const publishA2AAgentBodySchema = z
+export const publishA2AAgentBodySchema = z
   .object({
     action: z.enum(['publish', 'unpublish', 'refresh'], { error: 'Invalid action' }),
   })
   .passthrough()
 
-const a2aAgentSchema = z.object({
+export const a2aAgentSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
   workflowId: z.string(),
@@ -93,7 +93,7 @@ const a2aAgentSchema = z.object({
   taskCount: z.number().optional(),
 })
 
-const a2aAgentCardSchema = z.object({
+export const a2aAgentCardSchema = z.object({
   name: z.string(),
   description: z.string(),
   url: z.string(),
@@ -200,7 +200,7 @@ export const a2aServeAgentParamsSchema = z.object({
 })
 export type A2AServeAgentParams = z.output<typeof a2aServeAgentParamsSchema>
 
-const a2aJsonRpcIdSchema = z.union([z.string(), z.number(), z.null()])
+export const a2aJsonRpcIdSchema = z.union([z.string(), z.number(), z.null()])
 export type A2AJsonRpcId = z.output<typeof a2aJsonRpcIdSchema>
 
 export const a2aJsonRpcRequestSchema = z

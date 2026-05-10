@@ -64,7 +64,7 @@ export const contentTypeMap: Record<string, string> = {
   googleFolder: 'application/vnd.google-apps.folder',
 }
 
-const binaryExtensions = [
+export const binaryExtensions = [
   'doc',
   'docx',
   'xls',

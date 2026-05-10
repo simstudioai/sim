@@ -13,7 +13,7 @@ const firecrawlParseResponseSchema = z.object({
   output: z.unknown(),
 })
 
-const firecrawlParseBodySchema = z.object({
+export const firecrawlParseBodySchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
   file: RawFileInputSchema,
   options: z.record(z.string(), z.unknown()).optional(),

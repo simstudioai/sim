@@ -32,9 +32,9 @@ const optionalHeadersFromNullableSchema = z.preprocess(
   z.record(z.string(), z.string()).optional()
 )
 
-const mcpTransportSchema = z.enum(['streamable-http'])
+export const mcpTransportSchema = z.enum(['streamable-http'])
 
-const mcpServerStatusConfigSchema = z
+export const mcpServerStatusConfigSchema = z
   .object({
     consecutiveFailures: z.number().default(0),
     lastSuccessfulDiscovery: z.string().nullable().default(null),
@@ -64,7 +64,7 @@ export const mcpToolInputSchema: z.ZodType<McpToolSchema> = z
   })
   .passthrough()
 
-const mcpToolSchema = z.object({
+export const mcpToolSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
   inputSchema: mcpToolInputSchema,
@@ -72,7 +72,7 @@ const mcpToolSchema = z.object({
   serverName: z.string(),
 })
 
-const storedMcpToolSchema = z.object({
+export const storedMcpToolSchema = z.object({
   workflowId: z.string(),
   workflowName: z.string(),
   serverId: z.string(),
@@ -81,7 +81,7 @@ const storedMcpToolSchema = z.object({
   schema: mcpToolInputSchema.optional(),
 })
 
-const mcpServerSchema = z
+export const mcpServerSchema = z
   .object({
     id: z.string(),
     workspaceId: z.string(),
@@ -109,7 +109,7 @@ const mcpServerSchema = z
   .passthrough()
 export type McpServer = z.output<typeof mcpServerSchema>
 
-const mcpWorkspaceQuerySchema = z.object({
+export const mcpWorkspaceQuerySchema = z.object({
   workspaceId: z.string().min(1),
 })
 
@@ -134,7 +134,7 @@ export const createMcpServerBodySchema = z
 
 export const updateMcpServerBodySchema = createMcpServerBodySchema.partial()
 
-const deleteMcpServerQuerySchema = mcpWorkspaceQuerySchema.extend({
+export const deleteMcpServerQuerySchema = mcpWorkspaceQuerySchema.extend({
   serverId: z.string().min(1),
   source: z.string().optional(),
 })
@@ -144,7 +144,7 @@ export const deleteMcpServerByQuerySchema = z.object({
   source: z.string().optional(),
 })
 
-const discoverMcpToolsQuerySchema = mcpWorkspaceQuerySchema.extend({
+export const discoverMcpToolsQuerySchema = mcpWorkspaceQuerySchema.extend({
   serverId: z.string().optional(),
   refresh: z
     .union([z.boolean(), z.enum(['true', 'false']).transform((value) => value === 'true')])
@@ -195,7 +195,7 @@ export const mcpJsonRpcNotificationSchema = z
   })
   .passthrough()
 
-const mcpJsonRpcMessageSchema = z
+export const mcpJsonRpcMessageSchema = z
   .object({
     jsonrpc: z.literal('2.0'),
   })
@@ -225,7 +225,7 @@ export const mcpServerTestBodySchema = z
   .passthrough()
 export type McpServerTestBody = z.input<typeof mcpServerTestBodySchema>
 
-const mcpServerTestResultSchema = z.object({
+export const mcpServerTestResultSchema = z.object({
   success: z.boolean(),
   message: z.string().optional(),
   error: z.string().optional(),
@@ -242,7 +242,7 @@ const mcpServerTestResultSchema = z.object({
 })
 export type McpServerTestResult = z.output<typeof mcpServerTestResultSchema>
 
-const refreshMcpServerResultSchema = z.object({
+export const refreshMcpServerResultSchema = z.object({
   status: z.enum(['connected', 'disconnected', 'error']),
   toolCount: z.number(),
   lastConnected: z.string().nullable(),
@@ -346,7 +346,7 @@ export const discoverMcpToolsContract = defineRouteContract({
 })
 export type DiscoverMcpToolsResponse = ContractJsonResponse<typeof discoverMcpToolsContract>
 
-const refreshMcpToolsContract = defineRouteContract({
+export const refreshMcpToolsContract = defineRouteContract({
   method: 'POST',
   path: '/api/mcp/tools/discover',
   query: mcpWorkspaceQuerySchema,

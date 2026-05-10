@@ -37,7 +37,7 @@ const evernoteDeleteNoteResponseSchema = evernoteSuccessOutputSchema(
 )
 
 const CREATE_NOTE_REQUIRED = 'apiKey, title, and content are required'
-const evernoteCreateNoteBodySchema = z.object({
+export const evernoteCreateNoteBodySchema = z.object({
   apiKey: z.string({ error: CREATE_NOTE_REQUIRED }).min(1, CREATE_NOTE_REQUIRED),
   title: z.string({ error: CREATE_NOTE_REQUIRED }).min(1, CREATE_NOTE_REQUIRED),
   content: z.string({ error: CREATE_NOTE_REQUIRED }).min(1, CREATE_NOTE_REQUIRED),
@@ -46,7 +46,7 @@ const evernoteCreateNoteBodySchema = z.object({
 })
 
 const UPDATE_NOTE_REQUIRED = 'apiKey and noteGuid are required'
-const evernoteUpdateNoteBodySchema = z.object({
+export const evernoteUpdateNoteBodySchema = z.object({
   apiKey: z.string({ error: UPDATE_NOTE_REQUIRED }).min(1, UPDATE_NOTE_REQUIRED),
   noteGuid: z.string({ error: UPDATE_NOTE_REQUIRED }).min(1, UPDATE_NOTE_REQUIRED),
   title: z.string().nullish(),
@@ -56,14 +56,14 @@ const evernoteUpdateNoteBodySchema = z.object({
 })
 
 const CREATE_TAG_REQUIRED = 'apiKey and name are required'
-const evernoteCreateTagBodySchema = z.object({
+export const evernoteCreateTagBodySchema = z.object({
   apiKey: z.string({ error: CREATE_TAG_REQUIRED }).min(1, CREATE_TAG_REQUIRED),
   name: z.string({ error: CREATE_TAG_REQUIRED }).min(1, CREATE_TAG_REQUIRED),
   parentGuid: z.string().nullish(),
 })
 
 const SEARCH_NOTES_REQUIRED = 'apiKey and query are required'
-const evernoteSearchNotesBodySchema = z.object({
+export const evernoteSearchNotesBodySchema = z.object({
   apiKey: z.string({ error: SEARCH_NOTES_REQUIRED }).min(1, SEARCH_NOTES_REQUIRED),
   query: z.string({ error: SEARCH_NOTES_REQUIRED }).min(1, SEARCH_NOTES_REQUIRED),
   notebookGuid: z.string().nullish(),
@@ -72,43 +72,43 @@ const evernoteSearchNotesBodySchema = z.object({
 })
 
 const CREATE_NOTEBOOK_REQUIRED = 'apiKey and name are required'
-const evernoteCreateNotebookBodySchema = z.object({
+export const evernoteCreateNotebookBodySchema = z.object({
   apiKey: z.string({ error: CREATE_NOTEBOOK_REQUIRED }).min(1, CREATE_NOTEBOOK_REQUIRED),
   name: z.string({ error: CREATE_NOTEBOOK_REQUIRED }).min(1, CREATE_NOTEBOOK_REQUIRED),
   stack: z.string().nullish(),
 })
 
 const DELETE_NOTE_REQUIRED = 'apiKey and noteGuid are required'
-const evernoteDeleteNoteBodySchema = z.object({
+export const evernoteDeleteNoteBodySchema = z.object({
   apiKey: z.string({ error: DELETE_NOTE_REQUIRED }).min(1, DELETE_NOTE_REQUIRED),
   noteGuid: z.string({ error: DELETE_NOTE_REQUIRED }).min(1, DELETE_NOTE_REQUIRED),
 })
 
 const LIST_NOTEBOOKS_REQUIRED = 'apiKey is required'
-const evernoteListNotebooksBodySchema = z.object({
+export const evernoteListNotebooksBodySchema = z.object({
   apiKey: z.string({ error: LIST_NOTEBOOKS_REQUIRED }).min(1, LIST_NOTEBOOKS_REQUIRED),
 })
 
 const GET_NOTEBOOK_REQUIRED = 'apiKey and notebookGuid are required'
-const evernoteGetNotebookBodySchema = z.object({
+export const evernoteGetNotebookBodySchema = z.object({
   apiKey: z.string({ error: GET_NOTEBOOK_REQUIRED }).min(1, GET_NOTEBOOK_REQUIRED),
   notebookGuid: z.string({ error: GET_NOTEBOOK_REQUIRED }).min(1, GET_NOTEBOOK_REQUIRED),
 })
 
 const LIST_TAGS_REQUIRED = 'apiKey is required'
-const evernoteListTagsBodySchema = z.object({
+export const evernoteListTagsBodySchema = z.object({
   apiKey: z.string({ error: LIST_TAGS_REQUIRED }).min(1, LIST_TAGS_REQUIRED),
 })
 
 const GET_NOTE_REQUIRED = 'apiKey and noteGuid are required'
-const evernoteGetNoteBodySchema = z.object({
+export const evernoteGetNoteBodySchema = z.object({
   apiKey: z.string({ error: GET_NOTE_REQUIRED }).min(1, GET_NOTE_REQUIRED),
   noteGuid: z.string({ error: GET_NOTE_REQUIRED }).min(1, GET_NOTE_REQUIRED),
   withContent: z.boolean().nullish(),
 })
 
 const COPY_NOTE_REQUIRED = 'apiKey, noteGuid, and toNotebookGuid are required'
-const evernoteCopyNoteBodySchema = z.object({
+export const evernoteCopyNoteBodySchema = z.object({
   apiKey: z.string({ error: COPY_NOTE_REQUIRED }).min(1, COPY_NOTE_REQUIRED),
   noteGuid: z.string({ error: COPY_NOTE_REQUIRED }).min(1, COPY_NOTE_REQUIRED),
   toNotebookGuid: z.string({ error: COPY_NOTE_REQUIRED }).min(1, COPY_NOTE_REQUIRED),

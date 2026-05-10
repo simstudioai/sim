@@ -19,7 +19,7 @@ export type { InboxConfig, InboxSendersResponseBody }
 export type InboxTaskItem = InboxTask
 export type InboxTasksResponse = InboxTasksResponseBody
 
-const inboxKeys = {
+export const inboxKeys = {
   all: ['inbox'] as const,
   configs: () => [...inboxKeys.all, 'config'] as const,
   config: (workspaceId: string) => [...inboxKeys.configs(), workspaceId] as const,

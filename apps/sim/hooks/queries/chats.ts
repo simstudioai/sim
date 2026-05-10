@@ -26,7 +26,7 @@ const logger = createLogger('ChatMutations')
 /**
  * Query keys for chat-related queries
  */
-const chatKeys = {
+export const chatKeys = {
   all: ['chats'] as const,
   status: deploymentKeys.chatStatus,
   detail: deploymentKeys.chatDetail,

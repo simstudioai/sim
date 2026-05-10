@@ -6,7 +6,7 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const imapMailboxSchema = z.object({
+export const imapMailboxSchema = z.object({
   path: z.string(),
   name: z.string(),
   delimiter: z
@@ -15,12 +15,12 @@ const imapMailboxSchema = z.object({
     .optional(),
 })
 
-const imapMailboxesResponseSchema = z.object({
+export const imapMailboxesResponseSchema = z.object({
   success: z.literal(true),
   mailboxes: z.array(imapMailboxSchema),
 })
 
-const imapMailboxesBodySchema = z.object({
+export const imapMailboxesBodySchema = z.object({
   host: z.string().min(1),
   port: z.preprocess((value) => value || 993, z.coerce.number().int().positive()),
   secure: z.preprocess((value) => value ?? true, z.boolean()),

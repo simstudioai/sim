@@ -30,7 +30,7 @@ const optionalLimitSchema = z.preprocess(
   z.coerce.number().int().positive().optional()
 )
 
-const cloudwatchLogGroupsBodySchema = z.object({
+export const cloudwatchLogGroupsBodySchema = z.object({
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
   region: awsRegionSchema,
@@ -38,7 +38,7 @@ const cloudwatchLogGroupsBodySchema = z.object({
   limit: optionalLimitSchema.optional(),
 })
 
-const cloudwatchLogStreamsBodySchema = cloudwatchLogGroupsBodySchema.extend({
+export const cloudwatchLogStreamsBodySchema = cloudwatchLogGroupsBodySchema.extend({
   logGroupName: z.string().min(1, 'Log group name is required'),
 })
 

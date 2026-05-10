@@ -22,7 +22,7 @@ export const SEARCH_PARAMETERS_OUTPUT_PROPERTIES = {
 /**
  * Complete search parameters output definition
  */
-const SEARCH_PARAMETERS_OUTPUT: OutputProperty = {
+export const SEARCH_PARAMETERS_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Parameters used for this search request',
   properties: SEARCH_PARAMETERS_OUTPUT_PROPERTIES,
@@ -31,7 +31,7 @@ const SEARCH_PARAMETERS_OUTPUT: OutputProperty = {
 /**
  * Output definition for Knowledge Graph attributes
  */
-const KNOWLEDGE_GRAPH_ATTRIBUTES_OUTPUT_PROPERTIES = {
+export const KNOWLEDGE_GRAPH_ATTRIBUTES_OUTPUT_PROPERTIES = {
   key: { type: 'string', description: 'Attribute name (e.g., "Headquarters", "CEO", "Founded")' },
   value: { type: 'string', description: 'Attribute value' },
 } as const satisfies Record<string, OutputProperty>
@@ -75,7 +75,7 @@ export const KNOWLEDGE_GRAPH_OUTPUT_PROPERTIES = {
 /**
  * Complete Knowledge Graph output definition
  */
-const KNOWLEDGE_GRAPH_OUTPUT: OutputProperty = {
+export const KNOWLEDGE_GRAPH_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Knowledge Graph panel information for entities like companies, people, places',
   optional: true,
@@ -100,7 +100,7 @@ export const ANSWER_BOX_OUTPUT_PROPERTIES = {
 /**
  * Complete Answer Box output definition
  */
-const ANSWER_BOX_OUTPUT: OutputProperty = {
+export const ANSWER_BOX_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Featured snippet / answer box with direct answers to queries',
   optional: true,
@@ -110,7 +110,7 @@ const ANSWER_BOX_OUTPUT: OutputProperty = {
 /**
  * Output definition for sitelinks under an organic result
  */
-const SITELINK_OUTPUT_PROPERTIES = {
+export const SITELINK_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Sitelink title' },
   link: { type: 'string', description: 'Sitelink URL' },
 } as const satisfies Record<string, OutputProperty>
@@ -131,7 +131,7 @@ export const SITELINKS_OUTPUT: OutputProperty = {
 /**
  * Output definition for organic search result items
  */
-const ORGANIC_RESULT_OUTPUT_PROPERTIES = {
+export const ORGANIC_RESULT_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Result title' },
   link: { type: 'string', description: 'Result URL' },
   snippet: { type: 'string', description: 'Text snippet with query context', optional: true },
@@ -170,7 +170,7 @@ export const PEOPLE_ALSO_ASK_OUTPUT_PROPERTIES = {
 /**
  * Complete People Also Ask array output definition
  */
-const PEOPLE_ALSO_ASK_OUTPUT: OutputProperty = {
+export const PEOPLE_ALSO_ASK_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'People Also Ask questions and answers',
   optional: true,
@@ -183,7 +183,7 @@ const PEOPLE_ALSO_ASK_OUTPUT: OutputProperty = {
 /**
  * Output definition for related search suggestions
  */
-const RELATED_SEARCH_OUTPUT_PROPERTIES = {
+export const RELATED_SEARCH_OUTPUT_PROPERTIES = {
   query: { type: 'string', description: 'Suggested search query' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -203,7 +203,7 @@ export const RELATED_SEARCHES_OUTPUT: OutputProperty = {
 /**
  * Output definition for top stories in news carousel
  */
-const TOP_STORY_OUTPUT_PROPERTIES = {
+export const TOP_STORY_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Story headline' },
   link: { type: 'string', description: 'Story URL' },
   source: { type: 'string', description: 'News source name' },
@@ -227,7 +227,7 @@ export const TOP_STORIES_OUTPUT: OutputProperty = {
 /**
  * Output definition for news search result items
  */
-const NEWS_RESULT_OUTPUT_PROPERTIES = {
+export const NEWS_RESULT_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'News article title' },
   link: { type: 'string', description: 'News article URL' },
   snippet: { type: 'string', description: 'Article summary/excerpt' },
@@ -252,7 +252,7 @@ export const NEWS_RESULTS_OUTPUT: OutputProperty = {
 /**
  * Output definition for image search result items
  */
-const IMAGE_RESULT_OUTPUT_PROPERTIES = {
+export const IMAGE_RESULT_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Image title/alt text' },
   imageUrl: { type: 'string', description: 'Direct URL to full-size image' },
   thumbnailUrl: { type: 'string', description: 'URL to thumbnail image' },
@@ -282,7 +282,7 @@ export const IMAGE_RESULTS_OUTPUT: OutputProperty = {
 /**
  * Output definition for video search result items
  */
-const VIDEO_RESULT_OUTPUT_PROPERTIES = {
+export const VIDEO_RESULT_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Video title' },
   link: { type: 'string', description: 'Video URL (often YouTube or source site)' },
   snippet: { type: 'string', description: 'Video description/snippet', optional: true },
@@ -311,7 +311,7 @@ export const VIDEO_RESULTS_OUTPUT: OutputProperty = {
 /**
  * Output definition for places/maps search result items
  */
-const PLACE_RESULT_OUTPUT_PROPERTIES = {
+export const PLACE_RESULT_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Business/place name' },
   address: { type: 'string', description: 'Full street address' },
   latitude: { type: 'number', description: 'Latitude coordinate' },
@@ -354,7 +354,7 @@ export const PLACES_RESULTS_OUTPUT: OutputProperty = {
 /**
  * Output definition for shopping/product search result items
  */
-const SHOPPING_RESULT_OUTPUT_PROPERTIES = {
+export const SHOPPING_RESULT_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Product name/title' },
   link: { type: 'string', description: 'Product page URL (Google Shopping or merchant)' },
   snippet: { type: 'string', description: 'Product description/details', optional: true },

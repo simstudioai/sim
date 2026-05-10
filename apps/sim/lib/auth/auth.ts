@@ -3256,5 +3256,5 @@ async function getSessionImpl() {
 
 export const getSession = cache(getSessionImpl)
 
-const signIn = auth.api.signInEmail
-const signUp = auth.api.signUpEmail
+export const signIn = auth.api.signInEmail
+export const signUp = auth.api.signUpEmail

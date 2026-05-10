@@ -133,7 +133,7 @@ export function assertSafeSapExternalUrl(rawUrl: string, label: string): URL {
   return result.url
 }
 
-const sapS4HanaProxyBodySchema = z
+export const sapS4HanaProxyBodySchema = z
   .object({
     deploymentType: sapDeploymentTypeSchema.default('cloud_public'),
     authType: sapAuthTypeSchema.default('oauth_client_credentials'),

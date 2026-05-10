@@ -30,7 +30,7 @@ export const POSTGRES_COLUMN_OUTPUT_PROPERTIES = {
 /**
  * Complete column output definition
  */
-const POSTGRES_COLUMN_OUTPUT: OutputProperty = {
+export const POSTGRES_COLUMN_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'PostgreSQL table column',
   properties: POSTGRES_COLUMN_OUTPUT_PROPERTIES,
@@ -39,7 +39,7 @@ const POSTGRES_COLUMN_OUTPUT: OutputProperty = {
 /**
  * Output definition for foreign key constraint objects.
  */
-const POSTGRES_FOREIGN_KEY_OUTPUT_PROPERTIES = {
+export const POSTGRES_FOREIGN_KEY_OUTPUT_PROPERTIES = {
   column: { type: 'string', description: 'Local column name' },
   referencesTable: { type: 'string', description: 'Referenced table name' },
   referencesColumn: { type: 'string', description: 'Referenced column name' },
@@ -49,7 +49,7 @@ const POSTGRES_FOREIGN_KEY_OUTPUT_PROPERTIES = {
  * Output definition for index objects.
  * @see https://www.postgresql.org/docs/current/catalog-pg-index.html
  */
-const POSTGRES_INDEX_OUTPUT_PROPERTIES = {
+export const POSTGRES_INDEX_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Index name' },
   columns: {
     type: 'array',

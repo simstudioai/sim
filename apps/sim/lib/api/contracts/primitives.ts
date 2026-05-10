@@ -28,20 +28,20 @@ export const jobIdParamsSchema = z.object({
  * Prefer this over inline `z.string().min(1)` so error wording stays consistent
  * and refactors can centralize ID validation in one place.
  */
-const nonEmptyIdSchema = z.string().min(1)
+export const nonEmptyIdSchema = z.string().min(1)
 
 /**
  * Non-empty `workspaceId` field. Same constraint as `nonEmptyIdSchema` with a
  * stable, human-readable message. Use to deduplicate the
  * `z.string().min(1, 'Workspace ID is required')` pattern across contracts.
  */
-const workspaceIdSchema = z.string().min(1, 'Workspace ID is required')
+export const workspaceIdSchema = z.string().min(1, 'Workspace ID is required')
 
 /**
  * Non-empty `workflowId` field. Same constraint as `nonEmptyIdSchema` with a
  * stable, human-readable message.
  */
-const workflowIdSchema = z.string().min(1, 'Workflow ID is required')
+export const workflowIdSchema = z.string().min(1, 'Workflow ID is required')
 
 /**
  * Boolean query-string primitive that correctly handles the literal strings

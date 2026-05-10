@@ -5,15 +5,15 @@ const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(v
   message: 'Expected a valid date string',
 })
 
-const listMothershipChatsQuerySchema = z.object({
+export const listMothershipChatsQuerySchema = z.object({
   workspaceId: z.string().min(1),
 })
 
-const mothershipChatParamsSchema = z.object({
+export const mothershipChatParamsSchema = z.object({
   chatId: z.string().min(1),
 })
 
-const updateMothershipChatBodySchema = z
+export const updateMothershipChatBodySchema = z
   .object({
     title: z.string().trim().min(1).max(200).optional(),
     isUnread: z.boolean().optional(),
@@ -22,12 +22,12 @@ const updateMothershipChatBodySchema = z
     message: 'At least one field must be provided',
   })
 
-const createMothershipChatBodySchema = z.object({
+export const createMothershipChatBodySchema = z.object({
   workspaceId: z.string().min(1),
 })
 export type CreateMothershipChatBody = z.input<typeof createMothershipChatBodySchema>
 
-const markMothershipChatReadBodySchema = z.object({
+export const markMothershipChatReadBodySchema = z.object({
   chatId: z.string().min(1),
 })
 export type MarkMothershipChatReadBody = z.input<typeof markMothershipChatReadBodySchema>
@@ -49,7 +49,7 @@ const mothershipExecuteMessageSchema = z.object({
   content: z.string(),
 })
 
-const mothershipExecuteBodySchema = z.object({
+export const mothershipExecuteBodySchema = z.object({
   messages: z.array(mothershipExecuteMessageSchema).min(1, 'At least one message is required'),
   responseFormat: z.any().optional(),
   workspaceId: z.string().min(1, 'workspaceId is required'),
@@ -182,7 +182,7 @@ export const removeMothershipChatResourceContract = defineRouteContract({
   },
 })
 
-const mothershipTaskSchema = z.object({
+export const mothershipTaskSchema = z.object({
   id: z.string(),
   title: z.string().nullable(),
   updatedAt: dateStringSchema,
@@ -228,7 +228,7 @@ export const deleteMothershipChatContract = defineRouteContract({
   },
 })
 
-const forkMothershipChatBodySchema = z.object({
+export const forkMothershipChatBodySchema = z.object({
   upToMessageId: z.string().min(1, 'upToMessageId is required'),
 })
 export type ForkMothershipChatBody = z.input<typeof forkMothershipChatBodySchema>
@@ -247,12 +247,12 @@ export const forkMothershipChatContract = defineRouteContract({
   },
 })
 
-const createMothershipChatResponseSchema = z.object({
+export const createMothershipChatResponseSchema = z.object({
   success: z.literal(true),
   id: z.string(),
 })
 
-const mothershipExecuteResponseSchema = z
+export const mothershipExecuteResponseSchema = z
   .object({
     content: z.string().optional(),
     model: z.literal('mothership'),
@@ -276,7 +276,7 @@ const mothershipChatStreamSnapshotSchema = z
   })
   .passthrough()
 
-const getMothershipChatResponseSchema = z.object({
+export const getMothershipChatResponseSchema = z.object({
   success: z.literal(true),
   chat: z
     .object({

@@ -1,7 +1,7 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Common envelope output properties */
-const ENVELOPE_OUTPUT_PROPERTIES = {
+export const ENVELOPE_OUTPUT_PROPERTIES = {
   envelopeId: { type: 'string', description: 'Unique envelope identifier' },
   status: {
     type: 'string',
@@ -22,7 +22,7 @@ const ENVELOPE_OUTPUT_PROPERTIES = {
   statusChangedDateTime: { type: 'string', description: 'ISO 8601 datetime of last status change' },
 } as const satisfies Record<string, OutputProperty>
 
-const RECIPIENT_OUTPUT_PROPERTIES = {
+export const RECIPIENT_OUTPUT_PROPERTIES = {
   recipientId: { type: 'string', description: 'Recipient identifier' },
   name: { type: 'string', description: 'Recipient name' },
   email: { type: 'string', description: 'Recipient email address' },
@@ -42,7 +42,7 @@ const RECIPIENT_OUTPUT_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-const TEMPLATE_OUTPUT_PROPERTIES = {
+export const TEMPLATE_OUTPUT_PROPERTIES = {
   templateId: { type: 'string', description: 'Template identifier' },
   name: { type: 'string', description: 'Template name' },
   description: { type: 'string', description: 'Template description', optional: true },

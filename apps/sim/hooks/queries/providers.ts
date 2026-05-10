@@ -13,7 +13,7 @@ import type { ProviderName } from '@/stores/providers'
 
 const logger = createLogger('ProviderModelsQuery')
 
-const providerKeys = {
+export const providerKeys = {
   all: ['provider-models'] as const,
   models: (provider: string, workspaceId?: string) =>
     [...providerKeys.all, provider, workspaceId ?? ''] as const,

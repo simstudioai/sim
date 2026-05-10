@@ -26,7 +26,7 @@ export const ADDRESS_OUTPUT_PROPERTIES = {
 /**
  * Complete address object output definition
  */
-const ADDRESS_OUTPUT: OutputProperty = {
+export const ADDRESS_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Address object',
   optional: true,
@@ -46,7 +46,7 @@ export const SHIPPING_OUTPUT_PROPERTIES = {
 /**
  * Complete shipping object output definition
  */
-const SHIPPING_OUTPUT: OutputProperty = {
+export const SHIPPING_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Shipping information',
   optional: true,
@@ -57,7 +57,7 @@ const SHIPPING_OUTPUT: OutputProperty = {
  * Output definition for Customer objects
  * @see https://docs.stripe.com/api/customers/object
  */
-const CUSTOMER_OUTPUT_PROPERTIES = {
+export const CUSTOMER_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique identifier for the customer' },
   object: { type: 'string', description: 'String representing the object type (customer)' },
   address: ADDRESS_OUTPUT,
@@ -156,7 +156,7 @@ export const CUSTOMER_METADATA_OUTPUT_PROPERTIES = {
  * Output definition for Payment Intent objects
  * @see https://docs.stripe.com/api/payment_intents/object
  */
-const PAYMENT_INTENT_OUTPUT_PROPERTIES = {
+export const PAYMENT_INTENT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique identifier for the Payment Intent' },
   object: { type: 'string', description: 'String representing the object type (payment_intent)' },
   amount: {
@@ -315,7 +315,7 @@ export const PAYMENT_INTENT_METADATA_OUTPUT_PROPERTIES = {
  * Output definition for Subscription Item objects
  * @see https://docs.stripe.com/api/subscription_items/object
  */
-const SUBSCRIPTION_ITEM_OUTPUT_PROPERTIES = {
+export const SUBSCRIPTION_ITEM_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique identifier for the subscription item' },
   object: {
     type: 'string',
@@ -346,7 +346,7 @@ const SUBSCRIPTION_ITEM_OUTPUT_PROPERTIES = {
  * Output definition for Subscription objects
  * @see https://docs.stripe.com/api/subscriptions/object
  */
-const SUBSCRIPTION_OUTPUT_PROPERTIES = {
+export const SUBSCRIPTION_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique identifier for the subscription' },
   object: { type: 'string', description: 'String representing the object type (subscription)' },
   application: {
@@ -530,7 +530,7 @@ export const SUBSCRIPTION_METADATA_OUTPUT_PROPERTIES = {
  * Output definition for Invoice Line Item objects
  * @see https://docs.stripe.com/api/invoice-line-item/object
  */
-const INVOICE_LINE_ITEM_OUTPUT_PROPERTIES = {
+export const INVOICE_LINE_ITEM_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique identifier for the line item' },
   object: { type: 'string', description: 'String representing the object type (line_item)' },
   amount: { type: 'number', description: 'Amount in smallest currency unit' },
@@ -595,7 +595,7 @@ const INVOICE_LINE_ITEM_OUTPUT_PROPERTIES = {
  * Output definition for Invoice objects
  * @see https://docs.stripe.com/api/invoices/object
  */
-const INVOICE_OUTPUT_PROPERTIES = {
+export const INVOICE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique identifier for the invoice' },
   object: { type: 'string', description: 'String representing the object type (invoice)' },
   account_country: {
@@ -990,7 +990,7 @@ export const CHARGE_OUTPUT_PROPERTIES = {
 /**
  * Complete Charge object output definition
  */
-const CHARGE_OUTPUT: OutputProperty = {
+export const CHARGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Stripe Charge object',
   properties: CHARGE_OUTPUT_PROPERTIES,
@@ -999,7 +999,7 @@ const CHARGE_OUTPUT: OutputProperty = {
 /**
  * Output definition for Charge metadata (summary)
  */
-const CHARGE_METADATA_OUTPUT_PROPERTIES = {
+export const CHARGE_METADATA_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Stripe unique identifier' },
   status: { type: 'string', description: 'Current state of the resource' },
   amount: { type: 'number', description: 'Amount in smallest currency unit (e.g., cents)' },
@@ -1055,7 +1055,7 @@ export const PRODUCT_OUTPUT_PROPERTIES = {
 /**
  * Complete Product object output definition
  */
-const PRODUCT_OUTPUT: OutputProperty = {
+export const PRODUCT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Stripe Product object',
   properties: PRODUCT_OUTPUT_PROPERTIES,
@@ -1064,7 +1064,7 @@ const PRODUCT_OUTPUT: OutputProperty = {
 /**
  * Output definition for Product metadata (summary)
  */
-const PRODUCT_METADATA_OUTPUT_PROPERTIES = {
+export const PRODUCT_METADATA_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Stripe unique identifier' },
   name: { type: 'string', description: 'Display name' },
   active: { type: 'boolean', description: 'Whether the resource is currently active' },
@@ -1094,7 +1094,7 @@ export const PRICE_RECURRING_OUTPUT_PROPERTIES = {
 /**
  * Complete Price recurring output definition
  */
-const PRICE_RECURRING_OUTPUT: OutputProperty = {
+export const PRICE_RECURRING_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Recurring billing configuration',
   optional: true,
@@ -1160,7 +1160,7 @@ export const PRICE_OUTPUT_PROPERTIES = {
 /**
  * Complete Price object output definition
  */
-const PRICE_OUTPUT: OutputProperty = {
+export const PRICE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Stripe Price object',
   properties: PRICE_OUTPUT_PROPERTIES,
@@ -1169,7 +1169,7 @@ const PRICE_OUTPUT: OutputProperty = {
 /**
  * Output definition for Price metadata (summary)
  */
-const PRICE_METADATA_OUTPUT_PROPERTIES = {
+export const PRICE_METADATA_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Stripe unique identifier' },
   product: { type: 'string', description: 'Associated product ID' },
   unit_amount: {
@@ -1196,7 +1196,7 @@ export const EVENT_REQUEST_OUTPUT_PROPERTIES = {
 /**
  * Complete Event request output definition
  */
-const EVENT_REQUEST_OUTPUT: OutputProperty = {
+export const EVENT_REQUEST_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Information on the API request that triggers the event',
   optional: true,
@@ -1242,7 +1242,7 @@ export const EVENT_OUTPUT_PROPERTIES = {
 /**
  * Complete Event object output definition
  */
-const EVENT_OUTPUT: OutputProperty = {
+export const EVENT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Stripe Event object',
   properties: EVENT_OUTPUT_PROPERTIES,
@@ -1251,7 +1251,7 @@ const EVENT_OUTPUT: OutputProperty = {
 /**
  * Output definition for Event metadata (summary)
  */
-const EVENT_METADATA_OUTPUT_PROPERTIES = {
+export const EVENT_METADATA_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Stripe unique identifier' },
   type: { type: 'string', description: 'Event type identifier' },
   created: { type: 'number', description: 'Unix timestamp of creation' },

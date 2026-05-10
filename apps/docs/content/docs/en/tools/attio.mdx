@@ -53,6 +53,9 @@ Query and list records for a given object type (e.g. people, companies)
 | --------- | ---- | ----------- |
 | `records` | array | Array of Attio records |
 |   ↳ `id` | object | The record identifier |
+|     ↳ `workspace_id` | string | The workspace ID |
+|     ↳ `object_id` | string | The object ID |
+|     ↳ `record_id` | string | The record ID |
 |   ↳ `created_at` | string | When the record was created |
 |   ↳ `web_url` | string | URL to view the record in Attio |
 |   ↳ `values` | json | The record attribute values |
@@ -75,6 +78,9 @@ Get a single record by ID from Attio
 | --------- | ---- | ----------- |
 | `record` | object | An Attio record |
 |   ↳ `id` | object | The record identifier |
+|     ↳ `workspace_id` | string | The workspace ID |
+|     ↳ `object_id` | string | The object ID |
+|     ↳ `record_id` | string | The record ID |
 |   ↳ `created_at` | string | When the record was created |
 |   ↳ `web_url` | string | URL to view the record in Attio |
 |   ↳ `values` | json | The record attribute values |
@@ -98,6 +104,9 @@ Create a new record in Attio for a given object type
 | --------- | ---- | ----------- |
 | `record` | object | An Attio record |
 |   ↳ `id` | object | The record identifier |
+|     ↳ `workspace_id` | string | The workspace ID |
+|     ↳ `object_id` | string | The object ID |
+|     ↳ `record_id` | string | The record ID |
 |   ↳ `created_at` | string | When the record was created |
 |   ↳ `web_url` | string | URL to view the record in Attio |
 |   ↳ `values` | json | The record attribute values |
@@ -122,6 +131,9 @@ Update an existing record in Attio (appends multiselect values)
 | --------- | ---- | ----------- |
 | `record` | object | An Attio record |
 |   ↳ `id` | object | The record identifier |
+|     ↳ `workspace_id` | string | The workspace ID |
+|     ↳ `object_id` | string | The object ID |
+|     ↳ `record_id` | string | The record ID |
 |   ↳ `created_at` | string | When the record was created |
 |   ↳ `web_url` | string | URL to view the record in Attio |
 |   ↳ `values` | json | The record attribute values |
@@ -187,6 +199,9 @@ Upsert a record in Attio — creates it if no match is found, updates it if a ma
 | --------- | ---- | ----------- |
 | `record` | object | The upserted record |
 |   ↳ `id` | object | The record identifier |
+|     ↳ `workspace_id` | string | The workspace ID |
+|     ↳ `object_id` | string | The object ID |
+|     ↳ `record_id` | string | The record ID |
 |   ↳ `created_at` | string | When the record was created |
 |   ↳ `web_url` | string | URL to view the record in Attio |
 |   ↳ `values` | json | The record attribute values |
@@ -222,6 +237,8 @@ List notes in Attio, optionally filtered by parent record
 |     ↳ `type` | string | The tag type \(e.g. workspace-member\) |
 |     ↳ `workspaceMemberId` | string | The workspace member ID of the tagger |
 |   ↳ `createdByActor` | object | The actor who created the note |
+|     ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|     ↳ `id` | string | The actor ID |
 |   ↳ `createdAt` | string | When the note was created |
 | `count` | number | Number of notes returned |
 
@@ -250,6 +267,8 @@ Get a single note by ID from Attio
 |   ↳ `type` | string | The tag type \(e.g. workspace-member\) |
 |   ↳ `workspaceMemberId` | string | The workspace member ID of the tagger |
 | `createdByActor` | object | The actor who created the note |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the note was created |
 
 ### `attio_create_note`
@@ -283,6 +302,8 @@ Create a note on a record in Attio
 |   ↳ `type` | string | The tag type \(e.g. workspace-member\) |
 |   ↳ `workspaceMemberId` | string | The workspace member ID of the tagger |
 | `createdByActor` | object | The actor who created the note |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the note was created |
 
 ### `attio_delete_note`
@@ -327,8 +348,14 @@ List tasks in Attio, optionally filtered by record, assignee, or completion stat
 |   ↳ `deadlineAt` | string | The task deadline |
 |   ↳ `isCompleted` | boolean | Whether the task is completed |
 |   ↳ `linkedRecords` | array | Records linked to this task |
+|     ↳ `targetObjectId` | string | The linked object ID |
+|     ↳ `targetRecordId` | string | The linked record ID |
 |   ↳ `assignees` | array | Task assignees |
+|     ↳ `type` | string | The assignee actor type \(e.g. workspace-member\) |
+|     ↳ `id` | string | The assignee actor ID |
 |   ↳ `createdByActor` | object | The actor who created this task |
+|     ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|     ↳ `id` | string | The actor ID |
 |   ↳ `createdAt` | string | When the task was created |
 | `count` | number | Number of tasks returned |
 
@@ -351,8 +378,14 @@ Get a single task by ID from Attio
 | `deadlineAt` | string | The task deadline |
 | `isCompleted` | boolean | Whether the task is completed |
 | `linkedRecords` | array | Records linked to this task |
+|   ↳ `targetObjectId` | string | The linked object ID |
+|   ↳ `targetRecordId` | string | The linked record ID |
 | `assignees` | array | Task assignees |
+|   ↳ `type` | string | The assignee actor type \(e.g. workspace-member\) |
+|   ↳ `id` | string | The assignee actor ID |
 | `createdByActor` | object | The actor who created this task |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the task was created |
 
 ### `attio_create_task`
@@ -378,8 +411,14 @@ Create a task in Attio
 | `deadlineAt` | string | The task deadline |
 | `isCompleted` | boolean | Whether the task is completed |
 | `linkedRecords` | array | Records linked to this task |
+|   ↳ `targetObjectId` | string | The linked object ID |
+|   ↳ `targetRecordId` | string | The linked record ID |
 | `assignees` | array | Task assignees |
+|   ↳ `type` | string | The assignee actor type \(e.g. workspace-member\) |
+|   ↳ `id` | string | The assignee actor ID |
 | `createdByActor` | object | The actor who created this task |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the task was created |
 
 ### `attio_update_task`
@@ -405,8 +444,14 @@ Update a task in Attio (deadline, completion status, linked records, assignees)
 | `deadlineAt` | string | The task deadline |
 | `isCompleted` | boolean | Whether the task is completed |
 | `linkedRecords` | array | Records linked to this task |
+|   ↳ `targetObjectId` | string | The linked object ID |
+|   ↳ `targetRecordId` | string | The linked record ID |
 | `assignees` | array | Task assignees |
+|   ↳ `type` | string | The assignee actor type \(e.g. workspace-member\) |
+|   ↳ `id` | string | The assignee actor ID |
 | `createdByActor` | object | The actor who created this task |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the task was created |
 
 ### `attio_delete_task`
@@ -532,6 +577,8 @@ List all lists in the Attio workspace
 |   ↳ `workspaceAccess` | string | Workspace-level access \(e.g. full-access, read-only\) |
 |   ↳ `workspaceMemberAccess` | json | Member-level access entries |
 |   ↳ `createdByActor` | object | The actor who created the list |
+|     ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|     ↳ `id` | string | The actor ID |
 |   ↳ `createdAt` | string | When the list was created |
 | `count` | number | Number of lists returned |
 
@@ -556,6 +603,8 @@ Get a single list by ID or slug
 | `workspaceAccess` | string | Workspace-level access \(e.g. full-access, read-only\) |
 | `workspaceMemberAccess` | json | Member-level access entries |
 | `createdByActor` | object | The actor who created the list |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the list was created |
 
 ### `attio_create_list`
@@ -583,6 +632,8 @@ Create a new list in Attio
 | `workspaceAccess` | string | Workspace-level access \(e.g. full-access, read-only\) |
 | `workspaceMemberAccess` | json | Member-level access entries |
 | `createdByActor` | object | The actor who created the list |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the list was created |
 
 ### `attio_update_list`
@@ -610,6 +661,8 @@ Update a list in Attio
 | `workspaceAccess` | string | Workspace-level access \(e.g. full-access, read-only\) |
 | `workspaceMemberAccess` | json | Member-level access entries |
 | `createdByActor` | object | The actor who created the list |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the list was created |
 
 ### `attio_query_list_entries`
@@ -795,6 +848,8 @@ Create a comment on a list entry in Attio
 | `threadId` | string | The thread ID |
 | `contentPlaintext` | string | The comment content as plaintext |
 | `author` | object | The comment author |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
 | `entry` | object | The list entry this comment is on |
 |   ↳ `listId` | string | The list ID |
 |   ↳ `entryId` | string | The entry ID |
@@ -803,6 +858,8 @@ Create a comment on a list entry in Attio
 |   ↳ `recordId` | string | The record ID |
 | `resolvedAt` | string | When the thread was resolved |
 | `resolvedBy` | object | Who resolved the thread |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the comment was created |
 
 ### `attio_get_comment`
@@ -823,6 +880,8 @@ Get a single comment by ID from Attio
 | `threadId` | string | The thread ID |
 | `contentPlaintext` | string | The comment content as plaintext |
 | `author` | object | The comment author |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
 | `entry` | object | The list entry this comment is on |
 |   ↳ `listId` | string | The list ID |
 |   ↳ `entryId` | string | The entry ID |
@@ -831,6 +890,8 @@ Get a single comment by ID from Attio
 |   ↳ `recordId` | string | The record ID |
 | `resolvedAt` | string | When the thread was resolved |
 | `resolvedBy` | object | Who resolved the thread |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the comment was created |
 
 ### `attio_delete_comment`
@@ -896,6 +957,8 @@ Get a single comment thread by ID from Attio
 | --------- | ---- | ----------- |
 | `threadId` | string | The thread ID |
 | `comments` | array | Comments in the thread |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
 | `createdAt` | string | When the thread was created |
 
 ### `attio_list_webhooks`

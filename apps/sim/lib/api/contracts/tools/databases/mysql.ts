@@ -13,12 +13,12 @@ import {
   defineRouteContract,
 } from '@/lib/api/contracts/types'
 
-const mysqlQueryBodySchema = sqlQueryBodySchema
-const mysqlExecuteBodySchema = sqlQueryBodySchema
-const mysqlInsertBodySchema = sqlInsertBodySchema
-const mysqlUpdateBodySchema = sqlUpdateBodySchema
-const mysqlDeleteBodySchema = sqlDeleteBodySchema
-const mysqlIntrospectBodySchema = sqlConnectionBodySchema
+export const mysqlQueryBodySchema = sqlQueryBodySchema
+export const mysqlExecuteBodySchema = sqlQueryBodySchema
+export const mysqlInsertBodySchema = sqlInsertBodySchema
+export const mysqlUpdateBodySchema = sqlUpdateBodySchema
+export const mysqlDeleteBodySchema = sqlDeleteBodySchema
+export const mysqlIntrospectBodySchema = sqlConnectionBodySchema
 
 export const mysqlQueryContract = defineRouteContract({
   method: 'POST',

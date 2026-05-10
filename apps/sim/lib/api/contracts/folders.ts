@@ -1,9 +1,9 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const folderScopeSchema = z.enum(['active', 'archived'])
+export const folderScopeSchema = z.enum(['active', 'archived'])
 
-const folderSchema = z.object({
+export const folderSchema = z.object({
   id: z.string(),
   name: z.string(),
   userId: z.string(),
@@ -20,12 +20,12 @@ const folderSchema = z.object({
 
 export type FolderApi = z.output<typeof folderSchema>
 
-const listFoldersQuerySchema = z.object({
+export const listFoldersQuerySchema = z.object({
   workspaceId: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),
   scope: folderScopeSchema.default('active'),
 })
 
-const createFolderBodySchema = z.object({
+export const createFolderBodySchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1, 'Name is required'),
   workspaceId: z.string().min(1, 'Workspace ID is required'),
@@ -35,11 +35,11 @@ const createFolderBodySchema = z.object({
   sortOrder: z.number().int().optional(),
 })
 
-const folderIdParamsSchema = z.object({
+export const folderIdParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-const updateFolderBodySchema = z.object({
+export const updateFolderBodySchema = z.object({
   name: z.string().optional(),
   color: z.string().optional(),
   isExpanded: z.boolean().optional(),
@@ -48,11 +48,11 @@ const updateFolderBodySchema = z.object({
   sortOrder: z.number().int().min(0).optional(),
 })
 
-const restoreFolderBodySchema = z.object({
+export const restoreFolderBodySchema = z.object({
   workspaceId: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),
 })
 
-const duplicateFolderBodySchema = z.object({
+export const duplicateFolderBodySchema = z.object({
   name: z.string().min(1, 'Name is required'),
   workspaceId: z.string().optional(),
   parentId: z.string().nullable().optional(),
@@ -60,7 +60,7 @@ const duplicateFolderBodySchema = z.object({
   newId: z.string().uuid().optional(),
 })
 
-const reorderFoldersBodySchema = z.object({
+export const reorderFoldersBodySchema = z.object({
   workspaceId: z.string(),
   updates: z.array(
     z.object({

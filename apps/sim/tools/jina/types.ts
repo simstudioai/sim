@@ -16,7 +16,7 @@ export const JINA_USAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete usage output definition
  */
-const JINA_USAGE_OUTPUT: OutputProperty = {
+export const JINA_USAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Token usage information for this request',
   properties: JINA_USAGE_OUTPUT_PROPERTIES,
@@ -26,7 +26,7 @@ const JINA_USAGE_OUTPUT: OutputProperty = {
  * Core data properties for Reader API responses
  * Based on Jina AI Reader API response structure
  */
-const JINA_READER_DATA_OUTPUT_PROPERTIES = {
+export const JINA_READER_DATA_OUTPUT_PROPERTIES = {
   title: { type: 'string', description: 'Page title' },
   description: { type: 'string', description: 'Page meta description', optional: true },
   url: { type: 'string', description: 'The URL that was processed' },

@@ -39,7 +39,7 @@ export type {
   CredentialSetMembership,
 }
 
-const credentialSetKeys = {
+export const credentialSetKeys = {
   all: ['credentialSets'] as const,
   lists: () => [...credentialSetKeys.all, 'list'] as const,
   list: (organizationId?: string) =>

@@ -24,11 +24,11 @@ const bigQueryTableSchema = z
   })
   .passthrough()
 
-const bigQueryDatasetsBodySchema = credentialWorkflowImpersonateBodySchema.extend({
+export const bigQueryDatasetsBodySchema = credentialWorkflowImpersonateBodySchema.extend({
   projectId: z.string().min(1),
 })
 
-const bigQueryTablesBodySchema = bigQueryDatasetsBodySchema.extend({
+export const bigQueryTablesBodySchema = bigQueryDatasetsBodySchema.extend({
   datasetId: z.string().min(1),
 })
 

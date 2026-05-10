@@ -6,7 +6,7 @@ import {
 } from '@/lib/api/contracts/knowledge/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const createConnectorBodySchema = z.object({
+export const createConnectorBodySchema = z.object({
   connectorType: z.string().min(1),
   credentialId: z.string().min(1).optional(),
   apiKey: z.string().min(1).optional(),
@@ -14,26 +14,26 @@ const createConnectorBodySchema = z.object({
   syncIntervalMinutes: z.number().int().min(0).default(1440),
 })
 
-const updateConnectorBodySchema = z.object({
+export const updateConnectorBodySchema = z.object({
   sourceConfig: z.record(z.string(), z.unknown()).optional(),
   syncIntervalMinutes: z.number().int().min(0).optional(),
   status: z.enum(['active', 'paused']).optional(),
 })
 
-const deleteConnectorQuerySchema = z.object({
+export const deleteConnectorQuerySchema = z.object({
   deleteDocuments: z.boolean().optional(),
 })
 
-const connectorDocumentsQuerySchema = z.object({
+export const connectorDocumentsQuerySchema = z.object({
   includeExcluded: z.boolean().optional(),
 })
 
-const connectorDocumentsPatchBodySchema = z.object({
+export const connectorDocumentsPatchBodySchema = z.object({
   operation: z.enum(['restore', 'exclude']),
   documentIds: z.array(z.string()).min(1),
 })
 
-const connectorDataSchema = z
+export const connectorDataSchema = z
   .object({
     id: z.string(),
     knowledgeBaseId: z.string(),
@@ -54,7 +54,7 @@ const connectorDataSchema = z
   .passthrough()
 export type ConnectorData = z.output<typeof connectorDataSchema>
 
-const syncLogDataSchema = z
+export const syncLogDataSchema = z
   .object({
     id: z.string(),
     connectorId: z.string(),
@@ -71,12 +71,12 @@ const syncLogDataSchema = z
   .passthrough()
 export type SyncLogData = z.output<typeof syncLogDataSchema>
 
-const connectorDetailDataSchema = connectorDataSchema.extend({
+export const connectorDetailDataSchema = connectorDataSchema.extend({
   syncLogs: z.array(syncLogDataSchema),
 })
 export type ConnectorDetailData = z.output<typeof connectorDetailDataSchema>
 
-const connectorDocumentDataSchema = z
+export const connectorDocumentDataSchema = z
   .object({
     id: z.string(),
     filename: z.string(),
@@ -91,7 +91,7 @@ const connectorDocumentDataSchema = z
   .passthrough()
 export type ConnectorDocumentData = z.output<typeof connectorDocumentDataSchema>
 
-const connectorDocumentsDataSchema = z.object({
+export const connectorDocumentsDataSchema = z.object({
   documents: z.array(connectorDocumentDataSchema),
   counts: z.object({ active: z.number(), excluded: z.number() }),
 })

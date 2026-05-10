@@ -1,13 +1,13 @@
 import { z } from 'zod'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 
-const workspaceScopeSchema = z.enum(['active', 'archived', 'all'])
-const workspaceModeSchema = z.enum(['personal', 'organization', 'grandfathered_shared'])
+export const workspaceScopeSchema = z.enum(['active', 'archived', 'all'])
+export const workspaceModeSchema = z.enum(['personal', 'organization', 'grandfathered_shared'])
 export const workspacePermissionSchema = z.enum(['admin', 'write', 'read'])
 export type WorkspaceMode = z.output<typeof workspaceModeSchema>
 export type WorkspacePermission = z.output<typeof workspacePermissionSchema>
 
-const workspaceSchema = z.object({
+export const workspaceSchema = z.object({
   id: z.string(),
   name: z.string(),
   color: z.string().optional(),
@@ -27,7 +27,7 @@ const workspaceSchema = z.object({
 
 export type Workspace = z.output<typeof workspaceSchema>
 
-const workspaceCreationPolicySchema = z.object({
+export const workspaceCreationPolicySchema = z.object({
   canCreate: z.boolean(),
   workspaceMode: workspaceModeSchema,
   organizationId: z.string().nullable(),
@@ -44,7 +44,7 @@ export const listWorkspacesQuerySchema = z.object({
 
 export type WorkspaceQueryScope = NonNullable<z.input<typeof listWorkspacesQuerySchema>['scope']>
 
-const createWorkspaceBodySchema = z.object({
+export const createWorkspaceBodySchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
   color: z
     .string()
@@ -57,7 +57,7 @@ export const workspaceParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-const updateWorkspaceBodySchema = z.object({
+export const updateWorkspaceBodySchema = z.object({
   name: z.string().trim().min(1).optional(),
   color: z
     .string()
@@ -78,7 +78,7 @@ export const deleteWorkspaceBodySchema = z.object({
   deleteTemplates: z.boolean().default(false),
 })
 
-const workspaceUserSchema = z.object({
+export const workspaceUserSchema = z.object({
   userId: z.string(),
   email: z.string(),
   name: z.string().nullable(),
@@ -89,7 +89,7 @@ const workspaceUserSchema = z.object({
 
 export type WorkspaceUser = z.output<typeof workspaceUserSchema>
 
-const workspacePermissionsViewerSchema = z.object({
+export const workspacePermissionsViewerSchema = z.object({
   userId: z.string(),
   isAdmin: z.boolean(),
   permissionType: workspacePermissionSchema,
@@ -97,7 +97,7 @@ const workspacePermissionsViewerSchema = z.object({
 
 export type WorkspacePermissionsViewer = z.output<typeof workspacePermissionsViewerSchema>
 
-const workspacePermissionsResponseSchema = z.object({
+export const workspacePermissionsResponseSchema = z.object({
   users: z.array(workspaceUserSchema),
   total: z.number().int(),
   viewer: workspacePermissionsViewerSchema.optional(),
@@ -105,7 +105,7 @@ const workspacePermissionsResponseSchema = z.object({
 
 export type WorkspacePermissions = z.output<typeof workspacePermissionsResponseSchema>
 
-const updateWorkspacePermissionsBodySchema = z.object({
+export const updateWorkspacePermissionsBodySchema = z.object({
   updates: z.array(
     z.object({
       userId: z.string(),
@@ -114,7 +114,7 @@ const updateWorkspacePermissionsBodySchema = z.object({
   ),
 })
 
-const workspaceMemberSchema = z.object({
+export const workspaceMemberSchema = z.object({
   userId: z.string(),
   name: z.string(),
   image: z.string().nullable(),
@@ -182,7 +182,7 @@ export const getWorkspaceContract = defineRouteContract({
   },
 })
 
-const checkWorkspacePublishedTemplatesContract = defineRouteContract({
+export const checkWorkspacePublishedTemplatesContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]',
   params: workspaceParamsSchema,

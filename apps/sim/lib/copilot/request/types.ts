@@ -39,7 +39,7 @@ export interface ToolCallStateResult<T = unknown> {
   output?: T
 }
 
-const ContentBlockType = {
+export const ContentBlockType = {
   text: 'text',
   thinking: 'thinking',
   tool_call: 'tool_call',

@@ -15,11 +15,11 @@ import {
 } from '@/lib/api/contracts/v1/admin/workflows'
 import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
 
-const adminV1WorkspaceMemberParamsSchema = adminV1IdParamsSchema.extend({
+export const adminV1WorkspaceMemberParamsSchema = adminV1IdParamsSchema.extend({
   memberId: z.string().min(1),
 })
 
-const adminV1DeleteWorkspaceMemberQuerySchema = z.object({
+export const adminV1DeleteWorkspaceMemberQuerySchema = z.object({
   userId: z.preprocess(
     lastQueryValue,
     z
@@ -28,14 +28,14 @@ const adminV1DeleteWorkspaceMemberQuerySchema = z.object({
   ),
 })
 
-const adminV1WorkspaceImportQuerySchema = z.object({
+export const adminV1WorkspaceImportQuerySchema = z.object({
   createFolders: z
     .preprocess(lastQueryValue, z.enum(['true', 'false']).catch('true'))
     .transform((value) => value !== 'false'),
   rootFolderName: adminV1QueryStringSchema,
 })
 
-const adminV1WorkspaceSchema = z.object({
+export const adminV1WorkspaceSchema = z.object({
   id: z.string(),
   name: z.string(),
   ownerId: z.string(),
@@ -43,12 +43,12 @@ const adminV1WorkspaceSchema = z.object({
   updatedAt: z.string(),
 })
 
-const adminV1WorkspaceDetailSchema = adminV1WorkspaceSchema.extend({
+export const adminV1WorkspaceDetailSchema = adminV1WorkspaceSchema.extend({
   workflowCount: z.number(),
   folderCount: z.number(),
 })
 
-const adminV1FolderSchema = z.object({
+export const adminV1FolderSchema = z.object({
   id: z.string(),
   name: z.string(),
   parentId: z.string().nullable(),
@@ -58,7 +58,7 @@ const adminV1FolderSchema = z.object({
   updatedAt: z.string(),
 })
 
-const adminV1WorkspaceMemberSchema = z.object({
+export const adminV1WorkspaceMemberSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
   userId: z.string(),
@@ -70,20 +70,20 @@ const adminV1WorkspaceMemberSchema = z.object({
   userImage: z.string().nullable(),
 })
 
-const adminV1WorkspaceImportResponseSchema = z.object({
+export const adminV1WorkspaceImportResponseSchema = z.object({
   imported: z.number(),
   failed: z.number(),
   results: z.array(adminV1ImportResultSchema),
 })
 
-const adminV1WorkspaceMemberBodySchema = z.object({
+export const adminV1WorkspaceMemberBodySchema = z.object({
   userId: z.string({ error: 'userId is required' }).min(1, { error: 'userId is required' }),
   permissions: workspacePermissionSchema.refine((value) => value !== null, {
     error: 'permissions must be "admin", "write", or "read"',
   }),
 })
 
-const adminV1UpdateWorkspaceMemberBodySchema = z.object({
+export const adminV1UpdateWorkspaceMemberBodySchema = z.object({
   permissions: workspacePermissionSchema.refine((value) => value !== null, {
     error: 'permissions must be "admin", "write", or "read"',
   }),

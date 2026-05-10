@@ -231,7 +231,7 @@ export const WEB_COMMANDS: readonly SlashCommand[] = [
 
 export const ALL_SLASH_COMMANDS: readonly SlashCommand[] = [...TOP_LEVEL_COMMANDS, ...WEB_COMMANDS]
 
-const ALL_COMMAND_IDS = ALL_SLASH_COMMANDS.map((cmd) => cmd.id)
+export const ALL_COMMAND_IDS = ALL_SLASH_COMMANDS.map((cmd) => cmd.id)
 
 /**
  * Get display label for a command ID
@@ -244,7 +244,7 @@ export function getCommandDisplayLabel(commandId: string): string {
 /**
  * Threshold for considering input "near top" of viewport (in pixels)
  */
-const NEAR_TOP_THRESHOLD = 300
+export const NEAR_TOP_THRESHOLD = 300
 
 /**
  * Scroll tolerance for mention menu positioning (in pixels)
@@ -254,7 +254,7 @@ export const SCROLL_TOLERANCE = 8
 /**
  * Shared CSS classes for menu state text (loading, empty states)
  */
-const MENU_STATE_TEXT_CLASSES = 'px-2 py-2 text-caption text-[var(--text-muted)]'
+export const MENU_STATE_TEXT_CLASSES = 'px-2 py-2 text-caption text-[var(--text-muted)]'
 
 /**
  * Calculates the next index for circular navigation (wraps around at bounds)

@@ -1,16 +1,16 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const scheduleStatusSchema = z.enum(['active', 'disabled', 'completed'])
+export const scheduleStatusSchema = z.enum(['active', 'disabled', 'completed'])
 export type ScheduleStatus = z.output<typeof scheduleStatusSchema>
 
-const scheduleSourceTypeSchema = z.enum(['workflow', 'job'])
+export const scheduleSourceTypeSchema = z.enum(['workflow', 'job'])
 export type ScheduleSourceType = z.output<typeof scheduleSourceTypeSchema>
 
-const scheduleLifecycleSchema = z.enum(['persistent', 'until_complete'])
+export const scheduleLifecycleSchema = z.enum(['persistent', 'until_complete'])
 export type ScheduleLifecycle = z.output<typeof scheduleLifecycleSchema>
 
-const scheduleIdParamsSchema = z.object({
+export const scheduleIdParamsSchema = z.object({
   id: z.string().min(1, 'Invalid schedule ID'),
 })
 
@@ -31,7 +31,7 @@ const workflowScheduleQuerySchema = z.object({
  * responses both spread the full row, so the schema describes every column
  * (with NOT NULL columns required and timestamps as ISO strings).
  */
-const workflowScheduleRowSchema = z.object({
+export const workflowScheduleRowSchema = z.object({
   id: z.string(),
   workflowId: z.string().nullable(),
   deploymentVersionId: z.string().nullable(),
@@ -74,14 +74,14 @@ export type WorkflowScheduleRow = z.output<typeof workflowScheduleRowSchema>
  * Workflow-backed rows carry the workflow name/color from `workflow` (NOT NULL
  * columns); job-backed rows synthesize `null` server-side.
  */
-const workspaceScheduleRowSchema = workflowScheduleRowSchema.extend({
+export const workspaceScheduleRowSchema = workflowScheduleRowSchema.extend({
   workflowName: z.string().nullable(),
   workflowColor: z.string().nullable(),
 })
 
 export type WorkspaceScheduleRow = z.output<typeof workspaceScheduleRowSchema>
 
-const createScheduleBodySchema = z.object({
+export const createScheduleBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   title: z.string().min(1, 'Title is required'),
   prompt: z.string().min(1, 'Prompt is required'),
@@ -94,19 +94,19 @@ const createScheduleBodySchema = z.object({
 
 export type CreateScheduleBody = z.input<typeof createScheduleBodySchema>
 
-const reactivateScheduleBodySchema = z.object({
+export const reactivateScheduleBodySchema = z.object({
   action: z.literal('reactivate'),
 })
 
 export type ReactivateScheduleBody = z.input<typeof reactivateScheduleBodySchema>
 
-const disableScheduleBodySchema = z.object({
+export const disableScheduleBodySchema = z.object({
   action: z.literal('disable'),
 })
 
 export type DisableScheduleBody = z.input<typeof disableScheduleBodySchema>
 
-const updateScheduleBodySchema = z.object({
+export const updateScheduleBodySchema = z.object({
   action: z.literal('update'),
   title: z.string().min(1).optional(),
   prompt: z.string().min(1).optional(),
@@ -118,7 +118,7 @@ const updateScheduleBodySchema = z.object({
 
 export type UpdateScheduleBody = z.input<typeof updateScheduleBodySchema>
 
-const scheduleUpdateSchema = z.discriminatedUnion('action', [
+export const scheduleUpdateSchema = z.discriminatedUnion('action', [
   reactivateScheduleBodySchema,
   disableScheduleBodySchema,
   updateScheduleBodySchema,
@@ -165,7 +165,7 @@ export const listWorkspaceSchedulesContract = defineRouteContract({
  * the route synthesizes server-side; everything else is filled in on
  * subsequent reads.
  */
-const createScheduleResponseSchema = z.object({
+export const createScheduleResponseSchema = z.object({
   schedule: z.object({
     id: z.string(),
     status: scheduleStatusSchema,

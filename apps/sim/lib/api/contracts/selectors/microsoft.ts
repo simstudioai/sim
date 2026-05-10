@@ -13,15 +13,15 @@ import {
 } from '@/lib/api/contracts/selectors/shared'
 import type { ContractBody, ContractJsonResponse, ContractQuery } from '@/lib/api/contracts/types'
 
-const teamsChannelsBodySchema = credentialWorkflowBodySchema.extend({
+export const teamsChannelsBodySchema = credentialWorkflowBodySchema.extend({
   teamId: z.string().min(1),
 })
 
-const plannerTasksBodySchema = credentialWorkflowBodySchema.extend({
+export const plannerTasksBodySchema = credentialWorkflowBodySchema.extend({
   planId: z.string().min(1),
 })
 
-const microsoftExcelSheetsQuerySchema = credentialIdQuerySchema.extend({
+export const microsoftExcelSheetsQuerySchema = credentialIdQuerySchema.extend({
   spreadsheetId: z.string().min(1, 'Spreadsheet ID is required'),
   driveId: optionalString,
   workflowId: optionalString,
@@ -33,7 +33,7 @@ const microsoftExcelSheetsQuerySchema = credentialIdQuerySchema.extend({
  * dispatching at runtime. The contract permits the optional `driveId` so a
  * single body schema covers both flows.
  */
-const microsoftExcelDrivesBodySchema = credentialWorkflowBodySchema.extend({
+export const microsoftExcelDrivesBodySchema = credentialWorkflowBodySchema.extend({
   siteId: z.string().min(1, 'Site ID is required'),
   driveId: optionalString,
 })
@@ -62,7 +62,7 @@ export const onedriveFolderQuerySchema = z.object({
 
 export const onedriveFilesQuerySchema = credentialIdQueryWithSearchSchema
 export const onedriveFoldersQuerySchema = credentialIdQueryWithSearchSchema
-const outlookFoldersQuerySchema = credentialIdQuerySchema
+export const outlookFoldersQuerySchema = credentialIdQuerySchema
 
 export const outlookFoldersSelectorContract = defineGetSelector(
   '/api/tools/outlook/folders',

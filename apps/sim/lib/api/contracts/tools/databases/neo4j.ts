@@ -24,15 +24,15 @@ export const neo4jCypherBodySchema = neo4jConnectionBodySchema.extend({
   parameters: z.record(z.string(), z.unknown()).nullable().optional().default({}),
 })
 
-const neo4jQueryBodySchema = neo4jCypherBodySchema
-const neo4jExecuteBodySchema = neo4jCypherBodySchema
-const neo4jCreateBodySchema = neo4jCypherBodySchema
-const neo4jUpdateBodySchema = neo4jCypherBodySchema
-const neo4jMergeBodySchema = neo4jCypherBodySchema
-const neo4jDeleteBodySchema = neo4jCypherBodySchema.extend({
+export const neo4jQueryBodySchema = neo4jCypherBodySchema
+export const neo4jExecuteBodySchema = neo4jCypherBodySchema
+export const neo4jCreateBodySchema = neo4jCypherBodySchema
+export const neo4jUpdateBodySchema = neo4jCypherBodySchema
+export const neo4jMergeBodySchema = neo4jCypherBodySchema
+export const neo4jDeleteBodySchema = neo4jCypherBodySchema.extend({
   detach: z.boolean().optional().default(false),
 })
-const neo4jIntrospectBodySchema = neo4jConnectionBodySchema
+export const neo4jIntrospectBodySchema = neo4jConnectionBodySchema
 
 export const neo4jQueryContract = defineRouteContract({
   method: 'POST',

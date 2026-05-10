@@ -8,20 +8,20 @@ import {
 import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contracts/types'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 
-const discordSendMessageBodySchema = z.object({
+export const discordSendMessageBodySchema = z.object({
   botToken: z.string().min(1, 'Bot token is required'),
   channelId: z.string().min(1, 'Channel ID is required'),
   content: z.string().optional().nullable(),
   files: RawFileInputArraySchema.optional().nullable(),
 })
 
-const discordChannelsBodySchema = z.object({
+export const discordChannelsBodySchema = z.object({
   botToken: discordBotTokenSelectorSchema,
   serverId: discordRequiredIdSchema('Server ID is required'),
   channelId: discordIdSchema.optional().nullable(),
 })
 
-const discordServersBodySchema = z.object({
+export const discordServersBodySchema = z.object({
   botToken: discordBotTokenSelectorSchema,
   serverId: discordIdSchema.optional().nullable(),
 })

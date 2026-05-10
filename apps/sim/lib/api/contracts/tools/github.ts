@@ -25,7 +25,7 @@ const githubCommitFileSchema = z.object({
   content: z.string().optional(),
 })
 
-const githubLatestCommitResponseSchema = z.object({
+export const githubLatestCommitResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     content: z.string(),
@@ -47,7 +47,7 @@ const githubLatestCommitResponseSchema = z.object({
   }),
 })
 
-const githubLatestCommitBodySchema = z.object({
+export const githubLatestCommitBodySchema = z.object({
   owner: z.string().min(1, 'Owner is required'),
   repo: z.string().min(1, 'Repo is required'),
   branch: z.string().optional().nullable(),

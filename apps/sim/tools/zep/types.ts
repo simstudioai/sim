@@ -102,7 +102,7 @@ export const MESSAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete message object output definition.
  */
-const MESSAGE_OUTPUT: OutputProperty = {
+export const MESSAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Zep message object',
   properties: MESSAGE_OUTPUT_PROPERTIES,

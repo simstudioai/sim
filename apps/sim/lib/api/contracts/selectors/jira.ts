@@ -18,14 +18,14 @@ const jiraIssueSectionSchema = z
   })
   .passthrough()
 
-const jiraProjectsQuerySchema = z.object({
+export const jiraProjectsQuerySchema = z.object({
   domain: z.string().trim().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   cloudId: optionalString,
   query: optionalString,
 })
 
-const jiraProjectBodySchema = z.object({
+export const jiraProjectBodySchema = z.object({
   domain: z.string().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   cloudId: optionalString,
@@ -35,7 +35,7 @@ const jiraProjectBodySchema = z.object({
 /**
  * GET `/api/tools/jira/issues` query.
  */
-const jiraIssuesQuerySchema = z.object({
+export const jiraIssuesQuerySchema = z.object({
   domain: z.string().trim().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   cloudId: optionalString,
@@ -56,21 +56,21 @@ const jiraIssuesQuerySchema = z.object({
     .default(0),
 })
 
-const jiraIssuesBodySchema = z.object({
+export const jiraIssuesBodySchema = z.object({
   domain: z.string().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   cloudId: optionalString,
   issueKeys: z.array(z.string().min(1)).default([]),
 })
 
-const jiraParentReferenceSchema = z.union([
+export const jiraParentReferenceSchema = z.union([
   z.string().min(1),
   z.object({ key: z.string().min(1) }).passthrough(),
   z.object({ id: z.string().min(1) }).passthrough(),
 ])
 export type JiraParentReference = z.input<typeof jiraParentReferenceSchema>
 
-const jiraWriteBodySchema = z.object({
+export const jiraWriteBodySchema = z.object({
   domain: z.string({ error: 'Domain is required' }).min(1, 'Domain is required'),
   accessToken: z.string({ error: 'Access token is required' }).min(1, 'Access token is required'),
   projectId: z.string({ error: 'Project ID is required' }).min(1, 'Project ID is required'),
@@ -91,7 +91,7 @@ const jiraWriteBodySchema = z.object({
   fixVersions: z.array(z.string()).optional(),
 })
 
-const jiraUpdateBodySchema = z.object({
+export const jiraUpdateBodySchema = z.object({
   domain: z.string().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   issueKey: z.string().min(1, 'Issue key is required'),
@@ -111,7 +111,7 @@ const jiraUpdateBodySchema = z.object({
   cloudId: z.string().optional(),
 })
 
-const jiraAddAttachmentBodySchema = z.object({
+export const jiraAddAttachmentBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   domain: z.string().min(1, 'Domain is required'),
   issueKey: z.string().min(1, 'Issue key is required'),

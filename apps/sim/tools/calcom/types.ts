@@ -8,7 +8,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 /**
  * Output definition for attendee objects in booking responses
  */
-const ATTENDEE_OUTPUT_PROPERTIES = {
+export const ATTENDEE_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Attendee name' },
   email: { type: 'string', description: 'Attendee actual email address' },
   displayEmail: {
@@ -24,7 +24,7 @@ const ATTENDEE_OUTPUT_PROPERTIES = {
 /**
  * Output definition for host objects in booking responses
  */
-const HOST_OUTPUT_PROPERTIES = {
+export const HOST_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Host user ID' },
   name: { type: 'string', description: 'Host display name' },
   email: { type: 'string', description: 'Host actual email address' },
@@ -39,7 +39,7 @@ const HOST_OUTPUT_PROPERTIES = {
 /**
  * Output definition for event type objects in booking responses
  */
-const EVENT_TYPE_OUTPUT_PROPERTIES = {
+export const EVENT_TYPE_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Event type ID' },
   slug: { type: 'string', description: 'Event type slug' },
 } as const satisfies Record<string, OutputProperty>
@@ -207,7 +207,7 @@ export const PAGINATION_OUTPUT_PROPERTIES = {
 /**
  * Complete pagination output definition
  */
-const PAGINATION_OUTPUT: OutputProperty = {
+export const PAGINATION_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Pagination metadata',
   properties: PAGINATION_OUTPUT_PROPERTIES,
@@ -229,7 +229,7 @@ export const AVAILABILITY_OUTPUT_PROPERTIES = {
 /**
  * Output definition for schedule override objects
  */
-const OVERRIDE_OUTPUT_PROPERTIES = {
+export const OVERRIDE_OUTPUT_PROPERTIES = {
   date: { type: 'string', description: 'Date in YYYY-MM-DD format' },
   startTime: { type: 'string', description: 'Start time in HH:MM format' },
   endTime: { type: 'string', description: 'End time in HH:MM format' },
@@ -238,7 +238,7 @@ const OVERRIDE_OUTPUT_PROPERTIES = {
 /**
  * Complete availability array output definition
  */
-const AVAILABILITY_OUTPUT: OutputProperty = {
+export const AVAILABILITY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Availability windows',
   items: {
@@ -275,7 +275,7 @@ export const SCHEDULE_DATA_OUTPUT_PROPERTIES = {
 /**
  * Common event type data output properties
  */
-const EVENT_TYPE_DATA_OUTPUT_PROPERTIES = {
+export const EVENT_TYPE_DATA_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Event type ID' },
   title: { type: 'string', description: 'Event type title' },
   slug: { type: 'string', description: 'URL-friendly slug' },

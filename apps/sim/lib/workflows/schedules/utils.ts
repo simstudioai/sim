@@ -620,7 +620,7 @@ export function parseCronToScheduleType(cronExpression: string | null | undefine
 /**
  * Format schedule information for display
  */
-const getScheduleInfo = (
+export const getScheduleInfo = (
   cronExpression: string | null,
   nextRunAt: string | null,
   lastRanAt: string | null,

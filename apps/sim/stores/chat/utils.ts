@@ -42,7 +42,7 @@ const calculateDefaultPosition = (): ChatPosition => {
 /**
  * Get the default chat dimensions
  */
-const getDefaultChatDimensions = () => ({
+export const getDefaultChatDimensions = () => ({
   width: DEFAULT_WIDTH,
   height: DEFAULT_HEIGHT,
 })

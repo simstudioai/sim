@@ -21,7 +21,7 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDeploymentOutbox')
 
-const WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS = {
+export const WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS = {
   SYNC_ACTIVE_SIDE_EFFECTS: 'workflow.deployment.sync-active-side-effects',
   CLEANUP_INACTIVE_SIDE_EFFECTS: 'workflow.deployment.cleanup-inactive-side-effects',
   CLEANUP_UNDEPLOYED_SIDE_EFFECTS: 'workflow.deployment.cleanup-undeployed-side-effects',

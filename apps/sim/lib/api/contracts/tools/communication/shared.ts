@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const communicationToolResponseSchema = z.unknown()
+export const communicationToolResponseSchema = z.unknown()
 export const slackBlocksSchema = z.array(z.record(z.string(), z.unknown()))
 export const discordIdSchema = z.union([z.string(), z.number()])
 

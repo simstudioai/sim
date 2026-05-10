@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const auditLogsQuerySchema = z.object({
+export const auditLogsQuerySchema = z.object({
   search: z
     .string()
     .optional()
@@ -33,7 +33,7 @@ const auditLogsQuerySchema = z.object({
 })
 export type AuditLogsQuery = z.output<typeof auditLogsQuerySchema>
 
-const enterpriseAuditLogEntrySchema = z.object({
+export const enterpriseAuditLogEntrySchema = z.object({
   id: z.string(),
   workspaceId: z.string().nullable(),
   actorId: z.string().nullable(),
@@ -50,7 +50,7 @@ const enterpriseAuditLogEntrySchema = z.object({
 
 export type EnterpriseAuditLogEntry = z.output<typeof enterpriseAuditLogEntrySchema>
 
-const listAuditLogsResponseSchema = z.object({
+export const listAuditLogsResponseSchema = z.object({
   success: z.boolean(),
   data: z.array(enterpriseAuditLogEntrySchema),
   nextCursor: z.string().optional(),

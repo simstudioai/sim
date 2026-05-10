@@ -2,12 +2,12 @@ import { z } from 'zod'
 import { toolJsonResponseSchema } from '@/lib/api/contracts/tools/media/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const fileManageQuerySchema = z.object({
+export const fileManageQuerySchema = z.object({
   userId: z.string().min(1).nullable().optional(),
   workspaceId: z.string().min(1).nullable().optional(),
 })
 
-const fileManageWriteBodySchema = z.object({
+export const fileManageWriteBodySchema = z.object({
   operation: z.literal('write'),
   workspaceId: z.string().min(1).optional(),
   fileName: z.string({ error: 'fileName is required for write operation' }).min(1),
@@ -15,14 +15,14 @@ const fileManageWriteBodySchema = z.object({
   contentType: z.string().optional(),
 })
 
-const fileManageAppendBodySchema = z.object({
+export const fileManageAppendBodySchema = z.object({
   operation: z.literal('append'),
   workspaceId: z.string().min(1).optional(),
   fileName: z.string({ error: 'fileName is required for append operation' }).min(1),
   content: z.string({ error: 'content is required for append operation' }),
 })
 
-const fileManageBodySchema = z.discriminatedUnion('operation', [
+export const fileManageBodySchema = z.discriminatedUnion('operation', [
   fileManageWriteBodySchema,
   fileManageAppendBodySchema,
 ])

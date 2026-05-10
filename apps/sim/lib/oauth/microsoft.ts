@@ -1,7 +1,7 @@
 const MICROSOFT_REFRESH_TOKEN_LIFETIME_DAYS = 90
 export const PROACTIVE_REFRESH_THRESHOLD_DAYS = 7
 
-const MICROSOFT_PROVIDERS = new Set([
+export const MICROSOFT_PROVIDERS = new Set([
   'microsoft-ad',
   'microsoft-dataverse',
   'microsoft-excel',

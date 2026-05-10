@@ -75,6 +75,14 @@ Fetch and filter issues from Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
+|   ↳ `state` | object | Workflow state/status |
+|     ↳ `id` | string | State ID |
+|     ↳ `name` | string | State name \(e.g., "Todo", "In Progress"\) |
+|     ↳ `type` | string | State type \(unstarted, started, completed, canceled\) |
+|   ↳ `assignee` | object | User object |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
 |   ↳ `teamId` | string | Team ID |
 |   ↳ `teamName` | string | Team name |
 |   ↳ `projectId` | string | Project ID |
@@ -82,6 +90,10 @@ Fetch and filter issues from Linear
 |   ↳ `cycleId` | string | Cycle ID |
 |   ↳ `cycleNumber` | number | Cycle number |
 |   ↳ `cycleName` | string | Cycle name |
+|   ↳ `labels` | array | Issue labels |
+|     ↳ `id` | string | Label ID |
+|     ↳ `name` | string | Label name |
+|     ↳ `color` | string | Label color \(hex\) |
 
 ### `linear_get_issue`
 
@@ -110,8 +122,20 @@ Get a single issue by ID from Linear with full details
 |   ↳ `completedAt` | string | Completion timestamp \(ISO 8601\) |
 |   ↳ `canceledAt` | string | Cancellation timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
+|   ↳ `state` | object | Workflow state/status |
+|     ↳ `id` | string | State ID |
+|     ↳ `name` | string | State name \(e.g., "Todo", "In Progress"\) |
+|     ↳ `type` | string | State type \(unstarted, started, completed, canceled\) |
+|   ↳ `assignee` | object | User object |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
 |   ↳ `teamId` | string | Team ID |
 |   ↳ `projectId` | string | Project ID |
+|   ↳ `labels` | array | Issue labels |
+|     ↳ `id` | string | Label ID |
+|     ↳ `name` | string | Label name |
+|     ↳ `color` | string | Label color \(hex\) |
 
 ### `linear_create_issue`
 
@@ -153,8 +177,20 @@ Create a new issue in Linear
 |   ↳ `completedAt` | string | Completion timestamp \(ISO 8601\) |
 |   ↳ `canceledAt` | string | Cancellation timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
+|   ↳ `state` | object | Workflow state/status |
+|     ↳ `id` | string | State ID |
+|     ↳ `name` | string | State name \(e.g., "Todo", "In Progress"\) |
+|     ↳ `type` | string | State type \(unstarted, started, completed, canceled\) |
+|   ↳ `assignee` | object | User object |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
 |   ↳ `teamId` | string | Team ID |
 |   ↳ `projectId` | string | Project ID |
+|   ↳ `labels` | array | Issue labels |
+|     ↳ `id` | string | Label ID |
+|     ↳ `name` | string | Label name |
+|     ↳ `color` | string | Label color \(hex\) |
 |   ↳ `cycleId` | string | Cycle ID |
 |   ↳ `cycleNumber` | number | Cycle number |
 |   ↳ `cycleName` | string | Cycle name |
@@ -203,8 +239,20 @@ Update an existing issue in Linear
 |   ↳ `completedAt` | string | Completion timestamp \(ISO 8601\) |
 |   ↳ `canceledAt` | string | Cancellation timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
+|   ↳ `state` | object | Workflow state/status |
+|     ↳ `id` | string | State ID |
+|     ↳ `name` | string | State name \(e.g., "Todo", "In Progress"\) |
+|     ↳ `type` | string | State type \(unstarted, started, completed, canceled\) |
+|   ↳ `assignee` | object | User object |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
 |   ↳ `teamId` | string | Team ID |
 |   ↳ `projectId` | string | Project ID |
+|   ↳ `labels` | array | Issue labels |
+|     ↳ `id` | string | Label ID |
+|     ↳ `name` | string | Label name |
+|     ↳ `color` | string | Label color \(hex\) |
 |   ↳ `cycleId` | string | Cycle ID |
 |   ↳ `cycleNumber` | number | Cycle number |
 |   ↳ `cycleName` | string | Cycle name |
@@ -297,8 +345,20 @@ Search for issues in Linear using full-text search
 |   ↳ `completedAt` | string | Completion timestamp \(ISO 8601\) |
 |   ↳ `canceledAt` | string | Cancellation timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
+|   ↳ `state` | object | Workflow state/status |
+|     ↳ `id` | string | State ID |
+|     ↳ `name` | string | State name \(e.g., "Todo", "In Progress"\) |
+|     ↳ `type` | string | State type \(unstarted, started, completed, canceled\) |
+|   ↳ `assignee` | object | User object |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
 |   ↳ `teamId` | string | Team ID |
 |   ↳ `projectId` | string | Project ID |
+|   ↳ `labels` | array | Issue labels |
+|     ↳ `id` | string | Label ID |
+|     ↳ `name` | string | Label name |
+|     ↳ `color` | string | Label color \(hex\) |
 
 ### `linear_add_label_to_issue`
 
@@ -356,6 +416,13 @@ Add a comment to an issue in Linear
 |   ↳ `body` | string | Comment text \(Markdown\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `user` | object | User object |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `issue` | object | Issue object |
+|     ↳ `id` | string | Issue ID |
+|     ↳ `title` | string | Issue title |
 
 ### `linear_update_comment`
 
@@ -377,6 +444,13 @@ Edit a comment in Linear
 |   ↳ `body` | string | Comment text \(Markdown\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `user` | object | User object |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `issue` | object | Issue object |
+|     ↳ `id` | string | Issue ID |
+|     ↳ `title` | string | Issue title |
 
 ### `linear_delete_comment`
 
@@ -418,6 +492,13 @@ List all comments on an issue in Linear
 |   ↳ `body` | string | Comment text \(Markdown\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `user` | object | User object |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
+|   ↳ `issue` | object | Issue object |
+|     ↳ `id` | string | Issue ID |
+|     ↳ `title` | string | Issue title |
 
 ### `linear_list_projects`
 
@@ -448,7 +529,13 @@ List projects in Linear with optional filtering
 |   ↳ `startDate` | string | Start date \(YYYY-MM-DD\) |
 |   ↳ `targetDate` | string | Target date \(YYYY-MM-DD\) |
 |   ↳ `url` | string | Project URL |
+|   ↳ `lead` | object | User object |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
 |   ↳ `teams` | array | Associated teams |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_get_project`
 
@@ -473,7 +560,13 @@ Get a single project by ID from Linear
 |   ↳ `startDate` | string | Start date \(YYYY-MM-DD\) |
 |   ↳ `targetDate` | string | Target date \(YYYY-MM-DD\) |
 |   ↳ `url` | string | Project URL |
+|   ↳ `lead` | object | User object |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
 |   ↳ `teams` | array | Associated teams |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_create_project`
 
@@ -504,7 +597,13 @@ Create a new project in Linear
 |   ↳ `startDate` | string | Start date \(YYYY-MM-DD\) |
 |   ↳ `targetDate` | string | Target date \(YYYY-MM-DD\) |
 |   ↳ `url` | string | Project URL |
+|   ↳ `lead` | object | User object |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
 |   ↳ `teams` | array | Associated teams |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_update_project`
 
@@ -536,7 +635,13 @@ Update an existing project in Linear
 |   ↳ `startDate` | string | Start date \(YYYY-MM-DD\) |
 |   ↳ `targetDate` | string | Target date \(YYYY-MM-DD\) |
 |   ↳ `url` | string | Project URL |
+|   ↳ `lead` | object | User object |
+|     ↳ `id` | string | User ID |
+|     ↳ `name` | string | User name |
+|     ↳ `email` | string | User email |
 |   ↳ `teams` | array | Associated teams |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_archive_project`
 
@@ -657,6 +762,9 @@ List all labels in Linear workspace or team
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
+|   ↳ `team` | object | Team object |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_create_label`
 
@@ -684,6 +792,9 @@ Create a new label in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
+|   ↳ `team` | object | Team object |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_update_label`
 
@@ -711,6 +822,9 @@ Update an existing label in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
+|   ↳ `team` | object | Team object |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_archive_label`
 
@@ -758,6 +872,9 @@ List all workflow states (statuses) in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
+|   ↳ `team` | object | Team object |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_create_workflow_state`
 
@@ -788,6 +905,9 @@ Create a new workflow state (status) in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
+|   ↳ `team` | object | Team object |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_update_workflow_state`
 
@@ -817,6 +937,9 @@ Update an existing workflow state in Linear
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
+|   ↳ `team` | object | Team object |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_list_cycles`
 
@@ -846,6 +969,9 @@ List cycles (sprints/iterations) in Linear
 |   ↳ `completedAt` | string | Completion date \(ISO 8601\) |
 |   ↳ `progress` | number | Progress percentage \(0-1\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `team` | object | Team object |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_get_cycle`
 
@@ -870,6 +996,9 @@ Get a single cycle by ID from Linear
 |   ↳ `completedAt` | string | Completion date \(ISO 8601\) |
 |   ↳ `progress` | number | Progress percentage \(0-1\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `team` | object | Team object |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_create_cycle`
 
@@ -897,6 +1026,9 @@ Create a new cycle (sprint/iteration) in Linear
 |   ↳ `completedAt` | string | Completion date \(ISO 8601\) |
 |   ↳ `progress` | number | Progress percentage \(0-1\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `team` | object | Team object |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_get_active_cycle`
 
@@ -921,6 +1053,9 @@ Get the currently active cycle for a team
 |   ↳ `completedAt` | string | Completion date \(ISO 8601\) |
 |   ↳ `progress` | number | Progress percentage \(0-1\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `team` | object | Team object |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
 
 ### `linear_create_attachment`
 

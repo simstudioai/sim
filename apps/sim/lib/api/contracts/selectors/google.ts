@@ -27,22 +27,22 @@ const gmailLabelSchema = z
   })
   .passthrough()
 
-const labelsQuerySchema = credentialIdQuerySchema.extend({
+export const labelsQuerySchema = credentialIdQuerySchema.extend({
   query: optionalString,
   impersonateEmail: optionalString,
 })
 
-const gmailLabelQuerySchema = credentialIdQuerySchema.extend({
+export const gmailLabelQuerySchema = credentialIdQuerySchema.extend({
   labelId: z.string().min(1),
   impersonateEmail: optionalString,
 })
 
-const googleCalendarQuerySchema = credentialIdQuerySchema.extend({
+export const googleCalendarQuerySchema = credentialIdQuerySchema.extend({
   workflowId: optionalString,
   impersonateEmail: optionalString,
 })
 
-const googleDriveFilesQuerySchema = credentialIdQuerySchema.extend({
+export const googleDriveFilesQuerySchema = credentialIdQuerySchema.extend({
   mimeType: optionalString,
   folderId: optionalString,
   parentId: optionalString,
@@ -51,13 +51,13 @@ const googleDriveFilesQuerySchema = credentialIdQuerySchema.extend({
   impersonateEmail: optionalString,
 })
 
-const googleDriveFileQuerySchema = credentialIdQuerySchema.extend({
+export const googleDriveFileQuerySchema = credentialIdQuerySchema.extend({
   fileId: z.string().min(1, 'File ID is required'),
   workflowId: optionalString,
   impersonateEmail: optionalString,
 })
 
-const googleSheetsQuerySchema = credentialIdQuerySchema.extend({
+export const googleSheetsQuerySchema = credentialIdQuerySchema.extend({
   spreadsheetId: z.string().min(1, 'Spreadsheet ID is required'),
   workflowId: optionalString,
   impersonateEmail: optionalString,

@@ -37,7 +37,7 @@ export const SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Album properties for listing (includes basic album info) */
-const ALBUM_LIST_OUTPUT_PROPERTIES = {
+export const ALBUM_LIST_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Spotify album ID' },
   name: { type: 'string', description: 'Album name' },
   album_type: { type: 'string', description: 'Type of album (album, single, compilation)' },
@@ -58,7 +58,7 @@ export const ALBUM_WITH_ARTISTS_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Track properties for basic track info */
-const TRACK_OUTPUT_PROPERTIES = {
+export const TRACK_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Spotify track ID' },
   name: { type: 'string', description: 'Track name' },
   artists: {
@@ -149,7 +149,7 @@ export const PLAYLIST_OWNER_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Playlist list item properties */
-const PLAYLIST_LIST_OUTPUT_PROPERTIES = {
+export const PLAYLIST_LIST_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Spotify playlist ID' },
   name: { type: 'string', description: 'Playlist name' },
   description: { type: 'string', description: 'Playlist description', optional: true },
@@ -162,7 +162,7 @@ const PLAYLIST_LIST_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Device properties */
-const DEVICE_OUTPUT_PROPERTIES = {
+export const DEVICE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Device ID' },
   name: { type: 'string', description: 'Device name' },
   type: { type: 'string', description: 'Device type (Computer, Smartphone, etc.)' },

@@ -34,7 +34,7 @@ interface McpToolDefinition {
  * File item Zod schema for MCP file inputs.
  * This is the single source of truth for file structure.
  */
-const fileItemZodSchema = z.object({
+export const fileItemZodSchema = z.object({
   name: z.string().describe('File name'),
   data: z.string().describe('Base64 encoded file content'),
   mimeType: z.string().describe('MIME type of the file'),

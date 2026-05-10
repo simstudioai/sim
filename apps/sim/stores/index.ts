@@ -15,7 +15,7 @@ const logger = createLogger('Stores')
 /**
  * Reset all Zustand stores and React Query caches to initial state.
  */
-const resetAllStores = () => {
+export const resetAllStores = () => {
   useWorkflowRegistry.setState({
     activeWorkflowId: null,
     error: null,

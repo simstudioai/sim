@@ -296,8 +296,8 @@ export const useFolderStore = create<FolderState>()(
   )
 )
 
-const useIsWorkflowSelected = (workflowId: string) =>
+export const useIsWorkflowSelected = (workflowId: string) =>
   useFolderStore((state) => state.selectedWorkflows.has(workflowId))
 
-const useIsFolderSelected = (folderId: string) =>
+export const useIsFolderSelected = (folderId: string) =>
   useFolderStore((state) => state.selectedFolders.has(folderId))

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const customToolFunctionParametersSchema = z
+export const customToolFunctionParametersSchema = z
   .object({
     type: z.string(),
     properties: z.record(z.string(), z.unknown()),
@@ -22,25 +22,25 @@ export const customToolSchemaSchema = z
   })
   .passthrough()
 
-const customToolUpsertItemSchema = z.object({
+export const customToolUpsertItemSchema = z.object({
   id: z.string().optional(),
   title: z.string().min(1, 'Tool title is required'),
   schema: customToolSchemaSchema,
   code: z.string(),
 })
 
-const customToolsQuerySchema = z.object({
+export const customToolsQuerySchema = z.object({
   workspaceId: z.string().optional(),
   workflowId: z.string().optional(),
 })
 
-const upsertCustomToolsBodySchema = z.object({
+export const upsertCustomToolsBodySchema = z.object({
   tools: z.array(customToolUpsertItemSchema),
   workspaceId: z.string().optional(),
   source: z.enum(['settings', 'tool_input']).optional(),
 })
 
-const deleteCustomToolQuerySchema = z.object({
+export const deleteCustomToolQuerySchema = z.object({
   id: z.string().min(1),
   workspaceId: z.string().optional(),
   source: z.enum(['settings', 'tool_input']).optional().catch(undefined),

@@ -1,7 +1,7 @@
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
-const EMAILBISON_TRIGGER_TO_EVENT_TYPE = {
+export const EMAILBISON_TRIGGER_TO_EVENT_TYPE = {
   emailbison_email_sent: 'email_sent',
   emailbison_lead_first_contacted: 'lead_first_contacted',
   emailbison_lead_replied: 'lead_replied',

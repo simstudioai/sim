@@ -19,7 +19,7 @@ export const emailPreviewQuerySchema = z.object({
   template: z.string().optional(),
 })
 
-const integrationRequestBodySchema = z.object({
+export const integrationRequestBodySchema = z.object({
   integrationName: z
     .string()
     .trim()
@@ -31,7 +31,7 @@ const integrationRequestBodySchema = z.object({
 })
 export type IntegrationRequestBody = z.input<typeof integrationRequestBodySchema>
 
-const integrationRequestResponseSchema = z.object({
+export const integrationRequestResponseSchema = z.object({
   success: z.literal(true),
   message: z.string(),
 })
@@ -92,7 +92,7 @@ export const getStarsContract = defineRouteContract({
   },
 })
 
-const getStatusContract = defineRouteContract({
+export const getStatusContract = defineRouteContract({
   method: 'GET',
   path: '/api/status',
   response: {

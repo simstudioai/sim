@@ -595,6 +595,12 @@ Get approvals for a request in Jira Service Management
 |   ↳ `finalDecision` | string | Final decision: pending, approved, or declined |
 |   ↳ `canAnswerApproval` | boolean | Whether current user can respond |
 |   ↳ `approvers` | array | List of approvers with their decisions |
+|     ↳ `approver` | object | Approver user details |
+|       ↳ `accountId` | string | Atlassian account ID |
+|       ↳ `displayName` | string | User display name |
+|       ↳ `emailAddress` | string | User email address |
+|       ↳ `active` | boolean | Whether the account is active |
+|     ↳ `approverDecision` | string | Decision: pending, approved, or declined |
 |   ↳ `createdDate` | json | Creation date |
 |   ↳ `completedDate` | json | Completion date |
 | `total` | number | Total number of approvals |

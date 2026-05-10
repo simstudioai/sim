@@ -1,22 +1,22 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const onePasswordCredentialsBodySchema = z.object({
+export const onePasswordCredentialsBodySchema = z.object({
   connectionMode: z.enum(['service_account', 'connect']).nullish(),
   serviceAccountToken: z.string().nullish(),
   serverUrl: z.string().nullish(),
   apiKey: z.string().nullish(),
 })
 
-const onePasswordListVaultsBodySchema = onePasswordCredentialsBodySchema.extend({
+export const onePasswordListVaultsBodySchema = onePasswordCredentialsBodySchema.extend({
   filter: z.string().nullish(),
 })
 
-const onePasswordGetVaultBodySchema = onePasswordCredentialsBodySchema.extend({
+export const onePasswordGetVaultBodySchema = onePasswordCredentialsBodySchema.extend({
   vaultId: z.string().min(1, 'Vault ID is required'),
 })
 
-const onePasswordListItemsBodySchema = onePasswordGetVaultBodySchema.extend({
+export const onePasswordListItemsBodySchema = onePasswordGetVaultBodySchema.extend({
   filter: z.string().nullish(),
 })
 
@@ -24,22 +24,22 @@ export const onePasswordGetItemBodySchema = onePasswordGetVaultBodySchema.extend
   itemId: z.string().min(1, 'Item ID is required'),
 })
 
-const onePasswordCreateItemBodySchema = onePasswordGetVaultBodySchema.extend({
+export const onePasswordCreateItemBodySchema = onePasswordGetVaultBodySchema.extend({
   category: z.string().min(1, 'Category is required'),
   title: z.string().nullish(),
   tags: z.string().nullish(),
   fields: z.string().nullish(),
 })
 
-const onePasswordUpdateItemBodySchema = onePasswordGetItemBodySchema.extend({
+export const onePasswordUpdateItemBodySchema = onePasswordGetItemBodySchema.extend({
   operations: z.string().min(1, 'Patch operations are required'),
 })
 
-const onePasswordReplaceItemBodySchema = onePasswordGetItemBodySchema.extend({
+export const onePasswordReplaceItemBodySchema = onePasswordGetItemBodySchema.extend({
   item: z.string().min(1, 'Item JSON is required'),
 })
 
-const onePasswordResolveSecretBodySchema = onePasswordCredentialsBodySchema.extend({
+export const onePasswordResolveSecretBodySchema = onePasswordCredentialsBodySchema.extend({
   secretReference: z.string().min(1, 'Secret reference is required'),
 })
 

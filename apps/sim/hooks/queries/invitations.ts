@@ -15,7 +15,7 @@ import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
-const invitationKeys = {
+export const invitationKeys = {
   all: ['invitations'] as const,
   lists: () => [...invitationKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...invitationKeys.lists(), workspaceId] as const,

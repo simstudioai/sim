@@ -19,7 +19,7 @@ export const STATE_OUTPUT_PROPERTIES = {
 /**
  * Complete state object output definition
  */
-const STATE_OUTPUT: OutputProperty = {
+export const STATE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Workflow state/status',
   properties: STATE_OUTPUT_PROPERTIES,
@@ -37,7 +37,7 @@ export const USER_OUTPUT_PROPERTIES = {
 /**
  * Complete user object output definition
  */
-const USER_OUTPUT: OutputProperty = {
+export const USER_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'User object',
   properties: USER_OUTPUT_PROPERTIES,
@@ -67,7 +67,7 @@ export const TEAM_OUTPUT_PROPERTIES = {
 /**
  * Complete team object output definition
  */
-const TEAM_OUTPUT: OutputProperty = {
+export const TEAM_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Team object',
   properties: TEAM_OUTPUT_PROPERTIES,
@@ -86,7 +86,7 @@ export const TEAM_FULL_OUTPUT_PROPERTIES = {
 /**
  * Output definition for nested label objects
  */
-const LABEL_OUTPUT_PROPERTIES = {
+export const LABEL_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Label ID' },
   name: { type: 'string', description: 'Label name' },
   color: { type: 'string', description: 'Label color (hex)' },
@@ -131,7 +131,7 @@ export const CYCLE_OUTPUT_PROPERTIES = {
 /**
  * Complete cycle object output definition
  */
-const CYCLE_OUTPUT: OutputProperty = {
+export const CYCLE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Cycle/sprint object',
   properties: CYCLE_OUTPUT_PROPERTIES,
@@ -163,7 +163,7 @@ export const PROJECT_OUTPUT_PROPERTIES = {
 /**
  * Complete project object output definition
  */
-const PROJECT_OUTPUT: OutputProperty = {
+export const PROJECT_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Project object',
   properties: PROJECT_OUTPUT_PROPERTIES,
@@ -206,7 +206,7 @@ export const ISSUE_MINIMAL_OUTPUT_PROPERTIES = {
 /**
  * Complete issue minimal object output definition
  */
-const ISSUE_MINIMAL_OUTPUT: OutputProperty = {
+export const ISSUE_MINIMAL_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Issue object',
   properties: ISSUE_MINIMAL_OUTPUT_PROPERTIES,
@@ -298,7 +298,7 @@ export const WORKFLOW_STATE_OUTPUT_PROPERTIES = {
 /**
  * Output definition for issue relation objects
  */
-const ISSUE_RELATION_OUTPUT_PROPERTIES = {
+export const ISSUE_RELATION_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Relation ID' },
   type: { type: 'string', description: 'Relation type (blocks, duplicate, related)' },
   issue: ISSUE_MINIMAL_OUTPUT,
@@ -308,7 +308,7 @@ const ISSUE_RELATION_OUTPUT_PROPERTIES = {
 /**
  * Output definition for favorite objects
  */
-const FAVORITE_OUTPUT_PROPERTIES = {
+export const FAVORITE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Favorite ID' },
   type: { type: 'string', description: 'Favorite type (issue, project, cycle)' },
   issue: ISSUE_MINIMAL_OUTPUT,
@@ -319,7 +319,7 @@ const FAVORITE_OUTPUT_PROPERTIES = {
 /**
  * Output definition for project update objects
  */
-const PROJECT_UPDATE_OUTPUT_PROPERTIES = {
+export const PROJECT_UPDATE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Project update ID' },
   body: { type: 'string', description: 'Update body (Markdown)' },
   health: { type: 'string', description: 'Project health (onTrack, atRisk, offTrack)' },
@@ -330,7 +330,7 @@ const PROJECT_UPDATE_OUTPUT_PROPERTIES = {
 /**
  * Output definition for notification objects
  */
-const NOTIFICATION_OUTPUT_PROPERTIES = {
+export const NOTIFICATION_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Notification ID' },
   type: { type: 'string', description: 'Notification type' },
   createdAt: { type: 'string', description: 'Creation timestamp (ISO 8601)' },
@@ -367,7 +367,7 @@ export const CUSTOMER_OUTPUT_PROPERTIES = {
 /**
  * Output definition for customer need/request objects
  */
-const CUSTOMER_NEED_OUTPUT_PROPERTIES = {
+export const CUSTOMER_NEED_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Customer need ID' },
   body: { type: 'string', description: 'Need body/description' },
   priority: { type: 'number', description: 'Priority (0-4)' },
@@ -450,7 +450,7 @@ export const PROJECT_MILESTONE_OUTPUT_PROPERTIES = {
 /**
  * Output definition for nested project milestone objects
  */
-const PROJECT_MILESTONE_MINIMAL_OUTPUT_PROPERTIES = {
+export const PROJECT_MILESTONE_MINIMAL_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Project milestone ID' },
   name: { type: 'string', description: 'Milestone name' },
 } as const satisfies Record<string, OutputProperty>

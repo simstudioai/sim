@@ -4,7 +4,7 @@ import type { TriggerOutput } from '@/triggers/types'
 /**
  * Dropdown options for the Ashby trigger type selector.
  */
-const ashbyTriggerOptions = [
+export const ashbyTriggerOptions = [
   { label: 'Application Submitted', id: 'ashby_application_submit' },
   { label: 'Candidate Stage Change', id: 'ashby_candidate_stage_change' },
   { label: 'Candidate Hired', id: 'ashby_candidate_hire' },

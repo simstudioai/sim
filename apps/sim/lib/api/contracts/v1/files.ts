@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const v1FileParamsSchema = z.object({
+export const v1FileParamsSchema = z.object({
   fileId: z.string({ error: 'File ID is required' }).min(1, 'File ID is required'),
 })
 
-const v1WorkspaceIdQuerySchema = z.object({
+export const v1WorkspaceIdQuerySchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId query parameter is required'),
 })
 
@@ -34,7 +34,7 @@ export const v1ListFilesContract = defineRouteContract({
   },
 })
 
-const v1UploadFileContract = defineRouteContract({
+export const v1UploadFileContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/files',
   response: {

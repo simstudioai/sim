@@ -6,7 +6,7 @@ const dateStringSchema = z.preprocess(
   z.string()
 )
 
-const workflowMcpWorkspaceQuerySchema = z.object({
+export const workflowMcpWorkspaceQuerySchema = z.object({
   workspaceId: z.string().min(1),
 })
 
@@ -18,7 +18,7 @@ export const workflowMcpToolParamsSchema = workflowMcpServerParamsSchema.extend(
   toolId: z.string().min(1),
 })
 
-const workflowMcpServerSchema = z
+export const workflowMcpServerSchema = z
   .object({
     id: z.string(),
     workspaceId: z.string(),
@@ -34,7 +34,7 @@ const workflowMcpServerSchema = z
   .passthrough()
 export type WorkflowMcpServer = z.output<typeof workflowMcpServerSchema>
 
-const workflowMcpToolSchema = z
+export const workflowMcpToolSchema = z
   .object({
     id: z.string(),
     serverId: z.string(),
@@ -51,7 +51,7 @@ const workflowMcpToolSchema = z
   .passthrough()
 export type WorkflowMcpTool = z.output<typeof workflowMcpToolSchema>
 
-const deployedWorkflowSchema = z
+export const deployedWorkflowSchema = z
   .object({
     id: z.string(),
     name: z.string(),
@@ -99,7 +99,7 @@ export const updateWorkflowMcpToolBodySchema = z
   })
   .passthrough()
 
-const workflowMcpDeployedWorkflowsQuerySchema = z.object({
+export const workflowMcpDeployedWorkflowsQuerySchema = z.object({
   workspaceId: z.string().min(1),
   scope: z.enum(['active', 'archived', 'all']).default('active'),
 })

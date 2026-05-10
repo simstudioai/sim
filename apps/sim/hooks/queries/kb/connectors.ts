@@ -21,7 +21,7 @@ const logger = createLogger('KnowledgeConnectorQueries')
 
 export type { ConnectorData, ConnectorDetailData, SyncLogData }
 
-const connectorKeys = {
+export const connectorKeys = {
   all: (knowledgeBaseId: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'connectors'] as const,
   list: (knowledgeBaseId?: string) =>
@@ -220,7 +220,7 @@ export function useTriggerSync() {
   })
 }
 
-const connectorDocumentKeys = {
+export const connectorDocumentKeys = {
   list: (knowledgeBaseId?: string, connectorId?: string) =>
     [...connectorKeys.detail(knowledgeBaseId, connectorId), 'documents'] as const,
 }

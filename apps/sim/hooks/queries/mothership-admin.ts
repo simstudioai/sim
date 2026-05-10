@@ -52,7 +52,7 @@ async function mothershipGet(
   return res.json()
 }
 
-const mothershipKeys = {
+export const mothershipKeys = {
   all: ['mothership-admin'] as const,
   requests: (env: MothershipEnv, start: string, end: string, userId?: string) =>
     [...mothershipKeys.all, 'requests', env, start, end, userId] as const,

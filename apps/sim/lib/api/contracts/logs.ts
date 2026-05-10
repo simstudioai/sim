@@ -4,7 +4,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const comparisonOperatorSchema = z.enum(['=', '>', '<', '>=', '<=', '!='])
 
-const logIdParamsSchema = z.object({
+export const logIdParamsSchema = z.object({
   id: z.string().min(1),
 })
 
@@ -12,7 +12,7 @@ export const executionIdParamsSchema = z.object({
   executionId: z.string().min(1),
 })
 
-const cancelWorkflowExecutionParamsSchema = z.object({
+export const cancelWorkflowExecutionParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
   executionId: z.string().min(1, 'Invalid execution ID'),
 })
@@ -35,17 +35,17 @@ const logFilterQuerySchema = z.object({
   durationValue: z.coerce.number().optional(),
 })
 
-const logSortBySchema = z.enum(['date', 'duration', 'cost', 'status']).default('date')
-const logSortOrderSchema = z.enum(['asc', 'desc']).default('desc')
+export const logSortBySchema = z.enum(['date', 'duration', 'cost', 'status']).default('date')
+export const logSortOrderSchema = z.enum(['asc', 'desc']).default('desc')
 
-const listLogsQuerySchema = logFilterQuerySchema.extend({
+export const listLogsQuerySchema = logFilterQuerySchema.extend({
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional().default(100),
   sortBy: logSortBySchema,
   sortOrder: logSortOrderSchema,
 })
 
-const logDetailQuerySchema = z.object({
+export const logDetailQuerySchema = z.object({
   workspaceId: z.string().min(1),
 })
 
@@ -204,7 +204,7 @@ const executionDataDetailSchema = z
   })
   .passthrough()
 
-const workflowLogSummarySchema = z.object({
+export const workflowLogSummarySchema = z.object({
   id: z.string(),
   workflowId: z.string().nullable(),
   executionId: z.string().nullable(),
@@ -223,7 +223,7 @@ const workflowLogSummarySchema = z.object({
   hasPendingPause: z.boolean(),
 })
 
-const workflowLogDetailSchema = workflowLogSummarySchema.extend({
+export const workflowLogDetailSchema = workflowLogSummarySchema.extend({
   executionData: executionDataDetailSchema,
   files: z.array(userFileSchema).nullable(),
 })
@@ -238,21 +238,21 @@ export type WorkflowLogDetail = z.output<typeof workflowLogDetailSchema>
 export type WorkflowLogRow = WorkflowLogSummary &
   Partial<Pick<WorkflowLogDetail, 'executionData' | 'files'>>
 
-const listLogsResponseSchema = z.object({
+export const listLogsResponseSchema = z.object({
   data: z.array(workflowLogSummarySchema),
   nextCursor: z.string().nullable(),
 })
 
 export type ListLogsResponse = z.output<typeof listLogsResponseSchema>
 
-const segmentStatsSchema = z.object({
+export const segmentStatsSchema = z.object({
   timestamp: z.string(),
   totalExecutions: z.number(),
   successfulExecutions: z.number(),
   avgDurationMs: z.number(),
 })
 
-const workflowStatsSchema = z.object({
+export const workflowStatsSchema = z.object({
   workflowId: z.string(),
   workflowName: z.string(),
   segments: z.array(segmentStatsSchema),
@@ -261,7 +261,7 @@ const workflowStatsSchema = z.object({
   totalSuccessful: z.number(),
 })
 
-const dashboardStatsResponseSchema = z.object({
+export const dashboardStatsResponseSchema = z.object({
   workflows: z.array(workflowStatsSchema),
   aggregateSegments: z.array(segmentStatsSchema),
   totalRuns: z.number(),
@@ -274,7 +274,7 @@ const dashboardStatsResponseSchema = z.object({
   segmentMs: z.number(),
 })
 
-const executionSnapshotDataSchema = z.object({
+export const executionSnapshotDataSchema = z.object({
   executionId: z.string(),
   workflowId: z.string().nullable(),
   workflowState: z.record(z.string(), z.unknown()).nullable(),
@@ -294,7 +294,7 @@ export const triggersQuerySchema = z.object({
 })
 export type TriggersQuery = z.output<typeof triggersQuerySchema>
 
-const cancelWorkflowExecutionResponseSchema = z.object({
+export const cancelWorkflowExecutionResponseSchema = z.object({
   success: z.boolean(),
   executionId: z.string(),
   redisAvailable: z.boolean(),

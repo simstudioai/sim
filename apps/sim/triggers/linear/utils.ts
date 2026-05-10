@@ -110,7 +110,7 @@ export function linearV2SetupInstructions(eventType: string, additionalNotes?: s
 /**
  * V2 trigger dropdown options with _v2 suffixed IDs
  */
-const linearV2TriggerOptions = [
+export const linearV2TriggerOptions = [
   { label: 'Issue Created', id: 'linear_issue_created_v2' },
   { label: 'Issue Updated', id: 'linear_issue_updated_v2' },
   { label: 'Issue Removed', id: 'linear_issue_removed_v2' },
@@ -220,7 +220,7 @@ export const userOutputs = {
 /**
  * Shared team output schema
  */
-const teamOutputs = {
+export const teamOutputs = {
   id: {
     type: 'string',
     description: 'Team ID',
@@ -250,7 +250,7 @@ const teamOutputs = {
 /**
  * Shared state output schema
  */
-const stateOutputs = {
+export const stateOutputs = {
   id: {
     type: 'string',
     description: 'State ID',

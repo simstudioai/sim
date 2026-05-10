@@ -3,7 +3,7 @@ import { defineCommunicationToolContract } from '@/lib/api/contracts/tools/commu
 import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contracts/types'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 
-const smtpSendBodySchema = z.object({
+export const smtpSendBodySchema = z.object({
   smtpHost: z.string().min(1, 'SMTP host is required'),
   smtpPort: z.number().min(1).max(65535, 'Port must be between 1 and 65535'),
   smtpUsername: z.string().min(1, 'SMTP username is required'),
@@ -21,7 +21,7 @@ const smtpSendBodySchema = z.object({
   attachments: RawFileInputArraySchema.optional().nullable(),
 })
 
-const sendGridSendMailBodySchema = z.object({
+export const sendGridSendMailBodySchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
   from: z.string().min(1, 'From email is required'),
   fromName: z.string().optional().nullable(),

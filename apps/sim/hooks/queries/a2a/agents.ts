@@ -25,7 +25,7 @@ export type { A2AAgent }
 /**
  * Query keys for A2A agents
  */
-const a2aAgentKeys = {
+export const a2aAgentKeys = {
   all: ['a2a-agents'] as const,
   lists: () => [...a2aAgentKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...a2aAgentKeys.lists(), workspaceId] as const,

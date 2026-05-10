@@ -6,7 +6,7 @@ import type { ZipParseLimits } from '@/lib/pptx-renderer/parser/zip-parser'
 
 const logger = createLogger('SimPptxViewer')
 
-const SIM_PPTX_ZIP_LIMITS = {
+export const SIM_PPTX_ZIP_LIMITS = {
   maxEntries: 2500,
   maxEntryUncompressedBytes: 50 * 1024 * 1024,
   maxTotalUncompressedBytes: 200 * 1024 * 1024,

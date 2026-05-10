@@ -15,7 +15,7 @@ export type SkillDefinition = Skill
 /**
  * Query key factories for skills queries
  */
-const skillsKeys = {
+export const skillsKeys = {
   all: ['skills'] as const,
   lists: () => [...skillsKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...skillsKeys.lists(), workspaceId] as const,

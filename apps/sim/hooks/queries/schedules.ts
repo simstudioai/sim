@@ -22,7 +22,7 @@ import { deploymentKeys } from '@/hooks/queries/deployments'
 
 const logger = createLogger('ScheduleQueries')
 
-const scheduleKeys = {
+export const scheduleKeys = {
   all: ['schedules'] as const,
   lists: () => [...scheduleKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...scheduleKeys.lists(), workspaceId] as const,

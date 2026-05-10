@@ -13,7 +13,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Returned by storage list operations
  * @see https://github.com/supabase/storage-js/blob/main/src/lib/types.ts
  */
-const STORAGE_FILE_METADATA_OUTPUT_PROPERTIES = {
+export const STORAGE_FILE_METADATA_OUTPUT_PROPERTIES = {
   size: { type: 'number', description: 'File size in bytes', optional: true },
   mimetype: { type: 'string', description: 'MIME type of the file', optional: true },
   cacheControl: { type: 'string', description: 'Cache control header value', optional: true },
@@ -106,7 +106,7 @@ export const STORAGE_MOVE_OUTPUT_PROPERTIES = {
  * Returns: { path: string }
  * @see https://github.com/supabase/storage-js/blob/main/src/packages/StorageFileApi.ts
  */
-const STORAGE_COPY_OUTPUT_PROPERTIES = {
+export const STORAGE_COPY_OUTPUT_PROPERTIES = {
   path: { type: 'string', description: 'Path to the copied file' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -114,7 +114,7 @@ const STORAGE_COPY_OUTPUT_PROPERTIES = {
  * Output definition for storage delete bucket response
  * Returns a confirmation message
  */
-const STORAGE_DELETE_BUCKET_OUTPUT_PROPERTIES = {
+export const STORAGE_DELETE_BUCKET_OUTPUT_PROPERTIES = {
   message: { type: 'string', description: 'Operation status message' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -162,14 +162,14 @@ export const STORAGE_DOWNLOAD_FILE_OUTPUT: OutputProperty = {
 /**
  * Output definition for public URL response
  */
-const STORAGE_PUBLIC_URL_OUTPUT_PROPERTIES = {
+export const STORAGE_PUBLIC_URL_OUTPUT_PROPERTIES = {
   publicUrl: { type: 'string', description: 'The public URL to access the file' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
  * Output definition for signed URL response
  */
-const STORAGE_SIGNED_URL_OUTPUT_PROPERTIES = {
+export const STORAGE_SIGNED_URL_OUTPUT_PROPERTIES = {
   signedUrl: { type: 'string', description: 'The temporary signed URL to access the file' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -212,7 +212,7 @@ export const STORAGE_DELETED_FILES_OUTPUT: OutputProperty = {
 /**
  * Output definition for foreign key reference in column schema
  */
-const INTROSPECT_REFERENCE_OUTPUT_PROPERTIES = {
+export const INTROSPECT_REFERENCE_OUTPUT_PROPERTIES = {
   table: { type: 'string', description: 'Referenced table name' },
   column: { type: 'string', description: 'Referenced column name' },
 } as const satisfies Record<string, OutputProperty>
@@ -220,7 +220,7 @@ const INTROSPECT_REFERENCE_OUTPUT_PROPERTIES = {
 /**
  * Output definition for introspect column schema
  */
-const INTROSPECT_COLUMN_OUTPUT_PROPERTIES = {
+export const INTROSPECT_COLUMN_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Column name' },
   type: { type: 'string', description: 'Column data type' },
   nullable: { type: 'boolean', description: 'Whether the column allows null values' },
@@ -238,7 +238,7 @@ const INTROSPECT_COLUMN_OUTPUT_PROPERTIES = {
 /**
  * Output definition for introspect foreign key
  */
-const INTROSPECT_FOREIGN_KEY_OUTPUT_PROPERTIES = {
+export const INTROSPECT_FOREIGN_KEY_OUTPUT_PROPERTIES = {
   column: { type: 'string', description: 'Local column name' },
   referencesTable: { type: 'string', description: 'Referenced table name' },
   referencesColumn: { type: 'string', description: 'Referenced column name' },
@@ -247,7 +247,7 @@ const INTROSPECT_FOREIGN_KEY_OUTPUT_PROPERTIES = {
 /**
  * Output definition for introspect index
  */
-const INTROSPECT_INDEX_OUTPUT_PROPERTIES = {
+export const INTROSPECT_INDEX_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Index name' },
   columns: {
     type: 'array',

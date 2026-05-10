@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const apiKeySchema = z.object({
+export const apiKeySchema = z.object({
   id: z.string(),
   name: z.string(),
   key: z.string(),
@@ -14,31 +14,31 @@ const apiKeySchema = z.object({
 
 export type ApiKey = z.output<typeof apiKeySchema>
 
-const createApiKeyBodySchema = z.object({
+export const createApiKeyBodySchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
   source: z.enum(['settings', 'deploy_modal']).optional(),
 })
 
-const createPersonalApiKeyBodySchema = createApiKeyBodySchema.pick({ name: true })
+export const createPersonalApiKeyBodySchema = createApiKeyBodySchema.pick({ name: true })
 
 export const apiKeyIdParamsSchema = z.object({
   id: z.string({ error: 'API key ID is required' }).min(1, 'API key ID is required'),
 })
 
-const workspaceApiKeyParamsSchema = z.object({
+export const workspaceApiKeyParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-const workspaceApiKeyIdParamsSchema = z.object({
+export const workspaceApiKeyIdParamsSchema = z.object({
   id: z.string().min(1),
   keyId: z.string().min(1),
 })
 
-const updateWorkspaceApiKeyBodySchema = z.object({
+export const updateWorkspaceApiKeyBodySchema = z.object({
   name: z.string().min(1, 'Name is required'),
 })
 
-const deleteWorkspaceApiKeysBodySchema = z.object({
+export const deleteWorkspaceApiKeysBodySchema = z.object({
   keys: z.array(z.string()).min(1),
 })
 

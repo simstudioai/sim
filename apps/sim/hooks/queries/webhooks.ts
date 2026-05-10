@@ -7,7 +7,7 @@ import {
   type WebhookData,
 } from '@/lib/api/contracts/webhooks'
 
-const webhookKeys = {
+export const webhookKeys = {
   all: ['webhooks'] as const,
   byBlock: (workflowId: string, blockId: string) =>
     [...webhookKeys.all, workflowId, blockId] as const,

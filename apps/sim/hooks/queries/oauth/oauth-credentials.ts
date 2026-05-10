@@ -6,7 +6,7 @@ import { CREDENTIAL_SET } from '@/executor/constants'
 import { useCredentialSetDetail } from '@/hooks/queries/credential-sets'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 
-const oauthCredentialKeys = {
+export const oauthCredentialKeys = {
   all: ['oauthCredentials'] as const,
   list: (providerId?: string, workspaceId?: string, workflowId?: string) =>
     [

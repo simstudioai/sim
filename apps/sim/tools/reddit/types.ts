@@ -9,7 +9,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Output definition for Reddit post (Link) objects.
  * Implements votable and created interfaces per Reddit API docs.
  */
-const POST_OUTPUT_PROPERTIES = {
+export const POST_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Post ID' },
   name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
   title: { type: 'string', description: 'Post title (may contain newlines)' },
@@ -55,7 +55,7 @@ const POST_OUTPUT_PROPERTIES = {
  * Output definition for Reddit comment objects.
  * Implements votable and created interfaces per Reddit API docs.
  */
-const COMMENT_OUTPUT_PROPERTIES = {
+export const COMMENT_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Comment ID' },
   name: { type: 'string', description: 'Thing fullname (t1_xxxxx)' },
   author: { type: 'string', description: 'Commenter account name' },
@@ -90,7 +90,7 @@ const COMMENT_OUTPUT_PROPERTIES = {
 /**
  * Simplified post output properties for listing responses (most commonly used fields)
  */
-const POST_LISTING_OUTPUT_PROPERTIES = {
+export const POST_LISTING_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Post ID' },
   name: { type: 'string', description: 'Thing fullname (t3_xxxxx)' },
   title: { type: 'string', description: 'Post title' },
@@ -109,7 +109,7 @@ const POST_LISTING_OUTPUT_PROPERTIES = {
 /**
  * Simplified comment output properties for listing responses
  */
-const COMMENT_LISTING_OUTPUT_PROPERTIES = {
+export const COMMENT_LISTING_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Comment ID' },
   name: { type: 'string', description: 'Thing fullname (t1_xxxxx)' },
   author: { type: 'string', description: 'Comment author' },
@@ -122,7 +122,7 @@ const COMMENT_LISTING_OUTPUT_PROPERTIES = {
 /**
  * Comment with nested replies output definition
  */
-const COMMENT_WITH_REPLIES_OUTPUT_PROPERTIES = {
+export const COMMENT_WITH_REPLIES_OUTPUT_PROPERTIES = {
   ...COMMENT_LISTING_OUTPUT_PROPERTIES,
   replies: {
     type: 'array',
@@ -172,7 +172,7 @@ export const COMMENTS_ARRAY_OUTPUT: OutputProperty = {
 /**
  * Post metadata output definition for get_comments tool
  */
-const POST_METADATA_OUTPUT: OutputProperty = {
+export const POST_METADATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Post information including ID, title, author, content, and metadata',
   properties: POST_METADATA_OUTPUT_PROPERTIES,
@@ -181,7 +181,7 @@ const POST_METADATA_OUTPUT: OutputProperty = {
 /**
  * Write operation success output properties
  */
-const WRITE_SUCCESS_OUTPUT_PROPERTIES = {
+export const WRITE_SUCCESS_OUTPUT_PROPERTIES = {
   success: { type: 'boolean', description: 'Whether the operation was successful' },
   message: { type: 'string', description: 'Success or error message' },
 } as const satisfies Record<string, OutputProperty>
@@ -199,7 +199,7 @@ export const SUBMIT_POST_DATA_OUTPUT_PROPERTIES = {
 /**
  * Submit post data output definition
  */
-const SUBMIT_POST_DATA_OUTPUT: OutputProperty = {
+export const SUBMIT_POST_DATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Post data including ID, name, URL, and permalink',
   properties: SUBMIT_POST_DATA_OUTPUT_PROPERTIES,
@@ -218,7 +218,7 @@ export const REPLY_DATA_OUTPUT_PROPERTIES = {
 /**
  * Reply data output definition
  */
-const REPLY_DATA_OUTPUT: OutputProperty = {
+export const REPLY_DATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Comment data including ID, name, permalink, and body',
   properties: REPLY_DATA_OUTPUT_PROPERTIES,
@@ -236,7 +236,7 @@ export const EDIT_DATA_OUTPUT_PROPERTIES = {
 /**
  * Edit data output definition
  */
-const EDIT_DATA_OUTPUT: OutputProperty = {
+export const EDIT_DATA_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Updated content data',
   properties: EDIT_DATA_OUTPUT_PROPERTIES,

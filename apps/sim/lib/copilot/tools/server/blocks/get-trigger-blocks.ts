@@ -6,7 +6,7 @@ import { registry as blockRegistry } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 
-const GetTriggerBlocksInput = z.object({})
+export const GetTriggerBlocksInput = z.object({})
 export const GetTriggerBlocksResult = z.object({
   triggerBlockIds: z.array(z.string()),
 })

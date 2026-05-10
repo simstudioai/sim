@@ -5,7 +5,7 @@ import type { LoopType, ParallelType } from '@/lib/workflows/types'
  * Runtime-injected keys for trigger blocks that should be hidden from logs/display.
  * These are added during execution but aren't part of the block's static output schema.
  */
-const TRIGGER_INTERNAL_KEYS = ['webhook', 'workflowId'] as const
+export const TRIGGER_INTERNAL_KEYS = ['webhook', 'workflowId'] as const
 export type TriggerInternalKey = (typeof TRIGGER_INTERNAL_KEYS)[number]
 
 export function isTriggerInternalKey(key: string): key is TriggerInternalKey {
@@ -45,9 +45,17 @@ export enum BlockType {
   SENTINEL_END = 'sentinel_end',
 }
 
-const TRIGGER_BLOCK_TYPES = [BlockType.START_TRIGGER, BlockType.STARTER, BlockType.TRIGGER] as const
+export const TRIGGER_BLOCK_TYPES = [
+  BlockType.START_TRIGGER,
+  BlockType.STARTER,
+  BlockType.TRIGGER,
+] as const
 
-const METADATA_ONLY_BLOCK_TYPES = [BlockType.LOOP, BlockType.PARALLEL, BlockType.NOTE] as const
+export const METADATA_ONLY_BLOCK_TYPES = [
+  BlockType.LOOP,
+  BlockType.PARALLEL,
+  BlockType.NOTE,
+] as const
 
 export type SentinelType = 'start' | 'end'
 
@@ -133,14 +141,14 @@ export const RESERVED_BLOCK_NAMES = [
   REFERENCE.PREFIX.VARIABLE,
 ] as const
 
-const LOOP_REFERENCE = {
+export const LOOP_REFERENCE = {
   ITERATION: 'iteration',
   INDEX: 'index',
   ITEM: 'item',
   INDEX_PATH: 'loop.index',
 } as const
 
-const PARALLEL_REFERENCE = {
+export const PARALLEL_REFERENCE = {
   INDEX: 'index',
   CURRENT_ITEM: 'currentItem',
   ITEMS: 'items',
@@ -266,7 +274,7 @@ export function buildResumeUiUrl(
   return `${prefix}${PAUSE_RESUME.PATH.UI_RESUME}/${workflowId}/${executionId}`
 }
 
-const PARSING = {
+export const PARSING = {
   JSON_RADIX: 10,
   PREVIEW_LENGTH: 200,
   PREVIEW_SUFFIX: '...',
@@ -410,7 +418,7 @@ export function parseReferencePath(reference: string): string[] {
   return content.split(REFERENCE.PATH_DELIMITER)
 }
 
-const PATTERNS = {
+export const PATTERNS = {
   UUID: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,
   UUID_V4: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   UUID_PREFIX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,

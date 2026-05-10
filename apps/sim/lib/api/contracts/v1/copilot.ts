@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 
-const v1CopilotChatBodySchema = z.object({
+export const v1CopilotChatBodySchema = z.object({
   message: z.string().min(1, 'message is required'),
   workflowId: z.string().optional(),
   workflowName: z.string().optional(),

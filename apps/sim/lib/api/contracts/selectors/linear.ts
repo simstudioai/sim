@@ -6,7 +6,7 @@ import {
 } from '@/lib/api/contracts/selectors/shared'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 
-const linearProjectsBodySchema = credentialWorkflowBodySchema.extend({
+export const linearProjectsBodySchema = credentialWorkflowBodySchema.extend({
   teamId: z.string().min(1),
 })
 

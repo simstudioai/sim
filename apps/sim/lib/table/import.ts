@@ -15,7 +15,7 @@ import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
 export type CsvColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
 
 /** Number of CSV rows sampled when inferring column types for a new table. */
-const CSV_SCHEMA_SAMPLE_SIZE = 100
+export const CSV_SCHEMA_SAMPLE_SIZE = 100
 
 /** Maximum rows inserted per `batchInsertRows` call during import. */
 export const CSV_MAX_BATCH_SIZE = 1000

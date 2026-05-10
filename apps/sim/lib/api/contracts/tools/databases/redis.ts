@@ -6,7 +6,7 @@ import {
   defineRouteContract,
 } from '@/lib/api/contracts/types'
 
-const redisExecuteBodySchema = z.object({
+export const redisExecuteBodySchema = z.object({
   url: z.string().min(1, 'Redis connection URL is required'),
   command: z.string().min(1, 'Redis command is required'),
   args: z.array(z.union([z.string(), z.number()])).default([]),

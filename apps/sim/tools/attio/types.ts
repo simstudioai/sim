@@ -1,7 +1,7 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Reusable actor shape returned by the Attio API */
-const ACTOR_OUTPUT_PROPERTIES = {
+export const ACTOR_OUTPUT_PROPERTIES = {
   type: {
     type: 'string',
     description: 'The actor type (e.g. workspace-member, api-token, system)',
@@ -10,19 +10,19 @@ const ACTOR_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Reusable linked-record shape returned by the Attio API */
-const LINKED_RECORD_OUTPUT_PROPERTIES = {
+export const LINKED_RECORD_OUTPUT_PROPERTIES = {
   targetObjectId: { type: 'string', description: 'The linked object ID' },
   targetRecordId: { type: 'string', description: 'The linked record ID' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Reusable assignee shape returned by the Attio API */
-const ASSIGNEE_OUTPUT_PROPERTIES = {
+export const ASSIGNEE_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'The assignee actor type (e.g. workspace-member)' },
   id: { type: 'string', description: 'The assignee actor ID' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Shared output properties for record identifiers (raw API shape, snake_case keys) */
-const RECORD_ID_OUTPUT_PROPERTIES = {
+export const RECORD_ID_OUTPUT_PROPERTIES = {
   workspace_id: { type: 'string', description: 'The workspace ID' },
   object_id: { type: 'string', description: 'The object ID' },
   record_id: { type: 'string', description: 'The record ID' },

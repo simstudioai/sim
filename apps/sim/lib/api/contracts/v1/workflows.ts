@@ -3,7 +3,7 @@ import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
 
-const v1ListWorkflowsQuerySchema = z.object({
+export const v1ListWorkflowsQuerySchema = z.object({
   workspaceId: z.string().min(1),
   folderId: z.string().optional(),
   deployedOnly: booleanQueryFlagSchema.optional().default(false),

@@ -6,9 +6,9 @@ export const environmentVariableSchema = z.object({
   value: z.string(),
 })
 
-const environmentVariablesSchema = z.record(z.string(), z.string())
+export const environmentVariablesSchema = z.record(z.string(), z.string())
 
-const personalEnvironmentDataSchema = z.record(z.string(), environmentVariableSchema)
+export const personalEnvironmentDataSchema = z.record(z.string(), environmentVariableSchema)
 
 export const workspaceEnvironmentDataSchema = z.object({
   workspace: environmentVariablesSchema.default({}),
@@ -16,15 +16,15 @@ export const workspaceEnvironmentDataSchema = z.object({
   conflicts: z.array(z.string()).default([]),
 })
 
-const workspaceEnvironmentParamsSchema = z.object({
+export const workspaceEnvironmentParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-const savePersonalEnvironmentBodySchema = z.object({
+export const savePersonalEnvironmentBodySchema = z.object({
   variables: environmentVariablesSchema,
 })
 
-const removeWorkspaceEnvironmentBodySchema = z.object({
+export const removeWorkspaceEnvironmentBodySchema = z.object({
   keys: z.array(z.string()).min(1),
 })
 

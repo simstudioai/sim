@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query'
 
-const copilotChatSelectionKeys = {
+export const copilotChatSelectionKeys = {
   all: ['copilot-chat-selection'] as const,
   workflows: () => [...copilotChatSelectionKeys.all, 'workflow'] as const,
   workflow: (workflowId?: string) =>

@@ -26,14 +26,14 @@ export const createChunkBodySchema = z.object({
   enabled: z.boolean().optional().default(true),
 })
 
-const updateChunkBodySchema = createChunkBodySchema.partial()
+export const updateChunkBodySchema = createChunkBodySchema.partial()
 
-const bulkChunkOperationBodySchema = z.object({
+export const bulkChunkOperationBodySchema = z.object({
   operation: z.enum(['enable', 'disable', 'delete']),
   chunkIds: z.array(z.string()).min(1, 'At least one chunk ID is required').max(100),
 })
 
-const bulkChunkOperationDataSchema = z.object({
+export const bulkChunkOperationDataSchema = z.object({
   operation: z.string(),
   successCount: z.number(),
   errorCount: z.number(),
@@ -42,7 +42,7 @@ const bulkChunkOperationDataSchema = z.object({
 })
 export type BulkChunkOperationData = z.output<typeof bulkChunkOperationDataSchema>
 
-const chunkDataSchema = z
+export const chunkDataSchema = z
   .object({
     id: z.string(),
     chunkIndex: z.number(),
@@ -75,7 +75,7 @@ const chunkDataSchema = z
   .passthrough()
 export type ChunkData = z.output<typeof chunkDataSchema>
 
-const chunksPaginationSchema = paginationSchema
+export const chunksPaginationSchema = paginationSchema
 export type ChunksPagination = z.output<typeof chunksPaginationSchema>
 
 export type KnowledgeChunksResponse = {

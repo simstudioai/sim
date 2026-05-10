@@ -14,7 +14,7 @@ const slackUserSchema = z
   .object({ id: z.string(), name: z.string(), real_name: z.string() })
   .passthrough()
 
-const slackUsersBodySchema = credentialWorkflowBodySchema.extend({
+export const slackUsersBodySchema = credentialWorkflowBodySchema.extend({
   userId: z.string().optional(),
 })
 

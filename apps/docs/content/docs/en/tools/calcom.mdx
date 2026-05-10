@@ -57,8 +57,23 @@ Create a new booking on Cal.com
 | `status` | string | Response status |
 | `data` | object | Created booking details |
 |   ↳ `eventType` | object | Event type details |
+|     ↳ `id` | number | Event type ID |
+|     ↳ `slug` | string | Event type slug |
 |   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `timeZone` | string | Attendee timezone \(IANA format\) |
+|     ↳ `phoneNumber` | string | Attendee phone number |
+|     ↳ `language` | string | Attendee language preference \(ISO code\) |
+|     ↳ `absent` | boolean | Whether attendee was absent |
 |   ↳ `hosts` | array | List of hosts |
+|     ↳ `id` | number | Host user ID |
+|     ↳ `name` | string | Host display name |
+|     ↳ `email` | string | Host actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `username` | string | Host Cal.com username |
+|     ↳ `timeZone` | string | Host timezone \(IANA format\) |
 |   ↳ `id` | number | Numeric booking ID |
 |   ↳ `uid` | string | Unique identifier for the booking |
 |   ↳ `title` | string | Title of the booking |
@@ -93,8 +108,23 @@ Get details of a specific booking by its UID
 | `status` | string | Response status |
 | `data` | object | Booking details |
 |   ↳ `eventType` | object | Event type details |
+|     ↳ `id` | number | Event type ID |
+|     ↳ `slug` | string | Event type slug |
 |   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `timeZone` | string | Attendee timezone \(IANA format\) |
+|     ↳ `phoneNumber` | string | Attendee phone number |
+|     ↳ `language` | string | Attendee language preference \(ISO code\) |
+|     ↳ `absent` | boolean | Whether attendee was absent |
 |   ↳ `hosts` | array | List of hosts |
+|     ↳ `id` | number | Host user ID |
+|     ↳ `name` | string | Host display name |
+|     ↳ `email` | string | Host actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `username` | string | Host Cal.com username |
+|     ↳ `timeZone` | string | Host timezone \(IANA format\) |
 |   ↳ `id` | number | Numeric booking ID |
 |   ↳ `uid` | string | Unique identifier for the booking |
 |   ↳ `title` | string | Title of the booking |
@@ -140,8 +170,23 @@ List all bookings with optional status filter
 | `status` | string | Response status |
 | `data` | array | Array of bookings |
 |   ↳ `eventType` | object | Event type details |
+|     ↳ `id` | number | Event type ID |
+|     ↳ `slug` | string | Event type slug |
 |   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `timeZone` | string | Attendee timezone \(IANA format\) |
+|     ↳ `phoneNumber` | string | Attendee phone number |
+|     ↳ `language` | string | Attendee language preference \(ISO code\) |
+|     ↳ `absent` | boolean | Whether attendee was absent |
 |   ↳ `hosts` | array | List of hosts |
+|     ↳ `id` | number | Host user ID |
+|     ↳ `name` | string | Host display name |
+|     ↳ `email` | string | Host actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `username` | string | Host Cal.com username |
+|     ↳ `timeZone` | string | Host timezone \(IANA format\) |
 |   ↳ `id` | number | Numeric booking ID |
 |   ↳ `uid` | string | Unique identifier for the booking |
 |   ↳ `title` | string | Title of the booking |
@@ -195,8 +240,23 @@ Cancel an existing booking
 | `status` | string | Response status |
 | `data` | object | Cancelled booking details |
 |   ↳ `eventType` | object | Event type details |
+|     ↳ `id` | number | Event type ID |
+|     ↳ `slug` | string | Event type slug |
 |   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `timeZone` | string | Attendee timezone \(IANA format\) |
+|     ↳ `phoneNumber` | string | Attendee phone number |
+|     ↳ `language` | string | Attendee language preference \(ISO code\) |
+|     ↳ `absent` | boolean | Whether attendee was absent |
 |   ↳ `hosts` | array | List of hosts |
+|     ↳ `id` | number | Host user ID |
+|     ↳ `name` | string | Host display name |
+|     ↳ `email` | string | Host actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `username` | string | Host Cal.com username |
+|     ↳ `timeZone` | string | Host timezone \(IANA format\) |
 |   ↳ `id` | number | Numeric booking ID |
 |   ↳ `uid` | string | Unique identifier for the booking |
 |   ↳ `title` | string | Title of the booking |
@@ -230,8 +290,23 @@ Reschedule an existing booking to a new time
 | `status` | string | Response status |
 | `data` | object | Rescheduled booking details |
 |   ↳ `eventType` | object | Event type details |
+|     ↳ `id` | number | Event type ID |
+|     ↳ `slug` | string | Event type slug |
 |   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `timeZone` | string | Attendee timezone \(IANA format\) |
+|     ↳ `phoneNumber` | string | Attendee phone number |
+|     ↳ `language` | string | Attendee language preference \(ISO code\) |
+|     ↳ `absent` | boolean | Whether attendee was absent |
 |   ↳ `hosts` | array | List of hosts |
+|     ↳ `id` | number | Host user ID |
+|     ↳ `name` | string | Host display name |
+|     ↳ `email` | string | Host actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `username` | string | Host Cal.com username |
+|     ↳ `timeZone` | string | Host timezone \(IANA format\) |
 |   ↳ `id` | number | Numeric booking ID |
 |   ↳ `title` | string | Title of the booking |
 |   ↳ `status` | string | Booking status \(e.g., accepted, pending, cancelled\) |
@@ -267,8 +342,23 @@ Confirm a pending booking that requires confirmation
 | `status` | string | Response status |
 | `data` | object | Confirmed booking details |
 |   ↳ `eventType` | object | Event type details |
+|     ↳ `id` | number | Event type ID |
+|     ↳ `slug` | string | Event type slug |
 |   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `timeZone` | string | Attendee timezone \(IANA format\) |
+|     ↳ `phoneNumber` | string | Attendee phone number |
+|     ↳ `language` | string | Attendee language preference \(ISO code\) |
+|     ↳ `absent` | boolean | Whether attendee was absent |
 |   ↳ `hosts` | array | List of hosts |
+|     ↳ `id` | number | Host user ID |
+|     ↳ `name` | string | Host display name |
+|     ↳ `email` | string | Host actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `username` | string | Host Cal.com username |
+|     ↳ `timeZone` | string | Host timezone \(IANA format\) |
 |   ↳ `id` | number | Numeric booking ID |
 |   ↳ `uid` | string | Unique identifier for the booking |
 |   ↳ `title` | string | Title of the booking |
@@ -302,8 +392,23 @@ Decline a pending booking request
 | `status` | string | Response status |
 | `data` | object | Declined booking details |
 |   ↳ `eventType` | object | Event type details |
+|     ↳ `id` | number | Event type ID |
+|     ↳ `slug` | string | Event type slug |
 |   ↳ `attendees` | array | List of attendees |
+|     ↳ `name` | string | Attendee name |
+|     ↳ `email` | string | Attendee actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `timeZone` | string | Attendee timezone \(IANA format\) |
+|     ↳ `phoneNumber` | string | Attendee phone number |
+|     ↳ `language` | string | Attendee language preference \(ISO code\) |
+|     ↳ `absent` | boolean | Whether attendee was absent |
 |   ↳ `hosts` | array | List of hosts |
+|     ↳ `id` | number | Host user ID |
+|     ↳ `name` | string | Host display name |
+|     ↳ `email` | string | Host actual email address |
+|     ↳ `displayEmail` | string | Email shown publicly \(may differ from actual email\) |
+|     ↳ `username` | string | Host Cal.com username |
+|     ↳ `timeZone` | string | Host timezone \(IANA format\) |
 |   ↳ `id` | number | Numeric booking ID |
 |   ↳ `uid` | string | Unique identifier for the booking |
 |   ↳ `title` | string | Title of the booking |
@@ -506,6 +611,14 @@ Create a new availability schedule in Cal.com
 |   ↳ `name` | string | Schedule name |
 |   ↳ `timeZone` | string | Timezone \(e.g., America/New_York\) |
 |   ↳ `isDefault` | boolean | Whether this is the default schedule |
+|   ↳ `availability` | array | Availability windows |
+|     ↳ `days` | array | Days of the week \(Monday, Tuesday, etc.\) |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+|   ↳ `overrides` | array | Date-specific availability overrides |
+|     ↳ `date` | string | Date in YYYY-MM-DD format |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
 
 ### `calcom_get_schedule`
 
@@ -528,6 +641,14 @@ Get a specific schedule by ID from Cal.com
 |   ↳ `name` | string | Schedule name |
 |   ↳ `timeZone` | string | Timezone \(e.g., America/New_York\) |
 |   ↳ `isDefault` | boolean | Whether this is the default schedule |
+|   ↳ `availability` | array | Availability windows |
+|     ↳ `days` | array | Days of the week \(Monday, Tuesday, etc.\) |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+|   ↳ `overrides` | array | Date-specific availability overrides |
+|     ↳ `date` | string | Date in YYYY-MM-DD format |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
 
 ### `calcom_list_schedules`
 
@@ -549,6 +670,14 @@ List all availability schedules from Cal.com
 |   ↳ `name` | string | Schedule name |
 |   ↳ `timeZone` | string | Timezone \(e.g., America/New_York\) |
 |   ↳ `isDefault` | boolean | Whether this is the default schedule |
+|   ↳ `availability` | array | Availability windows |
+|     ↳ `days` | array | Days of the week \(Monday, Tuesday, etc.\) |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+|   ↳ `overrides` | array | Date-specific availability overrides |
+|     ↳ `date` | string | Date in YYYY-MM-DD format |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
 
 ### `calcom_update_schedule`
 
@@ -580,6 +709,14 @@ Update an existing schedule in Cal.com
 |   ↳ `name` | string | Schedule name |
 |   ↳ `timeZone` | string | Timezone \(e.g., America/New_York\) |
 |   ↳ `isDefault` | boolean | Whether this is the default schedule |
+|   ↳ `availability` | array | Availability windows |
+|     ↳ `days` | array | Days of the week \(Monday, Tuesday, etc.\) |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+|   ↳ `overrides` | array | Date-specific availability overrides |
+|     ↳ `date` | string | Date in YYYY-MM-DD format |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
 
 ### `calcom_delete_schedule`
 
@@ -617,6 +754,14 @@ Get the default availability schedule from Cal.com
 |   ↳ `name` | string | Schedule name |
 |   ↳ `timeZone` | string | Timezone \(e.g., America/New_York\) |
 |   ↳ `isDefault` | boolean | Whether this is the default schedule |
+|   ↳ `availability` | array | Availability windows |
+|     ↳ `days` | array | Days of the week \(Monday, Tuesday, etc.\) |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
+|   ↳ `overrides` | array | Date-specific availability overrides |
+|     ↳ `date` | string | Date in YYYY-MM-DD format |
+|     ↳ `startTime` | string | Start time in HH:MM format |
+|     ↳ `endTime` | string | End time in HH:MM format |
 
 ### `calcom_get_slots`
 

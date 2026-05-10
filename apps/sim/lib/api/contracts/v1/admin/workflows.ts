@@ -9,7 +9,7 @@ import {
 } from '@/lib/api/contracts/v1/admin/shared'
 import { workflowStateSchema } from '@/lib/api/contracts/workflows'
 
-const adminV1WorkflowVersionParamsSchema = adminV1IdParamsSchema.extend({
+export const adminV1WorkflowVersionParamsSchema = adminV1IdParamsSchema.extend({
   versionId: z
     .string()
     .transform((value) => Number(value))
@@ -33,19 +33,19 @@ export const adminV1WorkflowSchema = z.object({
   updatedAt: z.string(),
 })
 
-const adminV1WorkflowDetailSchema = adminV1WorkflowSchema.extend({
+export const adminV1WorkflowDetailSchema = adminV1WorkflowSchema.extend({
   blockCount: z.number(),
   edgeCount: z.number(),
 })
 
-const adminV1WorkflowVariableSchema = z.object({
+export const adminV1WorkflowVariableSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
   value: z.unknown(),
 })
 
-const adminV1WorkflowExportStateSchema = workflowStateSchema.extend({
+export const adminV1WorkflowExportStateSchema = workflowStateSchema.extend({
   metadata: z
     .object({
       name: z.string().optional(),
@@ -57,7 +57,7 @@ const adminV1WorkflowExportStateSchema = workflowStateSchema.extend({
   variables: z.record(z.string(), adminV1WorkflowVariableSchema).optional(),
 })
 
-const adminV1WorkflowExportPayloadSchema = z.object({
+export const adminV1WorkflowExportPayloadSchema = z.object({
   version: z.literal('1.0'),
   exportedAt: z.string(),
   workflow: z.object({
@@ -71,13 +71,13 @@ const adminV1WorkflowExportPayloadSchema = z.object({
   state: adminV1WorkflowExportStateSchema,
 })
 
-const adminV1FolderExportPayloadSchema = z.object({
+export const adminV1FolderExportPayloadSchema = z.object({
   id: z.string(),
   name: z.string(),
   parentId: z.string().nullable(),
 })
 
-const adminV1WorkspaceExportPayloadSchema = z.object({
+export const adminV1WorkspaceExportPayloadSchema = z.object({
   version: z.literal('1.0'),
   exportedAt: z.string(),
   workspace: z.object({
@@ -93,7 +93,7 @@ const adminV1WorkspaceExportPayloadSchema = z.object({
   folders: z.array(adminV1FolderExportPayloadSchema),
 })
 
-const adminV1FolderFullExportPayloadSchema = z.object({
+export const adminV1FolderFullExportPayloadSchema = z.object({
   version: z.literal('1.0'),
   exportedAt: z.string(),
   folder: z.object({
@@ -116,13 +116,13 @@ export const adminV1ImportResultSchema = z.object({
   error: z.string().optional(),
 })
 
-const adminV1WorkflowImportResponseSchema = z.object({
+export const adminV1WorkflowImportResponseSchema = z.object({
   workflowId: z.string(),
   name: z.string(),
   success: z.literal(true),
 })
 
-const adminV1DeploymentVersionSchema = z.object({
+export const adminV1DeploymentVersionSchema = z.object({
   id: z.string(),
   version: z.number(),
   name: z.string().nullable(),
@@ -132,25 +132,25 @@ const adminV1DeploymentVersionSchema = z.object({
   deployedByName: z.string().nullable(),
 })
 
-const adminV1DeployResultSchema = z.object({
+export const adminV1DeployResultSchema = z.object({
   isDeployed: z.literal(true),
   version: z.number(),
   deployedAt: z.string(),
   warnings: z.array(z.string()).optional(),
 })
 
-const adminV1UndeployResultSchema = z.object({
+export const adminV1UndeployResultSchema = z.object({
   isDeployed: z.literal(false),
   warnings: z.array(z.string()).optional(),
 })
 
-const adminV1ExportWorkflowsBodySchema = z.object({
+export const adminV1ExportWorkflowsBodySchema = z.object({
   ids: z
     .array(z.string(), { error: 'ids must be a non-empty array of workflow IDs' })
     .nonempty({ error: 'ids must be a non-empty array of workflow IDs' }),
 })
 
-const adminV1WorkflowImportBodySchema = z.object({
+export const adminV1WorkflowImportBodySchema = z.object({
   workspaceId: z
     .string({ error: 'workspaceId is required' })
     .min(1, { error: 'workspaceId is required' }),

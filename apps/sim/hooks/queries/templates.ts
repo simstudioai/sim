@@ -20,7 +20,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('TemplateQueries')
 
-const templateKeys = {
+export const templateKeys = {
   all: ['templates'] as const,
   lists: () => [...templateKeys.all, 'list'] as const,
   list: (filters?: TemplateListFilters) => [...templateKeys.lists(), filters ?? {}] as const,

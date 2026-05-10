@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const creatorProfileDetailsSchema = z.object({
+export const creatorProfileDetailsSchema = z.object({
   about: z.string().max(2000, 'Max 2000 characters').optional(),
   xUrl: z.string().url().optional().or(z.literal('')),
   linkedinUrl: z.string().url().optional().or(z.literal('')),
@@ -17,7 +17,7 @@ export const listCreatorProfilesQuerySchema = z.object({
   userId: z.string().optional(),
 })
 
-const createCreatorProfileBodySchema = z.object({
+export const createCreatorProfileBodySchema = z.object({
   referenceType: z.enum(['user', 'organization']),
   referenceId: z.string().min(1, 'Reference ID is required'),
   name: z.string().min(1, 'Name is required').max(100, 'Max 100 characters'),
@@ -25,14 +25,14 @@ const createCreatorProfileBodySchema = z.object({
   details: creatorProfileDetailsSchema.optional(),
 })
 
-const updateCreatorProfileBodySchema = z.object({
+export const updateCreatorProfileBodySchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Max 100 characters').optional(),
   profileImageUrl: z.string().optional().or(z.literal('')),
   details: creatorProfileDetailsSchema.optional(),
   verified: z.boolean().optional(),
 })
 
-const creatorProfileSchema = z.object({
+export const creatorProfileSchema = z.object({
   id: z.string(),
   referenceType: z.enum(['user', 'organization']),
   referenceId: z.string(),
@@ -45,7 +45,7 @@ const creatorProfileSchema = z.object({
   updatedAt: z.string(),
 })
 
-const creatorOrganizationSchema = z.object({
+export const creatorOrganizationSchema = z.object({
   id: z.string(),
   name: z.string(),
   role: z.string(),
@@ -91,7 +91,7 @@ export const createCreatorProfileContract = defineRouteContract({
   },
 })
 
-const getCreatorProfileContract = defineRouteContract({
+export const getCreatorProfileContract = defineRouteContract({
   method: 'GET',
   path: '/api/creators/[id]',
   params: creatorProfileParamsSchema,
@@ -116,7 +116,7 @@ export const updateCreatorProfileContract = defineRouteContract({
   },
 })
 
-const deleteCreatorProfileContract = defineRouteContract({
+export const deleteCreatorProfileContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/creators/[id]',
   params: creatorProfileParamsSchema,

@@ -106,6 +106,12 @@ Search for information on the web using Firecrawl
 |   ↳ `rawHtml` | string | Unprocessed raw HTML \(when scrapeOptions.formats includes "rawHtml"\) |
 |   ↳ `links` | array | Links found on the page \(when scrapeOptions.formats includes "links"\) |
 |   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours, when scrapeOptions.formats includes "screenshot"\) |
+|   ↳ `metadata` | object | Metadata about the search result page |
+|     ↳ `title` | string | Page title |
+|     ↳ `description` | string | Page meta description |
+|     ↳ `sourceURL` | string | Original source URL |
+|     ↳ `statusCode` | number | HTTP status code |
+|     ↳ `error` | string | Error message if scrape failed |
 
 ### `firecrawl_crawl`
 
@@ -137,6 +143,13 @@ Crawl entire websites and extract structured content from all accessible pages
 |   ↳ `rawHtml` | string | Unprocessed raw HTML content |
 |   ↳ `links` | array | Array of links found on the page |
 |   ↳ `screenshot` | string | Screenshot URL \(expires after 24 hours\) |
+|   ↳ `metadata` | object | Page metadata from crawl operation |
+|     ↳ `title` | string | Page title |
+|     ↳ `description` | string | Page meta description |
+|     ↳ `language` | string | Page language code |
+|     ↳ `sourceURL` | string | Original source URL |
+|     ↳ `statusCode` | number | HTTP status code |
+|     ↳ `ogLocaleAlternate` | array | Alternate locale versions |
 | `total` | number | Total number of pages found during crawl |
 
 ### `firecrawl_map`

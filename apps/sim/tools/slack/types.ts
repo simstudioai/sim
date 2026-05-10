@@ -15,7 +15,7 @@ import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
  * Output definition for reaction objects on messages
  * Based on Slack API reactions structure
  */
-const REACTION_OUTPUT_PROPERTIES = {
+export const REACTION_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Emoji name (without colons)' },
   count: { type: 'number', description: 'Number of times this reaction was added' },
   users: {
@@ -49,7 +49,7 @@ export const MESSAGE_EDITED_OUTPUT_PROPERTIES = {
 /**
  * Complete message edited output definition
  */
-const MESSAGE_EDITED_OUTPUT: OutputProperty = {
+export const MESSAGE_EDITED_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Edit information if message was edited',
   optional: true,
@@ -60,7 +60,7 @@ const MESSAGE_EDITED_OUTPUT: OutputProperty = {
  * Output definition for file objects attached to messages
  * Based on Slack API file object structure
  */
-const FILE_OUTPUT_PROPERTIES = {
+export const FILE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Unique file identifier' },
   name: { type: 'string', description: 'File name' },
   mimetype: { type: 'string', description: 'MIME type of the file' },
@@ -90,7 +90,7 @@ export const FILES_OUTPUT: OutputProperty = {
  * Output definition for Block Kit block objects
  * Based on Slack Block Kit structure
  */
-const BLOCK_OUTPUT_PROPERTIES = {
+export const BLOCK_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'Block type (section, divider, image, actions, etc.)' },
   block_id: { type: 'string', description: 'Unique block identifier', optional: true },
 } as const satisfies Record<string, OutputProperty>
@@ -111,7 +111,7 @@ export const BLOCKS_OUTPUT: OutputProperty = {
  * Output definition for legacy attachment objects
  * Based on Slack API secondary attachments structure
  */
-const ATTACHMENT_OUTPUT_PROPERTIES = {
+export const ATTACHMENT_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Attachment ID', optional: true },
   fallback: { type: 'string', description: 'Plain text summary', optional: true },
   text: { type: 'string', description: 'Main attachment text', optional: true },
@@ -145,7 +145,7 @@ export const ATTACHMENTS_OUTPUT: OutputProperty = {
  * Core message properties shared across all message-related tools
  * Based on Slack message event structure
  */
-const MESSAGE_CORE_OUTPUT_PROPERTIES = {
+export const MESSAGE_CORE_OUTPUT_PROPERTIES = {
   type: { type: 'string', description: 'Message type (usually "message")' },
   ts: { type: 'string', description: 'Message timestamp (unique identifier)' },
   text: { type: 'string', description: 'Message text content' },
@@ -160,7 +160,7 @@ const MESSAGE_CORE_OUTPUT_PROPERTIES = {
  * Thread-related message properties
  * Based on Slack threading structure
  */
-const MESSAGE_THREAD_OUTPUT_PROPERTIES = {
+export const MESSAGE_THREAD_OUTPUT_PROPERTIES = {
   thread_ts: {
     type: 'string',
     description: 'Parent message timestamp (for threaded replies)',
@@ -194,7 +194,7 @@ const MESSAGE_THREAD_OUTPUT_PROPERTIES = {
 /**
  * Message interaction properties (stars, pins, etc.)
  */
-const MESSAGE_INTERACTION_OUTPUT_PROPERTIES = {
+export const MESSAGE_INTERACTION_OUTPUT_PROPERTIES = {
   subtype: {
     type: 'string',
     description: 'Message subtype (bot_message, file_share, etc.)',
@@ -253,7 +253,7 @@ export const MESSAGES_OUTPUT: OutputProperty = {
  * Output definition for channel topic/purpose nested objects
  * Based on Slack conversation object structure
  */
-const CHANNEL_TOPIC_OUTPUT_PROPERTIES = {
+export const CHANNEL_TOPIC_OUTPUT_PROPERTIES = {
   value: { type: 'string', description: 'Topic or purpose text' },
   creator: { type: 'string', description: 'User ID who set it' },
   last_set: { type: 'number', description: 'Unix timestamp when last set' },
@@ -327,7 +327,7 @@ export const CHANNELS_OUTPUT: OutputProperty = {
  * Output definition for user profile objects (nested in user)
  * Based on Slack user profile object
  */
-const USER_PROFILE_OUTPUT_PROPERTIES = {
+export const USER_PROFILE_OUTPUT_PROPERTIES = {
   real_name: { type: 'string', description: 'Full real name' },
   real_name_normalized: { type: 'string', description: 'Normalized real name', optional: true },
   display_name: { type: 'string', description: 'Display name shown in Slack' },

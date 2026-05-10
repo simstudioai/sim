@@ -9,7 +9,7 @@ export const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024
 const BASE_TIMEOUT_MS = 2 * 60 * 1000
 const TIMEOUT_PER_MB_MS = 1500
 const MAX_TIMEOUT_MS = 10 * 60 * 1000
-const MULTIPART_PART_CONCURRENCY = 3
+export const MULTIPART_PART_CONCURRENCY = 3
 export const MULTIPART_MAX_RETRIES = 3
 export const MULTIPART_RETRY_DELAY_MS = 2000
 export const MULTIPART_RETRY_BACKOFF = 2
@@ -173,7 +173,9 @@ interface GetPresignedOptions {
  * Fetch a single presigned upload URL from a server endpoint that follows the
  * `{ presignedUrl, fileInfo, uploadHeaders?, directUploadSupported }` contract.
  */
-const getPresignedUploadInfo = async (opts: GetPresignedOptions): Promise<PresignedUploadInfo> => {
+export const getPresignedUploadInfo = async (
+  opts: GetPresignedOptions
+): Promise<PresignedUploadInfo> => {
   const { endpoint, file, signal } = opts
   const response = await fetch(endpoint, {
     method: 'POST',

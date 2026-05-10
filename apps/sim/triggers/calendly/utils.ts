@@ -41,7 +41,7 @@ export function calendlySetupInstructions(eventType: string, additionalNotes?: s
 /**
  * Shared tracking output schema
  */
-const trackingOutputs = {
+export const trackingOutputs = {
   utm_campaign: {
     type: 'string',
     description: 'UTM campaign parameter',
@@ -71,7 +71,7 @@ const trackingOutputs = {
 /**
  * Shared questions and answers output schema
  */
-const questionsAndAnswersOutputs = {
+export const questionsAndAnswersOutputs = {
   type: 'array',
   description: 'Questions and answers from the booking form',
   items: {

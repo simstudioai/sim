@@ -48,7 +48,7 @@ export function useSession(): SessionHookResult {
   return ctx
 }
 
-const useActiveOrganization = isOrganizationsEnabled
+export const useActiveOrganization = isOrganizationsEnabled
   ? client.useActiveOrganization
   : () => ({ data: undefined, isPending: false, error: null })
 

@@ -80,7 +80,7 @@ export function extractCursorPagingInfo(data: Record<string, unknown>): ZendeskP
  * Output definition for the "via" object in ticket responses.
  * Contains information about how the ticket was created.
  */
-const VIA_OUTPUT_PROPERTIES = {
+export const VIA_OUTPUT_PROPERTIES = {
   channel: {
     type: 'string',
     description: 'Channel through which the ticket was created (e.g., email, web, api)',
@@ -123,7 +123,7 @@ const VIA_OUTPUT_PROPERTIES = {
 /**
  * Output definition for custom field entries in ticket responses
  */
-const CUSTOM_FIELD_OUTPUT_PROPERTIES = {
+export const CUSTOM_FIELD_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Custom field ID' },
   value: { type: 'string', description: 'Custom field value' },
 } as const satisfies Record<string, OutputProperty>
@@ -131,7 +131,7 @@ const CUSTOM_FIELD_OUTPUT_PROPERTIES = {
 /**
  * Output definition for satisfaction rating in ticket responses
  */
-const SATISFACTION_RATING_OUTPUT_PROPERTIES = {
+export const SATISFACTION_RATING_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'Satisfaction rating ID', optional: true },
   score: { type: 'string', description: 'Rating score (e.g., good, bad, offered, unoffered)' },
   comment: { type: 'string', description: 'Comment left with the rating', optional: true },
@@ -263,7 +263,7 @@ export const TICKET_OUTPUT_PROPERTIES = {
 /**
  * Output definition for user photo object
  */
-const USER_PHOTO_OUTPUT_PROPERTIES = {
+export const USER_PHOTO_OUTPUT_PROPERTIES = {
   content_url: { type: 'string', description: 'URL to the photo' },
   file_name: { type: 'string', description: 'Photo file name' },
   size: { type: 'number', description: 'File size in bytes' },
@@ -402,7 +402,7 @@ export const ORGANIZATION_OUTPUT_PROPERTIES = {
 /**
  * Pagination output properties for list endpoints
  */
-const PAGING_OUTPUT_PROPERTIES = {
+export const PAGING_OUTPUT_PROPERTIES = {
   after_cursor: {
     type: 'string',
     description: 'Cursor for fetching the next page of results',
@@ -424,7 +424,7 @@ export const PAGING_OUTPUT: OutputProperty = {
 /**
  * Metadata output properties for list responses
  */
-const METADATA_OUTPUT_PROPERTIES = {
+export const METADATA_OUTPUT_PROPERTIES = {
   total_returned: { type: 'number', description: 'Number of items returned in this response' },
   has_more: { type: 'boolean', description: 'Whether more items are available' },
 } as const satisfies Record<string, OutputProperty>
@@ -478,7 +478,7 @@ export const ORGANIZATIONS_ARRAY_OUTPUT: OutputProperty = {
  * Job status result item output properties for bulk operations.
  * @see https://developer.zendesk.com/api-reference/ticketing/ticket-management/job_statuses/
  */
-const JOB_RESULT_OUTPUT_PROPERTIES = {
+export const JOB_RESULT_OUTPUT_PROPERTIES = {
   id: { type: 'number', description: 'ID of the created or updated resource' },
   index: { type: 'number', description: 'Position of the result in the batch', optional: true },
   action: {
@@ -499,7 +499,7 @@ const JOB_RESULT_OUTPUT_PROPERTIES = {
  * Job status output properties for bulk operation responses.
  * @see https://developer.zendesk.com/api-reference/ticketing/ticket-management/job_statuses/
  */
-const JOB_STATUS_OUTPUT_PROPERTIES = {
+export const JOB_STATUS_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Automatically assigned job ID' },
   url: { type: 'string', description: 'URL to poll for status updates' },
   status: {

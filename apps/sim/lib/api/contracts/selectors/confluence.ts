@@ -18,7 +18,7 @@ const confluenceSpaceSchema = z
   })
   .passthrough()
 
-const confluencePagesBodySchema = z.object({
+export const confluencePagesBodySchema = z.object({
   domain: z.string().min(1, 'Domain is required'),
   accessToken: z.string().min(1, 'Access token is required'),
   cloudId: optionalString,
@@ -49,10 +49,10 @@ export const confluencePageBaseSchema = z.object({
   pageId: z.string().min(1, 'Page ID is required'),
 })
 
-const confluencePageBodySchema = confluencePageBaseSchema.superRefine(refineConfluencePageId)
+export const confluencePageBodySchema = confluencePageBaseSchema.superRefine(refineConfluencePageId)
 
 /** Body schema for `PUT /api/tools/confluence/page`. */
-const confluenceUpdatePageBodySchema = confluencePageBaseSchema
+export const confluenceUpdatePageBodySchema = confluencePageBaseSchema
   .extend({
     title: optionalString,
     body: z.object({ value: optionalString }).optional(),
@@ -61,7 +61,7 @@ const confluenceUpdatePageBodySchema = confluencePageBaseSchema
   .superRefine(refineConfluencePageId)
 
 /** Body schema for `DELETE /api/tools/confluence/page`. */
-const confluenceDeletePageBodySchema = confluencePageBaseSchema
+export const confluenceDeletePageBodySchema = confluencePageBaseSchema
   .extend({
     purge: z.boolean().optional(),
   })
@@ -112,73 +112,75 @@ export const confluenceBlogPostScopedSchema = confluenceBaseSchema
   })
   .superRefine((data, ctx) => addAlphanumericIdIssue(data, 'blogPostId', 'blog post ID', ctx))
 
-const confluenceDeleteAttachmentBodySchema = confluenceBaseSchema.extend({
+export const confluenceDeleteAttachmentBodySchema = confluenceBaseSchema.extend({
   attachmentId: z
     .string({ error: 'Attachment ID is required' })
     .min(1, 'Attachment ID is required'),
 })
 
-const confluenceListAttachmentsQuerySchema = confluencePageScopedSchema.extend({
+export const confluenceListAttachmentsQuerySchema = confluencePageScopedSchema.extend({
   limit: z.string().optional().default('50'),
   cursor: z.string().optional(),
 })
 
-const confluenceCreateCommentBodySchema = confluencePageScopedSchema.extend({
+export const confluenceCreateCommentBodySchema = confluencePageScopedSchema.extend({
   comment: z.string({ error: 'Comment is required' }).min(1, 'Comment is required'),
 })
 
-const confluenceListCommentsQuerySchema = confluencePageScopedSchema.extend({
+export const confluenceListCommentsQuerySchema = confluencePageScopedSchema.extend({
   limit: z.string().optional().default('25'),
   bodyFormat: z.string().optional().default('storage'),
   cursor: z.string().optional(),
 })
 
-const confluenceUpdateCommentBodySchema = confluenceCommentScopedSchema.extend({
+export const confluenceUpdateCommentBodySchema = confluenceCommentScopedSchema.extend({
   comment: z.string().min(1, 'Comment is required'),
 })
 
-const confluenceCreatePageBodySchema = confluenceSpaceScopedSchema.extend({
+export const confluenceCreatePageBodySchema = confluenceSpaceScopedSchema.extend({
   title: z.string({ error: 'Title is required' }).min(1, 'Title is required'),
   content: z.string({ error: 'Content is required' }).min(1, 'Content is required'),
   parentId: z.string().optional(),
 })
 
-const confluenceLabelMutationBodySchema = confluencePageScopedSchema.extend({
+export const confluenceLabelMutationBodySchema = confluencePageScopedSchema.extend({
   labelName: z.string({ error: 'Label name is required' }).min(1, 'Label name is required'),
   prefix: z.string().optional(),
 })
 
-const confluenceListLabelsQuerySchema = confluencePageScopedSchema.extend({
+export const confluenceListLabelsQuerySchema = confluencePageScopedSchema.extend({
   limit: z.string().optional().default('25'),
   cursor: z.string().optional(),
 })
 
-const confluenceListPagePropertiesQuerySchema = confluencePageScopedSchema.extend({
+export const confluenceListPagePropertiesQuerySchema = confluencePageScopedSchema.extend({
   limit: z.string().optional().default('50'),
   cursor: z.string().optional(),
 })
 
-const confluenceCreatePagePropertyBodySchema = confluencePageScopedSchema.extend({
+export const confluenceCreatePagePropertyBodySchema = confluencePageScopedSchema.extend({
   key: z.string({ error: 'Property key is required' }).min(1, 'Property key is required'),
   value: z.unknown(),
 })
 
-const confluenceUpdatePagePropertyBodySchema = confluenceCreatePagePropertyBodySchema.extend({
+export const confluenceUpdatePagePropertyBodySchema = confluenceCreatePagePropertyBodySchema.extend(
+  {
+    propertyId: z.string({ error: 'Property ID is required' }).min(1, 'Property ID is required'),
+    versionNumber: z.number().min(1).optional(),
+  }
+)
+
+export const confluenceDeletePagePropertyBodySchema = confluencePageScopedSchema.extend({
   propertyId: z.string({ error: 'Property ID is required' }).min(1, 'Property ID is required'),
-  versionNumber: z.number().min(1).optional(),
 })
 
-const confluenceDeletePagePropertyBodySchema = confluencePageScopedSchema.extend({
-  propertyId: z.string({ error: 'Property ID is required' }).min(1, 'Property ID is required'),
-})
-
-const confluenceGetSpaceQuerySchema = confluenceSpaceScopedSchema
-const confluenceCreateSpaceBodySchema = confluenceBaseSchema.extend({
+export const confluenceGetSpaceQuerySchema = confluenceSpaceScopedSchema
+export const confluenceCreateSpaceBodySchema = confluenceBaseSchema.extend({
   name: z.string({ error: 'Space name is required' }).min(1, 'Space name is required'),
   key: z.string({ error: 'Space key is required' }).min(1, 'Space key is required'),
   description: z.string().optional(),
 })
-const confluenceUpdateSpaceBodySchema = confluenceSpaceScopedSchema.extend({
+export const confluenceUpdateSpaceBodySchema = confluenceSpaceScopedSchema.extend({
   name: z.string().optional(),
   description: z.string().optional(),
 })
@@ -187,59 +189,59 @@ export const confluencePageChildrenBodySchema = confluencePageScopedSchema.exten
   cursor: z.string().optional(),
 })
 
-const confluencePageAncestorsBodySchema = confluencePageScopedSchema.extend({
+export const confluencePageAncestorsBodySchema = confluencePageScopedSchema.extend({
   limit: z.number().optional().default(25),
 })
 
-const confluencePageVersionsBodySchema = confluencePageScopedSchema.extend({
+export const confluencePageVersionsBodySchema = confluencePageScopedSchema.extend({
   versionNumber: z.union([z.string(), z.number()]).optional(),
   limit: z.number().optional().default(50),
   cursor: z.string().optional(),
 })
 
-const confluencePagesByLabelQuerySchema = confluenceBaseSchema.extend({
+export const confluencePagesByLabelQuerySchema = confluenceBaseSchema.extend({
   labelId: z.string({ error: 'Label ID is required' }).min(1, 'Label ID is required'),
   limit: z.string().optional().default('50'),
   cursor: z.string().optional(),
 })
 
-const confluenceSearchBodySchema = confluenceBaseSchema.extend({
+export const confluenceSearchBodySchema = confluenceBaseSchema.extend({
   query: z.string({ error: 'Search query is required' }).min(1, 'Search query is required'),
   limit: z.number().optional().default(25),
 })
 
-const confluenceSearchInSpaceBodySchema = confluenceBaseSchema.extend({
+export const confluenceSearchInSpaceBodySchema = confluenceBaseSchema.extend({
   spaceKey: z.string({ error: 'Space key is required' }).min(1, 'Space key is required'),
   query: z.string().optional(),
   limit: z.number().optional().default(25),
   contentType: z.string().optional(),
 })
 
-const confluenceSpaceBlogPostsBodySchema = confluenceSpaceScopedSchema.extend({
+export const confluenceSpaceBlogPostsBodySchema = confluenceSpaceScopedSchema.extend({
   limit: z.number().optional().default(25),
   status: z.string().optional(),
   bodyFormat: z.string().optional(),
   cursor: z.string().optional(),
 })
 
-const confluenceSpaceLabelsQuerySchema = confluenceSpaceScopedSchema.extend({
+export const confluenceSpaceLabelsQuerySchema = confluenceSpaceScopedSchema.extend({
   limit: z.string().optional().default('25'),
   cursor: z.string().optional(),
 })
 
-const confluenceSpacePagesBodySchema = confluenceSpaceScopedSchema.extend({
+export const confluenceSpacePagesBodySchema = confluenceSpaceScopedSchema.extend({
   limit: z.number().optional().default(50),
   status: z.string().optional(),
   bodyFormat: z.string().optional(),
   cursor: z.string().optional(),
 })
 
-const confluenceSpacePermissionsBodySchema = confluenceSpaceScopedSchema.extend({
+export const confluenceSpacePermissionsBodySchema = confluenceSpaceScopedSchema.extend({
   limit: z.number().optional().default(50),
   cursor: z.string().optional(),
 })
 
-const confluenceSpacePropertiesBodySchema = confluenceSpaceScopedSchema.extend({
+export const confluenceSpacePropertiesBodySchema = confluenceSpaceScopedSchema.extend({
   action: z.string().optional(),
   key: z.string().optional(),
   value: z.unknown().optional(),
@@ -248,12 +250,12 @@ const confluenceSpacePropertiesBodySchema = confluenceSpaceScopedSchema.extend({
   cursor: z.string().optional(),
 })
 
-const confluenceListSpacesQuerySchema = confluenceBaseSchema.extend({
+export const confluenceListSpacesQuerySchema = confluenceBaseSchema.extend({
   limit: z.string().optional().default('25'),
   cursor: z.string().optional(),
 })
 
-const confluenceTasksBodySchema = confluenceBaseSchema.extend({
+export const confluenceTasksBodySchema = confluenceBaseSchema.extend({
   action: z.string().optional(),
   taskId: z.string().optional(),
   status: z.string().optional(),
@@ -264,39 +266,39 @@ const confluenceTasksBodySchema = confluenceBaseSchema.extend({
   cursor: z.string().optional(),
 })
 
-const confluenceUploadAttachmentBodySchema = confluencePageScopedSchema.extend({
+export const confluenceUploadAttachmentBodySchema = confluencePageScopedSchema.extend({
   file: z.unknown().refine((value) => Boolean(value), { message: 'File is required' }),
   fileName: z.string().optional(),
   comment: z.string().optional(),
 })
 
-const confluenceUserBodySchema = confluenceBaseSchema.extend({
+export const confluenceUserBodySchema = confluenceBaseSchema.extend({
   accountId: z.string({ error: 'Account ID is required' }).min(1, 'Account ID is required'),
 })
 
-const confluenceGetBlogPostBodySchema = confluenceBlogPostScopedSchema.extend({
+export const confluenceGetBlogPostBodySchema = confluenceBlogPostScopedSchema.extend({
   bodyFormat: z.string().optional(),
 })
 
-const confluenceCreateBlogPostBodySchema = confluenceSpaceScopedSchema.extend({
+export const confluenceCreateBlogPostBodySchema = confluenceSpaceScopedSchema.extend({
   title: z.string({ error: 'Title is required' }).min(1, 'Title is required'),
   content: z.string({ error: 'Content is required' }).min(1, 'Content is required'),
   status: z.enum(['current', 'draft']).optional(),
 })
 
-const confluenceBlogPostOperationBodySchema = z.union([
+export const confluenceBlogPostOperationBodySchema = z.union([
   confluenceCreateBlogPostBodySchema,
   confluenceGetBlogPostBodySchema,
 ])
 
-const confluenceListBlogPostsQuerySchema = confluenceBaseSchema.extend({
+export const confluenceListBlogPostsQuerySchema = confluenceBaseSchema.extend({
   limit: z.string().optional().default('25'),
   status: z.string().optional(),
   sort: z.string().optional(),
   cursor: z.string().optional(),
 })
 
-const confluenceUpdateBlogPostBodySchema = confluenceBlogPostScopedSchema.extend({
+export const confluenceUpdateBlogPostBodySchema = confluenceBlogPostScopedSchema.extend({
   title: z.string().optional(),
   content: z.string().optional(),
 })
@@ -349,7 +351,7 @@ const defineConfluenceGetContract = <TQuery extends z.ZodType>(path: string, que
     },
   })
 
-const confluenceSpacesSelectorBodySchema = credentialWorkflowDomainBodySchema.extend({
+export const confluenceSpacesSelectorBodySchema = credentialWorkflowDomainBodySchema.extend({
   cursor: optionalString,
 })
 

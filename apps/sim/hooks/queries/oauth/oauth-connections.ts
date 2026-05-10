@@ -18,7 +18,7 @@ const logger = createLogger('OAuthConnectionsQuery')
  * Query key factory for OAuth connection queries.
  * Provides hierarchical cache keys for connections and provider-specific accounts.
  */
-const oauthConnectionsKeys = {
+export const oauthConnectionsKeys = {
   all: ['oauthConnections'] as const,
   connections: () => [...oauthConnectionsKeys.all, 'connections'] as const,
   accounts: (provider: string) => [...oauthConnectionsKeys.all, 'accounts', provider] as const,

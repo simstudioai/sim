@@ -1,7 +1,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 /** Reusable date output properties with ISO 8601, friendly, and epoch formats */
-const DATE_OUTPUT_PROPERTIES = {
+export const DATE_OUTPUT_PROPERTIES = {
   iso8601: { type: 'string', description: 'ISO 8601 formatted date' },
   friendly: { type: 'string', description: 'Human-readable date' },
   epochMillis: { type: 'number', description: 'Unix epoch milliseconds' },
@@ -164,7 +164,7 @@ export const CUSTOMER_ITEM_PROPERTIES = {
 } as const
 
 /** Output properties for an approver item */
-const APPROVER_ITEM_PROPERTIES = {
+export const APPROVER_ITEM_PROPERTIES = {
   approver: {
     type: 'object',
     description: 'Approver user details',

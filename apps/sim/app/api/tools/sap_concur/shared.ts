@@ -6,7 +6,7 @@ import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
 const logger = createLogger('SapConcurShared')
 
-const SAP_CONCUR_ALLOWED_DATACENTERS = new Set([
+export const SAP_CONCUR_ALLOWED_DATACENTERS = new Set([
   'us.api.concursolutions.com',
   'us2.api.concursolutions.com',
   'eu.api.concursolutions.com',
@@ -15,16 +15,16 @@ const SAP_CONCUR_ALLOWED_DATACENTERS = new Set([
   'emea.api.concursolutions.com',
 ])
 
-const SapConcurDatacenterSchema = z
+export const SapConcurDatacenterSchema = z
   .string()
   .min(1)
   .refine((d) => SAP_CONCUR_ALLOWED_DATACENTERS.has(d), {
     message: `datacenter must be one of: ${Array.from(SAP_CONCUR_ALLOWED_DATACENTERS).join(', ')}`,
   })
 
-const SapConcurGrantTypeSchema = z.enum(['client_credentials', 'password'])
+export const SapConcurGrantTypeSchema = z.enum(['client_credentials', 'password'])
 
-const SapConcurAuthSchema = z.object({
+export const SapConcurAuthSchema = z.object({
   datacenter: SapConcurDatacenterSchema.default('us.api.concursolutions.com'),
   grantType: SapConcurGrantTypeSchema.default('client_credentials'),
   clientId: z.string().min(1, 'clientId is required'),
@@ -36,9 +36,9 @@ const SapConcurAuthSchema = z.object({
 
 export type SapConcurAuth = z.infer<typeof SapConcurAuthSchema>
 
-const SapConcurHttpMethod = z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
+export const SapConcurHttpMethod = z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
 
-const SapConcurProxyPath = z
+export const SapConcurProxyPath = z
   .string()
   .min(1, 'path is required')
   .refine(
@@ -79,7 +79,10 @@ export const SapConcurProxyRequestSchema = SapConcurAuthSchema.extend({
 
 export type SapConcurProxyRequest = z.infer<typeof SapConcurProxyRequestSchema>
 
-const SapConcurUploadOperation = z.enum(['upload_receipt_image', 'create_quick_expense_with_image'])
+export const SapConcurUploadOperation = z.enum([
+  'upload_receipt_image',
+  'create_quick_expense_with_image',
+])
 
 export const SapConcurUploadRequestSchema = SapConcurAuthSchema.extend({
   operation: SapConcurUploadOperation,

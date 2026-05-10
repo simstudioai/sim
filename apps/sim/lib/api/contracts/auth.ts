@@ -2,11 +2,11 @@ import { z } from 'zod'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const ssoProvidersQuerySchema = z.object({
+export const ssoProvidersQuerySchema = z.object({
   organizationId: z.string().min(1).optional(),
 })
 
-const authProviderStatusResponseSchema = z.object({
+export const authProviderStatusResponseSchema = z.object({
   githubAvailable: z.boolean(),
   googleAvailable: z.boolean(),
   registrationDisabled: z.boolean(),
@@ -26,7 +26,7 @@ const ssoMappingSchema = z
     image: 'picture',
   })
 
-const ssoRegistrationBodySchema = z.discriminatedUnion('providerType', [
+export const ssoRegistrationBodySchema = z.discriminatedUnion('providerType', [
   z.object({
     providerType: z.literal('oidc').default('oidc'),
     providerId: z.string().min(1, 'Provider ID is required'),

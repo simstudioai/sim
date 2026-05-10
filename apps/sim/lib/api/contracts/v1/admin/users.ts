@@ -8,7 +8,7 @@ import {
   adminV1SubscriptionSchema,
 } from '@/lib/api/contracts/v1/admin/shared'
 
-const adminV1UserSchema = z.object({
+export const adminV1UserSchema = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string(),
@@ -18,7 +18,7 @@ const adminV1UserSchema = z.object({
   updatedAt: z.string(),
 })
 
-const adminV1UserBillingSchema = z.object({
+export const adminV1UserBillingSchema = z.object({
   userId: z.string(),
   userName: z.string(),
   userEmail: z.string(),
@@ -46,7 +46,7 @@ const adminV1UserBillingSchema = z.object({
   totalCopilotCalls: z.number(),
 })
 
-const adminV1UserBillingWithSubscriptionSchema = adminV1UserBillingSchema.extend({
+export const adminV1UserBillingWithSubscriptionSchema = adminV1UserBillingSchema.extend({
   subscriptions: z.array(adminV1SubscriptionSchema),
   organizationMemberships: z.array(
     z.object({
@@ -57,7 +57,7 @@ const adminV1UserBillingWithSubscriptionSchema = adminV1UserBillingSchema.extend
   ),
 })
 
-const adminV1UpdateUserBillingBodySchema = z.object({
+export const adminV1UpdateUserBillingBodySchema = z.object({
   currentUsageLimit: z
     .union([
       z

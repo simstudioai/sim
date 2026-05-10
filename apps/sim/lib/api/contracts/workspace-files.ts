@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const workspaceFileScopeSchema = z.enum(['active', 'archived', 'all'])
+export const workspaceFileScopeSchema = z.enum(['active', 'archived', 'all'])
 
 export const workspaceFilesParamsSchema = z.object({
   id: z.string({ error: 'Workspace ID is required' }).min(1, 'Workspace ID is required'),
@@ -15,18 +15,18 @@ export const listWorkspaceFilesQuerySchema = z.object({
   scope: workspaceFileScopeSchema.default('active'),
 })
 
-const renameWorkspaceFileBodySchema = z.object({
+export const renameWorkspaceFileBodySchema = z.object({
   name: z
     .string({ error: 'Name is required' })
     .refine((name) => name.trim().length > 0, { message: 'Name is required' }),
 })
 
-const updateWorkspaceFileContentBodySchema = z.object({
+export const updateWorkspaceFileContentBodySchema = z.object({
   content: z.string(),
   encoding: z.enum(['base64', 'utf-8']).optional(),
 })
 
-const workspaceFileRecordSchema = z.object({
+export const workspaceFileRecordSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
   name: z.string(),
@@ -163,7 +163,7 @@ export const workspaceFileCompiledCheckContract = defineRouteContract({
   },
 })
 
-const workspacePresignedUploadBodySchema = z.object({
+export const workspacePresignedUploadBodySchema = z.object({
   fileName: z.string().min(1, 'fileName is required'),
   contentType: z.string().min(1, 'contentType is required'),
   fileSize: z.number().nonnegative('fileSize must be a non-negative number'),
@@ -198,7 +198,7 @@ export const workspacePresignedUploadContract = defineRouteContract({
   },
 })
 
-const registerWorkspaceFileBodySchema = z.object({
+export const registerWorkspaceFileBodySchema = z.object({
   key: z.string().min(1, 'key is required'),
   name: z.string().min(1, 'name is required'),
   contentType: z.string().min(1, 'contentType is required'),

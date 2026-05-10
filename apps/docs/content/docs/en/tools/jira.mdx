@@ -62,10 +62,30 @@ Retrieve detailed information about a specific Jira issue
 | `summary` | string | Issue summary |
 | `description` | string | Issue description text \(extracted from ADF\) |
 | `status` | object | Issue status |
+|   ↳ `id` | string | Status ID |
+|   ↳ `name` | string | Status name \(e.g., Open, In Progress, Done\) |
+|   ↳ `description` | string | Status description |
+|   ↳ `statusCategory` | object | Status category grouping |
+|     ↳ `id` | number | Status category ID |
+|     ↳ `key` | string | Status category key \(e.g., new, indeterminate, done\) |
+|     ↳ `name` | string | Status category name \(e.g., To Do, In Progress, Done\) |
+|     ↳ `colorName` | string | Status category color \(e.g., blue-gray, yellow, green\) |
 | `statusName` | string | Issue status name \(e.g., Open, In Progress, Done\) |
 | `issuetype` | object | Issue type |
+|   ↳ `id` | string | Issue type ID |
+|   ↳ `name` | string | Issue type name \(e.g., Task, Bug, Story, Epic\) |
+|   ↳ `description` | string | Issue type description |
+|   ↳ `subtask` | boolean | Whether this is a subtask type |
+|   ↳ `iconUrl` | string | URL to the issue type icon |
 | `project` | object | Project the issue belongs to |
+|   ↳ `id` | string | Project ID |
+|   ↳ `key` | string | Project key \(e.g., PROJ\) |
+|   ↳ `name` | string | Project name |
+|   ↳ `projectTypeKey` | string | Project type key \(e.g., software, business\) |
 | `priority` | object | Issue priority |
+|   ↳ `id` | string | Priority ID |
+|   ↳ `name` | string | Priority name \(e.g., Highest, High, Medium, Low, Lowest\) |
+|   ↳ `iconUrl` | string | URL to the priority icon |
 | `assignee` | object | Assigned user |
 |   ↳ `accountId` | string | Atlassian account ID of the user |
 |   ↳ `displayName` | string | Display name of the user |
@@ -93,18 +113,56 @@ Retrieve detailed information about a specific Jira issue
 |   ↳ `timeZone` | string | User timezone |
 | `labels` | array | Issue labels |
 | `components` | array | Issue components |
+|   ↳ `id` | string | Component ID |
+|   ↳ `name` | string | Component name |
+|   ↳ `description` | string | Component description |
 | `fixVersions` | array | Fix versions |
+|   ↳ `id` | string | Version ID |
+|   ↳ `name` | string | Version name |
+|   ↳ `released` | boolean | Whether the version is released |
+|   ↳ `releaseDate` | string | Release date \(YYYY-MM-DD\) |
 | `resolution` | object | Issue resolution |
+|   ↳ `id` | string | Resolution ID |
+|   ↳ `name` | string | Resolution name \(e.g., Fixed, Duplicate, Won't Fix\) |
+|   ↳ `description` | string | Resolution description |
 | `duedate` | string | Due date \(YYYY-MM-DD\) |
 | `created` | string | ISO 8601 timestamp when the issue was created |
 | `updated` | string | ISO 8601 timestamp when the issue was last updated |
 | `resolutiondate` | string | ISO 8601 timestamp when the issue was resolved |
+| `timetracking` | object | Time tracking information |
+|   ↳ `originalEstimate` | string | Original estimate in human-readable format \(e.g., 1w 2d\) |
+|   ↳ `remainingEstimate` | string | Remaining estimate in human-readable format |
+|   ↳ `timeSpent` | string | Time spent in human-readable format |
+|   ↳ `originalEstimateSeconds` | number | Original estimate in seconds |
+|   ↳ `remainingEstimateSeconds` | number | Remaining estimate in seconds |
+|   ↳ `timeSpentSeconds` | number | Time spent in seconds |
 | `parent` | object | Parent issue \(for subtasks\) |
 |   ↳ `id` | string | Parent issue ID |
 |   ↳ `key` | string | Parent issue key |
 |   ↳ `summary` | string | Parent issue summary |
 | `issuelinks` | array | Linked issues |
+|   ↳ `id` | string | Issue link ID |
+|   ↳ `type` | object | Link type information |
+|     ↳ `id` | string | Link type ID |
+|     ↳ `name` | string | Link type name \(e.g., Blocks, Relates\) |
+|     ↳ `inward` | string | Inward description \(e.g., is blocked by\) |
+|     ↳ `outward` | string | Outward description \(e.g., blocks\) |
+|   ↳ `inwardIssue` | object | Inward linked issue |
+|     ↳ `id` | string | Issue ID |
+|     ↳ `key` | string | Issue key |
+|     ↳ `statusName` | string | Issue status name |
+|     ↳ `summary` | string | Issue summary |
+|   ↳ `outwardIssue` | object | Outward linked issue |
+|     ↳ `id` | string | Issue ID |
+|     ↳ `key` | string | Issue key |
+|     ↳ `statusName` | string | Issue status name |
+|     ↳ `summary` | string | Issue summary |
 | `subtasks` | array | Subtask issues |
+|   ↳ `id` | string | Subtask issue ID |
+|   ↳ `key` | string | Subtask issue key |
+|   ↳ `summary` | string | Subtask summary |
+|   ↳ `statusName` | string | Subtask status name |
+|   ↳ `issueTypeName` | string | Subtask issue type name |
 | `votes` | object | Vote information |
 |   ↳ `votes` | number | Number of votes |
 |   ↳ `hasVoted` | boolean | Whether the current user has voted |
@@ -393,10 +451,30 @@ Search for Jira issues using JQL (Jira Query Language)
 |   ↳ `summary` | string | Issue summary |
 |   ↳ `description` | string | Issue description text \(extracted from ADF\) |
 |   ↳ `status` | object | Issue status |
+|     ↳ `id` | string | Status ID |
+|     ↳ `name` | string | Status name \(e.g., Open, In Progress, Done\) |
+|     ↳ `description` | string | Status description |
+|     ↳ `statusCategory` | object | Status category grouping |
+|       ↳ `id` | number | Status category ID |
+|       ↳ `key` | string | Status category key \(e.g., new, indeterminate, done\) |
+|       ↳ `name` | string | Status category name \(e.g., To Do, In Progress, Done\) |
+|       ↳ `colorName` | string | Status category color \(e.g., blue-gray, yellow, green\) |
 |   ↳ `statusName` | string | Issue status name \(e.g., Open, In Progress, Done\) |
 |   ↳ `issuetype` | object | Issue type |
+|     ↳ `id` | string | Issue type ID |
+|     ↳ `name` | string | Issue type name \(e.g., Task, Bug, Story, Epic\) |
+|     ↳ `description` | string | Issue type description |
+|     ↳ `subtask` | boolean | Whether this is a subtask type |
+|     ↳ `iconUrl` | string | URL to the issue type icon |
 |   ↳ `project` | object | Project the issue belongs to |
+|     ↳ `id` | string | Project ID |
+|     ↳ `key` | string | Project key \(e.g., PROJ\) |
+|     ↳ `name` | string | Project name |
+|     ↳ `projectTypeKey` | string | Project type key \(e.g., software, business\) |
 |   ↳ `priority` | object | Issue priority |
+|     ↳ `id` | string | Priority ID |
+|     ↳ `name` | string | Priority name \(e.g., Highest, High, Medium, Low, Lowest\) |
+|     ↳ `iconUrl` | string | URL to the priority icon |
 |   ↳ `assignee` | object | Assigned user |
 |     ↳ `accountId` | string | Atlassian account ID of the user |
 |     ↳ `displayName` | string | Display name of the user |
@@ -416,7 +494,13 @@ Search for Jira issues using JQL (Jira Query Language)
 |     ↳ `timeZone` | string | User timezone |
 |   ↳ `labels` | array | Issue labels |
 |   ↳ `components` | array | Issue components |
+|     ↳ `id` | string | Component ID |
+|     ↳ `name` | string | Component name |
+|     ↳ `description` | string | Component description |
 |   ↳ `resolution` | object | Issue resolution |
+|     ↳ `id` | string | Resolution ID |
+|     ↳ `name` | string | Resolution name \(e.g., Fixed, Duplicate, Won't Fix\) |
+|     ↳ `description` | string | Resolution description |
 |   ↳ `duedate` | string | Due date \(YYYY-MM-DD\) |
 |   ↳ `created` | string | ISO 8601 timestamp when the issue was created |
 |   ↳ `updated` | string | ISO 8601 timestamp when the issue was last updated |

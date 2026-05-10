@@ -32,7 +32,7 @@ export const STAGEHAND_USAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete usage statistics output definition
  */
-const STAGEHAND_USAGE_OUTPUT: OutputProperty = {
+export const STAGEHAND_USAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Token usage and timing statistics from agent execution',
   optional: true,
@@ -94,7 +94,7 @@ export const STAGEHAND_ACTION_OUTPUT_PROPERTIES = {
 /**
  * Complete agent action output definition
  */
-const STAGEHAND_ACTION_OUTPUT: OutputProperty = {
+export const STAGEHAND_ACTION_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Record of an action performed by the agent',
   properties: STAGEHAND_ACTION_OUTPUT_PROPERTIES,
@@ -145,7 +145,7 @@ export const STAGEHAND_AGENT_RESULT_OUTPUT: OutputProperty = {
  * Output definition for act() method results
  * Based on Stagehand ActResult interface
  */
-const STAGEHAND_ACT_ACTION_OUTPUT_PROPERTIES = {
+export const STAGEHAND_ACT_ACTION_OUTPUT_PROPERTIES = {
   selector: {
     type: 'string',
     description: 'XPath or CSS selector of the element acted upon',
@@ -171,7 +171,7 @@ const STAGEHAND_ACT_ACTION_OUTPUT_PROPERTIES = {
 /**
  * Output definition for act() result
  */
-const STAGEHAND_ACT_RESULT_OUTPUT_PROPERTIES = {
+export const STAGEHAND_ACT_RESULT_OUTPUT_PROPERTIES = {
   success: {
     type: 'boolean',
     description: 'Whether the act operation completed successfully',
@@ -199,7 +199,7 @@ const STAGEHAND_ACT_RESULT_OUTPUT_PROPERTIES = {
  * Output definition for extract() method when called without schema
  * Returns pageText or extraction string
  */
-const STAGEHAND_SIMPLE_EXTRACT_OUTPUT_PROPERTIES = {
+export const STAGEHAND_SIMPLE_EXTRACT_OUTPUT_PROPERTIES = {
   pageText: {
     type: 'string',
     description: 'Raw text content of the page (when no instruction provided)',
@@ -216,7 +216,7 @@ const STAGEHAND_SIMPLE_EXTRACT_OUTPUT_PROPERTIES = {
  * Output definition for extract() method result with schema
  * The actual structure depends on the user-provided schema
  */
-const STAGEHAND_EXTRACT_OUTPUT_PROPERTIES = {
+export const STAGEHAND_EXTRACT_OUTPUT_PROPERTIES = {
   data: {
     type: 'object',
     description: 'Extracted structured data matching the provided schema',

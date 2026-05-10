@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const openRouterModelInfoSchema = z.object({
+export const openRouterModelInfoSchema = z.object({
   id: z.string(),
   contextLength: z.number().optional(),
   supportsStructuredOutputs: z.boolean().optional(),
@@ -138,7 +138,7 @@ const providerResponseFormatSchema = z
   })
   .passthrough()
 
-const providerApiRequestBodySchema = z
+export const providerApiRequestBodySchema = z
   .object({
     provider: z.string().min(1),
     model: z.string().min(1),

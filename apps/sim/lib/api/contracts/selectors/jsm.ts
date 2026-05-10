@@ -24,40 +24,40 @@ const jsmFormIdField = z.string({ error: 'Form ID is required' }).min(1, 'Form I
 
 const jsmIdListSchema = z.union([z.string(), z.array(z.string())]).optional()
 
-const jsmRequestTypesBodySchema = credentialWorkflowDomainBodySchema.extend({
+export const jsmRequestTypesBodySchema = credentialWorkflowDomainBodySchema.extend({
   serviceDeskId: z.string().min(1),
 })
 
-const jsmServiceDesksBodySchema = jsmBaseBodySchema.extend({
+export const jsmServiceDesksBodySchema = jsmBaseBodySchema.extend({
   expand: z.string().optional(),
   start: z.string().optional(),
   limit: z.string().optional(),
 })
 
-const jsmServiceDeskScopedBodySchema = jsmBaseBodySchema.extend({
+export const jsmServiceDeskScopedBodySchema = jsmBaseBodySchema.extend({
   serviceDeskId: jsmServiceDeskIdField,
   start: z.string().optional(),
   limit: z.string().optional(),
 })
 
-const jsmQueuesBodySchema = jsmServiceDeskScopedBodySchema.extend({
+export const jsmQueuesBodySchema = jsmServiceDeskScopedBodySchema.extend({
   includeCount: z.string().optional(),
 })
 
-const jsmRequestTypesToolBodySchema = jsmServiceDeskScopedBodySchema.extend({
+export const jsmRequestTypesToolBodySchema = jsmServiceDeskScopedBodySchema.extend({
   searchQuery: z.string().optional(),
   groupId: z.string().optional(),
   expand: z.string().optional(),
 })
 
-const jsmRequestTypeFieldsBodySchema = jsmBaseBodySchema.extend({
+export const jsmRequestTypeFieldsBodySchema = jsmBaseBodySchema.extend({
   serviceDeskId: jsmServiceDeskIdField,
   requestTypeId: z
     .string({ error: 'Request Type ID is required' })
     .min(1, 'Request Type ID is required'),
 })
 
-const jsmRequestsBodySchema = jsmBaseBodySchema.extend({
+export const jsmRequestsBodySchema = jsmBaseBodySchema.extend({
   serviceDeskId: z.string().optional(),
   requestOwnership: z.string().optional(),
   requestStatus: z.string().optional(),
@@ -68,7 +68,7 @@ const jsmRequestsBodySchema = jsmBaseBodySchema.extend({
   limit: z.string().optional(),
 })
 
-const jsmRequestBodySchema = jsmBaseBodySchema.extend({
+export const jsmRequestBodySchema = jsmBaseBodySchema.extend({
   issueIdOrKey: z.string().optional(),
   serviceDeskId: z.string().optional(),
   requestTypeId: z.string().optional(),
@@ -82,13 +82,13 @@ const jsmRequestBodySchema = jsmBaseBodySchema.extend({
   expand: z.string().optional(),
 })
 
-const jsmCommentBodySchema = jsmBaseBodySchema.extend({
+export const jsmCommentBodySchema = jsmBaseBodySchema.extend({
   issueIdOrKey: jsmIssueIdOrKeyField,
   body: z.string({ error: 'Comment body is required' }).min(1, 'Comment body is required'),
   isPublic: z.boolean().optional(),
 })
 
-const jsmCommentsBodySchema = jsmBaseBodySchema.extend({
+export const jsmCommentsBodySchema = jsmBaseBodySchema.extend({
   issueIdOrKey: jsmIssueIdOrKeyField,
   isPublic: z.boolean().optional(),
   internal: z.boolean().optional(),
@@ -97,7 +97,7 @@ const jsmCommentsBodySchema = jsmBaseBodySchema.extend({
   limit: z.string().optional(),
 })
 
-const jsmTransitionBodySchema = jsmBaseBodySchema.extend({
+export const jsmTransitionBodySchema = jsmBaseBodySchema.extend({
   issueIdOrKey: jsmIssueIdOrKeyField,
   transitionId: z
     .string({ error: 'Transition ID is required' })
@@ -111,7 +111,7 @@ export const jsmIssuePaginationBodySchema = jsmBaseBodySchema.extend({
   limit: z.string().optional(),
 })
 
-const jsmApprovalsBodySchema = jsmBaseBodySchema.extend({
+export const jsmApprovalsBodySchema = jsmBaseBodySchema.extend({
   action: z.string({ error: 'Action is required' }).min(1, 'Action is required'),
   issueIdOrKey: jsmIssueIdOrKeyField,
   approvalId: z.string().optional(),
@@ -120,7 +120,7 @@ const jsmApprovalsBodySchema = jsmBaseBodySchema.extend({
   limit: z.string().optional(),
 })
 
-const jsmParticipantsBodySchema = jsmBaseBodySchema.extend({
+export const jsmParticipantsBodySchema = jsmBaseBodySchema.extend({
   action: z.string({ error: 'Action is required' }).min(1, 'Action is required'),
   issueIdOrKey: jsmIssueIdOrKeyField,
   accountIds: z.union([z.string(), z.array(z.string())]).optional(),
@@ -128,7 +128,7 @@ const jsmParticipantsBodySchema = jsmBaseBodySchema.extend({
   limit: z.string().optional(),
 })
 
-const jsmCustomersBodySchema = jsmBaseBodySchema.extend({
+export const jsmCustomersBodySchema = jsmBaseBodySchema.extend({
   serviceDeskId: jsmServiceDeskIdField,
   query: z.string().optional(),
   start: z.string().optional(),
@@ -137,45 +137,45 @@ const jsmCustomersBodySchema = jsmBaseBodySchema.extend({
   emails: jsmIdListSchema,
 })
 
-const jsmOrganizationBodySchema = jsmBaseBodySchema.extend({
+export const jsmOrganizationBodySchema = jsmBaseBodySchema.extend({
   action: z.string({ error: 'Action is required' }).min(1, 'Action is required'),
   name: z.string().optional(),
   serviceDeskId: z.string().optional(),
   organizationId: z.string().optional(),
 })
 
-const jsmIssueFormsBodySchema = jsmBaseBodySchema.extend({
+export const jsmIssueFormsBodySchema = jsmBaseBodySchema.extend({
   issueIdOrKey: jsmIssueIdOrKeyField,
 })
 
-const jsmIssueFormBodySchema = jsmIssueFormsBodySchema.extend({
+export const jsmIssueFormBodySchema = jsmIssueFormsBodySchema.extend({
   formId: jsmFormIdField,
 })
 
-const jsmAttachFormBodySchema = jsmIssueFormsBodySchema.extend({
+export const jsmAttachFormBodySchema = jsmIssueFormsBodySchema.extend({
   formTemplateId: z
     .string({ error: 'Form template ID is required' })
     .min(1, 'Form template ID is required'),
 })
 
-const jsmSaveFormAnswersBodySchema = jsmIssueFormBodySchema.extend({
+export const jsmSaveFormAnswersBodySchema = jsmIssueFormBodySchema.extend({
   answers: z.custom<Record<string, unknown>>(
     (value) => typeof value === 'object' && value !== null && !Array.isArray(value),
     { message: 'Answers object is required' }
   ),
 })
 
-const jsmProjectFormTemplatesBodySchema = jsmBaseBodySchema.extend({
+export const jsmProjectFormTemplatesBodySchema = jsmBaseBodySchema.extend({
   projectIdOrKey: z
     .string({ error: 'Project ID or key is required' })
     .min(1, 'Project ID or key is required'),
 })
 
-const jsmProjectFormStructureBodySchema = jsmProjectFormTemplatesBodySchema.extend({
+export const jsmProjectFormStructureBodySchema = jsmProjectFormTemplatesBodySchema.extend({
   formId: jsmFormIdField,
 })
 
-const jsmCopyFormsBodySchema = jsmBaseBodySchema.extend({
+export const jsmCopyFormsBodySchema = jsmBaseBodySchema.extend({
   sourceIssueIdOrKey: z
     .string({ error: 'Source issue ID or key is required' })
     .min(1, 'Source issue ID or key is required'),

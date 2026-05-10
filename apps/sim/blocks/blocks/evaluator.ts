@@ -39,7 +39,7 @@ interface EvaluatorResponse extends ToolResponse {
   }
 }
 
-const generateEvaluatorPrompt = (metrics: Metric[], content: string): string => {
+export const generateEvaluatorPrompt = (metrics: Metric[], content: string): string => {
   // Filter out invalid/incomplete metrics first
   const validMetrics = metrics.filter((m) => m?.name && m.range)
 

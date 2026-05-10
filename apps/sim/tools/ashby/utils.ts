@@ -362,7 +362,7 @@ export function mapApplication(raw: unknown): AshbyApplication {
   }
 }
 
-const CONTACT_INFO_OUTPUT = {
+export const CONTACT_INFO_OUTPUT = {
   type: 'object',
   description: 'Contact info',
   optional: true,
@@ -373,7 +373,7 @@ const CONTACT_INFO_OUTPUT = {
   },
 } as const satisfies OutputProperty
 
-const CUSTOM_FIELDS_OUTPUT = {
+export const CUSTOM_FIELDS_OUTPUT = {
   type: 'array',
   description: 'Custom field values',
   items: {
@@ -388,7 +388,7 @@ const CUSTOM_FIELDS_OUTPUT = {
   },
 } as const satisfies OutputProperty
 
-const FILE_HANDLE_OUTPUT = {
+export const FILE_HANDLE_OUTPUT = {
   type: 'object',
   description: 'File reference',
   optional: true,
@@ -399,7 +399,7 @@ const FILE_HANDLE_OUTPUT = {
   },
 } as const satisfies OutputProperty
 
-const FILE_HANDLES_OUTPUT = {
+export const FILE_HANDLES_OUTPUT = {
   type: 'array',
   description: 'File references',
   items: {
@@ -428,7 +428,7 @@ export const USER_SUMMARY_OUTPUT = {
   },
 } as const satisfies OutputProperty
 
-const SOURCE_SUMMARY_OUTPUT = {
+export const SOURCE_SUMMARY_OUTPUT = {
   type: 'object',
   description: 'Attribution source',
   optional: true,
@@ -449,7 +449,7 @@ const SOURCE_SUMMARY_OUTPUT = {
   },
 } as const satisfies OutputProperty
 
-const HIRING_TEAM_OUTPUT = {
+export const HIRING_TEAM_OUTPUT = {
   type: 'array',
   description: 'Hiring team members',
   items: {

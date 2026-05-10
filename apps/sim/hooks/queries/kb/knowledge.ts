@@ -345,7 +345,7 @@ async function fetchAllDocumentChunks(
   return allResults
 }
 
-const serializeSearchParams = (params: DocumentChunkSearchParams) =>
+export const serializeSearchParams = (params: DocumentChunkSearchParams) =>
   JSON.stringify({
     search: params.search,
   })

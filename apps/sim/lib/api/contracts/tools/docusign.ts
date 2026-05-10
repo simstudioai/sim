@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const docusignToolBodySchema = z
+export const docusignToolBodySchema = z
   .object({
     accessToken: z.string().min(1, 'Access token is required'),
     operation: z.string().min(1, 'Operation is required'),

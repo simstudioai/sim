@@ -6,7 +6,7 @@ export const academyCertificateMetadataSchema = z.object({
   courseTitle: z.string(),
 })
 
-const academyCertificateSchema = z.object({
+export const academyCertificateSchema = z.object({
   id: z.string(),
   userId: z.string(),
   courseId: z.string(),
@@ -18,11 +18,11 @@ const academyCertificateSchema = z.object({
   createdAt: z.coerce.date(),
 })
 
-const getAcademyCertificateQuerySchema = z.object({
+export const getAcademyCertificateQuerySchema = z.object({
   courseId: z.string().min(1),
 })
 
-const issueAcademyCertificateBodySchema = z.object({
+export const issueAcademyCertificateBodySchema = z.object({
   courseId: z.string().min(1),
   completedLessonIds: z.array(z.string()),
 })

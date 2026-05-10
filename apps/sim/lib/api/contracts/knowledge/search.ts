@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { DEFAULT_RERANKER_MODEL, rerankerModelSchema } from '@/lib/knowledge/reranker-models'
 
-const knowledgeSearchTagFilterSchema = z.object({
+export const knowledgeSearchTagFilterSchema = z.object({
   tagName: z.string(),
   tagSlot: z.string().optional(),
   fieldType: z.enum(['text', 'number', 'date', 'boolean']).optional(),

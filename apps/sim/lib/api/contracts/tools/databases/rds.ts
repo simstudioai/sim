@@ -23,20 +23,20 @@ export const rdsQueryBodySchema = rdsConnectionBodySchema.extend({
   query: z.string().min(1, 'Query is required'),
 })
 
-const rdsInsertBodySchema = rdsConnectionBodySchema.extend({
+export const rdsInsertBodySchema = rdsConnectionBodySchema.extend({
   table: z.string().min(1, 'Table name is required'),
   data: nonEmptyRecordSchema('Data object must have at least one field'),
 })
-const rdsUpdateBodySchema = rdsConnectionBodySchema.extend({
+export const rdsUpdateBodySchema = rdsConnectionBodySchema.extend({
   table: z.string().min(1, 'Table name is required'),
   data: nonEmptyRecordSchema('Data object must have at least one field'),
   conditions: nonEmptyRecordSchema('At least one condition is required'),
 })
-const rdsDeleteBodySchema = rdsConnectionBodySchema.extend({
+export const rdsDeleteBodySchema = rdsConnectionBodySchema.extend({
   table: z.string().min(1, 'Table name is required'),
   conditions: nonEmptyRecordSchema('At least one condition is required'),
 })
-const rdsIntrospectBodySchema = rdsConnectionBodySchema.extend({
+export const rdsIntrospectBodySchema = rdsConnectionBodySchema.extend({
   schema: z.string().optional(),
   engine: z.enum(['aurora-postgresql', 'aurora-mysql']).optional(),
 })

@@ -11,15 +11,15 @@ import type { ContractJsonResponse } from '@/lib/api/contracts/types'
  * Webflow `/sites` accepts an optional `siteId`. When provided, the route
  * dispatches to the single-site detail endpoint instead of the list endpoint.
  */
-const webflowSitesBodySchema = credentialWorkflowBodySchema.extend({
+export const webflowSitesBodySchema = credentialWorkflowBodySchema.extend({
   siteId: optionalString,
 })
 
-const webflowCollectionsBodySchema = credentialWorkflowBodySchema.extend({
+export const webflowCollectionsBodySchema = credentialWorkflowBodySchema.extend({
   siteId: z.string().min(1, 'Site ID is required'),
 })
 
-const webflowItemsBodySchema = credentialWorkflowBodySchema.extend({
+export const webflowItemsBodySchema = credentialWorkflowBodySchema.extend({
   collectionId: z.string().min(1, 'Collection ID is required'),
   search: optionalString,
 })

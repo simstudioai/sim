@@ -150,7 +150,7 @@ const getSensorAggregatesSchema = baseRequestSchema.extend({
   aggregateQuery: aggregateQuerySchema,
 })
 
-const crowdstrikeQueryBodySchema = z.discriminatedUnion('operation', [
+export const crowdstrikeQueryBodySchema = z.discriminatedUnion('operation', [
   querySensorsSchema,
   getSensorDetailsSchema,
   getSensorAggregatesSchema,

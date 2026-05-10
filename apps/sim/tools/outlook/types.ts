@@ -10,7 +10,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Output definition for email address objects.
  * @see https://learn.microsoft.com/en-us/graph/api/resources/emailaddress
  */
-const OUTLOOK_EMAIL_ADDRESS_OUTPUT_PROPERTIES = {
+export const OUTLOOK_EMAIL_ADDRESS_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Display name of the person or entity', optional: true },
   address: { type: 'string', description: 'Email address' },
 } as const satisfies Record<string, OutputProperty>
@@ -19,7 +19,7 @@ const OUTLOOK_EMAIL_ADDRESS_OUTPUT_PROPERTIES = {
  * Output definition for message body objects.
  * @see https://learn.microsoft.com/en-us/graph/api/resources/itembody
  */
-const OUTLOOK_MESSAGE_BODY_OUTPUT_PROPERTIES = {
+export const OUTLOOK_MESSAGE_BODY_OUTPUT_PROPERTIES = {
   contentType: { type: 'string', description: 'Body content type (text or html)', optional: true },
   content: { type: 'string', description: 'Body content', optional: true },
 } as const satisfies Record<string, OutputProperty>
@@ -101,7 +101,7 @@ export const OUTLOOK_MESSAGE_OUTPUT: OutputProperty = {
  * Output definition for attachment objects.
  * @see https://learn.microsoft.com/en-us/graph/api/resources/attachment
  */
-const OUTLOOK_ATTACHMENT_OUTPUT_PROPERTIES = {
+export const OUTLOOK_ATTACHMENT_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Attachment filename' },
   contentType: { type: 'string', description: 'MIME type of the attachment' },
   size: { type: 'number', description: 'Attachment size in bytes' },

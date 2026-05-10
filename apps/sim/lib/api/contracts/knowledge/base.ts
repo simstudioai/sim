@@ -8,7 +8,7 @@ import {
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import type { StrategyOptions } from '@/lib/chunkers/types'
 
-const knowledgeScopeSchema = z.enum(['active', 'archived', 'all'])
+export const knowledgeScopeSchema = z.enum(['active', 'archived', 'all'])
 export type KnowledgeScope = z.output<typeof knowledgeScopeSchema>
 
 export const listKnowledgeBasesQuerySchema = z.object({
@@ -16,7 +16,7 @@ export const listKnowledgeBasesQuerySchema = z.object({
   scope: knowledgeScopeSchema.default('active'),
 })
 
-const chunkingStrategyOptionsSchema = z
+export const chunkingStrategyOptionsSchema = z
   .object({
     pattern: z.string().max(500).optional(),
     separators: z.array(z.string()).optional(),
@@ -25,7 +25,7 @@ const chunkingStrategyOptionsSchema = z
   })
   .strict() satisfies z.ZodType<StrategyOptions>
 
-const chunkingConfigSchema = z
+export const chunkingConfigSchema = z
   .object({
     maxSize: z.number().min(100).max(4000),
     minSize: z.number().min(1).max(2000),
@@ -62,7 +62,7 @@ export const createKnowledgeBaseBodySchema = z.object({
   }),
 })
 
-const updateKnowledgeBaseBodySchema = createKnowledgeBaseBodySchema
+export const updateKnowledgeBaseBodySchema = createKnowledgeBaseBodySchema
   .pick({
     name: true,
     description: true,
@@ -85,7 +85,7 @@ const knowledgeChunkingConfigSchema = z
   })
   .passthrough()
 
-const knowledgeBaseDataSchema = z
+export const knowledgeBaseDataSchema = z
   .object({
     id: z.string(),
     userId: z.string(),

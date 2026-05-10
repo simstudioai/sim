@@ -1,13 +1,18 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const fileUploadTypeSchema = z.enum(['knowledge-base', 'chat', 'copilot', 'profile-pictures'])
+export const fileUploadTypeSchema = z.enum([
+  'knowledge-base',
+  'chat',
+  'copilot',
+  'profile-pictures',
+])
 
-const fileUploadTypeQuerySchema = z.object({
+export const fileUploadTypeQuerySchema = z.object({
   type: fileUploadTypeSchema,
 })
 
-const presignedUploadBodySchema = z
+export const presignedUploadBodySchema = z
   .object({
     fileName: z.string().optional(),
     contentType: z.string().optional(),
@@ -17,7 +22,7 @@ const presignedUploadBodySchema = z
   })
   .passthrough()
 
-const batchPresignedUploadBodySchema = z
+export const batchPresignedUploadBodySchema = z
   .object({
     files: z
       .array(
@@ -33,7 +38,7 @@ const batchPresignedUploadBodySchema = z
   })
   .passthrough()
 
-const presignedFileInfoSchema = z
+export const presignedFileInfoSchema = z
   .object({
     path: z.string(),
     key: z.string(),
@@ -60,7 +65,7 @@ export const batchPresignedUploadResponseSchema = z
   })
   .passthrough()
 
-const createPresignedUploadContract = defineRouteContract({
+export const createPresignedUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/files/presigned',
   query: fileUploadTypeQuerySchema,
@@ -71,7 +76,7 @@ const createPresignedUploadContract = defineRouteContract({
   },
 })
 
-const createBatchPresignedUploadContract = defineRouteContract({
+export const createBatchPresignedUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/files/presigned/batch',
   query: fileUploadTypeQuerySchema,

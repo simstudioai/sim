@@ -16,7 +16,7 @@ const logger = createLogger('CreatorProfileQuery')
 /**
  * Query key factories for creator profiles
  */
-const creatorProfileKeys = {
+export const creatorProfileKeys = {
   all: ['creatorProfile'] as const,
   list: () => [...creatorProfileKeys.all, 'list'] as const,
   profile: (userId: string) => [...creatorProfileKeys.all, 'profile', userId] as const,

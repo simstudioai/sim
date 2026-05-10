@@ -9,11 +9,11 @@ import {
 } from '@/lib/api/contracts/selectors/shared'
 import type { ContractBody, ContractJsonResponse, ContractQuery } from '@/lib/api/contracts/types'
 
-const sharepointListsBodySchema = credentialWorkflowBodySchema.extend({
+export const sharepointListsBodySchema = credentialWorkflowBodySchema.extend({
   siteId: z.string().min(1),
 })
 
-const sharepointSitesBodySchema = credentialWorkflowBodySchema.extend({
+export const sharepointSitesBodySchema = credentialWorkflowBodySchema.extend({
   query: optionalString,
 })
 

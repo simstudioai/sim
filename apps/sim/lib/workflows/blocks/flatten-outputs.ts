@@ -14,7 +14,7 @@ import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
  * Block types whose "outputs" are really workflow inputs (Start/starter) or flow
  * control and should never appear in an output picker.
  */
-const EXCLUDED_OUTPUT_TYPES = new Set(['starter', 'start_trigger', 'human_in_the_loop'])
+export const EXCLUDED_OUTPUT_TYPES = new Set(['starter', 'start_trigger', 'human_in_the_loop'])
 
 export interface FlattenedBlockOutput {
   blockId: string

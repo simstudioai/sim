@@ -160,9 +160,9 @@ export function serverErrorResponse(message = 'Internal server error') {
  * Re-exports from `lib/api/contracts/tables` so existing routes that import
  * these names keep working while sharing a single source of truth.
  */
-const CreateColumnSchema = createTableColumnBodySchema
-const UpdateColumnSchema = updateTableColumnBodySchema
-const DeleteColumnSchema = deleteTableColumnBodySchema
+export const CreateColumnSchema = createTableColumnBodySchema
+export const UpdateColumnSchema = updateTableColumnBodySchema
+export const DeleteColumnSchema = deleteTableColumnBodySchema
 
 export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
   return {

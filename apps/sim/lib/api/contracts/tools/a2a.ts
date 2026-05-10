@@ -11,16 +11,16 @@ export const a2aTaskBodySchema = a2aBaseBodySchema.extend({
   taskId: z.string().min(1, 'Task ID is required'),
 })
 
-const a2aGetAgentCardBodySchema = a2aBaseBodySchema
+export const a2aGetAgentCardBodySchema = a2aBaseBodySchema
 
-const a2aSendMessageFileSchema = z.object({
+export const a2aSendMessageFileSchema = z.object({
   type: z.enum(['file', 'url']),
   data: z.string(),
   name: z.string(),
   mime: z.string().optional(),
 })
 
-const a2aSendMessageBodySchema = a2aBaseBodySchema.extend({
+export const a2aSendMessageBodySchema = a2aBaseBodySchema.extend({
   message: z.string().min(1, 'Message is required'),
   taskId: z.string().optional(),
   contextId: z.string().optional(),
@@ -28,22 +28,22 @@ const a2aSendMessageBodySchema = a2aBaseBodySchema.extend({
   files: z.array(a2aSendMessageFileSchema).optional(),
 })
 
-const a2aGetTaskBodySchema = a2aTaskBodySchema.extend({
+export const a2aGetTaskBodySchema = a2aTaskBodySchema.extend({
   historyLength: z.number().optional(),
 })
 
-const a2aCancelTaskBodySchema = a2aTaskBodySchema
+export const a2aCancelTaskBodySchema = a2aTaskBodySchema
 
-const a2aResubscribeBodySchema = a2aTaskBodySchema
+export const a2aResubscribeBodySchema = a2aTaskBodySchema
 
-const a2aSetPushNotificationBodySchema = a2aTaskBodySchema.extend({
+export const a2aSetPushNotificationBodySchema = a2aTaskBodySchema.extend({
   webhookUrl: z.string().min(1, 'Webhook URL is required'),
   token: z.string().optional(),
 })
 
-const a2aGetPushNotificationBodySchema = a2aTaskBodySchema
+export const a2aGetPushNotificationBodySchema = a2aTaskBodySchema
 
-const a2aDeletePushNotificationBodySchema = a2aTaskBodySchema.extend({
+export const a2aDeletePushNotificationBodySchema = a2aTaskBodySchema.extend({
   pushNotificationConfigId: z.string().optional(),
 })
 

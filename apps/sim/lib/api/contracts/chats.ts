@@ -1,34 +1,34 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const chatAuthTypeSchema = z.enum(['public', 'password', 'email', 'sso'])
+export const chatAuthTypeSchema = z.enum(['public', 'password', 'email', 'sso'])
 export type ChatAuthType = z.output<typeof chatAuthTypeSchema>
 
 export const chatIdParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-const chatIdentifierParamsSchema = z.object({
+export const chatIdentifierParamsSchema = z.object({
   identifier: z.string().min(1),
 })
 
-const chatOutputConfigSchema = z.object({
+export const chatOutputConfigSchema = z.object({
   blockId: z.string().min(1),
   path: z.string().min(1),
 })
 
-const deployedChatOutputConfigSchema = z.object({
+export const deployedChatOutputConfigSchema = z.object({
   blockId: z.string(),
   path: z.string().optional(),
 })
 
-const chatCustomizationsSchema = z.object({
+export const chatCustomizationsSchema = z.object({
   primaryColor: z.string(),
   welcomeMessage: z.string(),
   imageUrl: z.string().optional(),
 })
 
-const createChatBodySchema = z.object({
+export const createChatBodySchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
   identifier: z
     .string()
@@ -44,7 +44,7 @@ const createChatBodySchema = z.object({
 })
 export type CreateChatBody = z.input<typeof createChatBodySchema>
 
-const updateChatBodySchema = z.object({
+export const updateChatBodySchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required').optional(),
   identifier: z
     .string()
@@ -61,7 +61,7 @@ const updateChatBodySchema = z.object({
 })
 export type UpdateChatBody = z.input<typeof updateChatBodySchema>
 
-const createChatResponseSchema = z.object({
+export const createChatResponseSchema = z.object({
   id: z.string(),
   chatId: z.string(),
   chatUrl: z.string(),
@@ -69,18 +69,18 @@ const createChatResponseSchema = z.object({
 })
 export type CreateChatResponse = z.output<typeof createChatResponseSchema>
 
-const updateChatResponseSchema = z.object({
+export const updateChatResponseSchema = z.object({
   id: z.string(),
   chatUrl: z.string(),
   message: z.string(),
 })
 export type UpdateChatResponse = z.output<typeof updateChatResponseSchema>
 
-const deleteChatResponseSchema = z.object({
+export const deleteChatResponseSchema = z.object({
   message: z.string(),
 })
 
-const deployedChatConfigSchema = z.object({
+export const deployedChatConfigSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.preprocess((value) => value ?? '', z.string()),
@@ -104,13 +104,13 @@ const deployedChatConfigSchema = z.object({
 })
 export type DeployedChatConfig = z.output<typeof deployedChatConfigSchema>
 
-const deployedChatAuthBodySchema = z.object({
+export const deployedChatAuthBodySchema = z.object({
   password: z.string().optional(),
   email: z.string().email('Invalid email format').optional().or(z.literal('')),
 })
 export type DeployedChatAuthBody = z.input<typeof deployedChatAuthBodySchema>
 
-const deployedChatFileSchema = z.object({
+export const deployedChatFileSchema = z.object({
   name: z.string().min(1, 'File name is required'),
   type: z.string().min(1, 'File type is required'),
   size: z.number().positive('File size must be positive'),
@@ -118,7 +118,7 @@ const deployedChatFileSchema = z.object({
   lastModified: z.number().optional(),
 })
 
-const deployedChatPostBodySchema = z.object({
+export const deployedChatPostBodySchema = z.object({
   input: z.string().optional(),
   password: z.string().optional(),
   email: z.string().email('Invalid email format').optional().or(z.literal('')),
@@ -127,24 +127,24 @@ const deployedChatPostBodySchema = z.object({
 })
 export type DeployedChatPostBody = z.input<typeof deployedChatPostBodySchema>
 
-const chatSSOBodySchema = z.object({
+export const chatSSOBodySchema = z.object({
   email: z.string().email('Invalid email address'),
 })
 
-const chatSSOResponseSchema = z.object({
+export const chatSSOResponseSchema = z.object({
   eligible: z.boolean(),
 })
 export type ChatSSOResponse = z.output<typeof chatSSOResponseSchema>
 
-const chatEmailOtpRequestBodySchema = z.object({
+export const chatEmailOtpRequestBodySchema = z.object({
   email: z.string().email('Invalid email address'),
 })
 
-const chatEmailOtpVerifyBodySchema = chatEmailOtpRequestBodySchema.extend({
+export const chatEmailOtpVerifyBodySchema = chatEmailOtpRequestBodySchema.extend({
   otp: z.string().length(6, 'OTP must be 6 digits'),
 })
 
-const chatEmailOtpRequestResponseSchema = z.object({
+export const chatEmailOtpRequestResponseSchema = z.object({
   message: z.string(),
 })
 
@@ -156,7 +156,7 @@ export const identifierValidationQuerySchema = z.object({
     .max(100, 'Identifier must be 100 characters or less'),
 })
 
-const identifierValidationResponseSchema = z.object({
+export const identifierValidationResponseSchema = z.object({
   available: z.boolean(),
   error: z.string().nullable().optional(),
 })

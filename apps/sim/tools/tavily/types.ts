@@ -57,7 +57,7 @@ export const TAVILY_USAGE_OUTPUT_PROPERTIES = {
 /**
  * Complete usage output definition
  */
-const TAVILY_USAGE_OUTPUT: OutputProperty = {
+export const TAVILY_USAGE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Credit usage details',
   properties: TAVILY_USAGE_OUTPUT_PROPERTIES,

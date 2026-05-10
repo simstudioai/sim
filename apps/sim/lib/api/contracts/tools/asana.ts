@@ -79,13 +79,13 @@ const asanaGetTaskResponseSchema = z.union([
   asanaTasksResponseSchema,
 ])
 
-const asanaAddCommentBodySchema = z.object({
+export const asanaAddCommentBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   taskGid: z.string().min(1, 'Task GID is required'),
   text: z.string().min(1, 'Comment text is required'),
 })
 
-const asanaCreateTaskBodySchema = z.object({
+export const asanaCreateTaskBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   name: z.string().min(1, 'Task name is required'),
   workspace: z.string().min(1, 'Workspace GID is required'),
@@ -94,12 +94,12 @@ const asanaCreateTaskBodySchema = z.object({
   due_on: z.string().nullish(),
 })
 
-const asanaGetProjectsBodySchema = z.object({
+export const asanaGetProjectsBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   workspace: z.string().min(1, 'Workspace is required'),
 })
 
-const asanaGetTaskBodySchema = z.object({
+export const asanaGetTaskBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   taskGid: z.string().nullish(),
   workspace: z.string().nullish(),
@@ -107,7 +107,7 @@ const asanaGetTaskBodySchema = z.object({
   limit: z.union([z.string(), z.number()]).nullish(),
 })
 
-const asanaSearchTasksBodySchema = z.object({
+export const asanaSearchTasksBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   workspace: z.string().min(1, 'Workspace is required'),
   text: z.string().nullish(),
@@ -116,7 +116,7 @@ const asanaSearchTasksBodySchema = z.object({
   completed: z.boolean().nullish(),
 })
 
-const asanaUpdateTaskBodySchema = z.object({
+export const asanaUpdateTaskBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   taskGid: z.string().min(1, 'Task GID is required'),
   name: z.string().nullish(),

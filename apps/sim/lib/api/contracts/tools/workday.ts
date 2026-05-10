@@ -89,16 +89,16 @@ const workdayTerminateResponseSchema = workdaySuccessOutputSchema(
   z.object({ eventId: workdayEventIdSchema, workerId: z.string(), terminationDate: z.string() })
 )
 
-const workdayGetWorkerBodySchema = workdayBaseBodySchema.extend({
+export const workdayGetWorkerBodySchema = workdayBaseBodySchema.extend({
   workerId: z.string().min(1),
 })
 
-const workdayListWorkersBodySchema = workdayBaseBodySchema.extend({
+export const workdayListWorkersBodySchema = workdayBaseBodySchema.extend({
   limit: z.number().optional(),
   offset: z.number().optional(),
 })
 
-const workdayCreatePrehireBodySchema = workdayBaseBodySchema.extend({
+export const workdayCreatePrehireBodySchema = workdayBaseBodySchema.extend({
   legalName: z.string().min(1),
   email: z.string().optional(),
   phoneNumber: z.string().optional(),
@@ -106,31 +106,31 @@ const workdayCreatePrehireBodySchema = workdayBaseBodySchema.extend({
   countryCode: z.string().optional(),
 })
 
-const workdayHireBodySchema = workdayBaseBodySchema.extend({
+export const workdayHireBodySchema = workdayBaseBodySchema.extend({
   preHireId: z.string().min(1),
   positionId: z.string().min(1),
   hireDate: z.string().min(1),
   employeeType: z.string().optional(),
 })
 
-const workdayUpdateWorkerBodySchema = workdayBaseBodySchema.extend({
+export const workdayUpdateWorkerBodySchema = workdayBaseBodySchema.extend({
   workerId: z.string().min(1),
   fields: z.record(z.string(), z.unknown()),
 })
 
-const workdayAssignOnboardingBodySchema = workdayBaseBodySchema.extend({
+export const workdayAssignOnboardingBodySchema = workdayBaseBodySchema.extend({
   workerId: z.string().min(1),
   onboardingPlanId: z.string().min(1),
   actionEventId: z.string().min(1),
 })
 
-const workdayGetOrganizationsBodySchema = workdayBaseBodySchema.extend({
+export const workdayGetOrganizationsBodySchema = workdayBaseBodySchema.extend({
   type: z.string().optional(),
   limit: z.number().optional(),
   offset: z.number().optional(),
 })
 
-const workdayChangeJobBodySchema = workdayBaseBodySchema.extend({
+export const workdayChangeJobBodySchema = workdayBaseBodySchema.extend({
   workerId: z.string().min(1),
   effectiveDate: z.string().min(1),
   newPositionId: z.string().optional(),
@@ -140,11 +140,11 @@ const workdayChangeJobBodySchema = workdayBaseBodySchema.extend({
   reason: z.string().min(1, 'Reason is required for job changes'),
 })
 
-const workdayGetCompensationBodySchema = workdayBaseBodySchema.extend({
+export const workdayGetCompensationBodySchema = workdayBaseBodySchema.extend({
   workerId: z.string().min(1),
 })
 
-const workdayTerminateBodySchema = workdayBaseBodySchema.extend({
+export const workdayTerminateBodySchema = workdayBaseBodySchema.extend({
   workerId: z.string().min(1),
   terminationDate: z.string().min(1),
   reason: z.string().min(1),

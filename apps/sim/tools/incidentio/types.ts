@@ -10,7 +10,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * Output definition for severity objects.
  * @see https://api-docs.incident.io/#tag/Severities
  */
-const INCIDENTIO_SEVERITY_OUTPUT_PROPERTIES = {
+export const INCIDENTIO_SEVERITY_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Severity ID' },
   name: { type: 'string', description: 'Severity name (e.g., Critical, Major, Minor)' },
   description: { type: 'string', description: 'Severity description' },
@@ -21,7 +21,7 @@ const INCIDENTIO_SEVERITY_OUTPUT_PROPERTIES = {
  * Output definition for status objects.
  * @see https://api-docs.incident.io/#tag/Incident-Statuses
  */
-const INCIDENTIO_STATUS_OUTPUT_PROPERTIES = {
+export const INCIDENTIO_STATUS_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Status ID' },
   name: { type: 'string', description: 'Status name' },
   description: { type: 'string', description: 'Status description' },
@@ -35,7 +35,7 @@ const INCIDENTIO_STATUS_OUTPUT_PROPERTIES = {
  * Output definition for incident type objects.
  * @see https://api-docs.incident.io/#tag/Incident-Types
  */
-const INCIDENTIO_INCIDENT_TYPE_OUTPUT_PROPERTIES = {
+export const INCIDENTIO_INCIDENT_TYPE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Incident type ID' },
   name: { type: 'string', description: 'Incident type name' },
   description: { type: 'string', description: 'Incident type description' },
@@ -46,7 +46,7 @@ const INCIDENTIO_INCIDENT_TYPE_OUTPUT_PROPERTIES = {
  * Output definition for user objects.
  * @see https://api-docs.incident.io/#tag/Users
  */
-const INCIDENTIO_USER_OUTPUT_PROPERTIES = {
+export const INCIDENTIO_USER_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'User ID' },
   name: { type: 'string', description: 'User display name' },
   email: { type: 'string', description: 'User email address' },
@@ -132,7 +132,7 @@ export const INCIDENTIO_ACTION_OUTPUT_PROPERTIES = {
 /**
  * Complete action output definition
  */
-const INCIDENTIO_ACTION_OUTPUT: OutputProperty = {
+export const INCIDENTIO_ACTION_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Incident.io action object',
   properties: INCIDENTIO_ACTION_OUTPUT_PROPERTIES,
@@ -162,7 +162,7 @@ export const INCIDENTIO_FOLLOW_UP_OUTPUT_PROPERTIES = {
 /**
  * Complete follow-up output definition
  */
-const INCIDENTIO_FOLLOW_UP_OUTPUT: OutputProperty = {
+export const INCIDENTIO_FOLLOW_UP_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Incident.io follow-up object',
   properties: INCIDENTIO_FOLLOW_UP_OUTPUT_PROPERTIES,
@@ -184,7 +184,7 @@ export const INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES = {
 /**
  * Complete workflow output definition
  */
-const INCIDENTIO_WORKFLOW_OUTPUT: OutputProperty = {
+export const INCIDENTIO_WORKFLOW_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Incident.io workflow object',
   properties: INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES,
@@ -209,7 +209,7 @@ export const INCIDENTIO_CUSTOM_FIELD_OUTPUT_PROPERTIES = {
 /**
  * Complete custom field output definition
  */
-const INCIDENTIO_CUSTOM_FIELD_OUTPUT: OutputProperty = {
+export const INCIDENTIO_CUSTOM_FIELD_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Incident.io custom field object',
   properties: INCIDENTIO_CUSTOM_FIELD_OUTPUT_PROPERTIES,
@@ -230,7 +230,7 @@ export const INCIDENTIO_SCHEDULE_OUTPUT_PROPERTIES = {
 /**
  * Complete schedule output definition
  */
-const INCIDENTIO_SCHEDULE_OUTPUT: OutputProperty = {
+export const INCIDENTIO_SCHEDULE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Incident.io schedule object',
   properties: INCIDENTIO_SCHEDULE_OUTPUT_PROPERTIES,
@@ -255,7 +255,7 @@ export const INCIDENTIO_INCIDENT_ROLE_OUTPUT_PROPERTIES = {
 /**
  * Complete incident role output definition
  */
-const INCIDENTIO_INCIDENT_ROLE_OUTPUT: OutputProperty = {
+export const INCIDENTIO_INCIDENT_ROLE_OUTPUT: OutputProperty = {
   type: 'object',
   description: 'Incident.io incident role object',
   properties: INCIDENTIO_INCIDENT_ROLE_OUTPUT_PROPERTIES,

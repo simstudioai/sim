@@ -12,7 +12,7 @@ import type { ContractJsonResponse } from '@/lib/api/contracts/types'
  * `string | number` and let the route's `validateMondayNumericId` enforce
  * the actual numeric format.
  */
-const mondayGroupsBodySchema = credentialWorkflowBodySchema.extend({
+export const mondayGroupsBodySchema = credentialWorkflowBodySchema.extend({
   boardId: z.union([z.string().min(1), z.number()]),
 })
 

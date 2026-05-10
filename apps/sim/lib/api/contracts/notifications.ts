@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const notificationWorkspaceParamsSchema = z.object({
+export const notificationWorkspaceParamsSchema = z.object({
   id: z.string().min(1),
 })
 
@@ -10,10 +10,10 @@ export const notificationParamsSchema = z.object({
   notificationId: z.string().min(1),
 })
 
-const notificationTypeSchema = z.enum(['webhook', 'email', 'slack'])
-const notificationLevelSchema = z.enum(['info', 'error'])
+export const notificationTypeSchema = z.enum(['webhook', 'email', 'slack'])
+export const notificationLevelSchema = z.enum(['info', 'error'])
 
-const alertRuleSchema = z.enum([
+export const alertRuleSchema = z.enum([
   'consecutive_failures',
   'failure_rate',
   'latency_threshold',
@@ -23,7 +23,7 @@ const alertRuleSchema = z.enum([
   'error_count',
 ])
 
-const notificationAlertConfigSchema = z.object({
+export const notificationAlertConfigSchema = z.object({
   rule: alertRuleSchema,
   consecutiveFailures: z.number().int().optional(),
   failureRatePercent: z.number().int().optional(),
@@ -35,12 +35,12 @@ const notificationAlertConfigSchema = z.object({
   errorCountThreshold: z.number().int().optional(),
 })
 
-const notificationWebhookConfigSchema = z.object({
+export const notificationWebhookConfigSchema = z.object({
   url: z.string().url(),
   secret: z.string().optional(),
 })
 
-const notificationSlackConfigSchema = z.object({
+export const notificationSlackConfigSchema = z.object({
   channelId: z.string(),
   channelName: z.string(),
   accountId: z.string(),
@@ -53,7 +53,7 @@ export type NotificationAlertConfig = z.output<typeof notificationAlertConfigSch
 export type NotificationWebhookConfig = z.output<typeof notificationWebhookConfigSchema>
 export type NotificationSlackConfig = z.output<typeof notificationSlackConfigSchema>
 
-const notificationSubscriptionSchema = z.object({
+export const notificationSubscriptionSchema = z.object({
   id: z.string(),
   notificationType: notificationTypeSchema,
   workflowIds: z.array(z.string()),
@@ -91,7 +91,7 @@ export const createNotificationBodySchema = z.object({
   slackConfig: notificationSlackConfigSchema.optional(),
 })
 
-const updateNotificationBodySchema = createNotificationBodySchema
+export const updateNotificationBodySchema = createNotificationBodySchema
   .omit({ notificationType: true })
   .partial()
   .extend({

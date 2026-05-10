@@ -14,7 +14,7 @@ const logger = createLogger('BYOKKeysQueries')
 
 export type { BYOKKey, BYOKKeysResponse }
 
-const byokKeysKeys = {
+export const byokKeysKeys = {
   all: ['byok-keys'] as const,
   workspace: (workspaceId: string) => [...byokKeysKeys.all, 'workspace', workspaceId] as const,
 }

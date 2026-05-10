@@ -120,7 +120,7 @@ export * from '@/lib/api/contracts/selectors/wealthbox'
 export * from '@/lib/api/contracts/selectors/webflow'
 export * from '@/lib/api/contracts/selectors/zoom'
 
-const selectorContractsByPath = {
+export const selectorContractsByPath = {
   '/api/tools/airtable/bases': airtableBasesSelectorContract,
   '/api/tools/airtable/tables': airtableTablesSelectorContract,
   '/api/tools/asana/workspaces': asanaWorkspacesSelectorContract,

@@ -9,7 +9,7 @@ import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 const airtableBaseSchema = idNameSchema
 const airtableTableSchema = idNameSchema
 
-const airtableTablesBodySchema = credentialWorkflowBodySchema.extend({
+export const airtableTablesBodySchema = credentialWorkflowBodySchema.extend({
   baseId: z.string().min(1, 'Base ID is required'),
 })
 

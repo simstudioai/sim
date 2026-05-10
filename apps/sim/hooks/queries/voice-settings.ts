@@ -6,7 +6,7 @@ import { getVoiceSettingsContract } from '@/lib/api/contracts'
 /**
  * Query key factory for voice settings queries
  */
-const voiceSettingsKeys = {
+export const voiceSettingsKeys = {
   all: ['voiceSettings'] as const,
   availability: () => [...voiceSettingsKeys.all, 'availability'] as const,
 }

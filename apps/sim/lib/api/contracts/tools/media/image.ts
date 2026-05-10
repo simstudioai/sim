@@ -5,7 +5,7 @@ export const imageProxyQuerySchema = z.object({
   url: z.string({ error: 'Missing URL parameter' }).min(1, 'Missing URL parameter'),
 })
 
-const imageProxyContract = defineRouteContract({
+export const imageProxyContract = defineRouteContract({
   method: 'GET',
   path: '/api/tools/image',
   query: imageProxyQuerySchema,

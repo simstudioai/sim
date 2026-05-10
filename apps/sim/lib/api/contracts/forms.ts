@@ -1,14 +1,14 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const formAuthTypeSchema = z.enum(['public', 'password', 'email'])
+export const formAuthTypeSchema = z.enum(['public', 'password', 'email'])
 export type FormAuthType = z.output<typeof formAuthTypeSchema>
 
 export const formIdParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-const formStatusParamsSchema = z.object({
+export const formStatusParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
 })
 
@@ -20,7 +20,7 @@ export const formIdentifierValidationQuerySchema = z.object({
     .max(100, 'Identifier must be 100 characters or less'),
 })
 
-const formIdentifierParamsSchema = z.object({
+export const formIdentifierParamsSchema = z.object({
   identifier: z.string().min(1),
 })
 export type FormIdentifierParams = z.output<typeof formIdentifierParamsSchema>
@@ -32,12 +32,12 @@ export const formSubmitBodySchema = z.object({
 })
 export type FormSubmitBody = z.output<typeof formSubmitBodySchema>
 
-const formIdentifierValidationResponseSchema = z.object({
+export const formIdentifierValidationResponseSchema = z.object({
   available: z.boolean(),
   error: z.string().nullable().optional(),
 })
 
-const formFieldConfigSchema = z.object({
+export const formFieldConfigSchema = z.object({
   name: z.string(),
   type: z.string(),
   label: z.string(),
@@ -46,7 +46,7 @@ const formFieldConfigSchema = z.object({
 })
 export type FormFieldConfig = z.output<typeof formFieldConfigSchema>
 
-const formCustomizationsSchema = z.object({
+export const formCustomizationsSchema = z.object({
   primaryColor: z.string().optional(),
   welcomeMessage: z.string().max(500, 'Welcome message must be 500 characters or less').optional(),
   thankYouTitle: z.string().max(100, 'Thank you title must be 100 characters or less').optional(),
@@ -59,7 +59,7 @@ const formCustomizationsSchema = z.object({
 })
 export type FormCustomizations = z.output<typeof formCustomizationsSchema>
 
-const existingFormSchema = z.object({
+export const existingFormSchema = z.object({
   id: z.string(),
   identifier: z.string(),
   title: z.string(),
@@ -73,7 +73,7 @@ const existingFormSchema = z.object({
 })
 export type ExistingForm = z.output<typeof existingFormSchema>
 
-const formStatusResponseSchema = z.object({
+export const formStatusResponseSchema = z.object({
   isDeployed: z.boolean(),
   form: z
     .object({
@@ -86,11 +86,11 @@ const formStatusResponseSchema = z.object({
 })
 export type FormStatusResponse = z.output<typeof formStatusResponseSchema>
 
-const getFormDetailResponseSchema = z.object({
+export const getFormDetailResponseSchema = z.object({
   form: existingFormSchema,
 })
 
-const createFormBodySchema = z.object({
+export const createFormBodySchema = z.object({
   workflowId: z.string().min(1, 'Workflow ID is required'),
   identifier: z
     .string()
@@ -111,7 +111,7 @@ const createFormBodySchema = z.object({
 })
 export type CreateFormInput = z.input<typeof createFormBodySchema>
 
-const updateFormBodySchema = z.object({
+export const updateFormBodySchema = z.object({
   identifier: z
     .string()
     .min(1, 'Identifier is required')
@@ -137,14 +137,14 @@ const updateFormBodySchema = z.object({
 })
 export type UpdateFormInput = z.input<typeof updateFormBodySchema>
 
-const createFormResponseSchema = z.object({
+export const createFormResponseSchema = z.object({
   id: z.string(),
   formUrl: z.string(),
   message: z.string(),
 })
 export type CreateFormResponse = z.output<typeof createFormResponseSchema>
 
-const formMutationResponseSchema = z.object({
+export const formMutationResponseSchema = z.object({
   message: z.string(),
 })
 

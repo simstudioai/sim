@@ -14,14 +14,14 @@ const agiloftFileOutputSchema = z.object({
   size: z.number(),
 })
 
-const agiloftRetrieveResponseSchema = z.object({
+export const agiloftRetrieveResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     file: agiloftFileOutputSchema,
   }),
 })
 
-const agiloftAttachResponseSchema = z.object({
+export const agiloftAttachResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     recordId: z.string(),
@@ -31,7 +31,7 @@ const agiloftAttachResponseSchema = z.object({
   }),
 })
 
-const agiloftRetrieveBodySchema = z.object({
+export const agiloftRetrieveBodySchema = z.object({
   instanceUrl: z.string().min(1, 'Instance URL is required'),
   knowledgeBase: z.string().min(1, 'Knowledge base is required'),
   login: z.string().min(1, 'Login is required'),
@@ -42,7 +42,7 @@ const agiloftRetrieveBodySchema = z.object({
   position: z.string().min(1, 'Position is required'),
 })
 
-const agiloftAttachBodySchema = z.object({
+export const agiloftAttachBodySchema = z.object({
   instanceUrl: z.string().min(1, 'Instance URL is required'),
   knowledgeBase: z.string().min(1, 'Knowledge base is required'),
   login: z.string().min(1, 'Login is required'),

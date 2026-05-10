@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const skillSchema = z.object({
+export const skillSchema = z.object({
   id: z.string(),
   workspaceId: z.string().nullable(),
   userId: z.string().nullable(),
@@ -14,7 +14,7 @@ const skillSchema = z.object({
 
 export type Skill = z.output<typeof skillSchema>
 
-const skillUpsertItemSchema = z.object({
+export const skillUpsertItemSchema = z.object({
   id: z.string().optional(),
   name: z
     .string()
@@ -29,7 +29,7 @@ export const listSkillsQuerySchema = z.object({
   workspaceId: z.string().min(1),
 })
 
-const upsertSkillsBodySchema = z.object({
+export const upsertSkillsBodySchema = z.object({
   skills: z.array(skillUpsertItemSchema),
   workspaceId: z.string().min(1),
   source: z.enum(['settings', 'tool_input']).optional(),
@@ -41,7 +41,7 @@ export const deleteSkillQuerySchema = z.object({
   source: z.enum(['settings', 'tool_input']).optional(),
 })
 
-const importSkillBodySchema = z.object({
+export const importSkillBodySchema = z.object({
   url: z.string().url('A valid URL is required'),
 })
 

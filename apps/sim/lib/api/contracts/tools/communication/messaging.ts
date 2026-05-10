@@ -3,19 +3,19 @@ import { defineCommunicationToolContract } from '@/lib/api/contracts/tools/commu
 import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contracts/types'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 
-const smsSendBodySchema = z.object({
+export const smsSendBodySchema = z.object({
   to: z.string().min(1, 'To phone number is required'),
   body: z.string().min(1, 'SMS body is required'),
 })
 
-const telegramSendDocumentBodySchema = z.object({
+export const telegramSendDocumentBodySchema = z.object({
   botToken: z.string().min(1, 'Bot token is required'),
   chatId: z.string().min(1, 'Chat ID is required'),
   files: RawFileInputArraySchema.optional().nullable(),
   caption: z.string().optional().nullable(),
 })
 
-const twilioGetRecordingBodySchema = z.object({
+export const twilioGetRecordingBodySchema = z.object({
   accountSid: z.string().min(1, 'Account SID is required'),
   authToken: z.string().min(1, 'Auth token is required'),
   recordingSid: z.string().min(1, 'Recording SID is required'),

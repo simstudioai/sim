@@ -14,12 +14,12 @@ import {
   defineRouteContract,
 } from '@/lib/api/contracts/types'
 
-const postgresqlQueryBodySchema = sqlQueryBodySchema
-const postgresqlExecuteBodySchema = sqlQueryBodySchema
-const postgresqlInsertBodySchema = sqlInsertBodySchema
-const postgresqlUpdateBodySchema = sqlUpdateBodySchema
-const postgresqlDeleteBodySchema = sqlDeleteBodySchema
-const postgresqlIntrospectBodySchema = sqlConnectionBodySchema.extend({
+export const postgresqlQueryBodySchema = sqlQueryBodySchema
+export const postgresqlExecuteBodySchema = sqlQueryBodySchema
+export const postgresqlInsertBodySchema = sqlInsertBodySchema
+export const postgresqlUpdateBodySchema = sqlUpdateBodySchema
+export const postgresqlDeleteBodySchema = sqlDeleteBodySchema
+export const postgresqlIntrospectBodySchema = sqlConnectionBodySchema.extend({
   schema: z.string().default('public'),
 })
 

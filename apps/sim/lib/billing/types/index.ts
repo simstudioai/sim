@@ -4,7 +4,7 @@
  */
 import { z } from 'zod'
 
-const enterpriseSubscriptionMetadataSchema = z.object({
+export const enterpriseSubscriptionMetadataSchema = z.object({
   plan: z
     .string()
     .transform((v) => v.toLowerCase())

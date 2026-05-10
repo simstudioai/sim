@@ -18,14 +18,14 @@ const numericResponseSchema = z.preprocess((value) => {
   return Number.isFinite(parsed) ? parsed : value
 }, z.number())
 
-const organizationRoleSchema = z.enum(['owner', 'admin', 'member'], {
+export const organizationRoleSchema = z.enum(['owner', 'admin', 'member'], {
   error: 'Invalid role',
 })
 export const organizationParamsSchema = z.object({
   id: z.string().min(1),
 })
 
-const organizationMemberParamsSchema = z.object({
+export const organizationMemberParamsSchema = z.object({
   id: z.string().min(1),
   memberId: z.string().min(1),
 })
@@ -40,7 +40,7 @@ export const removeOrganizationMemberQuerySchema = z.object({
   shouldReduceSeats: booleanQueryParamSchema,
 })
 
-const workspaceGrantSchema = z.object({
+export const workspaceGrantSchema = z.object({
   workspaceId: z.string().min(1),
   permission: workspacePermissionSchema,
 })
@@ -52,7 +52,7 @@ export const createOrganizationBodySchema = z
   })
   .passthrough()
 
-const updateOrganizationBodySchema = z.object({
+export const updateOrganizationBodySchema = z.object({
   name: z.string().trim().min(1, 'Organization name is required').optional(),
   slug: z
     .string()
@@ -66,7 +66,7 @@ const updateOrganizationBodySchema = z.object({
   logo: z.string().nullable().optional(),
 })
 
-const createOrganizationInvitationBodySchema = z
+export const createOrganizationInvitationBodySchema = z
   .object({
     email: z.string().optional(),
     emails: z.array(z.string()).optional(),
@@ -75,18 +75,18 @@ const createOrganizationInvitationBodySchema = z
   })
   .passthrough()
 
-const organizationInvitationsQuerySchema = z
+export const organizationInvitationsQuerySchema = z
   .object({
     validate: booleanQueryParamSchema,
     batch: booleanQueryParamSchema,
   })
   .passthrough()
 
-const updateOrganizationMemberRoleBodySchema = z.object({
+export const updateOrganizationMemberRoleBodySchema = z.object({
   role: organizationRoleSchema,
 })
 
-const inviteOrganizationMemberBodySchema = z
+export const inviteOrganizationMemberBodySchema = z
   .object({
     email: z.string({ error: 'Email is required' }).min(1, 'Email is required'),
     role: z.enum(['admin', 'member'], { error: 'Invalid role' }).optional(),
@@ -101,7 +101,7 @@ const organizationDataRetentionHoursSchema = z
   .nullable()
   .optional()
 
-const updateOrganizationDataRetentionBodySchema = z.object({
+export const updateOrganizationDataRetentionBodySchema = z.object({
   logRetentionHours: organizationDataRetentionHoursSchema,
   softDeleteRetentionHours: organizationDataRetentionHoursSchema,
   taskCleanupHours: organizationDataRetentionHoursSchema,
@@ -124,12 +124,12 @@ const organizationDataRetentionDataSchema = z.object({
 
 export type OrganizationDataRetention = z.output<typeof organizationDataRetentionDataSchema>
 
-const organizationDataRetentionResponseSchema = z.object({
+export const organizationDataRetentionResponseSchema = z.object({
   success: z.boolean(),
   data: organizationDataRetentionDataSchema,
 })
 
-const updateOrganizationWhitelabelBodySchema = z.object({
+export const updateOrganizationWhitelabelBodySchema = z.object({
   brandName: z
     .string()
     .trim()
@@ -169,22 +169,22 @@ const updateOrganizationWhitelabelBodySchema = z.object({
   hidePoweredBySim: z.boolean().optional(),
 })
 
-const transferOwnershipBodySchema = z.object({
+export const transferOwnershipBodySchema = z.object({
   newOwnerUserId: z.string().min(1),
   alsoLeave: z.boolean().optional().default(false),
 })
 
-const updateSeatsBodySchema = z.object({
+export const updateSeatsBodySchema = z.object({
   seats: z.number().int().min(1, 'Minimum 1 seat required').max(50, 'Maximum 50 seats allowed'),
 })
 
-const rosterWorkspaceAccessSchema = z.object({
+export const rosterWorkspaceAccessSchema = z.object({
   workspaceId: z.string(),
   workspaceName: z.string(),
   permission: workspacePermissionSchema,
 })
 
-const rosterMemberSchema = z.object({
+export const rosterMemberSchema = z.object({
   memberId: z.string(),
   userId: z.string(),
   role: z.enum(['owner', 'admin', 'member', 'external']),
@@ -195,7 +195,7 @@ const rosterMemberSchema = z.object({
   workspaces: z.array(rosterWorkspaceAccessSchema),
 })
 
-const rosterPendingInvitationSchema = z.object({
+export const rosterPendingInvitationSchema = z.object({
   id: z.string(),
   email: z.string(),
   role: z.string(),
@@ -208,13 +208,13 @@ const rosterPendingInvitationSchema = z.object({
   workspaces: z.array(rosterWorkspaceAccessSchema),
 })
 
-const organizationRosterSchema = z.object({
+export const organizationRosterSchema = z.object({
   members: z.array(rosterMemberSchema),
   pendingInvitations: z.array(rosterPendingInvitationSchema),
   workspaces: z.array(z.object({ id: z.string(), name: z.string() })),
 })
 
-const organizationMemberUsageSchema = z
+export const organizationMemberUsageSchema = z
   .object({
     id: z.string(),
     userId: z.string(),
@@ -231,7 +231,7 @@ const organizationMemberUsageSchema = z
   })
   .passthrough()
 
-const listOrganizationMembersResponseSchema = z
+export const listOrganizationMembersResponseSchema = z
   .object({
     success: z.boolean(),
     data: z.array(organizationMemberUsageSchema),
@@ -458,7 +458,7 @@ export const updateOrganizationDataRetentionContract = defineRouteContract({
 // `@/lib/branding/types`. All fields are optional (nullable on the way in
 // for the PUT contract, but stored without nulls on the way out — the
 // route deletes keys that are explicitly cleared).
-const organizationWhitelabelSettingsResponseSchema = z.object({
+export const organizationWhitelabelSettingsResponseSchema = z.object({
   brandName: z.string().optional(),
   logoUrl: z.string().optional(),
   wordmarkUrl: z.string().optional(),

@@ -27,7 +27,7 @@ const zoomDownloadedFileSchema = z.object({
   size: z.number(),
 })
 
-const zoomGetRecordingsResponseSchema = z.object({
+export const zoomGetRecordingsResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     recording: z.object({
@@ -48,7 +48,7 @@ const zoomGetRecordingsResponseSchema = z.object({
   }),
 })
 
-const zoomGetRecordingsBodySchema = z.object({
+export const zoomGetRecordingsBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   meetingId: z.string().min(1, 'Meeting ID is required'),
   includeFolderItems: z.boolean().optional(),

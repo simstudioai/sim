@@ -45,7 +45,7 @@ const booleanStringSchema = z
     return false
   })
 
-const mongodbQueryBodySchema = mongoConnectionBodySchema.extend({
+export const mongodbQueryBodySchema = mongoConnectionBodySchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   query: z
     .union([z.string(), z.object({}).passthrough()])
@@ -77,7 +77,7 @@ const mongodbQueryBodySchema = mongoConnectionBodySchema.extend({
     }),
 })
 
-const mongodbExecuteBodySchema = mongoConnectionBodySchema.extend({
+export const mongodbExecuteBodySchema = mongoConnectionBodySchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   pipeline: z
     .union([z.string(), z.array(z.object({}).passthrough())])
@@ -92,7 +92,7 @@ const mongodbExecuteBodySchema = mongoConnectionBodySchema.extend({
     }),
 })
 
-const mongodbInsertBodySchema = mongoConnectionBodySchema.extend({
+export const mongodbInsertBodySchema = mongoConnectionBodySchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   documents: z
     .union([z.array(z.record(z.string(), z.unknown())), z.string()])
@@ -112,7 +112,7 @@ const mongodbInsertBodySchema = mongoConnectionBodySchema.extend({
     }),
 })
 
-const mongodbUpdateBodySchema = mongoConnectionBodySchema.extend({
+export const mongodbUpdateBodySchema = mongoConnectionBodySchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   filter: mongoJsonStringOrObjectSchema('Filter is required for MongoDB Update').refine(
     (val) => val !== '{}',
@@ -123,7 +123,7 @@ const mongodbUpdateBodySchema = mongoConnectionBodySchema.extend({
   multi: booleanStringSchema,
 })
 
-const mongodbDeleteBodySchema = mongoConnectionBodySchema.extend({
+export const mongodbDeleteBodySchema = mongoConnectionBodySchema.extend({
   collection: z.string().min(1, 'Collection name is required'),
   filter: mongoJsonStringOrObjectSchema('Filter is required for MongoDB Delete').refine(
     (val) => val !== '{}',
@@ -132,7 +132,7 @@ const mongodbDeleteBodySchema = mongoConnectionBodySchema.extend({
   multi: booleanStringSchema,
 })
 
-const mongodbIntrospectBodySchema = z
+export const mongodbIntrospectBodySchema = z
   .object({
     host: z.string().min(1, 'Host is required'),
     port: z.coerce.number().int().positive('Port must be a positive integer'),

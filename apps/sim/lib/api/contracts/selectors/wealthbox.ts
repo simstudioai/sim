@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { defineGetSelector, optionalString } from '@/lib/api/contracts/selectors/shared'
 import type { ContractJsonResponse } from '@/lib/api/contracts/types'
 
-const WEALTHBOX_ITEM_TYPES = ['note', 'contact', 'task'] as const
+export const WEALTHBOX_ITEM_TYPES = ['note', 'contact', 'task'] as const
 
 const wealthboxItemSchema = z.object({
   id: z.string(),
@@ -21,7 +21,7 @@ const wealthboxItemResponseSchema = z.object({
   item: wealthboxItemSchema.optional(),
 })
 
-const wealthboxItemsQuerySchema = z.object({
+export const wealthboxItemsQuerySchema = z.object({
   credentialId: z.string().min(1),
   type: z.preprocess(
     (value) => (value === '' || value === undefined ? 'contact' : value),
@@ -33,7 +33,7 @@ const wealthboxItemsQuerySchema = z.object({
   ),
 })
 
-const wealthboxItemQuerySchema = z.object({
+export const wealthboxItemQuerySchema = z.object({
   credentialId: z.preprocess(
     (value) => value ?? '',
     z.string().min(1, 'Credential ID is required')
