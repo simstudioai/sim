@@ -47,9 +47,9 @@ interface GoogleVaultListMattersExportResponse extends ToolResponse {
   output: any
 }
 
-type GoogleVaultHoldView = 'BASIC_HOLD' | 'FULL_HOLD'
+export type GoogleVaultHoldView = 'BASIC_HOLD' | 'FULL_HOLD'
 
-type GoogleVaultCorpus = 'MAIL' | 'DRIVE' | 'GROUPS' | 'HANGOUTS_CHAT' | 'VOICE'
+export type GoogleVaultCorpus = 'MAIL' | 'DRIVE' | 'GROUPS' | 'HANGOUTS_CHAT' | 'VOICE'
 
 export interface GoogleVaultCreateMattersHoldsParams extends GoogleVaultCommonParams {
   holdName: string

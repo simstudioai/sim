@@ -22,5 +22,7 @@ export const linearProjectsSelectorContract = definePostSelector(
   z.object({ projects: z.array(idNameSchema) })
 )
 
-type LinearTeamsSelectorResponse = ContractJsonResponse<typeof linearTeamsSelectorContract>
-type LinearProjectsSelectorResponse = ContractJsonResponse<typeof linearProjectsSelectorContract>
+export type LinearTeamsSelectorResponse = ContractJsonResponse<typeof linearTeamsSelectorContract>
+export type LinearProjectsSelectorResponse = ContractJsonResponse<
+  typeof linearProjectsSelectorContract
+>

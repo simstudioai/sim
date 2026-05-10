@@ -39,10 +39,10 @@ export const discordServersContract = defineCommunicationToolContract(
   discordServersBodySchema
 )
 
-type DiscordSendMessageBody = ContractBodyInput<typeof discordSendMessageContract>
-type DiscordChannelsBody = ContractBodyInput<typeof discordChannelsContract>
-type DiscordServersBody = ContractBodyInput<typeof discordServersContract>
+export type DiscordSendMessageBody = ContractBodyInput<typeof discordSendMessageContract>
+export type DiscordChannelsBody = ContractBodyInput<typeof discordChannelsContract>
+export type DiscordServersBody = ContractBodyInput<typeof discordServersContract>
 
-type DiscordSendMessageResponse = ContractJsonResponse<typeof discordSendMessageContract>
-type DiscordChannelsResponse = ContractJsonResponse<typeof discordChannelsContract>
-type DiscordServersResponse = ContractJsonResponse<typeof discordServersContract>
+export type DiscordSendMessageResponse = ContractJsonResponse<typeof discordSendMessageContract>
+export type DiscordChannelsResponse = ContractJsonResponse<typeof discordChannelsContract>
+export type DiscordServersResponse = ContractJsonResponse<typeof discordServersContract>

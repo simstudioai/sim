@@ -35,7 +35,7 @@ interface StreamingConfig {
   timeoutMs?: number
 }
 
-type StreamingExecutorFn = (callbacks: {
+export type StreamingExecutorFn = (callbacks: {
   onStream: (streamingExec: StreamingExecution) => Promise<void>
   onBlockComplete: (blockId: string, output: unknown) => Promise<void>
   abortSignal: AbortSignal

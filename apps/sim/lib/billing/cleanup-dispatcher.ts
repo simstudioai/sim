@@ -16,7 +16,7 @@ const BATCH_TRIGGER_CHUNK_SIZE = 1000
 
 export type CleanupJobType = 'cleanup-logs' | 'cleanup-soft-deletes' | 'cleanup-tasks'
 
-type OrganizationRetentionKey =
+export type OrganizationRetentionKey =
   | 'logRetentionHours'
   | 'softDeleteRetentionHours'
   | 'taskCleanupHours'
@@ -25,7 +25,7 @@ export type OrganizationRetentionSettings = {
   [K in OrganizationRetentionKey]: number | null
 }
 
-type NonEnterprisePlan = Exclude<PlanCategory, 'enterprise'>
+export type NonEnterprisePlan = Exclude<PlanCategory, 'enterprise'>
 
 const NON_ENTERPRISE_PLANS = ['free', 'pro', 'team'] as const satisfies readonly NonEnterprisePlan[]
 

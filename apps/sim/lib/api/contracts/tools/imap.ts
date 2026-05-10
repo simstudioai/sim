@@ -35,7 +35,7 @@ export const imapMailboxesContract = defineRouteContract({
   response: { mode: 'json', schema: imapMailboxesResponseSchema },
 })
 
-type ImapMailboxesBody = ContractBody<typeof imapMailboxesContract>
-type ImapMailboxesBodyInput = ContractBodyInput<typeof imapMailboxesContract>
-type ImapMailbox = z.output<typeof imapMailboxSchema>
-type ImapMailboxesResponse = ContractJsonResponse<typeof imapMailboxesContract>
+export type ImapMailboxesBody = ContractBody<typeof imapMailboxesContract>
+export type ImapMailboxesBodyInput = ContractBodyInput<typeof imapMailboxesContract>
+export type ImapMailbox = z.output<typeof imapMailboxSchema>
+export type ImapMailboxesResponse = ContractJsonResponse<typeof imapMailboxesContract>

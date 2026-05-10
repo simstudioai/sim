@@ -220,7 +220,7 @@ export const EXECUTION_CONTROL_OUTPUT_FIELD_NAMES = [
   '_pauseMetadata',
 ] as const
 
-type ExecutionControlOutputFieldName = (typeof EXECUTION_CONTROL_OUTPUT_FIELD_NAMES)[number]
+export type ExecutionControlOutputFieldName = (typeof EXECUTION_CONTROL_OUTPUT_FIELD_NAMES)[number]
 
 export interface BlockLog {
   blockId: string

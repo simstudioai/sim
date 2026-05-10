@@ -30,8 +30,8 @@ export type DbWorkflow = InferSelectModel<typeof workflow>
 export type DbWorkflowFolder = InferSelectModel<typeof workflowFolder>
 export type DbOrganization = InferSelectModel<typeof organization>
 export type DbSubscription = InferSelectModel<typeof subscription>
-type DbMember = InferSelectModel<typeof member>
-type DbUserStats = InferSelectModel<typeof userStats>
+export type DbMember = InferSelectModel<typeof member>
+export type DbUserStats = InferSelectModel<typeof userStats>
 
 // =============================================================================
 // Pagination
@@ -219,7 +219,7 @@ export function toAdminWorkflow(dbWorkflow: DbWorkflow): AdminWorkflow {
 // Workflow Variable Types
 // =============================================================================
 
-type VariableType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+export type VariableType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
 
 export interface WorkflowVariable {
   id: string

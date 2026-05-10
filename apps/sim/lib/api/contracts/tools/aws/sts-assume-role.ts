@@ -42,6 +42,6 @@ export const awsStsAssumeRoleContract = defineRouteContract({
   body: AssumeRoleSchema,
   response: { mode: 'json', schema: AssumeRoleResponseSchema },
 })
-type AwsStsAssumeRoleRequest = ContractBodyInput<typeof awsStsAssumeRoleContract>
-type AwsStsAssumeRoleBody = ContractBody<typeof awsStsAssumeRoleContract>
-type AwsStsAssumeRoleResponse = ContractJsonResponse<typeof awsStsAssumeRoleContract>
+export type AwsStsAssumeRoleRequest = ContractBodyInput<typeof awsStsAssumeRoleContract>
+export type AwsStsAssumeRoleBody = ContractBody<typeof awsStsAssumeRoleContract>
+export type AwsStsAssumeRoleResponse = ContractJsonResponse<typeof awsStsAssumeRoleContract>

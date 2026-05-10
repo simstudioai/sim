@@ -156,7 +156,7 @@ const resetPasswordBodySchema = z.object({
     .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
 })
 
-type ResetPasswordBody = z.input<typeof resetPasswordBodySchema>
+export type ResetPasswordBody = z.input<typeof resetPasswordBodySchema>
 
 export const resetPasswordContract = defineRouteContract({
   method: 'POST',

@@ -38,7 +38,7 @@ export type BillingBlockReason = 'payment_failed' | 'dispute'
 /**
  * Get all member user IDs for an organization
  */
-async function getOrgMemberIds(organizationId: string): Promise<string[]> {
+export async function getOrgMemberIds(organizationId: string): Promise<string[]> {
   const members = await db
     .select({ userId: member.userId })
     .from(member)
@@ -283,7 +283,7 @@ export interface RemoveExternalWorkspaceAccessResult {
   pendingInvitationsCancelled: number
 }
 
-type MembershipAdditionFailureCode =
+export type MembershipAdditionFailureCode =
   | 'user-not-found'
   | 'organization-not-found'
   | 'already-member'

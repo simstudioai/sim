@@ -42,12 +42,12 @@ export const awsIdentityCenterListAccountAssignmentsContract = defineRouteContra
   body: Schema,
   response: { mode: 'json', schema: ResponseSchema },
 })
-type AwsIdentityCenterListAccountAssignmentsRequest = ContractBodyInput<
+export type AwsIdentityCenterListAccountAssignmentsRequest = ContractBodyInput<
   typeof awsIdentityCenterListAccountAssignmentsContract
 >
-type AwsIdentityCenterListAccountAssignmentsBody = ContractBody<
+export type AwsIdentityCenterListAccountAssignmentsBody = ContractBody<
   typeof awsIdentityCenterListAccountAssignmentsContract
 >
-type AwsIdentityCenterListAccountAssignmentsResponse = ContractJsonResponse<
+export type AwsIdentityCenterListAccountAssignmentsResponse = ContractJsonResponse<
   typeof awsIdentityCenterListAccountAssignmentsContract
 >

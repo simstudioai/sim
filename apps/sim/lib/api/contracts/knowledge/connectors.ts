@@ -89,7 +89,7 @@ const connectorDocumentDataSchema = z
     processingStatus: z.string(),
   })
   .passthrough()
-type ConnectorDocumentData = z.output<typeof connectorDocumentDataSchema>
+export type ConnectorDocumentData = z.output<typeof connectorDocumentDataSchema>
 
 const connectorDocumentsDataSchema = z.object({
   documents: z.array(connectorDocumentDataSchema),

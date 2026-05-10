@@ -38,7 +38,7 @@ const workspaceCredentialSchema = z.object({
 
 export type WorkspaceCredentialType = z.output<typeof workspaceCredentialTypeSchema>
 export type WorkspaceCredentialRole = z.output<typeof workspaceCredentialRoleSchema>
-type WorkspaceCredentialMemberStatus = z.output<typeof workspaceCredentialMemberStatusSchema>
+export type WorkspaceCredentialMemberStatus = z.output<typeof workspaceCredentialMemberStatusSchema>
 export type WorkspaceCredential = z.output<typeof workspaceCredentialSchema>
 
 const credentialsListQuerySchema = z.object({

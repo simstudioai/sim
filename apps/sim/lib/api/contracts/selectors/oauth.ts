@@ -19,4 +19,4 @@ export const oauthTokenContract = definePostSelector(
   oauthTokenResponseSchema
 )
 
-type OauthTokenResponse = ContractJsonResponse<typeof oauthTokenContract>
+export type OauthTokenResponse = ContractJsonResponse<typeof oauthTokenContract>

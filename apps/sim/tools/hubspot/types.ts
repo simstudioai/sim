@@ -732,7 +732,7 @@ interface HubSpotCrmObject {
 }
 
 /** @deprecated Use HubSpotCrmObject instead */
-type HubSpotContact = HubSpotCrmObject
+export type HubSpotContact = HubSpotCrmObject
 
 interface HubSpotPaging {
   next?: {
@@ -866,7 +866,7 @@ export interface HubSpotSearchContactsParams {
 }
 
 // Companies (same structure as contacts)
-type HubSpotCompany = HubSpotCrmObject
+export type HubSpotCompany = HubSpotCrmObject
 export type HubSpotListCompaniesParams = HubSpotListContactsParams
 export type HubSpotListCompaniesResponse = Omit<HubSpotListContactsResponse, 'output'> & {
   output: {
@@ -918,7 +918,7 @@ export interface HubSpotSearchCompaniesResponse extends ToolResponse {
 }
 
 // Deals
-type HubSpotDeal = HubSpotCrmObject
+export type HubSpotDeal = HubSpotCrmObject
 export type HubSpotListDealsParams = HubSpotListContactsParams
 export type HubSpotListDealsResponse = Omit<HubSpotListContactsResponse, 'output'> & {
   output: {
@@ -954,7 +954,7 @@ export interface HubSpotSearchDealsResponse extends ToolResponse {
 }
 
 // Tickets
-type HubSpotTicket = HubSpotCrmObject
+export type HubSpotTicket = HubSpotCrmObject
 export type HubSpotListTicketsParams = HubSpotListContactsParams
 export type HubSpotListTicketsResponse = ToolResponse & {
   output: {
@@ -992,7 +992,7 @@ export interface HubSpotSearchTicketsResponse extends ToolResponse {
 }
 
 // Line Items
-type HubSpotLineItem = HubSpotCrmObject
+export type HubSpotLineItem = HubSpotCrmObject
 export type HubSpotListLineItemsParams = HubSpotListContactsParams
 export type HubSpotListLineItemsResponse = ToolResponse & {
   output: {
@@ -1020,7 +1020,7 @@ export type HubSpotUpdateLineItemResponse = ToolResponse & {
 }
 
 // Quotes
-type HubSpotQuote = HubSpotCrmObject
+export type HubSpotQuote = HubSpotCrmObject
 export type HubSpotListQuotesParams = HubSpotListContactsParams
 export type HubSpotListQuotesResponse = ToolResponse & {
   output: {
@@ -1038,7 +1038,7 @@ export type HubSpotGetQuoteResponse = ToolResponse & {
 }
 
 // Appointments
-type HubSpotAppointment = HubSpotCrmObject
+export type HubSpotAppointment = HubSpotCrmObject
 export type HubSpotListAppointmentsParams = HubSpotListContactsParams
 export type HubSpotListAppointmentsResponse = ToolResponse & {
   output: {
@@ -1066,7 +1066,7 @@ export type HubSpotUpdateAppointmentResponse = ToolResponse & {
 }
 
 // Carts
-type HubSpotCart = HubSpotCrmObject
+export type HubSpotCart = HubSpotCrmObject
 export type HubSpotListCartsParams = HubSpotListContactsParams
 export type HubSpotListCartsResponse = ToolResponse & {
   output: {

@@ -46,7 +46,7 @@ const inboxSenderSchema = z.object({
   createdAt: z.string(),
 })
 
-type InboxSender = z.output<typeof inboxSenderSchema>
+export type InboxSender = z.output<typeof inboxSenderSchema>
 
 const inboxMemberSchema = z.object({
   email: z.string(),
@@ -54,7 +54,7 @@ const inboxMemberSchema = z.object({
   isAutoAllowed: z.boolean(),
 })
 
-type InboxMember = z.output<typeof inboxMemberSchema>
+export type InboxMember = z.output<typeof inboxMemberSchema>
 
 const inboxSendersResponseSchema = z.object({
   senders: z.array(inboxSenderSchema),

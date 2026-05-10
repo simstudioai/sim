@@ -198,7 +198,7 @@ export type UpdateA2AAgentBody = z.input<typeof updateA2AAgentBodySchema>
 export const a2aServeAgentParamsSchema = z.object({
   agentId: z.string().min(1),
 })
-type A2AServeAgentParams = z.output<typeof a2aServeAgentParamsSchema>
+export type A2AServeAgentParams = z.output<typeof a2aServeAgentParamsSchema>
 
 const a2aJsonRpcIdSchema = z.union([z.string(), z.number(), z.null()])
 export type A2AJsonRpcId = z.output<typeof a2aJsonRpcIdSchema>
@@ -211,7 +211,7 @@ export const a2aJsonRpcRequestSchema = z
     params: z.unknown().optional(),
   })
   .passthrough()
-type A2AJsonRpcRequest = z.output<typeof a2aJsonRpcRequestSchema>
+export type A2AJsonRpcRequest = z.output<typeof a2aJsonRpcRequestSchema>
 
 export const a2aMessageSendParamsSchema = z
   .object({

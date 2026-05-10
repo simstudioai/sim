@@ -25,12 +25,12 @@ const updateMothershipChatBodySchema = z
 const createMothershipChatBodySchema = z.object({
   workspaceId: z.string().min(1),
 })
-type CreateMothershipChatBody = z.input<typeof createMothershipChatBodySchema>
+export type CreateMothershipChatBody = z.input<typeof createMothershipChatBodySchema>
 
 const markMothershipChatReadBodySchema = z.object({
   chatId: z.string().min(1),
 })
-type MarkMothershipChatReadBody = z.input<typeof markMothershipChatReadBodySchema>
+export type MarkMothershipChatReadBody = z.input<typeof markMothershipChatReadBodySchema>
 
 export const markMothershipChatReadContract = defineRouteContract({
   method: 'POST',
@@ -60,7 +60,7 @@ const mothershipExecuteBodySchema = z.object({
   workflowId: z.string().optional(),
   executionId: z.string().optional(),
 })
-type MothershipExecuteBody = z.input<typeof mothershipExecuteBodySchema>
+export type MothershipExecuteBody = z.input<typeof mothershipExecuteBodySchema>
 
 export const mothershipEventsQuerySchema = z
   .object({
@@ -123,7 +123,7 @@ export const adminMothershipQuerySchema = z
     endpoint: z.string().min(1, 'endpoint query param required'),
   })
   .passthrough()
-type AdminMothershipQuery = z.output<typeof adminMothershipQuerySchema>
+export type AdminMothershipQuery = z.output<typeof adminMothershipQuerySchema>
 
 const mothershipChatResourceItemSchema = z.object({
   type: z.string(),
@@ -231,7 +231,7 @@ export const deleteMothershipChatContract = defineRouteContract({
 const forkMothershipChatBodySchema = z.object({
   upToMessageId: z.string().min(1, 'upToMessageId is required'),
 })
-type ForkMothershipChatBody = z.input<typeof forkMothershipChatBodySchema>
+export type ForkMothershipChatBody = z.input<typeof forkMothershipChatBodySchema>
 
 export const forkMothershipChatContract = defineRouteContract({
   method: 'POST',

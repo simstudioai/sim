@@ -12,4 +12,4 @@ export const zoomMeetingsSelectorContract = definePostSelector(
   z.object({ meetings: z.array(idNameSchema) })
 )
 
-type ZoomMeetingsSelectorResponse = ContractJsonResponse<typeof zoomMeetingsSelectorContract>
+export type ZoomMeetingsSelectorResponse = ContractJsonResponse<typeof zoomMeetingsSelectorContract>

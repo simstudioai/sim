@@ -40,10 +40,12 @@ export const awsIdentityCenterListGroupsContract = defineRouteContract({
   body: Schema,
   response: { mode: 'json', schema: ResponseSchema },
 })
-type AwsIdentityCenterListGroupsRequest = ContractBodyInput<
+export type AwsIdentityCenterListGroupsRequest = ContractBodyInput<
   typeof awsIdentityCenterListGroupsContract
 >
-type AwsIdentityCenterListGroupsBody = ContractBody<typeof awsIdentityCenterListGroupsContract>
-type AwsIdentityCenterListGroupsResponse = ContractJsonResponse<
+export type AwsIdentityCenterListGroupsBody = ContractBody<
+  typeof awsIdentityCenterListGroupsContract
+>
+export type AwsIdentityCenterListGroupsResponse = ContractJsonResponse<
   typeof awsIdentityCenterListGroupsContract
 >

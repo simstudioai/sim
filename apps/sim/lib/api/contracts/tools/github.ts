@@ -61,6 +61,6 @@ export const githubLatestCommitContract = defineRouteContract({
   response: { mode: 'json', schema: githubLatestCommitResponseSchema },
 })
 
-type GithubLatestCommitBody = ContractBody<typeof githubLatestCommitContract>
-type GithubLatestCommitBodyInput = ContractBodyInput<typeof githubLatestCommitContract>
-type GithubLatestCommitResponse = ContractJsonResponse<typeof githubLatestCommitContract>
+export type GithubLatestCommitBody = ContractBody<typeof githubLatestCommitContract>
+export type GithubLatestCommitBodyInput = ContractBodyInput<typeof githubLatestCommitContract>
+export type GithubLatestCommitResponse = ContractJsonResponse<typeof githubLatestCommitContract>

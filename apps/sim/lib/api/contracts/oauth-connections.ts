@@ -215,7 +215,7 @@ export const trelloCallbackContract = defineRouteContract({
   response: { mode: 'text' },
 })
 
-type StoreTrelloTokenBody = ContractBody<typeof storeTrelloTokenContract>
-type StoreTrelloTokenBodyInput = ContractBodyInput<typeof storeTrelloTokenContract>
-type StoreTrelloTokenResponse = ContractJsonResponse<typeof storeTrelloTokenContract>
-type OAuthAuthorizeParamsResponse = ContractJsonResponse<typeof oauthAuthorizeParamsContract>
+export type StoreTrelloTokenBody = ContractBody<typeof storeTrelloTokenContract>
+export type StoreTrelloTokenBodyInput = ContractBodyInput<typeof storeTrelloTokenContract>
+export type StoreTrelloTokenResponse = ContractJsonResponse<typeof storeTrelloTokenContract>
+export type OAuthAuthorizeParamsResponse = ContractJsonResponse<typeof oauthAuthorizeParamsContract>

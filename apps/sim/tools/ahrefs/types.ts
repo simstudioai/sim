@@ -8,7 +8,7 @@ interface AhrefsBaseParams {
 }
 
 // Target mode for analysis
-type AhrefsTargetMode = 'domain' | 'prefix' | 'subdomains' | 'exact'
+export type AhrefsTargetMode = 'domain' | 'prefix' | 'subdomains' | 'exact'
 
 // Domain Rating tool types
 export interface AhrefsDomainRatingParams extends AhrefsBaseParams {

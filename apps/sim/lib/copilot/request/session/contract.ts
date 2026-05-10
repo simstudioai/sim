@@ -33,21 +33,21 @@ type EnvelopeToStreamEvent<T> = T extends {
   ? { type: TType; payload: TPayload; scope?: Exclude<TScope, undefined> }
   : never
 
-type SyntheticFilePreviewPhase = (typeof FILE_PREVIEW_PHASE)[keyof typeof FILE_PREVIEW_PHASE]
+export type SyntheticFilePreviewPhase = (typeof FILE_PREVIEW_PHASE)[keyof typeof FILE_PREVIEW_PHASE]
 
-interface SyntheticFilePreviewTarget {
+export interface SyntheticFilePreviewTarget {
   kind: FilePreviewTargetKind
   fileId?: string
   fileName?: string
 }
 
-interface SyntheticFilePreviewStartPayload {
+export interface SyntheticFilePreviewStartPayload {
   previewPhase: typeof FILE_PREVIEW_PHASE.start
   toolCallId: string
   toolName: 'workspace_file'
 }
 
-interface SyntheticFilePreviewTargetPayload {
+export interface SyntheticFilePreviewTargetPayload {
   operation?: string
   previewPhase: typeof FILE_PREVIEW_PHASE.target
   target: SyntheticFilePreviewTarget
@@ -56,14 +56,14 @@ interface SyntheticFilePreviewTargetPayload {
   toolName: 'workspace_file'
 }
 
-interface SyntheticFilePreviewEditMetaPayload {
+export interface SyntheticFilePreviewEditMetaPayload {
   edit: JsonRecord
   previewPhase: typeof FILE_PREVIEW_PHASE.editMeta
   toolCallId: string
   toolName: 'workspace_file'
 }
 
-interface SyntheticFilePreviewContentPayload {
+export interface SyntheticFilePreviewContentPayload {
   content: string
   contentMode: 'delta' | 'snapshot'
   edit?: JsonRecord
@@ -77,7 +77,7 @@ interface SyntheticFilePreviewContentPayload {
   toolName: 'workspace_file'
 }
 
-interface SyntheticFilePreviewCompletePayload {
+export interface SyntheticFilePreviewCompletePayload {
   fileId?: string
   output?: unknown
   previewPhase: typeof FILE_PREVIEW_PHASE.complete
@@ -86,7 +86,7 @@ interface SyntheticFilePreviewCompletePayload {
   toolName: 'workspace_file'
 }
 
-type SyntheticFilePreviewPayload =
+export type SyntheticFilePreviewPayload =
   | SyntheticFilePreviewStartPayload
   | SyntheticFilePreviewTargetPayload
   | SyntheticFilePreviewEditMetaPayload
@@ -108,9 +108,9 @@ export type PersistedStreamEventEnvelope =
   | MothershipStreamV1EventEnvelope
   | SyntheticFilePreviewEventEnvelope
 
-type ContractStreamEvent = EnvelopeToStreamEvent<MothershipStreamV1EventEnvelope>
-type SyntheticStreamEvent = EnvelopeToStreamEvent<SyntheticFilePreviewEventEnvelope>
-type SessionStreamEvent = ContractStreamEvent | SyntheticStreamEvent
+export type ContractStreamEvent = EnvelopeToStreamEvent<MothershipStreamV1EventEnvelope>
+export type SyntheticStreamEvent = EnvelopeToStreamEvent<SyntheticFilePreviewEventEnvelope>
+export type SessionStreamEvent = ContractStreamEvent | SyntheticStreamEvent
 export type StreamEvent = SessionStreamEvent
 export type ToolCallStreamEvent = Extract<
   ContractStreamEvent,
@@ -129,7 +129,7 @@ export type SubagentSpanStreamEvent = Extract<
   { type: 'span'; payload: { kind: 'subagent' } }
 >
 
-interface ParseStreamEventEnvelopeSuccess {
+export interface ParseStreamEventEnvelopeSuccess {
   ok: true
   event: PersistedStreamEventEnvelope
 }

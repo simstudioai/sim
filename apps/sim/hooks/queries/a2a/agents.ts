@@ -81,7 +81,7 @@ export function useA2AAgentCard(agentId: string) {
   })
 }
 
-type CreateA2AAgentParams = CreateA2AAgentBody
+export type CreateA2AAgentParams = CreateA2AAgentBody
 
 /**
  * Create a new A2A agent
@@ -112,7 +112,7 @@ export function useCreateA2AAgent() {
   })
 }
 
-type UpdateA2AAgentParams = UpdateA2AAgentBody & {
+export type UpdateA2AAgentParams = UpdateA2AAgentBody & {
   agentId: string
 }
 

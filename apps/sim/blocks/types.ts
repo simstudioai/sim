@@ -2,18 +2,19 @@ import type { JSX, SVGProps } from 'react'
 import type {
   OutputCondition,
   OutputFieldDefinition,
+  PrimitiveValueType,
   SubBlockType,
 } from '@sim/workflow-types/blocks'
 import type { SelectorKey } from '@/hooks/selectors/types'
 import type { ToolResponse } from '@/tools/types'
 
-export type { OutputCondition, OutputFieldDefinition, SubBlockType }
+export type { OutputCondition, OutputFieldDefinition, PrimitiveValueType, SubBlockType }
 export { isHiddenFromDisplay } from '@sim/workflow-types/blocks'
 
 export type BlockIcon = (props: SVGProps<SVGSVGElement>) => JSX.Element
 export type ParamType = 'string' | 'number' | 'boolean' | 'json' | 'array' | 'file'
 
-type BlockCategory = 'blocks' | 'tools' | 'triggers'
+export type BlockCategory = 'blocks' | 'tools' | 'triggers'
 
 export enum IntegrationType {
   AI = 'ai',
@@ -36,7 +37,7 @@ export enum IntegrationType {
   Security = 'security',
 }
 
-type IntegrationTag =
+export type IntegrationTag =
   | 'marketing'
   | 'automation'
   | 'webhooks'
@@ -137,9 +138,9 @@ export const SELECTOR_TYPES_HYDRATION_REQUIRED: SubBlockType[] = [
   'table-selector',
 ] as const
 
-type ExtractToolOutput<T> = T extends ToolResponse ? T['output'] : never
+export type ExtractToolOutput<T> = T extends ToolResponse ? T['output'] : never
 
-type ToolOutputToValueType<T> = T extends Record<string, any>
+export type ToolOutputToValueType<T> = T extends Record<string, any>
   ? {
       [K in keyof T]: T[K] extends string
         ? 'string'

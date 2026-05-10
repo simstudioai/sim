@@ -306,13 +306,13 @@ export function sortEdges(
 }
 
 /** Block with optional diff markers added by copilot */
-type BlockWithDiffMarkers = BlockState & {
+export type BlockWithDiffMarkers = BlockState & {
   is_diff?: string
   field_diffs?: Record<string, unknown>
 }
 
 /** SubBlock with optional diff marker */
-type SubBlockWithDiffMarker = {
+export type SubBlockWithDiffMarker = {
   id: string
   type: string
   value: unknown

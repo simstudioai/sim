@@ -19,5 +19,5 @@ export const redisExecuteContract = defineRouteContract({
   response: { mode: 'json', schema: redisExecuteResponseSchema },
 })
 
-type RedisExecuteRequest = ContractBodyInput<typeof redisExecuteContract>
-type RedisExecuteResponse = ContractJsonResponse<typeof redisExecuteContract>
+export type RedisExecuteRequest = ContractBodyInput<typeof redisExecuteContract>
+export type RedisExecuteResponse = ContractJsonResponse<typeof redisExecuteContract>

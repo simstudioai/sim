@@ -49,9 +49,9 @@ const notificationSlackConfigSchema = z.object({
 export type NotificationType = z.output<typeof notificationTypeSchema>
 export type NotificationLogLevel = z.output<typeof notificationLevelSchema>
 export type NotificationAlertRule = z.output<typeof alertRuleSchema>
-type NotificationAlertConfig = z.output<typeof notificationAlertConfigSchema>
-type NotificationWebhookConfig = z.output<typeof notificationWebhookConfigSchema>
-type NotificationSlackConfig = z.output<typeof notificationSlackConfigSchema>
+export type NotificationAlertConfig = z.output<typeof notificationAlertConfigSchema>
+export type NotificationWebhookConfig = z.output<typeof notificationWebhookConfigSchema>
+export type NotificationSlackConfig = z.output<typeof notificationSlackConfigSchema>
 
 const notificationSubscriptionSchema = z.object({
   id: z.string(),

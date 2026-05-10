@@ -32,12 +32,12 @@ export const awsCloudformationDescribeStackDriftDetectionStatusContract = define
   body: DescribeStackDriftDetectionStatusSchema,
   response: { mode: 'json', schema: DescribeStackDriftDetectionStatusResponseSchema },
 })
-type AwsCloudformationDescribeStackDriftDetectionStatusRequest = ContractBodyInput<
+export type AwsCloudformationDescribeStackDriftDetectionStatusRequest = ContractBodyInput<
   typeof awsCloudformationDescribeStackDriftDetectionStatusContract
 >
-type AwsCloudformationDescribeStackDriftDetectionStatusBody = ContractBody<
+export type AwsCloudformationDescribeStackDriftDetectionStatusBody = ContractBody<
   typeof awsCloudformationDescribeStackDriftDetectionStatusContract
 >
-type AwsCloudformationDescribeStackDriftDetectionStatusResponse = ContractJsonResponse<
+export type AwsCloudformationDescribeStackDriftDetectionStatusResponse = ContractJsonResponse<
   typeof awsCloudformationDescribeStackDriftDetectionStatusContract
 >

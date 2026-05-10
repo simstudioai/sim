@@ -1,7 +1,7 @@
 import { isEqual, omit } from 'es-toolkit'
 import type { McpToolSchema, StoredMcpToolReference } from '@/lib/mcp/types'
 
-type McpToolIssueType =
+export type McpToolIssueType =
   | 'server_not_found'
   | 'server_error'
   | 'tool_not_found'

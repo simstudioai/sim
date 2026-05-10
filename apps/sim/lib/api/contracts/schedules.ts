@@ -2,10 +2,10 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const scheduleStatusSchema = z.enum(['active', 'disabled', 'completed'])
-type ScheduleStatus = z.output<typeof scheduleStatusSchema>
+export type ScheduleStatus = z.output<typeof scheduleStatusSchema>
 
 const scheduleSourceTypeSchema = z.enum(['workflow', 'job'])
-type ScheduleSourceType = z.output<typeof scheduleSourceTypeSchema>
+export type ScheduleSourceType = z.output<typeof scheduleSourceTypeSchema>
 
 const scheduleLifecycleSchema = z.enum(['persistent', 'until_complete'])
 export type ScheduleLifecycle = z.output<typeof scheduleLifecycleSchema>
@@ -98,13 +98,13 @@ const reactivateScheduleBodySchema = z.object({
   action: z.literal('reactivate'),
 })
 
-type ReactivateScheduleBody = z.input<typeof reactivateScheduleBodySchema>
+export type ReactivateScheduleBody = z.input<typeof reactivateScheduleBodySchema>
 
 const disableScheduleBodySchema = z.object({
   action: z.literal('disable'),
 })
 
-type DisableScheduleBody = z.input<typeof disableScheduleBodySchema>
+export type DisableScheduleBody = z.input<typeof disableScheduleBodySchema>
 
 const updateScheduleBodySchema = z.object({
   action: z.literal('update'),
@@ -124,7 +124,7 @@ const scheduleUpdateSchema = z.discriminatedUnion('action', [
   updateScheduleBodySchema,
 ])
 
-type ScheduleUpdate = z.input<typeof scheduleUpdateSchema>
+export type ScheduleUpdate = z.input<typeof scheduleUpdateSchema>
 
 const messageResponseSchema = z.object({
   message: z.string(),
@@ -174,7 +174,7 @@ const createScheduleResponseSchema = z.object({
   }),
 })
 
-type CreateScheduleResponse = z.output<typeof createScheduleResponseSchema>
+export type CreateScheduleResponse = z.output<typeof createScheduleResponseSchema>
 
 export const createScheduleContract = defineRouteContract({
   method: 'POST',

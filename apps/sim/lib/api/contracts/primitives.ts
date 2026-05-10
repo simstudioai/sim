@@ -17,7 +17,7 @@ export function flattenFieldErrors<TFields extends string>(
 }
 
 export const noInputSchema = z.object({}).strict()
-type NoInput = z.output<typeof noInputSchema>
+export type NoInput = z.output<typeof noInputSchema>
 
 export const jobIdParamsSchema = z.object({
   jobId: z.string().min(1),

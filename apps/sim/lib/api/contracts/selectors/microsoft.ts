@@ -163,43 +163,69 @@ export const microsoftFileSelectorContract = defineGetSelector(
   z.object({ file: fileOptionSchema.optional() }).passthrough()
 )
 
-type OutlookFoldersSelectorResponse = ContractJsonResponse<typeof outlookFoldersSelectorContract>
-type OutlookFoldersSelectorQuery = ContractQuery<typeof outlookFoldersSelectorContract>
-type MicrosoftTeamsSelectorResponse = ContractJsonResponse<typeof microsoftTeamsSelectorContract>
-type MicrosoftTeamsSelectorBody = ContractBody<typeof microsoftTeamsSelectorContract>
-type MicrosoftChatsSelectorResponse = ContractJsonResponse<typeof microsoftChatsSelectorContract>
-type MicrosoftChatsSelectorBody = ContractBody<typeof microsoftChatsSelectorContract>
-type MicrosoftChannelsSelectorResponse = ContractJsonResponse<
+export type OutlookFoldersSelectorResponse = ContractJsonResponse<
+  typeof outlookFoldersSelectorContract
+>
+export type OutlookFoldersSelectorQuery = ContractQuery<typeof outlookFoldersSelectorContract>
+export type MicrosoftTeamsSelectorResponse = ContractJsonResponse<
+  typeof microsoftTeamsSelectorContract
+>
+export type MicrosoftTeamsSelectorBody = ContractBody<typeof microsoftTeamsSelectorContract>
+export type MicrosoftChatsSelectorResponse = ContractJsonResponse<
+  typeof microsoftChatsSelectorContract
+>
+export type MicrosoftChatsSelectorBody = ContractBody<typeof microsoftChatsSelectorContract>
+export type MicrosoftChannelsSelectorResponse = ContractJsonResponse<
   typeof microsoftChannelsSelectorContract
 >
-type MicrosoftChannelsSelectorBody = ContractBody<typeof microsoftChannelsSelectorContract>
-type MicrosoftPlannerPlansSelectorResponse = ContractJsonResponse<
+export type MicrosoftChannelsSelectorBody = ContractBody<typeof microsoftChannelsSelectorContract>
+export type MicrosoftPlannerPlansSelectorResponse = ContractJsonResponse<
   typeof microsoftPlannerPlansSelectorContract
 >
-type MicrosoftPlannerPlansSelectorBody = ContractBody<typeof microsoftPlannerPlansSelectorContract>
-type MicrosoftPlannerTasksSelectorResponse = ContractJsonResponse<
+export type MicrosoftPlannerPlansSelectorBody = ContractBody<
+  typeof microsoftPlannerPlansSelectorContract
+>
+export type MicrosoftPlannerTasksSelectorResponse = ContractJsonResponse<
   typeof microsoftPlannerTasksSelectorContract
 >
-type MicrosoftPlannerTasksSelectorBody = ContractBody<typeof microsoftPlannerTasksSelectorContract>
-type OnedriveFilesSelectorResponse = ContractJsonResponse<typeof onedriveFilesSelectorContract>
-type OnedriveFilesSelectorQuery = ContractQuery<typeof onedriveFilesSelectorContract>
-type OnedriveFoldersSelectorResponse = ContractJsonResponse<typeof onedriveFoldersSelectorContract>
-type OnedriveFoldersSelectorQuery = ContractQuery<typeof onedriveFoldersSelectorContract>
-type OnedriveFolderSelectorResponse = ContractJsonResponse<typeof onedriveFolderSelectorContract>
-type OnedriveFolderSelectorQuery = ContractQuery<typeof onedriveFolderSelectorContract>
-type MicrosoftExcelSheetsSelectorResponse = ContractJsonResponse<
+export type MicrosoftPlannerTasksSelectorBody = ContractBody<
+  typeof microsoftPlannerTasksSelectorContract
+>
+export type OnedriveFilesSelectorResponse = ContractJsonResponse<
+  typeof onedriveFilesSelectorContract
+>
+export type OnedriveFilesSelectorQuery = ContractQuery<typeof onedriveFilesSelectorContract>
+export type OnedriveFoldersSelectorResponse = ContractJsonResponse<
+  typeof onedriveFoldersSelectorContract
+>
+export type OnedriveFoldersSelectorQuery = ContractQuery<typeof onedriveFoldersSelectorContract>
+export type OnedriveFolderSelectorResponse = ContractJsonResponse<
+  typeof onedriveFolderSelectorContract
+>
+export type OnedriveFolderSelectorQuery = ContractQuery<typeof onedriveFolderSelectorContract>
+export type MicrosoftExcelSheetsSelectorResponse = ContractJsonResponse<
   typeof microsoftExcelSheetsSelectorContract
 >
-type MicrosoftExcelSheetsSelectorQuery = ContractQuery<typeof microsoftExcelSheetsSelectorContract>
-type MicrosoftExcelDrivesSelectorResponse = ContractJsonResponse<
+export type MicrosoftExcelSheetsSelectorQuery = ContractQuery<
+  typeof microsoftExcelSheetsSelectorContract
+>
+export type MicrosoftExcelDrivesSelectorResponse = ContractJsonResponse<
   typeof microsoftExcelDrivesSelectorContract
 >
-type MicrosoftExcelDrivesSelectorBody = ContractBody<typeof microsoftExcelDrivesSelectorContract>
-type MicrosoftExcelDriveSelectorResponse = ContractJsonResponse<
+export type MicrosoftExcelDrivesSelectorBody = ContractBody<
+  typeof microsoftExcelDrivesSelectorContract
+>
+export type MicrosoftExcelDriveSelectorResponse = ContractJsonResponse<
   typeof microsoftExcelDriveSelectorContract
 >
-type MicrosoftExcelDriveSelectorBody = ContractBody<typeof microsoftExcelDriveSelectorContract>
-type MicrosoftFilesSelectorResponse = ContractJsonResponse<typeof microsoftFilesSelectorContract>
-type MicrosoftFilesSelectorQuery = ContractQuery<typeof microsoftFilesSelectorContract>
-type MicrosoftFileSelectorResponse = ContractJsonResponse<typeof microsoftFileSelectorContract>
-type MicrosoftFileSelectorQuery = ContractQuery<typeof microsoftFileSelectorContract>
+export type MicrosoftExcelDriveSelectorBody = ContractBody<
+  typeof microsoftExcelDriveSelectorContract
+>
+export type MicrosoftFilesSelectorResponse = ContractJsonResponse<
+  typeof microsoftFilesSelectorContract
+>
+export type MicrosoftFilesSelectorQuery = ContractQuery<typeof microsoftFilesSelectorContract>
+export type MicrosoftFileSelectorResponse = ContractJsonResponse<
+  typeof microsoftFileSelectorContract
+>
+export type MicrosoftFileSelectorQuery = ContractQuery<typeof microsoftFileSelectorContract>

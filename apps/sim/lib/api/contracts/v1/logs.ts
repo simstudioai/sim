@@ -38,9 +38,9 @@ const v1ApiResponseWithLimitsSchema = z
   })
   .passthrough()
 
-type V1ListLogsQuery = z.output<typeof v1ListLogsQuerySchema>
-type V1LogParams = z.output<typeof v1LogParamsSchema>
-type V1ExecutionParams = z.output<typeof v1ExecutionParamsSchema>
+export type V1ListLogsQuery = z.output<typeof v1ListLogsQuerySchema>
+export type V1LogParams = z.output<typeof v1LogParamsSchema>
+export type V1ExecutionParams = z.output<typeof v1ExecutionParamsSchema>
 
 export const v1ListLogsContract = defineRouteContract({
   method: 'GET',

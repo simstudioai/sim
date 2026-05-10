@@ -27,8 +27,8 @@ export const TraceEvent = {
   RequestCancelled: 'request.cancelled',
 } as const
 
-type TraceEventKey = keyof typeof TraceEvent
-type TraceEventValue = (typeof TraceEvent)[TraceEventKey]
+export type TraceEventKey = keyof typeof TraceEvent
+export type TraceEventValue = (typeof TraceEvent)[TraceEventKey]
 
 /** Readonly sorted list of every canonical event name. */
 export const TraceEventValues: readonly TraceEventValue[] = [

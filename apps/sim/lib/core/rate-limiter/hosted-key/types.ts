@@ -1,6 +1,6 @@
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter/storage'
 
-type HostedKeyRateLimitMode = 'per_request' | 'custom'
+export type HostedKeyRateLimitMode = 'per_request' | 'custom'
 
 /**
  * Simple per-request rate limit configuration.

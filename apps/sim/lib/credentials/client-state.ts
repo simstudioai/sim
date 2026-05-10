@@ -95,7 +95,7 @@ export const ADD_CONNECTOR_SEARCH_PARAM = 'addConnector' as const
 
 const OAUTH_RETURN_CONTEXT_KEY = 'sim.oauth-return-context'
 
-type OAuthReturnOrigin = 'workflow' | 'integrations' | 'kb-connectors'
+export type OAuthReturnOrigin = 'workflow' | 'integrations' | 'kb-connectors'
 
 interface OAuthReturnBase {
   displayName: string

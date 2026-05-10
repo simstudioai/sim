@@ -4,7 +4,7 @@
 
 export type DiffStatus = 'new' | 'edited' | undefined
 
-type FieldDiffStatus = 'changed' | 'unchanged'
+export type FieldDiffStatus = 'changed' | 'unchanged'
 
 export type EdgeDiffStatus = 'new' | 'deleted' | 'unchanged' | null
 

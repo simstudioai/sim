@@ -25,5 +25,9 @@ export const airtableTablesSelectorContract = definePostSelector(
   z.object({ tables: z.array(airtableTableSchema) })
 )
 
-type AirtableBasesSelectorResponse = ContractJsonResponse<typeof airtableBasesSelectorContract>
-type AirtableTablesSelectorResponse = ContractJsonResponse<typeof airtableTablesSelectorContract>
+export type AirtableBasesSelectorResponse = ContractJsonResponse<
+  typeof airtableBasesSelectorContract
+>
+export type AirtableTablesSelectorResponse = ContractJsonResponse<
+  typeof airtableTablesSelectorContract
+>

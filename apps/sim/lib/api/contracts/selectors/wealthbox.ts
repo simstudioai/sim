@@ -69,7 +69,9 @@ export const wealthboxOAuthItemContract = defineGetSelector(
   wealthboxItemResponseSchema
 )
 
-type WealthboxItemsSelectorResponse = ContractJsonResponse<typeof wealthboxItemsSelectorContract>
-type WealthboxItemResponse = ContractJsonResponse<typeof wealthboxItemContract>
-type WealthboxOAuthItemsResponse = ContractJsonResponse<typeof wealthboxOAuthItemsContract>
-type WealthboxOAuthItemResponse = ContractJsonResponse<typeof wealthboxOAuthItemContract>
+export type WealthboxItemsSelectorResponse = ContractJsonResponse<
+  typeof wealthboxItemsSelectorContract
+>
+export type WealthboxItemResponse = ContractJsonResponse<typeof wealthboxItemContract>
+export type WealthboxOAuthItemsResponse = ContractJsonResponse<typeof wealthboxOAuthItemsContract>
+export type WealthboxOAuthItemResponse = ContractJsonResponse<typeof wealthboxOAuthItemContract>

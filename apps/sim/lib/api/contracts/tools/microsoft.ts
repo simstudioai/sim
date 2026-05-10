@@ -197,17 +197,17 @@ export const dataverseUploadFileContract = defineRouteContract({
   response: { mode: 'json', schema: toolJsonResponseSchema },
 })
 
-type OutlookSendBody = ContractBody<typeof outlookSendContract>
-type OutlookDraftBody = ContractBody<typeof outlookDraftContract>
-type OutlookDeleteBody = ContractBody<typeof outlookDeleteContract>
-type OutlookCopyBody = ContractBody<typeof outlookCopyContract>
-type OutlookMoveBody = ContractBody<typeof outlookMoveContract>
-type OutlookMarkReadBody = ContractBody<typeof outlookMarkReadContract>
-type OutlookMarkUnreadBody = ContractBody<typeof outlookMarkUnreadContract>
-type TeamsWriteChannelBody = ContractBody<typeof teamsWriteChannelContract>
-type TeamsWriteChatBody = ContractBody<typeof teamsWriteChatContract>
-type TeamsDeleteChatMessageBody = ContractBody<typeof teamsDeleteChatMessageContract>
-type OneDriveUploadBody = ContractBody<typeof onedriveUploadContract>
-type OneDriveDownloadBody = ContractBody<typeof onedriveDownloadContract>
-type SharepointUploadBody = ContractBody<typeof sharepointUploadContract>
-type DataverseUploadFileBody = z.output<typeof dataverseUploadFileBodySchema>
+export type OutlookSendBody = ContractBody<typeof outlookSendContract>
+export type OutlookDraftBody = ContractBody<typeof outlookDraftContract>
+export type OutlookDeleteBody = ContractBody<typeof outlookDeleteContract>
+export type OutlookCopyBody = ContractBody<typeof outlookCopyContract>
+export type OutlookMoveBody = ContractBody<typeof outlookMoveContract>
+export type OutlookMarkReadBody = ContractBody<typeof outlookMarkReadContract>
+export type OutlookMarkUnreadBody = ContractBody<typeof outlookMarkUnreadContract>
+export type TeamsWriteChannelBody = ContractBody<typeof teamsWriteChannelContract>
+export type TeamsWriteChatBody = ContractBody<typeof teamsWriteChatContract>
+export type TeamsDeleteChatMessageBody = ContractBody<typeof teamsDeleteChatMessageContract>
+export type OneDriveUploadBody = ContractBody<typeof onedriveUploadContract>
+export type OneDriveDownloadBody = ContractBody<typeof onedriveDownloadContract>
+export type SharepointUploadBody = ContractBody<typeof sharepointUploadContract>
+export type DataverseUploadFileBody = z.output<typeof dataverseUploadFileBodySchema>

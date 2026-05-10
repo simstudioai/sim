@@ -38,6 +38,6 @@ export const awsDynamodbUpdateContract = defineRouteContract({
   body: UpdateSchema,
   response: { mode: 'json', schema: UpdateResponseSchema },
 })
-type AwsDynamodbUpdateRequest = ContractBodyInput<typeof awsDynamodbUpdateContract>
-type AwsDynamodbUpdateBody = ContractBody<typeof awsDynamodbUpdateContract>
-type AwsDynamodbUpdateResponse = ContractJsonResponse<typeof awsDynamodbUpdateContract>
+export type AwsDynamodbUpdateRequest = ContractBodyInput<typeof awsDynamodbUpdateContract>
+export type AwsDynamodbUpdateBody = ContractBody<typeof awsDynamodbUpdateContract>
+export type AwsDynamodbUpdateResponse = ContractJsonResponse<typeof awsDynamodbUpdateContract>

@@ -26,6 +26,6 @@ export const awsAthenaStopQueryContract = defineRouteContract({
   body: StopQuerySchema,
   response: { mode: 'json', schema: StopQueryResponseSchema },
 })
-type AwsAthenaStopQueryRequest = ContractBodyInput<typeof awsAthenaStopQueryContract>
-type AwsAthenaStopQueryBody = ContractBody<typeof awsAthenaStopQueryContract>
-type AwsAthenaStopQueryResponse = ContractJsonResponse<typeof awsAthenaStopQueryContract>
+export type AwsAthenaStopQueryRequest = ContractBodyInput<typeof awsAthenaStopQueryContract>
+export type AwsAthenaStopQueryBody = ContractBody<typeof awsAthenaStopQueryContract>
+export type AwsAthenaStopQueryResponse = ContractJsonResponse<typeof awsAthenaStopQueryContract>

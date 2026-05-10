@@ -141,7 +141,7 @@ export interface XUserResponse extends ToolResponse {
   }
 }
 
-type XResponse = XWriteResponse | XReadResponse | XSearchResponse | XUserResponse
+export type XResponse = XWriteResponse | XReadResponse | XSearchResponse | XUserResponse
 
 /**
  * Transforms raw X API tweet data (snake_case) into the XTweet format (camelCase)

@@ -17,7 +17,7 @@ import {
 
 export type { InboxConfig, InboxSendersResponseBody }
 export type InboxTaskItem = InboxTask
-type InboxTasksResponse = InboxTasksResponseBody
+export type InboxTasksResponse = InboxTasksResponseBody
 
 const inboxKeys = {
   all: ['inbox'] as const,

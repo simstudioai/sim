@@ -584,7 +584,7 @@ export interface WorkflowsDeleteResponse extends ToolResponse {
 }
 
 // Custom field types
-type CustomFieldType = 'text' | 'single_select' | 'multi_select' | 'numeric' | 'link'
+export type CustomFieldType = 'text' | 'single_select' | 'multi_select' | 'numeric' | 'link'
 
 interface CustomField {
   id: string

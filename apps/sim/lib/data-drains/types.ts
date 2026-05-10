@@ -16,7 +16,7 @@ export type DestinationType = (typeof DESTINATION_TYPES)[number]
 
 export const CADENCE_TYPES = ['hourly', 'daily'] as const
 
-type CadenceType = (typeof CADENCE_TYPES)[number]
+export type CadenceType = (typeof CADENCE_TYPES)[number]
 
 export const RUN_TRIGGERS = ['cron', 'manual'] as const
 

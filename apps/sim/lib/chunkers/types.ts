@@ -48,7 +48,7 @@ export interface DocsChunkerOptions extends ChunkerOptions {
 
 export type ChunkingStrategy = 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
 
-type RecursiveRecipe = 'plain' | 'markdown' | 'code'
+export type RecursiveRecipe = 'plain' | 'markdown' | 'code'
 
 export interface StrategyOptions {
   pattern?: string

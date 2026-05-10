@@ -30,7 +30,7 @@ class EmbeddingAPIError extends Error {
   }
 }
 
-type EmbeddingInputType = 'document' | 'query'
+export type EmbeddingInputType = 'document' | 'query'
 
 interface ProviderRequest {
   apiUrl: string

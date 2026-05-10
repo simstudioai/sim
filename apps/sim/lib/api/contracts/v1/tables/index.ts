@@ -81,11 +81,11 @@ const v1CreateTableRowsBodySchema = z.union([
   v1InsertTableRowBodySchema,
 ])
 
-type V1ListTablesQuery = z.output<typeof v1ListTablesQuerySchema>
-type V1TableRowsQuery = z.output<typeof v1TableRowsQuerySchema>
-type V1InsertTableRowBody = z.output<typeof v1InsertTableRowBodySchema>
-type V1BatchInsertTableRowsBody = z.output<typeof v1BatchInsertTableRowsBodySchema>
-type V1CreateTableRowsBody = z.output<typeof v1CreateTableRowsBodySchema>
+export type V1ListTablesQuery = z.output<typeof v1ListTablesQuerySchema>
+export type V1TableRowsQuery = z.output<typeof v1TableRowsQuerySchema>
+export type V1InsertTableRowBody = z.output<typeof v1InsertTableRowBodySchema>
+export type V1BatchInsertTableRowsBody = z.output<typeof v1BatchInsertTableRowsBodySchema>
+export type V1CreateTableRowsBody = z.output<typeof v1CreateTableRowsBodySchema>
 
 const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
   z.object({

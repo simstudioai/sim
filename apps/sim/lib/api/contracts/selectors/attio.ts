@@ -21,5 +21,5 @@ export const attioListsSelectorContract = definePostSelector(
   z.object({ lists: z.array(attioListSchema) })
 )
 
-type AttioObjectsSelectorResponse = ContractJsonResponse<typeof attioObjectsSelectorContract>
-type AttioListsSelectorResponse = ContractJsonResponse<typeof attioListsSelectorContract>
+export type AttioObjectsSelectorResponse = ContractJsonResponse<typeof attioObjectsSelectorContract>
+export type AttioListsSelectorResponse = ContractJsonResponse<typeof attioListsSelectorContract>

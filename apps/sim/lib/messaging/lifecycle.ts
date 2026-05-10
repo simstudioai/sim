@@ -8,7 +8,7 @@ const logger = createLogger('LifecycleEmail')
 export const LIFECYCLE_EMAIL_TASK_ID = 'lifecycle-email' as const
 
 /** Supported lifecycle email types. Add new types here as the sequence grows. */
-type LifecycleEmailType = 'onboarding-followup'
+export type LifecycleEmailType = 'onboarding-followup'
 
 interface ScheduleLifecycleEmailOptions {
   userId: string

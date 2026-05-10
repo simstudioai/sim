@@ -34,6 +34,8 @@ export const awsStsGetSessionTokenContract = defineRouteContract({
   body: GetSessionTokenSchema,
   response: { mode: 'json', schema: GetSessionTokenResponseSchema },
 })
-type AwsStsGetSessionTokenRequest = ContractBodyInput<typeof awsStsGetSessionTokenContract>
-type AwsStsGetSessionTokenBody = ContractBody<typeof awsStsGetSessionTokenContract>
-type AwsStsGetSessionTokenResponse = ContractJsonResponse<typeof awsStsGetSessionTokenContract>
+export type AwsStsGetSessionTokenRequest = ContractBodyInput<typeof awsStsGetSessionTokenContract>
+export type AwsStsGetSessionTokenBody = ContractBody<typeof awsStsGetSessionTokenContract>
+export type AwsStsGetSessionTokenResponse = ContractJsonResponse<
+  typeof awsStsGetSessionTokenContract
+>

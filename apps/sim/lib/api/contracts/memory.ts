@@ -24,7 +24,7 @@ const memoryPutBodySchema = z.object({
   }),
   workspaceId: z.string().uuid('Invalid workspace ID format'),
 })
-type MemoryPutBody = z.input<typeof memoryPutBodySchema>
+export type MemoryPutBody = z.input<typeof memoryPutBodySchema>
 
 export const agentMemoryDataSchemaContract = agentMemoryDataSchema
 
@@ -51,7 +51,7 @@ const memoryPostBodySchema = z
     workspaceId: z.string().optional(),
   })
   .passthrough()
-type MemoryPostBody = z.input<typeof memoryPostBodySchema>
+export type MemoryPostBody = z.input<typeof memoryPostBodySchema>
 
 const memoryDeleteQuerySchema = z.object({
   workspaceId: z.string().optional(),

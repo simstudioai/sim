@@ -26,7 +26,7 @@ const creatorProfileKeys = {
 /**
  * Organization type
  */
-type Organization = CreatorOrganization
+export type Organization = CreatorOrganization
 
 /**
  * Creator profile type

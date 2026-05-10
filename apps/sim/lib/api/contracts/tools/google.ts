@@ -160,36 +160,36 @@ export const googleVaultDownloadExportFileContract = defineRouteContract({
   response: { mode: 'json', schema: toolJsonResponseSchema },
 })
 
-type GmailAddLabelBody = ContractBodyInput<typeof gmailAddLabelContract>
-type GmailArchiveBody = ContractBodyInput<typeof gmailArchiveContract>
-type GmailDeleteBody = ContractBodyInput<typeof gmailDeleteContract>
-type GmailDraftBody = ContractBodyInput<typeof gmailDraftContract>
-type GmailEditDraftBody = ContractBodyInput<typeof gmailEditDraftContract>
-type GmailMarkReadBody = ContractBodyInput<typeof gmailMarkReadContract>
-type GmailMarkUnreadBody = ContractBodyInput<typeof gmailMarkUnreadContract>
-type GmailMoveBody = ContractBodyInput<typeof gmailMoveContract>
-type GmailRemoveLabelBody = ContractBodyInput<typeof gmailRemoveLabelContract>
-type GmailSendBody = ContractBodyInput<typeof gmailSendContract>
-type GmailUnarchiveBody = ContractBodyInput<typeof gmailUnarchiveContract>
-type GoogleDriveUploadBody = ContractBodyInput<typeof googleDriveUploadContract>
-type GoogleDriveDownloadBody = ContractBodyInput<typeof googleDriveDownloadContract>
-type GoogleVaultDownloadExportFileBody = ContractBodyInput<
+export type GmailAddLabelBody = ContractBodyInput<typeof gmailAddLabelContract>
+export type GmailArchiveBody = ContractBodyInput<typeof gmailArchiveContract>
+export type GmailDeleteBody = ContractBodyInput<typeof gmailDeleteContract>
+export type GmailDraftBody = ContractBodyInput<typeof gmailDraftContract>
+export type GmailEditDraftBody = ContractBodyInput<typeof gmailEditDraftContract>
+export type GmailMarkReadBody = ContractBodyInput<typeof gmailMarkReadContract>
+export type GmailMarkUnreadBody = ContractBodyInput<typeof gmailMarkUnreadContract>
+export type GmailMoveBody = ContractBodyInput<typeof gmailMoveContract>
+export type GmailRemoveLabelBody = ContractBodyInput<typeof gmailRemoveLabelContract>
+export type GmailSendBody = ContractBodyInput<typeof gmailSendContract>
+export type GmailUnarchiveBody = ContractBodyInput<typeof gmailUnarchiveContract>
+export type GoogleDriveUploadBody = ContractBodyInput<typeof googleDriveUploadContract>
+export type GoogleDriveDownloadBody = ContractBodyInput<typeof googleDriveDownloadContract>
+export type GoogleVaultDownloadExportFileBody = ContractBodyInput<
   typeof googleVaultDownloadExportFileContract
 >
 
-type GmailAddLabelResponse = ContractJsonResponse<typeof gmailAddLabelContract>
-type GmailArchiveResponse = ContractJsonResponse<typeof gmailArchiveContract>
-type GmailDeleteResponse = ContractJsonResponse<typeof gmailDeleteContract>
-type GmailDraftResponse = ContractJsonResponse<typeof gmailDraftContract>
-type GmailEditDraftResponse = ContractJsonResponse<typeof gmailEditDraftContract>
-type GmailMarkReadResponse = ContractJsonResponse<typeof gmailMarkReadContract>
-type GmailMarkUnreadResponse = ContractJsonResponse<typeof gmailMarkUnreadContract>
-type GmailMoveResponse = ContractJsonResponse<typeof gmailMoveContract>
-type GmailRemoveLabelResponse = ContractJsonResponse<typeof gmailRemoveLabelContract>
-type GmailSendResponse = ContractJsonResponse<typeof gmailSendContract>
-type GmailUnarchiveResponse = ContractJsonResponse<typeof gmailUnarchiveContract>
-type GoogleDriveUploadResponse = ContractJsonResponse<typeof googleDriveUploadContract>
-type GoogleDriveDownloadResponse = ContractJsonResponse<typeof googleDriveDownloadContract>
-type GoogleVaultDownloadExportFileResponse = ContractJsonResponse<
+export type GmailAddLabelResponse = ContractJsonResponse<typeof gmailAddLabelContract>
+export type GmailArchiveResponse = ContractJsonResponse<typeof gmailArchiveContract>
+export type GmailDeleteResponse = ContractJsonResponse<typeof gmailDeleteContract>
+export type GmailDraftResponse = ContractJsonResponse<typeof gmailDraftContract>
+export type GmailEditDraftResponse = ContractJsonResponse<typeof gmailEditDraftContract>
+export type GmailMarkReadResponse = ContractJsonResponse<typeof gmailMarkReadContract>
+export type GmailMarkUnreadResponse = ContractJsonResponse<typeof gmailMarkUnreadContract>
+export type GmailMoveResponse = ContractJsonResponse<typeof gmailMoveContract>
+export type GmailRemoveLabelResponse = ContractJsonResponse<typeof gmailRemoveLabelContract>
+export type GmailSendResponse = ContractJsonResponse<typeof gmailSendContract>
+export type GmailUnarchiveResponse = ContractJsonResponse<typeof gmailUnarchiveContract>
+export type GoogleDriveUploadResponse = ContractJsonResponse<typeof googleDriveUploadContract>
+export type GoogleDriveDownloadResponse = ContractJsonResponse<typeof googleDriveDownloadContract>
+export type GoogleVaultDownloadExportFileResponse = ContractJsonResponse<
   typeof googleVaultDownloadExportFileContract
 >

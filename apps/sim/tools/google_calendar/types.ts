@@ -107,7 +107,7 @@ interface GoogleCalendarListCalendarsParams {
   showHidden?: boolean
 }
 
-type GoogleCalendarToolParams =
+export type GoogleCalendarToolParams =
   | GoogleCalendarCreateParams
   | GoogleCalendarListParams
   | GoogleCalendarGetParams

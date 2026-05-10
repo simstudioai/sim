@@ -62,15 +62,15 @@ export const mysqlIntrospectContract = defineRouteContract({
   response: { mode: 'json', schema: introspectionResponseSchema },
 })
 
-type MySQLQueryRequest = ContractBodyInput<typeof mysqlQueryContract>
-type MySQLQueryResponse = ContractJsonResponse<typeof mysqlQueryContract>
-type MySQLExecuteRequest = ContractBodyInput<typeof mysqlExecuteContract>
-type MySQLExecuteResponse = ContractJsonResponse<typeof mysqlExecuteContract>
-type MySQLInsertRequest = ContractBodyInput<typeof mysqlInsertContract>
-type MySQLInsertResponse = ContractJsonResponse<typeof mysqlInsertContract>
-type MySQLUpdateRequest = ContractBodyInput<typeof mysqlUpdateContract>
-type MySQLUpdateResponse = ContractJsonResponse<typeof mysqlUpdateContract>
-type MySQLDeleteRequest = ContractBodyInput<typeof mysqlDeleteContract>
-type MySQLDeleteResponse = ContractJsonResponse<typeof mysqlDeleteContract>
-type MySQLIntrospectRequest = ContractBodyInput<typeof mysqlIntrospectContract>
-type MySQLIntrospectResponse = ContractJsonResponse<typeof mysqlIntrospectContract>
+export type MySQLQueryRequest = ContractBodyInput<typeof mysqlQueryContract>
+export type MySQLQueryResponse = ContractJsonResponse<typeof mysqlQueryContract>
+export type MySQLExecuteRequest = ContractBodyInput<typeof mysqlExecuteContract>
+export type MySQLExecuteResponse = ContractJsonResponse<typeof mysqlExecuteContract>
+export type MySQLInsertRequest = ContractBodyInput<typeof mysqlInsertContract>
+export type MySQLInsertResponse = ContractJsonResponse<typeof mysqlInsertContract>
+export type MySQLUpdateRequest = ContractBodyInput<typeof mysqlUpdateContract>
+export type MySQLUpdateResponse = ContractJsonResponse<typeof mysqlUpdateContract>
+export type MySQLDeleteRequest = ContractBodyInput<typeof mysqlDeleteContract>
+export type MySQLDeleteResponse = ContractJsonResponse<typeof mysqlDeleteContract>
+export type MySQLIntrospectRequest = ContractBodyInput<typeof mysqlIntrospectContract>
+export type MySQLIntrospectResponse = ContractJsonResponse<typeof mysqlIntrospectContract>

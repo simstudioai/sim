@@ -11,7 +11,7 @@ const logger = createLogger('UsageLog')
 /**
  * Usage log category types
  */
-type UsageLogCategory = 'model' | 'fixed'
+export type UsageLogCategory = 'model' | 'fixed'
 
 /**
  * Usage log source types
@@ -38,7 +38,7 @@ export interface ModelUsageMetadata {
 /**
  * Union type for all usage log metadata types
  */
-type UsageLogMetadata = ModelUsageMetadata | Record<string, unknown> | null
+export type UsageLogMetadata = ModelUsageMetadata | Record<string, unknown> | null
 
 /**
  * A single usage entry to be recorded in the usage_log table.

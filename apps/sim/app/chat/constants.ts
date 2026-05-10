@@ -12,4 +12,4 @@ export const CHAT_ERROR_MESSAGES = {
 
 export const CHAT_REQUEST_TIMEOUT_MS = 300000 // 5 minutes (same as in chat.tsx)
 
-type ChatErrorType = keyof typeof CHAT_ERROR_MESSAGES
+export type ChatErrorType = keyof typeof CHAT_ERROR_MESSAGES

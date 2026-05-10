@@ -31,8 +31,8 @@ const v1ListAuditLogsQuerySchema = z.object({
   cursor: z.string().optional(),
 })
 
-type V1ListAuditLogsQuery = z.output<typeof v1ListAuditLogsQuerySchema>
-type V1AuditLogParams = z.output<typeof v1AuditLogParamsSchema>
+export type V1ListAuditLogsQuery = z.output<typeof v1ListAuditLogsQuerySchema>
+export type V1AuditLogParams = z.output<typeof v1AuditLogParamsSchema>
 
 const v1AdminAuditLogsQuerySchema = z.object({
   action: optionalQueryString,

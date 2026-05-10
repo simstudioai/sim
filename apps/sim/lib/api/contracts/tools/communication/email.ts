@@ -48,8 +48,8 @@ export const sendGridSendMailContract = defineCommunicationToolContract(
   sendGridSendMailBodySchema
 )
 
-type SmtpSendBody = ContractBodyInput<typeof smtpSendContract>
-type SendGridSendMailBody = ContractBodyInput<typeof sendGridSendMailContract>
+export type SmtpSendBody = ContractBodyInput<typeof smtpSendContract>
+export type SendGridSendMailBody = ContractBodyInput<typeof sendGridSendMailContract>
 
-type SmtpSendResponse = ContractJsonResponse<typeof smtpSendContract>
-type SendGridSendMailResponse = ContractJsonResponse<typeof sendGridSendMailContract>
+export type SmtpSendResponse = ContractJsonResponse<typeof smtpSendContract>
+export type SendGridSendMailResponse = ContractJsonResponse<typeof sendGridSendMailContract>

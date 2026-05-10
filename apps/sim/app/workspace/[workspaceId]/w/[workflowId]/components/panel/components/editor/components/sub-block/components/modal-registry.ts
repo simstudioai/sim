@@ -26,4 +26,4 @@ export const MODAL_REGISTRY: Readonly<Record<string, ComponentType<ModalSubBlock
   'slack-setup-wizard': SlackSetupWizard,
 }
 
-type ModalId = keyof typeof MODAL_REGISTRY
+export type ModalId = keyof typeof MODAL_REGISTRY

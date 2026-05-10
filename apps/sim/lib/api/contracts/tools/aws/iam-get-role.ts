@@ -38,6 +38,6 @@ export const awsIamGetRoleContract = defineRouteContract({
   body: Schema,
   response: { mode: 'json', schema: GetRoleResponseSchema },
 })
-type AwsIamGetRoleRequest = ContractBodyInput<typeof awsIamGetRoleContract>
-type AwsIamGetRoleBody = ContractBody<typeof awsIamGetRoleContract>
-type AwsIamGetRoleResponse = ContractJsonResponse<typeof awsIamGetRoleContract>
+export type AwsIamGetRoleRequest = ContractBodyInput<typeof awsIamGetRoleContract>
+export type AwsIamGetRoleBody = ContractBody<typeof awsIamGetRoleContract>
+export type AwsIamGetRoleResponse = ContractJsonResponse<typeof awsIamGetRoleContract>

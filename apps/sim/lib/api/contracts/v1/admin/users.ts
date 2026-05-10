@@ -122,9 +122,11 @@ export const adminV1UpdateUserBillingContract = defineRouteContract({
   },
 })
 
-type AdminV1ListUsersResponse = ContractJsonResponse<typeof adminV1ListUsersContract>
-type AdminV1GetUserResponse = ContractJsonResponse<typeof adminV1GetUserContract>
-type AdminV1GetUserBillingResponse = ContractJsonResponse<typeof adminV1GetUserBillingContract>
-type AdminV1UpdateUserBillingResponse = ContractJsonResponse<
+export type AdminV1ListUsersResponse = ContractJsonResponse<typeof adminV1ListUsersContract>
+export type AdminV1GetUserResponse = ContractJsonResponse<typeof adminV1GetUserContract>
+export type AdminV1GetUserBillingResponse = ContractJsonResponse<
+  typeof adminV1GetUserBillingContract
+>
+export type AdminV1UpdateUserBillingResponse = ContractJsonResponse<
   typeof adminV1UpdateUserBillingContract
 >

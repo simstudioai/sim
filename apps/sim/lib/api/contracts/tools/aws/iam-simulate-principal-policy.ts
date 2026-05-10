@@ -49,10 +49,12 @@ export const awsIamSimulatePrincipalPolicyContract = defineRouteContract({
   body: Schema,
   response: { mode: 'json', schema: SimulatePrincipalPolicyResponseSchema },
 })
-type AwsIamSimulatePrincipalPolicyRequest = ContractBodyInput<
+export type AwsIamSimulatePrincipalPolicyRequest = ContractBodyInput<
   typeof awsIamSimulatePrincipalPolicyContract
 >
-type AwsIamSimulatePrincipalPolicyBody = ContractBody<typeof awsIamSimulatePrincipalPolicyContract>
-type AwsIamSimulatePrincipalPolicyResponse = ContractJsonResponse<
+export type AwsIamSimulatePrincipalPolicyBody = ContractBody<
+  typeof awsIamSimulatePrincipalPolicyContract
+>
+export type AwsIamSimulatePrincipalPolicyResponse = ContractJsonResponse<
   typeof awsIamSimulatePrincipalPolicyContract
 >

@@ -332,8 +332,8 @@ export const billingUpdateCostContract = defineRouteContract({
   },
 })
 
-type BillingUsageData = z.infer<typeof billingUsageDataSchema>
-type SubscriptionBillingData = z.infer<typeof subscriptionBillingDataSchema>
+export type BillingUsageData = z.infer<typeof billingUsageDataSchema>
+export type SubscriptionBillingData = z.infer<typeof subscriptionBillingDataSchema>
 export type SubscriptionApiResponse = z.infer<typeof subscriptionApiResponseSchema>
 export type OrganizationBillingApiResponse = z.infer<typeof organizationBillingApiResponseSchema>
-type UsageLimitApiResponse = z.infer<typeof usageLimitApiResponseSchema>
+export type UsageLimitApiResponse = z.infer<typeof usageLimitApiResponseSchema>

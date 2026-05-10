@@ -39,6 +39,6 @@ export const awsSesListIdentitiesContract = defineRouteContract({
   body: ListIdentitiesSchema,
   response: { mode: 'json', schema: ListIdentitiesResponseSchema },
 })
-type AwsSesListIdentitiesRequest = ContractBodyInput<typeof awsSesListIdentitiesContract>
-type AwsSesListIdentitiesBody = ContractBody<typeof awsSesListIdentitiesContract>
-type AwsSesListIdentitiesResponse = ContractJsonResponse<typeof awsSesListIdentitiesContract>
+export type AwsSesListIdentitiesRequest = ContractBodyInput<typeof awsSesListIdentitiesContract>
+export type AwsSesListIdentitiesBody = ContractBody<typeof awsSesListIdentitiesContract>
+export type AwsSesListIdentitiesResponse = ContractJsonResponse<typeof awsSesListIdentitiesContract>

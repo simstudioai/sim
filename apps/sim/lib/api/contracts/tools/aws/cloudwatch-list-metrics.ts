@@ -49,8 +49,10 @@ export const awsCloudwatchListMetricsContract = defineRouteContract({
   body: ListMetricsSchema,
   response: { mode: 'json', schema: ListMetricsResponseSchema },
 })
-type AwsCloudwatchListMetricsRequest = ContractBodyInput<typeof awsCloudwatchListMetricsContract>
-type AwsCloudwatchListMetricsBody = ContractBody<typeof awsCloudwatchListMetricsContract>
-type AwsCloudwatchListMetricsResponse = ContractJsonResponse<
+export type AwsCloudwatchListMetricsRequest = ContractBodyInput<
+  typeof awsCloudwatchListMetricsContract
+>
+export type AwsCloudwatchListMetricsBody = ContractBody<typeof awsCloudwatchListMetricsContract>
+export type AwsCloudwatchListMetricsResponse = ContractJsonResponse<
   typeof awsCloudwatchListMetricsContract
 >

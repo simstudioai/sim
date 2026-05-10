@@ -1,6 +1,6 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 
-type ToolAnnotations = NonNullable<Tool['annotations']>
+export type ToolAnnotations = NonNullable<Tool['annotations']>
 
 export type DirectToolDef = {
   name: string

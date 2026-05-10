@@ -10,7 +10,7 @@ export const AuthorSchema = z
   })
   .strict()
 
-type Author = z.infer<typeof AuthorSchema>
+export type Author = z.infer<typeof AuthorSchema>
 
 export const BlogFrontmatterSchema = z
   .object({
@@ -40,7 +40,7 @@ export const BlogFrontmatterSchema = z
   })
   .strict()
 
-type BlogFrontmatter = z.infer<typeof BlogFrontmatterSchema>
+export type BlogFrontmatter = z.infer<typeof BlogFrontmatterSchema>
 
 export interface BlogMeta {
   slug: string

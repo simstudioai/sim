@@ -53,7 +53,7 @@ export interface GmailLabelParams extends BaseGmailParams {
 }
 
 // Union type for all Gmail tool parameters
-type GmailToolParams =
+export type GmailToolParams =
   | GmailSendParams
   | GmailReadParams
   | GmailSearchParams

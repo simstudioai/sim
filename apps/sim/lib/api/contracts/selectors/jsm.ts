@@ -314,34 +314,38 @@ export const jsmCopyFormsContract = defineJsmToolContract(
   jsmCopyFormsBodySchema
 )
 
-type JsmServiceDesksBody = ContractBody<typeof jsmServiceDesksContract>
-type JsmQueuesBody = ContractBody<typeof jsmQueuesContract>
-type JsmRequestTypesBody = ContractBody<typeof jsmRequestTypesContract>
-type JsmRequestTypeFieldsBody = ContractBody<typeof jsmRequestTypeFieldsContract>
-type JsmRequestsBody = ContractBody<typeof jsmRequestsContract>
-type JsmRequestBody = ContractBody<typeof jsmRequestContract>
-type JsmCommentBody = ContractBody<typeof jsmCommentContract>
-type JsmCommentsBody = ContractBody<typeof jsmCommentsContract>
-type JsmTransitionBody = ContractBody<typeof jsmTransitionContract>
-type JsmSlaBody = ContractBody<typeof jsmSlaContract>
-type JsmTransitionsBody = ContractBody<typeof jsmTransitionsContract>
-type JsmApprovalsBody = ContractBody<typeof jsmApprovalsContract>
-type JsmParticipantsBody = ContractBody<typeof jsmParticipantsContract>
-type JsmCustomersBody = ContractBody<typeof jsmCustomersContract>
-type JsmOrganizationsBody = ContractBody<typeof jsmOrganizationsContract>
-type JsmOrganizationBody = ContractBody<typeof jsmOrganizationContract>
-type JsmIssueFormsBody = ContractBody<typeof jsmIssueFormsContract>
-type JsmAttachFormBody = ContractBody<typeof jsmAttachFormContract>
-type JsmGetFormBody = ContractBody<typeof jsmGetFormContract>
-type JsmSubmitFormBody = ContractBody<typeof jsmSubmitFormContract>
-type JsmDeleteFormBody = ContractBody<typeof jsmDeleteFormContract>
-type JsmExternaliseFormBody = ContractBody<typeof jsmExternaliseFormContract>
-type JsmInternaliseFormBody = ContractBody<typeof jsmInternaliseFormContract>
-type JsmReopenFormBody = ContractBody<typeof jsmReopenFormContract>
-type JsmSaveFormAnswersBody = ContractBody<typeof jsmSaveFormAnswersContract>
-type JsmFormAnswersBody = ContractBody<typeof jsmFormAnswersContract>
-type JsmProjectFormTemplatesBody = ContractBody<typeof jsmProjectFormTemplatesContract>
-type JsmProjectFormStructureBody = ContractBody<typeof jsmProjectFormStructureContract>
-type JsmCopyFormsBody = ContractBody<typeof jsmCopyFormsContract>
-type JsmServiceDesksSelectorResponse = ContractJsonResponse<typeof jsmServiceDesksSelectorContract>
-type JsmRequestTypesSelectorResponse = ContractJsonResponse<typeof jsmRequestTypesSelectorContract>
+export type JsmServiceDesksBody = ContractBody<typeof jsmServiceDesksContract>
+export type JsmQueuesBody = ContractBody<typeof jsmQueuesContract>
+export type JsmRequestTypesBody = ContractBody<typeof jsmRequestTypesContract>
+export type JsmRequestTypeFieldsBody = ContractBody<typeof jsmRequestTypeFieldsContract>
+export type JsmRequestsBody = ContractBody<typeof jsmRequestsContract>
+export type JsmRequestBody = ContractBody<typeof jsmRequestContract>
+export type JsmCommentBody = ContractBody<typeof jsmCommentContract>
+export type JsmCommentsBody = ContractBody<typeof jsmCommentsContract>
+export type JsmTransitionBody = ContractBody<typeof jsmTransitionContract>
+export type JsmSlaBody = ContractBody<typeof jsmSlaContract>
+export type JsmTransitionsBody = ContractBody<typeof jsmTransitionsContract>
+export type JsmApprovalsBody = ContractBody<typeof jsmApprovalsContract>
+export type JsmParticipantsBody = ContractBody<typeof jsmParticipantsContract>
+export type JsmCustomersBody = ContractBody<typeof jsmCustomersContract>
+export type JsmOrganizationsBody = ContractBody<typeof jsmOrganizationsContract>
+export type JsmOrganizationBody = ContractBody<typeof jsmOrganizationContract>
+export type JsmIssueFormsBody = ContractBody<typeof jsmIssueFormsContract>
+export type JsmAttachFormBody = ContractBody<typeof jsmAttachFormContract>
+export type JsmGetFormBody = ContractBody<typeof jsmGetFormContract>
+export type JsmSubmitFormBody = ContractBody<typeof jsmSubmitFormContract>
+export type JsmDeleteFormBody = ContractBody<typeof jsmDeleteFormContract>
+export type JsmExternaliseFormBody = ContractBody<typeof jsmExternaliseFormContract>
+export type JsmInternaliseFormBody = ContractBody<typeof jsmInternaliseFormContract>
+export type JsmReopenFormBody = ContractBody<typeof jsmReopenFormContract>
+export type JsmSaveFormAnswersBody = ContractBody<typeof jsmSaveFormAnswersContract>
+export type JsmFormAnswersBody = ContractBody<typeof jsmFormAnswersContract>
+export type JsmProjectFormTemplatesBody = ContractBody<typeof jsmProjectFormTemplatesContract>
+export type JsmProjectFormStructureBody = ContractBody<typeof jsmProjectFormStructureContract>
+export type JsmCopyFormsBody = ContractBody<typeof jsmCopyFormsContract>
+export type JsmServiceDesksSelectorResponse = ContractJsonResponse<
+  typeof jsmServiceDesksSelectorContract
+>
+export type JsmRequestTypesSelectorResponse = ContractJsonResponse<
+  typeof jsmRequestTypesSelectorContract
+>

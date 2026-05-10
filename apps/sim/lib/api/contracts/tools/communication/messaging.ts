@@ -34,10 +34,10 @@ export const twilioGetRecordingContract = defineCommunicationToolContract(
   twilioGetRecordingBodySchema
 )
 
-type SmsSendBody = ContractBodyInput<typeof smsSendContract>
-type TelegramSendDocumentBody = ContractBodyInput<typeof telegramSendDocumentContract>
-type TwilioGetRecordingBody = ContractBodyInput<typeof twilioGetRecordingContract>
+export type SmsSendBody = ContractBodyInput<typeof smsSendContract>
+export type TelegramSendDocumentBody = ContractBodyInput<typeof telegramSendDocumentContract>
+export type TwilioGetRecordingBody = ContractBodyInput<typeof twilioGetRecordingContract>
 
-type SmsSendResponse = ContractJsonResponse<typeof smsSendContract>
-type TelegramSendDocumentResponse = ContractJsonResponse<typeof telegramSendDocumentContract>
-type TwilioGetRecordingResponse = ContractJsonResponse<typeof twilioGetRecordingContract>
+export type SmsSendResponse = ContractJsonResponse<typeof smsSendContract>
+export type TelegramSendDocumentResponse = ContractJsonResponse<typeof telegramSendDocumentContract>
+export type TwilioGetRecordingResponse = ContractJsonResponse<typeof twilioGetRecordingContract>

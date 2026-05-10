@@ -6,7 +6,7 @@
  * which host-side brokers to expose, and how to serialize the final result.
  */
 
-type SandboxBundleName = 'pptxgenjs' | 'docx' | 'pdf-lib'
+export type SandboxBundleName = 'pptxgenjs' | 'docx' | 'pdf-lib'
 
 export interface SandboxBroker<TArgs = unknown, TResult = unknown> {
   /**

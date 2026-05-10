@@ -13,10 +13,10 @@ interface WordPressBaseParams {
 export const WORDPRESS_COM_API_BASE = 'https://public-api.wordpress.com/wp/v2/sites'
 
 // Post status types
-type PostStatus = 'publish' | 'draft' | 'pending' | 'private' | 'future'
+export type PostStatus = 'publish' | 'draft' | 'pending' | 'private' | 'future'
 
 // Comment status types
-type CommentStatus = 'approved' | 'hold' | 'spam' | 'trash'
+export type CommentStatus = 'approved' | 'hold' | 'spam' | 'trash'
 
 // ============================================
 // POST OPERATIONS

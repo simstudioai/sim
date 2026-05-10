@@ -16,7 +16,7 @@ import {
 
 const logger = createLogger('useSpeechToText')
 
-type PermissionState = 'prompt' | 'granted' | 'denied'
+export type PermissionState = 'prompt' | 'granted' | 'denied'
 
 interface UseSpeechToTextProps {
   onTranscript: (text: string) => void

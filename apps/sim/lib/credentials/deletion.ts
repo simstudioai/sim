@@ -8,7 +8,11 @@ import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('CredentialDeletion')
 
-type CredentialDeleteReason = 'oauth_disconnect' | 'user_delete' | 'copilot_delete' | 'env_prune'
+export type CredentialDeleteReason =
+  | 'oauth_disconnect'
+  | 'user_delete'
+  | 'copilot_delete'
+  | 'env_prune'
 
 interface DeleteCredentialParams {
   credentialId: string

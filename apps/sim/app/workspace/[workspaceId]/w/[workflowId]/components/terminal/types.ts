@@ -35,7 +35,7 @@ export interface SortConfig {
 /**
  * Status type for console entries
  */
-type EntryStatus = 'error' | 'info'
+export type EntryStatus = 'error' | 'info'
 
 /**
  * Block information for filters

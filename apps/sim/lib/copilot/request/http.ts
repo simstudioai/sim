@@ -11,7 +11,7 @@ const NotificationStatus = {
   pending: 'pending',
   ...ASYNC_TOOL_CONFIRMATION_STATUS,
 } as const
-type NotificationStatus = (typeof NotificationStatus)[keyof typeof NotificationStatus]
+export type NotificationStatus = (typeof NotificationStatus)[keyof typeof NotificationStatus]
 
 export interface CopilotAuthResult {
   userId: string | null

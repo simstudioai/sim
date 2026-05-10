@@ -5,27 +5,27 @@
 /**
  * Text filter operators
  */
-type TextOperator = 'eq' | 'neq' | 'contains' | 'not_contains' | 'starts_with' | 'ends_with'
+export type TextOperator = 'eq' | 'neq' | 'contains' | 'not_contains' | 'starts_with' | 'ends_with'
 
 /**
  * Number filter operators
  */
-type NumberOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'between'
+export type NumberOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'between'
 
 /**
  * Date filter operators
  */
-type DateOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'between'
+export type DateOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'between'
 
 /**
  * Boolean filter operators
  */
-type BooleanOperator = 'eq' | 'neq'
+export type BooleanOperator = 'eq' | 'neq'
 
 /**
  * All filter operators union
  */
-type FilterOperator = TextOperator | NumberOperator | DateOperator | BooleanOperator
+export type FilterOperator = TextOperator | NumberOperator | DateOperator | BooleanOperator
 
 /**
  * Field types supported for filtering
@@ -35,7 +35,7 @@ export type FilterFieldType = 'text' | 'number' | 'date' | 'boolean'
 /**
  * Logical operators for combining filters
  */
-type LogicalOperator = 'AND' | 'OR'
+export type LogicalOperator = 'AND' | 'OR'
 
 /**
  * Base filter condition interface
@@ -86,7 +86,7 @@ interface BooleanFilterCondition extends BaseFilterCondition {
 /**
  * Union of all filter conditions
  */
-type FilterCondition =
+export type FilterCondition =
   | TextFilterCondition
   | NumberFilterCondition
   | DateFilterCondition

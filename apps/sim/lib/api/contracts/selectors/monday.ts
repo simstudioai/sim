@@ -28,5 +28,5 @@ export const mondayGroupsSelectorContract = definePostSelector(
   z.object({ groups: z.array(idNameSchema) })
 )
 
-type MondayBoardsSelectorResponse = ContractJsonResponse<typeof mondayBoardsSelectorContract>
-type MondayGroupsSelectorResponse = ContractJsonResponse<typeof mondayGroupsSelectorContract>
+export type MondayBoardsSelectorResponse = ContractJsonResponse<typeof mondayBoardsSelectorContract>
+export type MondayGroupsSelectorResponse = ContractJsonResponse<typeof mondayGroupsSelectorContract>

@@ -169,7 +169,7 @@ const workspacePresignedUploadBodySchema = z.object({
   fileSize: z.number().nonnegative('fileSize must be a non-negative number'),
 })
 
-type WorkspacePresignedUploadBody = z.input<typeof workspacePresignedUploadBodySchema>
+export type WorkspacePresignedUploadBody = z.input<typeof workspacePresignedUploadBodySchema>
 
 const workspacePresignedFileInfoSchema = z.object({
   path: z.string(),
@@ -204,7 +204,7 @@ const registerWorkspaceFileBodySchema = z.object({
   contentType: z.string().min(1, 'contentType is required'),
 })
 
-type RegisterWorkspaceFileBody = z.input<typeof registerWorkspaceFileBodySchema>
+export type RegisterWorkspaceFileBody = z.input<typeof registerWorkspaceFileBodySchema>
 
 const registeredWorkspaceFileSchema = z.object({
   id: z.string(),
@@ -223,7 +223,7 @@ const registerWorkspaceFileResponseSchema = z.object({
   isDuplicate: z.boolean().optional(),
 })
 
-type RegisterWorkspaceFileResponse = z.output<typeof registerWorkspaceFileResponseSchema>
+export type RegisterWorkspaceFileResponse = z.output<typeof registerWorkspaceFileResponseSchema>
 
 export const registerWorkspaceFileContract = defineRouteContract({
   method: 'POST',

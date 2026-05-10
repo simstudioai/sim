@@ -51,6 +51,6 @@ export const searchToolContract = defineRouteContract({
   response: { mode: 'json', schema: searchToolResponseSchema },
 })
 
-type SearchToolBody = ContractBody<typeof searchToolContract>
-type SearchToolBodyInput = ContractBodyInput<typeof searchToolContract>
-type SearchToolResponse = ContractJsonResponse<typeof searchToolContract>
+export type SearchToolBody = ContractBody<typeof searchToolContract>
+export type SearchToolBodyInput = ContractBodyInput<typeof searchToolContract>
+export type SearchToolResponse = ContractJsonResponse<typeof searchToolContract>

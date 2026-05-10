@@ -1,7 +1,7 @@
 import type { ToolResponse } from '@/tools/types'
 
-type SapDeploymentType = 'cloud_public' | 'cloud_private' | 'on_premise'
-type SapAuthType = 'oauth_client_credentials' | 'basic'
+export type SapDeploymentType = 'cloud_public' | 'cloud_private' | 'on_premise'
+export type SapAuthType = 'oauth_client_credentials' | 'basic'
 
 export interface SapBaseParams {
   deploymentType?: SapDeploymentType
@@ -297,7 +297,7 @@ export interface CreatePurchaseRequisitionParams extends SapBaseParams {
   body?: Record<string, unknown> | string
 }
 
-type ODataMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE' | 'MERGE'
+export type ODataMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE' | 'MERGE'
 
 export interface ODataQueryParams extends SapBaseParams {
   service: string

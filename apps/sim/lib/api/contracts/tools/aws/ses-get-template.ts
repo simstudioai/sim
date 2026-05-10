@@ -32,6 +32,6 @@ export const awsSesGetTemplateContract = defineRouteContract({
   body: GetTemplateSchema,
   response: { mode: 'json', schema: GetTemplateResponseSchema },
 })
-type AwsSesGetTemplateRequest = ContractBodyInput<typeof awsSesGetTemplateContract>
-type AwsSesGetTemplateBody = ContractBody<typeof awsSesGetTemplateContract>
-type AwsSesGetTemplateResponse = ContractJsonResponse<typeof awsSesGetTemplateContract>
+export type AwsSesGetTemplateRequest = ContractBodyInput<typeof awsSesGetTemplateContract>
+export type AwsSesGetTemplateBody = ContractBody<typeof awsSesGetTemplateContract>
+export type AwsSesGetTemplateResponse = ContractJsonResponse<typeof awsSesGetTemplateContract>

@@ -13,7 +13,7 @@ const v1CopilotChatBodySchema = z.object({
   timeout: z.number().optional().default(3_600_000),
 })
 
-type V1CopilotChatBody = z.output<typeof v1CopilotChatBodySchema>
+export type V1CopilotChatBody = z.output<typeof v1CopilotChatBodySchema>
 
 const v1CopilotChatToolCallSchema = z.object({
   id: z.string(),

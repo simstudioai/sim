@@ -186,4 +186,4 @@ const selectorContractsByPath = {
   '/api/tools/cloudwatch/describe-log-streams': cloudwatchLogStreamsSelectorContract,
 } as const
 
-type SelectorContractPath = keyof typeof selectorContractsByPath
+export type SelectorContractPath = keyof typeof selectorContractsByPath

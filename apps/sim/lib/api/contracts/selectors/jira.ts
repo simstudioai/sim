@@ -68,7 +68,7 @@ const jiraParentReferenceSchema = z.union([
   z.object({ key: z.string().min(1) }).passthrough(),
   z.object({ id: z.string().min(1) }).passthrough(),
 ])
-type JiraParentReference = z.input<typeof jiraParentReferenceSchema>
+export type JiraParentReference = z.input<typeof jiraParentReferenceSchema>
 
 const jiraWriteBodySchema = z.object({
   domain: z.string({ error: 'Domain is required' }).min(1, 'Domain is required'),
@@ -245,14 +245,14 @@ export const jiraAddAttachmentContract = defineRouteContract({
   response: { mode: 'json', schema: jiraAddAttachmentResponseSchema },
 })
 
-type JiraProjectsQuery = ContractQuery<typeof jiraProjectsSelectorContract>
-type JiraProjectBody = ContractBody<typeof jiraProjectSelectorContract>
-type JiraIssuesQuery = ContractQuery<typeof jiraIssuesSelectorContract>
-type JiraIssuesBody = ContractBody<typeof jiraIssueSelectorContract>
-type JiraWriteBody = ContractBody<typeof jiraWriteContract>
-type JiraUpdateBody = ContractBody<typeof jiraUpdateContract>
-type JiraAddAttachmentBody = ContractBody<typeof jiraAddAttachmentContract>
-type JiraProjectsSelectorResponse = ContractJsonResponse<typeof jiraProjectsSelectorContract>
-type JiraProjectSelectorResponse = ContractJsonResponse<typeof jiraProjectSelectorContract>
-type JiraIssuesSelectorResponse = ContractJsonResponse<typeof jiraIssuesSelectorContract>
-type JiraIssueSelectorResponse = ContractJsonResponse<typeof jiraIssueSelectorContract>
+export type JiraProjectsQuery = ContractQuery<typeof jiraProjectsSelectorContract>
+export type JiraProjectBody = ContractBody<typeof jiraProjectSelectorContract>
+export type JiraIssuesQuery = ContractQuery<typeof jiraIssuesSelectorContract>
+export type JiraIssuesBody = ContractBody<typeof jiraIssueSelectorContract>
+export type JiraWriteBody = ContractBody<typeof jiraWriteContract>
+export type JiraUpdateBody = ContractBody<typeof jiraUpdateContract>
+export type JiraAddAttachmentBody = ContractBody<typeof jiraAddAttachmentContract>
+export type JiraProjectsSelectorResponse = ContractJsonResponse<typeof jiraProjectsSelectorContract>
+export type JiraProjectSelectorResponse = ContractJsonResponse<typeof jiraProjectSelectorContract>
+export type JiraIssuesSelectorResponse = ContractJsonResponse<typeof jiraIssuesSelectorContract>
+export type JiraIssueSelectorResponse = ContractJsonResponse<typeof jiraIssueSelectorContract>

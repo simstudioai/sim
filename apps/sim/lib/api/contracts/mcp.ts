@@ -176,7 +176,7 @@ export const mcpToolExecutionBodySchema = z
     workflowId: z.string().optional(),
   })
   .passthrough()
-type McpToolExecutionBody = z.input<typeof mcpToolExecutionBodySchema>
+export type McpToolExecutionBody = z.input<typeof mcpToolExecutionBodySchema>
 
 export const mcpJsonRpcRequestSchema = z
   .object({

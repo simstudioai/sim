@@ -584,7 +584,7 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
 /**
  * Get usage limit information for team members (for admin dashboard)
  */
-async function getTeamUsageLimits(organizationId: string): Promise<
+export async function getTeamUsageLimits(organizationId: string): Promise<
   Array<{
     userId: string
     userName: string

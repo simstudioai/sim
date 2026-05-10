@@ -198,7 +198,7 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
-type AcceptInvitationFailure =
+export type AcceptInvitationFailure =
   | { kind: 'not-found' }
   | { kind: 'already-processed' }
   | { kind: 'expired' }
@@ -208,7 +208,7 @@ type AcceptInvitationFailure =
   | { kind: 'no-seats-available' }
   | { kind: 'server-error'; message?: string }
 
-type AcceptInvitationSuccess = {
+export type AcceptInvitationSuccess = {
   success: true
   invitation: InvitationWithGrants
   acceptedWorkspaceIds: string[]

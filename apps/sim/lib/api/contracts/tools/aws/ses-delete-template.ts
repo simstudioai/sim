@@ -29,6 +29,6 @@ export const awsSesDeleteTemplateContract = defineRouteContract({
   body: DeleteTemplateSchema,
   response: { mode: 'json', schema: DeleteTemplateResponseSchema },
 })
-type AwsSesDeleteTemplateRequest = ContractBodyInput<typeof awsSesDeleteTemplateContract>
-type AwsSesDeleteTemplateBody = ContractBody<typeof awsSesDeleteTemplateContract>
-type AwsSesDeleteTemplateResponse = ContractJsonResponse<typeof awsSesDeleteTemplateContract>
+export type AwsSesDeleteTemplateRequest = ContractBodyInput<typeof awsSesDeleteTemplateContract>
+export type AwsSesDeleteTemplateBody = ContractBody<typeof awsSesDeleteTemplateContract>
+export type AwsSesDeleteTemplateResponse = ContractJsonResponse<typeof awsSesDeleteTemplateContract>

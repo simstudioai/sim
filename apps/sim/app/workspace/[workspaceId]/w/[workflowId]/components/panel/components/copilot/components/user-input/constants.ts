@@ -15,7 +15,7 @@ export type MentionFolderId =
 /**
  * Menu item category types for mention menu (includes folders + docs item)
  */
-type MentionCategory = MentionFolderId | 'docs'
+export type MentionCategory = MentionFolderId | 'docs'
 
 /**
  * Configuration interface for folder types

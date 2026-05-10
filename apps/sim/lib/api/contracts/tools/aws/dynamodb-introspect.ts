@@ -60,6 +60,8 @@ export const awsDynamodbIntrospectContract = defineRouteContract({
   body: IntrospectSchema,
   response: { mode: 'json', schema: IntrospectResponseSchema },
 })
-type AwsDynamodbIntrospectRequest = ContractBodyInput<typeof awsDynamodbIntrospectContract>
-type AwsDynamodbIntrospectBody = ContractBody<typeof awsDynamodbIntrospectContract>
-type AwsDynamodbIntrospectResponse = ContractJsonResponse<typeof awsDynamodbIntrospectContract>
+export type AwsDynamodbIntrospectRequest = ContractBodyInput<typeof awsDynamodbIntrospectContract>
+export type AwsDynamodbIntrospectBody = ContractBody<typeof awsDynamodbIntrospectContract>
+export type AwsDynamodbIntrospectResponse = ContractJsonResponse<
+  typeof awsDynamodbIntrospectContract
+>

@@ -128,7 +128,7 @@ export function isEventFromEditableElement(e: KeyboardEvent): boolean {
 /**
  * Node type for the tree structure
  */
-type EntryNodeType = 'block' | 'subflow' | 'iteration' | 'workflow'
+export type EntryNodeType = 'block' | 'subflow' | 'iteration' | 'workflow'
 
 /**
  * Entry node for tree structure - represents a block, subflow, or iteration

@@ -34,7 +34,7 @@ const webhookListItemSchema = z.object({
     .optional(),
 })
 
-type WebhookListItem = z.output<typeof webhookListItemSchema>
+export type WebhookListItem = z.output<typeof webhookListItemSchema>
 
 const webhookUpsertBodySchema = z
   .object({
@@ -46,7 +46,7 @@ const webhookUpsertBodySchema = z
   })
   .strict()
 
-type WebhookUpsertBody = z.input<typeof webhookUpsertBodySchema>
+export type WebhookUpsertBody = z.input<typeof webhookUpsertBodySchema>
 
 const webhookIdParamsSchema = z.object({
   id: z.string().min(1),
@@ -63,7 +63,7 @@ const webhookPatchBodySchema = z
       .optional(),
   })
   .strict()
-type WebhookPatchBody = z.input<typeof webhookPatchBodySchema>
+export type WebhookPatchBody = z.input<typeof webhookPatchBodySchema>
 
 const webhookPollingParamsSchema = z.object({
   provider: z.string().min(1),

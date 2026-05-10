@@ -40,6 +40,6 @@ export const awsDynamodbScanContract = defineRouteContract({
   body: ScanSchema,
   response: { mode: 'json', schema: ScanResponseSchema },
 })
-type AwsDynamodbScanRequest = ContractBodyInput<typeof awsDynamodbScanContract>
-type AwsDynamodbScanBody = ContractBody<typeof awsDynamodbScanContract>
-type AwsDynamodbScanResponse = ContractJsonResponse<typeof awsDynamodbScanContract>
+export type AwsDynamodbScanRequest = ContractBodyInput<typeof awsDynamodbScanContract>
+export type AwsDynamodbScanBody = ContractBody<typeof awsDynamodbScanContract>
+export type AwsDynamodbScanResponse = ContractJsonResponse<typeof awsDynamodbScanContract>

@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const mcpOauthMetadataQuerySchema = z.record(z.string(), z.string())
-type McpOauthMetadataQuery = z.input<typeof mcpOauthMetadataQuerySchema>
+export type McpOauthMetadataQuery = z.input<typeof mcpOauthMetadataQuerySchema>
 
 const xSimAuthSchema = z.object({
   type: z.literal('api_key'),
@@ -23,7 +23,7 @@ const mcpAuthorizationServerMetadataSchema = z.object({
   resource: z.string(),
   x_sim_auth: xSimAuthSchema,
 })
-type McpAuthorizationServerMetadata = z.output<typeof mcpAuthorizationServerMetadataSchema>
+export type McpAuthorizationServerMetadata = z.output<typeof mcpAuthorizationServerMetadataSchema>
 
 const mcpProtectedResourceMetadataSchema = z.object({
   resource: z.string(),
@@ -32,7 +32,7 @@ const mcpProtectedResourceMetadataSchema = z.object({
   scopes_supported: z.array(z.string()),
   x_sim_auth: xSimAuthSchema,
 })
-type McpProtectedResourceMetadata = z.output<typeof mcpProtectedResourceMetadataSchema>
+export type McpProtectedResourceMetadata = z.output<typeof mcpProtectedResourceMetadataSchema>
 
 export const mcpOauthAuthorizationServerMetadataContract = defineRouteContract({
   method: 'GET',

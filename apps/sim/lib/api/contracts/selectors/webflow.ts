@@ -42,8 +42,8 @@ export const webflowItemsSelectorContract = definePostSelector(
   z.object({ items: z.array(idNameSchema) })
 )
 
-type WebflowSitesSelectorResponse = ContractJsonResponse<typeof webflowSitesSelectorContract>
-type WebflowCollectionsSelectorResponse = ContractJsonResponse<
+export type WebflowSitesSelectorResponse = ContractJsonResponse<typeof webflowSitesSelectorContract>
+export type WebflowCollectionsSelectorResponse = ContractJsonResponse<
   typeof webflowCollectionsSelectorContract
 >
-type WebflowItemsSelectorResponse = ContractJsonResponse<typeof webflowItemsSelectorContract>
+export type WebflowItemsSelectorResponse = ContractJsonResponse<typeof webflowItemsSelectorContract>

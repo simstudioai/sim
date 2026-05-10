@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-type SapConcurDatacenter =
+export type SapConcurDatacenter =
   | 'us.api.concursolutions.com'
   | 'us2.api.concursolutions.com'
   | 'eu.api.concursolutions.com'
@@ -8,7 +8,7 @@ type SapConcurDatacenter =
   | 'cn.api.concursolutions.com'
   | 'emea.api.concursolutions.com'
 
-type SapConcurGrantType = 'client_credentials' | 'password'
+export type SapConcurGrantType = 'client_credentials' | 'password'
 
 export interface SapConcurBaseParams {
   datacenter?: SapConcurDatacenter

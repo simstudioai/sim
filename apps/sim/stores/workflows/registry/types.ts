@@ -26,7 +26,7 @@ export interface WorkflowMetadata {
   isSandbox?: boolean
 }
 
-type HydrationPhase = 'idle' | 'creating' | 'state-loading' | 'ready' | 'error'
+export type HydrationPhase = 'idle' | 'creating' | 'state-loading' | 'ready' | 'error'
 
 export interface HydrationState {
   phase: HydrationPhase

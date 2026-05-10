@@ -42,6 +42,6 @@ export const awsSesSendEmailContract = defineRouteContract({
   body: SendEmailSchema,
   response: { mode: 'json', schema: SendEmailResponseSchema },
 })
-type AwsSesSendEmailRequest = ContractBodyInput<typeof awsSesSendEmailContract>
-type AwsSesSendEmailBody = ContractBody<typeof awsSesSendEmailContract>
-type AwsSesSendEmailResponse = ContractJsonResponse<typeof awsSesSendEmailContract>
+export type AwsSesSendEmailRequest = ContractBodyInput<typeof awsSesSendEmailContract>
+export type AwsSesSendEmailBody = ContractBody<typeof awsSesSendEmailContract>
+export type AwsSesSendEmailResponse = ContractJsonResponse<typeof awsSesSendEmailContract>

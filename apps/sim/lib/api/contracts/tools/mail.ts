@@ -46,6 +46,6 @@ export const mailSendContract = defineRouteContract({
   response: { mode: 'json', schema: mailSendResponseSchema },
 })
 
-type MailSendBody = ContractBody<typeof mailSendContract>
-type MailSendBodyInput = ContractBodyInput<typeof mailSendContract>
-type MailSendResponse = ContractJsonResponse<typeof mailSendContract>
+export type MailSendBody = ContractBody<typeof mailSendContract>
+export type MailSendBodyInput = ContractBodyInput<typeof mailSendContract>
+export type MailSendResponse = ContractJsonResponse<typeof mailSendContract>

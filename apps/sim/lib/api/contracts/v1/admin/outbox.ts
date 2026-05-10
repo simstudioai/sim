@@ -82,10 +82,12 @@ export const adminV1RequeueOutboxEventContract = defineRouteContract({
   },
 })
 
-type AdminV1ListOutboxQueryInput = ContractQueryInput<typeof adminV1ListOutboxContract>
-type AdminV1ListOutboxQuery = ContractQuery<typeof adminV1ListOutboxContract>
-type AdminV1RequeueOutboxEventParams = ContractParams<typeof adminV1RequeueOutboxEventContract>
-type AdminV1ListOutboxResponse = ContractJsonResponse<typeof adminV1ListOutboxContract>
-type AdminV1RequeueOutboxEventResponse = ContractJsonResponse<
+export type AdminV1ListOutboxQueryInput = ContractQueryInput<typeof adminV1ListOutboxContract>
+export type AdminV1ListOutboxQuery = ContractQuery<typeof adminV1ListOutboxContract>
+export type AdminV1RequeueOutboxEventParams = ContractParams<
+  typeof adminV1RequeueOutboxEventContract
+>
+export type AdminV1ListOutboxResponse = ContractJsonResponse<typeof adminV1ListOutboxContract>
+export type AdminV1RequeueOutboxEventResponse = ContractJsonResponse<
   typeof adminV1RequeueOutboxEventContract
 >

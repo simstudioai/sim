@@ -31,7 +31,7 @@ const auditLogsQuerySchema = z.object({
     .transform((value) => Math.min(Math.max(Number(value) || 50, 1), 100)),
   cursor: z.string().optional(),
 })
-type AuditLogsQuery = z.output<typeof auditLogsQuerySchema>
+export type AuditLogsQuery = z.output<typeof auditLogsQuerySchema>
 
 const enterpriseAuditLogEntrySchema = z.object({
   id: z.string(),
@@ -48,7 +48,7 @@ const enterpriseAuditLogEntrySchema = z.object({
   createdAt: z.string(),
 })
 
-type EnterpriseAuditLogEntry = z.output<typeof enterpriseAuditLogEntrySchema>
+export type EnterpriseAuditLogEntry = z.output<typeof enterpriseAuditLogEntrySchema>
 
 const listAuditLogsResponseSchema = z.object({
   success: z.boolean(),

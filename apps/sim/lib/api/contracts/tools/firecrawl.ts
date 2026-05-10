@@ -26,6 +26,6 @@ export const firecrawlParseContract = defineRouteContract({
   response: { mode: 'json', schema: firecrawlParseResponseSchema },
 })
 
-type FirecrawlParseBody = ContractBody<typeof firecrawlParseContract>
-type FirecrawlParseBodyInput = ContractBodyInput<typeof firecrawlParseContract>
-type FirecrawlParseResponse = ContractJsonResponse<typeof firecrawlParseContract>
+export type FirecrawlParseBody = ContractBody<typeof firecrawlParseContract>
+export type FirecrawlParseBodyInput = ContractBodyInput<typeof firecrawlParseContract>
+export type FirecrawlParseResponse = ContractJsonResponse<typeof firecrawlParseContract>

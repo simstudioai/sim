@@ -249,7 +249,7 @@ export const TRIGGER_REFERENCE_ALIAS_MAP = {
   manual: TRIGGER_TYPES.START,
 } as const
 
-type TriggerReferenceAlias = keyof typeof TRIGGER_REFERENCE_ALIAS_MAP
+export type TriggerReferenceAlias = keyof typeof TRIGGER_REFERENCE_ALIAS_MAP
 
 /**
  * Trigger classification and utilities

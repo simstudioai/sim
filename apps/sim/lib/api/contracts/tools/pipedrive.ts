@@ -40,6 +40,6 @@ export const pipedriveGetFilesContract = defineRouteContract({
   response: { mode: 'json', schema: pipedriveGetFilesResponseSchema },
 })
 
-type PipedriveGetFilesBody = ContractBody<typeof pipedriveGetFilesContract>
-type PipedriveGetFilesBodyInput = ContractBodyInput<typeof pipedriveGetFilesContract>
-type PipedriveGetFilesResponse = ContractJsonResponse<typeof pipedriveGetFilesContract>
+export type PipedriveGetFilesBody = ContractBody<typeof pipedriveGetFilesContract>
+export type PipedriveGetFilesBodyInput = ContractBodyInput<typeof pipedriveGetFilesContract>
+export type PipedriveGetFilesResponse = ContractJsonResponse<typeof pipedriveGetFilesContract>

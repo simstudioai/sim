@@ -158,7 +158,7 @@ export const workflowStateSchema = z.object({
 })
 
 export type WorkflowStateContractInput = z.input<typeof workflowStateSchema>
-type WorkflowStateContractOutput = z.output<typeof workflowStateSchema>
+export type WorkflowStateContractOutput = z.output<typeof workflowStateSchema>
 
 export type WorkflowStateWirePayload = WorkflowStateContractOutput
 

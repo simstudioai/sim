@@ -169,7 +169,7 @@ const providerApiRequestBodySchema = z
     verbosity: z.string().optional(),
   })
   .passthrough()
-type ProviderApiRequestBody = z.input<typeof providerApiRequestBodySchema>
+export type ProviderApiRequestBody = z.input<typeof providerApiRequestBodySchema>
 
 export const getBaseProviderModelsContract = defineRouteContract({
   method: 'GET',

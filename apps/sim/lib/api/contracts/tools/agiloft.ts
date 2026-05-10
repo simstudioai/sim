@@ -68,9 +68,9 @@ export const agiloftAttachContract = defineRouteContract({
   response: { mode: 'json', schema: agiloftAttachResponseSchema },
 })
 
-type AgiloftRetrieveBody = ContractBody<typeof agiloftRetrieveContract>
-type AgiloftRetrieveBodyInput = ContractBodyInput<typeof agiloftRetrieveContract>
-type AgiloftRetrieveResponse = ContractJsonResponse<typeof agiloftRetrieveContract>
-type AgiloftAttachBody = ContractBody<typeof agiloftAttachContract>
-type AgiloftAttachBodyInput = ContractBodyInput<typeof agiloftAttachContract>
-type AgiloftAttachResponse = ContractJsonResponse<typeof agiloftAttachContract>
+export type AgiloftRetrieveBody = ContractBody<typeof agiloftRetrieveContract>
+export type AgiloftRetrieveBodyInput = ContractBodyInput<typeof agiloftRetrieveContract>
+export type AgiloftRetrieveResponse = ContractJsonResponse<typeof agiloftRetrieveContract>
+export type AgiloftAttachBody = ContractBody<typeof agiloftAttachContract>
+export type AgiloftAttachBodyInput = ContractBodyInput<typeof agiloftAttachContract>
+export type AgiloftAttachResponse = ContractJsonResponse<typeof agiloftAttachContract>

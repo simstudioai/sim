@@ -3215,7 +3215,7 @@ export const WorkspaceFile: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-const KnowledgeBaseOperation = {
+export const KnowledgeBaseOperation = {
   create: 'create',
   get: 'get',
   query: 'query',
@@ -3238,7 +3238,7 @@ const KnowledgeBaseOperation = {
 export type KnowledgeBaseOperation =
   (typeof KnowledgeBaseOperation)[keyof typeof KnowledgeBaseOperation]
 
-const KnowledgeBaseOperationValues = [
+export const KnowledgeBaseOperationValues = [
   KnowledgeBaseOperation.create,
   KnowledgeBaseOperation.get,
   KnowledgeBaseOperation.query,
@@ -3258,7 +3258,7 @@ const KnowledgeBaseOperationValues = [
   KnowledgeBaseOperation.syncConnector,
 ] as const
 
-const ManageCredentialOperation = {
+export const ManageCredentialOperation = {
   rename: 'rename',
   delete: 'delete',
 } as const
@@ -3266,12 +3266,12 @@ const ManageCredentialOperation = {
 export type ManageCredentialOperation =
   (typeof ManageCredentialOperation)[keyof typeof ManageCredentialOperation]
 
-const ManageCredentialOperationValues = [
+export const ManageCredentialOperationValues = [
   ManageCredentialOperation.rename,
   ManageCredentialOperation.delete,
 ] as const
 
-const ManageCustomToolOperation = {
+export const ManageCustomToolOperation = {
   add: 'add',
   edit: 'edit',
   delete: 'delete',
@@ -3281,7 +3281,7 @@ const ManageCustomToolOperation = {
 export type ManageCustomToolOperation =
   (typeof ManageCustomToolOperation)[keyof typeof ManageCustomToolOperation]
 
-const ManageCustomToolOperationValues = [
+export const ManageCustomToolOperationValues = [
   ManageCustomToolOperation.add,
   ManageCustomToolOperation.edit,
   ManageCustomToolOperation.delete,
@@ -3298,7 +3298,7 @@ export const ManageJobOperation = {
 
 export type ManageJobOperation = (typeof ManageJobOperation)[keyof typeof ManageJobOperation]
 
-const ManageJobOperationValues = [
+export const ManageJobOperationValues = [
   ManageJobOperation.create,
   ManageJobOperation.list,
   ManageJobOperation.get,
@@ -3316,7 +3316,7 @@ export const ManageMcpToolOperation = {
 export type ManageMcpToolOperation =
   (typeof ManageMcpToolOperation)[keyof typeof ManageMcpToolOperation]
 
-const ManageMcpToolOperationValues = [
+export const ManageMcpToolOperationValues = [
   ManageMcpToolOperation.add,
   ManageMcpToolOperation.edit,
   ManageMcpToolOperation.delete,
@@ -3332,14 +3332,14 @@ export const ManageSkillOperation = {
 
 export type ManageSkillOperation = (typeof ManageSkillOperation)[keyof typeof ManageSkillOperation]
 
-const ManageSkillOperationValues = [
+export const ManageSkillOperationValues = [
   ManageSkillOperation.add,
   ManageSkillOperation.edit,
   ManageSkillOperation.delete,
   ManageSkillOperation.list,
 ] as const
 
-const MaterializeFileOperation = {
+export const MaterializeFileOperation = {
   save: 'save',
   import: 'import',
   table: 'table',
@@ -3349,14 +3349,14 @@ const MaterializeFileOperation = {
 export type MaterializeFileOperation =
   (typeof MaterializeFileOperation)[keyof typeof MaterializeFileOperation]
 
-const MaterializeFileOperationValues = [
+export const MaterializeFileOperationValues = [
   MaterializeFileOperation.save,
   MaterializeFileOperation.import,
   MaterializeFileOperation.table,
   MaterializeFileOperation.knowledgeBase,
 ] as const
 
-const UserMemoryOperation = {
+export const UserMemoryOperation = {
   add: 'add',
   search: 'search',
   delete: 'delete',
@@ -3366,7 +3366,7 @@ const UserMemoryOperation = {
 
 export type UserMemoryOperation = (typeof UserMemoryOperation)[keyof typeof UserMemoryOperation]
 
-const UserMemoryOperationValues = [
+export const UserMemoryOperationValues = [
   UserMemoryOperation.add,
   UserMemoryOperation.search,
   UserMemoryOperation.delete,
@@ -3374,7 +3374,7 @@ const UserMemoryOperationValues = [
   UserMemoryOperation.list,
 ] as const
 
-const UserTableOperation = {
+export const UserTableOperation = {
   create: 'create',
   createFromFile: 'create_from_file',
   importFile: 'import_file',
@@ -3407,7 +3407,7 @@ const UserTableOperation = {
 
 export type UserTableOperation = (typeof UserTableOperation)[keyof typeof UserTableOperation]
 
-const UserTableOperationValues = [
+export const UserTableOperationValues = [
   UserTableOperation.create,
   UserTableOperation.createFromFile,
   UserTableOperation.importFile,
@@ -3447,7 +3447,7 @@ export const WorkspaceFileOperation = {
 export type WorkspaceFileOperation =
   (typeof WorkspaceFileOperation)[keyof typeof WorkspaceFileOperation]
 
-const WorkspaceFileOperationValues = [
+export const WorkspaceFileOperationValues = [
   WorkspaceFileOperation.append,
   WorkspaceFileOperation.update,
   WorkspaceFileOperation.patch,

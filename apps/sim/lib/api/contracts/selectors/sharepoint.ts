@@ -46,9 +46,15 @@ export const sharepointSiteSelectorContract = defineGetSelector(
   z.object({ site: fileOptionSchema.optional() }).passthrough()
 )
 
-type SharepointListsSelectorResponse = ContractJsonResponse<typeof sharepointListsSelectorContract>
-type SharepointListsSelectorBody = ContractBody<typeof sharepointListsSelectorContract>
-type SharepointSitesSelectorResponse = ContractJsonResponse<typeof sharepointSitesSelectorContract>
-type SharepointSitesSelectorBody = ContractBody<typeof sharepointSitesSelectorContract>
-type SharepointSiteSelectorResponse = ContractJsonResponse<typeof sharepointSiteSelectorContract>
-type SharepointSiteSelectorQuery = ContractQuery<typeof sharepointSiteSelectorContract>
+export type SharepointListsSelectorResponse = ContractJsonResponse<
+  typeof sharepointListsSelectorContract
+>
+export type SharepointListsSelectorBody = ContractBody<typeof sharepointListsSelectorContract>
+export type SharepointSitesSelectorResponse = ContractJsonResponse<
+  typeof sharepointSitesSelectorContract
+>
+export type SharepointSitesSelectorBody = ContractBody<typeof sharepointSitesSelectorContract>
+export type SharepointSiteSelectorResponse = ContractJsonResponse<
+  typeof sharepointSiteSelectorContract
+>
+export type SharepointSiteSelectorQuery = ContractQuery<typeof sharepointSiteSelectorContract>

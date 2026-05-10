@@ -83,17 +83,17 @@ export const neo4jIntrospectContract = defineRouteContract({
   response: { mode: 'json', schema: introspectionResponseSchema },
 })
 
-type Neo4jQueryRequest = ContractBodyInput<typeof neo4jQueryContract>
-type Neo4jQueryResponse = ContractJsonResponse<typeof neo4jQueryContract>
-type Neo4jExecuteRequest = ContractBodyInput<typeof neo4jExecuteContract>
-type Neo4jExecuteResponse = ContractJsonResponse<typeof neo4jExecuteContract>
-type Neo4jCreateRequest = ContractBodyInput<typeof neo4jCreateContract>
-type Neo4jCreateResponse = ContractJsonResponse<typeof neo4jCreateContract>
-type Neo4jUpdateRequest = ContractBodyInput<typeof neo4jUpdateContract>
-type Neo4jUpdateResponse = ContractJsonResponse<typeof neo4jUpdateContract>
-type Neo4jDeleteRequest = ContractBodyInput<typeof neo4jDeleteContract>
-type Neo4jDeleteResponse = ContractJsonResponse<typeof neo4jDeleteContract>
-type Neo4jMergeRequest = ContractBodyInput<typeof neo4jMergeContract>
-type Neo4jMergeResponse = ContractJsonResponse<typeof neo4jMergeContract>
-type Neo4jIntrospectRequest = ContractBodyInput<typeof neo4jIntrospectContract>
-type Neo4jIntrospectResponse = ContractJsonResponse<typeof neo4jIntrospectContract>
+export type Neo4jQueryRequest = ContractBodyInput<typeof neo4jQueryContract>
+export type Neo4jQueryResponse = ContractJsonResponse<typeof neo4jQueryContract>
+export type Neo4jExecuteRequest = ContractBodyInput<typeof neo4jExecuteContract>
+export type Neo4jExecuteResponse = ContractJsonResponse<typeof neo4jExecuteContract>
+export type Neo4jCreateRequest = ContractBodyInput<typeof neo4jCreateContract>
+export type Neo4jCreateResponse = ContractJsonResponse<typeof neo4jCreateContract>
+export type Neo4jUpdateRequest = ContractBodyInput<typeof neo4jUpdateContract>
+export type Neo4jUpdateResponse = ContractJsonResponse<typeof neo4jUpdateContract>
+export type Neo4jDeleteRequest = ContractBodyInput<typeof neo4jDeleteContract>
+export type Neo4jDeleteResponse = ContractJsonResponse<typeof neo4jDeleteContract>
+export type Neo4jMergeRequest = ContractBodyInput<typeof neo4jMergeContract>
+export type Neo4jMergeResponse = ContractJsonResponse<typeof neo4jMergeContract>
+export type Neo4jIntrospectRequest = ContractBodyInput<typeof neo4jIntrospectContract>
+export type Neo4jIntrospectResponse = ContractJsonResponse<typeof neo4jIntrospectContract>

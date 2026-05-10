@@ -13,7 +13,7 @@ export const helpFormBodySchema = z.object({
   message: z.string().min(1, 'Message is required'),
   type: z.enum(['bug', 'feedback', 'feature_request', 'other']),
 })
-type HelpFormBody = z.input<typeof helpFormBodySchema>
+export type HelpFormBody = z.input<typeof helpFormBodySchema>
 
 export const emailPreviewQuerySchema = z.object({
   template: z.string().optional(),
@@ -29,7 +29,7 @@ const integrationRequestBodySchema = z.object({
   email: z.string().email('A valid email is required'),
   useCase: z.string().max(2000).optional(),
 })
-type IntegrationRequestBody = z.input<typeof integrationRequestBodySchema>
+export type IntegrationRequestBody = z.input<typeof integrationRequestBodySchema>
 
 const integrationRequestResponseSchema = z.object({
   success: z.literal(true),

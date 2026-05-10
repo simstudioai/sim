@@ -1,7 +1,7 @@
 import type { mothershipInboxTask } from '@sim/db'
 
 export type InboxTask = typeof mothershipInboxTask.$inferSelect
-type InboxTaskStatus = 'received' | 'processing' | 'completed' | 'failed' | 'rejected'
+export type InboxTaskStatus = 'received' | 'processing' | 'completed' | 'failed' | 'rejected'
 export type RejectionReason = 'sender_not_allowed' | 'automated_sender' | 'rate_limit_exceeded'
 
 export interface InboxConfig {

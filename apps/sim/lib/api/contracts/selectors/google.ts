@@ -105,24 +105,32 @@ export const googleSheetsSelectorContract = defineGetSelector(
   z.object({ sheets: z.array(idNameSchema) })
 )
 
-type GmailLabelsSelectorQuery = ContractQueryInput<typeof gmailLabelsSelectorContract>
-type GmailLabelSelectorQuery = ContractQueryInput<typeof gmailLabelSelectorContract>
-type GoogleCalendarSelectorQuery = ContractQueryInput<typeof googleCalendarSelectorContract>
-type GoogleTasksTaskListsSelectorBody = ContractBodyInput<
+export type GmailLabelsSelectorQuery = ContractQueryInput<typeof gmailLabelsSelectorContract>
+export type GmailLabelSelectorQuery = ContractQueryInput<typeof gmailLabelSelectorContract>
+export type GoogleCalendarSelectorQuery = ContractQueryInput<typeof googleCalendarSelectorContract>
+export type GoogleTasksTaskListsSelectorBody = ContractBodyInput<
   typeof googleTasksTaskListsSelectorContract
 >
-type GoogleDriveFilesSelectorQuery = ContractQueryInput<typeof googleDriveFilesSelectorContract>
-type GoogleDriveFileSelectorQuery = ContractQueryInput<typeof googleDriveFileSelectorContract>
-type GoogleSheetsSelectorQuery = ContractQueryInput<typeof googleSheetsSelectorContract>
-
-type GmailLabelsSelectorResponse = ContractJsonResponse<typeof gmailLabelsSelectorContract>
-type GmailLabelSelectorResponse = ContractJsonResponse<typeof gmailLabelSelectorContract>
-type GoogleCalendarSelectorResponse = ContractJsonResponse<typeof googleCalendarSelectorContract>
-type GoogleTasksTaskListsSelectorResponse = ContractJsonResponse<
-  typeof googleTasksTaskListsSelectorContract
->
-type GoogleDriveFilesSelectorResponse = ContractJsonResponse<
+export type GoogleDriveFilesSelectorQuery = ContractQueryInput<
   typeof googleDriveFilesSelectorContract
 >
-type GoogleDriveFileSelectorResponse = ContractJsonResponse<typeof googleDriveFileSelectorContract>
-type GoogleSheetsSelectorResponse = ContractJsonResponse<typeof googleSheetsSelectorContract>
+export type GoogleDriveFileSelectorQuery = ContractQueryInput<
+  typeof googleDriveFileSelectorContract
+>
+export type GoogleSheetsSelectorQuery = ContractQueryInput<typeof googleSheetsSelectorContract>
+
+export type GmailLabelsSelectorResponse = ContractJsonResponse<typeof gmailLabelsSelectorContract>
+export type GmailLabelSelectorResponse = ContractJsonResponse<typeof gmailLabelSelectorContract>
+export type GoogleCalendarSelectorResponse = ContractJsonResponse<
+  typeof googleCalendarSelectorContract
+>
+export type GoogleTasksTaskListsSelectorResponse = ContractJsonResponse<
+  typeof googleTasksTaskListsSelectorContract
+>
+export type GoogleDriveFilesSelectorResponse = ContractJsonResponse<
+  typeof googleDriveFilesSelectorContract
+>
+export type GoogleDriveFileSelectorResponse = ContractJsonResponse<
+  typeof googleDriveFileSelectorContract
+>
+export type GoogleSheetsSelectorResponse = ContractJsonResponse<typeof googleSheetsSelectorContract>

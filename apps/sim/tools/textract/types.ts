@@ -2,7 +2,7 @@ import type { RawFileInput } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
-type TextractProcessingMode = 'sync' | 'async'
+export type TextractProcessingMode = 'sync' | 'async'
 
 export interface TextractParserInput {
   accessKeyId: string
@@ -28,7 +28,7 @@ export interface TextractParserV2Input {
   queries?: TextractQuery[]
 }
 
-type TextractFeatureType = 'TABLES' | 'FORMS' | 'QUERIES' | 'SIGNATURES' | 'LAYOUT'
+export type TextractFeatureType = 'TABLES' | 'FORMS' | 'QUERIES' | 'SIGNATURES' | 'LAYOUT'
 
 interface TextractQuery {
   Text: string

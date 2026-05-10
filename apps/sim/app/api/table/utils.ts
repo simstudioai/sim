@@ -22,7 +22,7 @@ interface TableAccessDenied {
   reason?: string
 }
 
-type TableAccessCheck = TableAccessResult | TableAccessDenied
+export type TableAccessCheck = TableAccessResult | TableAccessDenied
 
 export type AccessResult = { ok: true; table: TableDefinition } | { ok: false; status: 404 | 403 }
 

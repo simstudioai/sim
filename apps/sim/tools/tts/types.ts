@@ -1,7 +1,14 @@
 import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
-type TtsProvider = 'openai' | 'deepgram' | 'elevenlabs' | 'cartesia' | 'google' | 'azure' | 'playht'
+export type TtsProvider =
+  | 'openai'
+  | 'deepgram'
+  | 'elevenlabs'
+  | 'cartesia'
+  | 'google'
+  | 'azure'
+  | 'playht'
 
 // OpenAI TTS Types
 export interface OpenAiTtsParams {

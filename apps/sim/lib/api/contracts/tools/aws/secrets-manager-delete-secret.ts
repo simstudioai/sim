@@ -28,10 +28,12 @@ export const awsSecretsManagerDeleteSecretContract = defineRouteContract({
   body: DeleteSecretSchema,
   response: { mode: 'json', schema: DeleteSecretResponseSchema },
 })
-type AwsSecretsManagerDeleteSecretRequest = ContractBodyInput<
+export type AwsSecretsManagerDeleteSecretRequest = ContractBodyInput<
   typeof awsSecretsManagerDeleteSecretContract
 >
-type AwsSecretsManagerDeleteSecretBody = ContractBody<typeof awsSecretsManagerDeleteSecretContract>
-type AwsSecretsManagerDeleteSecretResponse = ContractJsonResponse<
+export type AwsSecretsManagerDeleteSecretBody = ContractBody<
+  typeof awsSecretsManagerDeleteSecretContract
+>
+export type AwsSecretsManagerDeleteSecretResponse = ContractJsonResponse<
   typeof awsSecretsManagerDeleteSecretContract
 >

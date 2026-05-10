@@ -45,6 +45,8 @@ export const awsCloudwatchQueryLogsContract = defineRouteContract({
   body: QueryLogsSchema,
   response: { mode: 'json', schema: QueryLogsResponseSchema },
 })
-type AwsCloudwatchQueryLogsRequest = ContractBodyInput<typeof awsCloudwatchQueryLogsContract>
-type AwsCloudwatchQueryLogsBody = ContractBody<typeof awsCloudwatchQueryLogsContract>
-type AwsCloudwatchQueryLogsResponse = ContractJsonResponse<typeof awsCloudwatchQueryLogsContract>
+export type AwsCloudwatchQueryLogsRequest = ContractBodyInput<typeof awsCloudwatchQueryLogsContract>
+export type AwsCloudwatchQueryLogsBody = ContractBody<typeof awsCloudwatchQueryLogsContract>
+export type AwsCloudwatchQueryLogsResponse = ContractJsonResponse<
+  typeof awsCloudwatchQueryLogsContract
+>

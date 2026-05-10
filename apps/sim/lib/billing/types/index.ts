@@ -27,7 +27,7 @@ const enterpriseWorkspaceConcurrencyMetadataSchema = z.object({
   workspaceConcurrencyLimit: z.coerce.number().int().positive().optional(),
 })
 
-type EnterpriseWorkspaceConcurrencyMetadata = z.infer<
+export type EnterpriseWorkspaceConcurrencyMetadata = z.infer<
   typeof enterpriseWorkspaceConcurrencyMetadataSchema
 >
 
@@ -180,8 +180,8 @@ interface UsageLimitAPIResponse {
 }
 
 // Utility Types
-type PlanType = 'free' | 'pro' | 'team' | 'enterprise'
-type SubscriptionStatus =
+export type PlanType = 'free' | 'pro' | 'team' | 'enterprise'
+export type SubscriptionStatus =
   | 'active'
   | 'canceled'
   | 'past_due'
@@ -189,10 +189,10 @@ type SubscriptionStatus =
   | 'trialing'
   | 'incomplete'
   | 'incomplete_expired'
-type BillingEntityType = 'user' | 'organization'
-type BillingPeriodType = 'monthly' | 'annual'
-type UsagePeriodStatus = 'active' | 'finalized' | 'billed'
-type BillingStatusType = 'ok' | 'warning' | 'exceeded'
+export type BillingEntityType = 'user' | 'organization'
+export type BillingPeriodType = 'monthly' | 'annual'
+export type UsagePeriodStatus = 'active' | 'finalized' | 'billed'
+export type BillingStatusType = 'ok' | 'warning' | 'exceeded'
 
 // Error Types
 interface BillingError {

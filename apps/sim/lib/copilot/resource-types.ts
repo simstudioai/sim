@@ -1,4 +1,4 @@
-type MothershipResourceType =
+export type MothershipResourceType =
   | 'table'
   | 'file'
   | 'workflow'

@@ -65,4 +65,4 @@ export const knowledgeSearchBodySchema = z
       message: 'Please provide either a search query or tag filters to search your knowledge base',
     }
   )
-type KnowledgeSearchBody = z.output<typeof knowledgeSearchBodySchema>
+export type KnowledgeSearchBody = z.output<typeof knowledgeSearchBodySchema>

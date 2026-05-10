@@ -386,7 +386,7 @@ export async function validatePublicApiAllowed(
   }
 }
 
-type ToolKind = 'mcp' | 'custom' | 'skill'
+export type ToolKind = 'mcp' | 'custom' | 'skill'
 
 interface PermissionAssertion {
   userId: string | undefined

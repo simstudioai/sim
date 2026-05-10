@@ -239,4 +239,4 @@ export const SUPPORTED_PII_ENTITIES = {
   TH_TNIN: 'Thai National ID Number',
 } as const
 
-type PIIEntityType = keyof typeof SUPPORTED_PII_ENTITIES
+export type PIIEntityType = keyof typeof SUPPORTED_PII_ENTITIES

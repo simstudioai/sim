@@ -197,7 +197,7 @@ const CONNECT_TO_SDK_FIELD_TYPE: Record<string, `${ItemFieldType}`> = {
   CREDIT_CARD_TYPE: 'CreditCardType',
 }
 
-type ConnectionMode = 'service_account' | 'connect'
+export type ConnectionMode = 'service_account' | 'connect'
 
 export interface CredentialParams {
   connectionMode?: ConnectionMode | null

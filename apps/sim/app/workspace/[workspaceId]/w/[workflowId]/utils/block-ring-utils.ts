@@ -1,8 +1,8 @@
 import { cn } from '@/lib/core/utils/cn'
 
-type BlockDiffStatus = 'new' | 'edited' | null | undefined
+export type BlockDiffStatus = 'new' | 'edited' | null | undefined
 
-type BlockRunPathStatus = 'success' | 'error' | undefined
+export type BlockRunPathStatus = 'success' | 'error' | undefined
 
 interface BlockRingOptions {
   /** Whether the block is executing (shows green pulsing ring) */

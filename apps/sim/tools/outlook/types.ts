@@ -333,7 +333,7 @@ export interface OutlookCopyResponse extends ToolResponse {
   }
 }
 
-type OutlookExtendedResponse =
+export type OutlookExtendedResponse =
   | OutlookResponse
   | OutlookForwardResponse
   | OutlookMoveResponse

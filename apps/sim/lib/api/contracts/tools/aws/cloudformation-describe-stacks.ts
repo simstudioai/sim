@@ -56,12 +56,12 @@ export const awsCloudformationDescribeStacksContract = defineRouteContract({
   body: DescribeStacksSchema,
   response: { mode: 'json', schema: DescribeStacksResponseSchema },
 })
-type AwsCloudformationDescribeStacksRequest = ContractBodyInput<
+export type AwsCloudformationDescribeStacksRequest = ContractBodyInput<
   typeof awsCloudformationDescribeStacksContract
 >
-type AwsCloudformationDescribeStacksBody = ContractBody<
+export type AwsCloudformationDescribeStacksBody = ContractBody<
   typeof awsCloudformationDescribeStacksContract
 >
-type AwsCloudformationDescribeStacksResponse = ContractJsonResponse<
+export type AwsCloudformationDescribeStacksResponse = ContractJsonResponse<
   typeof awsCloudformationDescribeStacksContract
 >

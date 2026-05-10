@@ -11,7 +11,7 @@ const v1ListWorkflowsQuerySchema = z.object({
   cursor: z.string().optional(),
 })
 
-type V1ListWorkflowsQuery = z.output<typeof v1ListWorkflowsQuerySchema>
+export type V1ListWorkflowsQuery = z.output<typeof v1ListWorkflowsQuerySchema>
 
 /**
  * Generic wrapper used by v1 admin workflow list/detail responses. `data` is

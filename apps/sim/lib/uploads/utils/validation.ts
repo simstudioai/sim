@@ -80,7 +80,7 @@ export const SUPPORTED_CODE_EXTENSIONS = [
   'mmd',
 ] as const
 
-type SupportedCodeExtension = (typeof SUPPORTED_CODE_EXTENSIONS)[number]
+export type SupportedCodeExtension = (typeof SUPPORTED_CODE_EXTENSIONS)[number]
 
 export const SUPPORTED_AUDIO_EXTENSIONS = [
   'mp3',
@@ -112,10 +112,10 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
 ] as const
 
 export type SupportedDocumentExtension = (typeof SUPPORTED_DOCUMENT_EXTENSIONS)[number]
-type SupportedAudioExtension = (typeof SUPPORTED_AUDIO_EXTENSIONS)[number]
-type SupportedVideoExtension = (typeof SUPPORTED_VIDEO_EXTENSIONS)[number]
-type SupportedImageExtension = (typeof SUPPORTED_IMAGE_EXTENSIONS)[number]
-type SupportedMediaExtension =
+export type SupportedAudioExtension = (typeof SUPPORTED_AUDIO_EXTENSIONS)[number]
+export type SupportedVideoExtension = (typeof SUPPORTED_VIDEO_EXTENSIONS)[number]
+export type SupportedImageExtension = (typeof SUPPORTED_IMAGE_EXTENSIONS)[number]
+export type SupportedMediaExtension =
   | SupportedDocumentExtension
   | SupportedAudioExtension
   | SupportedVideoExtension

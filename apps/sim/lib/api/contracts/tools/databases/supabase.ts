@@ -28,5 +28,7 @@ export const supabaseStorageUploadContract = defineRouteContract({
   response: { mode: 'json', schema: supabaseStorageUploadResponseSchema },
 })
 
-type SupabaseStorageUploadRequest = ContractBodyInput<typeof supabaseStorageUploadContract>
-type SupabaseStorageUploadResponse = ContractJsonResponse<typeof supabaseStorageUploadContract>
+export type SupabaseStorageUploadRequest = ContractBodyInput<typeof supabaseStorageUploadContract>
+export type SupabaseStorageUploadResponse = ContractJsonResponse<
+  typeof supabaseStorageUploadContract
+>

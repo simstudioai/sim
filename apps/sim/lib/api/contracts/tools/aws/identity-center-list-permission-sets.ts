@@ -41,12 +41,12 @@ export const awsIdentityCenterListPermissionSetsContract = defineRouteContract({
   body: Schema,
   response: { mode: 'json', schema: ResponseSchema },
 })
-type AwsIdentityCenterListPermissionSetsRequest = ContractBodyInput<
+export type AwsIdentityCenterListPermissionSetsRequest = ContractBodyInput<
   typeof awsIdentityCenterListPermissionSetsContract
 >
-type AwsIdentityCenterListPermissionSetsBody = ContractBody<
+export type AwsIdentityCenterListPermissionSetsBody = ContractBody<
   typeof awsIdentityCenterListPermissionSetsContract
 >
-type AwsIdentityCenterListPermissionSetsResponse = ContractJsonResponse<
+export type AwsIdentityCenterListPermissionSetsResponse = ContractJsonResponse<
   typeof awsIdentityCenterListPermissionSetsContract
 >

@@ -9,7 +9,7 @@ export type UserFileLike = Pick<UserFile, 'id' | 'name' | 'url' | 'key'> &
  */
 export const USER_FILE_DISPLAY_FIELDS = ['id', 'name', 'url', 'size', 'type', 'base64'] as const
 
-type UserFileDisplayField = (typeof USER_FILE_DISPLAY_FIELDS)[number]
+export type UserFileDisplayField = (typeof USER_FILE_DISPLAY_FIELDS)[number]
 
 /**
  * Checks if a value matches the minimal UserFile shape.

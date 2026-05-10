@@ -107,18 +107,18 @@ export const slackDownloadContract = defineCommunicationToolContract(
   slackDownloadBodySchema
 )
 
-type SlackSendMessageBody = ContractBodyInput<typeof slackSendMessageContract>
-type SlackReadMessagesBody = ContractBodyInput<typeof slackReadMessagesContract>
-type SlackReactionBody = ContractBodyInput<typeof slackAddReactionContract>
-type SlackDeleteMessageBody = ContractBodyInput<typeof slackDeleteMessageContract>
-type SlackUpdateMessageBody = ContractBodyInput<typeof slackUpdateMessageContract>
-type SlackSendEphemeralBody = ContractBodyInput<typeof slackSendEphemeralContract>
-type SlackDownloadBody = ContractBodyInput<typeof slackDownloadContract>
+export type SlackSendMessageBody = ContractBodyInput<typeof slackSendMessageContract>
+export type SlackReadMessagesBody = ContractBodyInput<typeof slackReadMessagesContract>
+export type SlackReactionBody = ContractBodyInput<typeof slackAddReactionContract>
+export type SlackDeleteMessageBody = ContractBodyInput<typeof slackDeleteMessageContract>
+export type SlackUpdateMessageBody = ContractBodyInput<typeof slackUpdateMessageContract>
+export type SlackSendEphemeralBody = ContractBodyInput<typeof slackSendEphemeralContract>
+export type SlackDownloadBody = ContractBodyInput<typeof slackDownloadContract>
 
-type SlackSendMessageResponse = ContractJsonResponse<typeof slackSendMessageContract>
-type SlackReadMessagesResponse = ContractJsonResponse<typeof slackReadMessagesContract>
-type SlackReactionResponse = ContractJsonResponse<typeof slackAddReactionContract>
-type SlackDeleteMessageResponse = ContractJsonResponse<typeof slackDeleteMessageContract>
-type SlackUpdateMessageResponse = ContractJsonResponse<typeof slackUpdateMessageContract>
-type SlackSendEphemeralResponse = ContractJsonResponse<typeof slackSendEphemeralContract>
-type SlackDownloadResponse = ContractJsonResponse<typeof slackDownloadContract>
+export type SlackSendMessageResponse = ContractJsonResponse<typeof slackSendMessageContract>
+export type SlackReadMessagesResponse = ContractJsonResponse<typeof slackReadMessagesContract>
+export type SlackReactionResponse = ContractJsonResponse<typeof slackAddReactionContract>
+export type SlackDeleteMessageResponse = ContractJsonResponse<typeof slackDeleteMessageContract>
+export type SlackUpdateMessageResponse = ContractJsonResponse<typeof slackUpdateMessageContract>
+export type SlackSendEphemeralResponse = ContractJsonResponse<typeof slackSendEphemeralContract>
+export type SlackDownloadResponse = ContractJsonResponse<typeof slackDownloadContract>

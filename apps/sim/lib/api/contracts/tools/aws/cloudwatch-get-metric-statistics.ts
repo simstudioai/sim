@@ -49,12 +49,12 @@ export const awsCloudwatchGetMetricStatisticsContract = defineRouteContract({
   body: GetMetricStatisticsSchema,
   response: { mode: 'json', schema: GetMetricStatisticsResponseSchema },
 })
-type AwsCloudwatchGetMetricStatisticsRequest = ContractBodyInput<
+export type AwsCloudwatchGetMetricStatisticsRequest = ContractBodyInput<
   typeof awsCloudwatchGetMetricStatisticsContract
 >
-type AwsCloudwatchGetMetricStatisticsBody = ContractBody<
+export type AwsCloudwatchGetMetricStatisticsBody = ContractBody<
   typeof awsCloudwatchGetMetricStatisticsContract
 >
-type AwsCloudwatchGetMetricStatisticsResponse = ContractJsonResponse<
+export type AwsCloudwatchGetMetricStatisticsResponse = ContractJsonResponse<
   typeof awsCloudwatchGetMetricStatisticsContract
 >

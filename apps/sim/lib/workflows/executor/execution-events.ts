@@ -6,7 +6,7 @@ import type {
 import type { BlockLog } from '@/executor/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
-type ExecutionEventType =
+export type ExecutionEventType =
   | 'execution:started'
   | 'execution:completed'
   | 'execution:paused'

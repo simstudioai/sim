@@ -328,7 +328,7 @@ interface ZoomBaseParams {
 }
 
 // Meeting types
-type ZoomMeetingType = 1 | 2 | 3 | 8 // 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time
+export type ZoomMeetingType = 1 | 2 | 3 | 8 // 1=instant, 2=scheduled, 3=recurring no fixed time, 8=recurring fixed time
 
 interface ZoomMeetingSettings {
   host_video?: boolean

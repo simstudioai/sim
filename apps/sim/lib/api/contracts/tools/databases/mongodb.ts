@@ -189,15 +189,15 @@ export const mongodbIntrospectContract = defineRouteContract({
   response: { mode: 'json', schema: introspectionResponseSchema },
 })
 
-type MongoDBQueryRequest = ContractBodyInput<typeof mongodbQueryContract>
-type MongoDBQueryResponse = ContractJsonResponse<typeof mongodbQueryContract>
-type MongoDBExecuteRequest = ContractBodyInput<typeof mongodbExecuteContract>
-type MongoDBExecuteResponse = ContractJsonResponse<typeof mongodbExecuteContract>
-type MongoDBInsertRequest = ContractBodyInput<typeof mongodbInsertContract>
-type MongoDBInsertResponse = ContractJsonResponse<typeof mongodbInsertContract>
-type MongoDBUpdateRequest = ContractBodyInput<typeof mongodbUpdateContract>
-type MongoDBUpdateResponse = ContractJsonResponse<typeof mongodbUpdateContract>
-type MongoDBDeleteRequest = ContractBodyInput<typeof mongodbDeleteContract>
-type MongoDBDeleteResponse = ContractJsonResponse<typeof mongodbDeleteContract>
-type MongoDBIntrospectRequest = ContractBodyInput<typeof mongodbIntrospectContract>
-type MongoDBIntrospectResponse = ContractJsonResponse<typeof mongodbIntrospectContract>
+export type MongoDBQueryRequest = ContractBodyInput<typeof mongodbQueryContract>
+export type MongoDBQueryResponse = ContractJsonResponse<typeof mongodbQueryContract>
+export type MongoDBExecuteRequest = ContractBodyInput<typeof mongodbExecuteContract>
+export type MongoDBExecuteResponse = ContractJsonResponse<typeof mongodbExecuteContract>
+export type MongoDBInsertRequest = ContractBodyInput<typeof mongodbInsertContract>
+export type MongoDBInsertResponse = ContractJsonResponse<typeof mongodbInsertContract>
+export type MongoDBUpdateRequest = ContractBodyInput<typeof mongodbUpdateContract>
+export type MongoDBUpdateResponse = ContractJsonResponse<typeof mongodbUpdateContract>
+export type MongoDBDeleteRequest = ContractBodyInput<typeof mongodbDeleteContract>
+export type MongoDBDeleteResponse = ContractJsonResponse<typeof mongodbDeleteContract>
+export type MongoDBIntrospectRequest = ContractBodyInput<typeof mongodbIntrospectContract>
+export type MongoDBIntrospectResponse = ContractJsonResponse<typeof mongodbIntrospectContract>

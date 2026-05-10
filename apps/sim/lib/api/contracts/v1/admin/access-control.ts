@@ -71,17 +71,19 @@ export const adminV1DeleteAccessControlContract = defineRouteContract({
 })
 
 export type AdminV1PermissionGroup = z.output<typeof adminV1PermissionGroupSchema>
-type AdminV1ListAccessControlQueryInput = ContractQueryInput<
+export type AdminV1ListAccessControlQueryInput = ContractQueryInput<
   typeof adminV1ListAccessControlContract
 >
-type AdminV1ListAccessControlQuery = ContractQuery<typeof adminV1ListAccessControlContract>
-type AdminV1DeleteAccessControlQueryInput = ContractQueryInput<
+export type AdminV1ListAccessControlQuery = ContractQuery<typeof adminV1ListAccessControlContract>
+export type AdminV1DeleteAccessControlQueryInput = ContractQueryInput<
   typeof adminV1DeleteAccessControlContract
 >
-type AdminV1DeleteAccessControlQuery = ContractQuery<typeof adminV1DeleteAccessControlContract>
-type AdminV1ListAccessControlResponse = ContractJsonResponse<
+export type AdminV1DeleteAccessControlQuery = ContractQuery<
+  typeof adminV1DeleteAccessControlContract
+>
+export type AdminV1ListAccessControlResponse = ContractJsonResponse<
   typeof adminV1ListAccessControlContract
 >
-type AdminV1DeleteAccessControlResponse = ContractJsonResponse<
+export type AdminV1DeleteAccessControlResponse = ContractJsonResponse<
   typeof adminV1DeleteAccessControlContract
 >

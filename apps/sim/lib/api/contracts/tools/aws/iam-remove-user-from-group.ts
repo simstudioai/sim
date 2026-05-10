@@ -26,8 +26,10 @@ export const awsIamRemoveUserFromGroupContract = defineRouteContract({
   body: Schema,
   response: { mode: 'json', schema: z.object({ message: z.string() }) },
 })
-type AwsIamRemoveUserFromGroupRequest = ContractBodyInput<typeof awsIamRemoveUserFromGroupContract>
-type AwsIamRemoveUserFromGroupBody = ContractBody<typeof awsIamRemoveUserFromGroupContract>
-type AwsIamRemoveUserFromGroupResponse = ContractJsonResponse<
+export type AwsIamRemoveUserFromGroupRequest = ContractBodyInput<
+  typeof awsIamRemoveUserFromGroupContract
+>
+export type AwsIamRemoveUserFromGroupBody = ContractBody<typeof awsIamRemoveUserFromGroupContract>
+export type AwsIamRemoveUserFromGroupResponse = ContractJsonResponse<
   typeof awsIamRemoveUserFromGroupContract
 >

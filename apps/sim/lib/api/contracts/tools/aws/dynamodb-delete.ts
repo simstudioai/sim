@@ -35,6 +35,6 @@ export const awsDynamodbDeleteContract = defineRouteContract({
   body: DeleteSchema,
   response: { mode: 'json', schema: DeleteResponseSchema },
 })
-type AwsDynamodbDeleteRequest = ContractBodyInput<typeof awsDynamodbDeleteContract>
-type AwsDynamodbDeleteBody = ContractBody<typeof awsDynamodbDeleteContract>
-type AwsDynamodbDeleteResponse = ContractJsonResponse<typeof awsDynamodbDeleteContract>
+export type AwsDynamodbDeleteRequest = ContractBodyInput<typeof awsDynamodbDeleteContract>
+export type AwsDynamodbDeleteBody = ContractBody<typeof awsDynamodbDeleteContract>
+export type AwsDynamodbDeleteResponse = ContractJsonResponse<typeof awsDynamodbDeleteContract>

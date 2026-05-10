@@ -29,6 +29,6 @@ export const awsSqsSendContract = defineRouteContract({
   body: SendMessageSchema,
   response: { mode: 'json', schema: SendMessageResponseSchema },
 })
-type AwsSqsSendRequest = ContractBodyInput<typeof awsSqsSendContract>
-type AwsSqsSendBody = ContractBody<typeof awsSqsSendContract>
-type AwsSqsSendResponse = ContractJsonResponse<typeof awsSqsSendContract>
+export type AwsSqsSendRequest = ContractBodyInput<typeof awsSqsSendContract>
+export type AwsSqsSendBody = ContractBody<typeof awsSqsSendContract>
+export type AwsSqsSendResponse = ContractJsonResponse<typeof awsSqsSendContract>

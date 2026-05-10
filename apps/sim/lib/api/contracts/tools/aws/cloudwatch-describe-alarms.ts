@@ -57,10 +57,12 @@ export const awsCloudwatchDescribeAlarmsContract = defineRouteContract({
   body: DescribeAlarmsSchema,
   response: { mode: 'json', schema: DescribeAlarmsResponseSchema },
 })
-type AwsCloudwatchDescribeAlarmsRequest = ContractBodyInput<
+export type AwsCloudwatchDescribeAlarmsRequest = ContractBodyInput<
   typeof awsCloudwatchDescribeAlarmsContract
 >
-type AwsCloudwatchDescribeAlarmsBody = ContractBody<typeof awsCloudwatchDescribeAlarmsContract>
-type AwsCloudwatchDescribeAlarmsResponse = ContractJsonResponse<
+export type AwsCloudwatchDescribeAlarmsBody = ContractBody<
+  typeof awsCloudwatchDescribeAlarmsContract
+>
+export type AwsCloudwatchDescribeAlarmsResponse = ContractJsonResponse<
   typeof awsCloudwatchDescribeAlarmsContract
 >

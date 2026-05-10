@@ -4432,7 +4432,7 @@ interface PresetOverlay {
   fillModifier: 'lighten'
 }
 
-type PresetOverlayGenerator = (
+export type PresetOverlayGenerator = (
   w: number,
   h: number,
   adjustments?: Map<string, number>

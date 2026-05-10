@@ -94,9 +94,9 @@ const createKnowledgeDocumentsBodySchema = z
   .object({ bulk: z.boolean().default(false) })
   .passthrough()
   .pipe(createKnowledgeDocumentsBodyDiscriminatedUnion)
-type CreateKnowledgeDocumentsBody = z.input<typeof createKnowledgeDocumentsBodySchema>
-type BulkCreateDocumentsBody = z.input<typeof bulkCreateDocumentsBodySchema>
-type SingleCreateDocumentBody = z.input<typeof singleCreateDocumentBodySchema>
+export type CreateKnowledgeDocumentsBody = z.input<typeof createKnowledgeDocumentsBodySchema>
+export type BulkCreateDocumentsBody = z.input<typeof bulkCreateDocumentsBodySchema>
+export type SingleCreateDocumentBody = z.input<typeof singleCreateDocumentBodySchema>
 
 const upsertDocumentBodySchema = z.object({
   documentId: z.string().optional(),
@@ -113,7 +113,7 @@ const upsertDocumentBodySchema = z.object({
     .optional(),
   workflowId: z.string().optional(),
 })
-type UpsertDocumentBody = z.output<typeof upsertDocumentBodySchema>
+export type UpsertDocumentBody = z.output<typeof upsertDocumentBodySchema>
 
 const bulkCreateDocumentsResponseSchema = z.object({
   total: z.number(),
@@ -228,7 +228,7 @@ const documentDataSchema = z
 export type DocumentData = z.output<typeof documentDataSchema>
 
 const documentsPaginationSchema = paginationSchema
-type DocumentsPagination = z.output<typeof documentsPaginationSchema>
+export type DocumentsPagination = z.output<typeof documentsPaginationSchema>
 
 const knowledgeDocumentsDataSchema = z.object({
   documents: z.array(documentDataSchema),

@@ -249,6 +249,7 @@ export async function abortActiveStream(streamId: string): Promise<boolean> {
   )
 }
 
+export type { AbortReasonValue } from './abort-reason'
 /**
  * `AbortReason` vocabulary and the `isExplicitStopReason` classifier
  * live in a sibling zero-dependency module so the telemetry layer

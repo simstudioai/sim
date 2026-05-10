@@ -65,7 +65,7 @@ const permissionGroupWriteSchema = z.object({
   updatedAt: z.string(),
   autoAddNewMembers: z.boolean(),
 })
-type PermissionGroupWrite = z.output<typeof permissionGroupWriteSchema>
+export type PermissionGroupWrite = z.output<typeof permissionGroupWriteSchema>
 
 const permissionGroupMemberSchema = z.object({
   id: z.string(),

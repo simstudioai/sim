@@ -125,7 +125,7 @@ const deployedChatPostBodySchema = z.object({
   conversationId: z.string().optional(),
   files: z.array(deployedChatFileSchema).optional().default([]),
 })
-type DeployedChatPostBody = z.input<typeof deployedChatPostBodySchema>
+export type DeployedChatPostBody = z.input<typeof deployedChatPostBodySchema>
 
 const chatSSOBodySchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -134,7 +134,7 @@ const chatSSOBodySchema = z.object({
 const chatSSOResponseSchema = z.object({
   eligible: z.boolean(),
 })
-type ChatSSOResponse = z.output<typeof chatSSOResponseSchema>
+export type ChatSSOResponse = z.output<typeof chatSSOResponseSchema>
 
 const chatEmailOtpRequestBodySchema = z.object({
   email: z.string().email('Invalid email address'),

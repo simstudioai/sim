@@ -20,7 +20,7 @@ import type {
   OrchestratorResult,
 } from '@/lib/copilot/request/types'
 
-type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome
+export type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome
 
 interface PersistedToolCall {
   id: string

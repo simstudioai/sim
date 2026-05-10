@@ -13,9 +13,9 @@ export const v1UploadFileFormFieldsSchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId form field is required'),
 })
 
-type V1FileParams = z.output<typeof v1FileParamsSchema>
-type V1WorkspaceIdQuery = z.output<typeof v1WorkspaceIdQuerySchema>
-type V1UploadFileFormFields = z.output<typeof v1UploadFileFormFieldsSchema>
+export type V1FileParams = z.output<typeof v1FileParamsSchema>
+export type V1WorkspaceIdQuery = z.output<typeof v1WorkspaceIdQuerySchema>
+export type V1UploadFileFormFields = z.output<typeof v1UploadFileFormFieldsSchema>
 
 const v1FilesResponseSchema = z
   .object({

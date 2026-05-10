@@ -44,10 +44,14 @@ export const bigQueryTablesSelectorContract = definePostSelector(
   z.object({ tables: z.array(bigQueryTableSchema) })
 )
 
-type BigQueryDatasetsSelectorBody = ContractBodyInput<typeof bigQueryDatasetsSelectorContract>
-type BigQueryTablesSelectorBody = ContractBodyInput<typeof bigQueryTablesSelectorContract>
-
-type BigQueryDatasetsSelectorResponse = ContractJsonResponse<
+export type BigQueryDatasetsSelectorBody = ContractBodyInput<
   typeof bigQueryDatasetsSelectorContract
 >
-type BigQueryTablesSelectorResponse = ContractJsonResponse<typeof bigQueryTablesSelectorContract>
+export type BigQueryTablesSelectorBody = ContractBodyInput<typeof bigQueryTablesSelectorContract>
+
+export type BigQueryDatasetsSelectorResponse = ContractJsonResponse<
+  typeof bigQueryDatasetsSelectorContract
+>
+export type BigQueryTablesSelectorResponse = ContractJsonResponse<
+  typeof bigQueryTablesSelectorContract
+>

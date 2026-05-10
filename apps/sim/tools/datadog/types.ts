@@ -2,7 +2,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Datadog Site/Region options
-type DatadogSite =
+export type DatadogSite =
   | 'datadoghq.com'
   | 'us3.datadoghq.com'
   | 'us5.datadoghq.com'
@@ -25,7 +25,7 @@ interface DatadogBaseParams extends DatadogWriteOnlyParams {
 // METRICS TYPES
 // ========================
 
-type MetricType = 'gauge' | 'rate' | 'count' | 'distribution'
+export type MetricType = 'gauge' | 'rate' | 'count' | 'distribution'
 
 interface MetricPoint {
   timestamp: number
@@ -119,7 +119,7 @@ interface GetMetricMetadataResponse extends ToolResponse {
 // EVENTS TYPES
 // ========================
 
-type EventAlertType =
+export type EventAlertType =
   | 'error'
   | 'warning'
   | 'info'
@@ -127,7 +127,7 @@ type EventAlertType =
   | 'user_update'
   | 'recommendation'
   | 'snapshot'
-type EventPriority = 'normal' | 'low'
+export type EventPriority = 'normal' | 'low'
 
 export interface CreateEventParams extends DatadogWriteOnlyParams {
   title: string
@@ -196,7 +196,7 @@ interface QueryEventsResponse extends ToolResponse {
 // MONITORS TYPES
 // ========================
 
-type MonitorType =
+export type MonitorType =
   | 'metric alert'
   | 'service check'
   | 'event alert'
@@ -484,7 +484,7 @@ export interface CancelDowntimeResponse extends ToolResponse {
 // SLO TYPES
 // ========================
 
-type SloType = 'metric' | 'monitor' | 'time_slice'
+export type SloType = 'metric' | 'monitor' | 'time_slice'
 
 interface SloThreshold {
   timeframe: '7d' | '30d' | '90d' | 'custom'
@@ -564,7 +564,7 @@ interface GetSloHistoryResponse extends ToolResponse {
 // DASHBOARD TYPES
 // ========================
 
-type DashboardLayoutType = 'ordered' | 'free'
+export type DashboardLayoutType = 'ordered' | 'free'
 
 interface CreateDashboardParams extends DatadogBaseParams {
   title: string
@@ -695,8 +695,8 @@ interface ListHostsResponse extends ToolResponse {
 // INCIDENTS TYPES
 // ========================
 
-type IncidentSeverity = 'SEV-1' | 'SEV-2' | 'SEV-3' | 'SEV-4' | 'SEV-5' | 'UNKNOWN'
-type IncidentState = 'active' | 'stable' | 'resolved'
+export type IncidentSeverity = 'SEV-1' | 'SEV-2' | 'SEV-3' | 'SEV-4' | 'SEV-5' | 'UNKNOWN'
+export type IncidentState = 'active' | 'stable' | 'resolved'
 
 interface CreateIncidentParams extends DatadogBaseParams {
   title: string

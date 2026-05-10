@@ -63,6 +63,6 @@ export const zoomGetRecordingsContract = defineRouteContract({
   response: { mode: 'json', schema: zoomGetRecordingsResponseSchema },
 })
 
-type ZoomGetRecordingsBody = ContractBody<typeof zoomGetRecordingsContract>
-type ZoomGetRecordingsBodyInput = ContractBodyInput<typeof zoomGetRecordingsContract>
-type ZoomGetRecordingsResponse = ContractJsonResponse<typeof zoomGetRecordingsContract>
+export type ZoomGetRecordingsBody = ContractBody<typeof zoomGetRecordingsContract>
+export type ZoomGetRecordingsBodyInput = ContractBodyInput<typeof zoomGetRecordingsContract>
+export type ZoomGetRecordingsResponse = ContractJsonResponse<typeof zoomGetRecordingsContract>

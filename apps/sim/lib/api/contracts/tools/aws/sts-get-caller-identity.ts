@@ -30,6 +30,10 @@ export const awsStsGetCallerIdentityContract = defineRouteContract({
   body: GetCallerIdentitySchema,
   response: { mode: 'json', schema: GetCallerIdentityResponseSchema },
 })
-type AwsStsGetCallerIdentityRequest = ContractBodyInput<typeof awsStsGetCallerIdentityContract>
-type AwsStsGetCallerIdentityBody = ContractBody<typeof awsStsGetCallerIdentityContract>
-type AwsStsGetCallerIdentityResponse = ContractJsonResponse<typeof awsStsGetCallerIdentityContract>
+export type AwsStsGetCallerIdentityRequest = ContractBodyInput<
+  typeof awsStsGetCallerIdentityContract
+>
+export type AwsStsGetCallerIdentityBody = ContractBody<typeof awsStsGetCallerIdentityContract>
+export type AwsStsGetCallerIdentityResponse = ContractJsonResponse<
+  typeof awsStsGetCallerIdentityContract
+>

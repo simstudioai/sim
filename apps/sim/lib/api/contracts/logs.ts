@@ -243,7 +243,7 @@ const listLogsResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 })
 
-type ListLogsResponse = z.output<typeof listLogsResponseSchema>
+export type ListLogsResponse = z.output<typeof listLogsResponseSchema>
 
 const segmentStatsSchema = z.object({
   timestamp: z.string(),
@@ -292,7 +292,7 @@ const executionSnapshotDataSchema = z.object({
 export const triggersQuerySchema = z.object({
   workspaceId: z.string(),
 })
-type TriggersQuery = z.output<typeof triggersQuerySchema>
+export type TriggersQuery = z.output<typeof triggersQuerySchema>
 
 const cancelWorkflowExecutionResponseSchema = z.object({
   success: z.boolean(),
@@ -308,7 +308,7 @@ export type SegmentStats = z.output<typeof segmentStatsSchema>
 export type WorkflowStats = z.output<typeof workflowStatsSchema>
 export type DashboardStatsResponse = z.output<typeof dashboardStatsResponseSchema>
 export type ExecutionSnapshotData = z.output<typeof executionSnapshotDataSchema>
-type CancelWorkflowExecutionResponse = z.output<typeof cancelWorkflowExecutionResponseSchema>
+export type CancelWorkflowExecutionResponse = z.output<typeof cancelWorkflowExecutionResponseSchema>
 
 export const listLogsContract = defineRouteContract({
   method: 'GET',

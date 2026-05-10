@@ -27,7 +27,7 @@ const updatePublicApiBodySchema = z.object({
   isPublicApi: z.boolean(),
 })
 
-type UpdatePublicApiBody = z.input<typeof updatePublicApiBodySchema>
+export type UpdatePublicApiBody = z.input<typeof updatePublicApiBodySchema>
 
 export const deploymentVersionMetadataFieldsSchema = z.object({
   name: z
@@ -50,13 +50,15 @@ const updateDeploymentVersionMetadataBodySchema = deploymentVersionMetadataField
   }
 )
 
-type UpdateDeploymentVersionMetadataBody = z.input<typeof updateDeploymentVersionMetadataBodySchema>
+export type UpdateDeploymentVersionMetadataBody = z.input<
+  typeof updateDeploymentVersionMetadataBodySchema
+>
 
 const activateDeploymentVersionBodySchema = z.object({
   isActive: z.literal(true),
 })
 
-type ActivateDeploymentVersionBody = z.input<typeof activateDeploymentVersionBodySchema>
+export type ActivateDeploymentVersionBody = z.input<typeof activateDeploymentVersionBodySchema>
 
 const deploymentVersionPatchBodySchema = deploymentVersionMetadataFieldsSchema
   .extend({
@@ -80,7 +82,7 @@ const deploymentInfoResponseSchema = z.object({
 
 export type DeploymentInfoResponse = z.output<typeof deploymentInfoResponseSchema>
 export type DeployWorkflowResponse = DeploymentInfoResponse
-type UndeployWorkflowResponse = DeploymentInfoResponse
+export type UndeployWorkflowResponse = DeploymentInfoResponse
 
 const deploymentVersionSchema = z.object({
   id: z.string(),
@@ -93,7 +95,7 @@ const deploymentVersionSchema = z.object({
   deployedBy: z.string().nullable().optional(),
 })
 
-type DeploymentVersion = z.output<typeof deploymentVersionSchema>
+export type DeploymentVersion = z.output<typeof deploymentVersionSchema>
 
 const deploymentVersionsResponseSchema = z.object({
   versions: z.array(deploymentVersionSchema),
@@ -151,13 +153,13 @@ const updatePublicApiResponseSchema = z.object({
   isPublicApi: z.boolean(),
 })
 
-type UpdatePublicApiResponse = z.output<typeof updatePublicApiResponseSchema>
+export type UpdatePublicApiResponse = z.output<typeof updatePublicApiResponseSchema>
 
 const deployedWorkflowStateResponseSchema = z.object({
   deployedState: deployedWorkflowStateSchema.nullable(),
 })
 
-type DeployedWorkflowStateResponse = z.output<typeof deployedWorkflowStateResponseSchema>
+export type DeployedWorkflowStateResponse = z.output<typeof deployedWorkflowStateResponseSchema>
 
 const updateDeploymentVersionMetadataResponseSchema = z.object({
   name: z.string().nullable(),

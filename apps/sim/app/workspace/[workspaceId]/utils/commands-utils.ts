@@ -6,7 +6,7 @@ import type { GlobalCommand } from '@/app/workspace/[workspaceId]/providers/glob
  * Components must use these identifiers (via {@link createCommand}) rather than
  * ad-hoc ids or shortcuts to ensure a single source of truth.
  */
-type CommandId =
+export type CommandId =
   | 'accept-diff-changes'
   | 'add-agent'
   | 'add-workflow'

@@ -201,7 +201,7 @@ export interface SSHResponse extends ToolResponse {
 }
 
 // Union type for all SSH parameters
-type SSHParams =
+export type SSHParams =
   | SSHExecuteCommandParams
   | SSHExecuteScriptParams
   | SSHCheckCommandExistsParams

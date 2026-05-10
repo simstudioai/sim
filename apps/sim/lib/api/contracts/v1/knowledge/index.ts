@@ -131,12 +131,12 @@ const v1KnowledgeSearchBodySchema = z
     }
   )
 
-type V1ListKnowledgeBasesQuery = z.output<typeof v1ListKnowledgeBasesQuerySchema>
-type V1CreateKnowledgeBaseBody = z.output<typeof v1CreateKnowledgeBaseBodySchema>
-type V1KnowledgeWorkspaceQuery = z.output<typeof v1KnowledgeWorkspaceQuerySchema>
-type V1UpdateKnowledgeBaseBody = z.output<typeof v1UpdateKnowledgeBaseBodySchema>
-type V1ListKnowledgeDocumentsQuery = z.output<typeof v1ListKnowledgeDocumentsQuerySchema>
-type V1KnowledgeSearchBody = z.output<typeof v1KnowledgeSearchBodySchema>
+export type V1ListKnowledgeBasesQuery = z.output<typeof v1ListKnowledgeBasesQuerySchema>
+export type V1CreateKnowledgeBaseBody = z.output<typeof v1CreateKnowledgeBaseBodySchema>
+export type V1KnowledgeWorkspaceQuery = z.output<typeof v1KnowledgeWorkspaceQuerySchema>
+export type V1UpdateKnowledgeBaseBody = z.output<typeof v1UpdateKnowledgeBaseBodySchema>
+export type V1ListKnowledgeDocumentsQuery = z.output<typeof v1ListKnowledgeDocumentsQuerySchema>
+export type V1KnowledgeSearchBody = z.output<typeof v1KnowledgeSearchBodySchema>
 
 const v1KnowledgeApiResponseSchema = successResponseSchema(z.unknown()).passthrough()
 

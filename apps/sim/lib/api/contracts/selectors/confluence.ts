@@ -535,50 +535,64 @@ export const confluenceUserContract = defineConfluencePostContract(
   confluenceUserBodySchema
 )
 
-type ConfluencePagesBody = ContractBody<typeof confluencePagesSelectorContract>
-type ConfluencePageBody = ContractBody<typeof confluencePageSelectorContract>
-type ConfluenceUpdatePageBody = ContractBody<typeof confluenceUpdatePageContract>
-type ConfluenceDeletePageBody = ContractBody<typeof confluenceDeletePageContract>
-type ConfluenceDeleteAttachmentBody = ContractBody<typeof confluenceDeleteAttachmentContract>
-type ConfluenceListAttachmentsQuery = ContractQuery<typeof confluenceListAttachmentsContract>
-type ConfluenceListBlogPostsQuery = ContractQuery<typeof confluenceListBlogPostsContract>
-type ConfluenceBlogPostOperationBody = ContractBody<typeof confluenceBlogPostOperationContract>
-type ConfluenceUpdateBlogPostBody = ContractBody<typeof confluenceUpdateBlogPostContract>
-type ConfluenceDeleteBlogPostBody = ContractBody<typeof confluenceDeleteBlogPostContract>
-type ConfluenceCreateCommentBody = ContractBody<typeof confluenceCreateCommentContract>
-type ConfluenceListCommentsQuery = ContractQuery<typeof confluenceListCommentsContract>
-type ConfluenceUpdateCommentBody = ContractBody<typeof confluenceUpdateCommentContract>
-type ConfluenceDeleteCommentBody = ContractBody<typeof confluenceDeleteCommentContract>
-type ConfluenceCreatePageBody = ContractBody<typeof confluenceCreatePageContract>
-type ConfluenceLabelMutationBody = ContractBody<typeof confluenceLabelMutationContract>
-type ConfluenceListLabelsQuery = ContractQuery<typeof confluenceListLabelsContract>
-type ConfluenceDeleteLabelBody = ContractBody<typeof confluenceDeleteLabelContract>
-type ConfluenceListPagePropertiesQuery = ContractQuery<typeof confluenceListPagePropertiesContract>
-type ConfluenceCreatePagePropertyBody = ContractBody<typeof confluenceCreatePagePropertyContract>
-type ConfluenceUpdatePagePropertyBody = ContractBody<typeof confluenceUpdatePagePropertyContract>
-type ConfluenceDeletePagePropertyBody = ContractBody<typeof confluenceDeletePagePropertyContract>
-type ConfluenceGetSpaceQuery = ContractQuery<typeof confluenceGetSpaceContract>
-type ConfluenceCreateSpaceBody = ContractBody<typeof confluenceCreateSpaceContract>
-type ConfluenceUpdateSpaceBody = ContractBody<typeof confluenceUpdateSpaceContract>
-type ConfluenceDeleteSpaceBody = ContractBody<typeof confluenceDeleteSpaceContract>
-type ConfluencePageChildrenBody = ContractBody<typeof confluencePageChildrenContract>
-type ConfluencePageDescendantsBody = ContractBody<typeof confluencePageDescendantsContract>
-type ConfluencePageAncestorsBody = ContractBody<typeof confluencePageAncestorsContract>
-type ConfluencePageVersionsBody = ContractBody<typeof confluencePageVersionsContract>
-type ConfluencePagesByLabelQuery = ContractQuery<typeof confluencePagesByLabelContract>
-type ConfluenceSearchBody = ContractBody<typeof confluenceSearchContract>
-type ConfluenceSearchInSpaceBody = ContractBody<typeof confluenceSearchInSpaceContract>
-type ConfluenceSpaceBlogPostsBody = ContractBody<typeof confluenceSpaceBlogPostsContract>
-type ConfluenceSpaceLabelsQuery = ContractQuery<typeof confluenceSpaceLabelsContract>
-type ConfluenceSpacePagesBody = ContractBody<typeof confluenceSpacePagesContract>
-type ConfluenceSpacePermissionsBody = ContractBody<typeof confluenceSpacePermissionsContract>
-type ConfluenceSpacePropertiesBody = ContractBody<typeof confluenceSpacePropertiesContract>
-type ConfluenceListSpacesQuery = ContractQuery<typeof confluenceListSpacesContract>
-type ConfluenceTasksBody = ContractBody<typeof confluenceTasksContract>
-type ConfluenceUploadAttachmentBody = ContractBody<typeof confluenceUploadAttachmentContract>
-type ConfluenceUserBody = ContractBody<typeof confluenceUserContract>
-type ConfluenceSpacesSelectorResponse = ContractJsonResponse<
+export type ConfluencePagesBody = ContractBody<typeof confluencePagesSelectorContract>
+export type ConfluencePageBody = ContractBody<typeof confluencePageSelectorContract>
+export type ConfluenceUpdatePageBody = ContractBody<typeof confluenceUpdatePageContract>
+export type ConfluenceDeletePageBody = ContractBody<typeof confluenceDeletePageContract>
+export type ConfluenceDeleteAttachmentBody = ContractBody<typeof confluenceDeleteAttachmentContract>
+export type ConfluenceListAttachmentsQuery = ContractQuery<typeof confluenceListAttachmentsContract>
+export type ConfluenceListBlogPostsQuery = ContractQuery<typeof confluenceListBlogPostsContract>
+export type ConfluenceBlogPostOperationBody = ContractBody<
+  typeof confluenceBlogPostOperationContract
+>
+export type ConfluenceUpdateBlogPostBody = ContractBody<typeof confluenceUpdateBlogPostContract>
+export type ConfluenceDeleteBlogPostBody = ContractBody<typeof confluenceDeleteBlogPostContract>
+export type ConfluenceCreateCommentBody = ContractBody<typeof confluenceCreateCommentContract>
+export type ConfluenceListCommentsQuery = ContractQuery<typeof confluenceListCommentsContract>
+export type ConfluenceUpdateCommentBody = ContractBody<typeof confluenceUpdateCommentContract>
+export type ConfluenceDeleteCommentBody = ContractBody<typeof confluenceDeleteCommentContract>
+export type ConfluenceCreatePageBody = ContractBody<typeof confluenceCreatePageContract>
+export type ConfluenceLabelMutationBody = ContractBody<typeof confluenceLabelMutationContract>
+export type ConfluenceListLabelsQuery = ContractQuery<typeof confluenceListLabelsContract>
+export type ConfluenceDeleteLabelBody = ContractBody<typeof confluenceDeleteLabelContract>
+export type ConfluenceListPagePropertiesQuery = ContractQuery<
+  typeof confluenceListPagePropertiesContract
+>
+export type ConfluenceCreatePagePropertyBody = ContractBody<
+  typeof confluenceCreatePagePropertyContract
+>
+export type ConfluenceUpdatePagePropertyBody = ContractBody<
+  typeof confluenceUpdatePagePropertyContract
+>
+export type ConfluenceDeletePagePropertyBody = ContractBody<
+  typeof confluenceDeletePagePropertyContract
+>
+export type ConfluenceGetSpaceQuery = ContractQuery<typeof confluenceGetSpaceContract>
+export type ConfluenceCreateSpaceBody = ContractBody<typeof confluenceCreateSpaceContract>
+export type ConfluenceUpdateSpaceBody = ContractBody<typeof confluenceUpdateSpaceContract>
+export type ConfluenceDeleteSpaceBody = ContractBody<typeof confluenceDeleteSpaceContract>
+export type ConfluencePageChildrenBody = ContractBody<typeof confluencePageChildrenContract>
+export type ConfluencePageDescendantsBody = ContractBody<typeof confluencePageDescendantsContract>
+export type ConfluencePageAncestorsBody = ContractBody<typeof confluencePageAncestorsContract>
+export type ConfluencePageVersionsBody = ContractBody<typeof confluencePageVersionsContract>
+export type ConfluencePagesByLabelQuery = ContractQuery<typeof confluencePagesByLabelContract>
+export type ConfluenceSearchBody = ContractBody<typeof confluenceSearchContract>
+export type ConfluenceSearchInSpaceBody = ContractBody<typeof confluenceSearchInSpaceContract>
+export type ConfluenceSpaceBlogPostsBody = ContractBody<typeof confluenceSpaceBlogPostsContract>
+export type ConfluenceSpaceLabelsQuery = ContractQuery<typeof confluenceSpaceLabelsContract>
+export type ConfluenceSpacePagesBody = ContractBody<typeof confluenceSpacePagesContract>
+export type ConfluenceSpacePermissionsBody = ContractBody<typeof confluenceSpacePermissionsContract>
+export type ConfluenceSpacePropertiesBody = ContractBody<typeof confluenceSpacePropertiesContract>
+export type ConfluenceListSpacesQuery = ContractQuery<typeof confluenceListSpacesContract>
+export type ConfluenceTasksBody = ContractBody<typeof confluenceTasksContract>
+export type ConfluenceUploadAttachmentBody = ContractBody<typeof confluenceUploadAttachmentContract>
+export type ConfluenceUserBody = ContractBody<typeof confluenceUserContract>
+export type ConfluenceSpacesSelectorResponse = ContractJsonResponse<
   typeof confluenceSpacesSelectorContract
 >
-type ConfluencePagesSelectorResponse = ContractJsonResponse<typeof confluencePagesSelectorContract>
-type ConfluencePageSelectorResponse = ContractJsonResponse<typeof confluencePageSelectorContract>
+export type ConfluencePagesSelectorResponse = ContractJsonResponse<
+  typeof confluencePagesSelectorContract
+>
+export type ConfluencePageSelectorResponse = ContractJsonResponse<
+  typeof confluencePageSelectorContract
+>

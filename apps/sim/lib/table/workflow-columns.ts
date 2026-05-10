@@ -48,7 +48,7 @@ export {
  * can aggregate skip reasons into one summary log per scheduler call instead
  * of allocating a per-cell debug line.
  */
-type EligibilityReason =
+export type EligibilityReason =
   | 'eligible'
   | 'autoRun-off'
   | 'in-flight'

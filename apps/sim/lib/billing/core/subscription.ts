@@ -217,7 +217,7 @@ export async function isProPlan(userId: string): Promise<boolean> {
 /**
  * Check if user is on Team plan (direct or via organization)
  */
-async function isTeamPlan(userId: string): Promise<boolean> {
+export async function isTeamPlan(userId: string): Promise<boolean> {
   try {
     if (!isBillingEnabled) {
       return true
@@ -241,7 +241,7 @@ async function isTeamPlan(userId: string): Promise<boolean> {
 /**
  * Check if user is on Enterprise plan (direct or via organization)
  */
-async function isEnterprisePlan(userId: string): Promise<boolean> {
+export async function isEnterprisePlan(userId: string): Promise<boolean> {
   try {
     if (!isBillingEnabled) {
       return true
@@ -269,7 +269,7 @@ async function isEnterprisePlan(userId: string): Promise<boolean> {
  *
  * In non-production environments, returns true for convenience.
  */
-async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boolean> {
+export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boolean> {
   try {
     if (!isBillingEnabled) {
       return true
@@ -324,7 +324,7 @@ async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boolean> {
  *
  * In non-production environments, returns true for convenience.
  */
-async function isTeamOrgAdminOrOwner(userId: string): Promise<boolean> {
+export async function isTeamOrgAdminOrOwner(userId: string): Promise<boolean> {
   try {
     if (!isBillingEnabled) {
       return true

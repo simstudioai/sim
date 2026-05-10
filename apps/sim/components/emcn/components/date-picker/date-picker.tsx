@@ -118,7 +118,7 @@ interface DatePickerRangeProps extends DatePickerBaseProps {
   onChange?: never
 }
 
-type DatePickerProps = DatePickerSingleProps | DatePickerRangeProps
+export type DatePickerProps = DatePickerSingleProps | DatePickerRangeProps
 
 /**
  * Month names for calendar display.

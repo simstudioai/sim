@@ -34,6 +34,8 @@ export const awsIamCreateAccessKeyContract = defineRouteContract({
   body: Schema,
   response: { mode: 'json', schema: CreateAccessKeyResponseSchema },
 })
-type AwsIamCreateAccessKeyRequest = ContractBodyInput<typeof awsIamCreateAccessKeyContract>
-type AwsIamCreateAccessKeyBody = ContractBody<typeof awsIamCreateAccessKeyContract>
-type AwsIamCreateAccessKeyResponse = ContractJsonResponse<typeof awsIamCreateAccessKeyContract>
+export type AwsIamCreateAccessKeyRequest = ContractBodyInput<typeof awsIamCreateAccessKeyContract>
+export type AwsIamCreateAccessKeyBody = ContractBody<typeof awsIamCreateAccessKeyContract>
+export type AwsIamCreateAccessKeyResponse = ContractJsonResponse<
+  typeof awsIamCreateAccessKeyContract
+>

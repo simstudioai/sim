@@ -1,7 +1,7 @@
 import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ToolCallDescriptor } from './types'
 
-type ToolRouteTarget = ToolCatalogEntry['route']
+export type ToolRouteTarget = ToolCatalogEntry['route']
 
 export function isToolInCatalog(toolId: string): boolean {
   return toolId in TOOL_CATALOG
@@ -11,7 +11,7 @@ export function getToolEntry(toolId: string): ToolCatalogEntry | undefined {
   return TOOL_CATALOG[toolId]
 }
 
-type ToolRoute = {
+export type ToolRoute = {
   route: ToolRouteTarget
   mode: ToolCatalogEntry['mode']
   subagentId?: string

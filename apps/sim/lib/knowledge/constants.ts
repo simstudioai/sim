@@ -35,19 +35,19 @@ export const ALL_TAG_SLOTS = [
 export const MAX_TAG_SLOTS = TAG_SLOT_CONFIG.text.maxSlots
 
 /** Type for text tag slots (for backwards compatibility) */
-type TagSlot = (typeof TAG_SLOTS)[number]
+export type TagSlot = (typeof TAG_SLOTS)[number]
 
 /** Type for all tag slots */
 export type AllTagSlot = (typeof ALL_TAG_SLOTS)[number]
 
 /** Type for number tag slots */
-type NumberTagSlot = (typeof TAG_SLOT_CONFIG.number.slots)[number]
+export type NumberTagSlot = (typeof TAG_SLOT_CONFIG.number.slots)[number]
 
 /** Type for date tag slots */
-type DateTagSlot = (typeof TAG_SLOT_CONFIG.date.slots)[number]
+export type DateTagSlot = (typeof TAG_SLOT_CONFIG.date.slots)[number]
 
 /** Type for boolean tag slots */
-type BooleanTagSlot = (typeof TAG_SLOT_CONFIG.boolean.slots)[number]
+export type BooleanTagSlot = (typeof TAG_SLOT_CONFIG.boolean.slots)[number]
 
 /**
  * Get the available slots for a field type

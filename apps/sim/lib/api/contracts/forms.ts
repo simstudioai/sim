@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const formAuthTypeSchema = z.enum(['public', 'password', 'email'])
-type FormAuthType = z.output<typeof formAuthTypeSchema>
+export type FormAuthType = z.output<typeof formAuthTypeSchema>
 
 export const formIdParamsSchema = z.object({
   id: z.string().min(1),
@@ -23,14 +23,14 @@ export const formIdentifierValidationQuerySchema = z.object({
 const formIdentifierParamsSchema = z.object({
   identifier: z.string().min(1),
 })
-type FormIdentifierParams = z.output<typeof formIdentifierParamsSchema>
+export type FormIdentifierParams = z.output<typeof formIdentifierParamsSchema>
 
 export const formSubmitBodySchema = z.object({
   formData: z.record(z.string(), z.unknown()).optional(),
   password: z.string().optional(),
   email: z.string().email('Invalid email format').optional().or(z.literal('')),
 })
-type FormSubmitBody = z.output<typeof formSubmitBodySchema>
+export type FormSubmitBody = z.output<typeof formSubmitBodySchema>
 
 const formIdentifierValidationResponseSchema = z.object({
   available: z.boolean(),
@@ -44,7 +44,7 @@ const formFieldConfigSchema = z.object({
   description: z.string().optional(),
   required: z.boolean().optional(),
 })
-type FormFieldConfig = z.output<typeof formFieldConfigSchema>
+export type FormFieldConfig = z.output<typeof formFieldConfigSchema>
 
 const formCustomizationsSchema = z.object({
   primaryColor: z.string().optional(),
@@ -57,7 +57,7 @@ const formCustomizationsSchema = z.object({
   logoUrl: z.string().url('Logo URL must be a valid URL').optional().or(z.literal('')),
   fieldConfigs: z.array(formFieldConfigSchema).optional(),
 })
-type FormCustomizations = z.output<typeof formCustomizationsSchema>
+export type FormCustomizations = z.output<typeof formCustomizationsSchema>
 
 const existingFormSchema = z.object({
   id: z.string(),
@@ -71,7 +71,7 @@ const existingFormSchema = z.object({
   showBranding: z.boolean(),
   isActive: z.boolean(),
 })
-type ExistingForm = z.output<typeof existingFormSchema>
+export type ExistingForm = z.output<typeof existingFormSchema>
 
 const formStatusResponseSchema = z.object({
   isDeployed: z.boolean(),
@@ -84,7 +84,7 @@ const formStatusResponseSchema = z.object({
     })
     .nullable(),
 })
-type FormStatusResponse = z.output<typeof formStatusResponseSchema>
+export type FormStatusResponse = z.output<typeof formStatusResponseSchema>
 
 const getFormDetailResponseSchema = z.object({
   form: existingFormSchema,
@@ -109,7 +109,7 @@ const createFormBodySchema = z.object({
   allowedEmails: z.array(z.string()).optional().default([]),
   showBranding: z.boolean().optional().default(true),
 })
-type CreateFormInput = z.input<typeof createFormBodySchema>
+export type CreateFormInput = z.input<typeof createFormBodySchema>
 
 const updateFormBodySchema = z.object({
   identifier: z
@@ -135,14 +135,14 @@ const updateFormBodySchema = z.object({
   showBranding: z.boolean().optional(),
   isActive: z.boolean().optional(),
 })
-type UpdateFormInput = z.input<typeof updateFormBodySchema>
+export type UpdateFormInput = z.input<typeof updateFormBodySchema>
 
 const createFormResponseSchema = z.object({
   id: z.string(),
   formUrl: z.string(),
   message: z.string(),
 })
-type CreateFormResponse = z.output<typeof createFormResponseSchema>
+export type CreateFormResponse = z.output<typeof createFormResponseSchema>
 
 const formMutationResponseSchema = z.object({
   message: z.string(),
@@ -158,7 +158,7 @@ export const getFormStatusContract = defineRouteContract({
   },
 })
 
-const getFormDetailContract = defineRouteContract({
+export const getFormDetailContract = defineRouteContract({
   method: 'GET',
   path: '/api/form/manage/[id]',
   params: formIdParamsSchema,
@@ -189,7 +189,7 @@ export const updateFormContract = defineRouteContract({
   },
 })
 
-const deleteFormContract = defineRouteContract({
+export const deleteFormContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/form/manage/[id]',
   params: formIdParamsSchema,
@@ -199,7 +199,7 @@ const deleteFormContract = defineRouteContract({
   },
 })
 
-const validateFormIdentifierContract = defineRouteContract({
+export const validateFormIdentifierContract = defineRouteContract({
   method: 'GET',
   path: '/api/form/validate',
   query: formIdentifierValidationQuerySchema,

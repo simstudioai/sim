@@ -83,15 +83,15 @@ export const rdsIntrospectContract = defineRouteContract({
   response: { mode: 'json', schema: introspectionResponseSchema },
 })
 
-type RdsQueryRequest = ContractBodyInput<typeof rdsQueryContract>
-type RdsQueryResponse = ContractJsonResponse<typeof rdsQueryContract>
-type RdsExecuteRequest = ContractBodyInput<typeof rdsExecuteContract>
-type RdsExecuteResponse = ContractJsonResponse<typeof rdsExecuteContract>
-type RdsInsertRequest = ContractBodyInput<typeof rdsInsertContract>
-type RdsInsertResponse = ContractJsonResponse<typeof rdsInsertContract>
-type RdsUpdateRequest = ContractBodyInput<typeof rdsUpdateContract>
-type RdsUpdateResponse = ContractJsonResponse<typeof rdsUpdateContract>
-type RdsDeleteRequest = ContractBodyInput<typeof rdsDeleteContract>
-type RdsDeleteResponse = ContractJsonResponse<typeof rdsDeleteContract>
-type RdsIntrospectRequest = ContractBodyInput<typeof rdsIntrospectContract>
-type RdsIntrospectResponse = ContractJsonResponse<typeof rdsIntrospectContract>
+export type RdsQueryRequest = ContractBodyInput<typeof rdsQueryContract>
+export type RdsQueryResponse = ContractJsonResponse<typeof rdsQueryContract>
+export type RdsExecuteRequest = ContractBodyInput<typeof rdsExecuteContract>
+export type RdsExecuteResponse = ContractJsonResponse<typeof rdsExecuteContract>
+export type RdsInsertRequest = ContractBodyInput<typeof rdsInsertContract>
+export type RdsInsertResponse = ContractJsonResponse<typeof rdsInsertContract>
+export type RdsUpdateRequest = ContractBodyInput<typeof rdsUpdateContract>
+export type RdsUpdateResponse = ContractJsonResponse<typeof rdsUpdateContract>
+export type RdsDeleteRequest = ContractBodyInput<typeof rdsDeleteContract>
+export type RdsDeleteResponse = ContractJsonResponse<typeof rdsDeleteContract>
+export type RdsIntrospectRequest = ContractBodyInput<typeof rdsIntrospectContract>
+export type RdsIntrospectResponse = ContractJsonResponse<typeof rdsIntrospectContract>

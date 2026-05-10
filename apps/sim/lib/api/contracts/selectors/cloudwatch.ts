@@ -64,17 +64,21 @@ export const cloudwatchLogStreamsSelectorContract = definePostSelector(
     .passthrough()
 )
 
-type CloudwatchLogGroupsSelectorResponse = ContractJsonResponse<
+export type CloudwatchLogGroupsSelectorResponse = ContractJsonResponse<
   typeof cloudwatchLogGroupsSelectorContract
 >
-type CloudwatchLogStreamsSelectorResponse = ContractJsonResponse<
+export type CloudwatchLogStreamsSelectorResponse = ContractJsonResponse<
   typeof cloudwatchLogStreamsSelectorContract
 >
-type CloudwatchLogGroupsSelectorRequest = ContractBodyInput<
+export type CloudwatchLogGroupsSelectorRequest = ContractBodyInput<
   typeof cloudwatchLogGroupsSelectorContract
 >
-type CloudwatchLogGroupsSelectorBody = ContractBody<typeof cloudwatchLogGroupsSelectorContract>
-type CloudwatchLogStreamsSelectorRequest = ContractBodyInput<
+export type CloudwatchLogGroupsSelectorBody = ContractBody<
+  typeof cloudwatchLogGroupsSelectorContract
+>
+export type CloudwatchLogStreamsSelectorRequest = ContractBodyInput<
   typeof cloudwatchLogStreamsSelectorContract
 >
-type CloudwatchLogStreamsSelectorBody = ContractBody<typeof cloudwatchLogStreamsSelectorContract>
+export type CloudwatchLogStreamsSelectorBody = ContractBody<
+  typeof cloudwatchLogStreamsSelectorContract
+>

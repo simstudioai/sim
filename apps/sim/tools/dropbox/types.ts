@@ -32,7 +32,7 @@ interface DropboxDeletedMetadata {
   path_lower: string
 }
 
-type DropboxMetadata = DropboxFileMetadata | DropboxFolderMetadata | DropboxDeletedMetadata
+export type DropboxMetadata = DropboxFileMetadata | DropboxFolderMetadata | DropboxDeletedMetadata
 
 interface DropboxSharedLinkMetadata {
   url: string

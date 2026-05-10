@@ -24,7 +24,7 @@ const logger = createLogger('WorkflowDBHelpers')
 
 export type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
 
-type WorkflowDeploymentVersion = InferSelectModel<typeof workflowDeploymentVersion>
+export type WorkflowDeploymentVersion = InferSelectModel<typeof workflowDeploymentVersion>
 
 function hasReturnedRows(result: unknown): boolean {
   if (Array.isArray(result)) return result.length > 0

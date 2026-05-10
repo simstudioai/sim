@@ -2,7 +2,7 @@ import type { UNDO_REDO_OPERATIONS, UndoRedoOperation } from '@sim/realtime-prot
 import type { Edge } from 'reactflow'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
-type OperationType = UndoRedoOperation
+export type OperationType = UndoRedoOperation
 
 interface BaseOperation {
   id: string

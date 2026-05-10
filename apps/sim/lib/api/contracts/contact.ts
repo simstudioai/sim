@@ -63,7 +63,7 @@ export const contactRequestSchema = z.object({
 })
 
 export type ContactRequestPayload = z.infer<typeof contactRequestSchema>
-type ContactRequestBody = z.input<typeof contactRequestSchema>
+export type ContactRequestBody = z.input<typeof contactRequestSchema>
 
 export const submitContactBodySchema = contactRequestSchema.extend({
   website: z.string().optional(),

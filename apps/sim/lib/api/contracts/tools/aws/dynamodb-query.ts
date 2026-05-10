@@ -42,6 +42,6 @@ export const awsDynamodbQueryContract = defineRouteContract({
   body: QuerySchema,
   response: { mode: 'json', schema: QueryResponseSchema },
 })
-type AwsDynamodbQueryRequest = ContractBodyInput<typeof awsDynamodbQueryContract>
-type AwsDynamodbQueryBody = ContractBody<typeof awsDynamodbQueryContract>
-type AwsDynamodbQueryResponse = ContractJsonResponse<typeof awsDynamodbQueryContract>
+export type AwsDynamodbQueryRequest = ContractBodyInput<typeof awsDynamodbQueryContract>
+export type AwsDynamodbQueryBody = ContractBody<typeof awsDynamodbQueryContract>
+export type AwsDynamodbQueryResponse = ContractJsonResponse<typeof awsDynamodbQueryContract>

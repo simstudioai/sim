@@ -222,33 +222,45 @@ export const workdayTerminateContract = defineRouteContract({
   response: { mode: 'json', schema: workdayTerminateResponseSchema },
 })
 
-type WorkdayGetWorkerBody = ContractBody<typeof workdayGetWorkerContract>
-type WorkdayGetWorkerBodyInput = ContractBodyInput<typeof workdayGetWorkerContract>
-type WorkdayGetWorkerResponse = ContractJsonResponse<typeof workdayGetWorkerContract>
-type WorkdayListWorkersBody = ContractBody<typeof workdayListWorkersContract>
-type WorkdayListWorkersBodyInput = ContractBodyInput<typeof workdayListWorkersContract>
-type WorkdayListWorkersResponse = ContractJsonResponse<typeof workdayListWorkersContract>
-type WorkdayCreatePrehireBody = ContractBody<typeof workdayCreatePrehireContract>
-type WorkdayCreatePrehireBodyInput = ContractBodyInput<typeof workdayCreatePrehireContract>
-type WorkdayCreatePrehireResponse = ContractJsonResponse<typeof workdayCreatePrehireContract>
-type WorkdayHireBody = ContractBody<typeof workdayHireContract>
-type WorkdayHireBodyInput = ContractBodyInput<typeof workdayHireContract>
-type WorkdayHireResponse = ContractJsonResponse<typeof workdayHireContract>
-type WorkdayUpdateWorkerBody = ContractBody<typeof workdayUpdateWorkerContract>
-type WorkdayUpdateWorkerBodyInput = ContractBodyInput<typeof workdayUpdateWorkerContract>
-type WorkdayUpdateWorkerResponse = ContractJsonResponse<typeof workdayUpdateWorkerContract>
-type WorkdayAssignOnboardingBody = ContractBody<typeof workdayAssignOnboardingContract>
-type WorkdayAssignOnboardingBodyInput = ContractBodyInput<typeof workdayAssignOnboardingContract>
-type WorkdayAssignOnboardingResponse = ContractJsonResponse<typeof workdayAssignOnboardingContract>
-type WorkdayGetOrganizationsBody = ContractBody<typeof workdayGetOrganizationsContract>
-type WorkdayGetOrganizationsBodyInput = ContractBodyInput<typeof workdayGetOrganizationsContract>
-type WorkdayGetOrganizationsResponse = ContractJsonResponse<typeof workdayGetOrganizationsContract>
-type WorkdayChangeJobBody = ContractBody<typeof workdayChangeJobContract>
-type WorkdayChangeJobBodyInput = ContractBodyInput<typeof workdayChangeJobContract>
-type WorkdayChangeJobResponse = ContractJsonResponse<typeof workdayChangeJobContract>
-type WorkdayGetCompensationBody = ContractBody<typeof workdayGetCompensationContract>
-type WorkdayGetCompensationBodyInput = ContractBodyInput<typeof workdayGetCompensationContract>
-type WorkdayGetCompensationResponse = ContractJsonResponse<typeof workdayGetCompensationContract>
-type WorkdayTerminateBody = ContractBody<typeof workdayTerminateContract>
-type WorkdayTerminateBodyInput = ContractBodyInput<typeof workdayTerminateContract>
-type WorkdayTerminateResponse = ContractJsonResponse<typeof workdayTerminateContract>
+export type WorkdayGetWorkerBody = ContractBody<typeof workdayGetWorkerContract>
+export type WorkdayGetWorkerBodyInput = ContractBodyInput<typeof workdayGetWorkerContract>
+export type WorkdayGetWorkerResponse = ContractJsonResponse<typeof workdayGetWorkerContract>
+export type WorkdayListWorkersBody = ContractBody<typeof workdayListWorkersContract>
+export type WorkdayListWorkersBodyInput = ContractBodyInput<typeof workdayListWorkersContract>
+export type WorkdayListWorkersResponse = ContractJsonResponse<typeof workdayListWorkersContract>
+export type WorkdayCreatePrehireBody = ContractBody<typeof workdayCreatePrehireContract>
+export type WorkdayCreatePrehireBodyInput = ContractBodyInput<typeof workdayCreatePrehireContract>
+export type WorkdayCreatePrehireResponse = ContractJsonResponse<typeof workdayCreatePrehireContract>
+export type WorkdayHireBody = ContractBody<typeof workdayHireContract>
+export type WorkdayHireBodyInput = ContractBodyInput<typeof workdayHireContract>
+export type WorkdayHireResponse = ContractJsonResponse<typeof workdayHireContract>
+export type WorkdayUpdateWorkerBody = ContractBody<typeof workdayUpdateWorkerContract>
+export type WorkdayUpdateWorkerBodyInput = ContractBodyInput<typeof workdayUpdateWorkerContract>
+export type WorkdayUpdateWorkerResponse = ContractJsonResponse<typeof workdayUpdateWorkerContract>
+export type WorkdayAssignOnboardingBody = ContractBody<typeof workdayAssignOnboardingContract>
+export type WorkdayAssignOnboardingBodyInput = ContractBodyInput<
+  typeof workdayAssignOnboardingContract
+>
+export type WorkdayAssignOnboardingResponse = ContractJsonResponse<
+  typeof workdayAssignOnboardingContract
+>
+export type WorkdayGetOrganizationsBody = ContractBody<typeof workdayGetOrganizationsContract>
+export type WorkdayGetOrganizationsBodyInput = ContractBodyInput<
+  typeof workdayGetOrganizationsContract
+>
+export type WorkdayGetOrganizationsResponse = ContractJsonResponse<
+  typeof workdayGetOrganizationsContract
+>
+export type WorkdayChangeJobBody = ContractBody<typeof workdayChangeJobContract>
+export type WorkdayChangeJobBodyInput = ContractBodyInput<typeof workdayChangeJobContract>
+export type WorkdayChangeJobResponse = ContractJsonResponse<typeof workdayChangeJobContract>
+export type WorkdayGetCompensationBody = ContractBody<typeof workdayGetCompensationContract>
+export type WorkdayGetCompensationBodyInput = ContractBodyInput<
+  typeof workdayGetCompensationContract
+>
+export type WorkdayGetCompensationResponse = ContractJsonResponse<
+  typeof workdayGetCompensationContract
+>
+export type WorkdayTerminateBody = ContractBody<typeof workdayTerminateContract>
+export type WorkdayTerminateBodyInput = ContractBodyInput<typeof workdayTerminateContract>
+export type WorkdayTerminateResponse = ContractJsonResponse<typeof workdayTerminateContract>

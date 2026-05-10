@@ -180,7 +180,7 @@ export function ConditionInput({
   const hasInitializedRef = useRef(false)
   const previousBlockIdRef = useRef<string>(blockId)
   const shouldPersistRef = useRef<boolean>(false)
-  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   /**
    * Creates default blocks with stable IDs.
