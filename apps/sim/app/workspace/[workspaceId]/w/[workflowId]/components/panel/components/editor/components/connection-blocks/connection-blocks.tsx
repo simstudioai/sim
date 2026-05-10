@@ -15,7 +15,7 @@ import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId
 import { useBlockOutputFields } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-output-fields'
 import { getBlock } from '@/blocks/registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('ConnectionBlocks')
@@ -209,7 +209,7 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
 
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const workflowSubBlockValues = useSubBlockStore((state) =>
-    workflowId ? (state.workflowValues[workflowId] ?? {}) : {}
+    workflowId ? (state.workflowValues[workflowId] ?? EMPTY_SUBBLOCK_VALUES) : EMPTY_SUBBLOCK_VALUES
   )
 
   const getMergedSubBlocks = useCallback(

@@ -1,4 +1,4 @@
-import type * as React from 'react'
+import { forwardRef, type HTMLAttributes } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -72,7 +72,7 @@ const ICON_SIZES: Record<string, string> = {
 }
 
 export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof badgeVariants> {
   /** Displays a dot indicator before content (only for color variants) */
   dot?: boolean
@@ -92,20 +92,15 @@ export interface BadgeProps
  * Status color variants can display a dot indicator via the `dot` prop.
  * All variants support an optional `icon` prop for leading icons.
  */
-function Badge({
-  className,
-  variant,
-  size,
-  dot = false,
-  icon: Icon,
-  children,
-  ...props
-}: BadgeProps) {
+const Badge = forwardRef<HTMLDivElement, BadgeProps>(function Badge(
+  { className, variant, size, dot = false, icon: Icon, children, ...props },
+  ref
+) {
   const isStatusVariant = STATUS_VARIANTS.includes(variant as (typeof STATUS_VARIANTS)[number])
   const effectiveSize = size ?? 'md'
 
   return (
-    <div className={cn(badgeVariants({ variant, size }), className)} {...props}>
+    <div ref={ref} className={cn(badgeVariants({ variant, size }), className)} {...props}>
       {isStatusVariant && dot && (
         <div className={cn('rounded-xs bg-current', DOT_SIZES[effectiveSize])} />
       )}
@@ -113,6 +108,7 @@ function Badge({
       {children}
     </div>
   )
-}
+})
+Badge.displayName = 'Badge'
 
 export { Badge, badgeVariants }

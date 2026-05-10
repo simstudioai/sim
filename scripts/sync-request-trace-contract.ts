@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { compile } from 'json-schema-to-typescript'
+import { formatGeneratedSource } from './format-generated-source'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
@@ -26,9 +27,7 @@ function generateRuntimeConstants(schema: Record<string, unknown>): string {
       .map((v) => `  ${JSON.stringify(v)}: ${JSON.stringify(v)}`)
       .join(',\n')
 
-    lines.push(
-      `export const ${name} = {\n${entries},\n} as const;\n`
-    )
+    lines.push(`export const ${name} = {\n${entries},\n} as const;\n`)
   }
 
   return lines.join('\n')
@@ -37,19 +36,24 @@ function generateRuntimeConstants(schema: Record<string, unknown>): string {
 async function main() {
   const checkOnly = process.argv.includes('--check')
   const inputPathArg = process.argv.find((arg) => arg.startsWith('--input='))
-  const inputPath = inputPathArg ? resolve(ROOT, inputPathArg.slice('--input='.length)) : DEFAULT_CONTRACT_PATH
+  const inputPath = inputPathArg
+    ? resolve(ROOT, inputPathArg.slice('--input='.length))
+    : DEFAULT_CONTRACT_PATH
 
   const raw = await readFile(inputPath, 'utf8')
   const schema = JSON.parse(raw)
   const types = await compile(schema, 'RequestTraceV1SimReport', {
-    bannerComment:
-      '// AUTO-GENERATED FILE. DO NOT EDIT.\n//',
+    bannerComment: '// AUTO-GENERATED FILE. DO NOT EDIT.\n//',
     unreachableDefinitions: true,
-    additionalProperties: false
+    additionalProperties: false,
   })
 
   const constants = generateRuntimeConstants(schema)
-  const rendered = constants ? `${types}\n${constants}\n` : types
+  const rendered = formatGeneratedSource(
+    constants ? `${types}\n${constants}\n` : types,
+    OUTPUT_PATH,
+    ROOT
+  )
 
   if (checkOnly) {
     const existing = await readFile(OUTPUT_PATH, 'utf8').catch(() => null)
