@@ -512,8 +512,8 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                 </h2>
               </div>
               <p className='text-[14px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
-                Connect a {name} webhook to Sim and your agent runs the instant an event happens —
-                no polling, no delay.
+                Connect a {name} webhook to Sim and your agent runs the instant an event happens, no
+                polling, no delay.
               </p>
             </div>
             <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />

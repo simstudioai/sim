@@ -240,7 +240,7 @@ function CreditPlanCard({
         </div>
       )}
 
-      <div className='flex min-h-[60px] items-center border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3.5'>
+      <div className='flex min-h-[60px] items-center border-[var(--border-1)] border-t bg-[var(--surface-4)] p-3.5'>
         {isCurrentPlan ? (
           <Button onClick={onManagePlan} className='h-[32px] w-full' variant='default'>
             {isCancelledAtPeriodEnd ? 'Restore Subscription' : 'Manage plan'}

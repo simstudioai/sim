@@ -689,7 +689,7 @@ export function IntegrationsManager() {
                           setCreateStep(2)
                           setServiceSearch('')
                         }}
-                        className='h-auto w-full justify-start gap-2.5 rounded-[6px] px-2 py-2 text-left hover-hover:bg-[var(--surface-5)]'
+                        className='h-auto w-full justify-start gap-2.5 rounded-[6px] p-2 text-left hover-hover:bg-[var(--surface-5)]'
                       >
                         <div className='flex size-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
                           {config ? (

@@ -274,7 +274,7 @@ export default async function PartnersPage() {
             </h2>
             <p className='mb-10 text-[#F6F6F0]/60 text-[18px] leading-[160%]'>
               Complete Sim Academy to earn your first certification and unlock partner benefits.
-              It's free to start — no credit card required.
+              It's free to start, no credit card required.
             </p>
             {/* TODO: Uncomment when academy is public */}
             {/* <Link

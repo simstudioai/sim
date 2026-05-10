@@ -436,7 +436,7 @@ function WorkspaceHeaderImpl({
                 </div>
               ) : (
                 <>
-                  <div className='flex items-center gap-2 px-0.5 py-0.5'>
+                  <div className='flex items-center gap-2 p-0.5'>
                     {activeWorkspaceFull ? (
                       activeWorkspaceFull.logoUrl ? (
                         <img
