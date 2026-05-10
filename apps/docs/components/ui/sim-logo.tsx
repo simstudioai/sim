@@ -7,54 +7,6 @@ interface SimLogoProps {
 }
 
 /**
- * Sim logo with icon and text.
- * The icon stays green (#33C482), text adapts to light/dark mode.
- */
-export function SimLogo({ className }: SimLogoProps) {
-  return (
-    <svg
-      viewBox='720 440 320 320'
-      fill='none'
-      xmlns='http://www.w3.org/2000/svg'
-      className={cn('h-7 w-auto', className)}
-      aria-label='Sim'
-    >
-      {/* Green icon - top left shape with cutout */}
-      <path
-        fillRule='evenodd'
-        clipRule='evenodd'
-        d='M875.791 577.171C875.791 581.922 873.911 586.483 870.576 589.842L870.098 590.323C866.764 593.692 862.234 595.575 857.517 595.575H750.806C740.978 595.575 733 603.6 733 613.498V728.902C733 738.799 740.978 746.826 750.806 746.826H865.382C875.209 746.826 883.177 738.799 883.177 728.902V620.853C883.177 616.448 884.912 612.222 888.008 609.104C891.093 605.997 895.29 604.249 899.664 604.249H1008.16C1017.99 604.249 1025.96 596.224 1025.96 586.327V470.923C1025.96 461.025 1017.99 453 1008.16 453H893.586C883.759 453 875.791 461.025 875.791 470.923V577.171ZM910.562 477.566H991.178C996.922 477.566 1001.57 482.254 1001.57 488.029V569.22C1001.57 574.995 996.922 579.683 991.178 579.683H910.562C904.828 579.683 900.173 574.995 900.173 569.22V488.029C900.173 482.254 904.828 477.566 910.562 477.566Z'
-        fill='#33C482'
-      />
-      {/* Green icon - bottom right square */}
-      <path
-        d='M1008.3 624.59H923.113C912.786 624.59 904.414 633.022 904.414 643.423V728.171C904.414 738.572 912.786 747.004 923.113 747.004H1008.3C1018.63 747.004 1027 738.572 1027 728.171V643.423C1027 633.022 1018.63 624.59 1008.3 624.59Z'
-        fill='#33C482'
-      />
-      {/* Gradient overlay on bottom right square */}
-      <path
-        d='M1008.3 624.199H923.113C912.786 624.199 904.414 632.631 904.414 643.033V727.78C904.414 738.181 912.786 746.612 923.113 746.612H1008.3C1018.63 746.612 1027 738.181 1027 727.78V643.033C1027 632.631 1018.63 624.199 1008.3 624.199Z'
-        fill='url(#sim-logo-gradient)'
-        fillOpacity='0.2'
-      />
-      <defs>
-        <linearGradient
-          id='sim-logo-gradient'
-          x1='904.414'
-          y1='624.199'
-          x2='978.836'
-          y2='698.447'
-          gradientUnits='userSpaceOnUse'
-        >
-          <stop />
-          <stop offset='1' stopOpacity='0' />
-        </linearGradient>
-      </defs>
-    </svg>
-  )
-}
-
-/**
  * Full Sim logo with icon and "Sim" text.
  * Uses the same SVG source as the landing page navbar for exact visual alignment.
  * The icon stays green (#33C482), text adapts to light/dark mode.

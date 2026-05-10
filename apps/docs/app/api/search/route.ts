@@ -14,6 +14,7 @@ type SearchRequestBody = {
 }
 
 const DEFAULT_SEARCH_LIMIT = 10
+const MAX_SEARCH_LIMIT = 20
 
 function getStringParam(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
@@ -21,7 +22,12 @@ function getStringParam(value: unknown): string | undefined {
 
 function getSearchLimit(value: unknown): number {
   const limit = Number.parseInt(String(value ?? DEFAULT_SEARCH_LIMIT), 10)
-  return Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_SEARCH_LIMIT
+
+  if (!Number.isFinite(limit) || limit <= 0) {
+    return DEFAULT_SEARCH_LIMIT
+  }
+
+  return Math.min(limit, MAX_SEARCH_LIMIT)
 }
 
 async function getSearchParams(request: NextRequest) {
@@ -130,6 +136,10 @@ export async function POST(request: NextRequest) {
     const keywordRankMap = new Map<string, number>()
     keywordResults.forEach((r, idx) => keywordRankMap.set(r.chunkId, idx + 1))
 
+    const resultByChunkId = new Map<string, (typeof vectorResults)[number]>()
+    keywordResults.forEach((result) => resultByChunkId.set(result.chunkId, result))
+    vectorResults.forEach((result) => resultByChunkId.set(result.chunkId, result))
+
     const allChunkIds = new Set([
       ...vectorResults.map((r) => r.chunkId),
       ...keywordResults.map((r) => r.chunkId),
@@ -145,9 +155,7 @@ export async function POST(request: NextRequest) {
 
       const rrfScore = 1 / (k + vectorRank) + 1 / (k + keywordRank)
 
-      const result =
-        vectorResults.find((r) => r.chunkId === chunkId) ||
-        keywordResults.find((r) => r.chunkId === chunkId)
+      const result = resultByChunkId.get(chunkId)
 
       if (result) {
         scoredResults.push({ ...result, rrfScore })
@@ -203,31 +211,38 @@ export async function POST(request: NextRequest) {
       const pathParts = result.sourceDocument
         .replace('.mdx', '')
         .split('/')
-        .filter((part) => part !== 'index' && !knownLocales.includes(part))
-        .map((part) => {
-          return part
-            .replace(/_/g, ' ')
-            .split(' ')
-            .map((word) => {
-              const acronyms = [
-                'api',
-                'mcp',
-                'sdk',
-                'url',
-                'http',
-                'json',
-                'xml',
-                'html',
-                'css',
-                'ai',
-              ]
-              if (acronyms.includes(word.toLowerCase())) {
-                return word.toUpperCase()
-              }
-              return word.charAt(0).toUpperCase() + word.slice(1)
-            })
-            .join(' ')
-        })
+        .reduce<string[]>((parts, part) => {
+          if (part === 'index' || knownLocales.includes(part)) {
+            return parts
+          }
+
+          parts.push(
+            part
+              .replace(/_/g, ' ')
+              .split(' ')
+              .map((word) => {
+                const acronyms = [
+                  'api',
+                  'mcp',
+                  'sdk',
+                  'url',
+                  'http',
+                  'json',
+                  'xml',
+                  'html',
+                  'css',
+                  'ai',
+                ]
+                if (acronyms.includes(word.toLowerCase())) {
+                  return word.toUpperCase()
+                }
+                return word.charAt(0).toUpperCase() + word.slice(1)
+              })
+              .join(' ')
+          )
+
+          return parts
+        }, [])
 
       return {
         id: result.chunkId,

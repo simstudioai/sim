@@ -8,6 +8,7 @@ const TITLE_FONT_SIZE = {
   medium: 56,
   small: 48,
 } as const
+const FONT_CACHE_REVALIDATE_SECONDS = 60 * 60 * 24 * 30
 
 function getTitleFontSize(title: string): number {
   if (title.length > 45) return TITLE_FONT_SIZE.small
@@ -20,12 +21,22 @@ function getTitleFontSize(title: string): number {
  */
 async function loadGoogleFont(font: string, weights: string, text: string): Promise<ArrayBuffer> {
   const url = `https://fonts.googleapis.com/css2?family=${font}:wght@${weights}&text=${encodeURIComponent(text)}`
-  const css = await (await fetch(url)).text()
+  const cssResponse = await fetch(url, {
+    next: { revalidate: FONT_CACHE_REVALIDATE_SECONDS },
+  })
+
+  if (!cssResponse.ok) {
+    throw new Error(`Failed to load font CSS: ${cssResponse.status} ${cssResponse.statusText}`)
+  }
+
+  const css = await cssResponse.text()
   const resource = css.match(/src: url\((.+)\) format\('(opentype|truetype)'\)/)
 
   if (resource) {
-    const response = await fetch(resource[1])
-    if (response.status === 200) {
+    const response = await fetch(resource[1], {
+      next: { revalidate: FONT_CACHE_REVALIDATE_SECONDS },
+    })
+    if (response.ok) {
       return await response.arrayBuffer()
     }
   }

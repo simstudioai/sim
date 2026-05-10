@@ -1,3 +1,4 @@
+import { serializeJsonLd } from '@/lib/json-ld'
 import { DOCS_BASE_URL } from '@/lib/urls'
 
 interface StructuredDataProps {
@@ -103,14 +104,14 @@ export function StructuredData({
       <script
         type='application/ld+json'
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(articleStructuredData),
+          __html: serializeJsonLd(articleStructuredData),
         }}
       />
       {breadcrumbStructuredData && (
         <script
           type='application/ld+json'
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(breadcrumbStructuredData),
+            __html: serializeJsonLd(breadcrumbStructuredData),
           }}
         />
       )}
@@ -118,7 +119,7 @@ export function StructuredData({
         <script
           type='application/ld+json'
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(softwareStructuredData),
+            __html: serializeJsonLd(softwareStructuredData),
           }}
         />
       )}

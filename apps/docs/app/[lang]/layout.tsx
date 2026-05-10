@@ -11,6 +11,7 @@ import {
 import { Navbar } from '@/components/navbar/navbar'
 import { SimLogoFull } from '@/components/ui/sim-logo'
 import { i18n } from '@/lib/i18n'
+import { serializeJsonLd } from '@/lib/json-ld'
 import { source } from '@/lib/source'
 import { DOCS_BASE_URL } from '@/lib/urls'
 import '../global.css'
@@ -89,7 +90,7 @@ export default async function Layout({ children, params }: LayoutProps) {
       <head>
         <script
           type='application/ld+json'
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
         />
       </head>
       <body className='flex min-h-screen flex-col font-sans'>

@@ -22,7 +22,7 @@ const languages = {
 export function LanguageDropdown() {
   const pathname = usePathname()
   const params = useParams()
-  const router = useRouter()
+  const { push } = useRouter()
 
   const langFromParams = params?.lang as string
   const currentLang =
@@ -44,7 +44,7 @@ export function LanguageDropdown() {
       newPath = `/${locale}${segments.length > 0 ? `/${segments.join('/')}` : '/introduction'}`
     }
 
-    router.push(newPath)
+    push(newPath)
   }
 
   const languageEntries = Object.entries(languages)
@@ -80,7 +80,7 @@ export function LanguageDropdown() {
             >
               <span className='text-[13px]'>{lang.flag}</span>
               <span className='flex-1'>{lang.name}</span>
-              {isSelected && <Check className='ml-auto h-3.5 w-3.5' />}
+              {isSelected && <Check className='ml-auto size-3.5' />}
             </DropdownMenuItem>
           )
         })}
