@@ -43,6 +43,8 @@ const LOGO_CELL = 'flex items-center pl-5 lg:pl-16 pr-5'
 const LINK_CELL = 'flex items-center px-3.5'
 
 const emptySubscribe = () => () => {}
+const getLocationSearch = () => window.location.search
+const getServerLocationSearch = () => ''
 
 interface NavbarProps {
   logoOnly?: boolean
@@ -55,10 +57,12 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
   const session = sessionCtx?.data ?? null
   const isSessionPending = sessionCtx?.isPending ?? true
   const isAuthenticated = Boolean(session?.user?.id)
-  const [isBrowsingHome, setIsBrowsingHome] = useState(false)
-  useEffect(() => {
-    setIsBrowsingHome(new URLSearchParams(window.location.search).has('home'))
-  }, [])
+  const locationSearch = useSyncExternalStore(
+    emptySubscribe,
+    getLocationSearch,
+    getServerLocationSearch
+  )
+  const isBrowsingHome = new URLSearchParams(locationSearch).has('home')
   const useHomeLinks = isAuthenticated || isBrowsingHome
   const logoHref = useHomeLinks ? '/?home' : '/'
   const mounted = useSyncExternalStore(

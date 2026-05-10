@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -241,7 +241,7 @@ export default function ResumeExecutionPage({
   const [selectedStatus, setSelectedStatus] =
     useState<PausePointWithQueue['resumeStatus']>('paused')
   const [queuePosition, setQueuePosition] = useState<number | null | undefined>(undefined)
-  const [resumeInputs, setResumeInputs] = useState<Record<string, string>>({})
+  const resumeInputsRef = useRef<Record<string, string>>({})
   const [resumeInput, setResumeInput] = useState('')
   const [formValuesByContext, setFormValuesByContext] = useState<
     Record<string, Record<string, string>>
@@ -574,28 +574,24 @@ export default function ResumeExecutionPage({
           })
           setFormValues(mergedValues)
           setFormErrors({})
-          setResumeInputs((prev) => {
-            if (prev[data.pausePoint.contextId] !== undefined) {
-              const next = { ...prev }
-              delete next[data.pausePoint.contextId]
-              return next
-            }
-            return prev
-          })
+          if (resumeInputsRef.current[data.pausePoint.contextId] !== undefined) {
+            delete resumeInputsRef.current[data.pausePoint.contextId]
+          }
           setResumeInput('')
         } else {
           const initialValue =
             typeof responseData === 'string'
               ? responseData
               : JSON.stringify(responseData ?? {}, null, 2)
-          setResumeInputs((prev) => {
-            if (prev[data.pausePoint.contextId] !== undefined) {
-              setResumeInput(prev[data.pausePoint.contextId])
-              return prev
-            }
+          if (resumeInputsRef.current[data.pausePoint.contextId] !== undefined) {
+            setResumeInput(resumeInputsRef.current[data.pausePoint.contextId])
+          } else {
             setResumeInput(initialValue)
-            return { ...prev, [data.pausePoint.contextId]: initialValue }
-          })
+            resumeInputsRef.current = {
+              ...resumeInputsRef.current,
+              [data.pausePoint.contextId]: initialValue,
+            }
+          }
           setFormValues({})
           setFormErrors({})
         }
@@ -673,28 +669,24 @@ export default function ResumeExecutionPage({
           })
           setFormValues(mergedValues)
           setFormErrors({})
-          setResumeInputs((prev) => {
-            if (prev[data.pausePoint.contextId] !== undefined) {
-              const next = { ...prev }
-              delete next[data.pausePoint.contextId]
-              return next
-            }
-            return prev
-          })
+          if (resumeInputsRef.current[data.pausePoint.contextId] !== undefined) {
+            delete resumeInputsRef.current[data.pausePoint.contextId]
+          }
           setResumeInput('')
         } else {
           const initialValue =
             typeof responseData === 'string'
               ? responseData
               : JSON.stringify(responseData ?? {}, null, 2)
-          setResumeInputs((prev) => {
-            if (prev[data.pausePoint.contextId] !== undefined) {
-              setResumeInput(prev[data.pausePoint.contextId])
-              return prev
-            }
+          if (resumeInputsRef.current[data.pausePoint.contextId] !== undefined) {
+            setResumeInput(resumeInputsRef.current[data.pausePoint.contextId])
+          } else {
             setResumeInput(initialValue)
-            return { ...prev, [data.pausePoint.contextId]: initialValue }
-          })
+            resumeInputsRef.current = {
+              ...resumeInputsRef.current,
+              [data.pausePoint.contextId]: initialValue,
+            }
+          }
           setFormValues({})
           setFormErrors({})
         }
@@ -1283,11 +1275,12 @@ export default function ResumeExecutionPage({
                               value={resumeInput}
                               onChange={(e) => {
                                 setResumeInput(e.target.value)
-                                if (selectedContextId)
-                                  setResumeInputs((prev) => ({
-                                    ...prev,
+                                if (selectedContextId) {
+                                  resumeInputsRef.current = {
+                                    ...resumeInputsRef.current,
                                     [selectedContextId]: e.target.value,
-                                  }))
+                                  }
+                                }
                               }}
                               placeholder='{"example": "value"}'
                               rows={6}

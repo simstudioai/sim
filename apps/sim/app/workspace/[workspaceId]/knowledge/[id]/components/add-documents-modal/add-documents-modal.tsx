@@ -48,7 +48,7 @@ export function AddDocumentsModal({
   const [files, setFiles] = useState<FileWithPreview[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [dragCounter, setDragCounter] = useState(0)
+  const dragCounterRef = useRef(0)
   const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(() => new Set())
 
   const { isUploading, uploadProgress, uploadFiles, uploadError, clearError } = useKnowledgeUpload({
@@ -70,7 +70,7 @@ export function AddDocumentsModal({
       setFiles([])
       setFileError(null)
       setIsDragging(false)
-      setDragCounter(0)
+      dragCounterRef.current = 0
       setRetryingIndexes(new Set())
       clearError()
     }
@@ -85,7 +85,7 @@ export function AddDocumentsModal({
         setFileError(null)
         clearError()
         setIsDragging(false)
-        setDragCounter(0)
+        dragCounterRef.current = 0
         setRetryingIndexes(new Set())
       }
       onOpenChange(newOpen)
@@ -143,25 +143,19 @@ export function AddDocumentsModal({
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setDragCounter((prev) => {
-      const newCount = prev + 1
-      if (newCount === 1) {
-        setIsDragging(true)
-      }
-      return newCount
-    })
+    dragCounterRef.current += 1
+    if (dragCounterRef.current === 1) {
+      setIsDragging(true)
+    }
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setDragCounter((prev) => {
-      const newCount = prev - 1
-      if (newCount === 0) {
-        setIsDragging(false)
-      }
-      return newCount
-    })
+    dragCounterRef.current -= 1
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false)
+    }
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -174,7 +168,7 @@ export function AddDocumentsModal({
     e.preventDefault()
     e.stopPropagation()
     setIsDragging(false)
-    setDragCounter(0)
+    dragCounterRef.current = 0
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       await processFiles(e.dataTransfer.files)

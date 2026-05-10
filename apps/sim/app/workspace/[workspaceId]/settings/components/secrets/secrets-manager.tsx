@@ -414,9 +414,7 @@ export function SecretsManager() {
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
   const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
-  const [prevSelectedCredentialId, setPrevSelectedCredentialId] = useState<
-    string | null | undefined
-  >(undefined)
+  const prevSelectedCredentialIdRef = useRef<string | null | undefined>(undefined)
   const [selectedDisplayNameDraft, setSelectedDisplayNameDraft] = useState('')
   const [selectedDescriptionDraft, setSelectedDescriptionDraft] = useState('')
   const [copyIdSuccess, setCopyIdSuccess] = useState(false)
@@ -448,8 +446,8 @@ export function SecretsManager() {
   )
 
   const currentCredentialId = selectedCredential?.id ?? null
-  if (currentCredentialId !== prevSelectedCredentialId) {
-    setPrevSelectedCredentialId(currentCredentialId)
+  if (currentCredentialId !== prevSelectedCredentialIdRef.current) {
+    prevSelectedCredentialIdRef.current = currentCredentialId
     if (!selectedCredential) {
       setSelectedDescriptionDraft('')
       setSelectedDisplayNameDraft('')

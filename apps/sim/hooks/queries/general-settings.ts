@@ -64,7 +64,7 @@ async function fetchGeneralSettings(signal?: AbortSignal): Promise<GeneralSettin
  * Hook to fetch general settings.
  * TanStack Query is now the single source of truth for general settings.
  */
-export function useGeneralSettings() {
+export function useGeneralSettings(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: generalSettingsKeys.settings(),
     queryFn: async ({ signal }) => {
@@ -73,6 +73,7 @@ export function useGeneralSettings() {
       return settings
     },
     staleTime: 60 * 60 * 1000,
+    enabled: options?.enabled ?? true,
   })
 }
 

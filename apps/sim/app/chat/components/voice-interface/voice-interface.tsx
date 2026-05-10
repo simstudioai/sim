@@ -57,9 +57,7 @@ export function VoiceInterface({
   const [isInitialized, setIsInitialized] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [audioLevels, setAudioLevels] = useState<number[]>(() => new Array(200).fill(0))
-  const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>(
-    'prompt'
-  )
+  const permissionStatusRef = useRef<'prompt' | 'granted' | 'denied'>('prompt')
   const [currentTranscript, setCurrentTranscript] = useState('')
 
   const currentStateRef = useRef<'idle' | 'listening' | 'agent_speaking'>('idle')
@@ -251,7 +249,7 @@ export function VoiceInterface({
         },
       })
 
-      setPermissionStatus('granted')
+      permissionStatusRef.current = 'granted'
       mediaStreamRef.current = stream
 
       const ac = new AudioContext({ sampleRate: SAMPLE_RATE })
@@ -300,7 +298,7 @@ export function VoiceInterface({
       return true
     } catch (error) {
       logger.error('Error setting up audio pipeline:', error)
-      setPermissionStatus('denied')
+      permissionStatusRef.current = 'denied'
       return false
     }
   }, [])

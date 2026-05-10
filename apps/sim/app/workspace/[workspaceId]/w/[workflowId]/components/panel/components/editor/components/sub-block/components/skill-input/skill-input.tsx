@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Plus, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
@@ -40,7 +40,7 @@ export function SkillInput({
   const [value, setValue] = useSubBlockValue<StoredSkill[]>(blockId, subBlockId)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingSkill, setEditingSkill] = useState<SkillDefinition | null>(null)
-  const [open, setOpen] = useState(false)
+  const openRef = useRef(false)
 
   const selectedSkills: StoredSkill[] = useMemo(() => {
     if (isPreview && previewValue) {
@@ -65,7 +65,7 @@ export function SkillInput({
             icon: Plus,
             onSelect: () => {
               setShowCreateModal(true)
-              setOpen(false)
+              openRef.current = false
             },
             disabled: isPreview,
           },
@@ -85,7 +85,7 @@ export function SkillInput({
             onSelect: () => {
               const newSkills: StoredSkill[] = [...selectedSkills, { skillId: s.id, name: s.name }]
               setValue(newSkills)
-              setOpen(false)
+              openRef.current = false
             },
           }
         }),
@@ -128,7 +128,9 @@ export function SkillInput({
           searchPlaceholder='Search skills...'
           maxHeight={240}
           emptyMessage='No skills found'
-          onOpenChange={setOpen}
+          onOpenChange={(v) => {
+            openRef.current = v
+          }}
         />
 
         {selectedSkills.length > 0 &&

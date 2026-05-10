@@ -129,7 +129,7 @@ function CountdownRing({ duration }: { duration: number }) {
 
 function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: string) => void }) {
   const [exiting, setExiting] = useState(false)
-  const [paused, setPaused] = useState(false)
+  const pausedRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const remainingRef = useRef(t.duration)
   const startRef = useRef(0)
@@ -152,12 +152,12 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
     if (t.duration <= 0) return
     clearTimeout(timerRef.current)
     remainingRef.current -= Date.now() - startRef.current
-    setPaused(true)
+    pausedRef.current = true
   }, [t.duration])
 
   const handleMouseLeave = useCallback(() => {
     if (t.duration <= 0) return
-    setPaused(false)
+    pausedRef.current = false
     startRef.current = Date.now()
     timerRef.current = setTimeout(dismiss, Math.max(remainingRef.current, 0))
   }, [dismiss, t.duration])

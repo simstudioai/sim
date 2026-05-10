@@ -1,10 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import { CheckCircle2, Circle, ExternalLink, GraduationCap } from 'lucide-react'
 import Link from 'next/link'
 import { Loader } from '@/components/emcn'
-import { getCompletedLessons } from '@/lib/academy/local-progress'
+import {
+  getCompletedLessonsFromSnapshot,
+  getCompletedLessonsSnapshot,
+  getServerCompletedLessonsSnapshot,
+  subscribeToCompletedLessons,
+} from '@/lib/academy/local-progress'
 import type { Course } from '@/lib/academy/types'
 import { useSession } from '@/lib/auth/auth-client'
 import { useCourseCertificate, useIssueCertificate } from '@/hooks/queries/academy'
@@ -15,11 +20,15 @@ interface CourseProgressProps {
 }
 
 export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
-  // Start with an empty set so SSR and initial client render match, then hydrate from localStorage.
-  const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set())
-  useEffect(() => {
-    setCompletedIds(getCompletedLessons())
-  }, [])
+  const completedIdsSnapshot = useSyncExternalStore(
+    subscribeToCompletedLessons,
+    getCompletedLessonsSnapshot,
+    getServerCompletedLessonsSnapshot
+  )
+  const completedIds = useMemo(
+    () => getCompletedLessonsFromSnapshot(completedIdsSnapshot),
+    [completedIdsSnapshot]
+  )
   const { data: session } = useSession()
   const { data: fetchedCert } = useCourseCertificate(session ? course.id : undefined)
   const { mutate: issueCertificate, isPending, data: issuedCert, error } = useIssueCertificate()

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { ArrowLeft, Bell, Folder, Key, Moon, Settings, Sun, User } from 'lucide-react'
 import { notFound, useRouter } from 'next/navigation'
 import {
@@ -135,6 +135,16 @@ const COMBOBOX_OPTIONS = [
   { label: 'Option 3', value: 'opt3' },
 ]
 
+const DARK_MODE_EVENT = 'playground:dark-mode-change'
+
+const subscribeToDarkMode = (onStoreChange: () => void) => {
+  window.addEventListener(DARK_MODE_EVENT, onStoreChange)
+  return () => window.removeEventListener(DARK_MODE_EVENT, onStoreChange)
+}
+
+const getDarkModeSnapshot = () => document.documentElement.classList.contains('dark')
+const getServerDarkModeSnapshot = () => false
+
 export default function PlaygroundPage() {
   const router = useRouter()
   const [comboboxValue, setComboboxValue] = useState('')
@@ -143,7 +153,11 @@ export default function PlaygroundPage() {
   const [sliderValue, setSliderValue] = useState([50])
   const [timeValue, setTimeValue] = useState('09:30')
   const [activeTab, setActiveTab] = useState('profile')
-  const [isDarkMode, setIsDarkMode] = useState(false)
+  const isDarkMode = useSyncExternalStore(
+    subscribeToDarkMode,
+    getDarkModeSnapshot,
+    getServerDarkModeSnapshot
+  )
   const [buttonGroupValue, setButtonGroupValue] = useState('curl')
   const [dateValue, setDateValue] = useState('')
   const [dateRangeStart, setDateRangeStart] = useState('')
@@ -154,13 +168,9 @@ export default function PlaygroundPage() {
   ])
 
   const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode)
     document.documentElement.classList.toggle('dark')
+    window.dispatchEvent(new Event(DARK_MODE_EVENT))
   }
-
-  useEffect(() => {
-    setIsDarkMode(document.documentElement.classList.contains('dark'))
-  }, [])
 
   if (!isTruthy(env.NEXT_PUBLIC_ENABLE_PLAYGROUND)) {
     notFound()

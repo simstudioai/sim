@@ -72,10 +72,10 @@ export function General() {
   const [name, setName] = useState(profile?.name || '')
   const [isEditingName, setIsEditingName] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const [prevProfileName, setPrevProfileName] = useState(profile?.name)
+  const prevProfileNameRef = useRef<string | undefined>(profile?.name)
 
-  if (profile?.name && profile.name !== prevProfileName) {
-    setPrevProfileName(profile.name)
+  if (profile?.name && profile.name !== prevProfileNameRef.current) {
+    prevProfileNameRef.current = profile.name
     setName(profile.name)
   }
 
