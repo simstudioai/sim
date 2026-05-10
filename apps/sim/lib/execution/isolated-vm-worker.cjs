@@ -388,7 +388,7 @@ async function executeCode(request, executionId) {
           stdout,
           error: {
             message:
-              'Execution exceeded memory limit (256 MB). Reduce image sizes or split the work into smaller batches.',
+              'Execution exceeded memory limit (128 MB). Reduce image sizes or split the work into smaller batches.',
             name: 'MemoryLimitError',
           },
         }
@@ -945,7 +945,7 @@ async function executeTask(request, executionId) {
           stdout,
           error: {
             message:
-              'Execution exceeded memory limit (256 MB). Reduce image sizes or split the work into smaller batches.',
+              'Execution exceeded memory limit (128 MB). Reduce image sizes or split the work into smaller batches.',
             name: 'MemoryLimitError',
           },
           timings,
