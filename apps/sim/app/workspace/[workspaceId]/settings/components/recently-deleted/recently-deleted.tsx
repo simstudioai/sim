@@ -62,7 +62,7 @@ const SORT_OPTIONS: { column: SortColumn; direction: 'asc' | 'desc'; label: stri
   { column: 'type', direction: 'asc', label: 'Type (A–Z)' },
 ]
 
-const ICON_CLASS = 'h-[14px] w-[14px]'
+const ICON_CLASS = 'size-[14px]'
 
 const RESOURCE_TYPE_TO_MOTHERSHIP: Partial<
   Record<Exclude<ResourceType, 'all'>, MothershipResourceType>
@@ -331,7 +331,7 @@ export function RecentlyDeleted() {
       <div className='flex items-center gap-2'>
         <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
           <Search
-            className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+            className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
             strokeWidth={2}
           />
           <Input
