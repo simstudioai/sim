@@ -141,6 +141,7 @@ export const POST = withRouteHandler(
     try {
       const enqueueResult = await PauseResumeManager.enqueueOrStartResume({
         executionId,
+        workflowId,
         contextId,
         resumeInput,
         userId,

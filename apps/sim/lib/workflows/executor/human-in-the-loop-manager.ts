@@ -105,6 +105,8 @@ interface PersistPauseResultArgs {
 
 interface EnqueueResumeArgs {
   executionId: string
+  /** workflowId is used to scope the lookup to the correct tenant. Required unless the caller is a trusted internal cron. */
+  workflowId?: string
   contextId: string
   resumeInput: unknown
   userId: string
@@ -266,13 +268,20 @@ export class PauseResumeManager {
   }
 
   static async enqueueOrStartResume(args: EnqueueResumeArgs): Promise<EnqueueResumeResult> {
-    const { executionId, contextId, resumeInput, userId, allowedPauseKinds } = args
+    const { executionId, workflowId, contextId, resumeInput, userId, allowedPauseKinds } = args
 
     return await db.transaction(async (tx) => {
       const pausedExecution = await tx
         .select()
         .from(pausedExecutions)
-        .where(eq(pausedExecutions.executionId, executionId))
+        .where(
+          workflowId
+            ? and(
+                eq(pausedExecutions.executionId, executionId),
+                eq(pausedExecutions.workflowId, workflowId)
+              )
+            : eq(pausedExecutions.executionId, executionId)
+        )
         .for('update')
         .limit(1)
         .then((rows) => rows[0])
@@ -1526,7 +1535,7 @@ export class PauseResumeManager {
     })
   }
 
-  static async beginPausedCancellation(executionId: string): Promise<boolean> {
+  static async beginPausedCancellation(executionId: string, workflowId?: string): Promise<boolean> {
     const now = new Date()
 
     return await db.transaction(async (tx) => {
@@ -1536,6 +1545,7 @@ export class PauseResumeManager {
         .where(
           and(
             eq(pausedExecutions.executionId, executionId),
+            ...(workflowId ? [eq(pausedExecutions.workflowId, workflowId)] : []),
             inArray(pausedExecutions.status, [...CANCELLABLE_PAUSED_STATUSES, 'cancelling'])
           )
         )
@@ -1573,14 +1583,24 @@ export class PauseResumeManager {
     })
   }
 
-  static async completePausedCancellation(executionId: string): Promise<boolean> {
+  static async completePausedCancellation(
+    executionId: string,
+    workflowId?: string
+  ): Promise<boolean> {
     const now = new Date()
 
     return await db.transaction(async (tx) => {
       const pausedExecution = await tx
         .select({ id: pausedExecutions.id, status: pausedExecutions.status })
         .from(pausedExecutions)
-        .where(eq(pausedExecutions.executionId, executionId))
+        .where(
+          workflowId
+            ? and(
+                eq(pausedExecutions.executionId, executionId),
+                eq(pausedExecutions.workflowId, workflowId)
+              )
+            : eq(pausedExecutions.executionId, executionId)
+        )
         .for('update')
         .limit(1)
         .then((rows) => rows[0])
@@ -1606,7 +1626,10 @@ export class PauseResumeManager {
     })
   }
 
-  static async blockQueuedResumesForCancellation(executionId: string): Promise<boolean> {
+  static async blockQueuedResumesForCancellation(
+    executionId: string,
+    workflowId?: string
+  ): Promise<boolean> {
     const now = new Date()
 
     return await db.transaction(async (tx) => {
@@ -1616,6 +1639,7 @@ export class PauseResumeManager {
         .where(
           and(
             eq(pausedExecutions.executionId, executionId),
+            ...(workflowId ? [eq(pausedExecutions.workflowId, workflowId)] : []),
             inArray(pausedExecutions.status, [...CANCELLABLE_PAUSED_STATUSES, 'cancelling'])
           )
         )
@@ -1647,7 +1671,10 @@ export class PauseResumeManager {
     })
   }
 
-  static async clearPausedCancellationIntent(executionId: string): Promise<void> {
+  static async clearPausedCancellationIntent(
+    executionId: string,
+    workflowId?: string
+  ): Promise<void> {
     const now = new Date()
     await db
       .update(pausedExecutions)
@@ -1658,6 +1685,7 @@ export class PauseResumeManager {
       .where(
         and(
           eq(pausedExecutions.executionId, executionId),
+          ...(workflowId ? [eq(pausedExecutions.workflowId, workflowId)] : []),
           eq(pausedExecutions.status, 'cancelling')
         )
       )
@@ -1665,7 +1693,8 @@ export class PauseResumeManager {
   }
 
   static async getPausedCancellationStatus(
-    executionId: string
+    executionId: string,
+    workflowId?: string
   ): Promise<'cancelling' | 'cancelled' | null> {
     const activeResume = await db
       .select({ id: resumeQueue.id })
@@ -1681,7 +1710,14 @@ export class PauseResumeManager {
     const pausedExecution = await db
       .select({ status: pausedExecutions.status })
       .from(pausedExecutions)
-      .where(eq(pausedExecutions.executionId, executionId))
+      .where(
+        workflowId
+          ? and(
+              eq(pausedExecutions.executionId, executionId),
+              eq(pausedExecutions.workflowId, workflowId)
+            )
+          : eq(pausedExecutions.executionId, executionId)
+      )
       .limit(1)
       .then((rows) => rows[0])
 
@@ -1838,7 +1874,7 @@ export class PauseResumeManager {
     }
   }
 
-  static async processQueuedResumes(parentExecutionId: string): Promise<void> {
+  static async processQueuedResumes(parentExecutionId: string, workflowId?: string): Promise<void> {
     let pendingEntry: {
       entry: typeof resumeQueue.$inferSelect
       pausedExecution: typeof pausedExecutions.$inferSelect
@@ -1849,7 +1885,14 @@ export class PauseResumeManager {
         const pausedExecution = await tx
           .select()
           .from(pausedExecutions)
-          .where(eq(pausedExecutions.executionId, parentExecutionId))
+          .where(
+            workflowId
+              ? and(
+                  eq(pausedExecutions.executionId, parentExecutionId),
+                  eq(pausedExecutions.workflowId, workflowId)
+                )
+              : eq(pausedExecutions.executionId, parentExecutionId)
+          )
           .for('update')
           .limit(1)
           .then((rows) => rows[0])

@@ -11,6 +11,7 @@ import {
   processSingleFileToUserFile,
 } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { verifyFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,6 +77,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         },
         { status: 400 }
       )
+    }
+
+    if (userFile.key && authResult.userId) {
+      const hasAccess = await verifyFileAccess(userFile.key, authResult.userId)
+      if (!hasAccess) {
+        logger.warn(`[${requestId}] File access denied for user`, {
+          userId: authResult.userId,
+          key: userFile.key,
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'File not found',
+          },
+          { status: 404 }
+        )
+      }
     }
 
     logger.info(`[${requestId}] Downloading file from storage`, {
