@@ -1619,9 +1619,9 @@ export const auth = betterAuth({
             try {
               logger.info('Fetching Wealthbox user profile')
 
-              const response = await fetch('https://api.crmworkspace.com/v1/users/me', {
+              const response = await fetch('https://api.crmworkspace.com/v1/me', {
                 headers: {
-                  ACCESS_TOKEN: tokens.accessToken,
+                  Authorization: `Bearer ${tokens.accessToken}`,
                 },
               })
 
@@ -1637,7 +1637,7 @@ export const auth = betterAuth({
                 const name = data.name || data.full_name || data.username || 'Wealthbox User'
 
                 return {
-                  id: `wealthbox-${userId}-${generateId()}`,
+                  id: `wealthbox-${userId}`,
                   name,
                   email,
                   emailVerified: false,
@@ -1646,18 +1646,23 @@ export const auth = betterAuth({
                 }
               }
 
-              // Fallback: derive a stable per-token identifier from the access token
-              // so that each Wealthbox user gets a unique account rather than all
-              // sharing the same hardcoded email.
+              // Fallback: derive a stable identifier from the refresh token (long-lived)
+              // rather than the access token (rotates every ~2 hours) to avoid creating
+              // duplicate accounts on token refresh.
               logger.warn(
                 'Wealthbox user info fetch failed, falling back to token-derived identity',
                 {
                   status: response.status,
                 }
               )
-              const tokenHash = Buffer.from(tokens.accessToken).toString('base64').slice(0, 24)
+              const stableToken = tokens.refreshToken ?? tokens.accessToken
+              if (!stableToken) {
+                logger.error('Wealthbox fallback identity: no refresh or access token available')
+                return null
+              }
+              const tokenHash = Buffer.from(stableToken).toString('base64').slice(0, 24)
               return {
-                id: `wealthbox-${tokenHash}-${generateId()}`,
+                id: `wealthbox-${tokenHash}`,
                 name: 'Wealthbox User',
                 email: `wealthbox-${tokenHash}@wealthbox.user`,
                 emailVerified: false,
@@ -1665,7 +1670,9 @@ export const auth = betterAuth({
                 updatedAt: now,
               }
             } catch (error) {
-              logger.error('Error creating Wealthbox user profile:', { error })
+              logger.error('Error creating Wealthbox user profile:', {
+                error: toError(error).message,
+              })
               return null
             }
           },
