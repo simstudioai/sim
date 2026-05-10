@@ -482,11 +482,12 @@ export function DeployModal({
   const handleCloseModal = useCallback(() => {
     deployActionIdRef.current += 1
     setIsFinalizingDeploy(false)
+    if (workflowId) releaseDeployAction(workflowId)
     setChatSubmitting(false)
     setDeployError(null)
     setDeployWarnings([])
     onOpenChange(false)
-  }, [onOpenChange])
+  }, [workflowId, onOpenChange])
 
   const handleChatDeployed = useCallback(async () => {
     if (!workflowId) return

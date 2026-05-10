@@ -195,18 +195,24 @@ export function MessagesInput({
     currentValue: getMessagesJson(),
     onStreamStart: () => {
       streamBufferRef.current = ''
+      messageIdsRef.current = [generateShortId()]
       setLocalMessages([{ role: 'system', content: '' }])
     },
     onStreamChunk: (chunk) => {
       streamBufferRef.current += chunk
       const extracted = extractStreamingMessages(streamBufferRef.current)
       if (extracted.length > 0) {
+        while (messageIdsRef.current.length < extracted.length) {
+          messageIdsRef.current.push(generateShortId())
+        }
+        messageIdsRef.current = messageIdsRef.current.slice(0, extracted.length)
         setLocalMessages(extracted)
       }
     },
     onGeneratedContent: (content) => {
       const validMessages = parseMessages(content)
       if (validMessages) {
+        messageIdsRef.current = validMessages.map(() => generateShortId())
         setLocalMessages(validMessages)
         setMessages(validMessages)
       } else {
@@ -214,6 +220,7 @@ export function MessagesInput({
         const trimmed = content.trim()
         if (trimmed) {
           const fallback: Message[] = [{ role: 'system', content: trimmed }]
+          messageIdsRef.current = [generateShortId()]
           setLocalMessages(fallback)
           setMessages(fallback)
         }
@@ -242,6 +249,7 @@ export function MessagesInput({
   useEffect(() => {
     if (isPreview && previewValue && Array.isArray(previewValue)) {
       if (!isEqual(localMessagesRef.current, previewValue)) {
+        messageIdsRef.current = previewValue.map(() => generateShortId())
         setLocalMessages(previewValue)
       }
     } else if (messages && Array.isArray(messages) && messages.length > 0) {
