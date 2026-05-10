@@ -183,7 +183,7 @@ async function executeCode(request, executionId) {
   const externalCopies = []
 
   try {
-    isolate = new ivm.Isolate({ memoryLimit: 256 })
+    isolate = new ivm.Isolate({ memoryLimit: 128 })
     if (executionId !== undefined) activeIsolates.set(executionId, isolate)
     context = await isolate.createContext()
     const jail = context.global
@@ -529,7 +529,7 @@ async function executeTask(request, executionId) {
   let tPhase = tStart
 
   try {
-    isolate = new ivm.Isolate({ memoryLimit: 256 })
+    isolate = new ivm.Isolate({ memoryLimit: 128 })
     if (executionId !== undefined) activeIsolates.set(executionId, isolate)
     context = await isolate.createContext()
     const jail = context.global
