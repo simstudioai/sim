@@ -32,4 +32,5 @@ function Label({ className, ...props }) {
 - Export component and variants (if using CVA)
 - TSDoc with usage examples
 - Consistent tokens: `font-medium`, `text-[12px]`, `rounded-[4px]`
+- Equal height/width → `size-*` (e.g. `size-[14px]`, `size-4`), never `h-[Npx] w-[Npx]` or `h-N w-N`. Default icon size is `size-[14px]`
 - `transition-colors` for hover states
