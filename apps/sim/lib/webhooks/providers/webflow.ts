@@ -1,8 +1,12 @@
+import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { NextResponse } from 'next/server'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getCredentialOwner, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
+  AuthContext,
   DeleteSubscriptionContext,
   EventFilterContext,
   FormatInputContext,
@@ -16,6 +20,46 @@ import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/
 const logger = createLogger('WebhookProvider:Webflow')
 
 export const webflowHandler: WebhookProviderHandler = {
+  verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
+    const secretKey = providerConfig.secretKey as string | undefined | null
+
+    if (!secretKey) {
+      // Fail-open for existing webhooks created before this change (no secretKey stored)
+      logger.warn(
+        `[${requestId}] Webflow webhook missing secretKey in providerConfig — skipping signature verification`
+      )
+      return null
+    }
+
+    const signature = request.headers.get('x-webflow-signature')
+    const timestamp = request.headers.get('x-webflow-timestamp')
+
+    if (!signature || !timestamp) {
+      logger.warn(`[${requestId}] Webflow webhook missing signature or timestamp headers`)
+      return new NextResponse('Unauthorized - Missing Webflow signature headers', { status: 401 })
+    }
+
+    // Replay protection: reject if timestamp is more than 5 minutes old
+    const ts = Number.parseInt(timestamp, 10)
+    if (Number.isNaN(ts) || Date.now() - ts > 5 * 60 * 1000) {
+      logger.warn(`[${requestId}] Webflow webhook timestamp expired or invalid`)
+      return new NextResponse('Unauthorized - Webhook timestamp expired', { status: 401 })
+    }
+
+    // HMAC-SHA256 of "${timestamp}:${rawBody}"
+    const computedHash = crypto
+      .createHmac('sha256', secretKey)
+      .update(`${timestamp}:${rawBody}`, 'utf8')
+      .digest('hex')
+
+    if (!safeCompare(computedHash, signature)) {
+      logger.warn(`[${requestId}] Webflow signature verification failed`)
+      return new NextResponse('Unauthorized - Invalid Webflow signature', { status: 401 })
+    }
+
+    return null
+  },
+
   async createSubscription({
     webhook: webhookRecord,
     workflow,
@@ -132,7 +176,12 @@ export const webflowHandler: WebhookProviderHandler = {
         }
       )
 
-      return { providerConfigUpdates: { externalId: responseBody.id || responseBody._id } }
+      return {
+        providerConfigUpdates: {
+          externalId: responseBody.id || responseBody._id,
+          secretKey: responseBody.secretKey,
+        },
+      }
     } catch (error: unknown) {
       const err = error as Error
       logger.error(

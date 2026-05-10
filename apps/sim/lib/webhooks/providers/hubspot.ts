@@ -1,5 +1,9 @@
+import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { NextResponse } from 'next/server'
 import type {
+  AuthContext,
   EventMatchContext,
   FormatInputContext,
   FormatInputResult,
@@ -9,6 +13,43 @@ import type {
 const logger = createLogger('WebhookProvider:HubSpot')
 
 export const hubspotHandler: WebhookProviderHandler = {
+  verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
+    const clientSecret = providerConfig.clientSecret as string | undefined
+
+    if (!clientSecret) {
+      logger.warn(
+        `[${requestId}] HubSpot webhook missing clientSecret in providerConfig — rejecting request`
+      )
+      return new NextResponse('Unauthorized - Webhook secret not configured', { status: 401 })
+    }
+
+    const signature = request.headers.get('X-HubSpot-Signature')
+    if (!signature) {
+      logger.warn(`[${requestId}] HubSpot webhook missing X-HubSpot-Signature header`)
+      return new NextResponse('Unauthorized - Missing HubSpot signature', { status: 401 })
+    }
+
+    try {
+      // HubSpot v1 signature: SHA-256 hash of (clientSecret + requestBody)
+      const computedHash = crypto
+        .createHash('sha256')
+        .update(clientSecret + rawBody, 'utf8')
+        .digest('hex')
+
+      if (!safeCompare(computedHash, signature)) {
+        logger.warn(`[${requestId}] HubSpot signature verification failed`)
+        return new NextResponse('Unauthorized - Invalid HubSpot signature', { status: 401 })
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Error verifying HubSpot signature`, {
+        error: (error as Error).message,
+      })
+      return new NextResponse('Unauthorized - Signature verification error', { status: 401 })
+    }
+
+    return null
+  },
+
   async matchEvent({ webhook, workflow, body, requestId, providerConfig }: EventMatchContext) {
     const triggerId = providerConfig.triggerId as string | undefined
 

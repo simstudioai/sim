@@ -1,7 +1,10 @@
+import crypto from 'crypto'
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
 import { eq } from 'drizzle-orm'
+import { NextResponse } from 'next/server'
 import { validateAirtableId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -10,6 +13,7 @@ import {
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
 import type {
+  AuthContext,
   DeleteSubscriptionContext,
   FormatInputContext,
   SubscriptionContext,
@@ -438,6 +442,52 @@ async function fetchAndProcessAirtablePayloads(
 }
 
 export const airtableHandler: WebhookProviderHandler = {
+  verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
+    const macSecretBase64 = providerConfig.macSecretBase64 as string | undefined | null
+
+    if (!macSecretBase64) {
+      logger.warn(
+        `[${requestId}] Airtable webhook has no macSecretBase64 in providerConfig — skipping MAC verification. Re-create the webhook to enable signature verification.`
+      )
+      return null
+    }
+
+    const signature = request.headers.get('X-Airtable-Content-MAC')
+    if (!signature) {
+      logger.warn(`[${requestId}] Airtable webhook missing X-Airtable-Content-MAC header`)
+      return new NextResponse('Unauthorized - Missing Airtable MAC header', { status: 401 })
+    }
+
+    const EXPECTED_PREFIX = 'hmac-sha256='
+    if (!signature.startsWith(EXPECTED_PREFIX)) {
+      logger.warn(`[${requestId}] Airtable MAC signature has invalid format`)
+      return new NextResponse('Unauthorized - Invalid Airtable MAC signature format', {
+        status: 401,
+      })
+    }
+    const providedHex = signature.slice(EXPECTED_PREFIX.length)
+
+    try {
+      const secretBytes = Buffer.from(macSecretBase64, 'base64')
+      const computedHex = crypto
+        .createHmac('sha256', secretBytes)
+        .update(rawBody, 'ascii')
+        .digest('hex')
+
+      if (!safeCompare(computedHex, providedHex)) {
+        logger.warn(`[${requestId}] Airtable MAC signature verification failed`)
+        return new NextResponse('Unauthorized - Invalid Airtable MAC signature', { status: 401 })
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Error verifying Airtable MAC signature`, {
+        error: (error as Error).message,
+      })
+      return new NextResponse('Unauthorized - Signature verification error', { status: 401 })
+    }
+
+    return null
+  },
+
   async createSubscription({
     webhook: webhookRecord,
     workflow,
@@ -554,7 +604,12 @@ export const airtableHandler: WebhookProviderHandler = {
           airtableWebhookId: responseBody.id,
         }
       )
-      return { providerConfigUpdates: { externalId: responseBody.id } }
+      return {
+        providerConfigUpdates: {
+          externalId: responseBody.id,
+          macSecretBase64: responseBody.macSecretBase64 ?? null,
+        },
+      }
     } catch (error: unknown) {
       const err = error as Error
       logger.error(
