@@ -12,7 +12,7 @@ const ALLOWED_TELEMETRY_CATEGORIES = [
 ] as const
 
 const telemetryCategorySchema = z.enum([...ALLOWED_TELEMETRY_CATEGORIES] as [string, ...string[]])
-export type TelemetryCategory = z.output<typeof telemetryCategorySchema>
+type TelemetryCategory = z.output<typeof telemetryCategorySchema>
 
 const SENSITIVE_PATTERNS = [/password/, /token/, /secret/, /key/, /auth/, /credential/, /private/]
 
@@ -29,7 +29,7 @@ const telemetryEventSchema = z
     },
     { message: 'Telemetry data contains sensitive information' }
   )
-export type TelemetryEvent = z.output<typeof telemetryEventSchema>
+type TelemetryEvent = z.output<typeof telemetryEventSchema>
 
 export const telemetryContract = defineRouteContract({
   method: 'POST',

@@ -38,12 +38,12 @@ export const awsIdentityCenterCheckAssignmentDeletionStatusContract = defineRout
   body: Schema,
   response: { mode: 'json', schema: ResponseSchema },
 })
-export type AwsIdentityCenterCheckAssignmentDeletionStatusRequest = ContractBodyInput<
+type AwsIdentityCenterCheckAssignmentDeletionStatusRequest = ContractBodyInput<
   typeof awsIdentityCenterCheckAssignmentDeletionStatusContract
 >
-export type AwsIdentityCenterCheckAssignmentDeletionStatusBody = ContractBody<
+type AwsIdentityCenterCheckAssignmentDeletionStatusBody = ContractBody<
   typeof awsIdentityCenterCheckAssignmentDeletionStatusContract
 >
-export type AwsIdentityCenterCheckAssignmentDeletionStatusResponse = ContractJsonResponse<
+type AwsIdentityCenterCheckAssignmentDeletionStatusResponse = ContractJsonResponse<
   typeof awsIdentityCenterCheckAssignmentDeletionStatusContract
 >

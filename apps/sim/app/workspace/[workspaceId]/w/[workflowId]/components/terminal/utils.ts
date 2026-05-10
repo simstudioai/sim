@@ -128,7 +128,7 @@ export function isEventFromEditableElement(e: KeyboardEvent): boolean {
 /**
  * Node type for the tree structure
  */
-export type EntryNodeType = 'block' | 'subflow' | 'iteration' | 'workflow'
+type EntryNodeType = 'block' | 'subflow' | 'iteration' | 'workflow'
 
 /**
  * Entry node for tree structure - represents a block, subflow, or iteration
@@ -655,7 +655,7 @@ export function groupEntriesByExecution(entries: ConsoleEntry[]): ExecutionGroup
 /**
  * Flattens entry tree into display order for keyboard navigation
  */
-export function flattenEntryTree(nodes: EntryNode[]): ConsoleEntry[] {
+function flattenEntryTree(nodes: EntryNode[]): ConsoleEntry[] {
   const result: ConsoleEntry[] = []
   for (const node of nodes) {
     result.push(node.entry)

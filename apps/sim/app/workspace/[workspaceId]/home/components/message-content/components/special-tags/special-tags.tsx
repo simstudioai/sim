@@ -21,7 +21,7 @@ import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
-export interface OptionsItemData {
+interface OptionsItemData {
   title: string
   description: string
 }

@@ -34,7 +34,7 @@ const templateCreatorSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
 })
-export type TemplateCreator = z.output<typeof templateCreatorSchema>
+type TemplateCreator = z.output<typeof templateCreatorSchema>
 
 const templateSchema = z.object({
   id: z.string(),
@@ -187,7 +187,7 @@ const useTemplateBodySchema = z
     connectToTemplate: z.boolean().optional().default(false),
   })
   .passthrough()
-export type UseTemplateBody = z.input<typeof useTemplateBodySchema>
+type UseTemplateBody = z.input<typeof useTemplateBodySchema>
 
 const useTemplateResponseSchema = z.object({
   message: z.string(),
@@ -211,7 +211,7 @@ const updateTemplateOgImageBodySchema = z
     imageData: z.string().min(1, 'imageData is required (base64-encoded PNG)'),
   })
   .strict()
-export type UpdateTemplateOgImageBody = z.input<typeof updateTemplateOgImageBodySchema>
+type UpdateTemplateOgImageBody = z.input<typeof updateTemplateOgImageBodySchema>
 
 const updateTemplateOgImageResponseSchema = z.object({
   success: z.literal(true),

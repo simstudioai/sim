@@ -8,42 +8,42 @@ export type EmptySchemaOutput<S extends ApiSchema | undefined> = S extends ApiSc
   ? z.output<S>
   : undefined
 
-export type EmptySchemaInput<S extends ApiSchema | undefined> = S extends ApiSchema
+type EmptySchemaInput<S extends ApiSchema | undefined> = S extends ApiSchema
   ? z.input<S>
   : undefined
 
-export type JsonResponseMode<S extends ApiSchema = ApiSchema> = {
+type JsonResponseMode<S extends ApiSchema = ApiSchema> = {
   mode: 'json'
   schema: S
   status?: number | readonly number[]
 }
 
-export type EmptyResponseMode = {
+type EmptyResponseMode = {
   mode: 'empty'
   status?: number | readonly number[]
 }
 
-export type TextResponseMode = {
+type TextResponseMode = {
   mode: 'text'
   status?: number | readonly number[]
 }
 
-export type BinaryResponseMode = {
+type BinaryResponseMode = {
   mode: 'binary'
   status?: number | readonly number[]
 }
 
-export type StreamResponseMode = {
+type StreamResponseMode = {
   mode: 'stream'
   status?: number | readonly number[]
 }
 
-export type RedirectResponseMode = {
+type RedirectResponseMode = {
   mode: 'redirect'
   status?: number | readonly number[]
 }
 
-export type ResponseMode<S extends ApiSchema = ApiSchema> =
+type ResponseMode<S extends ApiSchema = ApiSchema> =
   | JsonResponseMode<S>
   | EmptyResponseMode
   | TextResponseMode

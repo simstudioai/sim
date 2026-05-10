@@ -30,10 +30,10 @@ export const awsSecretsManagerGetSecretContract = defineRouteContract({
   body: GetSecretSchema,
   response: { mode: 'json', schema: GetSecretResponseSchema },
 })
-export type AwsSecretsManagerGetSecretRequest = ContractBodyInput<
+type AwsSecretsManagerGetSecretRequest = ContractBodyInput<
   typeof awsSecretsManagerGetSecretContract
 >
-export type AwsSecretsManagerGetSecretBody = ContractBody<typeof awsSecretsManagerGetSecretContract>
-export type AwsSecretsManagerGetSecretResponse = ContractJsonResponse<
+type AwsSecretsManagerGetSecretBody = ContractBody<typeof awsSecretsManagerGetSecretContract>
+type AwsSecretsManagerGetSecretResponse = ContractJsonResponse<
   typeof awsSecretsManagerGetSecretContract
 >

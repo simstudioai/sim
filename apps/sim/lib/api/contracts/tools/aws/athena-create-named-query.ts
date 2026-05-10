@@ -30,10 +30,8 @@ export const awsAthenaCreateNamedQueryContract = defineRouteContract({
   body: CreateNamedQuerySchema,
   response: { mode: 'json', schema: CreateNamedQueryResponseSchema },
 })
-export type AwsAthenaCreateNamedQueryRequest = ContractBodyInput<
-  typeof awsAthenaCreateNamedQueryContract
->
-export type AwsAthenaCreateNamedQueryBody = ContractBody<typeof awsAthenaCreateNamedQueryContract>
-export type AwsAthenaCreateNamedQueryResponse = ContractJsonResponse<
+type AwsAthenaCreateNamedQueryRequest = ContractBodyInput<typeof awsAthenaCreateNamedQueryContract>
+type AwsAthenaCreateNamedQueryBody = ContractBody<typeof awsAthenaCreateNamedQueryContract>
+type AwsAthenaCreateNamedQueryResponse = ContractJsonResponse<
   typeof awsAthenaCreateNamedQueryContract
 >

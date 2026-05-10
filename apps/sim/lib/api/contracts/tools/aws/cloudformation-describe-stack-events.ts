@@ -42,12 +42,12 @@ export const awsCloudformationDescribeStackEventsContract = defineRouteContract(
   body: DescribeStackEventsSchema,
   response: { mode: 'json', schema: DescribeStackEventsResponseSchema },
 })
-export type AwsCloudformationDescribeStackEventsRequest = ContractBodyInput<
+type AwsCloudformationDescribeStackEventsRequest = ContractBodyInput<
   typeof awsCloudformationDescribeStackEventsContract
 >
-export type AwsCloudformationDescribeStackEventsBody = ContractBody<
+type AwsCloudformationDescribeStackEventsBody = ContractBody<
   typeof awsCloudformationDescribeStackEventsContract
 >
-export type AwsCloudformationDescribeStackEventsResponse = ContractJsonResponse<
+type AwsCloudformationDescribeStackEventsResponse = ContractJsonResponse<
   typeof awsCloudformationDescribeStackEventsContract
 >

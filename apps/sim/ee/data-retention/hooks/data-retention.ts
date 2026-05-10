@@ -9,8 +9,8 @@ import {
   updateOrganizationDataRetentionContract,
 } from '@/lib/api/contracts/organization'
 
-export type RetentionValues = OrganizationRetentionValues
-export type DataRetentionResponse = OrganizationDataRetention
+type RetentionValues = OrganizationRetentionValues
+type DataRetentionResponse = OrganizationDataRetention
 
 export const dataRetentionKeys = {
   all: ['dataRetention'] as const,

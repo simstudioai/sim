@@ -46,9 +46,9 @@ interface ToolCall {
 }
 
 type BlockInputData = Record<string, any>
-export type BlockOutputData = NormalizedBlockOutput | null
+type BlockOutputData = NormalizedBlockOutput | null
 
-export interface ExecutionEnvironment {
+interface ExecutionEnvironment {
   variables: Record<string, string>
   workflowId: string
   executionId: string
@@ -84,14 +84,14 @@ export const EXECUTION_FINALIZATION_PATHS = [
 
 export type ExecutionFinalizationPath = (typeof EXECUTION_FINALIZATION_PATHS)[number]
 
-export interface ExecutionLastStartedBlock {
+interface ExecutionLastStartedBlock {
   blockId: string
   blockName: string
   blockType: string
   startedAt: string
 }
 
-export interface ExecutionLastCompletedBlock {
+interface ExecutionLastCompletedBlock {
   blockId: string
   blockName: string
   blockType: string
@@ -181,7 +181,7 @@ export interface WorkflowExecutionLog {
   createdAt: string
 }
 
-export type WorkflowExecutionLogInsert = Omit<WorkflowExecutionLog, 'id' | 'createdAt'>
+type WorkflowExecutionLogInsert = Omit<WorkflowExecutionLog, 'id' | 'createdAt'>
 type WorkflowExecutionLogSelect = WorkflowExecutionLog
 
 type TokenInfo = BlockTokens
@@ -418,7 +418,7 @@ export interface SnapshotCreationResult {
   isNew: boolean
 }
 
-export interface ExecutionLoggerService {
+interface ExecutionLoggerService {
   startWorkflowExecution(params: {
     workflowId: string
     workspaceId: string

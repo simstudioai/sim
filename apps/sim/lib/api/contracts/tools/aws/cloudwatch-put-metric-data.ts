@@ -87,10 +87,10 @@ export const awsCloudwatchPutMetricDataContract = defineRouteContract({
   body: PutMetricDataSchema,
   response: { mode: 'json', schema: PutMetricDataResponseSchema },
 })
-export type AwsCloudwatchPutMetricDataRequest = ContractBodyInput<
+type AwsCloudwatchPutMetricDataRequest = ContractBodyInput<
   typeof awsCloudwatchPutMetricDataContract
 >
-export type AwsCloudwatchPutMetricDataBody = ContractBody<typeof awsCloudwatchPutMetricDataContract>
-export type AwsCloudwatchPutMetricDataResponse = ContractJsonResponse<
+type AwsCloudwatchPutMetricDataBody = ContractBody<typeof awsCloudwatchPutMetricDataContract>
+type AwsCloudwatchPutMetricDataResponse = ContractJsonResponse<
   typeof awsCloudwatchPutMetricDataContract
 >

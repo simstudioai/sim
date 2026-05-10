@@ -6,7 +6,7 @@ import {
   createContext,
   isValidElement,
   memo,
-  useContext,
+  use,
   useEffect,
   useMemo,
   useRef,
@@ -684,7 +684,7 @@ function LiRenderer({
   children?: React.ReactNode
   node?: HastNode
 }) {
-  const ctx = useContext(MarkdownCheckboxCtx)
+  const ctx = use(MarkdownCheckboxCtx)
   const isTaskItem = typeof className === 'string' && className.includes('task-list-item')
 
   if (isTaskItem) {
@@ -724,8 +724,8 @@ function LiRenderer({
 }
 
 function InputRenderer({ type, checked, ...props }: React.ComponentPropsWithoutRef<'input'>) {
-  const ctx = useContext(MarkdownCheckboxCtx)
-  const index = useContext(CheckboxIndexCtx)
+  const ctx = use(MarkdownCheckboxCtx)
+  const index = use(CheckboxIndexCtx)
 
   if (type !== 'checkbox') return <input type={type} checked={checked} {...props} />
 
@@ -765,7 +765,7 @@ function isInternalHref(
 }
 
 function AnchorRenderer({ href, children }: { href?: string; children?: React.ReactNode }) {
-  const navigate = useContext(NavigateCtx)
+  const navigate = use(NavigateCtx)
   const parsed = href ? isInternalHref(href) : null
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {

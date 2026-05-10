@@ -37,12 +37,12 @@ export const awsCloudformationValidateTemplateContract = defineRouteContract({
   body: ValidateTemplateSchema,
   response: { mode: 'json', schema: ValidateTemplateResponseSchema },
 })
-export type AwsCloudformationValidateTemplateRequest = ContractBodyInput<
+type AwsCloudformationValidateTemplateRequest = ContractBodyInput<
   typeof awsCloudformationValidateTemplateContract
 >
-export type AwsCloudformationValidateTemplateBody = ContractBody<
+type AwsCloudformationValidateTemplateBody = ContractBody<
   typeof awsCloudformationValidateTemplateContract
 >
-export type AwsCloudformationValidateTemplateResponse = ContractJsonResponse<
+type AwsCloudformationValidateTemplateResponse = ContractJsonResponse<
   typeof awsCloudformationValidateTemplateContract
 >

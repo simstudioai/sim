@@ -1,6 +1,6 @@
 export type StreamingMode = 'append' | 'replace'
 
-export type TextEditorContentPhase = 'uninitialized' | 'ready' | 'streaming' | 'reconciling'
+type TextEditorContentPhase = 'uninitialized' | 'ready' | 'streaming' | 'reconciling'
 
 export interface TextEditorContentState {
   phase: TextEditorContentPhase
@@ -16,7 +16,7 @@ export interface SyncTextEditorContentStateOptions {
   streamingMode: StreamingMode
 }
 
-export type TextEditorContentAction =
+type TextEditorContentAction =
   | ({ type: 'sync-external' } & SyncTextEditorContentStateOptions)
   | { type: 'edit'; content: string }
   | { type: 'save-success'; content: string }

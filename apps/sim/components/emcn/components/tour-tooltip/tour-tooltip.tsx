@@ -226,4 +226,3 @@ function TourTooltip({
 }
 
 export { TourCard, TourTooltip }
-export type { TourCardProps, TourTooltipPlacement, TourTooltipProps }

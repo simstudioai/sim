@@ -26,12 +26,12 @@ export const awsCloudformationDetectStackDriftContract = defineRouteContract({
   body: DetectStackDriftSchema,
   response: { mode: 'json', schema: DetectStackDriftResponseSchema },
 })
-export type AwsCloudformationDetectStackDriftRequest = ContractBodyInput<
+type AwsCloudformationDetectStackDriftRequest = ContractBodyInput<
   typeof awsCloudformationDetectStackDriftContract
 >
-export type AwsCloudformationDetectStackDriftBody = ContractBody<
+type AwsCloudformationDetectStackDriftBody = ContractBody<
   typeof awsCloudformationDetectStackDriftContract
 >
-export type AwsCloudformationDetectStackDriftResponse = ContractJsonResponse<
+type AwsCloudformationDetectStackDriftResponse = ContractJsonResponse<
   typeof awsCloudformationDetectStackDriftContract
 >

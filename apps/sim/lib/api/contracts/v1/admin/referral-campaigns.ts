@@ -157,13 +157,11 @@ export type AdminV1ReferralCampaignDuration = ContractBody<
 export type AdminV1ReferralCampaignAppliesTo = NonNullable<
   ContractBody<typeof adminV1CreateReferralCampaignContract>['appliesTo']
 >[number]
-export type AdminV1ListReferralCampaignsQueryInput = ContractQueryInput<
+type AdminV1ListReferralCampaignsQueryInput = ContractQueryInput<
   typeof adminV1ListReferralCampaignsContract
 >
-export type AdminV1ListReferralCampaignsQuery = ContractQuery<
-  typeof adminV1ListReferralCampaignsContract
->
-export type AdminV1CreateReferralCampaignBodyInput = ContractBodyInput<
+type AdminV1ListReferralCampaignsQuery = ContractQuery<typeof adminV1ListReferralCampaignsContract>
+type AdminV1CreateReferralCampaignBodyInput = ContractBodyInput<
   typeof adminV1CreateReferralCampaignContract
 >
 type AdminV1CreateReferralCampaignBody = ContractBody<typeof adminV1CreateReferralCampaignContract>

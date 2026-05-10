@@ -38,12 +38,12 @@ export const awsIdentityCenterCheckAssignmentStatusContract = defineRouteContrac
   body: Schema,
   response: { mode: 'json', schema: ResponseSchema },
 })
-export type AwsIdentityCenterCheckAssignmentStatusRequest = ContractBodyInput<
+type AwsIdentityCenterCheckAssignmentStatusRequest = ContractBodyInput<
   typeof awsIdentityCenterCheckAssignmentStatusContract
 >
-export type AwsIdentityCenterCheckAssignmentStatusBody = ContractBody<
+type AwsIdentityCenterCheckAssignmentStatusBody = ContractBody<
   typeof awsIdentityCenterCheckAssignmentStatusContract
 >
-export type AwsIdentityCenterCheckAssignmentStatusResponse = ContractJsonResponse<
+type AwsIdentityCenterCheckAssignmentStatusResponse = ContractJsonResponse<
   typeof awsIdentityCenterCheckAssignmentStatusContract
 >

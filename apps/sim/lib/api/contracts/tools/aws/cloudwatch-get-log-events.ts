@@ -45,10 +45,8 @@ export const awsCloudwatchGetLogEventsContract = defineRouteContract({
   body: GetLogEventsSchema,
   response: { mode: 'json', schema: GetLogEventsResponseSchema },
 })
-export type AwsCloudwatchGetLogEventsRequest = ContractBodyInput<
-  typeof awsCloudwatchGetLogEventsContract
->
-export type AwsCloudwatchGetLogEventsBody = ContractBody<typeof awsCloudwatchGetLogEventsContract>
-export type AwsCloudwatchGetLogEventsResponse = ContractJsonResponse<
+type AwsCloudwatchGetLogEventsRequest = ContractBodyInput<typeof awsCloudwatchGetLogEventsContract>
+type AwsCloudwatchGetLogEventsBody = ContractBody<typeof awsCloudwatchGetLogEventsContract>
+type AwsCloudwatchGetLogEventsResponse = ContractJsonResponse<
   typeof awsCloudwatchGetLogEventsContract
 >

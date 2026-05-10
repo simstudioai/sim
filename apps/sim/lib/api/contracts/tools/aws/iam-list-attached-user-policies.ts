@@ -40,12 +40,12 @@ export const awsIamListAttachedUserPoliciesContract = defineRouteContract({
   body: Schema,
   response: { mode: 'json', schema: ListAttachedUserPoliciesResponseSchema },
 })
-export type AwsIamListAttachedUserPoliciesRequest = ContractBodyInput<
+type AwsIamListAttachedUserPoliciesRequest = ContractBodyInput<
   typeof awsIamListAttachedUserPoliciesContract
 >
-export type AwsIamListAttachedUserPoliciesBody = ContractBody<
+type AwsIamListAttachedUserPoliciesBody = ContractBody<
   typeof awsIamListAttachedUserPoliciesContract
 >
-export type AwsIamListAttachedUserPoliciesResponse = ContractJsonResponse<
+type AwsIamListAttachedUserPoliciesResponse = ContractJsonResponse<
   typeof awsIamListAttachedUserPoliciesContract
 >

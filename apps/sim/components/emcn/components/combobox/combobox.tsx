@@ -74,7 +74,7 @@ export type ComboboxOptionGroup = {
   items: ComboboxOption[]
 }
 
-export interface ComboboxProps
+interface ComboboxProps
   extends Omit<HTMLAttributes<HTMLDivElement>, 'onChange'>,
     VariantProps<typeof comboboxVariants> {
   /** Available options for selection */
@@ -854,4 +854,4 @@ const Combobox = memo(
 
 Combobox.displayName = 'Combobox'
 
-export { Combobox, comboboxVariants }
+export { Combobox }

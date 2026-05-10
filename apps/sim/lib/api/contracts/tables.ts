@@ -908,9 +908,9 @@ export const runColumnContract = defineRouteContract({
 
 export type AddWorkflowGroupBodyInput = z.input<typeof addWorkflowGroupBodySchema>
 export type UpdateWorkflowGroupBodyInput = z.input<typeof updateWorkflowGroupBodySchema>
-export type DeleteWorkflowGroupBodyInput = z.input<typeof deleteWorkflowGroupBodySchema>
-export type CancelTableRunsBodyInput = z.input<typeof cancelTableRunsBodySchema>
-export type RunColumnBodyInput = z.input<typeof runColumnBodySchema>
+type DeleteWorkflowGroupBodyInput = z.input<typeof deleteWorkflowGroupBodySchema>
+type CancelTableRunsBodyInput = z.input<typeof cancelTableRunsBodySchema>
+type RunColumnBodyInput = z.input<typeof runColumnBodySchema>
 /** Shared `runMode` union — used by every UI / hook / Mothership site that
  *  builds a run-column payload. Single source of truth for the literal pair. */
 export type RunMode = NonNullable<RunColumnBodyInput['runMode']>

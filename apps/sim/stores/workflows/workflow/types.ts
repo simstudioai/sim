@@ -24,7 +24,7 @@ export type {
   Variable,
   WorkflowState,
 }
-export interface WorkflowActions {
+interface WorkflowActions {
   updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void
   batchUpdateBlocksWithParent: (
     updates: Array<{
@@ -87,4 +87,4 @@ export interface WorkflowActions {
   setCurrentWorkflowId: (workflowId: string | null) => void
 }
 
-export type WorkflowStore = WorkflowState & WorkflowActions
+type WorkflowStore = WorkflowState & WorkflowActions

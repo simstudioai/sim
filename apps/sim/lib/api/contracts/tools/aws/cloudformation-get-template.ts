@@ -27,12 +27,10 @@ export const awsCloudformationGetTemplateContract = defineRouteContract({
   body: GetTemplateSchema,
   response: { mode: 'json', schema: GetTemplateResponseSchema },
 })
-export type AwsCloudformationGetTemplateRequest = ContractBodyInput<
+type AwsCloudformationGetTemplateRequest = ContractBodyInput<
   typeof awsCloudformationGetTemplateContract
 >
-export type AwsCloudformationGetTemplateBody = ContractBody<
-  typeof awsCloudformationGetTemplateContract
->
-export type AwsCloudformationGetTemplateResponse = ContractJsonResponse<
+type AwsCloudformationGetTemplateBody = ContractBody<typeof awsCloudformationGetTemplateContract>
+type AwsCloudformationGetTemplateResponse = ContractJsonResponse<
   typeof awsCloudformationGetTemplateContract
 >

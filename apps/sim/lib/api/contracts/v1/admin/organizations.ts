@@ -314,42 +314,40 @@ export const adminV1TransferOwnershipContract = defineRouteContract({
   },
 })
 
-export type AdminV1ListOrganizationsResponse = ContractJsonResponse<
+type AdminV1ListOrganizationsResponse = ContractJsonResponse<
   typeof adminV1ListOrganizationsContract
 >
-export type AdminV1CreateOrganizationResponse = ContractJsonResponse<
+type AdminV1CreateOrganizationResponse = ContractJsonResponse<
   typeof adminV1CreateOrganizationContract
 >
-export type AdminV1GetOrganizationResponse = ContractJsonResponse<
-  typeof adminV1GetOrganizationContract
->
-export type AdminV1UpdateOrganizationResponse = ContractJsonResponse<
+type AdminV1GetOrganizationResponse = ContractJsonResponse<typeof adminV1GetOrganizationContract>
+type AdminV1UpdateOrganizationResponse = ContractJsonResponse<
   typeof adminV1UpdateOrganizationContract
 >
-export type AdminV1ListOrganizationMembersResponse = ContractJsonResponse<
+type AdminV1ListOrganizationMembersResponse = ContractJsonResponse<
   typeof adminV1ListOrganizationMembersContract
 >
-export type AdminV1AddOrganizationMemberResponse = ContractJsonResponse<
+type AdminV1AddOrganizationMemberResponse = ContractJsonResponse<
   typeof adminV1AddOrganizationMemberContract
 >
-export type AdminV1GetOrganizationMemberResponse = ContractJsonResponse<
+type AdminV1GetOrganizationMemberResponse = ContractJsonResponse<
   typeof adminV1GetOrganizationMemberContract
 >
-export type AdminV1UpdateOrganizationMemberResponse = ContractJsonResponse<
+type AdminV1UpdateOrganizationMemberResponse = ContractJsonResponse<
   typeof adminV1UpdateOrganizationMemberContract
 >
-export type AdminV1RemoveOrganizationMemberResponse = ContractJsonResponse<
+type AdminV1RemoveOrganizationMemberResponse = ContractJsonResponse<
   typeof adminV1RemoveOrganizationMemberContract
 >
-export type AdminV1GetOrganizationBillingResponse = ContractJsonResponse<
+type AdminV1GetOrganizationBillingResponse = ContractJsonResponse<
   typeof adminV1GetOrganizationBillingContract
 >
-export type AdminV1UpdateOrganizationBillingResponse = ContractJsonResponse<
+type AdminV1UpdateOrganizationBillingResponse = ContractJsonResponse<
   typeof adminV1UpdateOrganizationBillingContract
 >
-export type AdminV1GetOrganizationSeatsResponse = ContractJsonResponse<
+type AdminV1GetOrganizationSeatsResponse = ContractJsonResponse<
   typeof adminV1GetOrganizationSeatsContract
 >
-export type AdminV1TransferOwnershipResponse = ContractJsonResponse<
+type AdminV1TransferOwnershipResponse = ContractJsonResponse<
   typeof adminV1TransferOwnershipContract
 >

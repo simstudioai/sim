@@ -2,9 +2,9 @@
 // Generated from copilot/contracts/tool-catalog-v1.json
 //
 
-export type JsonSchema = unknown
+type JsonSchema = unknown
 
-export interface ToolRuntimeSchemaEntry {
+interface ToolRuntimeSchemaEntry {
   parameters?: JsonSchema
   resultSchema?: JsonSchema
 }

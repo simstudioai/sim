@@ -34,12 +34,12 @@ export const awsIdentityCenterDescribeAccountContract = defineRouteContract({
   body: Schema,
   response: { mode: 'json', schema: ResponseSchema },
 })
-export type AwsIdentityCenterDescribeAccountRequest = ContractBodyInput<
+type AwsIdentityCenterDescribeAccountRequest = ContractBodyInput<
   typeof awsIdentityCenterDescribeAccountContract
 >
-export type AwsIdentityCenterDescribeAccountBody = ContractBody<
+type AwsIdentityCenterDescribeAccountBody = ContractBody<
   typeof awsIdentityCenterDescribeAccountContract
 >
-export type AwsIdentityCenterDescribeAccountResponse = ContractJsonResponse<
+type AwsIdentityCenterDescribeAccountResponse = ContractJsonResponse<
   typeof awsIdentityCenterDescribeAccountContract
 >

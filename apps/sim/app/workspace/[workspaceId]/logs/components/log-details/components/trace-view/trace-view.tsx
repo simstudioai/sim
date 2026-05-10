@@ -721,7 +721,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
             {Number.isFinite(startedAt) && startedAt > 0 && (
               <>
                 <span>·</span>
-                <span title={new Date(startedAt).toISOString()}>
+                <span title={new Date(startedAt).toISOString()} suppressHydrationWarning>
                   {new Date(startedAt).toLocaleTimeString()}
                 </span>
               </>
@@ -768,10 +768,10 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
 
       {Number.isFinite(startedAt) && Number.isFinite(endedAt) && startedAt > 0 && endedAt > 0 && (
         <div className='flex items-center justify-between font-medium text-[var(--text-tertiary)] text-caption'>
-          <span title={new Date(startedAt).toISOString()}>
+          <span title={new Date(startedAt).toISOString()} suppressHydrationWarning>
             Started {new Date(startedAt).toLocaleTimeString()}
           </span>
-          <span title={new Date(endedAt).toISOString()}>
+          <span title={new Date(endedAt).toISOString()} suppressHydrationWarning>
             Ended {new Date(endedAt).toLocaleTimeString()}
           </span>
         </div>

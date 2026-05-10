@@ -239,7 +239,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           <Badge>{DESTINATION_LABELS[drain.destinationType]}</Badge>
         </TableCell>
         <TableCell>{CADENCE_LABELS[drain.scheduleCadence]}</TableCell>
-        <TableCell className='text-[13px] text-[var(--text-muted)]'>
+        <TableCell className='text-[13px] text-[var(--text-muted)]' suppressHydrationWarning>
           {drain.lastRunAt ? new Date(drain.lastRunAt).toLocaleString() : 'Never'}
         </TableCell>
         <TableCell onClick={(e) => e.stopPropagation()}>
@@ -317,7 +317,7 @@ function RunRow({ run }: { run: DataDrainRun }) {
         <div className='flex items-center gap-2'>
           <span className={cn('font-medium', statusColor)}>{run.status}</span>
           <span className='text-[var(--text-muted)]'>{run.trigger}</span>
-          <span className='text-[var(--text-muted)]'>
+          <span className='text-[var(--text-muted)]' suppressHydrationWarning>
             {new Date(run.startedAt).toLocaleString()}
           </span>
         </div>

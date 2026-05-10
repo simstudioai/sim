@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 
-export type DeployReadinessStatus =
+type DeployReadinessStatus =
   | 'ready'
   | 'missing-workflow'
   | 'saving'

@@ -41,12 +41,12 @@ export const awsIdentityCenterDeleteAccountAssignmentContract = defineRouteContr
   body: Schema,
   response: { mode: 'json', schema: ResponseSchema },
 })
-export type AwsIdentityCenterDeleteAccountAssignmentRequest = ContractBodyInput<
+type AwsIdentityCenterDeleteAccountAssignmentRequest = ContractBodyInput<
   typeof awsIdentityCenterDeleteAccountAssignmentContract
 >
-export type AwsIdentityCenterDeleteAccountAssignmentBody = ContractBody<
+type AwsIdentityCenterDeleteAccountAssignmentBody = ContractBody<
   typeof awsIdentityCenterDeleteAccountAssignmentContract
 >
-export type AwsIdentityCenterDeleteAccountAssignmentResponse = ContractJsonResponse<
+type AwsIdentityCenterDeleteAccountAssignmentResponse = ContractJsonResponse<
   typeof awsIdentityCenterDeleteAccountAssignmentContract
 >

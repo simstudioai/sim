@@ -76,8 +76,8 @@ const adminV1IssueCreditsBodySchema = z
   .refine((body) => body.userId || body.email, {
     error: 'Either userId or email is required',
   })
-export type AdminV1IssueCreditsBodyInput = z.input<typeof adminV1IssueCreditsBodySchema>
-export type AdminV1IssueCreditsBody = z.output<typeof adminV1IssueCreditsBodySchema>
+type AdminV1IssueCreditsBodyInput = z.input<typeof adminV1IssueCreditsBodySchema>
+type AdminV1IssueCreditsBody = z.output<typeof adminV1IssueCreditsBodySchema>
 
 const adminV1IssueCreditsResultSchema = z.object({
   success: z.literal(true),
@@ -100,12 +100,10 @@ export const adminV1IssueCreditsContract = defineRouteContract({
   },
 })
 
-export type AdminV1ListSubscriptionsResponse = ContractJsonResponse<
+type AdminV1ListSubscriptionsResponse = ContractJsonResponse<
   typeof adminV1ListSubscriptionsContract
 >
-export type AdminV1GetSubscriptionResponse = ContractJsonResponse<
-  typeof adminV1GetSubscriptionContract
->
-export type AdminV1CancelSubscriptionResponse = ContractJsonResponse<
+type AdminV1GetSubscriptionResponse = ContractJsonResponse<typeof adminV1GetSubscriptionContract>
+type AdminV1CancelSubscriptionResponse = ContractJsonResponse<
   typeof adminV1CancelSubscriptionContract
 >

@@ -1,10 +1,10 @@
 import { cn } from '@/lib/core/utils/cn'
 
-export type BlockDiffStatus = 'new' | 'edited' | null | undefined
+type BlockDiffStatus = 'new' | 'edited' | null | undefined
 
-export type BlockRunPathStatus = 'success' | 'error' | undefined
+type BlockRunPathStatus = 'success' | 'error' | undefined
 
-export interface BlockRingOptions {
+interface BlockRingOptions {
   /** Whether the block is executing (shows green pulsing ring) */
   isExecuting: boolean
   /** Whether the editor panel is open for this block (shows blue ring) */
