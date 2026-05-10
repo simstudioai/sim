@@ -57,7 +57,7 @@ export function Video({
           type='button'
           onClick={openLightbox}
           aria-label={`Open ${src} in media viewer`}
-          className='group inline-block cursor-pointer rounded-xl p-0 text-left'
+          className='group block w-full cursor-pointer rounded-xl p-0 text-left'
         >
           {video}
         </button>

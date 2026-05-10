@@ -41,7 +41,7 @@ export function Image({
           type='button'
           onClick={openLightbox}
           aria-label={`Open ${alt} in media viewer`}
-          className='group inline-block cursor-pointer rounded-xl p-0 text-left'
+          className='group block w-full cursor-pointer rounded-xl p-0 text-left'
         >
           {image}
         </button>

@@ -35,7 +35,11 @@ async function getSearchParams(request: NextRequest) {
   let body: SearchRequestBody = {}
 
   if (contentType.includes('application/json')) {
-    body = (await request.json()) as SearchRequestBody
+    try {
+      body = (await request.json()) as SearchRequestBody
+    } catch {
+      body = {}
+    }
   } else if (
     contentType.includes('application/x-www-form-urlencoded') ||
     contentType.includes('multipart/form-data')
