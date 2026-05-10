@@ -269,9 +269,9 @@ export function RecentlyDeleted() {
   function handleView(resource: DeletedResource) {
     if (resource.type === 'folder') {
       const setExpanded = useFolderStore.getState().setExpanded
-      const byId = new Map<string, WorkflowFolder>(
-        (activeFoldersQuery.data ?? []).map((folder) => [folder.id, folder])
-      )
+      const byId = new Map<string, WorkflowFolder>()
+      for (const folder of foldersQuery.data ?? []) byId.set(folder.id, folder)
+      for (const folder of activeFoldersQuery.data ?? []) byId.set(folder.id, folder)
       let current: WorkflowFolder | undefined = byId.get(resource.id)
       const seen = new Set<string>()
       while (current && !seen.has(current.id)) {
