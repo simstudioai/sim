@@ -1482,10 +1482,7 @@ export class PauseResumeManager {
       snapshotData.state = executionState
     }
 
-    // Update the DAG incoming edges in the snapshot
-    // Remove the edge from the resumed pause block
     if (snapshotData.state) {
-      // Track completed pause contexts so future resumes remove their edges
       const completedPauseContexts = new Set<string>(
         (snapshotData.state.completedPauseContexts ?? []).map((id: string) =>
           PauseResumeManager.normalizePauseBlockId(id)
@@ -1497,7 +1494,6 @@ export class PauseResumeManager {
       const dagIncomingEdges = snapshotData.state.dagIncomingEdges
 
       if (dagIncomingEdges) {
-        // Find all edges from the resumed pause block and remove them from targets
         const workflowData = snapshotData.workflow
         const connections = workflowData.connections || []
 
@@ -1505,7 +1501,6 @@ export class PauseResumeManager {
           if (conn.source === pauseBlockId) {
             const targetId = conn.target
             if (dagIncomingEdges[targetId]) {
-              // Remove this source from the target's incoming edges
               dagIncomingEdges[targetId] = dagIncomingEdges[targetId].filter(
                 (sourceId: string) => sourceId !== pauseBlockId
               )
@@ -1521,7 +1516,6 @@ export class PauseResumeManager {
       }
     }
 
-    // Update the snapshot in the database
     const updatedSnapshot: SerializedSnapshot = {
       snapshot: JSON.stringify(snapshotData),
       triggerIds: currentSnapshot.triggerIds,

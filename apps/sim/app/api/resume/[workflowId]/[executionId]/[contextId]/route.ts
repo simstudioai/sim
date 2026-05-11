@@ -284,7 +284,7 @@ export const POST = withRouteHandler(
         executionId: enqueueResult.resumeExecutionId,
         message: 'Resume execution started.',
       })
-    } catch (error: any) {
+    } catch (error) {
       logger.error('Resume request failed', {
         workflowId,
         executionId,
@@ -292,7 +292,7 @@ export const POST = withRouteHandler(
         error,
       })
       return NextResponse.json(
-        { error: error.message || 'Failed to queue resume request' },
+        { error: toError(error).message || 'Failed to queue resume request' },
         { status: 400 }
       )
     }

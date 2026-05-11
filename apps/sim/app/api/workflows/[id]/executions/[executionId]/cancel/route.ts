@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
@@ -293,10 +294,14 @@ export const POST = withRouteHandler(
         pausedCancelled,
         reason,
       })
-    } catch (error: any) {
-      logger.error('Failed to cancel execution', { workflowId, executionId, error: error.message })
+    } catch (error) {
+      logger.error('Failed to cancel execution', {
+        workflowId,
+        executionId,
+        error: toError(error).message,
+      })
       return NextResponse.json(
-        { error: error.message || 'Failed to cancel execution' },
+        { error: toError(error).message || 'Failed to cancel execution' },
         { status: 500 }
       )
     }
