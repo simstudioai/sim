@@ -19,25 +19,36 @@ export interface LargeValueRef {
 }
 
 const LARGE_VALUE_ID_PATTERN = /^lv_[A-Za-z0-9_-]{12}$/
+
+export function isLargeValueStorageKey(key: string, id: string, executionId?: string): boolean {
+  if (!key.startsWith('execution/')) return false
+  if (!key.endsWith(`/large-value-${id}.json`)) return false
+  if (executionId && !key.includes(`/${executionId}/`)) return false
+  return true
+}
+
 export function isLargeValueRef(value: unknown): value is LargeValueRef {
   if (!value || typeof value !== 'object') return false
 
   const candidate = value as Record<string, unknown>
+  const id = candidate.id
   const key = candidate.key
   const executionId = candidate.executionId
 
   return (
     candidate[LARGE_VALUE_REF_MARKER] === true &&
     candidate.version === LARGE_VALUE_REF_VERSION &&
-    typeof candidate.id === 'string' &&
-    LARGE_VALUE_ID_PATTERN.test(candidate.id) &&
+    typeof id === 'string' &&
+    LARGE_VALUE_ID_PATTERN.test(id) &&
     typeof candidate.kind === 'string' &&
     (LARGE_VALUE_KINDS as readonly string[]).includes(candidate.kind) &&
     typeof candidate.size === 'number' &&
     Number.isFinite(candidate.size) &&
     candidate.size > 0 &&
-    (key === undefined || typeof key === 'string') &&
-    (executionId === undefined || typeof executionId === 'string')
+    (executionId === undefined || typeof executionId === 'string') &&
+    (key === undefined ||
+      (typeof key === 'string' &&
+        isLargeValueStorageKey(key, id, executionId as string | undefined)))
   )
 }
 

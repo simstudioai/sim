@@ -80,7 +80,7 @@ result = client.execute_workflow(
 
 **Returns:** `WorkflowExecutionResult | AsyncExecutionResult`
 
-When `async_execution=True`, returns immediately with a task ID for polling. Otherwise, waits for completion.
+When `async_execution=True`, returns immediately with a `job_id` and `status_url` for polling. Otherwise, waits for completion.
 
 ##### get_workflow_status()
 
@@ -117,20 +117,20 @@ if is_ready:
 Get the status of an async job execution.
 
 ```python
-status = client.get_job_status("task-id-from-async-execution")
+status = client.get_job_status("job-id-from-async-execution")
 print("Status:", status["status"])  # 'queued', 'processing', 'completed', 'failed'
 if status["status"] == "completed":
     print("Output:", status["output"])
 ```
 
 **Parameters:**
-- `task_id` (str): The task ID returned from async execution
+- `task_id` (str): The job ID returned from async execution
 
 **Returns:** `Dict[str, Any]`
 
 **Response fields:**
 - `success` (bool): Whether the request was successful
-- `taskId` (str): The task ID
+- `taskId` (str): The job ID
 - `status` (str): One of `'queued'`, `'processing'`, `'completed'`, `'failed'`, `'cancelled'`
 - `metadata` (dict): Contains `startedAt`, `completedAt`, and `duration`
 - `output` (any, optional): The workflow output (when completed)
@@ -270,10 +270,11 @@ class WorkflowExecutionResult:
 @dataclass
 class AsyncExecutionResult:
     success: bool
-    task_id: str
-    status: str  # 'queued'
-    created_at: str
-    links: Dict[str, str]  # e.g., {"status": "/api/jobs/{taskId}"}
+    job_id: str
+    status_url: str
+    execution_id: Optional[str] = None
+    message: str = ""
+    async_execution: bool = True
 ```
 
 ### WorkflowStatus
@@ -493,17 +494,17 @@ def execute_async():
         )
 
         # Check if result is an async execution
-        if hasattr(result, 'task_id'):
-            print(f"Task ID: {result.task_id}")
-            print(f"Status endpoint: {result.links['status']}")
+        if hasattr(result, 'job_id'):
+            print(f"Job ID: {result.job_id}")
+            print(f"Status endpoint: {result.status_url}")
 
             # Poll for completion
-            status = client.get_job_status(result.task_id)
+            status = client.get_job_status(result.job_id)
 
             while status["status"] in ["queued", "processing"]:
                 print(f"Current status: {status['status']}")
                 time.sleep(2)  # Wait 2 seconds
-                status = client.get_job_status(result.task_id)
+                status = client.get_job_status(result.job_id)
 
             if status["status"] == "completed":
                 print("Workflow completed!")
@@ -764,7 +765,7 @@ import { FAQ } from '@/components/ui/faq'
 
 <FAQ items={[
   { question: "Do I need to deploy a workflow before I can execute it via the SDK?", answer: "Yes. Workflows must be deployed before they can be executed through the SDK. You can use the validate_workflow() method to check whether a workflow is deployed and ready. If it returns False, deploy the workflow from the Sim UI first and create or select an API key during deployment." },
-  { question: "What is the difference between sync and async execution?", answer: "Sync execution (the default) blocks until the workflow completes and returns the full result. Async execution (async_execution=True) returns immediately with a task ID that you can poll using get_job_status(). Use async mode for long-running workflows to avoid request timeouts. Async job statuses include queued, processing, completed, failed, and cancelled." },
+  { question: "What is the difference between sync and async execution?", answer: "Sync execution (the default) blocks until the workflow completes and returns the full result. Async execution (async_execution=True) returns immediately with a job ID and status URL that you can poll using get_job_status(). Use async mode for long-running workflows to avoid request timeouts. Async job statuses include queued, processing, completed, failed, and cancelled." },
   { question: "How does the SDK handle rate limiting?", answer: "The SDK provides built-in rate limiting support through the execute_with_retry() method. It uses exponential backoff (1s, 2s, 4s, 8s...) with 25% jitter to avoid thundering herd problems. If the API returns a retry-after header, that value is used instead. You can configure max_retries, initial_delay, max_delay, and backoff_multiplier. Use get_rate_limit_info() to check your current rate limit status." },
   { question: "Can I use the Python SDK as a context manager?", answer: "Yes. The SimStudioClient supports Python's context manager protocol. Use it with the 'with' statement to automatically close the underlying HTTP session when you are done, which is especially useful for scripts that create and discard client instances." },
   { question: "How do I handle different types of errors from the SDK?", answer: "The SDK raises SimStudioError with a code property for API-specific errors. Common error codes are UNAUTHORIZED (invalid API key), TIMEOUT (request timed out), RATE_LIMIT_EXCEEDED (too many requests), USAGE_LIMIT_EXCEEDED (billing limit reached), and EXECUTION_ERROR (workflow failed). Use the error code to implement targeted error handling and recovery logic." },

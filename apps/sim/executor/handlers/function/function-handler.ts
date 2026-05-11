@@ -49,7 +49,7 @@ export class FunctionBlockHandler implements BlockHandler {
       readCodeContent(inputs[FUNCTION_BLOCK_DISPLAY_CODE_KEY]) ??
       readCodeContent((block.config?.params as Record<string, unknown> | undefined)?.code)
 
-    const { blockData, blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
+    const { blockNameMapping, blockOutputSchemas } = collectBlockData(ctx)
 
     const contextVariables = normalizeRecord(inputs[FUNCTION_BLOCK_CONTEXT_VARS_KEY])
 
@@ -60,13 +60,16 @@ export class FunctionBlockHandler implements BlockHandler {
       timeout: inputs.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
       envVars: normalizeStringRecord(ctx.environmentVariables),
       workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
-      blockData,
+      blockData: {},
       blockNameMapping,
       blockOutputSchemas,
       contextVariables,
       _context: {
         workflowId: ctx.workflowId,
         workspaceId: ctx.workspaceId,
+        executionId: ctx.executionId,
+        largeValueExecutionIds: ctx.largeValueExecutionIds,
+        allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
         userId: ctx.userId,
         isDeployedContext: ctx.isDeployedContext,
         enforceCredentialAccess: ctx.enforceCredentialAccess,

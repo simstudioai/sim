@@ -29,9 +29,6 @@ export interface ExpansionResult {
 }
 
 export class ParallelExpander {
-  /** Monotonically increasing counter for generating unique pre-expansion clone IDs. */
-  private cloneSeq = 0
-
   expandParallel(
     dag: DAG,
     parallelId: string,
@@ -124,14 +121,15 @@ export class ParallelExpander {
         ? buildParallelSentinelEndId(subflowId)
         : buildSentinelEndId(subflowId)
 
-      // Branch 0 uses original nodes
-      if (dag.nodes.has(startId)) entryNodes.push(startId)
-      if (dag.nodes.has(endId)) terminalNodes.push(endId)
-
-      // Branches 1..N clone the entire subflow graph (recursively for deep nesting)
-      for (let i = 1; i < branchCount; i++) {
+      for (let i = 0; i < branchCount; i++) {
         const globalBranchIndex = branchIndexOffset + i
-        const cloned = this.cloneNestedSubflow(dag, subflowId, i, clonedSubflows)
+        if (globalBranchIndex === 0) {
+          if (dag.nodes.has(startId)) entryNodes.push(startId)
+          if (dag.nodes.has(endId)) terminalNodes.push(endId)
+          continue
+        }
+
+        const cloned = this.cloneNestedSubflow(dag, subflowId, globalBranchIndex, clonedSubflows)
 
         entryNodes.push(cloned.startId)
         terminalNodes.push(cloned.endId)
@@ -290,14 +288,23 @@ export class ParallelExpander {
   /**
    * Generates a unique clone ID for pre-expansion cloning.
    *
-   * Pre-expansion clones use `{originalId}__clone{N}__obranch-{branchIndex}` instead
+   * Pre-expansion clones use `{originalId}__clone{hash}__obranch-{branchIndex}` instead
    * of the plain `{originalId}__obranch-{branchIndex}` used by runtime expansion.
-   * The `__clone{N}` segment (from a monotonic counter) prevents naming collisions
-   * when the original (branch-0) subflow later expands at runtime and creates
-   * `{child}__obranch-{branchIndex}`.
+   * The clone segment prevents naming collisions when the original (branch-0)
+   * subflow later expands at runtime and creates `{child}__obranch-{branchIndex}`.
+   * Keeping it deterministic lets pause/resume rebuild the same active branch IDs.
    */
-  private buildPreCloneId(originalId: string, outerBranchIndex: number): string {
-    return `${originalId}__clone${this.cloneSeq++}__obranch-${outerBranchIndex}`
+  private buildPreCloneIdForParent(
+    originalId: string,
+    outerBranchIndex: number,
+    parentCloneId: string
+  ): string {
+    let hash = 0
+    const input = `${parentCloneId}:${originalId}:${outerBranchIndex}`
+    for (let i = 0; i < input.length; i++) {
+      hash = (hash * 31 + input.charCodeAt(i)) >>> 0
+    }
+    return `${originalId}__clone${hash}__obranch-${outerBranchIndex}`
   }
 
   /**
@@ -305,8 +312,8 @@ export class ParallelExpander {
    *
    * The top-level subflow gets a standard `__obranch-{N}` clone ID (needed by
    * `findEffectiveContainerId` at runtime). All deeper children — both containers
-   * and regular blocks — receive unique `__clone{N}__obranch-{M}` IDs via
-   * {@link buildPreCloneId} to avoid collisions with runtime expansion.
+   * and regular blocks — receive deterministic `__clone{N}__obranch-{M}` IDs to
+   * avoid collisions with runtime expansion.
    */
   private cloneNestedSubflow(
     dag: DAG,
@@ -369,7 +376,7 @@ export class ParallelExpander {
       const isNestedLoop = dag.loopConfigs.has(blockId)
 
       if (isNestedParallel || isNestedLoop) {
-        const nestedClonedId = this.buildPreCloneId(blockId, outerBranchIndex)
+        const nestedClonedId = this.buildPreCloneIdForParent(blockId, outerBranchIndex, clonedId)
         clonedBlockIds.push(nestedClonedId)
 
         const innerResult = this.cloneSubflowGraph(
@@ -389,7 +396,7 @@ export class ParallelExpander {
           outerBranchIndex,
         })
       } else {
-        const clonedBlockId = this.buildPreCloneId(blockId, outerBranchIndex)
+        const clonedBlockId = this.buildPreCloneIdForParent(blockId, outerBranchIndex, clonedId)
         clonedBlockIds.push(clonedBlockId)
 
         if (isParallel) {

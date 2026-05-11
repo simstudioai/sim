@@ -88,6 +88,19 @@ describe('compactExecutionPayload', () => {
     ).toBe(false)
   })
 
+  it('rejects ref-shaped user data with non-execution storage keys', () => {
+    expect(
+      isLargeValueRef({
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_ABCDEFGHIJKL',
+        kind: 'object',
+        size: 1024,
+        key: 'https://example.com/large-value-lv_ABCDEFGHIJKL.json',
+      })
+    ).toBe(false)
+  })
+
   it('omits opaque ref IDs from user-facing materialization errors', () => {
     const error = getLargeValueMaterializationError({
       __simLargeValueRef: true,

@@ -1,24 +1,24 @@
 import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
+import {
+  assertUserFileContentAccess,
+  readUserFileContent,
+} from '@/lib/execution/payloads/materialization.server'
 import {
   type ExecutionRedisBudgetReservation,
   releaseExecutionRedisBytes,
   reserveExecutionRedisBytes,
 } from '@/lib/execution/redis-budget.server'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
-import { bufferToBase64 } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage, downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 
 const INLINE_BASE64_JSON_OVERHEAD_BYTES = 512 * 1024
 const DEFAULT_MAX_BASE64_BYTES = Math.floor(
   (LARGE_VALUE_THRESHOLD_BYTES - INLINE_BASE64_JSON_OVERHEAD_BYTES) * 0.75
 )
-const DEFAULT_TIMEOUT_MS = getMaxExecutionTimeout()
 const DEFAULT_CACHE_TTL_SECONDS = 300
 const REDIS_KEY_PREFIX = 'user-file:base64:'
 
@@ -35,7 +35,11 @@ interface HydrationState {
 
 export interface Base64HydrationOptions {
   requestId?: string
+  workspaceId?: string
+  workflowId?: string
   executionId?: string
+  largeValueExecutionIds?: string[]
+  allowLargeValueWorkflowScope?: boolean
   userId?: string
   logger?: Logger
   maxBytes?: number
@@ -175,7 +179,6 @@ async function resolveBase64(
   }
 
   const allowUnknownSize = options.allowUnknownSize ?? false
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const hasStableStorageKey = Boolean(file.key)
 
   if (Number.isFinite(file.size) && file.size > maxBytes) {
@@ -194,40 +197,24 @@ async function resolveBase64(
     return null
   }
 
-  let buffer: Buffer | null = null
   const requestId = options.requestId ?? 'unknown'
-
-  if (file.key) {
-    try {
-      buffer = await downloadFileFromStorage(file, requestId, logger)
-    } catch (error) {
-      logger.warn(
-        `[${requestId}] Failed to download ${file.name} from storage, trying URL fallback`,
-        error
-      )
-    }
-  }
-
-  if (!buffer && file.url) {
-    try {
-      buffer = await downloadFileFromUrl(file.url, timeoutMs)
-    } catch (error) {
-      logger.warn(`[${requestId}] Failed to download ${file.name} from URL`, error)
-    }
-  }
-
-  if (!buffer) {
+  try {
+    return await readUserFileContent(file, {
+      requestId,
+      workspaceId: options.workspaceId,
+      workflowId: options.workflowId,
+      executionId: options.executionId,
+      largeValueExecutionIds: options.largeValueExecutionIds,
+      allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
+      userId: options.userId,
+      encoding: 'base64',
+      maxBytes,
+      maxSourceBytes: maxBytes,
+    })
+  } catch (error) {
+    logger.warn(`[${requestId}] Failed to hydrate base64 for ${file.name}`, error)
     return null
   }
-
-  if (buffer.length > maxBytes) {
-    logger.warn(
-      `[${options.requestId}] Skipping base64 for ${file.name} (downloaded ${buffer.length} exceeds ${maxBytes})`
-    )
-    return null
-  }
-
-  return bufferToBase64(buffer)
 }
 
 async function hydrateUserFile(
@@ -236,6 +223,24 @@ async function hydrateUserFile(
   state: HydrationState,
   logger: Logger
 ): Promise<UserFile> {
+  if (!file.base64) {
+    try {
+      await assertUserFileContentAccess(file, {
+        requestId: options.requestId,
+        workspaceId: options.workspaceId,
+        workflowId: options.workflowId,
+        executionId: options.executionId,
+        largeValueExecutionIds: options.largeValueExecutionIds,
+        allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
+        userId: options.userId,
+        logger,
+      })
+    } catch (error) {
+      logger.warn(`[${options.requestId ?? 'unknown'}] Skipping unauthorized file base64`, error)
+      return stripBase64(file)
+    }
+  }
+
   const cached = await state.cache.get(file)
   if (cached) {
     const maxBytes = Math.min(

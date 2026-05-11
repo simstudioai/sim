@@ -4,6 +4,7 @@ import { isReference, normalizeName, parseReferencePath, REFERENCE } from '@/exe
 import { InvalidFieldError } from '@/executor/utils/block-reference'
 import {
   extractBranchIndex,
+  extractOuterBranchIndex,
   findEffectiveContainerId,
   stripCloneSuffixes,
   stripOuterBranchSuffix,
@@ -132,7 +133,7 @@ export class ParallelResolver implements Resolver {
       throw new InvalidFieldError(firstPart, rest[0], [...PARALLEL_OUTPUT_FIELDS])
     }
 
-    const branchIndex = extractBranchIndex(context.currentNodeId)
+    const branchIndex = this.resolveBranchIndex(targetParallelId, context)
     if (branchIndex === null) {
       return undefined
     }
@@ -176,10 +177,24 @@ export class ParallelResolver implements Resolver {
     if (pathParts.length > 0) {
       return useAsyncPath && this.navigatePathAsync
         ? this.navigatePathAsync(value, pathParts, context)
-        : navigatePath(value, pathParts)
+        : navigatePath(value, pathParts, { executionContext: context.executionContext })
     }
 
     return value
+  }
+
+  private resolveBranchIndex(targetParallelId: string, context: ResolutionContext): number | null {
+    const mapping = context.executionContext.parallelBlockMapping?.get(context.currentNodeId)
+    if (mapping?.parallelId === targetParallelId) {
+      return mapping.iterationIndex
+    }
+
+    const outerBranchIndex = extractOuterBranchIndex(context.currentNodeId)
+    if (outerBranchIndex !== undefined) {
+      return outerBranchIndex
+    }
+
+    return extractBranchIndex(context.currentNodeId)
   }
 
   private findInnermostParallelForBlock(blockId: string): string | undefined {
@@ -268,9 +283,11 @@ export class ParallelResolver implements Resolver {
     }
     const value = (output as Record<string, unknown>).results
     if (pathParts.length > 0) {
-      return navigatePath(value, pathParts)
+      return navigatePath(value, pathParts, { executionContext: context.executionContext })
     }
-    assertNoLargeValueRefs(value)
+    if (!context.allowLargeValueRefs) {
+      assertNoLargeValueRefs(value)
+    }
     return value
   }
 
@@ -287,9 +304,11 @@ export class ParallelResolver implements Resolver {
     if (pathParts.length > 0) {
       return this.navigatePathAsync
         ? this.navigatePathAsync(value, pathParts, context)
-        : navigatePath(value, pathParts)
+        : navigatePath(value, pathParts, { executionContext: context.executionContext })
     }
-    assertNoLargeValueRefs(value)
+    if (!context.allowLargeValueRefs) {
+      assertNoLargeValueRefs(value)
+    }
     return value
   }
 

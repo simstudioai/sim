@@ -77,11 +77,16 @@ function createParallelScope(items: any[]) {
 function createTestContext(
   currentNodeId: string,
   parallelExecutions?: Map<string, any>,
-  blockOutputs?: Record<string, any>
+  blockOutputs?: Record<string, any>,
+  parallelBlockMapping?: Map<string, any>
 ): ResolutionContext {
   return {
     executionContext: {
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      executionId: 'execution-1',
       parallelExecutions: parallelExecutions ?? new Map(),
+      parallelBlockMapping,
     },
     executionState: {
       getBlockOutput: (id: string) => blockOutputs?.[id],
@@ -157,6 +162,34 @@ describe('ParallelResolver', () => {
       expect(resolver.resolve('<parallel.index>', createTestContext('block-1₍0₎'))).toBe(0)
       expect(resolver.resolve('<parallel.index>', createTestContext('block-1₍1₎'))).toBe(1)
       expect(resolver.resolve('<parallel.index>', createTestContext('block-1₍2₎'))).toBe(2)
+    })
+
+    it.concurrent('uses runtime branch mapping for batched local branch node IDs', () => {
+      const workflow = createTestWorkflow({
+        'parallel-1': { nodes: ['block-1'], distribution: ['a', 'b', 'c', 'd'] },
+      })
+      const resolver = new ParallelResolver(workflow)
+      const parallelScope = createParallelScope(['a', 'b', 'c', 'd'])
+      const parallelExecutions = new Map([['parallel-1', parallelScope]])
+      const parallelBlockMapping = new Map([
+        [
+          'block-1₍0₎',
+          {
+            originalBlockId: 'block-1',
+            parallelId: 'parallel-1',
+            iterationIndex: 2,
+          },
+        ],
+      ])
+      const ctx = createTestContext(
+        'block-1₍0₎',
+        parallelExecutions,
+        undefined,
+        parallelBlockMapping
+      )
+
+      expect(resolver.resolve('<parallel.index>', ctx)).toBe(2)
+      expect(resolver.resolve('<parallel.currentItem>', ctx)).toBe('c')
     })
 
     it.concurrent('should return undefined when branch index cannot be extracted', () => {
@@ -443,7 +476,12 @@ describe('ParallelResolver', () => {
       const resolver = new ParallelResolver(workflow)
       const compacted = await compactExecutionPayload(
         { results: [[{ response: 'a' }], [{ response: 'b', payload: 'x'.repeat(2048) }]] },
-        { thresholdBytes: 256 }
+        {
+          thresholdBytes: 256,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }
       )
       const ctx = createTestContext('block-outside', new Map(), {
         'parallel-1': compacted,

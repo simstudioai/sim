@@ -129,4 +129,48 @@ describe('ParallelOrchestrator', () => {
       isEmpty: true,
     })
   })
+
+  it('records resumed later-batch outputs under restored global branch indexes', () => {
+    const dag = createDag()
+    dag.nodes.set('task-1', {
+      id: 'task-1',
+      block: {
+        id: 'task-1',
+        position: { x: 0, y: 0 },
+        config: { tool: '', params: {} },
+        inputs: {},
+        outputs: {},
+        metadata: { id: 'function', name: 'Task 1' },
+        enabled: true,
+      },
+      incomingEdges: new Set(),
+      outgoingEdges: new Set(),
+      metadata: { branchIndex: 0 },
+    })
+    const orchestrator = new ParallelOrchestrator(dag, createState(), null, {})
+    const ctx = createContext({
+      parallelBlockMapping: new Map([
+        ['task-1', { originalBlockId: 'task', parallelId: 'parallel-1', iterationIndex: 20 }],
+      ]),
+      parallelExecutions: new Map([
+        [
+          'parallel-1',
+          {
+            parallelId: 'parallel-1',
+            totalBranches: 25,
+            currentBatchStart: 20,
+            currentBatchSize: 5,
+            accumulatedOutputs: new Map([[0, [{ output: 'previous' }]]]),
+            branchOutputs: new Map(),
+          },
+        ],
+      ]),
+    })
+
+    orchestrator.handleParallelBranchCompletion(ctx, 'parallel-1', 'task-1', { output: 'resumed' })
+
+    const scope = ctx.parallelExecutions?.get('parallel-1')
+    expect(scope?.branchOutputs.get(20)).toEqual([{ output: 'resumed' }])
+    expect(scope?.branchOutputs.has(0)).toBe(false)
+  })
 })

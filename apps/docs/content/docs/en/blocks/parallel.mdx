@@ -141,7 +141,7 @@ const allResults = <processtasks.results>;
 // Returns: [result1, result2, result3, ...]
 ```
 
-For large result sets, reference only the entry or field you need, such as `<processtasks.results[10][0].id>`. Sim keeps aggregate results indexable and hydrates stored entries when an indexed path is explicitly referenced.
+For large result sets, reference only the entry or field you need, such as `<processtasks.results[10][0].id>`. Sim keeps aggregate results indexable by storing oversized entries in execution storage and hydrating them only when an indexed server-side path is explicitly referenced.
 
 ### Batch Size
 

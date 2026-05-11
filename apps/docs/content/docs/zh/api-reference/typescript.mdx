@@ -138,7 +138,7 @@ if (isReady) {
 获取异步任务执行的状态。
 
 ```typescript
-const status = await client.getJobStatus('task-id-from-async-execution');
+const status = await client.getJobStatus('job-id-from-async-execution');
 console.log('Status:', status.status); // 'queued', 'processing', 'completed', 'failed'
 if (status.status === 'completed') {
   console.log('Output:', status.output);
@@ -146,13 +146,13 @@ if (status.status === 'completed') {
 ```
 
 **参数：**
-- `taskId`（字符串）：异步执行返回的任务 ID
+- `jobId`（字符串）：异步执行返回的作业 ID
 
 **返回值：** `Promise<JobStatus>`
 
 **响应字段：**
 - `success`（布尔值）：请求是否成功
-- `taskId`（字符串）：任务 ID
+- `taskId`（字符串）：作业 ID
 - `status`（字符串）：以下之一 `'queued'`、`'processing'`、`'completed'`、`'failed'`、`'cancelled'`
 - `metadata`（对象）：包含 `startedAt`、`completedAt` 和 `duration`
 - `output`（任意类型，可选）：工作流输出（完成时）
@@ -286,12 +286,11 @@ interface WorkflowExecutionResult {
 ```typescript
 interface AsyncExecutionResult {
   success: boolean;
-  taskId: string;
-  status: 'queued';
-  createdAt: string;
-  links: {
-    status: string;  // e.g., "/api/jobs/{taskId}"
-  };
+  jobId: string;
+  statusUrl: string;
+  executionId?: string;
+  message: string;
+  async: true;
 }
 ```
 
@@ -797,17 +796,17 @@ async function executeAsync() {
     });
 
     // Check if result is an async execution
-    if ('taskId' in result) {
-      console.log('Task ID:', result.taskId);
-      console.log('Status endpoint:', result.links.status);
+    if ('jobId' in result) {
+      console.log('Job ID:', result.jobId);
+      console.log('Status endpoint:', result.statusUrl);
 
       // Poll for completion
-      let status = await client.getJobStatus(result.taskId);
+      let status = await client.getJobStatus(result.jobId);
 
       while (status.status === 'queued' || status.status === 'processing') {
         console.log('Current status:', status.status);
         await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-        status = await client.getJobStatus(result.taskId);
+        status = await client.getJobStatus(result.jobId);
       }
 
       if (status.status === 'completed') {

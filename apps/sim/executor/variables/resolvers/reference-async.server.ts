@@ -1,17 +1,30 @@
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
-import { materializeLargeValueRefSyncOrThrow } from '@/lib/execution/payloads/cache'
-import { assertNoLargeValueRefs, isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import {
+  assertNoLargeValueRefs,
+  getLargeValueMaterializationError,
+  isLargeValueRef,
+} from '@/lib/execution/payloads/large-value-ref'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import { hydrateUserFileWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import type { ResolutionContext } from '@/executor/variables/resolvers/reference'
 
-async function materializeLargeValueRefOrThrow(value: unknown): Promise<unknown> {
+async function materializeLargeValueRefOrThrow(
+  value: unknown,
+  context: ResolutionContext
+): Promise<unknown> {
   if (!isLargeValueRef(value)) {
     return value
   }
-  const materialized = await materializeLargeValueRef(value)
+  const materialized = await materializeLargeValueRef(value, {
+    workspaceId: context.executionContext.workspaceId,
+    workflowId: context.executionContext.workflowId,
+    executionId: context.executionContext.executionId,
+    largeValueExecutionIds: context.executionContext.largeValueExecutionIds,
+    allowLargeValueWorkflowScope: context.executionContext.allowLargeValueWorkflowScope,
+    userId: context.executionContext.userId,
+  })
   if (materialized === undefined) {
-    return materializeLargeValueRefSyncOrThrow(value)
+    throw getLargeValueMaterializationError(value)
   }
   return materialized
 }
@@ -25,7 +38,11 @@ async function hydrateExplicitBase64(
   }
   const hydrated = await hydrateUserFileWithBase64(file, {
     requestId: context.executionContext.metadata.requestId,
+    workspaceId: context.executionContext.workspaceId,
+    workflowId: context.executionContext.workflowId,
     executionId: context.executionContext.executionId,
+    largeValueExecutionIds: context.executionContext.largeValueExecutionIds,
+    allowLargeValueWorkflowScope: context.executionContext.allowLargeValueWorkflowScope,
     userId: context.executionContext.userId,
     maxBytes: context.executionContext.base64MaxBytes,
   })
@@ -49,7 +66,7 @@ export async function navigatePathAsync(
 ): Promise<any> {
   let current = obj
   for (const part of path) {
-    current = await materializeLargeValueRefOrThrow(current)
+    current = await materializeLargeValueRefOrThrow(current, context)
 
     if (current === null || current === undefined) {
       return undefined
@@ -70,7 +87,7 @@ export async function navigatePathAsync(
         typeof current === 'object' && current !== null
           ? (current as Record<string, unknown>)[prop]
           : undefined
-      current = await materializeLargeValueRefOrThrow(current)
+      current = await materializeLargeValueRefOrThrow(current, context)
       if (current === undefined || current === null) {
         return undefined
       }
@@ -78,7 +95,7 @@ export async function navigatePathAsync(
       const indices = bracketsPart.match(/\[(\d+)\]/g)
       if (indices) {
         for (const indexMatch of indices) {
-          current = await materializeLargeValueRefOrThrow(current)
+          current = await materializeLargeValueRefOrThrow(current, context)
           if (current === null || current === undefined) {
             return undefined
           }
@@ -96,6 +113,8 @@ export async function navigatePathAsync(
           : undefined
     }
   }
-  assertNoLargeValueRefs(current)
+  if (!context.allowLargeValueRefs) {
+    assertNoLargeValueRefs(current)
+  }
   return current
 }

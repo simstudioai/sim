@@ -81,14 +81,24 @@ export class BlockResolver implements Resolver {
     }
 
     try {
-      const result = resolveBlockReference(blockName, pathParts, {
-        blockNameMapping: Object.fromEntries(this.nameToBlockId),
-        blockData,
-        blockOutputSchemas,
-      })!
+      const result = resolveBlockReference(
+        blockName,
+        pathParts,
+        {
+          blockNameMapping: Object.fromEntries(this.nameToBlockId),
+          blockData,
+          blockOutputSchemas,
+        },
+        {
+          allowLargeValueRefs: context.allowLargeValueRefs,
+          executionContext: context.executionContext,
+        }
+      )!
 
       if (result.value !== undefined) {
-        assertNoLargeValueRefs(result.value)
+        if (!context.allowLargeValueRefs) {
+          assertNoLargeValueRefs(result.value)
+        }
         return result.value
       }
 
@@ -155,7 +165,9 @@ export class BlockResolver implements Resolver {
       ))!
 
       if (result.value !== undefined) {
-        assertNoLargeValueRefs(result.value)
+        if (!context.allowLargeValueRefs) {
+          assertNoLargeValueRefs(result.value)
+        }
         return result.value
       }
 

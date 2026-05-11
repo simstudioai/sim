@@ -18,6 +18,7 @@ function createBlock(id: string, name: string, type: string, params = {}): Seria
     outputs: {
       result: 'string',
       items: 'json',
+      file: 'file',
     },
     enabled: true,
   }
@@ -39,6 +40,16 @@ function createResolver(language = 'javascript') {
   state.setBlockOutput('producer', {
     result: 'hello world',
     items: ['a', 'b'],
+    file: {
+      id: 'file-1',
+      name: 'image.png',
+      url: 'https://example.com/image.png',
+      key: 'execution/workspace-1/workflow-1/execution-1/image.png',
+      context: 'execution',
+      size: 12 * 1024 * 1024,
+      type: 'image/png',
+      base64: 'large-inline-base64',
+    },
   })
   const ctx = {
     blockStates: state.getBlockStates(),
@@ -124,6 +135,221 @@ describe('VariableResolver function block inputs', () => {
     expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
     expect(result.displayInputs.code).toBe('return "b"')
     expect(result.contextVariables).toEqual({ __blockRef_0: 'b' })
+  })
+
+  it('rewrites JavaScript file base64 references to lazy runtime reads', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'const base64 = <Producer.file.base64>;\nreturn base64' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      'const base64 = await sim.files.readBase64(globalThis["__blockRef_0"]);\nreturn base64'
+    )
+    expect(result.displayInputs.code).toBe('const base64 = <Producer.file.base64>;\nreturn base64')
+    expect(result.contextVariables.__blockRef_0).toMatchObject({
+      id: 'file-1',
+      name: 'image.png',
+    })
+    expect(result.contextVariables.__blockRef_0).not.toHaveProperty('base64')
+  })
+
+  it('uses existing inline base64 for keyless files instead of lazy storage reads', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+    const state = new ExecutionState()
+    state.setBlockOutput('producer', {
+      file: {
+        id: 'file-keyless',
+        name: 'inline.txt',
+        key: '',
+        url: 'https://example.com/inline.txt',
+        size: 5,
+        type: 'text/plain',
+        base64: 'aGVsbG8=',
+      },
+    })
+
+    const keylessResolver = new VariableResolver(
+      {
+        version: '1',
+        blocks: [createBlock('producer', 'Producer', BlockType.API), block],
+        connections: [],
+        loops: {},
+        parallels: {},
+      },
+      {},
+      state
+    )
+
+    const result = await keylessResolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'return <Producer.file.base64>' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
+    expect(result.contextVariables.__blockRef_0).toBe('aGVsbG8=')
+  })
+
+  it('rewrites JavaScript large value refs to lazy runtime reads', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+    const state = new ExecutionState()
+    state.setBlockOutput('producer', {
+      result: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_ABCDEFGHIJKL',
+        kind: 'object',
+        size: 12 * 1024 * 1024,
+        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
+        executionId: 'execution-1',
+      },
+    })
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const largeResolver = new VariableResolver(workflow, {}, state)
+    const largeCtx = {
+      ...ctx,
+      blockStates: state.getBlockStates(),
+    } as ExecutionContext
+
+    const result = await largeResolver.resolveInputsForFunctionBlock(
+      largeCtx,
+      'function',
+      { code: 'return <Producer.result>' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      'return await sim.values.read(globalThis["__blockRef_0"])'
+    )
+    expect(result.contextVariables.__blockRef_0).toMatchObject({
+      __simLargeValueRef: true,
+      id: 'lv_ABCDEFGHIJKL',
+    })
+  })
+
+  it('fails whole large value refs for Function runtimes without lazy helpers', async () => {
+    const { block, ctx } = createResolver('python')
+    const state = new ExecutionState()
+    state.setBlockOutput('producer', {
+      result: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_ABCDEFGHIJKL',
+        kind: 'object',
+        size: 12 * 1024 * 1024,
+        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
+        executionId: 'execution-1',
+      },
+    })
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const largeResolver = new VariableResolver(workflow, {}, state)
+    const largeCtx = {
+      ...ctx,
+      blockStates: state.getBlockStates(),
+    } as ExecutionContext
+
+    await expect(
+      largeResolver.resolveInputsForFunctionBlock(
+        largeCtx,
+        'function',
+        { code: 'return <Producer.result>' },
+        block
+      )
+    ).rejects.toThrow('This execution value is too large to inline')
+  })
+
+  it('fails whole large value refs for JavaScript with imports', async () => {
+    const { block, ctx } = createResolver('javascript')
+    const state = new ExecutionState()
+    state.setBlockOutput('producer', {
+      result: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_ABCDEFGHIJKL',
+        kind: 'object',
+        size: 12 * 1024 * 1024,
+        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
+        executionId: 'execution-1',
+      },
+    })
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const largeResolver = new VariableResolver(workflow, {}, state)
+    const largeCtx = {
+      ...ctx,
+      blockStates: state.getBlockStates(),
+    } as ExecutionContext
+
+    await expect(
+      largeResolver.resolveInputsForFunctionBlock(
+        largeCtx,
+        'function',
+        { code: "import x from 'x'\nreturn <Producer.result>" },
+        block
+      )
+    ).rejects.toThrow('This execution value is too large to inline')
+  })
+
+  it('fails nested large value refs for Function runtimes without lazy helpers', async () => {
+    const { block, ctx } = createResolver('python')
+    const state = new ExecutionState()
+    state.setBlockOutput('producer', {
+      result: {
+        rows: {
+          __simLargeValueRef: true,
+          version: 1,
+          id: 'lv_ABCDEFGHIJKL',
+          kind: 'array',
+          size: 12 * 1024 * 1024,
+          key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
+          executionId: 'execution-1',
+        },
+      },
+    })
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const largeResolver = new VariableResolver(workflow, {}, state)
+    const largeCtx = {
+      ...ctx,
+      blockStates: state.getBlockStates(),
+    } as ExecutionContext
+
+    await expect(
+      largeResolver.resolveInputsForFunctionBlock(
+        largeCtx,
+        'function',
+        { code: 'return <Producer.result>' },
+        block
+      )
+    ).rejects.toThrow('This execution value is too large to inline')
   })
 
   it('resolves Python block references through globals lookup', async () => {

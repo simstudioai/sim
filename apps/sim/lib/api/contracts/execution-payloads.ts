@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  isLargeValueStorageKey,
   LARGE_VALUE_KINDS,
   LARGE_VALUE_REF_MARKER,
   LARGE_VALUE_REF_VERSION,
@@ -17,5 +18,14 @@ export const largeValueRefSchema = z
     preview: z.unknown().optional(),
   })
   .strict()
+  .superRefine((value, ctx) => {
+    if (value.key && !isLargeValueStorageKey(value.key, value.id, value.executionId)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['key'],
+        message: 'Large value reference key must point to execution-scoped server storage',
+      })
+    }
+  })
 
 export type LargeValueRefResponse = z.output<typeof largeValueRefSchema>

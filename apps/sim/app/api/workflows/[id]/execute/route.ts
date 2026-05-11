@@ -774,7 +774,10 @@ async function handleExecutePost(
         const outputWithBase64 = includeFileBase64
           ? ((await hydrateUserFilesWithBase64(result.output, {
               requestId,
+              workspaceId,
+              workflowId,
               executionId,
+              allowLargeValueWorkflowScope: Boolean(resolvedRunFromBlock?.sourceSnapshot),
               userId: actorUserId,
               maxBytes: base64MaxBytes,
             })) as NormalizedBlockOutput)
@@ -882,6 +885,7 @@ async function handleExecutePost(
         workspaceId,
         workflowId,
         userId: actorUserId,
+        allowLargeValueWorkflowScope: Boolean(resolvedRunFromBlock?.sourceSnapshot),
         executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
           executeWorkflow(
             streamWorkflow,
@@ -900,6 +904,8 @@ async function handleExecutePost(
               base64MaxBytes,
               abortSignal,
               executionMode: 'stream',
+              stopAfterBlockId,
+              runFromBlock: resolvedRunFromBlock,
             },
             executionId
           ),
@@ -1297,7 +1303,10 @@ async function handleExecutePost(
           const sseOutput = includeFileBase64
             ? await hydrateUserFilesWithBase64(result.output, {
                 requestId,
+                workspaceId,
+                workflowId,
                 executionId,
+                allowLargeValueWorkflowScope: Boolean(resolvedRunFromBlock?.sourceSnapshot),
                 userId: actorUserId,
                 maxBytes: base64MaxBytes,
               })

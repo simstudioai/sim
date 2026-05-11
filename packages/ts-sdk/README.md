@@ -125,17 +125,17 @@ const result = await client.executeWorkflowSync('workflow-id', { data: 'some inp
 
 **Returns:** `Promise<WorkflowExecutionResult>`
 
-##### getJobStatus(taskId)
+##### getJobStatus(jobId)
 
 Get the status of an async job.
 
 ```typescript
-const status = await client.getJobStatus('task-id-from-async-execution');
+const status = await client.getJobStatus('job-id-from-async-execution');
 console.log('Job status:', status);
 ```
 
 **Parameters:**
-- `taskId` (string): The task ID returned from async execution
+- `jobId` (string): The job ID returned from async execution
 
 **Returns:** `Promise<any>`
 
@@ -229,6 +229,7 @@ interface WorkflowExecutionResult {
 ### LargeValueRef
 
 Oversized execution values may be returned as a versioned reference inside `output`, `logs`, streaming events, or async job status responses.
+The `key` field is an opaque execution-scoped server storage pointer, not a client-readable download URL.
 
 ```typescript
 interface LargeValueRef {
@@ -267,12 +268,11 @@ class SimStudioError extends Error {
 ```typescript
 interface AsyncExecutionResult {
   success: boolean;
-  taskId: string;
-  status: 'queued';
-  createdAt: string;
-  links: {
-    status: string;
-  };
+  jobId: string;
+  statusUrl: string;
+  executionId?: string;
+  message: string;
+  async: true;
 }
 ```
 

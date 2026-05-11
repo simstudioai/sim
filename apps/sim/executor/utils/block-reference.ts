@@ -208,7 +208,11 @@ function getSchemaFieldNames(schema: OutputSchema | undefined): string[] {
 export function resolveBlockReference(
   blockName: string,
   pathParts: string[],
-  context: BlockReferenceContext
+  context: BlockReferenceContext,
+  options: {
+    allowLargeValueRefs?: boolean
+    executionContext?: ResolutionContext['executionContext']
+  } = {}
 ): BlockReferenceResult | undefined {
   const normalizedName = normalizeName(blockName)
   const blockId = context.blockNameMapping[normalizedName]
@@ -231,7 +235,7 @@ export function resolveBlockReference(
     return { value: blockOutput, blockId }
   }
 
-  const value = navigatePath(blockOutput, pathParts)
+  const value = navigatePath(blockOutput, pathParts, options)
 
   const schema = context.blockOutputSchemas?.[blockId]
   if (value === undefined && schema) {

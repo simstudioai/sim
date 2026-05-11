@@ -4,7 +4,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/executor/types'
 import type { VariableResolver } from '@/executor/variables/resolver'
-import { resolveArrayInput } from './subflow-utils'
+import { findEffectiveContainerId, resolveArrayInput } from './subflow-utils'
 
 describe('resolveArrayInput', () => {
   const fakeCtx = {} as unknown as ExecutionContext
@@ -82,5 +82,19 @@ describe('resolveArrayInput', () => {
 
   it('throws on a string that is neither a reference nor valid JSON array/object', () => {
     expect(() => resolveArrayInput(fakeCtx, 'not json', null)).toThrow()
+  })
+})
+
+describe('findEffectiveContainerId', () => {
+  it('finds pre-cloned nested subflow IDs with clone sequence suffixes', () => {
+    const executionMap = new Map<string, unknown>([
+      ['inner-parallel', {}],
+      ['inner-parallel__obranch-2', {}],
+      ['inner-parallel__clone3__obranch-2', {}],
+    ])
+
+    expect(
+      findEffectiveContainerId('inner-parallel', 'leaf__clone7__obranch-2₍0₎', executionMap)
+    ).toBe('inner-parallel__clone3__obranch-2')
   })
 })

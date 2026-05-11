@@ -109,20 +109,22 @@ curl -X POST https://www.sim.ai/api/workflows/{workflowId}/execute \
   -d '{"inputs": {}, "async": true}'
 ```
 
-This returns immediately with a `taskId`:
+This returns immediately with a `jobId` and `statusUrl`:
 
 ```json
 {
   "success": true,
-  "taskId": "job_abc123",
-  "status": "queued"
+  "jobId": "job_abc123",
+  "statusUrl": "https://www.sim.ai/api/jobs/job_abc123",
+  "message": "Workflow execution started",
+  "async": true
 }
 ```
 
 Poll the [Get Job Status](/api-reference/workflows/getJobStatus) endpoint until the status is `completed` or `failed`:
 
 ```bash
-curl https://www.sim.ai/api/jobs/{taskId} \
+curl https://www.sim.ai/api/jobs/{jobId} \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 

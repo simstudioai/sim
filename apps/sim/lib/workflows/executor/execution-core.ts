@@ -553,10 +553,20 @@ export async function executeWorkflowCore(
       return persistencePromise
     }
 
+    const largeValueExecutionIds = Array.from(
+      new Set([executionId, ...(metadata.largeValueExecutionIds ?? [])].filter(Boolean))
+    )
+    const allowLargeValueWorkflowScope =
+      metadata.allowLargeValueWorkflowScope === true ||
+      metadata.resumeFromSnapshot === true ||
+      Boolean(runFromBlock?.sourceSnapshot)
+
     const contextExtensions: ContextExtensions = {
       stream: !!onStream,
       selectedOutputs,
       executionId,
+      largeValueExecutionIds,
+      allowLargeValueWorkflowScope,
       workspaceId: providedWorkspaceId,
       userId,
       isDeployedContext: !metadata.isClientSession,
@@ -584,10 +594,24 @@ export async function executeWorkflowCore(
     }
 
     if (snapshot.state) {
-      await warmLargeValueRefs(snapshot.state)
+      await warmLargeValueRefs(snapshot.state, {
+        workspaceId: providedWorkspaceId,
+        workflowId,
+        executionId,
+        largeValueExecutionIds,
+        allowLargeValueWorkflowScope,
+        userId,
+      })
     }
     if (runFromBlock?.sourceSnapshot) {
-      await warmLargeValueRefs(runFromBlock.sourceSnapshot)
+      await warmLargeValueRefs(runFromBlock.sourceSnapshot, {
+        workspaceId: providedWorkspaceId,
+        workflowId,
+        executionId,
+        largeValueExecutionIds,
+        allowLargeValueWorkflowScope,
+        userId,
+      })
     }
 
     for (const variable of Object.values(workflowVariables)) {

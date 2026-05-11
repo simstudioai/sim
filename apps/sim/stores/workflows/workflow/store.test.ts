@@ -500,7 +500,7 @@ describe('workflow store', () => {
       expect(state.loops.loop1.forEachItems).toBe('["item1", "item2", "item3"]')
     })
 
-    it('should clamp loop count between 1 and 1000', () => {
+    it('should allow loop counts above 1000 and clamp only to at least 1', () => {
       const { updateLoopCount } = useWorkflowStore.getState()
 
       addBlock(
@@ -517,7 +517,7 @@ describe('workflow store', () => {
 
       updateLoopCount('loop1', 1500)
       let state = useWorkflowStore.getState()
-      expect(state.blocks.loop1?.data?.count).toBe(1000)
+      expect(state.blocks.loop1?.data?.count).toBe(1500)
 
       updateLoopCount('loop1', 0)
       state = useWorkflowStore.getState()
@@ -576,7 +576,7 @@ describe('workflow store', () => {
       expect(parsedDistribution).toHaveLength(3)
     })
 
-    it('should clamp parallel count between 1 and 1000', () => {
+    it('should allow parallel counts above 1000 and clamp only to at least 1', () => {
       const { updateParallelCount } = useWorkflowStore.getState()
 
       addBlock(
@@ -596,7 +596,7 @@ describe('workflow store', () => {
 
       updateParallelCount('parallel1', 1001)
       state = useWorkflowStore.getState()
-      expect(state.blocks.parallel1?.data?.count).toBe(1000)
+      expect(state.blocks.parallel1?.data?.count).toBe(1001)
 
       updateParallelCount('parallel1', 0)
       state = useWorkflowStore.getState()

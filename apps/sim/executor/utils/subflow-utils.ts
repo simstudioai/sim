@@ -154,9 +154,29 @@ export function findEffectiveContainerId(
   // and cloned variants coexist in the map; the clone is the correct scope.
   const match = currentNodeId.match(OUTER_BRANCH_PATTERN)
   if (match) {
-    const candidateId = buildClonedSubflowId(originalId, Number.parseInt(match[1], 10))
+    const branchIndex = Number.parseInt(match[1], 10)
+    const cloneSuffix = `__obranch-${branchIndex}`
+    if (currentNodeId.includes('__clone')) {
+      for (const scopeId of executionMap.keys()) {
+        if (
+          scopeId.includes('__clone') &&
+          scopeId.endsWith(cloneSuffix) &&
+          stripOuterBranchSuffix(scopeId) === originalId
+        ) {
+          return scopeId
+        }
+      }
+    }
+
+    const candidateId = buildClonedSubflowId(originalId, branchIndex)
     if (executionMap.has(candidateId)) {
       return candidateId
+    }
+
+    for (const scopeId of executionMap.keys()) {
+      if (scopeId.endsWith(cloneSuffix) && stripOuterBranchSuffix(scopeId) === originalId) {
+        return scopeId
+      }
     }
   }
 
@@ -176,17 +196,6 @@ export function normalizeNodeId(nodeId: string): string {
     return extractParallelIdFromSentinel(nodeId) || nodeId
   }
   return nodeId
-}
-
-/**
- * Validates that a count doesn't exceed a maximum limit.
- * Returns an error message if validation fails, undefined otherwise.
- */
-export function validateMaxCount(count: number, max: number, itemType: string): string | undefined {
-  if (count > max) {
-    return `${itemType} (${count}) exceeds maximum allowed (${max}). Execution blocked.`
-  }
-  return undefined
 }
 
 /**

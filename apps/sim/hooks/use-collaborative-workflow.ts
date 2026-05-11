@@ -1781,7 +1781,7 @@ export function useCollaborativeWorkflow() {
         const config = {
           id: nodeId,
           nodes: childNodes,
-          iterations: Math.max(1, Math.min(1000, count)), // Clamp between 1-1000 for loops
+          iterations: Math.max(1, count),
           loopType: currentLoopType,
           forEachItems: currentCollection,
         }
@@ -1800,7 +1800,7 @@ export function useCollaborativeWorkflow() {
         const config = {
           id: nodeId,
           nodes: childNodes,
-          count: Math.max(1, Math.min(1000, count)),
+          count: Math.max(1, count),
           distribution: currentDistribution,
           parallelType: currentParallelType,
           batchSize,

@@ -198,7 +198,11 @@ export class BlockExecutor {
       if (ctx.includeFileBase64 === true && containsUserFileWithMetadata(normalizedOutput)) {
         normalizedOutput = (await hydrateUserFilesWithBase64(normalizedOutput, {
           requestId: ctx.metadata.requestId,
+          workspaceId: ctx.workspaceId,
+          workflowId: ctx.workflowId,
           executionId: ctx.executionId,
+          largeValueExecutionIds: ctx.largeValueExecutionIds,
+          allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
           userId: ctx.userId,
           maxBytes: ctx.base64MaxBytes,
         })) as NormalizedBlockOutput

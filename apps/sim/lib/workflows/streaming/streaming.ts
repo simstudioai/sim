@@ -46,6 +46,8 @@ export interface StreamingResponseOptions {
   requestId: string
   streamConfig: StreamingConfig
   executionId?: string
+  largeValueExecutionIds?: string[]
+  allowLargeValueWorkflowScope?: boolean
   workspaceId?: string
   workflowId?: string
   userId?: string
@@ -314,7 +316,11 @@ export async function createStreamingResponse(
             const hydratedOutput = includeFileBase64
               ? await hydrateUserFilesWithBase64(outputValue, {
                   requestId,
+                  workspaceId: options.workspaceId,
+                  workflowId: options.workflowId,
                   executionId,
+                  largeValueExecutionIds: options.largeValueExecutionIds,
+                  allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
                   userId: options.userId,
                   maxBytes: base64MaxBytes,
                 })

@@ -29,7 +29,6 @@ const SUBFLOW_CONFIG = {
     },
     typeKey: 'loopType' as const,
     storeKey: 'loops' as const,
-    maxIterations: 1000,
     configKeys: {
       iterations: 'iterations' as const,
       items: 'forEachItems' as const,
@@ -40,7 +39,6 @@ const SUBFLOW_CONFIG = {
     typeLabels: { count: 'Parallel Count', collection: 'Parallel Each' },
     typeKey: 'parallelType' as const,
     storeKey: 'parallels' as const,
-    maxIterations: 1000,
     configKeys: {
       iterations: 'count' as const,
       items: 'distribution' as const,
@@ -229,7 +227,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
       const numValue = Number.parseInt(sanitizedValue)
 
       if (!Number.isNaN(numValue)) {
-        setTempInputValue(Math.min(subflowConfig.maxIterations, numValue).toString())
+        setTempInputValue(numValue.toString())
       } else {
         setTempInputValue(sanitizedValue)
       }
@@ -245,7 +243,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
     const value = Number.parseInt(tempInputValue ?? '5')
 
     if (!Number.isNaN(value)) {
-      const newValue = Math.min(subflowConfig.maxIterations, Math.max(1, value))
+      const newValue = Math.max(1, value)
       collaborativeUpdateIterationCount(
         currentBlockId,
         currentBlock.type as 'loop' | 'parallel',

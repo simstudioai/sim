@@ -290,6 +290,8 @@ export interface ExecutionContext {
   workflowId: string
   workspaceId?: string
   executionId?: string
+  largeValueExecutionIds?: string[]
+  allowLargeValueWorkflowScope?: boolean
   userId?: string
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean

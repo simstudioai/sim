@@ -159,8 +159,7 @@ export const DEFAULTS = {
   BLOCK_TYPE: 'unknown',
   BLOCK_TITLE: 'Untitled Block',
   WORKFLOW_NAME: 'Workflow',
-  MAX_LOOP_ITERATIONS: 1000,
-  MAX_FOREACH_ITEMS: 1000,
+  DEFAULT_LOOP_ITERATIONS: 1000,
   MAX_PARALLEL_BRANCHES: 20,
   MAX_NESTING_DEPTH: 10,
   /** Maximum child workflow depth for propagating SSE callbacks (block:started, block:completed). */

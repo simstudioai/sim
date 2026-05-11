@@ -7,6 +7,12 @@ import {
   type LargeValueKind,
   type LargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
+import {
+  assertDurableLargeValueSize,
+  assertLargeValueRefAccess,
+  isValidLargeValueKey,
+  readLargeValueRefFromStorage,
+} from '@/lib/execution/payloads/materialization.server'
 import { generateExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 
 const logger = createLogger('LargeExecutionPayloadStore')
@@ -15,6 +21,8 @@ export interface LargeValueStoreContext {
   workspaceId?: string
   workflowId?: string
   executionId?: string
+  largeValueExecutionIds?: string[]
+  allowLargeValueWorkflowScope?: boolean
   userId?: string
   requireDurable?: boolean
 }
@@ -37,14 +45,6 @@ function getPreview(value: unknown): unknown {
     return { keys: Object.keys(value).slice(0, 20) }
   }
   return value
-}
-
-function isValidLargeValueKey(ref: LargeValueRef): boolean {
-  if (!ref.key) return false
-  if (!ref.key.startsWith('execution/')) return false
-  if (!ref.key.endsWith(`/large-value-${ref.id}.json`)) return false
-  if (ref.executionId && !ref.key.includes(`/${ref.executionId}/`)) return false
-  return true
 }
 
 async function persistValue(
@@ -103,9 +103,10 @@ export async function storeLargeValue(
   size: number,
   context: LargeValueStoreContext
 ): Promise<LargeValueRef> {
+  assertDurableLargeValueSize(size)
   const id = `lv_${generateShortId(12)}`
   const key = await persistValue(id, json, context)
-  cacheLargeValue(id, value, size)
+  cacheLargeValue(id, value, size, context)
 
   return {
     __simLargeValueRef: true,
@@ -119,8 +120,17 @@ export async function storeLargeValue(
   }
 }
 
-export async function materializeLargeValueRef(ref: LargeValueRef): Promise<unknown> {
-  const cached = materializeLargeValueRefSync(ref)
+export async function materializeLargeValueRef(
+  ref: LargeValueRef,
+  context?: LargeValueStoreContext
+): Promise<unknown> {
+  if (!context?.executionId) {
+    return undefined
+  }
+
+  assertLargeValueRefAccess(ref, context)
+
+  const cached = materializeLargeValueRefSync(ref, context)
   if (cached !== undefined) {
     return cached
   }
@@ -130,13 +140,22 @@ export async function materializeLargeValueRef(ref: LargeValueRef): Promise<unkn
   }
 
   try {
-    const { StorageService } = await import('@/lib/uploads')
-    const buffer = await StorageService.downloadFile({
-      key: ref.key,
-      context: 'execution',
+    const value = await readLargeValueRefFromStorage(ref, {
+      workspaceId: context.workspaceId,
+      workflowId: context.workflowId,
+      executionId: context.executionId,
+      largeValueExecutionIds: context.largeValueExecutionIds,
+      allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
+      userId: context.userId,
+      maxBytes: ref.size,
     })
-    const value = JSON.parse(buffer.toString('utf8'))
-    cacheLargeValue(ref.id, value, ref.size)
+    if (value === undefined) {
+      return undefined
+    }
+    cacheLargeValue(ref.id, value, ref.size, {
+      ...context,
+      executionId: ref.executionId ?? context.executionId,
+    })
     return value
   } catch (error) {
     logger.warn('Failed to materialize persisted large execution value', {

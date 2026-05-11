@@ -23,7 +23,6 @@ import {
   emitSubflowSuccessEvents,
   extractBaseBlockId,
   resolveArrayInputAsync,
-  validateMaxCount,
 } from '@/executor/utils/subflow-utils'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedLoop } from '@/serializer/types'
@@ -107,25 +106,7 @@ export class LoopOrchestrator {
     switch (loopType) {
       case 'for': {
         scope.loopType = 'for'
-        const requestedIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
-
-        const iterationError = validateMaxCount(
-          requestedIterations,
-          DEFAULTS.MAX_LOOP_ITERATIONS,
-          'For loop iterations'
-        )
-        if (iterationError) {
-          logger.error(iterationError, { loopId, requestedIterations })
-          await this.addLoopErrorLog(ctx, loopId, loopType, iterationError, {
-            iterations: requestedIterations,
-          })
-          scope.maxIterations = 0
-          scope.validationError = iterationError
-          scope.condition = buildLoopIndexCondition(0)
-          ctx.loopExecutions?.set(loopId, scope)
-          throw new Error(iterationError)
-        }
-
+        const requestedIterations = loopConfig.iterations || DEFAULTS.DEFAULT_LOOP_ITERATIONS
         scope.maxIterations = requestedIterations
         scope.condition = buildLoopIndexCondition(scope.maxIterations)
         break
@@ -168,25 +149,6 @@ export class LoopOrchestrator {
           throw new Error(errorMessage)
         }
 
-        const sizeError = validateMaxCount(
-          items.length,
-          DEFAULTS.MAX_FOREACH_ITEMS,
-          'ForEach loop collection size'
-        )
-        if (sizeError) {
-          logger.error(sizeError, { loopId, collectionSize: items.length })
-          await this.addLoopErrorLog(ctx, loopId, loopType, sizeError, {
-            forEachItems: loopConfig.forEachItems,
-            collectionSize: items.length,
-          })
-          scope.items = []
-          scope.maxIterations = 0
-          scope.validationError = sizeError
-          scope.condition = buildLoopIndexCondition(0)
-          ctx.loopExecutions?.set(loopId, scope)
-          throw new Error(sizeError)
-        }
-
         scope.items = items
         scope.maxIterations = items.length
         scope.item = items[0]
@@ -204,25 +166,7 @@ export class LoopOrchestrator {
         if (loopConfig.doWhileCondition) {
           scope.condition = loopConfig.doWhileCondition
         } else {
-          const requestedIterations = loopConfig.iterations || DEFAULTS.MAX_LOOP_ITERATIONS
-
-          const iterationError = validateMaxCount(
-            requestedIterations,
-            DEFAULTS.MAX_LOOP_ITERATIONS,
-            'Do-While loop iterations'
-          )
-          if (iterationError) {
-            logger.error(iterationError, { loopId, requestedIterations })
-            await this.addLoopErrorLog(ctx, loopId, loopType, iterationError, {
-              iterations: requestedIterations,
-            })
-            scope.maxIterations = 0
-            scope.validationError = iterationError
-            scope.condition = buildLoopIndexCondition(0)
-            ctx.loopExecutions?.set(loopId, scope)
-            throw new Error(iterationError)
-          }
-
+          const requestedIterations = loopConfig.iterations || DEFAULTS.DEFAULT_LOOP_ITERATIONS
           scope.maxIterations = requestedIterations
           scope.condition = buildLoopIndexCondition(scope.maxIterations)
         }

@@ -180,6 +180,7 @@ async function executeCode(request, executionId) {
   let logCallback = null
   let errorCallback = null
   let fetchCallback = null
+  let brokerCallback = null
   const externalCopies = []
 
   try {
@@ -243,6 +244,27 @@ async function executeCode(request, executionId) {
     })
     await jail.set('__fetchRef', fetchCallback)
 
+    brokerCallback = new ivm.Reference(async (brokerName, argsJson) => {
+      return new Promise((resolve) => {
+        const brokerId = ++brokerIdCounter
+        const timeout = setTimeout(() => {
+          if (pendingBrokerCalls.has(brokerId)) {
+            pendingBrokerCalls.delete(brokerId)
+            resolve(JSON.stringify({ error: `Broker "${brokerName}" timed out` }))
+          }
+        }, BROKER_TIMEOUT_MS)
+        pendingBrokerCalls.set(brokerId, { resolve, timeout, executionId })
+        if (process.send && process.connected) {
+          process.send({ type: 'broker', brokerId, executionId, brokerName, argsJson })
+        } else {
+          clearTimeout(timeout)
+          pendingBrokerCalls.delete(brokerId)
+          resolve(JSON.stringify({ error: 'Parent process disconnected' }))
+        }
+      })
+    })
+    await jail.set('__brokerRef', brokerCallback)
+
     const bootstrap = `
       // Set up console object
       const console = {
@@ -299,10 +321,57 @@ async function executeCode(request, executionId) {
         };
       }
 
+      const sim = (() => {
+        const broker = __brokerRef;
+        async function callSimBroker(name, args) {
+          let argsJson;
+          try {
+            argsJson = args === undefined ? undefined : JSON.stringify(args);
+          } catch {
+            throw new Error('sim helper arguments must be JSON-serializable');
+          }
+          if (argsJson && argsJson.length > ${MAX_FETCH_OPTIONS_JSON_CHARS}) {
+            throw new Error('sim helper arguments exceed maximum payload size');
+          }
+          const responseJson = await broker.apply(undefined, [name, argsJson], { result: { promise: true } });
+          let response;
+          try {
+            response = JSON.parse(responseJson);
+          } catch {
+            throw new Error('Invalid sim helper response');
+          }
+          if (typeof response.error === 'string') {
+            throw new Error(response.error || 'Sim helper call failed');
+          }
+          return response.resultJson === undefined || response.resultJson === null
+            ? null
+            : JSON.parse(response.resultJson);
+        }
+
+        return Object.freeze({
+          files: Object.freeze({
+            readBase64: (file, options) => callSimBroker('sim.files.readBase64', { file, options }),
+            readText: (file, options) => callSimBroker('sim.files.readText', { file, options }),
+            readBase64Chunk: (file, options) => callSimBroker('sim.files.readBase64Chunk', { file, options }),
+            readTextChunk: (file, options) => callSimBroker('sim.files.readTextChunk', { file, options }),
+          }),
+          values: Object.freeze({
+            read: (ref, options) => callSimBroker('sim.values.read', { ref, options }),
+          }),
+        });
+      })();
+      Object.defineProperty(global, 'sim', {
+        value: sim,
+        writable: false,
+        configurable: false,
+        enumerable: true
+      });
+
       // Prevent access to dangerous globals with stronger protection
       const undefined_globals = [
         'Isolate', 'Context', 'Script', 'Module', 'Callback', 'Reference',
-        'ExternalCopy', 'process', 'require', 'module', 'exports', '__dirname', '__filename'
+        'ExternalCopy', 'process', 'require', 'module', 'exports', '__dirname', '__filename',
+        '__brokerRef', '__broker', '__callSimBroker'
       ];
       for (const name of undefined_globals) {
         try {
@@ -439,6 +508,7 @@ async function executeCode(request, executionId) {
       bootstrapScript,
       ...externalCopies,
       fetchCallback,
+      brokerCallback,
       errorCallback,
       logCallback,
       context,

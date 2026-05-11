@@ -7,6 +7,7 @@ export interface ResolutionContext {
   executionState: ExecutionState
   currentNodeId: string
   loopScope?: LoopScope
+  allowLargeValueRefs?: boolean
 }
 
 export interface Resolver {
@@ -50,11 +51,15 @@ export function splitLeadingBracketPath(part: string): { property: string; pathP
  * navigatePath({a: {b: {c: 1}}}, ['a', 'b', 'c']) => 1
  * navigatePath({items: [{name: 'test'}]}, ['items', '0', 'name']) => 'test'
  */
-export function navigatePath(obj: any, path: string[]): any {
+export function navigatePath(
+  obj: any,
+  path: string[],
+  options: { allowLargeValueRefs?: boolean; executionContext?: ExecutionContext } = {}
+): any {
   let current = obj
   for (const part of path) {
     if (isLargeValueRef(current)) {
-      current = materializeLargeValueRefSyncOrThrow(current)
+      current = materializeLargeValueRefSyncOrThrow(current, options.executionContext)
     }
 
     if (current === null || current === undefined) {
@@ -69,7 +74,7 @@ export function navigatePath(obj: any, path: string[]): any {
           ? (current as Record<string, unknown>)[prop]
           : undefined
       if (isLargeValueRef(current)) {
-        current = materializeLargeValueRefSyncOrThrow(current)
+        current = materializeLargeValueRefSyncOrThrow(current, options.executionContext)
       }
       if (current === undefined || current === null) {
         return undefined
@@ -82,7 +87,7 @@ export function navigatePath(obj: any, path: string[]): any {
             return undefined
           }
           if (isLargeValueRef(current)) {
-            current = materializeLargeValueRefSyncOrThrow(current)
+            current = materializeLargeValueRefSyncOrThrow(current, options.executionContext)
           }
           const idx = Number.parseInt(indexMatch.slice(1, -1), 10)
           current = Array.isArray(current) ? current[idx] : undefined
@@ -98,6 +103,8 @@ export function navigatePath(obj: any, path: string[]): any {
           : undefined
     }
   }
-  assertNoLargeValueRefs(current)
+  if (!options.allowLargeValueRefs) {
+    assertNoLargeValueRefs(current)
+  }
   return current
 }

@@ -11,6 +11,7 @@ export interface LargeValueRef {
   id: string
   kind: 'array' | 'object' | 'string' | 'json'
   size: number
+  /** Opaque execution-scoped server storage key. This is not a download URL. */
   key?: string
   executionId?: string
   preview?: unknown

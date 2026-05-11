@@ -1,7 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import {
+  assertNoLargeValueRefs,
+  containsLargeValueRef,
+  getLargeValueMaterializationError,
+  isLargeValueRef,
+} from '@/lib/execution/payloads/large-value-ref'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
-import { BlockType } from '@/executor/constants'
+import { BlockType, parseReferencePath, REFERENCE } from '@/executor/constants'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
@@ -316,6 +323,7 @@ export class VariableResolver {
       executionState: this.state,
       currentNodeId,
       loopScope,
+      allowLargeValueRefs: true,
     }
 
     const language = (block.config?.params as Record<string, unknown> | undefined)?.language as
@@ -333,6 +341,19 @@ export class VariableResolver {
 
       try {
         if (this.blockResolver.canResolve(match)) {
+          const lazyBase64 = await this.resolveLazyFileBase64Reference(
+            match,
+            resolutionContext,
+            language,
+            template,
+            index,
+            contextVarAccumulator
+          )
+          if (lazyBase64) {
+            displayResult += lazyBase64.display
+            return lazyBase64.replacement
+          }
+
           const resolved = await this.resolveReference(match, resolutionContext)
           if (resolved === undefined) {
             displayResult += match
@@ -345,13 +366,33 @@ export class VariableResolver {
           // with language-specific runtime access to that stored value.
           const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
           contextVarAccumulator[varName] = effectiveValue
-          const replacement = this.formatContextVariableReference(
-            varName,
-            language,
-            template,
-            index,
-            effectiveValue
-          )
+          let replacement: string
+          if (isLargeValueRef(effectiveValue)) {
+            const lazyReplacement = this.formatLazyLargeValueReference(
+              varName,
+              language,
+              template,
+              index
+            )
+            if (!lazyReplacement) {
+              throw getLargeValueMaterializationError(effectiveValue)
+            }
+            replacement = lazyReplacement
+          } else if (
+            containsLargeValueRef(effectiveValue) &&
+            !this.canUseJavaScriptRuntimeHelpers(language, template)
+          ) {
+            assertNoLargeValueRefs(effectiveValue)
+            throw new Error('This execution value is too large to inline.')
+          } else {
+            replacement = this.formatContextVariableReference(
+              varName,
+              language,
+              template,
+              index,
+              effectiveValue
+            )
+          }
           displayResult += this.formatDisplayValueForCodeContext(
             effectiveValue,
             language,
@@ -368,6 +409,35 @@ export class VariableResolver {
         }
 
         const effectiveValue = resolved === RESOLVED_EMPTY ? null : resolved
+
+        if (isLargeValueRef(effectiveValue)) {
+          const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
+          contextVarAccumulator[varName] = effectiveValue
+          const lazyReplacement = this.formatLazyLargeValueReference(
+            varName,
+            language,
+            template,
+            index
+          )
+          if (lazyReplacement) {
+            displayResult += this.formatDisplayValueForCodeContext(
+              effectiveValue,
+              language,
+              template,
+              index
+            )
+            return lazyReplacement
+          }
+          throw getLargeValueMaterializationError(effectiveValue)
+        }
+
+        if (
+          containsLargeValueRef(effectiveValue) &&
+          !this.canUseJavaScriptRuntimeHelpers(language, template)
+        ) {
+          assertNoLargeValueRefs(effectiveValue)
+          throw new Error('This execution value is too large to inline.')
+        }
 
         // Non-block reference (loop, parallel, workflow, env): embed as literal
         const replacement = this.blockResolver.formatValueForBlock(
@@ -399,6 +469,88 @@ export class VariableResolver {
     })
 
     return { resolvedCode: result, displayCode: displayResult }
+  }
+
+  private async resolveLazyFileBase64Reference(
+    reference: string,
+    context: ResolutionContext,
+    language: string | undefined,
+    template: string,
+    matchIndex: number,
+    contextVarAccumulator: Record<string, unknown>
+  ): Promise<{ replacement: string; display: string } | null> {
+    if (!this.canUseJavaScriptRuntimeHelpers(language, template)) {
+      return null
+    }
+
+    const parts = parseReferencePath(reference)
+    if (parts.length < 3 || parts.at(-1) !== 'base64') {
+      return null
+    }
+
+    const fileReference = `${REFERENCE.START}${parts.slice(0, -1).join(REFERENCE.PATH_DELIMITER)}${REFERENCE.END}`
+    const file = await this.resolveReference(fileReference, context)
+    if (!isUserFileWithMetadata(file)) {
+      return null
+    }
+    if (!file.key) {
+      return null
+    }
+
+    const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
+    const { base64: _base64, ...fileMetadata } = file
+    contextVarAccumulator[varName] = fileMetadata
+    const fileExpression = `globalThis[${JSON.stringify(varName)}]`
+    const lazyExpression = `await sim.files.readBase64(${fileExpression})`
+
+    return {
+      replacement: this.formatJavaScriptAsyncExpression(lazyExpression, template, matchIndex),
+      display: reference,
+    }
+  }
+
+  private formatLazyLargeValueReference(
+    varName: string,
+    language: string | undefined,
+    template: string,
+    matchIndex: number
+  ): string | null {
+    if (!this.canUseJavaScriptRuntimeHelpers(language, template)) {
+      return null
+    }
+
+    const expression = `await sim.values.read(globalThis[${JSON.stringify(varName)}])`
+    return this.formatJavaScriptAsyncExpression(expression, template, matchIndex, {
+      stringifyInStringContext: true,
+    })
+  }
+
+  private formatJavaScriptAsyncExpression(
+    expression: string,
+    template: string,
+    matchIndex: number,
+    options: { stringifyInStringContext?: boolean } = {}
+  ): string {
+    const quoteContext = this.getCodeStringQuoteContext(template, matchIndex, 'javascript')
+    const stringExpression = options.stringifyInStringContext
+      ? `JSON.stringify(${expression})`
+      : expression
+
+    if (quoteContext === 'template') {
+      return `\${${stringExpression}}`
+    }
+    if (quoteContext === 'single' || quoteContext === 'double') {
+      const quote = this.getCodeStringQuoteToken(quoteContext)
+      return `${quote} + ${stringExpression} + ${quote}`
+    }
+    return expression
+  }
+
+  private canUseJavaScriptRuntimeHelpers(language: string | undefined, template: string): boolean {
+    if (language !== 'javascript') {
+      return false
+    }
+    return !/(^|\n)\s*import\s/.test(template) && !/require\s*\(\s*['"`]/.test(template)
   }
 
   private formatContextVariableReference(

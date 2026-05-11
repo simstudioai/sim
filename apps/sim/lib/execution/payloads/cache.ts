@@ -7,7 +7,18 @@ import {
 const FALLBACK_TTL_MS = 15 * 60 * 1000
 const MAX_IN_MEMORY_BYTES = 256 * 1024 * 1024
 
-const inMemoryValues = new Map<string, { value: unknown; size: number; expiresAt: number }>()
+interface LargeValueCacheScope {
+  workspaceId?: string
+  workflowId?: string
+  executionId?: string
+  largeValueExecutionIds?: string[]
+  allowLargeValueWorkflowScope?: boolean
+}
+
+const inMemoryValues = new Map<
+  string,
+  { value: unknown; size: number; expiresAt: number; scope?: LargeValueCacheScope }
+>()
 let inMemoryBytes = 0
 
 function cleanupExpiredValues(now = Date.now()): void {
@@ -19,7 +30,12 @@ function cleanupExpiredValues(now = Date.now()): void {
   }
 }
 
-export function cacheLargeValue(id: string, value: unknown, size: number): void {
+export function cacheLargeValue(
+  id: string,
+  value: unknown,
+  size: number,
+  scope?: LargeValueCacheScope
+): void {
   if (size > MAX_IN_MEMORY_BYTES) {
     return
   }
@@ -37,18 +53,56 @@ export function cacheLargeValue(id: string, value: unknown, size: number): void 
   inMemoryValues.set(id, {
     value,
     size,
+    scope,
     expiresAt: Date.now() + FALLBACK_TTL_MS,
   })
   inMemoryBytes += size
 }
 
-export function materializeLargeValueRefSync(ref: LargeValueRef): unknown {
-  cleanupExpiredValues()
-  return inMemoryValues.get(ref.id)?.value
+function scopeMatchesRef(
+  ref: LargeValueRef,
+  cachedScope: LargeValueCacheScope | undefined,
+  callerScope?: LargeValueCacheScope
+): boolean {
+  if (!cachedScope?.executionId) {
+    return false
+  }
+  if (ref.executionId && ref.executionId !== cachedScope.executionId) {
+    return false
+  }
+  if (!callerScope) {
+    return Boolean(ref.key) && (!ref.executionId || ref.executionId === cachedScope.executionId)
+  }
+
+  const allowedExecutionIds = new Set([
+    callerScope.executionId,
+    ...(callerScope.largeValueExecutionIds ?? []),
+  ])
+  const workflowScopeAllowed =
+    callerScope.allowLargeValueWorkflowScope &&
+    callerScope.workspaceId === cachedScope.workspaceId &&
+    callerScope.workflowId === cachedScope.workflowId
+
+  return allowedExecutionIds.has(cachedScope.executionId) || Boolean(workflowScopeAllowed)
 }
 
-export function materializeLargeValueRefSyncOrThrow(ref: LargeValueRef): unknown {
-  const materialized = materializeLargeValueRefSync(ref)
+export function materializeLargeValueRefSync(
+  ref: LargeValueRef,
+  callerScope?: LargeValueCacheScope
+): unknown {
+  cleanupExpiredValues()
+  const cached = inMemoryValues.get(ref.id)
+  if (!cached || !scopeMatchesRef(ref, cached.scope, callerScope)) {
+    return undefined
+  }
+  return cached.value
+}
+
+export function materializeLargeValueRefSyncOrThrow(
+  ref: LargeValueRef,
+  callerScope?: LargeValueCacheScope
+): unknown {
+  const materialized = materializeLargeValueRefSync(ref, callerScope)
   if (materialized === undefined) {
     throw getLargeValueMaterializationError(ref)
   }

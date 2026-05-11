@@ -159,7 +159,7 @@ export function SubflowEditor({
                   className='mb-1'
                 />
                 <div className='text-[var(--text-muted)] text-micro'>
-                  Enter a number between 1 and {subflowConfig.maxIterations}
+                  Enter a whole number greater than 0.
                 </div>
               </div>
             ) : (

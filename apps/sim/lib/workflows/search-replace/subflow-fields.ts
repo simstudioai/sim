@@ -169,14 +169,17 @@ export function parseWorkflowSearchSubflowReplacement({
   }
 
   const count = Number.parseInt(trimmed, 10)
-  const max = fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize ? 20 : 1000
-  if (count < 1 || count > max) {
+  const maxBatchSize = 20
+  if (
+    count < 1 ||
+    (fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize && count > maxBatchSize)
+  ) {
     return {
       success: false,
       reason:
         fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize
-          ? `Parallel batch size must be between 1 and ${max}`
-          : `Subflow iteration count must be between 1 and ${max}`,
+          ? `Parallel batch size must be between 1 and ${maxBatchSize}`
+          : 'Subflow iteration count must be greater than 0',
     }
   }
 

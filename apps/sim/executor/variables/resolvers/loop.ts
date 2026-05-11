@@ -180,7 +180,7 @@ export class LoopResolver implements Resolver {
     if (pathParts.length > 0) {
       return useAsyncPath && this.navigatePathAsync
         ? this.navigatePathAsync(value, pathParts, context)
-        : navigatePath(value, pathParts)
+        : navigatePath(value, pathParts, { executionContext: context.executionContext })
     }
 
     return value
@@ -193,9 +193,11 @@ export class LoopResolver implements Resolver {
     }
     const value = (output as Record<string, unknown>).results
     if (pathParts.length > 0) {
-      return navigatePath(value, pathParts)
+      return navigatePath(value, pathParts, { executionContext: context.executionContext })
     }
-    assertNoLargeValueRefs(value)
+    if (!context.allowLargeValueRefs) {
+      assertNoLargeValueRefs(value)
+    }
     return value
   }
 
@@ -212,9 +214,11 @@ export class LoopResolver implements Resolver {
     if (pathParts.length > 0) {
       return this.navigatePathAsync
         ? this.navigatePathAsync(value, pathParts, context)
-        : navigatePath(value, pathParts)
+        : navigatePath(value, pathParts, { executionContext: context.executionContext })
     }
-    assertNoLargeValueRefs(value)
+    if (!context.allowLargeValueRefs) {
+      assertNoLargeValueRefs(value)
+    }
     return value
   }
 
