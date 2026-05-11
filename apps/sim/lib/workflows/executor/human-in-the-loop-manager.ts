@@ -105,8 +105,7 @@ interface PersistPauseResultArgs {
 
 interface EnqueueResumeArgs {
   executionId: string
-  /** workflowId is used to scope the lookup to the correct tenant. Required unless the caller is a trusted internal cron. */
-  workflowId?: string
+  workflowId: string
   contextId: string
   resumeInput: unknown
   userId: string
@@ -1535,7 +1534,7 @@ export class PauseResumeManager {
     })
   }
 
-  static async beginPausedCancellation(executionId: string, workflowId?: string): Promise<boolean> {
+  static async beginPausedCancellation(executionId: string, workflowId: string): Promise<boolean> {
     const now = new Date()
 
     return await db.transaction(async (tx) => {
@@ -1585,7 +1584,7 @@ export class PauseResumeManager {
 
   static async completePausedCancellation(
     executionId: string,
-    workflowId?: string
+    workflowId: string
   ): Promise<boolean> {
     const now = new Date()
 
@@ -1628,7 +1627,7 @@ export class PauseResumeManager {
 
   static async blockQueuedResumesForCancellation(
     executionId: string,
-    workflowId?: string
+    workflowId: string
   ): Promise<boolean> {
     const now = new Date()
 
@@ -1673,7 +1672,7 @@ export class PauseResumeManager {
 
   static async clearPausedCancellationIntent(
     executionId: string,
-    workflowId?: string
+    workflowId: string
   ): Promise<void> {
     const now = new Date()
     await db
@@ -1694,7 +1693,7 @@ export class PauseResumeManager {
 
   static async getPausedCancellationStatus(
     executionId: string,
-    workflowId?: string
+    workflowId: string
   ): Promise<'cancelling' | 'cancelled' | null> {
     const activeResume = await db
       .select({ id: resumeQueue.id })
@@ -1874,7 +1873,7 @@ export class PauseResumeManager {
     }
   }
 
-  static async processQueuedResumes(parentExecutionId: string, workflowId?: string): Promise<void> {
+  static async processQueuedResumes(parentExecutionId: string, workflowId: string): Promise<void> {
     let pendingEntry: {
       entry: typeof resumeQueue.$inferSelect
       pausedExecution: typeof pausedExecutions.$inferSelect
