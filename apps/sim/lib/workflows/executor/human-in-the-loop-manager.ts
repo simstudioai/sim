@@ -476,10 +476,14 @@ export class PauseResumeManager {
             failureReason: 'Resume execution cancelled',
           })
           const pausedCancellationStatus = await PauseResumeManager.getPausedCancellationStatus(
-            pausedExecution.executionId
+            pausedExecution.executionId,
+            pausedExecution.workflowId
           )
           if (pausedCancellationStatus === 'cancelling') {
-            await PauseResumeManager.completePausedCancellation(pausedExecution.executionId)
+            await PauseResumeManager.completePausedCancellation(
+              pausedExecution.executionId,
+              pausedExecution.workflowId
+            )
           }
         } else {
           await PauseResumeManager.updateSnapshotAfterResume({
