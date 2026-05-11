@@ -1,5 +1,5 @@
 {
-  "id": "1c89700e-fc3d-4dc3-864d-963edc5b7158",
+  "id": "5df2c04d-1f08-4c0b-9763-b79666c03406",
   "prevId": "c261a35e-0a35-452b-8f72-995fc488b108",
   "version": "7",
   "dialect": "postgresql",
@@ -8038,6 +8038,86 @@
           "columns": ["workspace_id"]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mothership_settings": {
+      "name": "mothership_settings",
+      "schema": "",
+      "columns": {
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "mcp_tool_refs": {
+          "name": "mcp_tool_refs",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "custom_tool_refs": {
+          "name": "custom_tool_refs",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "skill_refs": {
+          "name": "skill_refs",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "mothership_settings_workspace_id_idx": {
+          "name": "mothership_settings_workspace_id_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mothership_settings_workspace_id_workspace_id_fk": {
+          "name": "mothership_settings_workspace_id_workspace_id_fk",
+          "tableFrom": "mothership_settings",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
