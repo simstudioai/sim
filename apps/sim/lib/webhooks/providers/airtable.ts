@@ -471,7 +471,7 @@ export const airtableHandler: WebhookProviderHandler = {
       const secretBytes = Buffer.from(macSecretBase64, 'base64')
       const computedHex = crypto
         .createHmac('sha256', secretBytes)
-        .update(rawBody, 'ascii')
+        .update(rawBody, 'utf8')
         .digest('hex')
 
       if (!safeCompare(computedHex, providedHex)) {

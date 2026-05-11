@@ -39,9 +39,10 @@ export const webflowHandler: WebhookProviderHandler = {
       return new NextResponse('Unauthorized - Missing Webflow signature headers', { status: 401 })
     }
 
-    // Replay protection: reject if timestamp is more than 5 minutes old
+    // Replay protection: reject if timestamp is more than 5 minutes old.
+    // x-webflow-timestamp is Unix seconds; Date.now() is milliseconds — compare both in seconds.
     const ts = Number.parseInt(timestamp, 10)
-    if (Number.isNaN(ts) || Date.now() - ts > 5 * 60 * 1000) {
+    if (Number.isNaN(ts) || Date.now() / 1000 - ts > 5 * 60) {
       logger.warn(`[${requestId}] Webflow webhook timestamp expired or invalid`)
       return new NextResponse('Unauthorized - Webhook timestamp expired', { status: 401 })
     }

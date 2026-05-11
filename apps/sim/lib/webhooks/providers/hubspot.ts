@@ -30,7 +30,11 @@ export const hubspotHandler: WebhookProviderHandler = {
     }
 
     try {
-      // HubSpot v1 signature: SHA-256 hash of (clientSecret + requestBody)
+      /**
+       * HubSpot v1 signature: SHA-256 of (clientSecret + requestBody), verified against X-HubSpot-Signature.
+       * v1 is intentionally used for CRM webhook subscriptions — v3 requires the full request URL and method,
+       * which are not available in verifyAuth.
+       */
       const computedHash = crypto
         .createHash('sha256')
         .update(clientSecret + rawBody, 'utf8')
