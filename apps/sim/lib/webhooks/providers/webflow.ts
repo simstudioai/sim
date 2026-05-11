@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
+import { env } from '@/lib/core/config/env'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getCredentialOwner, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
@@ -25,11 +26,10 @@ export const webflowHandler: WebhookProviderHandler = {
     const secretKey = providerConfig.secretKey as string | undefined | null
 
     if (!secretKey) {
-      // Fail-open for existing webhooks created before this change (no secretKey stored)
       logger.warn(
-        `[${requestId}] Webflow webhook missing secretKey in providerConfig — skipping signature verification`
+        `[${requestId}] Webflow webhook missing secretKey in providerConfig — rejecting request`
       )
-      return null
+      return new NextResponse('Unauthorized - Webhook secret not configured', { status: 401 })
     }
 
     const signature = request.headers.get('x-webflow-signature')
@@ -40,8 +40,7 @@ export const webflowHandler: WebhookProviderHandler = {
       return new NextResponse('Unauthorized - Missing Webflow signature headers', { status: 401 })
     }
 
-    // Replay protection: reject if timestamp is more than 5 minutes old.
-    // x-webflow-timestamp is Unix milliseconds (e.g. 1722370035277) — compare directly with Date.now().
+    // x-webflow-timestamp is Unix milliseconds — compare directly with Date.now()
     const ts = Number.parseInt(timestamp, 10)
     if (Number.isNaN(ts) || Date.now() - ts > 5 * 60 * 1000) {
       logger.warn(`[${requestId}] Webflow webhook timestamp expired or invalid`)
@@ -49,7 +48,6 @@ export const webflowHandler: WebhookProviderHandler = {
     }
 
     try {
-      // HMAC-SHA256 of "${timestamp}:${rawBody}"
       const computedHash = crypto
         .createHmac('sha256', secretKey)
         .update(`${timestamp}:${rawBody}`, 'utf8')
@@ -188,11 +186,11 @@ export const webflowHandler: WebhookProviderHandler = {
       return {
         providerConfigUpdates: {
           externalId: responseBody.id || responseBody._id,
-          secretKey: responseBody.secretKey,
+          secretKey: responseBody.secretKey ?? env.WEBFLOW_CLIENT_SECRET ?? null,
         },
       }
     } catch (error: unknown) {
-      const err = error as Error
+      const err = toError(error)
       logger.error(
         `[${requestId}] Exception during Webflow webhook creation for webhook ${webhookRecord.id}.`,
         {

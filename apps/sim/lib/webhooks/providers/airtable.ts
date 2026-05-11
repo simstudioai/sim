@@ -48,13 +48,10 @@ interface AirtableTableChanges {
   destroyedRecordIds?: string[]
 }
 
-/**
- * Process Airtable payloads
- */
 async function fetchAndProcessAirtablePayloads(
   webhookData: Record<string, unknown>,
   workflowData: Record<string, unknown>,
-  requestId: string // Original request ID from the ping, used for the final execution log
+  requestId: string
 ) {
   let currentCursor: number | null = null
   let mightHaveMore = true
@@ -180,7 +177,6 @@ async function fetchAndProcessAirtablePayloads(
 
     while (mightHaveMore) {
       apiCallCount++
-      // Safety break
       if (apiCallCount > 10) {
         mightHaveMore = false
         break
@@ -226,7 +222,6 @@ async function fetchAndProcessAirtablePayloads(
 
         if (receivedPayloads.length > 0) {
           payloadsFetched += receivedPayloads.length
-          // Keep the raw payloads for later exposure to the workflow
           for (const p of receivedPayloads) {
             allPayloads.push(p)
           }
@@ -247,14 +242,11 @@ async function fetchAndProcessAirtablePayloads(
                   )) {
                     const existingChange = consolidatedChangesMap.get(recordId)
                     if (existingChange) {
-                      // Record was created and possibly updated within the same batch
                       existingChange.changedFields = {
                         ...existingChange.changedFields,
                         ...(recordData.cellValuesByFieldId || {}),
                       }
-                      // Keep changeType as 'created' if it started as created
                     } else {
-                      // New creation
                       consolidatedChangesMap.set(recordId, {
                         tableId: tableId,
                         recordId: recordId,
@@ -265,7 +257,6 @@ async function fetchAndProcessAirtablePayloads(
                   }
                 }
 
-                // Handle updated records
                 if (tableChanges.changedRecordsById) {
                   const updatedCount = Object.keys(tableChanges.changedRecordsById).length
                   changeCount += updatedCount
@@ -277,16 +268,12 @@ async function fetchAndProcessAirtablePayloads(
                     const currentFields = recordData.current?.cellValuesByFieldId || {}
 
                     if (existingChange) {
-                      // Existing record was updated again
                       existingChange.changedFields = {
                         ...existingChange.changedFields,
                         ...currentFields,
                       }
-                      // Ensure type is 'updated' if it was previously 'created'
                       existingChange.changeType = 'updated'
-                      // Do not update previousFields again
                     } else {
-                      // First update for this record in the batch
                       const newChange: AirtableChange = {
                         tableId: tableId,
                         recordId: recordId,
@@ -316,7 +303,6 @@ async function fetchAndProcessAirtablePayloads(
             externalWebhookCursor: currentCursor,
           }
           try {
-            // Force a complete object update to ensure consistency in serverless env
             await db
               .update(webhook)
               .set({
@@ -325,7 +311,7 @@ async function fetchAndProcessAirtablePayloads(
               })
               .where(eq(webhook.id, webhookData.id as string))
 
-            localProviderConfig.externalWebhookCursor = currentCursor // Update local copy too
+            localProviderConfig.externalWebhookCursor = currentCursor
           } catch (dbError: unknown) {
             const err = dbError as Error
             logger.error(`[${requestId}] Failed to persist Airtable cursor to DB`, {
@@ -334,7 +320,7 @@ async function fetchAndProcessAirtablePayloads(
               error: err.message,
             })
             mightHaveMore = false
-            throw new Error('Failed to save Airtable cursor, stopping processing.') // Re-throw to break loop clearly
+            throw new Error('Failed to save Airtable cursor, stopping processing.')
           }
         } else if (!nextCursor || typeof nextCursor !== 'number') {
           logger.warn(`[${requestId}] Invalid or missing cursor received, stopping poll`, {
@@ -344,7 +330,7 @@ async function fetchAndProcessAirtablePayloads(
           })
           mightHaveMore = false
         } else if (nextCursor === currentCursor) {
-          mightHaveMore = false // Explicitly stop if cursor hasn't changed
+          mightHaveMore = false
         }
       } catch (fetchError: unknown) {
         logger.error(
@@ -355,7 +341,6 @@ async function fetchAndProcessAirtablePayloads(
         break
       }
     }
-    // Convert map values to array for final processing
     const finalConsolidatedChanges = Array.from(consolidatedChangesMap.values())
     logger.info(
       `[${requestId}] Consolidated ${finalConsolidatedChanges.length} Airtable changes across ${apiCallCount} API calls`
@@ -367,9 +352,7 @@ async function fetchAndProcessAirtablePayloads(
         const input: Record<string, unknown> = {
           payloads: allPayloads,
           latestPayload,
-          // Consolidated, simplified changes for convenience
           airtableChanges: finalConsolidatedChanges,
-          // Include webhook metadata for resolver fallbacks
           webhook: {
             data: {
               provider: 'airtable',
@@ -416,7 +399,6 @@ async function fetchAndProcessAirtablePayloads(
       })
     }
   } catch (error) {
-    // Catch any unexpected errors during the setup/polling logic itself
     logger.error(
       `[${requestId}] Unexpected error during asynchronous Airtable payload processing task`,
       {
