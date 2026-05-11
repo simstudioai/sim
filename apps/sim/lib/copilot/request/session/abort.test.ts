@@ -22,7 +22,7 @@ vi.mock('@/lib/copilot/request/otel', () => ({
     fn({ setAttribute: vi.fn() }),
 }))
 
-import { startAbortPoller } from '@/lib/copilot/request/session/abort'
+import { getActiveChatStreamIds, startAbortPoller } from '@/lib/copilot/request/session/abort'
 
 describe('startAbortPoller heartbeat', () => {
   beforeEach(() => {
@@ -157,5 +157,57 @@ describe('startAbortPoller heartbeat', () => {
     } finally {
       clearInterval(interval)
     }
+  })
+})
+
+describe('getActiveChatStreamIds', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
+  })
+
+  it('returns an empty set when no chat ids are provided', async () => {
+    const active = await getActiveChatStreamIds([])
+    expect(active.size).toBe(0)
+  })
+
+  it('reports a chat as active when redis returns a lock owner', async () => {
+    const mget = vi.fn().mockResolvedValue(['stream-1', null, 'stream-3'])
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue({ mget } as never)
+
+    const active = await getActiveChatStreamIds(['chat-1', 'chat-2', 'chat-3'])
+
+    expect(mget).toHaveBeenCalledWith([
+      'copilot:chat-stream-lock:chat-1',
+      'copilot:chat-stream-lock:chat-2',
+      'copilot:chat-stream-lock:chat-3',
+    ])
+    expect(active).toEqual(new Set(['chat-1', 'chat-3']))
+  })
+
+  it('reports no chats as active when every lock has expired in redis', async () => {
+    const mget = vi.fn().mockResolvedValue([null, null])
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue({ mget } as never)
+
+    const active = await getActiveChatStreamIds(['chat-stuck-1', 'chat-stuck-2'])
+
+    expect(active.size).toBe(0)
+  })
+
+  it('returns an empty set when redis is unavailable', async () => {
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
+
+    const active = await getActiveChatStreamIds(['chat-1', 'chat-2'])
+
+    expect(active.size).toBe(0)
+  })
+
+  it('falls back to an empty set without throwing when mget rejects', async () => {
+    const mget = vi.fn().mockRejectedValue(new Error('redis down'))
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue({ mget } as never)
+
+    const active = await getActiveChatStreamIds(['chat-1', 'chat-2'])
+
+    expect(active.size).toBe(0)
   })
 })

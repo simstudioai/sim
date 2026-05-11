@@ -123,6 +123,43 @@ export async function getPendingChatStreamId(chatId: string): Promise<string | n
   }
 }
 
+/**
+ * Batched liveness check for a set of chat IDs. Returns the subset that
+ * currently hold a stream lock — either via the in-process pending map or
+ * a live Redis lock. Used by the task list to reconcile
+ * `copilot_chats.conversation_id` (the persistent stream marker) against
+ * the canonical Redis TTL, so a chat whose finalize path was skipped
+ * (pod crash, missed callback) doesn't render as "active" forever.
+ *
+ * Falls back to the local pending map only when Redis is unavailable.
+ */
+export async function getActiveChatStreamIds(chatIds: string[]): Promise<Set<string>> {
+  const active = new Set<string>()
+  if (chatIds.length === 0) return active
+
+  for (const chatId of chatIds) {
+    if (pendingChatStreams.has(chatId)) active.add(chatId)
+  }
+
+  const redis = getRedisClient()
+  if (!redis) return active
+
+  try {
+    const keys = chatIds.map(getChatStreamLockKey)
+    const values = await redis.mget(keys)
+    for (let i = 0; i < chatIds.length; i++) {
+      if (values[i]) active.add(chatIds[i])
+    }
+  } catch (error) {
+    logger.warn('Failed to load chat stream lock owners (batch)', {
+      count: chatIds.length,
+      error: toError(error).message,
+    })
+  }
+
+  return active
+}
+
 export async function releasePendingChatStream(chatId: string, streamId: string): Promise<void> {
   try {
     await releaseLock(getChatStreamLockKey(chatId), streamId)

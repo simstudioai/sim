@@ -20,6 +20,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
+import { getActiveChatStreamIds } from '@/lib/copilot/request/session/abort'
 import { readEvents } from '@/lib/copilot/request/session/buffer'
 import { readFilePreviewSessions } from '@/lib/copilot/request/session/file-preview-session'
 import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/copilot/request/session/types'
@@ -52,23 +53,34 @@ export const GET = withRouteHandler(
         status: string
       } | null = null
 
-      if (chat.conversationId) {
+      // Reconcile the persisted stream marker against the canonical Redis
+      // lock. If `conversation_id` is set but no lock is held, the stream
+      // is no longer running (process died before finalize) — treat the
+      // marker as null so the client doesn't try to reconnect to a dead
+      // stream. Mirrors the same reconciliation in the task list route.
+      const activeIds = chat.conversationId
+        ? await getActiveChatStreamIds([chat.id])
+        : new Set<string>()
+      const liveConversationId =
+        chat.conversationId && activeIds.has(chat.id) ? chat.conversationId : null
+
+      if (liveConversationId) {
         try {
           const [events, previewSessions] = await Promise.all([
-            readEvents(chat.conversationId, '0'),
-            readFilePreviewSessions(chat.conversationId).catch((error) => {
+            readEvents(liveConversationId, '0'),
+            readFilePreviewSessions(liveConversationId).catch((error) => {
               logger.warn('Failed to read preview sessions for mothership chat', {
                 chatId,
-                conversationId: chat.conversationId,
+                conversationId: liveConversationId,
                 error: toError(error).message,
               })
               return []
             }),
           ])
-          const run = await getLatestRunForStream(chat.conversationId, userId).catch((error) => {
+          const run = await getLatestRunForStream(liveConversationId, userId).catch((error) => {
             logger.warn('Failed to fetch latest run for mothership chat snapshot', {
               chatId,
-              conversationId: chat.conversationId,
+              conversationId: liveConversationId,
               error: toError(error).message,
             })
             return null
@@ -87,7 +99,7 @@ export const GET = withRouteHandler(
         } catch (error) {
           logger.warn('Failed to read stream snapshot for mothership chat', {
             chatId,
-            conversationId: chat.conversationId,
+            conversationId: liveConversationId,
             error: toError(error).message,
           })
         }
@@ -100,7 +112,7 @@ export const GET = withRouteHandler(
         : []
       const effectiveMessages = buildEffectiveChatTranscript({
         messages: normalizedMessages,
-        activeStreamId: chat.conversationId || null,
+        activeStreamId: liveConversationId || null,
         ...(streamSnapshot ? { streamSnapshot } : {}),
       })
 
@@ -110,7 +122,7 @@ export const GET = withRouteHandler(
           id: chat.id,
           title: chat.title,
           messages: effectiveMessages,
-          conversationId: chat.conversationId || null,
+          conversationId: liveConversationId || null,
           resources: Array.isArray(chat.resources) ? chat.resources : [],
           createdAt: chat.createdAt,
           updatedAt: chat.updatedAt,

@@ -13,6 +13,7 @@ import {
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
+import { getActiveChatStreamIds } from '@/lib/copilot/request/session/abort'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -55,7 +56,19 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
       .orderBy(desc(copilotChats.updatedAt))
 
-    return NextResponse.json({ success: true, data: chats })
+    // Reconcile the persisted stream marker against the canonical Redis
+    // lock. `conversation_id` is set when a stream starts and cleared on
+    // the finalize/stop paths — but if those never run (pod crash, OOM,
+    // throw before callback), the column is orphaned and the task renders
+    // yellow forever. The Redis lock self-heals via its 60s TTL, so a
+    // missing lock means the stream is no longer running.
+    const candidateIds = chats.filter((c) => c.activeStreamId !== null).map((c) => c.id)
+    const activeIds = await getActiveChatStreamIds(candidateIds)
+    const reconciled = chats.map((c) =>
+      c.activeStreamId !== null && !activeIds.has(c.id) ? { ...c, activeStreamId: null } : c
+    )
+
+    return NextResponse.json({ success: true, data: reconciled })
   } catch (error) {
     logger.error('Error fetching mothership chats:', error)
     return createInternalServerErrorResponse('Failed to fetch chats')
