@@ -157,12 +157,19 @@ interface AzureBlobState {
   accountName: string
   containerName: string
   prefix: string
+  endpointSuffix: string
   accountKey: string
 }
 
 const azureBlobFormSpec: DestinationFormSpec<AzureBlobState> = {
   displayName: 'Azure Blob Storage',
-  initialState: { accountName: '', containerName: '', prefix: '', accountKey: '' },
+  initialState: {
+    accountName: '',
+    containerName: '',
+    prefix: '',
+    endpointSuffix: '',
+    accountKey: '',
+  },
   FormFields: ({ state, setState }) => (
     <>
       <FormField label='Account name'>
@@ -184,6 +191,13 @@ const azureBlobFormSpec: DestinationFormSpec<AzureBlobState> = {
           placeholder='exports/sim'
         />
       </FormField>
+      <FormField label='Endpoint suffix (optional)'>
+        <Input
+          value={state.endpointSuffix}
+          onChange={(e) => setState({ ...state, endpointSuffix: e.target.value })}
+          placeholder='blob.core.windows.net'
+        />
+      </FormField>
       <FormField label='Account key'>
         <SecretInput
           value={state.accountKey}
@@ -200,6 +214,7 @@ const azureBlobFormSpec: DestinationFormSpec<AzureBlobState> = {
       accountName: s.accountName,
       containerName: s.containerName,
       prefix: s.prefix || undefined,
+      endpointSuffix: s.endpointSuffix || undefined,
     },
     destinationCredentials: { accountKey: s.accountKey },
   }),

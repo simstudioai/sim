@@ -33,7 +33,7 @@ const s3CredentialsBodySchema = z.object({
 })
 
 const gcsConfigBodySchema = z.object({
-  bucket: z.string().min(1, 'bucket is required').max(222),
+  bucket: z.string().min(3, 'bucket must be at least 3 characters').max(63),
   prefix: z.string().max(512).optional(),
 })
 
@@ -45,6 +45,7 @@ const azureBlobConfigBodySchema = z.object({
   accountName: z.string().min(1, 'accountName is required').max(24),
   containerName: z.string().min(3, 'containerName is required').max(63),
   prefix: z.string().max(512).optional(),
+  endpointSuffix: z.string().min(1).max(128).optional(),
 })
 
 const azureBlobCredentialsBodySchema = z.object({
