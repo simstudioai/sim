@@ -154,20 +154,6 @@ export function parseServiceAccount(json: string): ParsedServiceAccount {
  * is parseable and carries `client_email` + `private_key`. Used by both
  * `gcsCredentialsSchema` and `bigqueryCredentialsSchema`.
  */
-/**
- * Splits an NDJSON buffer into its non-empty lines (UTF-8). Used by destinations
- * that ship raw JSON strings (e.g. Snowflake binds each line as a TEXT value).
- */
-export function parseNdjsonLines(body: Buffer): string[] {
-  const text = body.toString('utf8')
-  const out: string[] = []
-  for (const line of text.split(/\r?\n/)) {
-    if (line.length === 0) continue
-    out.push(line)
-  }
-  return out
-}
-
 export interface ParseNdjsonObjectsOptions {
   /** When true, throw if a parsed value is not a plain object. */
   requireObject?: boolean

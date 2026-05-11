@@ -6,7 +6,7 @@ import { importPKCS8, SignJWT } from 'jose'
 import { z } from 'zod'
 import {
   backoffWithJitter,
-  parseNdjsonLines,
+  parseNdjsonObjects,
   parseRetryAfter,
   sleepUntilAborted,
 } from '@/lib/data-drains/destinations/utils'
@@ -411,7 +411,8 @@ export const snowflakeDestination: DrainDestination<
     }
     return {
       async deliver({ body, metadata, signal }) {
-        const rows = parseNdjsonLines(body)
+        const parsed = parseNdjsonObjects(body)
+        const rows = parsed.map((row) => JSON.stringify(row))
         if (rows.length === 0) {
           return {
             locator: `snowflake://${config.account}/${config.database}.${config.schema}.${config.table}#${metadata.runId}-${metadata.sequence}`,
