@@ -351,6 +351,8 @@ async function pollStatement(input: PollInput): Promise<void> {
       continue
     }
     if (response.status === 202) {
+      /** Drain the body so undici can return the socket to the keep-alive pool between polls. */
+      await response.text().catch(() => '')
       retryAttempt = 0
       interval = Math.min(interval * 2, POLL_MAX_INTERVAL_MS)
       continue
@@ -367,6 +369,8 @@ async function pollStatement(input: PollInput): Promise<void> {
         status: response.status,
         delayMs: delay,
       })
+      /** Drain the body so undici can return the socket to the keep-alive pool between retries. */
+      await response.text().catch(() => '')
       await sleepUntilAborted(delay, input.signal)
       skipIntervalSleep = true
       continue
