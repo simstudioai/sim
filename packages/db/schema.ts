@@ -859,6 +859,23 @@ export const skill = pgTable(
   })
 )
 
+export const mothershipSettings = pgTable(
+  'mothership_settings',
+  {
+    workspaceId: text('workspace_id')
+      .primaryKey()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    mcpToolRefs: jsonb('mcp_tool_refs').notNull().default(sql`'[]'::jsonb`),
+    customToolRefs: jsonb('custom_tool_refs').notNull().default(sql`'[]'::jsonb`),
+    skillRefs: jsonb('skill_refs').notNull().default(sql`'[]'::jsonb`),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('mothership_settings_workspace_id_idx').on(table.workspaceId),
+  })
+)
+
 export const subscription = pgTable(
   'subscription',
   {

@@ -604,6 +604,7 @@ async function resolveBranch(params: {
           workspaceContext: payloadParams.workspaceContext,
           userPermission: payloadParams.userPermission,
           userTimezone: payloadParams.userTimezone,
+          includeMothershipTools: true,
         },
         { selectedModel: '' }
       ),
