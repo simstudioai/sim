@@ -1,0 +1,213 @@
+import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
+import { z } from 'zod'
+import type { DrainDestination } from '@/lib/data-drains/types'
+
+const logger = createLogger('DataDrainAzureBlobDestination')
+
+/**
+ * Azure storage account names: 3-24 chars, lowercase letters and digits only.
+ * https://learn.microsoft.com/en-us/azure/storage/common/storage-account-overview#storage-account-name
+ */
+const ACCOUNT_NAME_RE = /^[a-z0-9]{3,24}$/
+
+/**
+ * Azure container names: 3-63 chars, lowercase letters, digits, single hyphens
+ * (no leading/trailing/double hyphens).
+ * https://learn.microsoft.com/en-us/rest/api/storageservices/naming-and-referencing-containers--blobs--and-metadata
+ */
+const CONTAINER_NAME_RE = /^[a-z0-9]([a-z0-9]|-(?!-))+[a-z0-9]$/
+
+/**
+ * Azure storage account keys are 512 bits (64 bytes) of base64 — typically
+ * 88 characters including padding. Allow some slack for any future variants.
+ */
+const ACCOUNT_KEY_RE = /^[A-Za-z0-9+/]+={0,2}$/
+
+/**
+ * Public cloud endpoint suffix. Sovereign clouds: Gov uses
+ * `blob.core.usgovcloudapi.net`, China uses `blob.core.chinacloudapi.cn`.
+ */
+const DEFAULT_ENDPOINT_SUFFIX = 'blob.core.windows.net'
+
+const azureBlobConfigSchema = z.object({
+  accountName: z
+    .string()
+    .min(1, 'accountName is required')
+    .refine((value) => ACCOUNT_NAME_RE.test(value), {
+      message: 'accountName must be 3-24 lowercase letters or digits',
+    }),
+  containerName: z
+    .string()
+    .min(3, 'containerName must be 3-63 characters')
+    .max(63)
+    .refine((value) => CONTAINER_NAME_RE.test(value), {
+      message: 'containerName must use lowercase letters, digits, or single hyphens',
+    }),
+  /** Optional prefix; trailing slash is added automatically when assembling blob names. */
+  prefix: z.string().max(512).optional(),
+  /**
+   * Storage endpoint suffix. Defaults to public cloud (`blob.core.windows.net`).
+   * Use `blob.core.usgovcloudapi.net` for Azure Gov, `blob.core.chinacloudapi.cn`
+   * for Azure China.
+   */
+  endpointSuffix: z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[a-z0-9.-]+$/, { message: 'endpointSuffix must be a valid hostname suffix' })
+    .optional(),
+})
+
+const azureBlobCredentialsSchema = z.object({
+  accountKey: z
+    .string()
+    .min(64, 'accountKey is too short to be a valid Azure storage key')
+    .max(120, 'accountKey is too long to be a valid Azure storage key')
+    .refine((v) => ACCOUNT_KEY_RE.test(v), {
+      message: 'accountKey must be a base64-encoded Azure storage account key',
+    }),
+})
+
+export type AzureBlobDestinationConfig = z.infer<typeof azureBlobConfigSchema>
+export type AzureBlobDestinationCredentials = z.infer<typeof azureBlobCredentialsSchema>
+
+interface BlobClients {
+  containerClient: import('@azure/storage-blob').ContainerClient
+}
+
+async function buildClients(
+  config: AzureBlobDestinationConfig,
+  credentials: AzureBlobDestinationCredentials
+): Promise<BlobClients> {
+  const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
+  const sharedKeyCredential = new StorageSharedKeyCredential(
+    config.accountName,
+    credentials.accountKey
+  )
+  const suffix = config.endpointSuffix ?? DEFAULT_ENDPOINT_SUFFIX
+  const blobServiceClient = new BlobServiceClient(
+    `https://${config.accountName}.${suffix}`,
+    sharedKeyCredential
+  )
+  return { containerClient: blobServiceClient.getContainerClient(config.containerName) }
+}
+
+function normalizePrefix(raw: string | undefined): string {
+  if (!raw) return ''
+  const trimmed = raw.replace(/^\/+/, '').replace(/\/+$/, '')
+  return trimmed.length === 0 ? '' : `${trimmed}/`
+}
+
+function buildBlobName(
+  config: AzureBlobDestinationConfig,
+  metadata: {
+    drainId: string
+    runId: string
+    source: string
+    sequence: number
+    runStartedAt: Date
+  }
+): string {
+  const partition = metadata.runStartedAt
+  const yyyy = partition.getUTCFullYear().toString().padStart(4, '0')
+  const mm = (partition.getUTCMonth() + 1).toString().padStart(2, '0')
+  const dd = partition.getUTCDate().toString().padStart(2, '0')
+  const seq = metadata.sequence.toString().padStart(5, '0')
+  const prefix = normalizePrefix(config.prefix)
+  return `${prefix}${metadata.source}/${metadata.drainId}/${yyyy}/${mm}/${dd}/${metadata.runId}-${seq}.ndjson`
+}
+
+interface AzureRestErrorLike {
+  statusCode?: number
+  code?: string
+  message?: string
+}
+
+function isAzureRestError(error: unknown): error is AzureRestErrorLike {
+  return typeof error === 'object' && error !== null && ('statusCode' in error || 'code' in error)
+}
+
+async function withAzureErrorContext<T>(action: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (error) {
+    if (isAzureRestError(error)) {
+      const status = error.statusCode
+      const code = error.code
+      logger.warn('Azure Blob operation failed', { action, code, status })
+      throw new Error(
+        `Azure Blob ${action} failed (${code ?? 'Error'}${status ? ` ${status}` : ''}): ${error.message ?? ''}`,
+        { cause: error }
+      )
+    }
+    throw error
+  }
+}
+
+export const azureBlobDestination: DrainDestination<
+  AzureBlobDestinationConfig,
+  AzureBlobDestinationCredentials
+> = {
+  type: 'azure_blob',
+  displayName: 'Azure Blob Storage',
+  configSchema: azureBlobConfigSchema,
+  credentialsSchema: azureBlobCredentialsSchema,
+
+  async test({ config, credentials, signal }) {
+    const { containerClient } = await buildClients(config, credentials)
+    const probeName = `${normalizePrefix(config.prefix)}.sim-drain-write-probe/${generateShortId(12)}`
+    const blockBlobClient = containerClient.getBlockBlobClient(probeName)
+    await withAzureErrorContext('test-put', () =>
+      blockBlobClient.upload(Buffer.alloc(0), 0, {
+        blobHTTPHeaders: { blobContentType: 'application/octet-stream' },
+        abortSignal: signal,
+      })
+    )
+    try {
+      await blockBlobClient.deleteIfExists({ abortSignal: signal })
+    } catch (cleanupError) {
+      logger.debug('Azure Blob test write probe cleanup failed (non-fatal)', {
+        accountName: config.accountName,
+        containerName: config.containerName,
+        blobName: probeName,
+        error: cleanupError,
+      })
+    }
+  },
+
+  openSession({ config, credentials }) {
+    let clientsPromise: Promise<BlobClients> | null = null
+    return {
+      async deliver({ body, contentType, metadata, signal }) {
+        if (clientsPromise === null) clientsPromise = buildClients(config, credentials)
+        const { containerClient } = await clientsPromise
+        const blobName = buildBlobName(config, metadata)
+        const blockBlobClient = containerClient.getBlockBlobClient(blobName)
+        await withAzureErrorContext('put-object', () =>
+          blockBlobClient.upload(body, body.byteLength, {
+            blobHTTPHeaders: { blobContentType: contentType },
+            metadata: {
+              simdrainid: metadata.drainId,
+              simrunid: metadata.runId,
+              simsource: metadata.source,
+              simsequence: metadata.sequence.toString(),
+              simrowcount: metadata.rowCount.toString(),
+            },
+            abortSignal: signal,
+          })
+        )
+        logger.debug('Azure Blob chunk delivered', {
+          accountName: config.accountName,
+          containerName: config.containerName,
+          blobName,
+          bytes: body.byteLength,
+        })
+        return {
+          locator: `azure://${config.accountName}/${config.containerName}/${blobName}`,
+        }
+      },
+      async close() {},
+    }
+  },
+}

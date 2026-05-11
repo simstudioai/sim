@@ -3148,7 +3148,15 @@ export const dataDrainSourceEnum = pgEnum('data_drain_source', [
 
 export type DataDrainSource = (typeof dataDrainSourceEnum.enumValues)[number]
 
-export const dataDrainDestinationEnum = pgEnum('data_drain_destination', ['s3', 'webhook'])
+export const dataDrainDestinationEnum = pgEnum('data_drain_destination', [
+  's3',
+  'gcs',
+  'azure_blob',
+  'datadog',
+  'bigquery',
+  'snowflake',
+  'webhook',
+])
 
 export type DataDrainDestination = (typeof dataDrainDestinationEnum.enumValues)[number]
 

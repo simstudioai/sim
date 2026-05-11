@@ -32,6 +32,60 @@ const s3CredentialsBodySchema = z.object({
   secretAccessKey: z.string().min(1, 'secretAccessKey is required'),
 })
 
+const gcsConfigBodySchema = z.object({
+  bucket: z.string().min(1, 'bucket is required').max(222),
+  prefix: z.string().max(512).optional(),
+})
+
+const gcsCredentialsBodySchema = z.object({
+  serviceAccountJson: z.string().min(1, 'serviceAccountJson is required'),
+})
+
+const azureBlobConfigBodySchema = z.object({
+  accountName: z.string().min(1, 'accountName is required').max(24),
+  containerName: z.string().min(3, 'containerName is required').max(63),
+  prefix: z.string().max(512).optional(),
+})
+
+const azureBlobCredentialsBodySchema = z.object({
+  accountKey: z.string().min(1, 'accountKey is required'),
+})
+
+const datadogConfigBodySchema = z.object({
+  site: z.enum(['us1', 'us3', 'us5', 'eu1', 'ap1', 'gov']),
+  service: z.string().min(1).max(100).optional(),
+  tags: z.string().max(1024).optional(),
+})
+
+const datadogCredentialsBodySchema = z.object({
+  apiKey: z.string().min(1, 'apiKey is required'),
+})
+
+const bigqueryConfigBodySchema = z.object({
+  projectId: z.string().min(6).max(30),
+  datasetId: z.string().min(1).max(1024),
+  tableId: z.string().min(1).max(1024),
+})
+
+const bigqueryCredentialsBodySchema = z.object({
+  serviceAccountJson: z.string().min(1, 'serviceAccountJson is required'),
+})
+
+const snowflakeConfigBodySchema = z.object({
+  account: z.string().min(3),
+  user: z.string().min(1),
+  warehouse: z.string().min(1),
+  database: z.string().min(1),
+  schema: z.string().min(1),
+  table: z.string().min(1),
+  column: z.string().min(1).optional(),
+  role: z.string().min(1).optional(),
+})
+
+const snowflakeCredentialsBodySchema = z.object({
+  privateKey: z.string().min(1, 'privateKey is required'),
+})
+
 const webhookConfigBodySchema = z.object({
   url: z.string().url('url must be a valid URL'),
   signatureHeader: z.string().min(1).max(128).optional(),
@@ -53,6 +107,31 @@ export const dataDrainDestinationBodySchema = z.discriminatedUnion('destinationT
     destinationType: z.literal('s3'),
     destinationConfig: s3ConfigBodySchema,
     destinationCredentials: s3CredentialsBodySchema.optional(),
+  }),
+  z.object({
+    destinationType: z.literal('gcs'),
+    destinationConfig: gcsConfigBodySchema,
+    destinationCredentials: gcsCredentialsBodySchema.optional(),
+  }),
+  z.object({
+    destinationType: z.literal('azure_blob'),
+    destinationConfig: azureBlobConfigBodySchema,
+    destinationCredentials: azureBlobCredentialsBodySchema.optional(),
+  }),
+  z.object({
+    destinationType: z.literal('datadog'),
+    destinationConfig: datadogConfigBodySchema,
+    destinationCredentials: datadogCredentialsBodySchema.optional(),
+  }),
+  z.object({
+    destinationType: z.literal('bigquery'),
+    destinationConfig: bigqueryConfigBodySchema,
+    destinationCredentials: bigqueryCredentialsBodySchema.optional(),
+  }),
+  z.object({
+    destinationType: z.literal('snowflake'),
+    destinationConfig: snowflakeConfigBodySchema,
+    destinationCredentials: snowflakeCredentialsBodySchema.optional(),
   }),
   z.object({
     destinationType: z.literal('webhook'),
@@ -92,6 +171,26 @@ const drainDestinationResponseSchema = z.discriminatedUnion('destinationType', [
   z.object({
     destinationType: z.literal('s3'),
     destinationConfig: s3ConfigBodySchema,
+  }),
+  z.object({
+    destinationType: z.literal('gcs'),
+    destinationConfig: gcsConfigBodySchema,
+  }),
+  z.object({
+    destinationType: z.literal('azure_blob'),
+    destinationConfig: azureBlobConfigBodySchema,
+  }),
+  z.object({
+    destinationType: z.literal('datadog'),
+    destinationConfig: datadogConfigBodySchema,
+  }),
+  z.object({
+    destinationType: z.literal('bigquery'),
+    destinationConfig: bigqueryConfigBodySchema,
+  }),
+  z.object({
+    destinationType: z.literal('snowflake'),
+    destinationConfig: snowflakeConfigBodySchema,
   }),
   z.object({
     destinationType: z.literal('webhook'),

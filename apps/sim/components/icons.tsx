@@ -6849,3 +6849,26 @@ export function HexIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function BigQueryIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <path
+        fill='#4386FA'
+        d='M12 2.5a9.5 9.5 0 1 0 5.81 17.02l3.4 3.4a1 1 0 0 0 1.41-1.42l-3.4-3.4A9.5 9.5 0 0 0 12 2.5Zm0 2a7.5 7.5 0 1 1 0 15 7.5 7.5 0 0 1 0-15Z'
+      />
+      <path fill='#4386FA' d='M8 11h1.6v4H8v-4Zm3 -2h1.6v6H11V9Zm3 1.5h1.6V15H14v-3.5Z' />
+    </svg>
+  )
+}
+
+export function SnowflakeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <path
+        fill='#29B5E8'
+        d='M12 2a1 1 0 0 1 1 1v3.59l2.3-2.3a1 1 0 1 1 1.4 1.42L13 9.41V12h2.6l3.7-3.7a1 1 0 0 1 1.4 1.4L18.42 12H22a1 1 0 1 1 0 2h-3.59l2.3 2.3a1 1 0 0 1-1.4 1.4L15.58 14H13v2.59l3.7 3.7a1 1 0 1 1-1.4 1.4L13 19.42V23a1 1 0 1 1-2 0v-3.58l-2.3 2.3a1 1 0 1 1-1.4-1.4l3.7-3.71V14H8.4l-3.7 3.7a1 1 0 0 1-1.4-1.4L5.58 14H2a1 1 0 0 1 0-2h3.59l-2.3-2.3a1 1 0 0 1 1.4-1.4L8.42 12H11V9.41L7.3 5.71a1 1 0 1 1 1.4-1.42l2.3 2.3V3a1 1 0 0 1 1-1Z'
+      />
+    </svg>
+  )
+}
