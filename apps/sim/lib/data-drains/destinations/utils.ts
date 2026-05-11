@@ -28,6 +28,39 @@ export function sleepUntilAborted(ms: number, signal: AbortSignal): Promise<void
  * between prefix and the rest of the key.
  */
 /**
+ * Default retry pacing shared by destination backoff loops: 500 ms floor,
+ * 30 s ceiling, ±20% jitter.
+ */
+const DEFAULT_BACKOFF_BASE_MS = 500
+const DEFAULT_BACKOFF_MAX_MS = 30_000
+
+export interface BackoffOptions {
+  baseMs?: number
+  maxMs?: number
+}
+
+/**
+ * Computes the next delay for a retry loop. When the server returned a
+ * `Retry-After` (`retryAfterMs` is non-null), the value is clamped to
+ * `[baseMs, maxMs]` so a malformed `Retry-After: 0` cannot pin the loop into a
+ * tight retry. Otherwise returns exponential backoff with ±20% jitter to avoid
+ * thundering-herd alignment across concurrent drains. Attempt is 1-indexed.
+ */
+export function backoffWithJitter(
+  attempt: number,
+  retryAfterMs: number | null,
+  options: BackoffOptions = {}
+): number {
+  const baseMs = options.baseMs ?? DEFAULT_BACKOFF_BASE_MS
+  const maxMs = options.maxMs ?? DEFAULT_BACKOFF_MAX_MS
+  if (retryAfterMs !== null) {
+    return Math.min(Math.max(retryAfterMs, baseMs), maxMs)
+  }
+  const exponential = Math.min(baseMs * 2 ** (attempt - 1), maxMs)
+  return exponential * (0.8 + Math.random() * 0.4)
+}
+
+/**
  * Maximum HTTP Retry-After value we honor. A server requesting >30s is treated
  * as a 30s delay so a misconfigured upstream can't stall a drain run.
  */

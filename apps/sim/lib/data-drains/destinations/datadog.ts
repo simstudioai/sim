@@ -2,7 +2,11 @@ import { gzipSync } from 'node:zlib'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { z } from 'zod'
-import { parseRetryAfter, sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
+import {
+  backoffWithJitter,
+  parseRetryAfter,
+  sleepUntilAborted,
+} from '@/lib/data-drains/destinations/utils'
 import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainDatadogDestination')
@@ -27,8 +31,6 @@ const SITE_HOSTS: Record<DatadogSite, string> = {
 }
 
 const MAX_ATTEMPTS = 4
-const BASE_BACKOFF_MS = 500
-const MAX_BACKOFF_MS = 30_000
 const PER_ATTEMPT_TIMEOUT_MS = 30_000
 /**
  * Datadog v2 logs intake limits: 5 MB uncompressed per request, 6 MB compressed
@@ -119,14 +121,6 @@ function buildEntries(
 
 function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500
-}
-
-function backoffWithJitter(attempt: number, retryAfterMs: number | null): number {
-  if (retryAfterMs !== null) {
-    return Math.min(Math.max(retryAfterMs, BASE_BACKOFF_MS), MAX_BACKOFF_MS)
-  }
-  const exponential = Math.min(BASE_BACKOFF_MS * 2 ** (attempt - 1), MAX_BACKOFF_MS)
-  return exponential * (0.8 + Math.random() * 0.4)
 }
 
 interface PreparedBody {

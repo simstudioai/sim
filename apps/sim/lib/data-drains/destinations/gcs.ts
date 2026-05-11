@@ -4,6 +4,7 @@ import { generateShortId } from '@sim/utils/id'
 import { JWT } from 'google-auth-library'
 import { z } from 'zod'
 import {
+  backoffWithJitter,
   buildObjectKey,
   normalizePrefix,
   type ParsedServiceAccount,
@@ -20,8 +21,6 @@ const SCOPE = 'https://www.googleapis.com/auth/devstorage.read_write'
 const GCS_HOST = 'https://storage.googleapis.com'
 const USER_AGENT = 'sim-data-drain/1.0'
 const MAX_ATTEMPTS = 4
-const BASE_BACKOFF_MS = 500
-const MAX_BACKOFF_MS = 30_000
 
 /**
  * GCS bucket naming rules: 3-63 chars, lowercase letters/digits/hyphens/dots/
@@ -100,14 +99,6 @@ function isRetryableStatus(status: number): boolean {
   )
 }
 
-function backoffMs(attempt: number, retryAfterMs: number | null): number {
-  if (retryAfterMs !== null) {
-    return Math.min(Math.max(retryAfterMs, BASE_BACKOFF_MS), MAX_BACKOFF_MS)
-  }
-  const exp = Math.min(BASE_BACKOFF_MS * 2 ** (attempt - 1), MAX_BACKOFF_MS)
-  return exp * (0.8 + Math.random() * 0.4)
-}
-
 interface RetryRequestInput {
   action: string
   bucket: string
@@ -141,7 +132,7 @@ async function fetchWithRetry(input: RetryRequestInput): Promise<void> {
         error: toError(error).message,
       })
       if (attempt < MAX_ATTEMPTS) {
-        await sleepUntilAborted(backoffMs(attempt, null), input.signal)
+        await sleepUntilAborted(backoffWithJitter(attempt, null), input.signal)
         continue
       }
       throw error
@@ -161,7 +152,7 @@ async function fetchWithRetry(input: RetryRequestInput): Promise<void> {
     }
     lastError = new Error(`GCS ${input.action} responded with HTTP ${response.status}`)
     const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
-    await sleepUntilAborted(backoffMs(attempt, retryAfterMs), input.signal)
+    await sleepUntilAborted(backoffWithJitter(attempt, retryAfterMs), input.signal)
   }
   throw lastError instanceof Error
     ? lastError

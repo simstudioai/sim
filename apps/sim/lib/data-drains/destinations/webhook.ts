@@ -7,15 +7,17 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
-import { parseRetryAfter, sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
+import {
+  backoffWithJitter,
+  parseRetryAfter,
+  sleepUntilAborted,
+} from '@/lib/data-drains/destinations/utils'
 import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainWebhookDestination')
 
 /** Initial attempt + 3 retries — matches the documented 500ms/1s/2s backoff sequence. */
 const MAX_ATTEMPTS = 4
-const BASE_BACKOFF_MS = 500
-const MAX_BACKOFF_MS = 30_000
 const PER_ATTEMPT_TIMEOUT_MS = 30_000
 const SIGNATURE_VERSION = 'v1'
 const USER_AGENT = 'Sim-DataDrain/1.0'
@@ -90,17 +92,6 @@ export type WebhookDestinationCredentials = z.infer<typeof webhookCredentialsSch
 function sign(body: Buffer, secret: string, timestamp: number): string {
   const hmac = createHmac('sha256', secret).update(`${timestamp}.`).update(body).digest('hex')
   return `t=${timestamp},${SIGNATURE_VERSION}=${hmac}`
-}
-
-function backoffWithJitter(attempt: number, retryAfterMs: number | null): number {
-  if (retryAfterMs !== null) {
-    // Floor at 500ms so a misbehaving server returning Retry-After: 0 cannot
-    // pin us in a tight retry loop.
-    return Math.min(Math.max(retryAfterMs, BASE_BACKOFF_MS), MAX_BACKOFF_MS)
-  }
-  const exponential = Math.min(BASE_BACKOFF_MS * 2 ** (attempt - 1), MAX_BACKOFF_MS)
-  // ±20% jitter avoids thundering-herd alignment across drains.
-  return exponential * (0.8 + Math.random() * 0.4)
 }
 
 function isRetryableStatus(status: number): boolean {
