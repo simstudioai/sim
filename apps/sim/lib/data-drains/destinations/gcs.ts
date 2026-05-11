@@ -98,8 +98,25 @@ interface ParsedServiceAccount {
 }
 
 function parseServiceAccount(json: string): ParsedServiceAccount {
-  const parsed = JSON.parse(json) as { client_email: string; private_key: string }
-  return { clientEmail: parsed.client_email, privateKey: parsed.private_key }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    throw new Error('serviceAccountJson must be valid JSON')
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error('serviceAccountJson must be a JSON object')
+  }
+  const obj = parsed as Record<string, unknown>
+  const clientEmail = obj.client_email
+  const privateKey = obj.private_key
+  if (typeof clientEmail !== 'string' || clientEmail.length === 0) {
+    throw new Error('serviceAccountJson is missing client_email')
+  }
+  if (typeof privateKey !== 'string' || privateKey.length === 0) {
+    throw new Error('serviceAccountJson is missing private_key')
+  }
+  return { clientEmail, privateKey }
 }
 
 function normalizePrefix(raw: string | undefined): string {

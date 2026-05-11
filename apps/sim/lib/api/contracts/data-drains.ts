@@ -52,7 +52,7 @@ const azureBlobCredentialsBodySchema = z.object({
 })
 
 const datadogConfigBodySchema = z.object({
-  site: z.enum(['us1', 'us3', 'us5', 'eu1', 'ap1', 'gov']),
+  site: z.enum(['us1', 'us3', 'us5', 'eu1', 'ap1', 'ap2', 'gov']),
   service: z.string().min(1).max(100).optional(),
   tags: z.string().max(1024).optional(),
 })

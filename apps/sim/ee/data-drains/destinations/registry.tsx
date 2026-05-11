@@ -211,11 +211,12 @@ const DATADOG_SITE_OPTIONS = [
   { value: 'us5', label: 'US5 (us5.datadoghq.com)' },
   { value: 'eu1', label: 'EU1 (datadoghq.eu)' },
   { value: 'ap1', label: 'AP1 (ap1.datadoghq.com)' },
+  { value: 'ap2', label: 'AP2 (ap2.datadoghq.com)' },
   { value: 'gov', label: 'Gov (ddog-gov.com)' },
 ]
 
 interface DatadogState {
-  site: 'us1' | 'us3' | 'us5' | 'eu1' | 'ap1' | 'gov'
+  site: 'us1' | 'us3' | 'us5' | 'eu1' | 'ap1' | 'ap2' | 'gov'
   service: string
   tags: string
   apiKey: string
