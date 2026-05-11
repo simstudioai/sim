@@ -19,8 +19,8 @@ const ACCOUNT_NAME_RE = /^[a-z0-9]{3,24}$/
  */
 const CONTAINER_NAME_RE = /^[a-z0-9]([a-z0-9]|-(?!-))+[a-z0-9]$/
 
-/** Azure storage account keys are 64 raw bytes => exactly 88 base64 chars (with padding). */
-const ACCOUNT_KEY_RE = /^[A-Za-z0-9+/]+=*$/
+/** Azure storage account keys are 64 raw bytes => exactly 88 base64 chars (0-2 trailing `=`). */
+const ACCOUNT_KEY_RE = /^[A-Za-z0-9+/]+={0,2}$/
 
 /** Public cloud default; sovereign clouds (Gov/China/legacy DE) are validated via allowlist. */
 const DEFAULT_ENDPOINT_SUFFIX = 'blob.core.windows.net'

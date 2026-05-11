@@ -122,7 +122,11 @@ interface RetryRequestInput {
   bucket: string
   url: string
   method: string
-  headers: Record<string, string>
+  /**
+   * Built per attempt so the OAuth access token is refreshed if it expired
+   * between retries (google-auth-library caches and refreshes on demand).
+   */
+  buildHeaders: () => Promise<Record<string, string>>
   body?: BodyInit | Buffer
   signal: AbortSignal
   /** HTTP statuses to treat as success in addition to 2xx. */
@@ -136,10 +140,11 @@ async function fetchWithRetry(input: RetryRequestInput): Promise<void> {
     const perAttempt = AbortSignal.any([input.signal, AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS)])
     let response: Response
     try {
+      const headers = await input.buildHeaders()
       response = await fetch(input.url, {
         method: input.method,
         body: input.body as BodyInit | undefined,
-        headers: input.headers,
+        headers,
         signal: perAttempt,
       })
     } catch (error) {
@@ -200,22 +205,24 @@ async function uploadObject(action: string, input: UploadInput): Promise<void> {
       `GCS custom metadata is ${metadataBytes} bytes, exceeds the ${MAX_CUSTOM_METADATA_BYTES}-byte per-object limit`
     )
   }
-  const token = await getAccessToken(input.jwt)
   const url = `${GCS_HOST}/upload/storage/v1/b/${encodeURIComponent(input.bucket)}/o?uploadType=media&name=${encodeURIComponent(input.objectName)}`
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': input.contentType,
-    'User-Agent': USER_AGENT,
-  }
-  for (const [key, value] of Object.entries(input.metadata)) {
-    headers[`x-goog-meta-${key}`] = value
-  }
   await fetchWithRetry({
     action,
     bucket: input.bucket,
     url,
     method: 'POST',
-    headers,
+    buildHeaders: async () => {
+      const token = await getAccessToken(input.jwt)
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': input.contentType,
+        'User-Agent': USER_AGENT,
+      }
+      for (const [key, value] of Object.entries(input.metadata)) {
+        headers[`x-goog-meta-${key}`] = value
+      }
+      return headers
+    },
     body: input.body,
     signal: input.signal,
   })
@@ -227,16 +234,18 @@ async function deleteObject(input: {
   jwt: JWT
   signal: AbortSignal
 }): Promise<void> {
-  const token = await getAccessToken(input.jwt)
   const url = `${GCS_HOST}/storage/v1/b/${encodeURIComponent(input.bucket)}/o/${encodeURIComponent(input.objectName)}`
   await fetchWithRetry({
     action: 'delete-object',
     bucket: input.bucket,
     url,
     method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'User-Agent': USER_AGENT,
+    buildHeaders: async () => {
+      const token = await getAccessToken(input.jwt)
+      return {
+        Authorization: `Bearer ${token}`,
+        'User-Agent': USER_AGENT,
+      }
     },
     signal: input.signal,
     successStatuses: [404],
