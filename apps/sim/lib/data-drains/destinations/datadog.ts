@@ -101,14 +101,16 @@ function buildEntries(
       message = JSON.stringify(row)
     }
     /**
-     * Defaults first, then user attributes, then forced fields. User rows can
-     * customize `ddsource` / `service`, but `ddtags` and `message` are always
-     * the values we computed so receivers can rely on routing/format.
+     * Spread user attributes first, then force all four reserved fields the
+     * drain owns: `ddsource`, `service`, `ddtags`, and `message`. Per
+     * https://docs.datadoghq.com/logs/log_configuration/pipelines/#service-and-source,
+     * Datadog uses `service` + `ddsource` to pick the processing pipeline, so
+     * letting a row field clobber them would silently re-route a drain.
      */
     return {
+      ...attrs,
       ddsource: 'sim',
       service,
-      ...attrs,
       ddtags,
       message,
     }
