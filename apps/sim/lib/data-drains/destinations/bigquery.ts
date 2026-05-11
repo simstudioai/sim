@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { JWT } from 'google-auth-library'
@@ -133,12 +134,18 @@ async function postInsertAll(
 /**
  * Builds a stable `insertId` for best-effort dedup (~60s window). Prefixed
  * with `drainId` so (runId, sequence) collisions across drains do not
- * accidentally dedupe each other's rows.
+ * accidentally dedupe each other's rows. With UUID drain/run IDs the raw
+ * form fits well under 128 chars; if anything pushes it over (e.g. a future
+ * non-UUID id), hash the prefix and keep the row-distinguishing `index`
+ * suffix intact so BigQuery does not silently dedupe distinct rows.
  */
 function buildInsertId(metadata: DeliveryMetadata, index: number): string {
   const raw = `${metadata.drainId}-${metadata.runId}-${metadata.sequence}-${index}`
   if (raw.length <= MAX_INSERT_ID_LENGTH) return raw
-  return raw.slice(0, MAX_INSERT_ID_LENGTH)
+  const prefixHash = createHash('sha1')
+    .update(`${metadata.drainId}-${metadata.runId}-${metadata.sequence}`)
+    .digest('hex')
+  return `${prefixHash}-${index}`
 }
 
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
