@@ -39,7 +39,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       requireWorkflowIdForInternal: false,
     })
     if (!credAccess.ok || !credAccess.credentialOwnerUserId) {
-      logger.error(`[${requestId}] Credential access denied`, { error: credAccess.error })
+      logger.warn(`[${requestId}] Credential access denied`, { error: credAccess.error })
       return NextResponse.json({ error: credAccess.error || 'Unauthorized' }, { status: 401 })
     }
 

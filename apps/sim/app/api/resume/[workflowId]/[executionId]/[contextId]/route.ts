@@ -250,7 +250,7 @@ export const POST = withRouteHandler(
             contextId: enqueueResult.contextId,
             failureReason: 'Failed to queue async resume execution',
           })
-          await PauseResumeManager.processQueuedResumes(executionId)
+          await PauseResumeManager.processQueuedResumes(executionId, workflowId)
           return NextResponse.json(
             { error: 'Failed to queue resume execution. Please try again.' },
             { status: 503 }
