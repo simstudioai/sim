@@ -61,18 +61,18 @@ function createResolver(language = 'javascript') {
 }
 
 describe('VariableResolver function block inputs', () => {
-  it('returns empty inputs when params are missing', () => {
+  it('returns empty inputs when params are missing', async () => {
     const { block, ctx, resolver } = createResolver()
 
-    const result = resolver.resolveInputsForFunctionBlock(ctx, 'function', undefined, block)
+    const result = await resolver.resolveInputsForFunctionBlock(ctx, 'function', undefined, block)
 
     expect(result).toEqual({ resolvedInputs: {}, displayInputs: {}, contextVariables: {} })
   })
 
-  it('resolves JavaScript block references through globalThis context variables', () => {
+  it('resolves JavaScript block references through globalThis context variables', async () => {
     const { block, ctx, resolver } = createResolver('javascript')
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: 'return <Producer.result>' },
@@ -84,7 +84,7 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
-  it('resolves named loop result bracket paths in function code', () => {
+  it('resolves named loop result bracket paths in function code', async () => {
     const loopBlock = createBlock('loop-1', 'Loop 1', 'loop')
     const functionBlock = createBlock('function', 'Function', BlockType.FUNCTION, {
       language: 'javascript',
@@ -114,7 +114,7 @@ describe('VariableResolver function block inputs', () => {
     } as ExecutionContext
     const resolver = new VariableResolver(workflow, {}, state)
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: 'return <loop1.results[1][0].id>' },
@@ -126,10 +126,10 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'b' })
   })
 
-  it('resolves Python block references through globals lookup', () => {
+  it('resolves Python block references through globals lookup', async () => {
     const { block, ctx, resolver } = createResolver('python')
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: 'return <Producer.result>' },
@@ -141,10 +141,10 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
-  it('breaks JavaScript string literals around quoted block references', () => {
+  it('breaks JavaScript string literals around quoted block references', async () => {
     const { block, ctx, resolver } = createResolver('javascript')
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: "const rawEmail = '<Producer.result>';\nreturn rawEmail" },
@@ -158,10 +158,10 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
-  it('uses template interpolation for JavaScript template literal block references', () => {
+  it('uses template interpolation for JavaScript template literal block references', async () => {
     const { block, ctx, resolver } = createResolver('javascript')
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: 'return `value: <Producer.result>`' },
@@ -175,10 +175,10 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
-  it('keeps JavaScript block references inside template expressions executable', () => {
+  it('keeps JavaScript block references inside template expressions executable', async () => {
     const { block, ctx, resolver } = createResolver('javascript')
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: 'return `${String(<Producer.result>)}`' },
@@ -190,10 +190,10 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
-  it('ignores JavaScript comment quotes before later block references', () => {
+  it('ignores JavaScript comment quotes before later block references', async () => {
     const { block, ctx, resolver } = createResolver('javascript')
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: "// don't confuse quote tracking\nreturn <Producer.result>" },
@@ -207,10 +207,10 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
-  it('breaks Python string literals around quoted block references', () => {
+  it('breaks Python string literals around quoted block references', async () => {
     const { block, ctx, resolver } = createResolver('python')
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: "raw_email = '<Producer.result>'\nreturn raw_email" },
@@ -224,10 +224,10 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
-  it('breaks Python triple-double-quoted strings around block references', () => {
+  it('breaks Python triple-double-quoted strings around block references', async () => {
     const { block, ctx, resolver } = createResolver('python')
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: 'prompt = """\nSummary: <Producer.result>\n"""\nreturn prompt' },
@@ -243,10 +243,10 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
-  it('ignores escaped triple-double quotes before later Python block references', () => {
+  it('ignores escaped triple-double quotes before later Python block references', async () => {
     const { block, ctx, resolver } = createResolver('python')
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: 'prompt = """Escaped delimiter: \\"\\"\\"\nSummary: <Producer.result>\n"""' },
@@ -262,10 +262,10 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
-  it('breaks Python triple-single-quoted strings around block references', () => {
+  it('breaks Python triple-single-quoted strings around block references', async () => {
     const { block, ctx, resolver } = createResolver('python')
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: "prompt = '''\nSummary: <Producer.result>\n'''\nreturn prompt" },
@@ -281,10 +281,10 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
-  it('ignores Python comment quotes before later block references', () => {
+  it('ignores Python comment quotes before later block references', async () => {
     const { block, ctx, resolver } = createResolver('python')
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: "# don't confuse quote tracking\nreturn <Producer.result>" },
@@ -298,10 +298,10 @@ describe('VariableResolver function block inputs', () => {
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
   })
 
-  it('uses separate Python context variables for repeated mutable references', () => {
+  it('uses separate Python context variables for repeated mutable references', async () => {
     const { block, ctx, resolver } = createResolver('python')
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: 'a = <Producer.items>\nb = <Producer.items>\nreturn b' },
@@ -320,10 +320,10 @@ describe('VariableResolver function block inputs', () => {
     })
   })
 
-  it('uses shell-safe expansions for block references', () => {
+  it('uses shell-safe expansions for block references', async () => {
     const { block, ctx, resolver } = createResolver('shell')
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: 'echo <Producer.result>suffix && echo "<Producer.result>"' },
@@ -340,10 +340,10 @@ describe('VariableResolver function block inputs', () => {
     })
   })
 
-  it('ignores shell comment quotes when formatting later block references', () => {
+  it('ignores shell comment quotes when formatting later block references', async () => {
     const { block, ctx, resolver } = createResolver('shell')
 
-    const result = resolver.resolveInputsForFunctionBlock(
+    const result = await resolver.resolveInputsForFunctionBlock(
       ctx,
       'function',
       { code: "# don't confuse quote tracking\necho <Producer.result>" },

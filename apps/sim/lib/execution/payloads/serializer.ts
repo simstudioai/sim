@@ -88,11 +88,49 @@ async function compactValue(
   return compacted
 }
 
+async function forceStoreValue(
+  value: unknown,
+  options: CompactExecutionPayloadOptions
+): Promise<unknown> {
+  if (isLargeValueRef(value)) {
+    return value
+  }
+  const measured = getJsonAndSize(value)
+  if (!measured) {
+    return value
+  }
+  return storeLargeValue(value, measured.json, measured.size, options)
+}
+
 export async function compactExecutionPayload<T>(
   value: T,
   options: CompactExecutionPayloadOptions = {}
 ): Promise<T> {
   return (await compactValue(value, options, { seen: new WeakSet<object>() })) as T
+}
+
+/**
+ * Compacts subflow result aggregates while preserving indexable `results`.
+ */
+export async function compactSubflowResults<T>(
+  results: T[],
+  options: CompactExecutionPayloadOptions = {}
+): Promise<T[]> {
+  const entryOptions = { ...options, preserveRoot: false }
+  let compactedResults = (await Promise.all(
+    results.map((result) => compactExecutionPayload(result, entryOptions))
+  )) as T[]
+
+  const aggregate = getJsonAndSize({ results: compactedResults })
+  if (aggregate && aggregate.size <= (options.thresholdBytes ?? LARGE_VALUE_THRESHOLD_BYTES)) {
+    return compactedResults
+  }
+
+  compactedResults = (await Promise.all(
+    compactedResults.map((result) => forceStoreValue(result, options))
+  )) as T[]
+
+  return compactedResults
 }
 
 export async function compactBlockLogs(

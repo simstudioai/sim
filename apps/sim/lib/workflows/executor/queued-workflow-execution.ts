@@ -261,6 +261,7 @@ export async function executeQueuedWorkflowJob(
       ? await hydrateUserFilesWithBase64(result.output, {
           requestId,
           executionId,
+          userId: metadata.userId,
           maxBytes: payload.base64MaxBytes,
         })
       : result.output

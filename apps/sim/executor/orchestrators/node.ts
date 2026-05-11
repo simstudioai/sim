@@ -191,6 +191,14 @@ export class NodeExecutionOrchestrator {
 
     if (sentinelType === 'end') {
       const result = await this.parallelOrchestrator.aggregateParallelResults(ctx, parallelId)
+      if (!result.allBranchesComplete) {
+        return {
+          results: [],
+          sentinelEnd: true,
+          selectedRoute: EDGE.PARALLEL_CONTINUE,
+          totalBranches: result.totalBranches,
+        }
+      }
       return {
         results: result.results || [],
         sentinelEnd: true,
@@ -274,6 +282,14 @@ export class NodeExecutionOrchestrator {
         this.loopOrchestrator.clearLoopExecutionState(loopId, ctx)
         this.loopOrchestrator.restoreLoopEdges(loopId)
       }
+    }
+
+    if (
+      node.metadata.isParallelSentinel &&
+      node.metadata.sentinelType === 'end' &&
+      output.selectedRoute === EDGE.PARALLEL_CONTINUE
+    ) {
+      this.state.deleteBlockState(node.id)
     }
   }
 

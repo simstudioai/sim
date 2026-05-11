@@ -4,6 +4,12 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
+import {
+  type ExecutionRedisBudgetReservation,
+  releaseExecutionRedisBytes,
+  reserveExecutionRedisBytes,
+} from '@/lib/execution/redis-budget.server'
+import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import { bufferToBase64 } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage, downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
@@ -30,6 +36,7 @@ interface HydrationState {
 export interface Base64HydrationOptions {
   requestId?: string
   executionId?: string
+  userId?: string
   logger?: Logger
   maxBytes?: number
   allowUnknownSize?: boolean
@@ -82,10 +89,31 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
       }
     },
     async set(file: UserFile, value: string, ttlSeconds: number) {
+      const budgetReservation: ExecutionRedisBudgetReservation | null = executionId
+        ? {
+            executionId,
+            userId: options.userId,
+            category: 'base64_cache',
+            operation: 'set_base64_cache',
+            bytes: Buffer.byteLength(value, 'utf8'),
+            logger,
+          }
+        : null
+      let budgetReserved = false
       try {
         const key = getFullCacheKey(executionId, file)
+        if (budgetReservation) {
+          await reserveExecutionRedisBytes(redis, budgetReservation)
+          budgetReserved = true
+        }
         await redis.set(key, value, 'EX', ttlSeconds)
       } catch (error) {
+        if (budgetReserved && budgetReservation) {
+          await releaseExecutionRedisBytes(redis, budgetReservation)
+        }
+        if (isExecutionResourceLimitError(error)) {
+          throw error
+        }
         logger.warn(`[${options.requestId}] Redis set failed, skipping cache`, error)
       }
     },
@@ -276,6 +304,18 @@ export async function hydrateUserFilesWithBase64<T>(
   const logger = getHydrationLogger(options)
   const state = createHydrationState(options, logger)
   return (await hydrateValue(value, options, state, logger)) as T
+}
+
+/**
+ * Hydrates a single UserFile object when a resolver explicitly asks for base64.
+ */
+export async function hydrateUserFileWithBase64(
+  file: UserFile,
+  options: Base64HydrationOptions
+): Promise<UserFile> {
+  const logger = getHydrationLogger(options)
+  const state = createHydrationState(options, logger)
+  return hydrateUserFile(file, options, state, logger)
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

@@ -67,6 +67,7 @@ export const EDGE = {
   LOOP_CONTINUE: 'loop_continue',
   LOOP_CONTINUE_ALT: 'loop-continue-source',
   LOOP_EXIT: 'loop_exit',
+  PARALLEL_CONTINUE: 'parallel_continue',
   PARALLEL_EXIT: 'parallel_exit',
   ERROR: 'error',
   SOURCE: 'source',

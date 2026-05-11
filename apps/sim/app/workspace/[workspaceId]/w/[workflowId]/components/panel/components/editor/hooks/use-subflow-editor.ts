@@ -40,7 +40,7 @@ const SUBFLOW_CONFIG = {
     typeLabels: { count: 'Parallel Count', collection: 'Parallel Each' },
     typeKey: 'parallelType' as const,
     storeKey: 'parallels' as const,
-    maxIterations: 20,
+    maxIterations: 1000,
     configKeys: {
       iterations: 'count' as const,
       items: 'distribution' as const,
@@ -62,6 +62,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const [tempInputValue, setTempInputValue] = useState<string | null>(null)
+  const [tempBatchSizeValue, setTempBatchSizeValue] = useState<string | null>(null)
   const [showTagDropdown, setShowTagDropdown] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
 
@@ -97,6 +98,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
   const {
     collaborativeUpdateLoopType,
     collaborativeUpdateParallelType,
+    collaborativeUpdateParallelBatchSize,
     collaborativeUpdateIterationCount,
     collaborativeUpdateIterationCollection,
   } = useCollaborativeWorkflow()
@@ -260,6 +262,25 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
     collaborativeUpdateIterationCount,
   ])
 
+  const handleParallelBatchSizeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const sanitizedValue = e.target.value.replace(/[^0-9]/g, '')
+    const numValue = Number.parseInt(sanitizedValue)
+    if (!Number.isNaN(numValue)) {
+      setTempBatchSizeValue(Math.min(20, numValue).toString())
+    } else {
+      setTempBatchSizeValue(sanitizedValue)
+    }
+  }, [])
+
+  const handleParallelBatchSizeSave = useCallback(() => {
+    if (!currentBlockId || currentBlock?.type !== 'parallel') return
+    const value = Number.parseInt(tempBatchSizeValue ?? '20')
+    if (!Number.isNaN(value)) {
+      collaborativeUpdateParallelBatchSize(currentBlockId, Math.min(20, Math.max(1, value)))
+    }
+    setTempBatchSizeValue(null)
+  }, [tempBatchSizeValue, currentBlockId, currentBlock, collaborativeUpdateParallelBatchSize])
+
   /**
    * Handle editor value change (collection/condition)
    */
@@ -342,11 +363,16 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
       : ''
 
   const iterations = configIterations
+  const parallelBatchSize =
+    isSubflow && currentBlock?.type === 'parallel'
+      ? ((nodeConfig as any)?.batchSize ?? (blockData as any)?.batchSize ?? 20)
+      : 20
   const collectionString =
     typeof configCollection === 'string' ? configCollection : JSON.stringify(configCollection) || ''
   const conditionString = typeof configCondition === 'string' ? configCondition : ''
 
   const inputValue = tempInputValue ?? iterations.toString()
+  const batchSizeValue = tempBatchSizeValue ?? parallelBatchSize.toString()
   const editorValue = isConditionMode ? conditionString : collectionString
 
   // Type options for combobox
@@ -366,6 +392,7 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
     isCountMode,
     isConditionMode,
     inputValue,
+    batchSizeValue,
     editorValue,
     typeOptions,
     showTagDropdown,
@@ -377,6 +404,8 @@ export function useSubflowEditor(currentBlock: BlockState | null, currentBlockId
     handleSubflowTypeChange,
     handleSubflowIterationsChange,
     handleSubflowIterationsSave,
+    handleParallelBatchSizeChange,
+    handleParallelBatchSizeSave,
     handleSubflowEditorChange,
     handleSubflowTagSelect,
     highlightWithReferences,

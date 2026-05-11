@@ -99,9 +99,8 @@ describe('ParallelOrchestrator', () => {
     const ctx = createContext()
 
     const initializePromise = orchestrator.initializeParallelScope(ctx, 'parallel-1')
-    await Promise.resolve()
+    await vi.waitFor(() => expect(onBlockStart).toHaveBeenCalledTimes(1))
 
-    expect(onBlockStart).toHaveBeenCalledTimes(1)
     expect(onBlockComplete).not.toHaveBeenCalled()
 
     releaseStart?.()

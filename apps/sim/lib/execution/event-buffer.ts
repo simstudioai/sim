@@ -5,6 +5,12 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
+import {
+  type ExecutionRedisBudgetReservation,
+  releaseExecutionRedisBytes,
+  reserveExecutionRedisBytes,
+} from '@/lib/execution/redis-budget.server'
+import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 
 const logger = createLogger('ExecutionEventBuffer')
@@ -63,6 +69,10 @@ function getJsonSize(value: unknown): number | null {
   } catch {
     return null
   }
+}
+
+function getExecutionEventEntryJson(entry: ExecutionEventEntry): string {
+  return JSON.stringify(entry)
 }
 
 function trimFinalBlockLogsForEventData(data: unknown): unknown {
@@ -602,12 +612,27 @@ export function createExecutionEventWriter(
     if (pending.length === 0) return true
     const batch = pending
     pending = []
+    let reservedBudget: ExecutionRedisBudgetReservation | null = null
+    let budgetReserved = false
     try {
       const key = getEventsKey(executionId)
       const zaddArgs: (string | number)[] = []
+      let batchBytes = 0
       for (const entry of batch) {
-        zaddArgs.push(entry.eventId, JSON.stringify(entry))
+        const entryJson = getExecutionEventEntryJson(entry)
+        batchBytes += Buffer.byteLength(entryJson, 'utf8')
+        zaddArgs.push(entry.eventId, entryJson)
       }
+      reservedBudget = {
+        executionId,
+        userId: context.userId,
+        category: 'event_buffer',
+        operation: terminalStatus ? 'write_terminal_events' : 'write_events',
+        bytes: batchBytes,
+        logger,
+      }
+      await reserveExecutionRedisBytes(redis, reservedBudget)
+      budgetReserved = true
       await redis.eval(
         FLUSH_EVENTS_SCRIPT,
         3,
@@ -623,6 +648,13 @@ export function createExecutionEventWriter(
       consecutiveFlushFailures = 0
       return true
     } catch (error) {
+      if (budgetReserved && reservedBudget) {
+        await releaseExecutionRedisBytes(redis, reservedBudget)
+      }
+      if (isExecutionResourceLimitError(error)) {
+        pending = batch.concat(pending)
+        throw error
+      }
       consecutiveFlushFailures += 1
       logger.warn('Failed to flush execution events', {
         executionId,

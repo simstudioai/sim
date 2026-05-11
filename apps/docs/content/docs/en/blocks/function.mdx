@@ -189,6 +189,8 @@ plt.show()
 
 Function blocks receive their code, parameters, resolved references, and previous block context in an internal execution request. Sim can safely reference oversized workflow outputs, such as large `loop.results` or `parallel.results`, when you select a smaller nested field like `<loop.results[0][0].id>`.
 
+File outputs are metadata-first by default. Referencing `<file.name>`, `<file.url>`, or similar metadata does not hydrate file contents. Referencing `<file.base64>` explicitly hydrates that file's base64 content at resolver time and can fail if the file exceeds the configured inline limit.
+
 Avoid passing a full large object into a Function block when you only need one field. For example, prefer `<api.data.customerId>` over `<api.data>` when the API response is large. If the complete function request body is still larger than the platform limit, execution can fail before your code starts.
 
 For large generated data, write the result to a file or table with `outputPath`, `outputSandboxPath`, or `outputTable` instead of returning the entire payload inline.

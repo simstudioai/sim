@@ -12,7 +12,14 @@ export interface ResolutionContext {
 export interface Resolver {
   canResolve(reference: string): boolean
   resolve(reference: string, context: ResolutionContext): any
+  resolveAsync?(reference: string, context: ResolutionContext): Promise<any>
 }
+
+export type AsyncPathNavigator = (
+  obj: any,
+  path: string[],
+  context: ResolutionContext
+) => Promise<any>
 
 /**
  * Sentinel value indicating a reference was resolved to a known block

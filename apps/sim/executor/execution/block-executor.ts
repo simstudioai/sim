@@ -127,7 +127,12 @@ export class BlockExecutor {
           resolvedInputs: fnInputs,
           displayInputs,
           contextVariables,
-        } = this.resolver.resolveInputsForFunctionBlock(ctx, node.id, block.config.params, block)
+        } = await this.resolver.resolveInputsForFunctionBlock(
+          ctx,
+          node.id,
+          block.config.params,
+          block
+        )
         resolvedInputs = {
           ...fnInputs,
           [FUNCTION_BLOCK_CONTEXT_VARS_KEY]: contextVariables,
@@ -137,7 +142,7 @@ export class BlockExecutor {
         }
         inputsForLog = displayInputs
       } else {
-        resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
+        resolvedInputs = await this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
         inputsForLog = resolvedInputs
       }
 
@@ -194,6 +199,7 @@ export class BlockExecutor {
         normalizedOutput = (await hydrateUserFilesWithBase64(normalizedOutput, {
           requestId: ctx.metadata.requestId,
           executionId: ctx.executionId,
+          userId: ctx.userId,
           maxBytes: ctx.base64MaxBytes,
         })) as NormalizedBlockOutput
       }

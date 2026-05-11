@@ -742,6 +742,7 @@ async function handleBlocksOperationTx(
                 config: {
                   parallelType: 'fixed',
                   count: DEFAULT_PARALLEL_COUNT,
+                  batchSize: 20,
                   nodes: [],
                 },
               })
@@ -1698,6 +1699,10 @@ async function handleSubflowOperationTx(
         // Include parallelType if provided
         if (payload.config.parallelType !== undefined) {
           blockData.parallelType = payload.config.parallelType
+        }
+
+        if (payload.config.batchSize !== undefined) {
+          blockData.batchSize = payload.config.batchSize
         }
 
         await tx

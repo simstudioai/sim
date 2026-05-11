@@ -232,7 +232,7 @@ Workflow execution responses are capped by platform request and response limits.
 }
 ```
 
-The `version` field is part of the external API contract. Treat the reference as an opaque placeholder for a value that could not be safely embedded in the response. `id`, `key`, and `executionId` are not fetch URLs; use `selectedOutputs` to request a smaller nested field, reduce the data passed between blocks, or return the data from a Response block when your workflow intentionally owns the HTTP response body.
+The `version` field is part of the external API contract. Treat the reference as an opaque placeholder for a value that could not be safely embedded in the response. `id`, `key`, and `executionId` are not fetch URLs; use `selectedOutputs` to request a smaller nested field, reduce the data passed between blocks, or return the data from a Response block when your workflow intentionally owns the HTTP response body. File outputs are metadata-first; request `.base64` only when you need inline file content.
 
 ### Asynchronous
 

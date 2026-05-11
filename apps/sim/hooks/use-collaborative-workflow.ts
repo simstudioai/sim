@@ -337,6 +337,9 @@ export function useCollaborativeWorkflow() {
                 if (config.count !== undefined) {
                   useWorkflowStore.getState().updateParallelCount(payload.id, config.count)
                 }
+                if (config.batchSize !== undefined) {
+                  useWorkflowStore.getState().updateParallelBatchSize(payload.id, config.batchSize)
+                }
                 if (config.distribution !== undefined) {
                   useWorkflowStore
                     .getState()
@@ -1728,6 +1731,7 @@ export function useCollaborativeWorkflow() {
 
       let newCount = currentBlock.data?.count || 5
       let newDistribution = currentBlock.data?.collection || ''
+      const batchSize = currentBlock.data?.batchSize || 20
 
       if (parallelType === 'count') {
         newDistribution = ''
@@ -1742,6 +1746,7 @@ export function useCollaborativeWorkflow() {
         count: newCount,
         distribution: newDistribution,
         parallelType,
+        batchSize,
       }
 
       executeQueuedOperation(
@@ -1752,6 +1757,7 @@ export function useCollaborativeWorkflow() {
           useWorkflowStore.getState().updateParallelType(parallelId, parallelType)
           useWorkflowStore.getState().updateParallelCount(parallelId, newCount)
           useWorkflowStore.getState().updateParallelCollection(parallelId, newDistribution)
+          useWorkflowStore.getState().updateParallelBatchSize(parallelId, batchSize)
         }
       )
     },
@@ -1789,13 +1795,15 @@ export function useCollaborativeWorkflow() {
       } else {
         const currentDistribution = currentBlock.data?.collection || ''
         const currentParallelType = currentBlock.data?.parallelType || 'count'
+        const batchSize = currentBlock.data?.batchSize || 20
 
         const config = {
           id: nodeId,
           nodes: childNodes,
-          count: Math.max(1, Math.min(20, count)), // Clamp between 1-20 for parallels
+          count: Math.max(1, Math.min(1000, count)),
           distribution: currentDistribution,
           parallelType: currentParallelType,
+          batchSize,
         }
 
         executeQueuedOperation(
@@ -1860,6 +1868,7 @@ export function useCollaborativeWorkflow() {
       } else {
         const currentCount = currentBlock.data?.count || 5
         const currentParallelType = currentBlock.data?.parallelType || 'count'
+        const batchSize = currentBlock.data?.batchSize || 20
 
         const config = {
           id: nodeId,
@@ -1867,6 +1876,7 @@ export function useCollaborativeWorkflow() {
           count: currentCount,
           distribution: collection,
           parallelType: currentParallelType,
+          batchSize,
         }
 
         executeQueuedOperation(
@@ -1876,6 +1886,38 @@ export function useCollaborativeWorkflow() {
           () => useWorkflowStore.getState().updateParallelCollection(nodeId, collection)
         )
       }
+    },
+    [executeQueuedOperation]
+  )
+
+  const collaborativeUpdateParallelBatchSize = useCallback(
+    (parallelId: string, batchSize: number) => {
+      const currentBlock = useWorkflowStore.getState().blocks[parallelId]
+      if (!currentBlock || currentBlock.type !== 'parallel') return
+
+      const childNodes = Object.values(useWorkflowStore.getState().blocks)
+        .filter((b) => b.data?.parentId === parallelId)
+        .map((b) => b.id)
+      const currentCount = currentBlock.data?.count || 5
+      const currentDistribution = currentBlock.data?.collection || ''
+      const currentParallelType = currentBlock.data?.parallelType || 'count'
+      const clampedBatchSize = Math.max(1, Math.min(20, batchSize))
+
+      const config = {
+        id: parallelId,
+        nodes: childNodes,
+        count: currentCount,
+        distribution: currentDistribution,
+        parallelType: currentParallelType,
+        batchSize: clampedBatchSize,
+      }
+
+      executeQueuedOperation(
+        SUBFLOW_OPERATIONS.UPDATE,
+        OPERATION_TARGETS.SUBFLOW,
+        { id: parallelId, type: 'parallel', config },
+        () => useWorkflowStore.getState().updateParallelBatchSize(parallelId, clampedBatchSize)
+      )
     },
     [executeQueuedOperation]
   )
@@ -2137,6 +2179,7 @@ export function useCollaborativeWorkflow() {
     // Collaborative loop/parallel operations
     collaborativeUpdateLoopType,
     collaborativeUpdateParallelType,
+    collaborativeUpdateParallelBatchSize,
 
     // Unified iteration operations
     collaborativeUpdateIterationCount,

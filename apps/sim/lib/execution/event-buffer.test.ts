@@ -57,7 +57,7 @@ describe('execution event buffer', () => {
     mockRedis.zremrangebyrank.mockResolvedValue(0)
     mockRedis.eval.mockImplementation(
       async (
-        _script: string,
+        script: string,
         _keyCount: number,
         _eventsKey: string,
         _seqKey: string,
@@ -68,6 +68,12 @@ describe('execution event buffer', () => {
         terminalStatus: string,
         ...args: (string | number)[]
       ) => {
+        if (script.includes('execution_redis_bytes')) {
+          return [1, 'ok', 0, 0]
+        }
+        if (script.includes('DECRBY')) {
+          return 1
+        }
         for (let i = 0; i < args.length; i += 2) {
           persistedEntries.push(JSON.parse(args[i + 1] as string) as ExecutionEventEntry)
         }
@@ -152,7 +158,10 @@ describe('execution event buffer', () => {
       () => Promise.resolve(),
     ]
 
-    mockRedis.eval.mockImplementation(async (_script: string, ...args: unknown[]) => {
+    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+      if (script.includes('execution_redis_bytes')) {
+        return [1, 'ok', 0, 0]
+      }
       const batchEntries: ExecutionEventEntry[] = []
       const zaddArgs = args.slice(8) as (string | number)[]
       for (let i = 0; i < zaddArgs.length; i += 2) {
@@ -237,7 +246,10 @@ describe('execution event buffer', () => {
   it('flushes replay events after a recovered final replay flush without terminal meta', async () => {
     mockRedis.incrby.mockResolvedValue(100)
     let flushAttempt = 0
-    mockRedis.eval.mockImplementation(async (_script: string, ...args: unknown[]) => {
+    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+      if (script.includes('execution_redis_bytes')) {
+        return [1, 'ok', 0, 0]
+      }
       const zaddArgs = args.slice(8) as (string | number)[]
       if (flushAttempt > 0) {
         for (let i = 0; i < zaddArgs.length; i += 2) {
@@ -285,6 +297,22 @@ describe('execution event buffer', () => {
 
     expect(persistedEntries.map((entry) => entry.eventId)).toEqual([1])
     expect(mockRedis.hset).toHaveBeenCalledWith('meta', { status: 'complete' })
+  })
+
+  it('surfaces execution memory limit errors when the Redis budget is exceeded', async () => {
+    mockRedis.incrby.mockResolvedValue(100)
+    mockRedis.eval.mockImplementationOnce(async () => [
+      0,
+      'execution_redis_bytes',
+      64 * 1024 * 1024,
+    ])
+
+    const writer = createExecutionEventWriter('exec-1')
+
+    await expect(writer.writeTerminal(makeEvent('terminal'), 'complete')).rejects.toThrow(
+      'Execution memory limit exceeded'
+    )
+    expect(persistedEntries).toEqual([])
   })
 
   it('preserves requested UserFile base64 when buffering terminal events', async () => {

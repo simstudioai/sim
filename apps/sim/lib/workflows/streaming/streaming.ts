@@ -315,6 +315,7 @@ export async function createStreamingResponse(
               ? await hydrateUserFilesWithBase64(outputValue, {
                   requestId,
                   executionId,
+                  userId: options.userId,
                   maxBytes: base64MaxBytes,
                 })
               : outputValue

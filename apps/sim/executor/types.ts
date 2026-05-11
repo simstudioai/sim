@@ -344,6 +344,10 @@ export interface ExecutionContext {
     {
       parallelId: string
       totalBranches: number
+      batchSize?: number
+      currentBatchStart?: number
+      currentBatchSize?: number
+      accumulatedOutputs?: Map<number, any[]>
       branchOutputs: Map<number, any[]>
       parallelType?: 'count' | 'collection'
       items?: any[]

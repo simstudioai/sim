@@ -53,6 +53,7 @@ export function SubflowEditor({
     isCountMode,
     isConditionMode,
     inputValue,
+    batchSizeValue,
     editorValue,
     typeOptions,
     showTagDropdown,
@@ -61,6 +62,8 @@ export function SubflowEditor({
     handleSubflowTypeChange,
     handleSubflowIterationsChange,
     handleSubflowIterationsSave,
+    handleParallelBatchSizeChange,
+    handleParallelBatchSizeSave,
     handleSubflowEditorChange,
     handleSubflowTagSelect,
     highlightWithReferences,
@@ -80,6 +83,7 @@ export function SubflowEditor({
       activeSearchTarget.canonicalSubBlockId === fieldId)
   const isTypeHighlighted = isSearchHighlighted(WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type)
   const isConfigHighlighted = isSearchHighlighted(configSearchFieldId)
+  const isBatchSizeHighlighted = isSearchHighlighted(WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize)
 
   return (
     <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
@@ -197,6 +201,34 @@ export function SubflowEditor({
               </div>
             )}
           </div>
+
+          {currentBlock.type === 'parallel' && (
+            <div
+              data-workflow-search-subblock-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize}
+              data-workflow-search-canonical-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize}
+              className='mt-4 rounded-md'
+            >
+              <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+                {isBatchSizeHighlighted ? (
+                  <mark className={WORKFLOW_SEARCH_HIGHLIGHT_CLASS}>Parallel Batch Size</mark>
+                ) : (
+                  'Parallel Batch Size'
+                )}
+              </Label>
+              <Input
+                type='text'
+                value={batchSizeValue}
+                onChange={handleParallelBatchSizeChange}
+                onBlur={handleParallelBatchSizeSave}
+                onKeyDown={(e) => e.key === 'Enter' && handleParallelBatchSizeSave()}
+                disabled={!userCanEdit}
+                className='mb-1'
+              />
+              <div className='text-[var(--text-muted)] text-micro'>
+                Run 1 to 20 parallel branches at a time.
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

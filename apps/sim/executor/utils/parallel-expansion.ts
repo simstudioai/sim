@@ -36,7 +36,8 @@ export class ParallelExpander {
     dag: DAG,
     parallelId: string,
     branchCount: number,
-    distributionItems?: any[]
+    distributionItems?: any[],
+    options: { branchIndexOffset?: number; totalBranches?: number } = {}
   ): ExpansionResult {
     const config = dag.parallelConfigs.get(parallelId)
     if (!config) {
@@ -64,6 +65,8 @@ export class ParallelExpander {
 
     const regularSet = new Set(regularBlocks)
     const allBranchNodes: string[] = []
+    const branchIndexOffset = options.branchIndexOffset ?? 0
+    const branchTotal = options.totalBranches ?? branchCount
 
     for (const blockId of regularBlocks) {
       const templateId = buildBranchNodeId(blockId, 0)
@@ -76,10 +79,16 @@ export class ParallelExpander {
 
       for (let i = 0; i < branchCount; i++) {
         const branchNodeId = buildBranchNodeId(blockId, i)
+        const globalBranchIndex = branchIndexOffset + i
         allBranchNodes.push(branchNodeId)
 
         if (i === 0) {
-          this.updateBranchMetadata(templateNode, i, branchCount, distributionItems?.[i])
+          this.updateBranchMetadata(
+            templateNode,
+            globalBranchIndex,
+            branchTotal,
+            distributionItems?.[i]
+          )
           continue
         }
 
@@ -87,7 +96,8 @@ export class ParallelExpander {
           templateNode,
           blockId,
           i,
-          branchCount,
+          globalBranchIndex,
+          branchTotal,
           distributionItems?.[i]
         )
         dag.nodes.set(branchNodeId, branchNode)
@@ -120,6 +130,7 @@ export class ParallelExpander {
 
       // Branches 1..N clone the entire subflow graph (recursively for deep nesting)
       for (let i = 1; i < branchCount; i++) {
+        const globalBranchIndex = branchIndexOffset + i
         const cloned = this.cloneNestedSubflow(dag, subflowId, i, clonedSubflows)
 
         entryNodes.push(cloned.startId)
@@ -127,7 +138,7 @@ export class ParallelExpander {
         clonedSubflows.push({
           clonedId: cloned.clonedId,
           originalId: subflowId,
-          outerBranchIndex: i,
+          outerBranchIndex: globalBranchIndex,
         })
       }
     }
@@ -161,11 +172,12 @@ export class ParallelExpander {
   private cloneTemplateNode(
     template: DAGNode,
     originalBlockId: string,
+    localBranchIndex: number,
     branchIndex: number,
     branchTotal: number,
     distributionItem?: any
   ): DAGNode {
-    const branchNodeId = buildBranchNodeId(originalBlockId, branchIndex)
+    const branchNodeId = buildBranchNodeId(originalBlockId, localBranchIndex)
     const blockClone: SerializedBlock = {
       ...template.block,
       id: branchNodeId,

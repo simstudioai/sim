@@ -9,6 +9,7 @@ import {
   stripOuterBranchSuffix,
 } from '@/executor/utils/subflow-utils'
 import {
+  type AsyncPathNavigator,
   navigatePath,
   type ResolutionContext,
   type Resolver,
@@ -24,7 +25,10 @@ const COLLECTION_PARALLEL_CONTEXT_FIELDS = ['index', 'currentItem', 'items'] as 
 export class ParallelResolver implements Resolver {
   private parallelNameToId: Map<string, string>
 
-  constructor(private workflow: SerializedWorkflow) {
+  constructor(
+    private workflow: SerializedWorkflow,
+    private navigatePathAsync?: AsyncPathNavigator
+  ) {
     this.parallelNameToId = new Map()
     for (const block of workflow.blocks) {
       if (workflow.parallels?.[block.id] && block.metadata?.name) {
@@ -49,6 +53,27 @@ export class ParallelResolver implements Resolver {
   }
 
   resolve(reference: string, context: ResolutionContext): any {
+    return this.resolveInternal(reference, context, false)
+  }
+
+  async resolveAsync(reference: string, context: ResolutionContext): Promise<any> {
+    if (!this.navigatePathAsync) {
+      return this.resolve(reference, context)
+    }
+    return this.resolveInternal(reference, context, true)
+  }
+
+  private async resolveInternal(
+    reference: string,
+    context: ResolutionContext,
+    useAsyncPath: true
+  ): Promise<any>
+  private resolveInternal(reference: string, context: ResolutionContext, useAsyncPath: false): any
+  private resolveInternal(
+    reference: string,
+    context: ResolutionContext,
+    useAsyncPath: boolean
+  ): any | Promise<any> {
     const parts = parseReferencePath(reference)
     if (parts.length === 0) {
       logger.warn('Invalid parallel reference', { reference })
@@ -82,11 +107,13 @@ export class ParallelResolver implements Resolver {
     if (rest.length > 0) {
       const { property, pathParts: bracketPathParts } = splitLeadingBracketPath(rest[0])
       if (ParallelResolver.OUTPUT_PROPERTIES.has(property)) {
-        return this.resolveOutput(
-          targetParallelId,
-          [...bracketPathParts, ...rest.slice(1)],
-          context
-        )
+        return useAsyncPath
+          ? this.resolveOutputAsync(
+              targetParallelId,
+              [...bracketPathParts, ...rest.slice(1)],
+              context
+            )
+          : this.resolveOutput(targetParallelId, [...bracketPathParts, ...rest.slice(1)], context)
       }
     }
 
@@ -147,7 +174,9 @@ export class ParallelResolver implements Resolver {
     }
 
     if (pathParts.length > 0) {
-      return navigatePath(value, pathParts)
+      return useAsyncPath && this.navigatePathAsync
+        ? this.navigatePathAsync(value, pathParts, context)
+        : navigatePath(value, pathParts)
     }
 
     return value
@@ -240,6 +269,25 @@ export class ParallelResolver implements Resolver {
     const value = (output as Record<string, unknown>).results
     if (pathParts.length > 0) {
       return navigatePath(value, pathParts)
+    }
+    assertNoLargeValueRefs(value)
+    return value
+  }
+
+  private async resolveOutputAsync(
+    parallelId: string,
+    pathParts: string[],
+    context: ResolutionContext
+  ): Promise<unknown> {
+    const output = context.executionState.getBlockOutput(parallelId)
+    if (!output || typeof output !== 'object') {
+      return undefined
+    }
+    const value = (output as Record<string, unknown>).results
+    if (pathParts.length > 0) {
+      return this.navigatePathAsync
+        ? this.navigatePathAsync(value, pathParts, context)
+        : navigatePath(value, pathParts)
     }
     assertNoLargeValueRefs(value)
     return value

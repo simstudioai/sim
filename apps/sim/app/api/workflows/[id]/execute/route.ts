@@ -775,6 +775,7 @@ async function handleExecutePost(
           ? ((await hydrateUserFilesWithBase64(result.output, {
               requestId,
               executionId,
+              userId: actorUserId,
               maxBytes: base64MaxBytes,
             })) as NormalizedBlockOutput)
           : result.output
@@ -1297,6 +1298,7 @@ async function handleExecutePost(
             ? await hydrateUserFilesWithBase64(result.output, {
                 requestId,
                 executionId,
+                userId: actorUserId,
                 maxBytes: base64MaxBytes,
               })
             : result.output

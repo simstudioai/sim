@@ -34,6 +34,7 @@ import {
   extractParallelIdFromSentinel,
 } from '@/executor/utils/subflow-utils'
 import { VariableResolver } from '@/executor/variables/resolver'
+import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedWorkflow } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
@@ -213,7 +214,9 @@ export class DAGExecutor {
   }
 
   private buildExecutionPipeline(context: ExecutionContext, dag: DAG, state: ExecutionState) {
-    const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
+    const resolver = new VariableResolver(this.workflow, this.workflowVariables, state, {
+      navigatePathAsync,
+    })
     const allHandlers = createBlockHandlers()
     const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions, state)
     const edgeManager = new EdgeManager(dag)

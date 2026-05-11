@@ -617,7 +617,9 @@ export function useUndoRedo() {
       const currentCount = currentBlock.data?.count || 5
       const currentParallelType = currentBlock.data?.parallelType || 'count'
       const currentDistribution = currentBlock.data?.collection || ''
+      const currentBatchSize = currentBlock.data?.batchSize || 20
       const nextCount = Number.parseInt(String(update.after), 10)
+      const nextBatchSize = Number.parseInt(String(update.after), 10)
       const config = {
         id: update.blockId,
         nodes: childNodes,
@@ -630,6 +632,10 @@ export function useUndoRedo() {
             ? update.after
             : currentDistribution,
         parallelType: currentParallelType,
+        batchSize:
+          update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize
+            ? nextBatchSize
+            : currentBatchSize,
       }
 
       addToQueue({
@@ -646,6 +652,13 @@ export function useUndoRedo() {
       if (update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations) {
         if (!Number.isNaN(nextCount)) {
           useWorkflowStore.getState().updateParallelCount(update.blockId, nextCount)
+        }
+        return
+      }
+
+      if (update.fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize) {
+        if (!Number.isNaN(nextBatchSize)) {
+          useWorkflowStore.getState().updateParallelBatchSize(update.blockId, nextBatchSize)
         }
         return
       }

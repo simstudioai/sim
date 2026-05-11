@@ -576,7 +576,7 @@ describe('workflow store', () => {
       expect(parsedDistribution).toHaveLength(3)
     })
 
-    it('should clamp parallel count between 1 and 20', () => {
+    it('should clamp parallel count between 1 and 1000', () => {
       const { updateParallelCount } = useWorkflowStore.getState()
 
       addBlock(
@@ -592,11 +592,44 @@ describe('workflow store', () => {
 
       updateParallelCount('parallel1', 100)
       let state = useWorkflowStore.getState()
-      expect(state.blocks.parallel1?.data?.count).toBe(20)
+      expect(state.blocks.parallel1?.data?.count).toBe(100)
+
+      updateParallelCount('parallel1', 1001)
+      state = useWorkflowStore.getState()
+      expect(state.blocks.parallel1?.data?.count).toBe(1000)
 
       updateParallelCount('parallel1', 0)
       state = useWorkflowStore.getState()
       expect(state.blocks.parallel1?.data?.count).toBe(1)
+    })
+
+    it('should clamp parallel batch size between 1 and 20', () => {
+      const { updateParallelBatchSize } = useWorkflowStore.getState()
+
+      addBlock(
+        'parallel1',
+        'parallel',
+        'Test Parallel',
+        { x: 0, y: 0 },
+        {
+          count: 5,
+          batchSize: 20,
+          collection: '',
+        }
+      )
+
+      updateParallelBatchSize('parallel1', 7)
+      let state = useWorkflowStore.getState()
+      expect(state.blocks.parallel1?.data?.batchSize).toBe(7)
+      expect(state.parallels.parallel1.batchSize).toBe(7)
+
+      updateParallelBatchSize('parallel1', 50)
+      state = useWorkflowStore.getState()
+      expect(state.blocks.parallel1?.data?.batchSize).toBe(20)
+
+      updateParallelBatchSize('parallel1', 0)
+      state = useWorkflowStore.getState()
+      expect(state.blocks.parallel1?.data?.batchSize).toBe(1)
     })
 
     it('should regenerate parallels when updateParallelType is called', () => {

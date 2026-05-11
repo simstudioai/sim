@@ -8,6 +8,7 @@ import {
   stripOuterBranchSuffix,
 } from '@/executor/utils/subflow-utils'
 import {
+  type AsyncPathNavigator,
   navigatePath,
   type ResolutionContext,
   type Resolver,
@@ -23,7 +24,10 @@ const FOR_EACH_LOOP_CONTEXT_FIELDS = ['index', 'currentItem', 'items'] as const
 export class LoopResolver implements Resolver {
   private loopNameToId: Map<string, string>
 
-  constructor(private workflow: SerializedWorkflow) {
+  constructor(
+    private workflow: SerializedWorkflow,
+    private navigatePathAsync?: AsyncPathNavigator
+  ) {
     this.loopNameToId = new Map()
     for (const block of workflow.blocks) {
       if (workflow.loops[block.id] && block.metadata?.name) {
@@ -48,6 +52,27 @@ export class LoopResolver implements Resolver {
   }
 
   resolve(reference: string, context: ResolutionContext): any {
+    return this.resolveInternal(reference, context, false)
+  }
+
+  async resolveAsync(reference: string, context: ResolutionContext): Promise<any> {
+    if (!this.navigatePathAsync) {
+      return this.resolve(reference, context)
+    }
+    return this.resolveInternal(reference, context, true)
+  }
+
+  private async resolveInternal(
+    reference: string,
+    context: ResolutionContext,
+    useAsyncPath: true
+  ): Promise<any>
+  private resolveInternal(reference: string, context: ResolutionContext, useAsyncPath: false): any
+  private resolveInternal(
+    reference: string,
+    context: ResolutionContext,
+    useAsyncPath: boolean
+  ): any | Promise<any> {
     const parts = parseReferencePath(reference)
     if (parts.length === 0) {
       logger.warn('Invalid loop reference', { reference })
@@ -87,7 +112,9 @@ export class LoopResolver implements Resolver {
         if (!targetLoopId) {
           return undefined
         }
-        return this.resolveOutput(targetLoopId, [...bracketPathParts, ...rest.slice(1)], context)
+        return useAsyncPath
+          ? this.resolveOutputAsync(targetLoopId, [...bracketPathParts, ...rest.slice(1)], context)
+          : this.resolveOutput(targetLoopId, [...bracketPathParts, ...rest.slice(1)], context)
       }
 
       const isContextual =
@@ -151,7 +178,9 @@ export class LoopResolver implements Resolver {
     }
 
     if (pathParts.length > 0) {
-      return navigatePath(value, pathParts)
+      return useAsyncPath && this.navigatePathAsync
+        ? this.navigatePathAsync(value, pathParts, context)
+        : navigatePath(value, pathParts)
     }
 
     return value
@@ -165,6 +194,25 @@ export class LoopResolver implements Resolver {
     const value = (output as Record<string, unknown>).results
     if (pathParts.length > 0) {
       return navigatePath(value, pathParts)
+    }
+    assertNoLargeValueRefs(value)
+    return value
+  }
+
+  private async resolveOutputAsync(
+    loopId: string,
+    pathParts: string[],
+    context: ResolutionContext
+  ): Promise<unknown> {
+    const output = context.executionState.getBlockOutput(loopId)
+    if (!output || typeof output !== 'object') {
+      return undefined
+    }
+    const value = (output as Record<string, unknown>).results
+    if (pathParts.length > 0) {
+      return this.navigatePathAsync
+        ? this.navigatePathAsync(value, pathParts, context)
+        : navigatePath(value, pathParts)
     }
     assertNoLargeValueRefs(value)
     return value

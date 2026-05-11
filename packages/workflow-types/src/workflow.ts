@@ -25,6 +25,7 @@ export interface ParallelConfig {
   nodes: string[]
   distribution?: unknown[] | Record<string, unknown> | string
   parallelType?: 'count' | 'collection'
+  batchSize?: number
 }
 
 export interface Subflow {
@@ -52,6 +53,7 @@ export interface BlockData {
   whileCondition?: string
   doWhileCondition?: string
   parallelType?: 'collection' | 'count'
+  batchSize?: number
   type?: string
   canonicalModes?: Record<string, 'basic' | 'advanced'>
 }
@@ -178,6 +180,7 @@ export interface Parallel {
   distribution?: any[] | Record<string, any> | string
   count?: number
   parallelType?: 'count' | 'collection'
+  batchSize?: number
   enabled: boolean
   locked?: boolean
 }
