@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -40,9 +41,9 @@ export const webflowHandler: WebhookProviderHandler = {
     }
 
     // Replay protection: reject if timestamp is more than 5 minutes old.
-    // x-webflow-timestamp is Unix seconds; Date.now() is milliseconds — compare both in seconds.
+    // x-webflow-timestamp is Unix milliseconds (e.g. 1722370035277) — compare directly with Date.now().
     const ts = Number.parseInt(timestamp, 10)
-    if (Number.isNaN(ts) || Date.now() / 1000 - ts > 5 * 60) {
+    if (Number.isNaN(ts) || Date.now() - ts > 5 * 60 * 1000) {
       logger.warn(`[${requestId}] Webflow webhook timestamp expired or invalid`)
       return new NextResponse('Unauthorized - Webhook timestamp expired', { status: 401 })
     }
@@ -60,7 +61,7 @@ export const webflowHandler: WebhookProviderHandler = {
       }
     } catch (error) {
       logger.error(`[${requestId}] Error verifying Webflow signature`, {
-        error: (error as Error).message,
+        error: toError(error).message,
       })
       return new NextResponse('Unauthorized - Signature verification error', { status: 401 })
     }
