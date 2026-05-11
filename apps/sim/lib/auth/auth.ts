@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { cache } from 'react'
 import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
@@ -1630,6 +1631,9 @@ export const auth = betterAuth({
               if (response.ok) {
                 const data = await response.json()
                 const userId = data.id?.toString()
+                if (!userId) {
+                  return null
+                }
                 const email =
                   data.email && typeof data.email === 'string'
                     ? data.email
@@ -1660,7 +1664,7 @@ export const auth = betterAuth({
                 logger.error('Wealthbox fallback identity: no refresh or access token available')
                 return null
               }
-              const tokenHash = Buffer.from(stableToken).toString('base64').slice(0, 24)
+              const tokenHash = createHash('sha256').update(stableToken).digest('hex').slice(0, 24)
               return {
                 id: `wealthbox-${tokenHash}`,
                 name: 'Wealthbox User',
