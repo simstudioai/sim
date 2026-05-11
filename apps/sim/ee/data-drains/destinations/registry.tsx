@@ -485,7 +485,7 @@ const webhookFormSpec: DestinationFormSpec<WebhookState> = {
       </FormField>
     </>
   ),
-  isComplete: (s) => s.url.length > 0 && s.signingSecret.length >= 8,
+  isComplete: (s) => s.url.length > 0 && s.signingSecret.length >= 32,
   toDestinationBranch: (s) => ({
     destinationType: 'webhook',
     destinationConfig: {
