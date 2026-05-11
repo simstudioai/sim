@@ -19,17 +19,23 @@ const ACCOUNT_NAME_RE = /^[a-z0-9]{3,24}$/
  */
 const CONTAINER_NAME_RE = /^[a-z0-9]([a-z0-9]|-(?!-))+[a-z0-9]$/
 
-/**
- * Azure storage account keys are 512 bits (64 bytes) of base64 — typically
- * 88 characters including padding. Allow some slack for any future variants.
- */
-const ACCOUNT_KEY_RE = /^[A-Za-z0-9+/]+={0,2}$/
+/** Azure storage account keys are 64 raw bytes => exactly 88 base64 chars (with padding). */
+const ACCOUNT_KEY_RE = /^[A-Za-z0-9+/]+=*$/
+
+/** Public cloud default; sovereign clouds (Gov/China/legacy DE) are validated via allowlist. */
+const DEFAULT_ENDPOINT_SUFFIX = 'blob.core.windows.net'
 
 /**
- * Public cloud endpoint suffix. Sovereign clouds: Gov uses
- * `blob.core.usgovcloudapi.net`, China uses `blob.core.chinacloudapi.cn`.
+ * Allowlist of Azure Storage endpoint suffixes. URL host must end with one of these
+ * (after the account name + dot). Reject anything else to prevent SSRF via attacker-controlled
+ * endpoint suffix.
  */
-const DEFAULT_ENDPOINT_SUFFIX = 'blob.core.windows.net'
+const ALLOWED_ENDPOINT_SUFFIXES = [
+  'blob.core.windows.net',
+  'blob.core.usgovcloudapi.net',
+  'blob.core.chinacloudapi.cn',
+  'blob.core.cloudapi.de',
+] as const
 
 const azureBlobConfigSchema = z.object({
   accountName: z
@@ -47,24 +53,19 @@ const azureBlobConfigSchema = z.object({
     }),
   /** Optional prefix; trailing slash is added automatically when assembling blob names. */
   prefix: z.string().max(512).optional(),
-  /**
-   * Storage endpoint suffix. Defaults to public cloud (`blob.core.windows.net`).
-   * Use `blob.core.usgovcloudapi.net` for Azure Gov, `blob.core.chinacloudapi.cn`
-   * for Azure China.
-   */
+  /** Storage endpoint suffix. Must be one of the known Azure Storage suffixes (public/Gov/China/DE). */
   endpointSuffix: z
     .string()
-    .min(1)
-    .max(128)
-    .regex(/^[a-z0-9.-]+$/, { message: 'endpointSuffix must be a valid hostname suffix' })
+    .refine((v) => (ALLOWED_ENDPOINT_SUFFIXES as readonly string[]).includes(v), {
+      message: `endpointSuffix must be one of: ${ALLOWED_ENDPOINT_SUFFIXES.join(', ')}`,
+    })
     .optional(),
 })
 
 const azureBlobCredentialsSchema = z.object({
   accountKey: z
     .string()
-    .min(64, 'accountKey is too short to be a valid Azure storage key')
-    .max(120, 'accountKey is too long to be a valid Azure storage key')
+    .length(88, 'accountKey must be exactly 88 base64 characters (64-byte Azure storage key)')
     .refine((v) => ACCOUNT_KEY_RE.test(v), {
       message: 'accountKey must be a base64-encoded Azure storage account key',
     }),

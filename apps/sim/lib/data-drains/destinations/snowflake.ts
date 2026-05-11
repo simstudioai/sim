@@ -1,16 +1,30 @@
 import { createHash, createPublicKey } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { importPKCS8, SignJWT } from 'jose'
 import { z } from 'zod'
-import { parseRetryAfter, sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
+import {
+  backoffWithJitter,
+  parseRetryAfter,
+  sleepUntilAborted,
+} from '@/lib/data-drains/destinations/utils'
 import type { DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainSnowflakeDestination')
 
-/** Account-identifier-shaped URL host: `<orgname>-<accountname>.snowflakecomputing.com`. */
-const ACCOUNT_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{1,254}[A-Za-z0-9]$/
+/**
+ * Snowflake account identifier formats (https://docs.snowflake.com/en/user-guide/admin-account-identifier):
+ * - Org-account: `<orgname>-<acctname>` — alphanumerics/underscore, hyphen-separated, no dots.
+ * - Legacy account locator: `<locator>` or `<locator>.<region>[.<cloud>]` — dots allowed.
+ */
+const ACCOUNT_ORG_RE = /^[A-Za-z0-9][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)+$/
+const ACCOUNT_LOCATOR_RE = /^[A-Za-z0-9][A-Za-z0-9_]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*){0,2}$/
+function isValidAccount(v: string): boolean {
+  return ACCOUNT_ORG_RE.test(v) || ACCOUNT_LOCATOR_RE.test(v)
+}
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_$]{0,254}$/
+/** JWT lifetime; Snowflake caps server-side enforcement at 60 minutes regardless of `exp`. */
 const JWT_LIFETIME_SECONDS = 55 * 60
 /** Safety margin (in seconds) subtracted from the JWT exp when caching. */
 const JWT_CACHE_SAFETY_MARGIN_SECONDS = 300
@@ -22,13 +36,10 @@ const POLL_DEADLINE_MS = 10 * 60_000
 const EXECUTE_MAX_ATTEMPTS = 3
 const EXECUTE_RETRY_BASE_DELAY_MS = 500
 const EXECUTE_RETRY_MAX_DELAY_MS = 5_000
-/**
- * Snowflake VARIANT max value size is 16 MiB (16,777,216 bytes) on accounts
- * before the 2025_03 behavior change bundle, and 128 MB after it. We use the
- * conservative pre-bundle limit so the same value works on every account.
- * https://docs.snowflake.com/en/release-notes/bcr-bundles/2025_03/bcr-1942
- */
+/** Conservative pre-2025_03 BCR VARIANT max size (16 MiB) so the same value works on every account. */
 const VARIANT_MAX_BYTES = 16 * 1024 * 1024
+/** Server-side statement execution timeout (seconds) sent in the SQL API request body. */
+const SQL_API_TIMEOUT_SECONDS = 600
 
 /**
  * Snowflake JWT `iss`/`sub` require the bare account identifier without any
@@ -51,12 +62,9 @@ const snowflakeConfigSchema = z.object({
    * Do not include the `.snowflakecomputing.com` suffix. Modern org-account
    * identifiers must not contain dots; only legacy locator URLs use dots.
    */
-  account: z
-    .string()
-    .min(3, 'account is required')
-    .refine((v) => ACCOUNT_RE.test(v), {
-      message: 'account must be the Snowflake account identifier (e.g. orgname-accountname)',
-    }),
+  account: z.string().min(3, 'account is required').refine(isValidAccount, {
+    message: 'account must be the Snowflake account identifier (e.g. orgname-accountname)',
+  }),
   user: z
     .string()
     .min(1, 'user is required')
@@ -87,7 +95,7 @@ const snowflakeConfigSchema = z.object({
     .refine((v) => IDENTIFIER_RE.test(v), {
       message: 'table must be a valid Snowflake identifier',
     }),
-  /** Target VARIANT column. Defaults to `data`. */
+  /** Target VARIANT column. Defaults to `DATA` (uppercase, matching Snowflake's unquoted identifier folding). */
   column: z
     .string()
     .min(1)
@@ -142,7 +150,16 @@ async function buildJwt(
   const subject = `${accountForJwt}.${userUpper}`
   const now = Math.floor(Date.now() / 1000)
   const exp = now + JWT_LIFETIME_SECONDS
-  const privateKey = await importPKCS8(privateKeyPem, 'RS256')
+  let privateKey: Awaited<ReturnType<typeof importPKCS8>>
+  try {
+    privateKey = await importPKCS8(privateKeyPem, 'RS256')
+  } catch (error) {
+    throw new Error(
+      `privateKey must be an unencrypted PKCS#8 PEM (-----BEGIN PRIVATE KEY-----). ` +
+        `Convert PKCS#1 with: openssl pkcs8 -topk8 -nocrypt -in rsa.pem -out pkcs8.pem. ` +
+        `Decrypt encrypted PEMs first. Underlying error: ${toError(error).message}`
+    )
+  }
   const token = await new SignJWT({})
     .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
     .setIssuer(issuer)
@@ -164,7 +181,7 @@ function quoteIdentifier(name: string): string {
 }
 
 function buildStatement(config: SnowflakeDestinationConfig, rowCount: number): string {
-  const column = quoteIdentifier(config.column ?? 'data')
+  const column = quoteIdentifier(config.column ?? 'DATA')
   const target = `${quoteIdentifier(config.database)}.${quoteIdentifier(config.schema)}.${quoteIdentifier(config.table)}`
   const placeholders = Array.from({ length: rowCount }, () => '(PARSE_JSON(?))').join(', ')
   return `INSERT INTO ${target} (${column}) VALUES ${placeholders}`
@@ -186,7 +203,7 @@ function isRetryableStatus(status: number): boolean {
 
 interface ExecuteInput {
   config: SnowflakeDestinationConfig
-  jwt: string
+  getJwt: () => Promise<string>
   statement: string
   bindings: string[]
   signal: AbortSignal
@@ -201,31 +218,36 @@ async function executeStatement(input: ExecuteInput): Promise<void> {
       )
     }
   }
-  const url = `https://${input.config.account}.snowflakecomputing.com/api/v2/statements`
+  const baseUrl = `https://${input.config.account}.snowflakecomputing.com/api/v2/statements`
   const bindings: Record<string, { type: 'TEXT'; value: string }> = {}
   input.bindings.forEach((value, index) => {
     bindings[(index + 1).toString()] = { type: 'TEXT', value }
   })
   const body = {
     statement: input.statement,
+    timeout: SQL_API_TIMEOUT_SECONDS,
     warehouse: input.config.warehouse,
-    database: input.config.database,
-    schema: input.config.schema,
     role: input.config.role,
     bindings,
   }
   const serializedBody = JSON.stringify(body)
+  /** Stable per-request UUID enables idempotent retries via `retry=true` on subsequent attempts. */
+  const requestId = generateId()
 
   let lastError: unknown
   for (let attempt = 1; attempt <= EXECUTE_MAX_ATTEMPTS; attempt++) {
     if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
     const perAttempt = AbortSignal.any([input.signal, AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS)])
+    const jwt = await input.getJwt()
+    const params = new URLSearchParams({ requestId })
+    if (attempt > 1) params.set('retry', 'true')
+    const url = `${baseUrl}?${params.toString()}`
     let response: Response
     try {
       response = await fetch(url, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${input.jwt}`,
+          Authorization: `Bearer ${jwt}`,
           'Content-Type': 'application/json',
           Accept: 'application/json',
           'X-Snowflake-Authorization-Token-Type': 'KEYPAIR_JWT',
@@ -241,7 +263,13 @@ async function executeStatement(input: ExecuteInput): Promise<void> {
         error: toError(error).message,
       })
       if (input.signal.aborted || attempt === EXECUTE_MAX_ATTEMPTS) throw error
-      await sleepUntilAborted(computeBackoffDelay(attempt), input.signal)
+      await sleepUntilAborted(
+        backoffWithJitter(attempt, null, {
+          baseMs: EXECUTE_RETRY_BASE_DELAY_MS,
+          maxMs: EXECUTE_RETRY_MAX_DELAY_MS,
+        }),
+        input.signal
+      )
       continue
     }
     if (response.status === 202) {
@@ -251,7 +279,7 @@ async function executeStatement(input: ExecuteInput): Promise<void> {
       }
       await pollStatement({
         account: input.config.account,
-        jwt: input.jwt,
+        getJwt: input.getJwt,
         handle: json.statementHandle,
         signal: input.signal,
       })
@@ -263,7 +291,10 @@ async function executeStatement(input: ExecuteInput): Promise<void> {
     if (!isRetryableStatus(response.status) || attempt === EXECUTE_MAX_ATTEMPTS) throw error
     lastError = error
     const retryAfterMs = parseRetryAfter(response.headers.get('Retry-After'))
-    const delay = retryAfterMs ?? computeBackoffDelay(attempt)
+    const delay = backoffWithJitter(attempt, retryAfterMs, {
+      baseMs: EXECUTE_RETRY_BASE_DELAY_MS,
+      maxMs: EXECUTE_RETRY_MAX_DELAY_MS,
+    })
     logger.warn('Snowflake request retrying after retryable status', {
       attempt,
       status: response.status,
@@ -274,32 +305,30 @@ async function executeStatement(input: ExecuteInput): Promise<void> {
   throw lastError ?? new Error('Snowflake request failed after retries')
 }
 
-function computeBackoffDelay(attempt: number): number {
-  const exponential = EXECUTE_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1)
-  return Math.min(exponential, EXECUTE_RETRY_MAX_DELAY_MS)
-}
-
 interface PollInput {
   account: string
-  jwt: string
+  /** Thunk so long polls (past 55min) refresh the JWT instead of dying with 401. */
+  getJwt: () => Promise<string>
   handle: string
   signal: AbortSignal
 }
 
-/**
- * Polls a Snowflake statement that returned HTTP 202. Snowflake returns 202
- * again while the statement is still executing, and 200 once it completes.
- */
+/** Snowflake returns 202 while still executing and 200 on completion (async statement-handle semantics). */
 async function pollStatement(input: PollInput): Promise<void> {
   const url = `https://${input.account}.snowflakecomputing.com/api/v2/statements/${encodeURIComponent(input.handle)}`
   const deadline = Date.now() + POLL_DEADLINE_MS
   let interval = POLL_INITIAL_INTERVAL_MS
+  let isFirstAttempt = true
   while (Date.now() < deadline) {
     if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
-    await sleepUntilAborted(interval, input.signal)
+    if (!isFirstAttempt) {
+      await sleepUntilAborted(interval, input.signal)
+    }
+    isFirstAttempt = false
+    const jwt = await input.getJwt()
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${input.jwt}`,
+        Authorization: `Bearer ${jwt}`,
         Accept: 'application/json',
         'X-Snowflake-Authorization-Token-Type': 'KEYPAIR_JWT',
       },
@@ -328,10 +357,16 @@ export const snowflakeDestination: DrainDestination<
   credentialsSchema: snowflakeCredentialsSchema,
 
   async test({ config, credentials, signal }) {
-    const { token } = await buildJwt(config.account, config.user, credentials.privateKey)
+    let cached: JwtCacheEntry | null = null
+    async function getJwt(): Promise<string> {
+      const now = Math.floor(Date.now() / 1000)
+      if (cached && cached.expiresAt > now) return cached.token
+      cached = await buildJwt(config.account, config.user, credentials.privateKey)
+      return cached.token
+    }
     await executeStatement({
       config,
-      jwt: token,
+      getJwt,
       statement: 'SELECT 1',
       bindings: [],
       signal,
@@ -354,10 +389,9 @@ export const snowflakeDestination: DrainDestination<
             locator: `snowflake://${config.account}/${config.database}.${config.schema}.${config.table}#${metadata.runId}-${metadata.sequence}`,
           }
         }
-        const jwt = await getJwt()
         await executeStatement({
           config,
-          jwt,
+          getJwt,
           statement: buildStatement(config, rows.length),
           bindings: rows,
           signal,

@@ -1,6 +1,65 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { validateExternalUrl } from '@/lib/core/security/input-validation'
 import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
+
+/** AWS S3 bucket: 3-63 chars, lowercase alnum + . / -, see s3.ts for full rules. */
+const S3_BUCKET_NAME_RE = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/
+const S3_IPV4_LIKE_RE = /^(\d{1,3}\.){3}\d{1,3}$/
+const AWS_REGION_RE = /^[a-z]{2,}(-[a-z]+)+-\d+$/
+/** GCS bucket component: lowercase alnum + _ / -, start/end alnum. Mirrors gcs.ts. */
+const GCS_BUCKET_COMPONENT_RE = /^[a-z0-9][a-z0-9_-]*[a-z0-9]$/
+const GOOGLE_RESERVED_PREFIX_RE = /^(goog|google|g00gle)/i
+const GOOGLE_CONTAINS_RE = /(google|g00gle)/i
+function validateGcsBucketComponents(v: string): string | null {
+  if (v.length < 3 || v.length > 222) return 'bucket must be 3-222 characters'
+  const components = v.split('.')
+  for (const c of components) {
+    if (c.length < 3 || c.length > 63) {
+      return 'each dot-separated component must be 3-63 characters'
+    }
+    if (!GCS_BUCKET_COMPONENT_RE.test(c)) {
+      return 'each component must be lowercase, start/end alphanumeric, letters/digits/_/- only'
+    }
+  }
+  return null
+}
+/** Azure storage account: 3-24 lowercase alnum. */
+const AZURE_ACCOUNT_NAME_RE = /^[a-z0-9]{3,24}$/
+/** Azure container: 3-63 chars, lowercase alnum + single hyphens. */
+const AZURE_CONTAINER_NAME_RE = /^[a-z0-9]([a-z0-9]|-(?!-))+[a-z0-9]$/
+/** Azure Blob Storage endpoint suffixes (Public, US Gov, China, Germany). */
+const AZURE_ENDPOINT_SUFFIXES = [
+  'blob.core.windows.net',
+  'blob.core.usgovcloudapi.net',
+  'blob.core.chinacloudapi.cn',
+  'blob.core.cloudapi.de',
+] as const
+/** BigQuery project / dataset / table identifiers. */
+const BQ_PROJECT_ID_RE = /^([a-z][a-z0-9.-]{0,61}[a-z0-9]:)?[a-z][a-z0-9-]{4,28}[a-z0-9]$/
+const BQ_DATASET_RE = /^[A-Za-z0-9_]{1,1024}$/
+const BQ_TABLE_RE = /^[\p{L}\p{M}\p{N}\p{Pc}\p{Pd} ]{1,1024}$/u
+/** Snowflake account + identifier shapes — mirrored from snowflake.ts. */
+const SNOWFLAKE_ACCOUNT_ORG_RE = /^[A-Za-z0-9][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)+$/
+const SNOWFLAKE_ACCOUNT_LOCATOR_RE =
+  /^[A-Za-z0-9][A-Za-z0-9_]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*){0,2}$/
+const SNOWFLAKE_IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_$]{0,254}$/
+/** Reserved Sim-namespaced header names that cannot be reused as the webhook signature header. */
+const RESERVED_WEBHOOK_SIGNATURE_HEADER_NAMES = new Set([
+  'authorization',
+  'content-type',
+  'user-agent',
+  'idempotency-key',
+  'x-sim-timestamp',
+  'x-sim-signature-version',
+  'x-sim-drain-id',
+  'x-sim-run-id',
+  'x-sim-source',
+  'x-sim-sequence',
+  'x-sim-row-count',
+  'x-sim-probe',
+  'x-sim-signature',
+])
 
 export const dataDrainSourceSchema = z.enum(SOURCE_TYPES)
 export const dataDrainDestinationTypeSchema = z.enum(DESTINATION_TYPES)
@@ -20,10 +79,53 @@ export const dataDrainParamsSchema = z.object({
 const drainNameSchema = z.string().trim().min(1, 'name is required').max(120)
 
 const s3ConfigBodySchema = z.object({
-  bucket: z.string().min(1, 'bucket is required').max(255),
-  region: z.string().min(1, 'region is required').max(64),
-  prefix: z.string().max(512).optional(),
-  endpoint: z.string().url().optional(),
+  bucket: z
+    .string()
+    .min(3, 'bucket must be 3-63 characters')
+    .max(63, 'bucket must be 3-63 characters')
+    .refine((v) => S3_BUCKET_NAME_RE.test(v), {
+      message: 'bucket must be lowercase, 3-63 chars, start/end alphanumeric',
+    })
+    .refine((v) => !v.includes('..'), { message: 'bucket must not contain consecutive dots' })
+    .refine((v) => !S3_IPV4_LIKE_RE.test(v), { message: 'bucket must not look like an IP address' })
+    .refine((v) => !v.startsWith('xn--'), { message: 'bucket must not start with "xn--"' })
+    .refine((v) => !v.startsWith('sthree-'), { message: 'bucket must not start with "sthree-"' })
+    .refine((v) => !v.startsWith('amzn-s3-demo-'), {
+      message: 'bucket must not start with "amzn-s3-demo-" (reserved by AWS)',
+    })
+    .refine(
+      (v) =>
+        !v.endsWith('-s3alias') &&
+        !v.endsWith('--ol-s3') &&
+        !v.endsWith('.mrap') &&
+        !v.endsWith('--x-s3') &&
+        !v.endsWith('--table-s3'),
+      {
+        message:
+          'bucket must not end with reserved suffix (-s3alias, --ol-s3, .mrap, --x-s3, --table-s3)',
+      }
+    ),
+  region: z
+    .string()
+    .min(1, 'region is required')
+    .max(32, 'region is too long')
+    .refine((v) => AWS_REGION_RE.test(v), {
+      message: 'region must look like an AWS region code, e.g. us-east-1',
+    }),
+  prefix: z
+    .string()
+    .max(512)
+    .refine((v) => Buffer.byteLength(v, 'utf8') <= 512, {
+      message: 'prefix must be at most 512 bytes (UTF-8)',
+    })
+    .optional(),
+  endpoint: z
+    .string()
+    .url()
+    .refine((value) => validateExternalUrl(value, 'endpoint').isValid, {
+      message: 'endpoint must be HTTPS and not point at a private, loopback, or metadata address',
+    })
+    .optional(),
   forcePathStyle: z.boolean().optional(),
 })
 
@@ -33,8 +135,32 @@ const s3CredentialsBodySchema = z.object({
 })
 
 const gcsConfigBodySchema = z.object({
-  bucket: z.string().min(3, 'bucket must be at least 3 characters').max(63),
-  prefix: z.string().max(512).optional(),
+  bucket: z
+    .string()
+    .min(3, 'bucket must be 3-222 characters')
+    .max(222, 'bucket must be 3-222 characters')
+    .superRefine((v, ctx) => {
+      const err = validateGcsBucketComponents(v)
+      if (err) ctx.addIssue({ code: z.ZodIssueCode.custom, message: err })
+    })
+    .refine((v) => !S3_IPV4_LIKE_RE.test(v), { message: 'bucket must not look like an IP address' })
+    .refine((v) => !v.includes('..'), { message: 'bucket must not contain consecutive dots' })
+    .refine((v) => !v.includes('-.') && !v.includes('.-'), {
+      message: 'bucket must not contain "-." or ".-"',
+    })
+    .refine((v) => !GOOGLE_RESERVED_PREFIX_RE.test(v) && !GOOGLE_CONTAINS_RE.test(v), {
+      message: 'bucket name cannot begin with "goog" or contain "google" / close misspellings',
+    }),
+  prefix: z
+    .string()
+    .max(512)
+    .refine((v) => Buffer.byteLength(v, 'utf8') <= 512, {
+      message: 'prefix must be at most 512 bytes (UTF-8)',
+    })
+    .refine((v) => !v.startsWith('.well-known/acme-challenge/'), {
+      message: 'prefix must not start with ".well-known/acme-challenge/" (reserved by GCS)',
+    })
+    .optional(),
 })
 
 const gcsCredentialsBodySchema = z.object({
@@ -42,17 +168,32 @@ const gcsCredentialsBodySchema = z.object({
 })
 
 const azureBlobConfigBodySchema = z.object({
-  accountName: z.string().min(1, 'accountName is required').max(24),
-  containerName: z.string().min(3, 'containerName is required').max(63),
+  accountName: z
+    .string()
+    .min(1, 'accountName is required')
+    .refine((v) => AZURE_ACCOUNT_NAME_RE.test(v), {
+      message: 'accountName must be 3-24 lowercase letters or digits',
+    }),
+  containerName: z
+    .string()
+    .min(3, 'containerName must be 3-63 characters')
+    .max(63)
+    .refine((v) => AZURE_CONTAINER_NAME_RE.test(v), {
+      message: 'containerName must use lowercase letters, digits, or single hyphens',
+    }),
   prefix: z.string().max(512).optional(),
-  endpointSuffix: z.string().min(1).max(128).optional(),
+  endpointSuffix: z
+    .string()
+    .refine((v) => (AZURE_ENDPOINT_SUFFIXES as readonly string[]).includes(v), {
+      message: `endpointSuffix must be one of: ${AZURE_ENDPOINT_SUFFIXES.join(', ')}`,
+    })
+    .optional(),
 })
 
 const azureBlobCredentialsBodySchema = z.object({
   accountKey: z
     .string()
-    .min(64, 'accountKey is too short to be a valid Azure storage key')
-    .max(120, 'accountKey is too long to be a valid Azure storage key')
+    .length(88, 'accountKey must be 88 base64 characters (64-byte Azure storage key)')
     .regex(/^[A-Za-z0-9+/]+={0,2}$/, {
       message: 'accountKey must be a base64-encoded Azure storage account key',
     }),
@@ -69,9 +210,29 @@ const datadogCredentialsBodySchema = z.object({
 })
 
 const bigqueryConfigBodySchema = z.object({
-  projectId: z.string().min(6).max(94),
-  datasetId: z.string().min(1).max(1024),
-  tableId: z.string().min(1).max(1024),
+  projectId: z
+    .string()
+    .min(6, 'projectId is required')
+    .max(94)
+    .refine((v) => BQ_PROJECT_ID_RE.test(v), {
+      message: 'projectId must match Google Cloud project ID rules',
+    }),
+  datasetId: z
+    .string()
+    .min(1, 'datasetId is required')
+    .refine((v) => BQ_DATASET_RE.test(v), {
+      message: 'datasetId may only contain letters, digits, and underscores (max 1024)',
+    }),
+  tableId: z
+    .string()
+    .min(1, 'tableId is required')
+    .refine((v) => BQ_TABLE_RE.test(v), {
+      message:
+        'tableId may contain Unicode letters, marks, numbers, connectors, dashes, and spaces (max 1024)',
+    })
+    .refine((v) => Buffer.byteLength(v, 'utf8') <= 1024, {
+      message: 'tableId must be at most 1024 bytes (UTF-8)',
+    }),
 })
 
 const bigqueryCredentialsBodySchema = z.object({
@@ -79,14 +240,39 @@ const bigqueryCredentialsBodySchema = z.object({
 })
 
 const snowflakeConfigBodySchema = z.object({
-  account: z.string().min(3),
-  user: z.string().min(1),
-  warehouse: z.string().min(1),
-  database: z.string().min(1),
-  schema: z.string().min(1),
-  table: z.string().min(1),
-  column: z.string().min(1).optional(),
-  role: z.string().min(1).optional(),
+  account: z
+    .string()
+    .min(3, 'account is required')
+    .max(256)
+    .refine((v) => SNOWFLAKE_ACCOUNT_ORG_RE.test(v) || SNOWFLAKE_ACCOUNT_LOCATOR_RE.test(v), {
+      message:
+        'account must be a Snowflake org-account identifier (orgname-accountname) or legacy locator (locator[.region[.cloud]])',
+    }),
+  user: z.string().min(1, 'user is required').regex(SNOWFLAKE_IDENTIFIER_RE, {
+    message: 'user must be a valid Snowflake identifier',
+  }),
+  warehouse: z.string().min(1).regex(SNOWFLAKE_IDENTIFIER_RE, {
+    message: 'warehouse must be a valid Snowflake identifier',
+  }),
+  database: z.string().min(1).regex(SNOWFLAKE_IDENTIFIER_RE, {
+    message: 'database must be a valid Snowflake identifier',
+  }),
+  schema: z.string().min(1).regex(SNOWFLAKE_IDENTIFIER_RE, {
+    message: 'schema must be a valid Snowflake identifier',
+  }),
+  table: z.string().min(1).regex(SNOWFLAKE_IDENTIFIER_RE, {
+    message: 'table must be a valid Snowflake identifier',
+  }),
+  column: z
+    .string()
+    .min(1)
+    .regex(SNOWFLAKE_IDENTIFIER_RE, { message: 'column must be a valid Snowflake identifier' })
+    .optional(),
+  role: z
+    .string()
+    .min(1)
+    .regex(SNOWFLAKE_IDENTIFIER_RE, { message: 'role must be a valid Snowflake identifier' })
+    .optional(),
 })
 
 const snowflakeCredentialsBodySchema = z.object({
@@ -94,12 +280,25 @@ const snowflakeCredentialsBodySchema = z.object({
 })
 
 const webhookConfigBodySchema = z.object({
-  url: z.string().url('url must be a valid URL'),
-  signatureHeader: z.string().min(1).max(128).optional(),
+  url: z
+    .string()
+    .url('url must be a valid URL')
+    .max(2048, 'url must be at most 2048 characters')
+    .refine((value) => validateExternalUrl(value, 'url').isValid, {
+      message: 'url must be HTTPS and not point at a private, loopback, or metadata address',
+    }),
+  signatureHeader: z
+    .string()
+    .min(1)
+    .max(128)
+    .refine((value) => !RESERVED_WEBHOOK_SIGNATURE_HEADER_NAMES.has(value.toLowerCase()), {
+      message: 'signatureHeader cannot reuse a reserved Sim header name',
+    })
+    .optional(),
 })
 
 const webhookCredentialsBodySchema = z.object({
-  signingSecret: z.string().min(8, 'signingSecret must be at least 8 characters'),
+  signingSecret: z.string().min(32, 'signingSecret must be at least 32 characters'),
   bearerToken: z.string().min(1).optional(),
 })
 

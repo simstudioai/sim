@@ -11,11 +11,6 @@ import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types
 
 const logger = createLogger('DataDrainDatadogDestination')
 
-/**
- * Datadog logs intake sites. Maps the user's selection to the host of the
- * `http-intake.logs.<host>` endpoint. Source:
- * https://docs.datadoghq.com/getting_started/site/
- */
 const DATADOG_SITES = ['us1', 'us3', 'us5', 'eu1', 'ap1', 'ap2', 'gov'] as const
 
 type DatadogSite = (typeof DATADOG_SITES)[number]
@@ -32,23 +27,15 @@ const SITE_HOSTS: Record<DatadogSite, string> = {
 
 const MAX_ATTEMPTS = 4
 const PER_ATTEMPT_TIMEOUT_MS = 30_000
-/**
- * Datadog v2 logs intake limits: 5 MB uncompressed per request, 6 MB compressed
- * (we enforce both since gzip can hide a too-large body), 1 MB per entry, 1000
- * entries per request. https://docs.datadoghq.com/api/latest/logs/
- */
 const MAX_UNCOMPRESSED_BYTES = 5 * 1024 * 1024
-const MAX_COMPRESSED_BYTES = 6 * 1024 * 1024
+const MAX_WIRE_BYTES = 6 * 1024 * 1024
 const MAX_ENTRY_BYTES = 1024 * 1024
 const MAX_ENTRIES_PER_REQUEST = 1000
-/** Compress payloads above this threshold; gzip overhead isn't worth it on small bodies. */
 const GZIP_THRESHOLD_BYTES = 1024
 
 const datadogConfigSchema = z.object({
   site: z.enum(DATADOG_SITES),
-  /** Static `service` field on every emitted log entry. Defaults to `sim`. */
   service: z.string().min(1).max(100).optional(),
-  /** Static `ddtags` appended to every entry (comma-separated). */
   tags: z.string().max(1024).optional(),
 })
 
@@ -71,10 +58,6 @@ function buildEndpoint(site: DatadogSite): string {
   return `https://http-intake.logs.${SITE_HOSTS[site]}/api/v2/logs`
 }
 
-/**
- * Parses NDJSON body back into row objects. Skips empty trailing lines so the
- * final newline written by sources doesn't produce a phantom entry.
- */
 function parseNdjson(body: Buffer): unknown[] {
   const text = body.toString('utf8')
   const rows: unknown[] = []
@@ -85,7 +68,7 @@ function parseNdjson(body: Buffer): unknown[] {
     try {
       rows.push(JSON.parse(line))
     } catch (error) {
-      throw new Error(`NDJSON parse failed at line ${i}: ${toError(error).message}`)
+      throw new Error(`NDJSON parse failed at line ${i + 1}: ${toError(error).message}`)
     }
   }
   return rows
@@ -96,25 +79,29 @@ function buildEntries(
   config: DatadogDestinationConfig,
   metadata: DeliveryMetadata
 ): DatadogLogEntry[] {
-  const baseTags = [
+  const ddtags = [
     `sim_drain_id:${metadata.drainId}`,
     `sim_run_id:${metadata.runId}`,
     `sim_source:${metadata.source}`,
-  ]
-  if (config.tags) baseTags.push(config.tags)
-  const ddtags = baseTags.join(',')
+    ...(config.tags ? [config.tags] : []),
+  ].join(',')
   const service = config.service ?? 'sim'
   return rows.map((row) => {
     const attrs = typeof row === 'object' && row !== null ? (row as Record<string, unknown>) : {}
-    // Datadog v2 logs intake auto-indexes top-level non-reserved keys as
-    // attributes — there is no `attributes` envelope. Spread row fields first
-    // so reserved fields (ddsource/service/ddtags/message) always win.
+    let message: string
+    if (typeof row === 'string') {
+      message = row
+    } else if (typeof attrs.message === 'string') {
+      message = attrs.message
+    } else {
+      message = JSON.stringify(row)
+    }
     return {
       ...attrs,
       ddsource: 'sim',
       service,
       ddtags,
-      message: typeof row === 'string' ? row : JSON.stringify(row),
+      message,
     }
   })
 }
@@ -126,9 +113,7 @@ function isRetryableStatus(status: number): boolean {
 interface PreparedBody {
   body: Uint8Array | string
   headers: Record<string, string>
-  /** On-the-wire (post-gzip) size — what Datadog measures against its compressed limit. */
   wireBytes: number
-  /** Uncompressed payload size — what Datadog measures against its uncompressed limit. */
   rawBytes: number
 }
 
@@ -138,12 +123,6 @@ interface PostInput {
   signal: AbortSignal
 }
 
-/**
- * Builds the request body and headers, applying gzip compression for payloads
- * above {@link GZIP_THRESHOLD_BYTES}. Returns the wire body (Buffer or string)
- * along with the headers describing it. Both raw and wire sizes are returned
- * so callers can enforce Datadog's 5 MB uncompressed / 6 MB compressed limits.
- */
 function buildRequestBody(payload: string, apiKey: string): PreparedBody {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -155,7 +134,6 @@ function buildRequestBody(payload: string, apiKey: string): PreparedBody {
   if (rawBytes > GZIP_THRESHOLD_BYTES) {
     const compressed = gzipSync(payload)
     headers['Content-Encoding'] = 'gzip'
-    // Re-wrap as a plain Uint8Array view so the fetch BodyInit overload matches.
     const view = new Uint8Array(compressed.buffer, compressed.byteOffset, compressed.byteLength)
     return { body: view, headers, wireBytes: view.byteLength, rawBytes }
   }
@@ -173,7 +151,7 @@ async function postWithRetries(input: PostInput): Promise<Response> {
     try {
       response = await fetch(input.url, {
         method: 'POST',
-        // double-cast-allowed: Uint8Array is a valid runtime BodyInit (per the fetch spec) but the DOM lib types in use here only enumerate Blob/FormData/string/etc.
+        // double-cast-allowed: Uint8Array is a valid runtime BodyInit but the DOM lib types only enumerate Blob/FormData/string/etc.
         body: body as unknown as BodyInit,
         headers,
         signal: perAttempt,
@@ -244,16 +222,14 @@ export const datadogDestination: DrainDestination<
         }
         const payload = JSON.stringify(entries)
         const prepared = buildRequestBody(payload, credentials.apiKey)
-        // Reject before sending so we surface a clean client-side error instead
-        // of letting Datadog return a confusing HTTP 413 after decompression.
         if (prepared.rawBytes > MAX_UNCOMPRESSED_BYTES) {
           throw new Error(
             `Datadog payload is ${prepared.rawBytes} bytes uncompressed, exceeds the ${MAX_UNCOMPRESSED_BYTES}-byte per-request limit`
           )
         }
-        if (prepared.wireBytes > MAX_COMPRESSED_BYTES) {
+        if (prepared.wireBytes > MAX_WIRE_BYTES) {
           throw new Error(
-            `Datadog payload is ${prepared.wireBytes} bytes on the wire, exceeds the ${MAX_COMPRESSED_BYTES}-byte compressed per-request limit`
+            `Datadog payload is ${prepared.wireBytes} bytes on the wire, exceeds the ${MAX_WIRE_BYTES}-byte defensive wire-size cap`
           )
         }
         const response = await postWithRetries({

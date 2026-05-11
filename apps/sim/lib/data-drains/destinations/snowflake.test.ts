@@ -56,7 +56,9 @@ describe('snowflakeDestination', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('https://orgname-acct.snowflakecomputing.com/api/v2/statements')
+    expect(url).toMatch(
+      /^https:\/\/orgname-acct\.snowflakecomputing\.com\/api\/v2\/statements\?requestId=[0-9a-f-]+$/
+    )
     const headers = init.headers as Record<string, string>
     expect(headers.Authorization).toMatch(/^Bearer ey/)
     expect(headers['X-Snowflake-Authorization-Token-Type']).toBe('KEYPAIR_JWT')

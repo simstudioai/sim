@@ -14,29 +14,28 @@ import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types
 const logger = createLogger('DataDrainBigQueryDestination')
 
 /**
- * `bigquery.insertdata` covers the `tabledata.insertAll` streaming endpoint.
- * `bigquery.readonly` is required for the `tables.get` probe used by `test()` —
- * `insertdata` alone returns 403 on `tables.get` even when the service account
- * has the `roles/bigquery.dataEditor` IAM role.
+ * Uses the legacy `tabledata.insertAll` streaming endpoint. The Storage Write
+ * API offers exactly-once semantics and lower pricing but requires gRPC; we
+ * stay on insertAll for simplicity and direct HTTP support.
  */
+
+/** `insertdata` for streaming inserts; `readonly` for the `tables.get` probe in `test()`. */
 const SCOPES = [
   'https://www.googleapis.com/auth/bigquery.insertdata',
   'https://www.googleapis.com/auth/bigquery.readonly',
 ]
 
-/**
- * Allows both standard project IDs (`my-project`) and domain-scoped project
- * IDs (`example.com:my-project`). The optional domain prefix matches Google
- * Cloud's legacy domain-scoped project format.
- */
+/** Standard project IDs are 6-30 chars; the optional `domain.tld:` prefix supports legacy domain-scoped projects. */
 const PROJECT_ID_RE = /^([a-z][a-z0-9.-]{0,61}[a-z0-9]:)?[a-z][a-z0-9-]{4,28}[a-z0-9]$/
-const DATASET_OR_TABLE_RE = /^[A-Za-z0-9_]{1,1024}$/
+const DATASET_RE = /^[A-Za-z0-9_]{1,1024}$/
+const TABLE_RE = /^[\p{L}\p{M}\p{N}\p{Pc}\p{Pd} ]{1,1024}$/u
 
 const USER_AGENT = 'sim-data-drain/1.0'
-/** Streaming insertAll limits per request: 10 MB body, 50,000 rows. */
+/** Per-request streaming limits: 10 MB body, 50,000 rows, 1 MB per row. */
 const MAX_REQUEST_BYTES = 10 * 1024 * 1024
 const MAX_ROWS_PER_REQUEST = 50_000
-/** BigQuery caps insertId at 128 characters. */
+const MAX_ROW_BYTES = 1024 * 1024
+/** `insertId` is capped at 128 characters (encoded length). */
 const MAX_INSERT_ID_LENGTH = 128
 
 const bigqueryConfigSchema = z.object({
@@ -49,14 +48,18 @@ const bigqueryConfigSchema = z.object({
   datasetId: z
     .string()
     .min(1, 'datasetId is required')
-    .refine((v) => DATASET_OR_TABLE_RE.test(v), {
-      message: 'datasetId may only contain letters, digits, and underscores',
+    .refine((v) => DATASET_RE.test(v), {
+      message: 'datasetId may only contain ASCII letters, digits, and underscores (max 1024 chars)',
     }),
   tableId: z
     .string()
     .min(1, 'tableId is required')
-    .refine((v) => DATASET_OR_TABLE_RE.test(v), {
-      message: 'tableId may only contain letters, digits, and underscores',
+    .refine((v) => TABLE_RE.test(v), {
+      message:
+        'tableId may only contain Unicode letters/marks/numbers, connectors, dashes, and spaces (max 1024 chars)',
+    })
+    .refine((v) => Buffer.byteLength(v, 'utf8') <= 1024, {
+      message: 'tableId must be at most 1024 bytes when UTF-8 encoded',
     }),
 })
 
@@ -75,7 +78,7 @@ function buildJwt(account: ParsedServiceAccount): JWT {
 
 async function getAccessToken(jwt: JWT, forceRefresh = false): Promise<string> {
   if (forceRefresh) {
-    // Drop the cached credentials so the next call re-issues a fresh token.
+    /** Clearing `credentials` forces `getAccessToken` to mint a new token instead of returning the cached one. */
     jwt.credentials = {}
   }
   const { token } = await jwt.getAccessToken()
@@ -144,16 +147,15 @@ async function postInsertAll(
   }
 }
 
+/**
+ * Builds a stable `insertId` for best-effort dedup (~60s window). Prefixed
+ * with `drainId` so (runId, sequence) collisions across drains do not
+ * accidentally dedupe each other's rows.
+ */
 function buildInsertId(metadata: DeliveryMetadata, index: number): string {
-  // BigQuery dedupes inserts with the same insertId for ~1 minute, so a
-  // retried chunk doesn't create duplicate rows when the original delivery
-  // partially succeeded but the response was lost. Prefix with `drainId` so
-  // (runId, sequence) collisions across drains can't accidentally dedupe.
-  // Cap at 128 chars per spec.
-  return `${metadata.drainId}-${metadata.runId}-${metadata.sequence}-${index}`.slice(
-    0,
-    MAX_INSERT_ID_LENGTH
-  )
+  const raw = `${metadata.drainId}-${metadata.runId}-${metadata.sequence}-${index}`
+  if (raw.length <= MAX_INSERT_ID_LENGTH) return raw
+  return raw.slice(0, MAX_INSERT_ID_LENGTH)
 }
 
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
@@ -164,12 +166,9 @@ const BASE_RETRY_DELAY_MS = 250
  * Streams a chunk of rows to `tabledata.insertAll`.
  *
  * Partial-success caveat: BigQuery may return HTTP 200 with a non-empty
- * `insertErrors` array. The rows NOT listed in `insertErrors` are inserted and
- * dedup-keyed by `insertId` for ~60 seconds. We throw on any `insertErrors` so
- * the outer driver surfaces the failure, but if the driver retries the same
- * chunk after the dedup window expires, the previously-succeeded rows will
- * duplicate. The error message and the accompanying `partialFailure` warning
- * include enough context for operators to recognize and triage this case.
+ * `insertErrors` array. Rows not listed there are inserted and dedup-keyed by
+ * `insertId` for ~60s. We throw on any `insertErrors`; retries within the
+ * dedup window are safe, but retries after it may duplicate succeeded rows.
  */
 async function insertAll(input: InsertAllInput): Promise<void> {
   if (input.rows.length > MAX_ROWS_PER_REQUEST) {
@@ -178,13 +177,26 @@ async function insertAll(input: InsertAllInput): Promise<void> {
     )
   }
   const url = `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(input.config.projectId)}/datasets/${encodeURIComponent(input.config.datasetId)}/tables/${encodeURIComponent(input.config.tableId)}/insertAll`
+  /**
+   * `skipInvalidRows: false` and `ignoreUnknownValues: false` surface schema
+   * mismatches as `insertErrors` instead of silently dropping data — drains
+   * should fail loudly so operators notice the schema drift.
+   */
   const payload = {
     skipInvalidRows: false,
     ignoreUnknownValues: false,
-    rows: input.rows.map((row, index) => ({
-      insertId: buildInsertId(input.metadata, index),
-      json: row,
-    })),
+    rows: input.rows.map((row, index) => {
+      const rowBytes = Buffer.byteLength(JSON.stringify(row), 'utf8')
+      if (rowBytes > MAX_ROW_BYTES) {
+        throw new Error(
+          `BigQuery row at index ${index} is ${rowBytes} bytes, exceeds the ${MAX_ROW_BYTES}-byte per-row limit`
+        )
+      }
+      return {
+        insertId: buildInsertId(input.metadata, index),
+        json: row,
+      }
+    }),
   }
   const body = JSON.stringify(payload)
   const byteLength = Buffer.byteLength(body, 'utf8')
@@ -200,8 +212,7 @@ async function insertAll(input: InsertAllInput): Promise<void> {
     attempt++
     try {
       response = await postInsertAll(input, url, body)
-      // 401: refresh token and retry once; this attempt does not count toward
-      // the 5xx/429 retry budget.
+      /** A 401 retry doesn't count against the 5xx/429 budget — token refresh is a one-shot recovery. */
       if (response.status === 401 && !refreshedOnce) {
         refreshedOnce = true
         logger.debug('BigQuery returned 401; refreshing access token and retrying once')
@@ -217,14 +228,16 @@ async function insertAll(input: InsertAllInput): Promise<void> {
         attempt,
         retryAfterMs,
       })
-      // Drain the body so the connection can be reused.
+      /** Drain the body so the keep-alive connection can be reused. */
       await response.text().catch(() => '')
       await sleepUntilAborted(retryAfterMs, input.signal)
       if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
     } catch (error) {
-      // Connection-level failures (DNS, socket reset, timeout) don't produce
-      // a Response — treat them like 5xx and retry with backoff. Re-throw
-      // aborts so callers see the cancel reason instead of a wrapped retry.
+      /**
+       * Connection-level failures (DNS, socket reset, timeout) never produce
+       * a Response — treat them like 5xx and retry with backoff. Re-throw
+       * aborts unwrapped so callers see the cancellation reason.
+       */
       if (input.signal.aborted) throw input.signal.reason ?? error
       if (attempt >= MAX_RETRY_ATTEMPTS) throw error
       const retryAfterMs = BASE_RETRY_DELAY_MS * 2 ** (attempt - 1)
@@ -279,12 +292,15 @@ export const bigqueryDestination: DrainDestination<
   configSchema: bigqueryConfigSchema,
   credentialsSchema: bigqueryCredentialsSchema,
 
+  /**
+   * Probes table existence, IAM access, and credential validity in a single
+   * `tables.get` call. `fields=id` minimises response size — we only care
+   * whether the call succeeds, not the payload.
+   */
   async test({ config, credentials, signal }) {
     const account = parseServiceAccount(credentials.serviceAccountJson)
     const jwt = buildJwt(account)
     const token = await getAccessToken(jwt)
-    // Probe table existence and access without inserting any rows. A GET on
-    // tables.get with `?fields=id` is a cheap auth + existence check.
     const url = `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(config.projectId)}/datasets/${encodeURIComponent(config.datasetId)}/tables/${encodeURIComponent(config.tableId)}?fields=id`
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
