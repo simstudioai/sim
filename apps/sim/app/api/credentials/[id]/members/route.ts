@@ -122,11 +122,12 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
     if (existing) {
       const ok = await db.transaction(async (tx) => {
         const [current] = await tx
-          .select({ role: credentialMember.role })
+          .select({ role: credentialMember.role, status: credentialMember.status })
           .from(credentialMember)
           .where(eq(credentialMember.id, existing.id))
           .limit(1)
-        if (current?.role === 'admin' && role !== 'admin') {
+          .for('update')
+        if (current?.role === 'admin' && current?.status === 'active' && role !== 'admin') {
           const activeAdmins = await tx
             .select({ id: credentialMember.id })
             .from(credentialMember)
@@ -137,6 +138,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
                 eq(credentialMember.status, 'active')
               )
             )
+            .for('update')
           if (activeAdmins.length <= 1) return false
         }
         await tx
@@ -219,6 +221,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
               eq(credentialMember.status, 'active')
             )
           )
+          .for('update')
 
         if (activeAdmins.length <= 1) {
           return false

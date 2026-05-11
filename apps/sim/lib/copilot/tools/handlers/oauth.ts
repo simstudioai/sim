@@ -16,7 +16,7 @@ export async function executeOAuthGetAuthLink(
   const baseUrl = getBaseUrl()
   try {
     if (!context.workspaceId || !context.userId) {
-      throw new Error('workspaceId is required to generate an OAuth link')
+      throw new Error('workspaceId and userId are required to generate an OAuth link')
     }
     await ensureWorkspaceAccess(context.workspaceId, context.userId, 'write')
     const result = await generateOAuthLink(

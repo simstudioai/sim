@@ -447,6 +447,7 @@ async function handleDirectToolCall(
 ): Promise<CallToolResult> {
   try {
     const rawWorkflowId = (args.workflowId as string) || ''
+    let resolvedWorkspaceId: string | undefined
     if (rawWorkflowId) {
       const authorization = await authorizeWorkflowByWorkspacePermission({
         workflowId: rawWorkflowId,
@@ -468,11 +469,13 @@ async function handleDirectToolCall(
           isError: true,
         }
       }
+      resolvedWorkspaceId = authorization.workflow?.workspaceId || undefined
     }
     const execContext = await prepareExecutionContext(
       userId,
       rawWorkflowId,
-      (args.chatId as string) || undefined
+      (args.chatId as string) || undefined,
+      { workspaceId: resolvedWorkspaceId }
     )
 
     const toolCall = {
