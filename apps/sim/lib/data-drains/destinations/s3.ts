@@ -32,6 +32,9 @@ const s3BucketSchema = z
       'bucket must be lowercase, 3-63 chars, start/end alphanumeric, only letters/digits/./-',
   })
   .refine((v) => !v.includes('..'), { message: 'bucket must not contain consecutive dots' })
+  .refine((v) => !v.includes('-.') && !v.includes('.-'), {
+    message: 'bucket must not contain a dash adjacent to a dot',
+  })
   .refine((v) => !S3_IPV4_LIKE_RE.test(v), { message: 'bucket must not look like an IP address' })
   .refine((v) => !v.startsWith('xn--'), { message: 'bucket must not start with "xn--"' })
   .refine((v) => !v.startsWith('sthree-'), { message: 'bucket must not start with "sthree-"' })
@@ -81,6 +84,7 @@ const s3ConfigSchema = z.object({
   endpoint: z
     .string()
     .url()
+    .refine((v) => v.startsWith('https://'), { message: 'endpoint must use https://' })
     .refine((value) => validateExternalUrl(value, 'endpoint').isValid, {
       message: 'endpoint must be HTTPS and not point at a private, loopback, or metadata address',
     })

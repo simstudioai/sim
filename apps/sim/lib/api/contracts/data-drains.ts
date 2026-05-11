@@ -87,6 +87,9 @@ const s3ConfigBodySchema = z.object({
       message: 'bucket must be lowercase, 3-63 chars, start/end alphanumeric',
     })
     .refine((v) => !v.includes('..'), { message: 'bucket must not contain consecutive dots' })
+    .refine((v) => !v.includes('-.') && !v.includes('.-'), {
+      message: 'bucket must not contain a dash adjacent to a dot',
+    })
     .refine((v) => !S3_IPV4_LIKE_RE.test(v), { message: 'bucket must not look like an IP address' })
     .refine((v) => !v.startsWith('xn--'), { message: 'bucket must not start with "xn--"' })
     .refine((v) => !v.startsWith('sthree-'), { message: 'bucket must not start with "sthree-"' })
@@ -122,6 +125,7 @@ const s3ConfigBodySchema = z.object({
   endpoint: z
     .string()
     .url()
+    .refine((v) => v.startsWith('https://'), { message: 'endpoint must use https://' })
     .refine((value) => validateExternalUrl(value, 'endpoint').isValid, {
       message: 'endpoint must be HTTPS and not point at a private, loopback, or metadata address',
     })
@@ -199,10 +203,24 @@ const azureBlobCredentialsBodySchema = z.object({
     }),
 })
 
+const DATADOG_TAG_PAIR_RE = /^[A-Za-z][A-Za-z0-9_./-]*:[^,\s][^,]*$/
+
 const datadogConfigBodySchema = z.object({
   site: z.enum(['us1', 'us3', 'us5', 'eu1', 'ap1', 'ap2', 'gov']),
   service: z.string().min(1).max(100).optional(),
-  tags: z.string().max(1024).optional(),
+  tags: z
+    .string()
+    .max(1024)
+    .refine(
+      (v) =>
+        v
+          .split(',')
+          .map((t) => t.trim())
+          .filter((t) => t.length > 0)
+          .every((t) => DATADOG_TAG_PAIR_RE.test(t)),
+      { message: 'tags must be comma-separated key:value pairs' }
+    )
+    .optional(),
 })
 
 const datadogCredentialsBodySchema = z.object({
@@ -294,12 +312,25 @@ const webhookConfigBodySchema = z.object({
     .refine((value) => !RESERVED_WEBHOOK_SIGNATURE_HEADER_NAMES.has(value.toLowerCase()), {
       message: 'signatureHeader cannot reuse a reserved Sim header name',
     })
+    .refine((value) => /^[A-Za-z0-9\-_]+$/.test(value) && !/[\r\n\0]/.test(value), {
+      message: 'signatureHeader must contain only letters, digits, hyphens, and underscores',
+    })
     .optional(),
 })
 
 const webhookCredentialsBodySchema = z.object({
-  signingSecret: z.string().min(32, 'signingSecret must be at least 32 characters'),
-  bearerToken: z.string().min(1).optional(),
+  signingSecret: z
+    .string()
+    .min(32, 'signingSecret must be at least 32 characters')
+    .max(512, 'signingSecret must be at most 512 characters'),
+  bearerToken: z
+    .string()
+    .min(1)
+    .max(4096, 'bearerToken must be at most 4096 characters')
+    .refine((value) => !/[\r\n\0]/.test(value), {
+      message: 'bearerToken cannot contain CR, LF, or NUL characters',
+    })
+    .optional(),
 })
 
 /**

@@ -34,10 +34,29 @@ const MAX_ENTRY_BYTES = 1024 * 1024
 const MAX_ENTRIES_PER_REQUEST = 1000
 const GZIP_THRESHOLD_BYTES = 1024
 
+/**
+ * Datadog tag format: comma-separated `key:value` pairs. Each key must start
+ * with a letter and contain only [A-Za-z0-9_:./-]. Validating here so the
+ * `ddtags` header we emit can't be mangled by user-supplied free-form input.
+ */
+const DATADOG_TAG_PAIR_RE = /^[A-Za-z][A-Za-z0-9_./-]*:[^,\s][^,]*$/
+
 const datadogConfigSchema = z.object({
   site: z.enum(DATADOG_SITES),
   service: z.string().min(1).max(100).optional(),
-  tags: z.string().max(1024).optional(),
+  tags: z
+    .string()
+    .max(1024)
+    .refine(
+      (v) =>
+        v
+          .split(',')
+          .map((t) => t.trim())
+          .filter((t) => t.length > 0)
+          .every((t) => DATADOG_TAG_PAIR_RE.test(t)),
+      { message: 'tags must be comma-separated key:value pairs' }
+    )
+    .optional(),
 })
 
 const datadogCredentialsSchema = z.object({
@@ -81,10 +100,15 @@ function buildEntries(
     } else {
       message = JSON.stringify(row)
     }
+    /**
+     * Defaults first, then user attributes, then forced fields. User rows can
+     * customize `ddsource` / `service`, but `ddtags` and `message` are always
+     * the values we computed so receivers can rely on routing/format.
+     */
     return {
-      ...attrs,
       ddsource: 'sim',
       service,
+      ...attrs,
       ddtags,
       message,
     }

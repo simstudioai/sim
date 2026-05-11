@@ -88,9 +88,22 @@ async function buildClients(
     credentials.accountKey
   )
   const suffix = config.endpointSuffix ?? DEFAULT_ENDPOINT_SUFFIX
+  /**
+   * Bound per-attempt timeout. SDK default `tryTimeoutInMs` is "infinite" / OS
+   * connection-idle limits, so a hung receiver could pin a delivery indefinitely.
+   * 30s per try + 5 tries (~ exponential 0.5s → 30s) caps the worst-case wall time.
+   */
   const blobServiceClient = new BlobServiceClient(
     `https://${config.accountName}.${suffix}`,
-    sharedKeyCredential
+    sharedKeyCredential,
+    {
+      retryOptions: {
+        tryTimeoutInMs: 30_000,
+        maxTries: 5,
+        retryDelayInMs: 500,
+        maxRetryDelayInMs: 30_000,
+      },
+    }
   )
   return { containerClient: blobServiceClient.getContainerClient(config.containerName) }
 }

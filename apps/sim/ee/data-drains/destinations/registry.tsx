@@ -145,7 +145,7 @@ const gcsFormSpec: DestinationFormSpec<GCSState> = {
       </FormField>
     </>
   ),
-  isComplete: (s) => s.bucket.length > 0 && s.serviceAccountJson.length > 0,
+  isComplete: (s) => s.bucket.length >= 3 && s.serviceAccountJson.length > 0,
   toDestinationBranch: (s) => ({
     destinationType: 'gcs',
     destinationConfig: { bucket: s.bucket, prefix: s.prefix || undefined },
@@ -207,7 +207,7 @@ const azureBlobFormSpec: DestinationFormSpec<AzureBlobState> = {
     </>
   ),
   isComplete: (s) =>
-    s.accountName.length > 0 && s.containerName.length > 0 && s.accountKey.length > 0,
+    s.accountName.length >= 3 && s.containerName.length >= 3 && s.accountKey.length === 88,
   toDestinationBranch: (s) => ({
     destinationType: 'azure_blob',
     destinationConfig: {
@@ -325,7 +325,7 @@ const bigqueryFormSpec: DestinationFormSpec<BigQueryState> = {
     </>
   ),
   isComplete: (s) =>
-    s.projectId.length > 0 &&
+    s.projectId.length >= 6 &&
     s.datasetId.length > 0 &&
     s.tableId.length > 0 &&
     s.serviceAccountJson.length > 0,
@@ -422,7 +422,7 @@ const snowflakeFormSpec: DestinationFormSpec<SnowflakeState> = {
     </>
   ),
   isComplete: (s) =>
-    s.account.length > 0 &&
+    s.account.length >= 3 &&
     s.user.length > 0 &&
     s.warehouse.length > 0 &&
     s.database.length > 0 &&

@@ -76,7 +76,8 @@ describe('azureBlobDestination openSession', () => {
     expect(StorageSharedKeyCredentialCtor).toHaveBeenCalledWith('simstore', credentials.accountKey)
     expect(BlobServiceClientCtor).toHaveBeenCalledWith(
       'https://simstore.blob.core.windows.net',
-      expect.anything()
+      expect.anything(),
+      expect.objectContaining({ retryOptions: expect.any(Object) })
     )
 
     await session.close()
@@ -102,7 +103,8 @@ describe('azureBlobDestination openSession', () => {
     })
     expect(BlobServiceClientCtor).toHaveBeenCalledWith(
       'https://simstore.blob.core.usgovcloudapi.net',
-      expect.anything()
+      expect.anything(),
+      expect.objectContaining({ retryOptions: expect.any(Object) })
     )
     await session.close()
   })

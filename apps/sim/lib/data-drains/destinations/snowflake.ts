@@ -6,7 +6,6 @@ import { importPKCS8, SignJWT } from 'jose'
 import { z } from 'zod'
 import {
   backoffWithJitter,
-  parseNdjsonObjects,
   parseRetryAfter,
   sleepUntilAborted,
 } from '@/lib/data-drains/destinations/utils'
@@ -370,6 +369,23 @@ async function pollStatement(input: PollInput): Promise<void> {
       const text = await response.text().catch(() => '')
       throw new Error(`Snowflake poll failed (HTTP ${response.status}): ${text}`)
     }
+    /**
+     * Snowflake SQL API can return 200 with a statement-level error envelope
+     * (`code` / `sqlState` / `message`). Successful completions return
+     * `code === "090001"` ("statement executed successfully") or omit `code`,
+     * while statement errors come back with codes like `"002032"` and
+     * a populated `sqlState`. Treat anything with a `sqlState` as a failure.
+     */
+    const completion = (await response.json().catch(() => ({}))) as {
+      code?: string
+      sqlState?: string
+      message?: string
+    }
+    if (completion.sqlState && completion.sqlState !== '00000') {
+      throw new Error(
+        `Snowflake statement failed (sqlState ${completion.sqlState}${completion.code ? `, code ${completion.code}` : ''}): ${completion.message ?? ''}`
+      )
+    }
     return
   }
   throw new Error('Snowflake statement did not complete within the polling deadline')
@@ -411,8 +427,27 @@ export const snowflakeDestination: DrainDestination<
     }
     return {
       async deliver({ body, metadata, signal }) {
-        const parsed = parseNdjsonObjects(body)
-        const rows = parsed.map((row) => JSON.stringify(row))
+        /**
+         * Bind the original line bytes — not `JSON.stringify(JSON.parse(line))` —
+         * so JSON numbers outside the JS safe-integer range (e.g. Snowflake
+         * NUMBER columns past 2^53-1) survive into VARIANT intact. We still
+         * parse each line so a malformed payload fails fast at the runner.
+         */
+        const text = body.toString('utf8')
+        const rows: string[] = []
+        const lines = text.split(/\r?\n/)
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i]
+          if (line.length === 0) continue
+          try {
+            JSON.parse(line)
+          } catch (error) {
+            throw new Error(
+              `Snowflake NDJSON parse failed at line ${i + 1}: ${toError(error).message}`
+            )
+          }
+          rows.push(line)
+        }
         if (rows.length === 0) {
           return {
             locator: `snowflake://${config.account}/${config.database}.${config.schema}.${config.table}#${metadata.runId}-${metadata.sequence}`,
