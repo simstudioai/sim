@@ -176,6 +176,8 @@ async function fetchWithRetry(input: RetryRequestInput): Promise<void> {
     }
     lastError = new Error(`GCS ${input.action} responded with HTTP ${response.status}`)
     const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
+    /** Drain the retryable response body so undici can return the socket to the keep-alive pool. */
+    await response.text().catch(() => '')
     await sleepUntilAborted(backoffWithJitter(attempt, retryAfterMs), input.signal)
   }
   throw lastError instanceof Error

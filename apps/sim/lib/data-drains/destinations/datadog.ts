@@ -179,6 +179,8 @@ async function postWithRetries(input: PostInput): Promise<Response> {
       }
       lastError = new Error(`Datadog responded with HTTP ${response.status}`)
       retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
+      /** Drain the retryable response body so undici can return the socket to the keep-alive pool. */
+      await response.text().catch(() => '')
     }
     if (attempt < MAX_ATTEMPTS) {
       await sleepUntilAborted(backoffWithJitter(attempt, retryAfterMs), input.signal)
