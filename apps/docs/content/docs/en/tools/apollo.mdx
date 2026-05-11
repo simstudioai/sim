@@ -49,9 +49,15 @@ Search Apollo
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key |
 | `person_titles` | array | No | Job titles to search for \(e.g., \["CEO", "VP of Sales"\]\) |
+| `include_similar_titles` | boolean | No | Whether to return people with job titles similar to person_titles |
 | `person_locations` | array | No | Locations to search in \(e.g., \["San Francisco, CA", "New York, NY"\]\) |
-| `person_seniorities` | array | No | Seniority levels \(e.g., \["senior", "executive", "manager"\]\) |
-| `organization_names` | array | No | Company names to search within |
+| `person_seniorities` | array | No | Seniority levels \(one of: owner, founder, c_suite, partner, vp, head, director, manager, senior, entry, intern\) |
+| `organization_ids` | array | No | Apollo organization IDs to filter by \(e.g., \["5e66b6381e05b4008c8331b8"\]\) |
+| `organization_names` | array | No | Company names to search within \(legacy filter\) |
+| `organization_locations` | array | No | Headquarters locations of the people's current employer \(e.g., \['texas', 'tokyo', 'spain'\]\) |
+| `q_organization_domains_list` | array | No | Employer domain names \(e.g., \["apollo.io", "microsoft.com"\]\) — up to 1,000, no www. or @ |
+| `organization_num_employees_ranges` | array | No | Employee count ranges for the person\'s current employer. Each entry is "min,max" \(e.g., \["1,10", "250,500", "10000,20000"\]\) |
+| `contact_email_status` | array | No | Email statuses to filter by: "verified", "unverified", "likely to engage", "unavailable" |
 | `q_keywords` | string | No | Keywords to search for |
 | `page` | number | No | Page number for pagination, default 1 \(e.g., 1, 2, 3\) |
 | `per_page` | number | No | Results per page, default 25, max 100 \(e.g., 25, 50, 100\) |
@@ -76,12 +82,16 @@ Enrich data for a single person using Apollo
 | `apiKey` | string | Yes | Apollo API key |
 | `first_name` | string | No | First name of the person |
 | `last_name` | string | No | Last name of the person |
+| `name` | string | No | Full name of the person \(alternative to first_name/last_name\) |
+| `id` | string | No | Apollo ID for the person |
+| `hashed_email` | string | No | MD5 or SHA-256 hashed email |
 | `email` | string | No | Email address of the person |
 | `organization_name` | string | No | Company name where the person works |
 | `domain` | string | No | Company domain \(e.g., "apollo.io", "acme.com"\) |
 | `linkedin_url` | string | No | LinkedIn profile URL |
 | `reveal_personal_emails` | boolean | No | Reveal personal email addresses \(uses credits\) |
-| `reveal_phone_number` | boolean | No | Reveal phone numbers \(uses credits\) |
+| `reveal_phone_number` | boolean | No | Reveal phone numbers \(uses credits, requires webhook_url\) |
+| `webhook_url` | string | No | Webhook URL for async phone number delivery \(required when reveal_phone_number is true\) |
 
 #### Output
 
@@ -101,15 +111,18 @@ Enrich data for up to 10 people at once using Apollo
 | `apiKey` | string | Yes | Apollo API key |
 | `people` | array | Yes | Array of people to enrich \(max 10\) |
 | `reveal_personal_emails` | boolean | No | Reveal personal email addresses \(uses credits\) |
-| `reveal_phone_number` | boolean | No | Reveal phone numbers \(uses credits\) |
+| `reveal_phone_number` | boolean | No | Reveal phone numbers \(uses credits, requires webhook_url\) |
+| `webhook_url` | string | No | Webhook URL for async phone number delivery \(required when reveal_phone_number is true\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `people` | json | Array of enriched people data |
-| `total` | number | Total number of people processed |
-| `enriched` | number | Number of people successfully enriched |
+| `matches` | json | Array of enriched people \(null entries indicate no match\) |
+| `total_requested_enrichments` | number | Total number of records submitted for enrichment |
+| `unique_enriched_records` | number | Number of records successfully enriched |
+| `missing_records` | number | Number of records that could not be enriched |
+| `credits_consumed` | number | Number of Apollo credits consumed by this request |
 
 ### `apollo_organization_search`
 
@@ -120,10 +133,13 @@ Search Apollo
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key |
-| `organization_locations` | array | No | Company locations to search |
-| `organization_num_employees_ranges` | array | No | Employee count ranges \(e.g., \["1-10", "11-50"\]\) |
+| `organization_locations` | array | No | Company HQ locations \(cities, US states, or countries\) |
+| `organization_not_locations` | array | No | Exclude companies whose HQ is in these locations |
+| `organization_num_employees_ranges` | array | No | Employee count ranges as "min,max" strings \(e.g., \["1,10", "250,500", "10000,20000"\]\) |
 | `q_organization_keyword_tags` | array | No | Industry or keyword tags |
 | `q_organization_name` | string | No | Organization name to search for \(e.g., "Acme", "TechCorp"\) |
+| `organization_ids` | array | No | Apollo organization IDs to include \(e.g., \["5e66b6381e05b4008c8331b8"\]\) |
+| `q_organization_domains_list` | array | No | Domain names to filter by \(no www. or @, up to 1,000\) |
 | `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
 | `per_page` | number | No | Results per page, max 100 \(e.g., 25, 50, 100\) |
 
@@ -145,8 +161,7 @@ Enrich data for a single organization using Apollo
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key |
-| `organization_name` | string | No | Name of the organization \(e.g., "Acme Corporation"\) - at least one of organization_name or domain is required |
-| `domain` | string | No | Company domain \(e.g., "apollo.io", "acme.com"\) - at least one of domain or organization_name is required |
+| `domain` | string | Yes | Company domain \(e.g., "apollo.io", "acme.com"\) |
 
 #### Output
 
@@ -164,15 +179,17 @@ Enrich data for up to 10 organizations at once using Apollo
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key |
-| `organizations` | array | Yes | Array of organizations to enrich \(max 10\) |
+| `organizations` | array | Yes | Array of organizations to enrich \(max 10\). Each item requires `name` and may include `domain` \(e.g., \[\{"name": "Example Corp", "domain": "example.com"\}\]\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `organizations` | json | Array of enriched organization data |
-| `total` | number | Total number of organizations processed |
-| `enriched` | number | Number of organizations successfully enriched |
+| `total` | number | Total number of domains requested |
+| `enriched` | number | Number of unique enriched records |
+| `missing_records` | number | Number of domains that could not be enriched |
+| `unique_domains` | number | Number of unique domains processed |
 
 ### `apollo_contact_create`
 
@@ -188,7 +205,19 @@ Create a new contact in your Apollo database
 | `email` | string | No | Email address of the contact |
 | `title` | string | No | Job title \(e.g., "VP of Sales", "Software Engineer"\) |
 | `account_id` | string | No | Apollo account ID to associate with \(e.g., "acc_abc123"\) |
-| `owner_id` | string | No | User ID of the contact owner |
+| `owner_id` | string | No | User ID of the contact owner \(accepted by Apollo but not officially documented for POST /contacts\) |
+| `organization_name` | string | No | Name of the contact\'s employer \(e.g., "Apollo"\) |
+| `website_url` | string | No | Corporate website URL \(e.g., "https://www.apollo.io/"\) |
+| `label_names` | array | No | Lists/labels to add the contact to \(e.g., \["Prospects"\]\) |
+| `contact_stage_id` | string | No | Apollo ID for the contact stage |
+| `present_raw_address` | string | No | Personal location for the contact \(e.g., "Atlanta, United States"\) |
+| `direct_phone` | string | No | Primary phone number |
+| `corporate_phone` | string | No | Work/office phone number |
+| `mobile_phone` | string | No | Mobile phone number |
+| `home_phone` | string | No | Home phone number |
+| `other_phone` | string | No | Alternative phone number |
+| `typed_custom_fields` | json | No | Custom field values keyed by custom field ID |
+| `run_dedupe` | boolean | No | When true, Apollo deduplicates against existing contacts |
 
 #### Output
 
@@ -212,7 +241,18 @@ Update an existing contact in your Apollo database
 | `email` | string | No | Email address |
 | `title` | string | No | Job title \(e.g., "VP of Sales", "Software Engineer"\) |
 | `account_id` | string | No | Apollo account ID \(e.g., "acc_abc123"\) |
-| `owner_id` | string | No | User ID of the contact owner |
+| `owner_id` | string | No | User ID of the contact owner \(accepted by Apollo but not officially documented for PATCH /contacts/\{id\}\) |
+| `organization_name` | string | No | Name of the contact\'s employer \(e.g., "Apollo"\) |
+| `website_url` | string | No | Corporate website URL \(e.g., "https://www.apollo.io/"\) |
+| `label_names` | array | No | Lists/labels to add the contact to \(e.g., \["Prospects"\]\) |
+| `contact_stage_id` | string | No | Apollo ID for the contact stage |
+| `present_raw_address` | string | No | Personal location for the contact \(e.g., "Atlanta, United States"\) |
+| `direct_phone` | string | No | Primary phone number |
+| `corporate_phone` | string | No | Work/office phone number |
+| `mobile_phone` | string | No | Mobile phone number |
+| `home_phone` | string | No | Home phone number |
+| `other_phone` | string | No | Alternative phone number |
+| `typed_custom_fields` | json | No | Custom field values keyed by custom field ID \(accepted by Apollo but not officially documented for PATCH /contacts/\{id\}\) |
 
 #### Output
 
@@ -232,6 +272,9 @@ Search your team
 | `apiKey` | string | Yes | Apollo API key |
 | `q_keywords` | string | No | Keywords to search for |
 | `contact_stage_ids` | array | No | Filter by contact stage IDs |
+| `contact_label_ids` | array | No | Filter by Apollo label IDs \(lists\) |
+| `sort_by_field` | string | No | Sort field: contact_last_activity_date, contact_email_last_opened_at, contact_email_last_clicked_at, contact_created_at, or contact_updated_at |
+| `sort_ascending` | boolean | No | When true, sort ascending. Must be used together with sort_by_field |
 | `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
 | `per_page` | number | No | Results per page, max 100 \(e.g., 25, 50, 100\) |
 
@@ -251,7 +294,8 @@ Create up to 100 contacts at once in your Apollo database. Supports deduplicatio
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
-| `contacts` | array | Yes | Array of contacts to create \(max 100\). Each contact should include first_name, last_name, and optionally email, title, account_id, owner_id |
+| `contacts` | array | Yes | Array of contacts to create \(max 100\). Each contact may include first_name, last_name, email, title, organization_name, account_id, owner_id, contact_stage_id, linkedin_url, phone \(single string\) or phone_numbers \(array of \{raw_number, position\}\), contact_emails, typed_custom_fields, and CRM IDs \(salesforce_contact_id, hubspot_id, team_id\) for cross-system matching |
+| `append_label_names` | array | No | Label names to add to all contacts in this request \(e.g., \["Hot Lead"\]\) |
 | `run_dedupe` | boolean | No | Enable deduplication to prevent creating duplicate contacts. When true, existing contacts are returned without modification |
 
 #### Output
@@ -273,17 +317,16 @@ Update up to 100 existing contacts at once in your Apollo database. Each contact
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
-| `contacts` | array | Yes | Array of contacts to update \(max 100\). Each contact must include id field, and optionally first_name, last_name, email, title, account_id, owner_id |
+| `contact_ids` | array | No | Array of contact IDs to update. Must be paired with an object-form contact_attributes specifying the fields to apply uniformly to all listed contacts. |
+| `contact_attributes` | json | No | Required. Either an array of per-contact updates \(each with id\) — used standalone — or a single object of attributes to apply to all contact_ids. Supported fields: owner_id, email, organization_name, title, first_name, last_name, account_id, present_raw_address, linkedin_url, typed_custom_fields |
+| `async` | boolean | No | Force asynchronous processing. Automatically enabled for &gt;100 contacts |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `updated_contacts` | json | Array of successfully updated contacts |
-| `failed_contacts` | json | Array of contacts that failed to update |
-| `total_submitted` | number | Total number of contacts submitted |
-| `updated` | number | Number of contacts successfully updated |
-| `failed` | number | Number of contacts that failed to update |
+| `message` | string | Confirmation message from Apollo |
+| `job_id` | string | Async job ID \(returned for &gt;100 contacts\) |
 
 ### `apollo_account_create`
 
@@ -293,11 +336,14 @@ Create a new account (company) in your Apollo database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Apollo API key |
+| `apiKey` | string | Yes | Apollo API key \(master key required\) |
 | `name` | string | Yes | Company name \(e.g., "Acme Corporation"\) |
-| `website_url` | string | No | Company website URL |
-| `phone` | string | No | Company phone number |
-| `owner_id` | string | No | User ID of the account owner |
+| `domain` | string | No | Company domain without www. prefix \(e.g., "acme.com"\) |
+| `phone` | string | No | Primary phone number for the account |
+| `owner_id` | string | No | Apollo user ID of the account owner |
+| `account_stage_id` | string | No | Apollo ID for the account stage to assign this account to |
+| `raw_address` | string | No | Corporate location \(e.g., "San Francisco, CA, USA"\) |
+| `typed_custom_fields` | json | No | Custom field values as \{ custom_field_id: value \} map |
 
 #### Output
 
@@ -317,9 +363,12 @@ Update an existing account in your Apollo database
 | `apiKey` | string | Yes | Apollo API key |
 | `account_id` | string | Yes | ID of the account to update \(e.g., "acc_abc123"\) |
 | `name` | string | No | Company name \(e.g., "Acme Corporation"\) |
-| `website_url` | string | No | Company website URL |
+| `domain` | string | No | Company domain \(e.g., "acme.com"\) |
 | `phone` | string | No | Company phone number |
-| `owner_id` | string | No | User ID of the account owner |
+| `owner_id` | string | No | Apollo user ID of the account owner |
+| `account_stage_id` | string | No | Apollo ID for the account stage to assign this account to |
+| `raw_address` | string | No | Corporate location \(e.g., "San Francisco, CA, USA"\) |
+| `typed_custom_fields` | json | No | Custom field values as \{ custom_field_id: value \} map |
 
 #### Output
 
@@ -337,9 +386,11 @@ Search your team
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
-| `q_keywords` | string | No | Keywords to search for in account data |
-| `owner_id` | string | No | Filter by account owner user ID |
+| `q_organization_name` | string | No | Filter accounts by organization name \(partial-match search\) |
 | `account_stage_ids` | array | No | Filter by account stage IDs |
+| `account_label_ids` | array | No | Filter by account label IDs |
+| `sort_by_field` | string | No | Sort field: "account_last_activity_date", "account_created_at", or "account_updated_at" |
+| `sort_ascending` | boolean | No | Sort ascending when true. Defaults to descending. |
 | `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
 | `per_page` | number | No | Results per page, max 100 \(e.g., 25, 50, 100\) |
 
@@ -352,24 +403,28 @@ Search your team
 
 ### `apollo_account_bulk_create`
 
-Create up to 100 accounts at once in your Apollo database. Note: Apollo does not apply deduplication - duplicate accounts may be created if entries share similar names or domains. Master key required.
+Create up to 100 accounts at once in your Apollo database. Set run_dedupe=true to deduplicate by domain, organization_id, and name. Master key required.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
-| `accounts` | array | Yes | Array of accounts to create \(max 100\). Each account should include name \(required\), and optionally website_url, phone, owner_id |
+| `accounts` | array | Yes | Array of accounts to create \(max 100\). Each account should include a name, and may optionally include domain, phone, phone_status_cd, raw_address, owner_id, linkedin_url, facebook_url, twitter_url, salesforce_id, and hubspot_id. |
+| `append_label_names` | array | No | Array of label names to add to ALL accounts in this request |
+| `run_dedupe` | boolean | No | When true, performs aggressive deduplication by domain, organization_id, and name \(defaults to false\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `created_accounts` | json | Array of newly created accounts |
-| `failed_accounts` | json | Array of accounts that failed to create |
-| `total_submitted` | number | Total number of accounts submitted |
+| `existing_accounts` | json | Array of existing accounts returned by Apollo \(when duplicates are detected\) |
+| `failed_accounts` | json | Array of accounts that failed to be created, with reasons for failure |
+| `total_submitted` | number | Total number of accounts in the response \(created + existing + failed\) |
 | `created` | number | Number of accounts successfully created |
-| `failed` | number | Number of accounts that failed to create |
+| `existing` | number | Number of existing accounts found |
+| `failed` | number | Number of accounts that failed to be created |
 
 ### `apollo_account_bulk_update`
 
@@ -380,17 +435,18 @@ Update up to 1000 existing accounts at once in your Apollo database (higher limi
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
-| `accounts` | array | Yes | Array of accounts to update \(max 1000\). Each account must include id field, and optionally name, website_url, phone, owner_id |
+| `account_ids` | array | No | Array of account IDs to update with the same values \(max 1000\). Use with name/owner_id for uniform updates. Use either this OR account_attributes. |
+| `name` | string | No | When using account_ids, apply this name to all accounts |
+| `owner_id` | string | No | When using account_ids, apply this owner to all accounts |
+| `account_attributes` | json | No | Array of account objects with individual updates \(each must include id\). Example: \[\{"id": "acc1", "name": "Acme", "owner_id": "u1", "account_stage_id": "s1", "typed_custom_fields": \{"field_id": "value"\}\}\] |
+| `async` | boolean | No | When true, processes the update asynchronously. Only supported when using account_ids; returns 422 if used with account_attributes. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `updated_accounts` | json | Array of successfully updated accounts |
-| `failed_accounts` | json | Array of accounts that failed to update |
-| `total_submitted` | number | Total number of accounts submitted |
-| `updated` | number | Number of accounts successfully updated |
-| `failed` | number | Number of accounts that failed to update |
+| `message` | string | Confirmation message from Apollo |
+| `account_ids` | json | IDs of accounts that were updated |
 
 ### `apollo_opportunity_create`
 
@@ -402,12 +458,12 @@ Create a new deal for an account in your Apollo database (master key required)
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
 | `name` | string | Yes | Name of the opportunity/deal \(e.g., "Enterprise License - Q1"\) |
-| `account_id` | string | Yes | ID of the account this opportunity belongs to \(e.g., "acc_abc123"\) |
-| `amount` | number | No | Monetary value of the opportunity |
-| `stage_id` | string | No | ID of the deal stage |
+| `account_id` | string | No | ID of the account this opportunity belongs to \(e.g., "acc_abc123"\) |
+| `amount` | string | No | Monetary value as a plain number string with no commas or currency symbols |
+| `opportunity_stage_id` | string | No | ID of the opportunity stage |
 | `owner_id` | string | No | User ID of the opportunity owner |
-| `close_date` | string | No | Expected close date \(ISO 8601 format\) |
-| `description` | string | No | Description or notes about the opportunity |
+| `closed_date` | string | No | Expected close date in YYYY-MM-DD format |
+| `typed_custom_fields` | json | No | Custom field values as \{ custom_field_id: value \} map |
 
 #### Output
 
@@ -425,10 +481,7 @@ Search and list all deals/opportunities in your team
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key |
-| `q_keywords` | string | No | Keywords to search for in opportunity names |
-| `account_ids` | array | No | Filter by specific account IDs \(e.g., \["acc_123", "acc_456"\]\) |
-| `stage_ids` | array | No | Filter by deal stage IDs |
-| `owner_ids` | array | No | Filter by opportunity owner IDs |
+| `sort_by_field` | string | No | Sort field: "amount", "is_closed", or "is_won" |
 | `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
 | `per_page` | number | No | Results per page, max 100 \(e.g., 25, 50, 100\) |
 
@@ -470,11 +523,11 @@ Update an existing deal/opportunity in your Apollo database
 | `apiKey` | string | Yes | Apollo API key |
 | `opportunity_id` | string | Yes | ID of the opportunity to update \(e.g., "opp_abc123"\) |
 | `name` | string | No | Name of the opportunity/deal \(e.g., "Enterprise License - Q1"\) |
-| `amount` | number | No | Monetary value of the opportunity |
-| `stage_id` | string | No | ID of the deal stage |
+| `amount` | string | No | Monetary value as a plain number string with no commas or currency symbols |
+| `opportunity_stage_id` | string | No | ID of the opportunity stage |
 | `owner_id` | string | No | User ID of the opportunity owner |
-| `close_date` | string | No | Expected close date \(ISO 8601 format\) |
-| `description` | string | No | Description or notes about the opportunity |
+| `closed_date` | string | No | Expected close date in YYYY-MM-DD format |
+| `typed_custom_fields` | json | No | Custom field values as \{ custom_field_id: value \} map |
 
 #### Output
 
@@ -493,7 +546,6 @@ Search for sequences/campaigns in your team
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
 | `q_name` | string | No | Search sequences by name \(e.g., "Outbound Q1", "Follow-up"\) |
-| `active` | boolean | No | Filter by active status \(true for active sequences, false for inactive\) |
 | `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
 | `per_page` | number | No | Results per page, max 100 \(e.g., 25, 50, 100\) |
 
@@ -516,40 +568,58 @@ Add contacts to an Apollo sequence
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
 | `sequence_id` | string | Yes | ID of the sequence to add contacts to \(e.g., "seq_abc123"\) |
-| `contact_ids` | array | Yes | Array of contact IDs to add to the sequence \(e.g., \["con_abc123", "con_def456"\]\) |
-| `emailer_campaign_id` | string | No | Optional emailer campaign ID |
-| `send_email_from_user_id` | string | No | User ID to send emails from |
+| `contact_ids` | array | No | Array of contact IDs to add to the sequence \(e.g., \["con_abc123", "con_def456"\]\). Either contact_ids or label_names must be provided. |
+| `label_names` | array | No | Array of label names to identify contacts to add to the sequence. Either contact_ids or label_names must be provided. |
+| `send_email_from_email_account_id` | string | Yes | ID of the email account to send from. Use the Get Email Accounts operation to look this up. |
+| `send_email_from_email_address` | string | No | Specific email address to send from within the email account. |
+| `sequence_no_email` | boolean | No | Add contacts even if they have no email address |
+| `sequence_unverified_email` | boolean | No | Add contacts with unverified email addresses |
+| `sequence_job_change` | boolean | No | Add contacts who recently changed jobs |
+| `sequence_active_in_other_campaigns` | boolean | No | Add contacts active in other campaigns |
+| `sequence_finished_in_other_campaigns` | boolean | No | Add contacts who finished other campaigns |
+| `sequence_same_company_in_same_campaign` | boolean | No | Add contacts even if others from the same company are in the sequence |
+| `contacts_without_ownership_permission` | boolean | No | Add contacts without ownership permission |
+| `add_if_in_queue` | boolean | No | Add contacts even if they are in the queue |
+| `contact_verification_skipped` | boolean | No | Skip contact verification when adding |
+| `user_id` | string | No | ID of the user performing the action |
+| `status` | string | No | Initial status for added contacts: "active" or "paused" |
+| `auto_unpause_at` | string | No | ISO 8601 datetime to automatically unpause contacts |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `contacts_added` | json | Array of contact IDs added to the sequence |
+| `added` | json | Array of contact objects successfully added to the sequence |
+| `skipped` | json | Array of contact objects that were skipped, with reasons |
+| `skipped_contact_ids` | json | Skipped contact IDs — either an array of IDs or a hash mapping ID → reason code |
+| `emailer_campaign` | json | Details of the emailer campaign \(id, name\) |
 | `sequence_id` | string | ID of the sequence contacts were added to |
 | `total_added` | number | Total number of contacts added |
+| `total_skipped` | number | Total number of contacts skipped |
 
 ### `apollo_task_create`
 
-Create a new task in Apollo
+Create one or more tasks in Apollo (one task per contact_id, master key required)
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
-| `note` | string | Yes | Task note/description |
-| `contact_id` | string | No | Contact ID to associate with \(e.g., "con_abc123"\) |
-| `account_id` | string | No | Account ID to associate with \(e.g., "acc_abc123"\) |
-| `due_at` | string | No | Due date in ISO format |
-| `priority` | string | No | Task priority |
-| `type` | string | No | Task type |
+| `user_id` | string | Yes | ID of the Apollo user the task is assigned to |
+| `contact_ids` | array | Yes | Array of contact IDs. One task is created per contact. |
+| `priority` | string | No | Task priority: "high", "medium", or "low" \(defaults to "medium"\) |
+| `due_at` | string | Yes | Due date/time in ISO 8601 format \(e.g., "2024-12-31T23:59:59Z"\) |
+| `type` | string | Yes | Task type: "call", "outreach_manual_email", "linkedin_step_connect", "linkedin_step_message", "linkedin_step_view_profile", "linkedin_step_interact_post", or "action_item" |
+| `status` | string | Yes | Task status: "scheduled", "completed", or "skipped" |
+| `note` | string | No | Free-form note providing context for the task |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `task` | json | Created task data from Apollo |
-| `created` | boolean | Whether the task was successfully created |
+| `tasks` | json | Array of created tasks \(when returned by Apollo\) |
+| `created` | boolean | Whether the request succeeded |
 
 ### `apollo_task_search`
 
@@ -560,9 +630,8 @@ Search for tasks in Apollo
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Apollo API key \(master key required\) |
-| `contact_id` | string | No | Filter by contact ID \(e.g., "con_abc123"\) |
-| `account_id` | string | No | Filter by account ID \(e.g., "acc_abc123"\) |
-| `completed` | boolean | No | Filter by completion status |
+| `sort_by_field` | string | No | Sort field: "task_due_at" or "task_priority" |
+| `open_factor_names` | array | No | Filter by status. Common values: \["task_types"\] for open tasks, \["task_completed_at"\] for completed tasks. |
 | `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
 | `per_page` | number | No | Results per page, max 100 \(e.g., 25, 50, 100\) |
 

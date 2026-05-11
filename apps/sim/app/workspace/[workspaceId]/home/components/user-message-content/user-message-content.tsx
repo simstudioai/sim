@@ -66,7 +66,7 @@ function MentionHighlight({ context }: { context: ChatMessageContext }) {
       <ContextMentionIcon
         context={context}
         workflowColor={workflowColor}
-        className='relative top-0.5 h-[12px] w-[12px] flex-shrink-0 text-[var(--text-icon)]'
+        className='relative top-0.5 size-[12px] flex-shrink-0 text-[var(--text-icon)]'
       />
       {context.label}
     </span>

@@ -52,7 +52,7 @@ const avatarStatusVariants = cva(
 
 type AvatarStatus = 'online' | 'offline' | 'busy' | 'away'
 
-export interface AvatarProps
+interface AvatarProps
   extends React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>,
     VariantProps<typeof avatarVariants> {
   /** Shows a status indicator badge on the avatar */

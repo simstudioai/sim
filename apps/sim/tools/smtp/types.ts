@@ -1,7 +1,7 @@
 import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
-export interface SmtpConnectionConfig {
+interface SmtpConnectionConfig {
   smtpHost: string
   smtpPort: number
   smtpUsername: string

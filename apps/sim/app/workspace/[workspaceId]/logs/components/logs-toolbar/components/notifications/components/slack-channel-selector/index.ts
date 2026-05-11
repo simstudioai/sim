@@ -1,1 +1,1 @@
-export { default, SlackChannelSelector } from './slack-channel-selector'
+export { SlackChannelSelector } from './slack-channel-selector'

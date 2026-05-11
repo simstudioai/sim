@@ -166,7 +166,7 @@ export function KnowledgeBaseSelector({
               key={kb.id}
               className='inline-flex items-center rounded-md border border-[color-mix(in_srgb,var(--brand-knowledge)_20%,transparent)] bg-[color-mix(in_srgb,var(--brand-knowledge)_10%,transparent)] px-2 py-1 text-xs'
             >
-              <PackageSearchIcon className='mr-1 h-3 w-3 text-[var(--brand-knowledge)]' />
+              <PackageSearchIcon className='mr-1 size-3 text-[var(--brand-knowledge)]' />
               <span className='font-medium text-[var(--brand-knowledge)]'>{kb.name}</span>
               {!disabled && !isPreview && (
                 <button
@@ -175,7 +175,7 @@ export function KnowledgeBaseSelector({
                   className='ml-1 text-[color-mix(in_srgb,var(--brand-knowledge)_60%,transparent)] hover-hover:text-[var(--brand-knowledge)]'
                   aria-label={`Remove ${kb.name}`}
                 >
-                  <X className='h-3 w-3' />
+                  <X className='size-3' />
                 </button>
               )}
             </div>

@@ -33,16 +33,16 @@ export const apolloOpportunityUpdateTool: ToolConfig<
       description: 'Name of the opportunity/deal (e.g., "Enterprise License - Q1")',
     },
     amount: {
-      type: 'number',
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Monetary value of the opportunity',
+      description: 'Monetary value as a plain number string with no commas or currency symbols',
     },
-    stage_id: {
+    opportunity_stage_id: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'ID of the deal stage',
+      description: 'ID of the opportunity stage',
     },
     owner_id: {
       type: 'string',
@@ -50,23 +50,23 @@ export const apolloOpportunityUpdateTool: ToolConfig<
       visibility: 'user-only',
       description: 'User ID of the opportunity owner',
     },
-    close_date: {
+    closed_date: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Expected close date (ISO 8601 format)',
+      description: 'Expected close date in YYYY-MM-DD format',
     },
-    description: {
-      type: 'string',
+    typed_custom_fields: {
+      type: 'json',
       required: false,
-      visibility: 'user-or-llm',
-      description: 'Description or notes about the opportunity',
+      visibility: 'user-only',
+      description: 'Custom field values as { custom_field_id: value } map',
     },
   },
 
   request: {
     url: (params: ApolloOpportunityUpdateParams) =>
-      `https://api.apollo.io/api/v1/opportunities/${params.opportunity_id}`,
+      `https://api.apollo.io/api/v1/opportunities/${params.opportunity_id.trim()}`,
     method: 'PATCH',
     headers: (params: ApolloOpportunityUpdateParams) => ({
       'Content-Type': 'application/json',
@@ -74,13 +74,15 @@ export const apolloOpportunityUpdateTool: ToolConfig<
       'X-Api-Key': params.apiKey,
     }),
     body: (params: ApolloOpportunityUpdateParams) => {
-      const body: any = {}
+      const body: Record<string, unknown> = {}
       if (params.name) body.name = params.name
-      if (params.amount !== undefined) body.amount = params.amount
-      if (params.stage_id) body.stage_id = params.stage_id
+      if (params.amount !== undefined && params.amount !== null && params.amount !== '') {
+        body.amount = String(params.amount)
+      }
+      if (params.opportunity_stage_id) body.opportunity_stage_id = params.opportunity_stage_id
       if (params.owner_id) body.owner_id = params.owner_id
-      if (params.close_date) body.close_date = params.close_date
-      if (params.description) body.description = params.description
+      if (params.closed_date) body.closed_date = params.closed_date
+      if (params.typed_custom_fields) body.typed_custom_fields = params.typed_custom_fields
       return body
     },
   },
@@ -92,12 +94,13 @@ export const apolloOpportunityUpdateTool: ToolConfig<
     }
 
     const data = await response.json()
+    const opportunity = data.opportunity ?? (data.id ? data : null)
 
     return {
       success: true,
       output: {
-        opportunity: data.opportunity ?? null,
-        updated: !!data.opportunity,
+        opportunity,
+        updated: !!opportunity,
       },
     }
   },

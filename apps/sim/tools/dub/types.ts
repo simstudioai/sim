@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface DubBaseParams {
+interface DubBaseParams {
   apiKey: string
 }
 
@@ -100,7 +100,7 @@ export interface DubGetAnalyticsParams extends DubBaseParams {
   timezone?: string
 }
 
-export interface DubLink {
+interface DubLink {
   id: string
   domain: string
   key: string

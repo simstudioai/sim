@@ -18,23 +18,36 @@ export const apolloAccountSearchTool: ToolConfig<
       visibility: 'hidden',
       description: 'Apollo API key (master key required)',
     },
-    q_keywords: {
+    q_organization_name: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Keywords to search for in account data',
-    },
-    owner_id: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Filter by account owner user ID',
+      description: 'Filter accounts by organization name (partial-match search)',
     },
     account_stage_ids: {
       type: 'array',
       required: false,
       visibility: 'user-only',
       description: 'Filter by account stage IDs',
+    },
+    account_label_ids: {
+      type: 'array',
+      required: false,
+      visibility: 'user-only',
+      description: 'Filter by account label IDs',
+    },
+    sort_by_field: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Sort field: "account_last_activity_date", "account_created_at", or "account_updated_at"',
+    },
+    sort_ascending: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Sort ascending when true. Defaults to descending.',
     },
     page: {
       type: 'number',
@@ -59,15 +72,19 @@ export const apolloAccountSearchTool: ToolConfig<
       'X-Api-Key': params.apiKey,
     }),
     body: (params: ApolloAccountSearchParams) => {
-      const body: any = {
+      const body: Record<string, unknown> = {
         page: params.page || 1,
         per_page: Math.min(params.per_page || 25, 100),
       }
-      if (params.q_keywords) body.q_keywords = params.q_keywords
-      if (params.owner_id) body.owner_id = params.owner_id
+      if (params.q_organization_name) body.q_organization_name = params.q_organization_name
       if (params.account_stage_ids?.length) {
         body.account_stage_ids = params.account_stage_ids
       }
+      if (params.account_label_ids?.length) {
+        body.account_label_ids = params.account_label_ids
+      }
+      if (params.sort_by_field) body.sort_by_field = params.sort_by_field
+      if (params.sort_ascending !== undefined) body.sort_ascending = params.sort_ascending
       return body
     },
   },
@@ -83,7 +100,7 @@ export const apolloAccountSearchTool: ToolConfig<
     return {
       success: true,
       output: {
-        accounts: data.accounts ?? null,
+        accounts: data.accounts ?? [],
         pagination: data.pagination ?? null,
       },
     }
@@ -93,7 +110,6 @@ export const apolloAccountSearchTool: ToolConfig<
     accounts: {
       type: 'json',
       description: 'Array of accounts matching the search criteria',
-      optional: true,
     },
     pagination: { type: 'json', description: 'Pagination information', optional: true },
   },

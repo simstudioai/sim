@@ -48,7 +48,7 @@ export function AddDocumentsModal({
   const [files, setFiles] = useState<FileWithPreview[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [dragCounter, setDragCounter] = useState(0)
+  const dragCounterRef = useRef(0)
   const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(() => new Set())
 
   const { isUploading, uploadProgress, uploadFiles, uploadError, clearError } = useKnowledgeUpload({
@@ -70,7 +70,7 @@ export function AddDocumentsModal({
       setFiles([])
       setFileError(null)
       setIsDragging(false)
-      setDragCounter(0)
+      dragCounterRef.current = 0
       setRetryingIndexes(new Set())
       clearError()
     }
@@ -85,7 +85,7 @@ export function AddDocumentsModal({
         setFileError(null)
         clearError()
         setIsDragging(false)
-        setDragCounter(0)
+        dragCounterRef.current = 0
         setRetryingIndexes(new Set())
       }
       onOpenChange(newOpen)
@@ -143,25 +143,19 @@ export function AddDocumentsModal({
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setDragCounter((prev) => {
-      const newCount = prev + 1
-      if (newCount === 1) {
-        setIsDragging(true)
-      }
-      return newCount
-    })
+    dragCounterRef.current += 1
+    if (dragCounterRef.current === 1) {
+      setIsDragging(true)
+    }
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setDragCounter((prev) => {
-      const newCount = prev - 1
-      if (newCount === 0) {
-        setIsDragging(false)
-      }
-      return newCount
-    })
+    dragCounterRef.current -= 1
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false)
+    }
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -174,7 +168,7 @@ export function AddDocumentsModal({
     e.preventDefault()
     e.stopPropagation()
     setIsDragging(false)
-    setDragCounter(0)
+    dragCounterRef.current = 0
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       await processFiles(e.dataTransfer.files)
@@ -283,7 +277,7 @@ export function AddDocumentsModal({
 
                       return (
                         <div
-                          key={index}
+                          key={`${file.name}-${file.size}`}
                           className={cn(
                             'flex items-center gap-2 rounded-sm border p-2',
                             isFailed && !isRetrying && 'border-[var(--text-error)]'
@@ -303,28 +297,28 @@ export function AddDocumentsModal({
                           </span>
                           <div className='flex flex-shrink-0 items-center gap-1'>
                             {isProcessing ? (
-                              <Loader className='h-4 w-4 text-[var(--text-muted)]' animate />
+                              <Loader className='size-4 text-[var(--text-muted)]' animate />
                             ) : (
                               <>
                                 {isFailed && (
                                   <Button
                                     type='button'
                                     variant='ghost'
-                                    className='h-4 w-4 p-0'
+                                    className='size-4 p-0'
                                     onClick={() => handleRetryFile(index)}
                                     disabled={isUploading}
                                   >
-                                    <RotateCcw className='h-3 w-3' />
+                                    <RotateCcw className='size-3' />
                                   </Button>
                                 )}
                                 <Button
                                   type='button'
                                   variant='ghost'
-                                  className='h-4 w-4 p-0'
+                                  className='size-4 p-0'
                                   onClick={() => removeFile(index)}
                                   disabled={isUploading}
                                 >
-                                  <X className='h-3.5 w-3.5' />
+                                  <X className='size-3.5' />
                                 </Button>
                               </>
                             )}

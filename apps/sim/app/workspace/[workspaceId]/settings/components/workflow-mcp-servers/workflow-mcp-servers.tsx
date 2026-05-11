@@ -352,7 +352,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                             onClick={() => setShowAddWorkflow(true)}
                             disabled
                           >
-                            <Plus className='mr-1.5 h-[13px] w-[13px]' />
+                            <Plus className='mr-1.5 size-[13px]' />
                             Add
                           </Button>
                         </div>
@@ -367,7 +367,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                       onClick={() => setShowAddWorkflow(true)}
                       disabled={!canAddWorkflow}
                     >
-                      <Plus className='mr-1.5 h-[13px] w-[13px]' />
+                      <Plus className='mr-1.5 size-[13px]' />
                       Add
                     </Button>
                   )}
@@ -508,12 +508,12 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                           'Adding...'
                         ) : addedToWorkspace ? (
                           <>
-                            <Check className='mr-1.5 h-[13px] w-[13px]' />
+                            <Check className='mr-1.5 size-[13px]' />
                             Added to Workspace
                           </>
                         ) : (
                           <>
-                            <Server className='mr-1.5 h-[13px] w-[13px]' />
+                            <Server className='mr-1.5 size-[13px]' />
                             Add to Workspace
                           </>
                         )}
@@ -537,9 +537,9 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                         className='!p-1.5 -my-1.5'
                       >
                         {copiedConfig ? (
-                          <Check className='h-3 w-3' />
+                          <Check className='size-3' />
                         ) : (
-                          <Clipboard className='h-3 w-3' />
+                          <Clipboard className='size-3' />
                         )}
                       </Button>
                     </div>
@@ -1017,7 +1017,7 @@ export function WorkflowMcpServers() {
         <div className='flex items-center gap-2'>
           <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
-              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
             />
             <Input
@@ -1028,7 +1028,7 @@ export function WorkflowMcpServers() {
             />
           </div>
           <Button onClick={() => setShowAddModal(true)} disabled={isLoading} variant='primary'>
-            <Plus className='mr-1.5 h-[13px] w-[13px]' />
+            <Plus className='mr-1.5 size-[13px]' />
             Add
           </Button>
         </div>

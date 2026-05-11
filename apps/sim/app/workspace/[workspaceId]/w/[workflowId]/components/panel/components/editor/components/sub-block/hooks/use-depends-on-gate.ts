@@ -6,6 +6,8 @@ import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
   buildCanonicalIndex,
   isNonEmptyValue,
+  normalizeDependencyValue,
+  parseDependsOn,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
@@ -13,35 +15,6 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-
-type DependsOnConfig = string[] | { all?: string[]; any?: string[] }
-
-/**
- * Parses dependsOn config and returns normalized all/any arrays
- */
-function parseDependsOn(dependsOn: DependsOnConfig | undefined): {
-  allFields: string[]
-  anyFields: string[]
-  allDependsOnFields: string[]
-} {
-  if (!dependsOn) {
-    return { allFields: [], anyFields: [], allDependsOnFields: [] }
-  }
-
-  if (Array.isArray(dependsOn)) {
-    // Simple array format: all fields required (AND logic)
-    return { allFields: dependsOn, anyFields: [], allDependsOnFields: dependsOn }
-  }
-
-  // Object format with all/any
-  const allFields = dependsOn.all || []
-  const anyFields = dependsOn.any || []
-  return {
-    allFields,
-    anyFields,
-    allDependsOnFields: [...allFields, ...anyFields],
-  }
-}
 
 /**
  * Centralized dependsOn gating for sub-block components.
@@ -75,29 +48,6 @@ export function useDependsOnGate(
 
   // For backward compatibility, expose flat list of all dependency fields
   const dependsOn = allDependsOnFields
-
-  const normalizeDependencyValue = (rawValue: unknown): unknown => {
-    if (rawValue === null || rawValue === undefined) return null
-
-    if (typeof rawValue === 'object') {
-      if (Array.isArray(rawValue)) {
-        if (rawValue.length === 0) return null
-        return rawValue.map((item) => normalizeDependencyValue(item))
-      }
-
-      const record = rawValue as Record<string, any>
-      if ('value' in record) {
-        return normalizeDependencyValue(record.value)
-      }
-      if ('id' in record) {
-        return record.id
-      }
-
-      return record
-    }
-
-    return rawValue
-  }
 
   const dependencySelector = useCallback(
     (state: ReturnType<typeof useSubBlockStore.getState>) => {

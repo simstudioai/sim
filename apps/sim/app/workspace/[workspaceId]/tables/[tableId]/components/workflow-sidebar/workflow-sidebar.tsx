@@ -151,7 +151,7 @@ const TagIcon: React.FC<{
   color: string
 }> = ({ icon, color }) => (
   <div
-    className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded'
+    className='flex size-[14px] flex-shrink-0 items-center justify-center rounded'
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (
@@ -659,8 +659,8 @@ function WorkflowSidebarBody({
           setNameError(nameIssue.message)
           return
         }
+        toast.error(toError(err).message)
       }
-      toast.error(toError(err).message)
     }
   }
 
@@ -678,7 +678,7 @@ function WorkflowSidebarBody({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2'>
+      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
         <h2 className='font-medium text-[var(--text-primary)] text-small'>
           {titleByMode[config.mode]}
         </h2>
@@ -686,10 +686,10 @@ function WorkflowSidebarBody({
           variant='ghost'
           size='sm'
           onClick={onClose}
-          className='!p-1 h-7 w-7'
+          className='!p-1 size-7'
           aria-label='Close'
         >
-          <X className='h-[14px] w-[14px]' />
+          <X className='size-[14px]' />
         </Button>
       </div>
 
@@ -753,7 +753,7 @@ function WorkflowSidebarBody({
               <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
                 {workflowState.isLoading ? (
                   <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
-                    <Loader className='h-5 w-5 animate-spin text-[var(--text-tertiary)]' />
+                    <Loader className='size-5 animate-spin text-[var(--text-tertiary)]' />
                   </div>
                 ) : workflowState.data ? (
                   <>
@@ -781,9 +781,9 @@ function WorkflowSidebarBody({
                               'noopener,noreferrer'
                             )
                           }
-                          className='absolute right-[6px] bottom-1.5 z-10 h-[24px] w-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
+                          className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
                         >
-                          <ExternalLink className='h-[12px] w-[12px]' />
+                          <ExternalLink className='size-[12px]' />
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content side='top'>Open workflow</Tooltip.Content>

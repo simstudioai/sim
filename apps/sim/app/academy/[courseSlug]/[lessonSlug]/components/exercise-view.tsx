@@ -56,7 +56,7 @@ export function ExerciseView({
       {completed && (
         <div className='pointer-events-none absolute inset-0 flex items-start justify-center pt-5'>
           <div className='pointer-events-auto flex items-center gap-2 rounded-full border border-[#3A4A3A] bg-[#1F2A1F]/95 px-4 py-2 font-[430] text-[#4CAF50] text-[13px] shadow-lg backdrop-blur-sm'>
-            <CheckCircle2 className='h-4 w-4' />
+            <CheckCircle2 className='size-4' />
             Exercise complete!
           </div>
         </div>

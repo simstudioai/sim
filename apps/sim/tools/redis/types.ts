@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface RedisBaseParams {
+interface RedisBaseParams {
   url: string
 }
 

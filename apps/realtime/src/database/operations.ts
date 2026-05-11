@@ -8,6 +8,7 @@ import {
   EDGE_OPERATIONS,
   EDGES_OPERATIONS,
   OPERATION_TARGETS,
+  SUBBLOCK_OPERATIONS,
   SUBFLOW_OPERATIONS,
   VARIABLE_OPERATIONS,
   WORKFLOW_OPERATIONS,
@@ -15,6 +16,7 @@ import {
 import { getActiveWorkflowContext } from '@sim/workflow-authz'
 import { loadWorkflowFromNormalizedTablesRaw } from '@sim/workflow-persistence/load'
 import { mergeSubBlockValues } from '@sim/workflow-persistence/subblocks'
+import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -44,26 +46,6 @@ interface DbBlockRef {
   id: string
   locked?: boolean | null
   data: unknown
-}
-
-/**
- * Checks if a block is protected (locked or inside a locked ancestor).
- * Works with raw DB records.
- */
-function isDbBlockProtected(blockId: string, blocksById: Record<string, DbBlockRef>): boolean {
-  const block = blocksById[blockId]
-  if (!block) return false
-  if (block.locked) return true
-  const visited = new Set<string>()
-  let parentId = (block.data as Record<string, unknown> | null)?.parentId as string | undefined
-  while (parentId && !visited.has(parentId)) {
-    visited.add(parentId)
-    if (blocksById[parentId]?.locked) return true
-    parentId = (blocksById[parentId]?.data as Record<string, unknown> | null)?.parentId as
-      | string
-      | undefined
-  }
-  return false
 }
 
 /**
@@ -250,6 +232,9 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
           break
         case OPERATION_TARGETS.SUBFLOW:
           await handleSubflowOperationTx(tx, workflowId, op, payload)
+          break
+        case OPERATION_TARGETS.SUBBLOCK:
+          await handleSubblockOperationTx(tx, workflowId, op, payload)
           break
         case OPERATION_TARGETS.VARIABLE:
           await handleVariableOperationTx(tx, workflowId, op, payload)
@@ -876,7 +861,7 @@ async function handleBlocksOperationTx(
       )
 
       // Filter out protected blocks from deletion request
-      const deletableIds = ids.filter((id) => !isDbBlockProtected(id, blocksById))
+      const deletableIds = ids.filter((id) => !isWorkflowBlockProtected(id, blocksById))
       if (deletableIds.length === 0) {
         logger.info('All requested blocks are protected, skipping deletion')
         return
@@ -991,14 +976,14 @@ async function handleBlocksOperationTx(
       // Collect all blocks to toggle including descendants of containers
       for (const id of blockIds) {
         const block = blocksById[id]
-        if (!block || isDbBlockProtected(id, blocksById)) continue
+        if (!block || isWorkflowBlockProtected(id, blocksById)) continue
 
         blocksToToggle.add(id)
 
         // If it's a loop or parallel, also include all non-locked descendants
         if (block.type === 'loop' || block.type === 'parallel') {
           for (const descId of findDbDescendants(id, allBlocks)) {
-            if (!isDbBlockProtected(descId, blocksById)) {
+            if (!isWorkflowBlockProtected(descId, blocksById)) {
               blocksToToggle.add(descId)
             }
           }
@@ -1053,7 +1038,7 @@ async function handleBlocksOperationTx(
 
       // Filter to only toggle handles on unprotected blocks
       const blocksToToggle = blockIds.filter(
-        (id) => blocksById[id] && !isDbBlockProtected(id, blocksById)
+        (id) => blocksById[id] && !isWorkflowBlockProtected(id, blocksById)
       )
       if (blocksToToggle.length === 0) {
         logger.info('All requested blocks are protected, skipping handles toggle')
@@ -1165,13 +1150,13 @@ async function handleBlocksOperationTx(
         if (!id) continue
 
         // Skip protected blocks (locked or inside locked container)
-        if (isDbBlockProtected(id, blocksById)) {
+        if (isWorkflowBlockProtected(id, blocksById)) {
           logger.info(`Skipping block ${id} parent update - block is protected`)
           continue
         }
 
         // Skip if trying to move into a locked container (or any of its ancestors)
-        if (parentId && isDbBlockProtected(parentId, blocksById)) {
+        if (parentId && isWorkflowBlockProtected(parentId, blocksById)) {
           logger.info(`Skipping block ${id} parent update - target parent ${parentId} is protected`)
           continue
         }
@@ -1295,7 +1280,7 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         }
       }
 
-      if (isDbBlockProtected(payload.target, blocksById)) {
+      if (isWorkflowBlockProtected(payload.target, blocksById)) {
         logger.info(`Skipping edge add - target block is protected`)
         break
       }
@@ -1383,7 +1368,7 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         }
       }
 
-      if (isDbBlockProtected(edgeToRemove.targetBlockId, blocksById)) {
+      if (isWorkflowBlockProtected(edgeToRemove.targetBlockId, blocksById)) {
         logger.info(`Skipping edge remove - target block is protected`)
         break
       }
@@ -1494,7 +1479,7 @@ async function handleEdgesOperationTx(
       }
 
       const safeEdgeIds = edgesToRemove
-        .filter((e: EdgeToRemove) => !isDbBlockProtected(e.targetBlockId, blocksById))
+        .filter((e: EdgeToRemove) => !isWorkflowBlockProtected(e.targetBlockId, blocksById))
         .map((e: EdgeToRemove) => e.id)
 
       if (safeEdgeIds.length === 0) {
@@ -1581,7 +1566,7 @@ async function handleEdgesOperationTx(
 
       // Filter edges - only add edges where target block is not protected
       const safeEdges = (edges as Array<Record<string, unknown>>).filter(
-        (e) => !isDbBlockProtected(e.target as string, blocksById)
+        (e) => !isWorkflowBlockProtected(e.target as string, blocksById)
       )
 
       if (safeEdges.length === 0) {
@@ -1731,6 +1716,86 @@ async function handleSubflowOperationTx(
     default:
       logger.warn(`Unknown subflow operation: ${operation}`)
       throw new Error(`Unsupported subflow operation: ${operation}`)
+  }
+}
+
+function valuesEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+// Subblock operations - targeted value updates without replacing workflow state
+async function handleSubblockOperationTx(
+  tx: any,
+  workflowId: string,
+  operation: string,
+  payload: any
+) {
+  switch (operation) {
+    case SUBBLOCK_OPERATIONS.BATCH_UPDATE: {
+      const updates = payload.updates
+      if (!Array.isArray(updates) || updates.length === 0) {
+        return
+      }
+
+      const allBlocks = await tx
+        .select({
+          id: workflowBlocks.id,
+          subBlocks: workflowBlocks.subBlocks,
+          locked: workflowBlocks.locked,
+          data: workflowBlocks.data,
+        })
+        .from(workflowBlocks)
+        .where(eq(workflowBlocks.workflowId, workflowId))
+
+      type SubblockUpdateBlockRecord = (typeof allBlocks)[number]
+      const blocksById: Record<string, SubblockUpdateBlockRecord> = Object.fromEntries(
+        allBlocks.map((block: SubblockUpdateBlockRecord) => [block.id, block])
+      )
+
+      for (const update of updates) {
+        const { blockId, subblockId, value, expectedValue } = update
+        if (!blockId || !subblockId) {
+          throw new Error('Missing required fields for subblock batch update')
+        }
+
+        const block = blocksById[blockId]
+        if (!block) {
+          throw new Error(`Block ${blockId} not found`)
+        }
+
+        if (isWorkflowBlockProtected(blockId, blocksById)) {
+          throw new Error(`Block ${blockId} is locked or inside a locked container`)
+        }
+
+        const subBlocks = { ...((block.subBlocks as Record<string, any>) || {}) }
+        const currentSubBlock = subBlocks[subblockId]
+        const currentValue = currentSubBlock?.value
+        if (expectedValue !== undefined && !valuesEqual(currentValue, expectedValue)) {
+          throw new Error(`Subblock ${blockId}.${subblockId} changed since replacement was planned`)
+        }
+
+        subBlocks[subblockId] = currentSubBlock
+          ? { ...currentSubBlock, value }
+          : { id: subblockId, type: 'unknown', value }
+
+        await tx
+          .update(workflowBlocks)
+          .set({
+            subBlocks,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+
+        blocksById[blockId] = { ...block, subBlocks }
+      }
+
+      logger.debug(`Batch updated ${updates.length} subblocks for workflow ${workflowId}`)
+      break
+    }
+
+    default:
+      logger.warn(`Unknown subblock operation: ${operation}`)
+      throw new Error(`Unsupported subblock operation: ${operation}`)
   }
 }
 

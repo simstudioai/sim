@@ -147,8 +147,8 @@ export const PermissionsTable = ({
         <div className='rounded-lg border border-[var(--border-1)] bg-[var(--surface-3)]'>
           <div className='flex items-center justify-center py-12'>
             <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
-              <Loader className='h-[16px] w-[16px]' animate />
-              <span className='font-medium text-small'>Saving permission changes...</span>
+              <Loader className='size-[16px]' animate />
+              <span className='font-medium text-small'>Saving permission changes…</span>
             </div>
           </div>
         </div>
@@ -203,7 +203,7 @@ export const PermissionsTable = ({
                         {resendingInvitationIds &&
                         user.invitationId &&
                         resendingInvitationIds[user.invitationId] ? (
-                          <span>Sending...</span>
+                          <span>Sending…</span>
                         ) : resentInvitationIds &&
                           user.invitationId &&
                           resentInvitationIds[user.invitationId] ? (
@@ -240,12 +240,12 @@ export const PermissionsTable = ({
                                   resendingInvitationIds?.[user.invitationId!] ||
                                   (resendCooldowns && resendCooldowns[user.invitationId!] > 0)
                                 }
-                                className='h-[16px] w-[16px] p-0'
+                                className='size-[16px] p-0'
                               >
                                 {resendingInvitationIds?.[user.invitationId!] ? (
-                                  <Loader className='h-[12px] w-[12px]' animate />
+                                  <Loader className='size-[12px]' animate />
                                 ) : (
-                                  <RotateCw className='h-[12px] w-[12px]' />
+                                  <RotateCw className='size-[12px]' />
                                 )}
                                 <span className='sr-only'>Resend invite</span>
                               </Button>
@@ -281,9 +281,9 @@ export const PermissionsTable = ({
                               }
                             }}
                             disabled={disabled || isSaving}
-                            className='h-[16px] w-[16px] p-0'
+                            className='size-[16px] p-0'
                           >
-                            <X className='h-[14px] w-[14px]' />
+                            <X className='size-[14px]' />
                             <span className='sr-only'>
                               {isPendingInvitation ? 'Revoke invite' : 'Remove member'}
                             </span>

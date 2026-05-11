@@ -104,11 +104,11 @@ export const WorkflowControls = memo(function WorkflowControls() {
             <PopoverTrigger asChild>
               <div className='flex cursor-pointer items-center gap-1'>
                 <Tooltip.Trigger asChild>
-                  <Button className='h-[28px] w-[28px] rounded-md p-0' variant='active'>
+                  <Button className='size-[28px] rounded-md p-0' variant='active'>
                     {mode === 'hand' ? (
-                      <Hand className='h-[14px] w-[14px]' />
+                      <Hand className='size-[14px]' />
                     ) : (
-                      <Cursor className='h-[14px] w-[14px]' />
+                      <Cursor className='size-[14px]' />
                     )}
                   </Button>
                 </Tooltip.Trigger>
@@ -128,7 +128,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
                 setIsCanvasModeOpen(false)
               }}
             >
-              <Hand className='h-3 w-3' />
+              <Hand className='size-3' />
               <span>Mover</span>
             </PopoverItem>
             <PopoverItem
@@ -137,7 +137,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
                 setIsCanvasModeOpen(false)
               }}
             >
-              <Cursor className='h-3 w-3' />
+              <Cursor className='size-3' />
               <span>Pointer</span>
             </PopoverItem>
           </PopoverContent>
@@ -149,11 +149,11 @@ export const WorkflowControls = memo(function WorkflowControls() {
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              className='h-[28px] w-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
+              className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
               onClick={undo}
               disabled={!canUndo}
             >
-              <Undo className='h-[16px] w-[16px]' />
+              <Undo className='size-[16px]' />
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
@@ -165,11 +165,11 @@ export const WorkflowControls = memo(function WorkflowControls() {
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              className='h-[28px] w-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
+              className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
               onClick={redo}
               disabled={!canRedo}
             >
-              <Redo className='h-[16px] w-[16px]' />
+              <Redo className='size-[16px]' />
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
@@ -183,10 +183,10 @@ export const WorkflowControls = memo(function WorkflowControls() {
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              className='h-[28px] w-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
+              className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
               onClick={handleFitToView}
             >
-              <Scan className='h-[16px] w-[16px]' />
+              <Scan className='size-[16px]' />
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>

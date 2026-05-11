@@ -5,7 +5,7 @@ import { SlackSetupWizard } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
  * Props every `type: 'modal'` sub-block component must accept. The sub-block
  * dispatcher passes these through from the surrounding editor shell.
  */
-export interface ModalSubBlockProps {
+interface ModalSubBlockProps {
   blockId: string
   isPreview?: boolean
   disabled?: boolean

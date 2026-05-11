@@ -129,7 +129,7 @@ function CountdownRing({ duration }: { duration: number }) {
 
 function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: string) => void }) {
   const [exiting, setExiting] = useState(false)
-  const [paused, setPaused] = useState(false)
+  const pausedRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const remainingRef = useRef(t.duration)
   const startRef = useRef(0)
@@ -152,12 +152,12 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
     if (t.duration <= 0) return
     clearTimeout(timerRef.current)
     remainingRef.current -= Date.now() - startRef.current
-    setPaused(true)
+    pausedRef.current = true
   }, [t.duration])
 
   const handleMouseLeave = useCallback(() => {
     if (t.duration <= 0) return
-    setPaused(false)
+    pausedRef.current = false
     startRef.current = Date.now()
     timerRef.current = setTimeout(dismiss, Math.max(remainingRef.current, 0))
   }, [dismiss, t.duration])
@@ -186,10 +186,10 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
             )}
           >
             {t.variant === 'error' && (
-              <span className='mr-2 mb-0.5 inline-block h-2 w-2 rounded-[2px] bg-[var(--text-error)] align-middle' />
+              <span className='mr-2 mb-0.5 inline-block size-2 rounded-[2px] bg-[var(--text-error)] align-middle' />
             )}
             {t.variant === 'success' && (
-              <span className='mr-2 mb-0.5 inline-block h-2 w-2 rounded-[2px] bg-[var(--text-success)] align-middle' />
+              <span className='mr-2 mb-0.5 inline-block size-2 rounded-[2px] bg-[var(--text-success)] align-middle' />
             )}
             {t.message}
           </div>
@@ -205,7 +205,7 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
             aria-label='Dismiss notification'
             className='-m-0.5 relative shrink-0 rounded-sm p-1 text-[var(--text-icon)] before:absolute before:inset-[-8px] before:content-[""] hover:bg-[var(--surface-active)]'
           >
-            <X className='h-[14px] w-[14px]' />
+            <X className='size-[14px]' />
           </button>
         </div>
       </div>

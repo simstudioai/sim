@@ -117,24 +117,24 @@ export interface SttBlockResponse extends ToolResponse {
 
 // Provider-specific types
 
-export interface WhisperParams extends Omit<SttParams, 'provider'> {
+interface WhisperParams extends Omit<SttParams, 'provider'> {
   model?: string
   responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
   temperature?: number
 }
 
-export interface DeepgramParams extends Omit<SttParams, 'provider'> {
+interface DeepgramParams extends Omit<SttParams, 'provider'> {
   model?: string
   punctuate?: boolean
   paragraphs?: boolean
   utterances?: boolean
 }
 
-export interface ElevenLabsSttParams extends Omit<SttParams, 'provider'> {
+interface ElevenLabsSttParams extends Omit<SttParams, 'provider'> {
   model?: string
 }
 
-export interface AssemblyAIParams extends Omit<SttParams, 'provider'> {
+interface AssemblyAIParams extends Omit<SttParams, 'provider'> {
   model?: string
   sentiment?: boolean
   entityDetection?: boolean
@@ -142,6 +142,6 @@ export interface AssemblyAIParams extends Omit<SttParams, 'provider'> {
   summarization?: boolean
 }
 
-export interface GeminiParams extends Omit<SttParams, 'provider'> {
+interface GeminiParams extends Omit<SttParams, 'provider'> {
   model?: string
 }

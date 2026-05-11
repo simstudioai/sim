@@ -20,19 +20,11 @@ export const apolloOrganizationEnrichTool: ToolConfig<
       visibility: 'hidden',
       description: 'Apollo API key',
     },
-    organization_name: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Name of the organization (e.g., "Acme Corporation") - at least one of organization_name or domain is required',
-    },
     domain: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description:
-        'Company domain (e.g., "apollo.io", "acme.com") - at least one of domain or organization_name is required',
+      description: 'Company domain (e.g., "apollo.io", "acme.com")',
     },
   },
 
@@ -45,17 +37,11 @@ export const apolloOrganizationEnrichTool: ToolConfig<
       'X-Api-Key': params.apiKey,
     }),
     body: (params: ApolloOrganizationEnrichParams) => {
-      // At least one identifier is required
-      if (!params.organization_name && !params.domain) {
-        throw new Error(
-          'At least one of organization_name or domain is required for organization enrichment'
-        )
+      const domain = params.domain?.trim()
+      if (!domain) {
+        throw new Error('domain is required for organization enrichment')
       }
-
-      const body: any = {}
-      if (params.organization_name) body.name = params.organization_name
-      if (params.domain) body.domain = params.domain
-      return body
+      return { domain }
     },
   },
 
@@ -70,14 +56,18 @@ export const apolloOrganizationEnrichTool: ToolConfig<
     return {
       success: true,
       output: {
-        organization: data.organization || {},
+        organization: data.organization ?? null,
         enriched: !!data.organization,
       },
     }
   },
 
   outputs: {
-    organization: { type: 'json', description: 'Enriched organization data from Apollo' },
+    organization: {
+      type: 'json',
+      description: 'Enriched organization data from Apollo',
+      optional: true,
+    },
     enriched: {
       type: 'boolean',
       description: 'Whether the organization was successfully enriched',

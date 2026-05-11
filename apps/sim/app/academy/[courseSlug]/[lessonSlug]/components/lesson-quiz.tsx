@@ -202,9 +202,9 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
                 )}
               >
                 {isCorrect ? (
-                  <CheckCircle2 className='mt-0.5 h-3.5 w-3.5 flex-shrink-0' />
+                  <CheckCircle2 className='mt-0.5 size-3.5 flex-shrink-0' />
                 ) : (
-                  <XCircle className='mt-0.5 h-3.5 w-3.5 flex-shrink-0' />
+                  <XCircle className='mt-0.5 size-3.5 flex-shrink-0' />
                 )}
                 <span>{isCorrect ? 'Correct!' : (feedback.explanation ?? 'Incorrect.')}</span>
               </div>

@@ -15,7 +15,7 @@ import { mcpKeys, useMcpToolsQuery } from '@/hooks/queries/mcp'
 
 const logger = createLogger('useMcpTools')
 
-export interface McpToolForUI {
+interface McpToolForUI {
   id: string
   name: string
   description?: string

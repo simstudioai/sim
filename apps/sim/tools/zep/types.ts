@@ -172,7 +172,7 @@ export interface ZepResponse extends ToolResponse {
 /**
  * Thread object interface for type safety.
  */
-export interface ZepThread {
+interface ZepThread {
   threadId: string
   userId: string
   uuid?: string
@@ -185,7 +185,7 @@ export interface ZepThread {
 /**
  * User object interface for type safety.
  */
-export interface ZepUser {
+interface ZepUser {
   userId: string
   email?: string
   firstName?: string
@@ -199,7 +199,7 @@ export interface ZepUser {
 /**
  * Message object interface for type safety.
  */
-export interface ZepMessage {
+interface ZepMessage {
   uuid: string
   role: string
   roleType?: string

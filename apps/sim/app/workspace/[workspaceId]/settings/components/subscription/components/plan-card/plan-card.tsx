@@ -80,7 +80,7 @@ export function PlanCard({
             const Icon = feature.icon
             return (
               <li key={`${feature.text}-${index}`} className='flex items-center gap-2'>
-                <Icon className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
+                <Icon className='size-[12px] flex-shrink-0 text-[var(--text-primary)]' />
                 <span className='text-[var(--text-primary)] text-small'>{feature.text}</span>
               </li>
             )
@@ -119,7 +119,7 @@ export function PlanCard({
             const Icon = feature.icon
             return (
               <li key={`${feature.text}-${index}`} className='flex items-center gap-2'>
-                <Icon className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
+                <Icon className='size-[12px] flex-shrink-0 text-[var(--text-primary)]' />
                 <span className='text-[var(--text-primary)] text-small'>{feature.text}</span>
               </li>
             )

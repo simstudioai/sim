@@ -2,17 +2,15 @@ import type { Edge } from 'reactflow'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import type { ParentIteration, SerializableExecutionState } from '@/executor/execution/types'
 import type {
-  BlockLog,
   BlockTokens,
   IterationToolCall,
   NormalizedBlockOutput,
   ProviderTimingSegment,
 } from '@/executor/types'
-import type { Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-export type { WorkflowState, Loop, Parallel }
+export type { WorkflowState }
 export type WorkflowEdge = Edge
-export type { NormalizedBlockOutput, BlockLog }
 
 export interface PricingInfo {
   input: number

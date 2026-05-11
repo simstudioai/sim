@@ -99,7 +99,7 @@ export function extractDataContent(message: Message): Record<string, unknown> {
   return dataParts.reduce((acc, part) => ({ ...acc, ...part.data }), {})
 }
 
-export interface A2AFile {
+interface A2AFile {
   name?: string
   mimeType?: string
   uri?: string
@@ -133,7 +133,7 @@ export function extractFileContent(message: Message): A2AFile[] {
     })
 }
 
-export interface ExecutionFileInput {
+interface ExecutionFileInput {
   type: 'file' | 'url'
   data: string
   name: string

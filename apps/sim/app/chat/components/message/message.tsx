@@ -9,7 +9,7 @@ import {
 } from '@/app/chat/components/message/components/file-download'
 import MarkdownRenderer from '@/app/chat/components/message/components/markdown-renderer'
 
-export interface ChatAttachment {
+interface ChatAttachment {
   id: string
   name: string
   type: string
@@ -86,6 +86,9 @@ export const ClientChatMessage = memo(
                     return (
                       <div
                         key={attachment.id}
+                        role='button'
+                        aria-disabled={!attachment.dataUrl?.trim().startsWith('data:')}
+                        tabIndex={attachment.dataUrl?.trim().startsWith('data:') ? 0 : undefined}
                         className={`relative overflow-hidden rounded-2xl border border-[var(--border-1)] bg-[var(--landing-bg-elevated)] ${
                           attachment.dataUrl?.trim() && attachment.dataUrl.startsWith('data:')
                             ? 'cursor-pointer'
@@ -118,6 +121,24 @@ export const ClientChatMessage = memo(
                                 </html>
                               `)
                               newWindow.document.close()
+                            }
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          const validDataUrl = attachment.dataUrl?.trim()
+                          if (!validDataUrl?.startsWith('data:')) return
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            const newWindow = window.open('', '_blank')
+                            if (newWindow) {
+                              newWindow.document.write(`
+                                <html>
+                                  <head><title>${attachment.name}</title></head>
+                                  <body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#111;">
+                                    <img src="${validDataUrl}" alt="${attachment.name}" style="max-width:100%;max-height:100vh;object-fit:contain;" />
+                                  </body>
+                                </html>
+                              `)
                             }
                           }
                         }}
@@ -173,7 +194,7 @@ export const ClientChatMessage = memo(
       ) : (
         <div className='px-4 pt-5 pb-2' data-message-id={message.id}>
           <div className='mx-auto max-w-3xl'>
-            <div className='flex flex-col space-y-3'>
+            <div className='flex flex-col gap-y-3'>
               {/* Direct content rendering - tool calls are now handled via SSE events */}
               <div>
                 <div className='break-words text-base'>
@@ -194,7 +215,7 @@ export const ClientChatMessage = memo(
                 </div>
               )}
               {message.type === 'assistant' && !isJsonObject && !message.isInitialMessage && (
-                <div className='flex items-center justify-start space-x-2'>
+                <div className='flex items-center justify-start gap-x-2'>
                   {/* Copy Button - Only show when not streaming */}
                   {!message.isStreaming && (
                     <Tooltip.Root delayDuration={300}>
@@ -212,9 +233,9 @@ export const ClientChatMessage = memo(
                           }}
                         >
                           {isCopied ? (
-                            <Check className='h-3 w-3' strokeWidth={2} />
+                            <Check className='size-3' strokeWidth={2} />
                           ) : (
-                            <Copy className='h-3 w-3' strokeWidth={2} />
+                            <Copy className='size-3' strokeWidth={2} />
                           )}
                         </button>
                       </Tooltip.Trigger>

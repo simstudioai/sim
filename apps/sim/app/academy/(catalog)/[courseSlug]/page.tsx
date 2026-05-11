@@ -50,12 +50,12 @@ export default async function CourseDetailPage({ params }: CourseDetailPageProps
           <div className='mt-6 flex items-center gap-5 text-[#666] text-[13px]'>
             {course.estimatedMinutes && (
               <span className='flex items-center gap-1.5'>
-                <Clock className='h-3.5 w-3.5' />
+                <Clock className='size-3.5' />
                 {course.estimatedMinutes} min total
               </span>
             )}
             <span className='flex items-center gap-1.5'>
-              <GraduationCap className='h-3.5 w-3.5' />
+              <GraduationCap className='size-3.5' />
               Certificate upon completion
             </span>
           </div>

@@ -5,7 +5,7 @@ const DASHED_DIVIDER_STYLE = {
     'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
 } as const
 
-export interface FieldDividerProps extends React.HTMLAttributes<HTMLDivElement> {
+interface FieldDividerProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
    * Adds the `subblock-divider` marker class so the workflow editor's CSS
    * (`globals.css` `:has()` rule) can hide the divider when adjacent subblocks

@@ -1,11 +1,11 @@
-export interface IncidentIOComponent {
+interface IncidentIOComponent {
   id: string
   name: string
   group_name?: string
   current_status: 'operational' | 'degraded_performance' | 'partial_outage' | 'full_outage'
 }
 
-export interface IncidentIOIncident {
+interface IncidentIOIncident {
   id: string
   name: string
   status: 'investigating' | 'identified' | 'monitoring'
@@ -16,7 +16,7 @@ export interface IncidentIOIncident {
   affected_components: IncidentIOComponent[]
 }
 
-export interface IncidentIOMaintenance {
+interface IncidentIOMaintenance {
   id: string
   name: string
   status: 'maintenance_scheduled' | 'maintenance_in_progress'

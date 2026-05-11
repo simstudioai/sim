@@ -313,7 +313,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
                 openEnvironmentSettings()
               }}
             >
-              <Plus className='h-3 w-3' />
+              <Plus className='size-3' />
               <span>Create Secret</span>
             </PopoverItem>
           </PopoverScrollArea>

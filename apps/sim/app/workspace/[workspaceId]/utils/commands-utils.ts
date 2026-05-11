@@ -14,6 +14,7 @@ export type CommandId =
   // | 'goto-templates'
   | 'goto-logs'
   | 'open-search'
+  | 'open-workflow-search-replace'
   | 'run-workflow'
   | 'clear-terminal-console'
   | 'focus-toolbar-search'
@@ -26,7 +27,7 @@ export type CommandId =
  * This central registry defines the keyboard shortcut and default behavior
  * for whether the command is allowed inside editable elements.
  */
-export interface CommandDefinition {
+interface CommandDefinition {
   /** Stable identifier for the command. */
   id: CommandId
   /** Shortcut string in the form "Mod+Shift+A", "Mod+Enter", etc. */
@@ -79,6 +80,11 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
     shortcut: 'Mod+K',
     allowInEditable: true,
   },
+  'open-workflow-search-replace': {
+    id: 'open-workflow-search-replace',
+    shortcut: 'Mod+F',
+    allowInEditable: true,
+  },
   'run-workflow': {
     id: 'run-workflow',
     shortcut: 'Mod+Enter',
@@ -91,7 +97,7 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
   },
   'focus-toolbar-search': {
     id: 'focus-toolbar-search',
-    shortcut: 'Mod+F',
+    shortcut: 'Mod+Alt+F',
     allowInEditable: false,
   },
   'clear-notifications': {

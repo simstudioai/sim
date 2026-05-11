@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface LoopsBaseParams {
+interface LoopsBaseParams {
   apiKey: string
 }
 
@@ -70,7 +70,7 @@ export interface LoopsListContactPropertiesParams extends LoopsBaseParams {
   list?: string
 }
 
-export interface LoopsContact {
+interface LoopsContact {
   id: string
   email: string
   firstName: string | null

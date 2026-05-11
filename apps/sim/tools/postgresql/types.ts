@@ -142,7 +142,7 @@ export interface PostgresIntrospectParams extends PostgresConnectionConfig {
   schema?: string
 }
 
-export interface PostgresBaseResponse extends ToolResponse {
+interface PostgresBaseResponse extends ToolResponse {
   output: {
     message: string
     rows: unknown[]
@@ -157,7 +157,7 @@ export interface PostgresUpdateResponse extends PostgresBaseResponse {}
 export interface PostgresDeleteResponse extends PostgresBaseResponse {}
 export interface PostgresExecuteResponse extends PostgresBaseResponse {}
 
-export interface TableColumn {
+interface TableColumn {
   name: string
   type: string
   nullable: boolean
@@ -170,7 +170,7 @@ export interface TableColumn {
   }
 }
 
-export interface TableSchema {
+interface TableSchema {
   name: string
   schema: string
   columns: TableColumn[]

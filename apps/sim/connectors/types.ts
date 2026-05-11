@@ -159,7 +159,7 @@ export interface ConnectorConfig {
  * A tag that a connector populates, with a semantic ID and human-readable name.
  * Slots are dynamically assigned on connector creation via getNextAvailableSlot.
  */
-export interface ConnectorTagDefinition {
+interface ConnectorTagDefinition {
   /** Semantic ID matching a key returned by mapTags (e.g. 'labels', 'version') */
   id: string
   /** Human-readable name shown in UI (e.g. 'Labels', 'Last Modified') */

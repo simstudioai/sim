@@ -55,7 +55,7 @@ interface DriveFileMetadata {
   trashed?: boolean
 }
 
-export interface GoogleDriveWebhookPayload {
+interface GoogleDriveWebhookPayload {
   file: DriveFileMetadata | { id: string }
   eventType: 'created' | 'modified' | 'deleted'
   timestamp: string

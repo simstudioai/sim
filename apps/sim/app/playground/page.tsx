@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { ArrowLeft, Bell, Folder, Key, Moon, Settings, Sun, User } from 'lucide-react'
 import { notFound, useRouter } from 'next/navigation'
 import {
@@ -135,6 +135,16 @@ const COMBOBOX_OPTIONS = [
   { label: 'Option 3', value: 'opt3' },
 ]
 
+const DARK_MODE_EVENT = 'playground:dark-mode-change'
+
+const subscribeToDarkMode = (onStoreChange: () => void) => {
+  window.addEventListener(DARK_MODE_EVENT, onStoreChange)
+  return () => window.removeEventListener(DARK_MODE_EVENT, onStoreChange)
+}
+
+const getDarkModeSnapshot = () => document.documentElement.classList.contains('dark')
+const getServerDarkModeSnapshot = () => false
+
 export default function PlaygroundPage() {
   const router = useRouter()
   const [comboboxValue, setComboboxValue] = useState('')
@@ -143,7 +153,11 @@ export default function PlaygroundPage() {
   const [sliderValue, setSliderValue] = useState([50])
   const [timeValue, setTimeValue] = useState('09:30')
   const [activeTab, setActiveTab] = useState('profile')
-  const [isDarkMode, setIsDarkMode] = useState(false)
+  const isDarkMode = useSyncExternalStore(
+    subscribeToDarkMode,
+    getDarkModeSnapshot,
+    getServerDarkModeSnapshot
+  )
   const [buttonGroupValue, setButtonGroupValue] = useState('curl')
   const [dateValue, setDateValue] = useState('')
   const [dateRangeStart, setDateRangeStart] = useState('')
@@ -154,13 +168,9 @@ export default function PlaygroundPage() {
   ])
 
   const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode)
     document.documentElement.classList.toggle('dark')
+    window.dispatchEvent(new Event(DARK_MODE_EVENT))
   }
-
-  useEffect(() => {
-    setIsDarkMode(document.documentElement.classList.contains('dark'))
-  }, [])
 
   if (!isTruthy(env.NEXT_PUBLIC_ENABLE_PLAYGROUND)) {
     notFound()
@@ -172,8 +182,8 @@ export default function PlaygroundPage() {
         <div className='absolute top-8 left-8 flex items-center gap-2'>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Button variant='ghost' onClick={() => router.back()} className='h-8 w-8 p-0'>
-                <ArrowLeft className='h-4 w-4' />
+              <Button variant='ghost' onClick={() => router.back()} className='size-8 p-0'>
+                <ArrowLeft className='size-4' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>Go back</Tooltip.Content>
@@ -182,8 +192,8 @@ export default function PlaygroundPage() {
         <div className='absolute top-8 right-8'>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Button variant='default' onClick={toggleDarkMode} className='h-8 w-8 p-0'>
-                {isDarkMode ? <Sun className='h-4 w-4' /> : <Moon className='h-4 w-4' />}
+              <Button variant='default' onClick={toggleDarkMode} className='size-8 p-0'>
+                {isDarkMode ? <Sun className='size-4' /> : <Moon className='size-4' />}
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>{isDarkMode ? 'Light mode' : 'Dark mode'}</Tooltip.Content>
@@ -826,19 +836,11 @@ export default function PlaygroundPage() {
                 <PopoverContent>
                   <PopoverBackButton />
                   <PopoverItem rootOnly>Root Item</PopoverItem>
-                  <PopoverFolder
-                    id='folder1'
-                    title='Folder 1'
-                    icon={<Folder className='h-3 w-3' />}
-                  >
+                  <PopoverFolder id='folder1' title='Folder 1' icon={<Folder className='size-3' />}>
                     <PopoverItem>Nested Item 1</PopoverItem>
                     <PopoverItem>Nested Item 2</PopoverItem>
                   </PopoverFolder>
-                  <PopoverFolder
-                    id='folder2'
-                    title='Folder 2'
-                    icon={<Folder className='h-3 w-3' />}
-                  >
+                  <PopoverFolder id='folder2' title='Folder 2' icon={<Folder className='size-3' />}>
                     <PopoverItem>Another Nested Item</PopoverItem>
                   </PopoverFolder>
                 </PopoverContent>
@@ -1030,8 +1032,8 @@ export default function PlaygroundPage() {
               ].map(({ Icon, name }) => (
                 <Tooltip.Root key={name}>
                   <Tooltip.Trigger asChild>
-                    <div className='flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-4)]'>
-                      <Icon className='h-5 w-5 text-[var(--text-secondary)]' />
+                    <div className='flex size-10 cursor-pointer items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-4)]'>
+                      <Icon className='size-5 text-[var(--text-secondary)]' />
                     </div>
                   </Tooltip.Trigger>
                   <Tooltip.Content>{name}</Tooltip.Content>

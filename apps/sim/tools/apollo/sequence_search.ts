@@ -23,12 +23,6 @@ export const apolloSequenceSearchTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Search sequences by name (e.g., "Outbound Q1", "Follow-up")',
     },
-    active: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by active status (true for active sequences, false for inactive)',
-    },
     page: {
       type: 'number',
       required: false,
@@ -52,12 +46,11 @@ export const apolloSequenceSearchTool: ToolConfig<
       'X-Api-Key': params.apiKey,
     }),
     body: (params: ApolloSequenceSearchParams) => {
-      const body: any = {
+      const body: Record<string, unknown> = {
         page: params.page || 1,
         per_page: Math.min(params.per_page || 25, 100),
       }
       if (params.q_name) body.q_name = params.q_name
-      if (params.active !== undefined) body.active = params.active
       return body
     },
   },

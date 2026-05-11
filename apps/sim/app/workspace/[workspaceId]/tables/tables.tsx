@@ -161,15 +161,15 @@ export function Tables() {
         id: table.id,
         cells: {
           name: {
-            icon: <TableIcon className='h-[14px] w-[14px]' />,
+            icon: <TableIcon className='size-[14px]' />,
             label: table.name,
           },
           columns: {
-            icon: <Columns3 className='h-[14px] w-[14px]' />,
+            icon: <Columns3 className='size-[14px]' />,
             label: String(table.schema.columns.length),
           },
           rows: {
-            icon: <Rows3 className='h-[14px] w-[14px]' />,
+            icon: <Rows3 className='size-[14px]' />,
             label: String(table.rowCount),
           },
           created: timeCell(table.createdAt),
@@ -237,10 +237,10 @@ export function Tables() {
             src={m.image}
             alt={m.name}
             referrerPolicy='no-referrer'
-            className='h-[14px] w-[14px] rounded-full border border-[var(--border)] object-cover'
+            className='size-[14px] rounded-full border border-[var(--border)] object-cover'
           />
         ) : (
-          <span className='flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+          <span className='flex size-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
             {m.name.charAt(0).toUpperCase()}
           </span>
         ),
@@ -399,7 +399,6 @@ export function Tables() {
         }
 
         setUploadProgress({ completed: 0, total: csvFiles.length })
-        const failed: string[] = []
 
         for (let i = 0; i < csvFiles.length; i++) {
           try {
@@ -412,23 +411,13 @@ export function Tables() {
               }
             }
           } catch (err) {
-            failed.push(csvFiles[i].name)
             logger.error('Error uploading CSV:', err)
           } finally {
             setUploadProgress({ completed: i + 1, total: csvFiles.length })
           }
         }
-
-        if (failed.length > 0) {
-          toast.error(
-            failed.length === 1
-              ? `Failed to import ${failed[0]}`
-              : `Failed to import ${failed.length} file${failed.length > 1 ? 's' : ''}: ${failed.join(', ')}`
-          )
-        }
       } catch (err) {
         logger.error('Error uploading CSV:', err)
-        toast.error('Failed to import CSV')
       } finally {
         setUploading(false)
         setUploadProgress({ completed: 0, total: 0 })

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { Folder, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -21,6 +22,10 @@ import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
 import { useRestoreWorkflow, useWorkflows } from '@/hooks/queries/workflows'
 import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useFolderStore } from '@/stores/folders/store'
+import type { WorkflowFolder } from '@/stores/folders/types'
+
+type ResourceType = 'all' | 'workflow' | 'table' | 'knowledge' | 'file' | 'folder'
 
 function getResourceHref(
   workspaceId: string,
@@ -36,13 +41,11 @@ function getResourceHref(
     case 'knowledge':
       return `${base}/knowledge/${id}`
     case 'file':
-      return `${base}/files`
+      return `${base}/files/${id}`
     case 'folder':
       return `${base}/w`
   }
 }
-
-type ResourceType = 'all' | 'workflow' | 'table' | 'knowledge' | 'file' | 'folder'
 
 type SortColumn = 'deleted' | 'name' | 'type'
 
@@ -59,7 +62,7 @@ const SORT_OPTIONS: { column: SortColumn; direction: 'asc' | 'desc'; label: stri
   { column: 'type', direction: 'asc', label: 'Type (A–Z)' },
 ]
 
-const ICON_CLASS = 'h-[14px] w-[14px]'
+const ICON_CLASS = 'size-[14px]'
 
 const RESOURCE_TYPE_TO_MOTHERSHIP: Partial<
   Record<Exclude<ResourceType, 'all'>, MothershipResourceType>
@@ -101,7 +104,7 @@ function ResourceIcon({ resource }: { resource: DeletedResource }) {
     const color = resource.color ?? '#888'
     return (
       <div
-        className='h-[14px] w-[14px] shrink-0 rounded-[3px] border-[2px]'
+        className='size-[14px] shrink-0 rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
           borderColor: workflowBorderColor(color),
@@ -119,13 +122,9 @@ function ResourceIcon({ resource }: { resource: DeletedResource }) {
   const mothershipType = RESOURCE_TYPE_TO_MOTHERSHIP[resource.type]
   if (!mothershipType) return null
   const config = RESOURCE_REGISTRY[mothershipType]
-  return (
-    <>
-      {config.renderTabIcon(
-        { type: mothershipType, id: resource.id, title: resource.name },
-        ICON_CLASS
-      )}
-    </>
+  return config.renderTabIcon(
+    { type: mothershipType, id: resource.id, title: resource.name },
+    ICON_CLASS
   )
 }
 
@@ -141,6 +140,7 @@ export function RecentlyDeleted() {
 
   const workflowsQuery = useWorkflows(workspaceId, { scope: 'archived' })
   const foldersQuery = useFolders(workspaceId, { scope: 'archived' })
+  const activeFoldersQuery = useFolders(workspaceId)
   const tablesQuery = useTablesList(workspaceId, 'archived')
   const knowledgeQuery = useKnowledgeBasesQuery(workspaceId, { scope: 'archived' })
   const filesQuery = useWorkspaceFiles(workspaceId, 'archived')
@@ -220,7 +220,6 @@ export function RecentlyDeleted() {
       })
     }
 
-    // Merge back restored items that are no longer in the query data
     const itemIds = new Set(items.map((i) => i.id))
     for (const [id, resource] of restoredItems) {
       if (!itemIds.has(id)) {
@@ -266,6 +265,23 @@ export function RecentlyDeleted() {
 
   const showNoResults = searchTerm.trim() && filtered.length === 0 && resources.length > 0
   const selectedSort = activeSort ?? DEFAULT_SORT
+
+  function handleView(resource: DeletedResource) {
+    if (resource.type === 'folder') {
+      const setExpanded = useFolderStore.getState().setExpanded
+      const byId = new Map<string, WorkflowFolder>()
+      for (const folder of foldersQuery.data ?? []) byId.set(folder.id, folder)
+      for (const folder of activeFoldersQuery.data ?? []) byId.set(folder.id, folder)
+      let current: WorkflowFolder | undefined = byId.get(resource.id)
+      const seen = new Set<string>()
+      while (current && !seen.has(current.id)) {
+        seen.add(current.id)
+        setExpanded(current.id, true)
+        current = current.parentId ? byId.get(current.parentId) : undefined
+      }
+    }
+    router.push(getResourceHref(resource.workspaceId, resource.type, resource.id))
+  }
 
   function handleRestore(resource: DeletedResource) {
     setRestoringIds((prev) => new Set(prev).add(resource.id))
@@ -315,7 +331,7 @@ export function RecentlyDeleted() {
       <div className='flex items-center gap-2'>
         <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
           <Search
-            className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+            className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
             strokeWidth={2}
           />
           <Input
@@ -363,7 +379,7 @@ export function RecentlyDeleted() {
         {error ? (
           <div className='flex h-full flex-col items-center justify-center gap-2'>
             <p className='text-[var(--text-error)] text-xs leading-tight'>
-              {error instanceof Error ? error.message : 'Failed to load deleted items'}
+              {toError(error).message || 'Failed to load deleted items'}
             </p>
           </div>
         ) : isLoading ? (
@@ -405,15 +421,7 @@ export function RecentlyDeleted() {
                   {isRestored ? (
                     <div className='flex shrink-0 items-center gap-2'>
                       <span className='text-[var(--text-tertiary)] text-small'>Restored</span>
-                      <Button
-                        variant='primary'
-                        size='sm'
-                        onClick={() =>
-                          router.push(
-                            getResourceHref(resource.workspaceId, resource.type, resource.id)
-                          )
-                        }
-                      >
+                      <Button variant='primary' size='sm' onClick={() => handleView(resource)}>
                         View
                       </Button>
                     </div>

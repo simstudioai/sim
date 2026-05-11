@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface GoogleSlidesMetadata {
+interface GoogleSlidesMetadata {
   presentationId: string
   title: string
   pageSize?: {

@@ -387,7 +387,7 @@ export function WorkflowItem({
     [handleStartEdit, effectiveLocked]
   )
 
-  const handleClick = useCallback(
+  const handleWorkflowSelect = useCallback(
     (e: React.MouseEvent<HTMLAnchorElement>) => {
       e.stopPropagation()
 
@@ -428,11 +428,11 @@ export function WorkflowItem({
         draggable={!isEditing && !dragDisabled && !effectiveLocked}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        onClick={handleClick}
+        onClick={handleWorkflowSelect}
         onContextMenu={handleContextMenu}
       >
         <div
-          className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
+          className='size-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
           style={{
             backgroundColor: workflow.color,
             borderColor: workflowBorderColor(workflow.color),
@@ -472,7 +472,7 @@ export function WorkflowItem({
           </div>
         </div>
         {!isEditing && (
-          <div className='relative h-[18px] w-[18px] flex-shrink-0'>
+          <div className='relative size-[18px] flex-shrink-0'>
             {workflow.locked && (
               <span
                 role='img'
@@ -483,7 +483,7 @@ export function WorkflowItem({
                   isContextMenuOpen && 'opacity-0'
                 )}
               >
-                <Lock className='h-[14px] w-[14px] text-[var(--text-icon)]' aria-hidden='true' />
+                <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden='true' />
               </span>
             )}
             <button
@@ -497,7 +497,7 @@ export function WorkflowItem({
                 isContextMenuOpen && 'pointer-events-auto opacity-100'
               )}
             >
-              <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+              <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
             </button>
           </div>
         )}

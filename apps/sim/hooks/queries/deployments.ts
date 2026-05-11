@@ -29,7 +29,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeploymentQueries')
 
-export type { ChatDeploymentStatus, ChatDetail, DeploymentVersionsResponse }
+export type { ChatDetail, DeploymentVersionsResponse }
 
 /**
  * Query key factory for deployment-related queries

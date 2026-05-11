@@ -11,7 +11,8 @@ paths:
 1. **No inline styles** - Use Tailwind classes
 2. **No duplicate dark classes** - Skip `dark:` when value matches light mode
 3. **Exact values** - `text-[14px]`, `h-[26px]`
-4. **Transitions** - `transition-colors` for interactive states
+4. **Equal h/w → `size-*`** - Use `size-[14px]` / `size-4`, never `h-[14px] w-[14px]` or `h-4 w-4`. Default icon size is `size-[14px]`
+5. **Transitions** - `transition-colors` for interactive states
 
 ## Conditional Classes
 

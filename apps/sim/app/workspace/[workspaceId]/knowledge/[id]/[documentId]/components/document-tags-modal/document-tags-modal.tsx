@@ -17,6 +17,7 @@ import {
   Trash,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { ALL_TAG_SLOTS, type AllTagSlot, MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
 import type { DocumentData } from '@/lib/knowledge/types'
@@ -396,10 +397,16 @@ export function DocumentTagsModal({
               <Label>Tags</Label>
 
               {documentTags.map((tag, index) => (
-                <div key={index} className='space-y-2'>
+                <div key={tag.displayName} className='space-y-2'>
                   <div
+                    role='button'
+                    tabIndex={0}
                     className='flex cursor-pointer items-center gap-2 rounded-sm border p-2 hover-hover:bg-[var(--surface-2)]'
                     onClick={() => startEditingTag(index)}
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget) return
+                      handleKeyboardActivation(event, () => startEditingTag(index))
+                    }}
                   >
                     <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
                       {tag.displayName}
@@ -418,9 +425,9 @@ export function DocumentTagsModal({
                           e.stopPropagation()
                           handleRemoveTag(index)
                         }}
-                        className='h-4 w-4 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
+                        className='size-4 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
                       >
-                        <Trash className='h-3 w-3' />
+                        <Trash className='size-3' />
                       </Button>
                     </div>
                   </div>

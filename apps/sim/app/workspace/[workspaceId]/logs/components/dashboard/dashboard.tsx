@@ -63,7 +63,7 @@ function WorkflowRowSkeleton() {
   return (
     <div className='flex h-[44px] items-center gap-4 px-6'>
       <div className='flex w-[160px] flex-shrink-0 items-center gap-2 pr-2'>
-        <Skeleton className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]' />
+        <Skeleton className='size-[10px] flex-shrink-0 rounded-[3px]' />
         <Skeleton className='h-[16px] flex-1' />
       </div>
       <div className='flex-1'>
@@ -499,7 +499,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
                 />
               ) : (
                 <div className='flex h-[166px] items-center justify-center'>
-                  <Loader className='h-[16px] w-[16px] text-[var(--text-secondary)]' animate />
+                  <Loader className='size-[16px] text-[var(--text-secondary)]' animate />
                 </div>
               )}
             </div>
@@ -526,7 +526,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
                 />
               ) : (
                 <div className='flex h-[166px] items-center justify-center'>
-                  <Loader className='h-[16px] w-[16px] text-[var(--text-secondary)]' animate />
+                  <Loader className='size-[16px] text-[var(--text-secondary)]' animate />
                 </div>
               )}
             </div>
@@ -553,7 +553,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
                 />
               ) : (
                 <div className='flex h-[166px] items-center justify-center'>
-                  <Loader className='h-[16px] w-[16px] text-[var(--text-secondary)]' animate />
+                  <Loader className='size-[16px] text-[var(--text-secondary)]' animate />
                 </div>
               )}
             </div>

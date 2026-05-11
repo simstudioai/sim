@@ -24,7 +24,7 @@ export const OUTBOX_EVENT_TYPES = {
   STRIPE_SYNC_CUSTOMER_CONTACT: 'stripe.sync-customer-contact',
 } as const
 
-export interface StripeSyncCancelAtPeriodEndPayload {
+interface StripeSyncCancelAtPeriodEndPayload {
   stripeSubscriptionId: string
   /** The DB subscription row id — also our source-of-truth pointer. */
   subscriptionId: string
@@ -32,19 +32,19 @@ export interface StripeSyncCancelAtPeriodEndPayload {
   reason?: string
 }
 
-export interface StripeSyncSubscriptionSeatsPayload {
+interface StripeSyncSubscriptionSeatsPayload {
   /** The DB subscription row id — the handler reads current seats from this row. */
   subscriptionId: string
   reason?: string
 }
 
-export interface StripeSyncCustomerContactPayload {
+interface StripeSyncCustomerContactPayload {
   /** The DB subscription row id — handler resolves current owner/contact at processing time. */
   subscriptionId: string
   reason?: string
 }
 
-export interface StripeThresholdOverageInvoicePayload {
+interface StripeThresholdOverageInvoicePayload {
   customerId: string
   stripeSubscriptionId: string
   amountCents: number

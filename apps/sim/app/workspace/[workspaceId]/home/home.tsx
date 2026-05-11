@@ -400,10 +400,10 @@ export function Home({ chatId }: HomeProps = {}) {
             size={null}
             type='button'
             onClick={() => setIsResourceCollapsed(false)}
-            className='h-[30px] w-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
+            className='size-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
             aria-label='Expand resource view'
           >
-            <PanelLeft className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+            <PanelLeft className='size-[16px] text-[var(--text-icon)]' />
           </Button>
         </div>
       )}

@@ -36,12 +36,13 @@ export const apolloEmailAccountsTool: ToolConfig<
     }
 
     const data = await response.json()
+    const accounts = Array.isArray(data) ? data : data.email_accounts || data.data || []
 
     return {
       success: true,
       output: {
-        email_accounts: data.email_accounts || [],
-        total: data.email_accounts?.length || 0,
+        email_accounts: accounts,
+        total: accounts.length,
       },
     }
   },

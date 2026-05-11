@@ -51,7 +51,7 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'updated', header: 'Last Updated' },
 ]
 
-const DATABASE_ICON = <Database className='h-[14px] w-[14px]' />
+const DATABASE_ICON = <Database className='size-[14px]' />
 
 function connectorCell(connectorTypes?: string[]): ResourceCell {
   if (!connectorTypes || connectorTypes.length === 0) {
@@ -75,7 +75,7 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
             <Tooltip.Root key={type}>
               <Tooltip.Trigger asChild>
                 <span className='flex-shrink-0'>
-                  <Icon className='h-3.5 w-3.5' />
+                  <Icon className='size-3.5' />
                 </span>
               </Tooltip.Trigger>
               <Tooltip.Content>{def.name}</Tooltip.Content>
@@ -422,10 +422,10 @@ export function Knowledge() {
             src={m.image}
             alt={m.name}
             referrerPolicy='no-referrer'
-            className='h-[14px] w-[14px] rounded-full border border-[var(--border)] object-cover'
+            className='size-[14px] rounded-full border border-[var(--border)] object-cover'
           />
         ) : (
-          <span className='flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+          <span className='flex size-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
             {m.name.charAt(0).toUpperCase()}
           </span>
         ),

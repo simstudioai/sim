@@ -29,6 +29,25 @@ export const apolloContactSearchTool: ToolConfig<
       visibility: 'user-only',
       description: 'Filter by contact stage IDs',
     },
+    contact_label_ids: {
+      type: 'array',
+      required: false,
+      visibility: 'user-only',
+      description: 'Filter by Apollo label IDs (lists)',
+    },
+    sort_by_field: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'Sort field: contact_last_activity_date, contact_email_last_opened_at, contact_email_last_clicked_at, contact_created_at, or contact_updated_at',
+    },
+    sort_ascending: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'When true, sort ascending. Must be used together with sort_by_field',
+    },
     page: {
       type: 'number',
       required: false,
@@ -52,7 +71,7 @@ export const apolloContactSearchTool: ToolConfig<
       'X-Api-Key': params.apiKey,
     }),
     body: (params: ApolloContactSearchParams) => {
-      const body: any = {
+      const body: Record<string, unknown> = {
         page: params.page || 1,
         per_page: Math.min(params.per_page || 25, 100),
       }
@@ -60,6 +79,11 @@ export const apolloContactSearchTool: ToolConfig<
       if (params.contact_stage_ids?.length) {
         body.contact_stage_ids = params.contact_stage_ids
       }
+      if (params.contact_label_ids?.length) {
+        body.contact_label_ids = params.contact_label_ids
+      }
+      if (params.sort_by_field) body.sort_by_field = params.sort_by_field
+      if (params.sort_ascending !== undefined) body.sort_ascending = params.sort_ascending
       return body
     },
   },
@@ -75,7 +99,7 @@ export const apolloContactSearchTool: ToolConfig<
     return {
       success: true,
       output: {
-        contacts: data.contacts ?? null,
+        contacts: data.contacts ?? [],
         pagination: data.pagination ?? null,
       },
     }
@@ -85,7 +109,6 @@ export const apolloContactSearchTool: ToolConfig<
     contacts: {
       type: 'json',
       description: 'Array of contacts matching the search criteria',
-      optional: true,
     },
     pagination: { type: 'json', description: 'Pagination information', optional: true },
   },

@@ -23,7 +23,6 @@ export const rdsQueryBodySchema = rdsConnectionBodySchema.extend({
   query: z.string().min(1, 'Query is required'),
 })
 
-export const rdsExecuteBodySchema = rdsQueryBodySchema
 export const rdsInsertBodySchema = rdsConnectionBodySchema.extend({
   table: z.string().min(1, 'Table name is required'),
   data: nonEmptyRecordSchema('Data object must have at least one field'),
@@ -52,7 +51,7 @@ export const rdsQueryContract = defineRouteContract({
 export const rdsExecuteContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/rds/execute',
-  body: rdsExecuteBodySchema,
+  body: rdsQueryBodySchema,
   response: { mode: 'json', schema: sqlRowsResponseSchema },
 })
 

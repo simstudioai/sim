@@ -54,7 +54,7 @@ export const credentialSetKeys = {
   invitations: () => [...credentialSetKeys.all, 'invitations'] as const,
 }
 
-export async function fetchCredentialSets(
+async function fetchCredentialSets(
   organizationId: string,
   signal?: AbortSignal
 ): Promise<CredentialSet[]> {

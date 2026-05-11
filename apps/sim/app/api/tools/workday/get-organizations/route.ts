@@ -9,6 +9,8 @@ import {
   createWorkdaySoapClient,
   extractRefId,
   normalizeSoapArray,
+  parseSoapBoolean,
+  parseSoapNumber,
   type WorkdayOrganizationSoap,
 } from '@/tools/workday/soap'
 
@@ -63,15 +65,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         | undefined
     )
 
-    const organizations = orgsArray.map((o) => ({
-      id: extractRefId(o.Organization_Reference) ?? null,
-      descriptor: o.Organization_Descriptor ?? null,
-      type: extractRefId(o.Organization_Data?.Organization_Type_Reference) ?? null,
-      subtype: extractRefId(o.Organization_Data?.Organization_Subtype_Reference) ?? null,
-      isActive: o.Organization_Data?.Inactive != null ? !o.Organization_Data.Inactive : null,
-    }))
+    const organizations = orgsArray.map((o) => {
+      const inactive = parseSoapBoolean(o.Organization_Data?.Inactive)
+      return {
+        id: extractRefId(o.Organization_Reference) ?? null,
+        descriptor: o.Organization_Descriptor ?? null,
+        type: extractRefId(o.Organization_Data?.Organization_Type_Reference) ?? null,
+        subtype: extractRefId(o.Organization_Data?.Organization_Subtype_Reference) ?? null,
+        isActive: inactive == null ? null : !inactive,
+      }
+    })
 
-    const total = result?.Response_Results?.Total_Results ?? organizations.length
+    const total = parseSoapNumber(result?.Response_Results?.Total_Results) ?? organizations.length
 
     return NextResponse.json({
       success: true,

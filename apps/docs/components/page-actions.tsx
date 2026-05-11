@@ -14,12 +14,12 @@ export function LLMCopyButton({ content }: { content: string }) {
     >
       {checked ? (
         <>
-          <Check className='h-3.5 w-3.5' />
+          <Check className='size-3.5' />
           <span>Copied</span>
         </>
       ) : (
         <>
-          <Copy className='h-3.5 w-3.5' />
+          <Copy className='size-3.5' />
           <span>Copy page</span>
         </>
       )}

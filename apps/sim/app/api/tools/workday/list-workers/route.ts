@@ -9,6 +9,7 @@ import {
   createWorkdaySoapClient,
   extractRefId,
   normalizeSoapArray,
+  parseSoapNumber,
   type WorkdayWorkerSoap,
 } from '@/tools/workday/soap'
 
@@ -61,7 +62,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       employmentData: w.Worker_Data?.Employment_Data ?? null,
     }))
 
-    const total = result?.Response_Results?.Total_Results ?? workers.length
+    const total = parseSoapNumber(result?.Response_Results?.Total_Results) ?? workers.length
 
     return NextResponse.json({
       success: true,

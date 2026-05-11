@@ -12,11 +12,16 @@ import {
 } from '@sim/realtime-protocol/constants'
 import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
+import { isEqual } from 'es-toolkit'
 import type { Edge } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
+import {
+  type WorkflowSearchSubflowFieldId,
+  workflowSearchSubflowFieldMatchesExpected,
+} from '@/lib/workflows/search-replace/subflow-fields'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { getSubBlocksDependingOnChange } from '@/blocks/utils'
@@ -233,6 +238,29 @@ export function useCollaborativeWorkflow() {
               const { updates } = payload
               if (Array.isArray(updates)) {
                 useWorkflowStore.getState().batchUpdatePositions(updates)
+              }
+              break
+            }
+          }
+        } else if (target === OPERATION_TARGETS.SUBBLOCK) {
+          switch (operation) {
+            case SUBBLOCK_OPERATIONS.BATCH_UPDATE: {
+              const { updates } = payload
+              if (Array.isArray(updates)) {
+                updates.forEach(
+                  (update: { blockId: string; subblockId: string; value: unknown }) => {
+                    useSubBlockStore
+                      .getState()
+                      .setValue(update.blockId, update.subblockId, update.value)
+                    useWorkflowStore
+                      .getState()
+                      .syncDynamicHandleSubblockValue(
+                        update.blockId,
+                        update.subblockId,
+                        update.value
+                      )
+                  }
+                )
               }
               break
             }
@@ -1507,6 +1535,108 @@ export function useCollaborativeWorkflow() {
     [activeWorkflowId, addToQueue, session?.user?.id, isBaselineDiffView]
   )
 
+  const collaborativeBatchSetSubblockValues = useCallback(
+    (
+      updates: Array<{
+        blockId: string
+        subblockId: string
+        value: unknown
+        expectedValue?: unknown
+      }>,
+      options: {
+        subflowUpdates?: Array<{
+          blockId: string
+          blockType: 'loop' | 'parallel'
+          fieldId: WorkflowSearchSubflowFieldId
+          before: unknown
+          after: unknown
+        }>
+      } = {}
+    ) => {
+      const undoSubflowUpdates = options.subflowUpdates ?? []
+      if (
+        isApplyingRemoteChange.current ||
+        (updates.length === 0 && undoSubflowUpdates.length === 0)
+      ) {
+        return false
+      }
+
+      if (isBaselineDiffView) {
+        logger.debug('Skipping collaborative batch subblock update while viewing baseline diff')
+        return false
+      }
+
+      if (!activeWorkflowId) {
+        logger.debug('Skipping batch subblock update - no active workflow')
+        return false
+      }
+
+      const staleUpdate = updates.find((update) => {
+        if (!Object.hasOwn(update, 'expectedValue')) return false
+        const currentValue = useSubBlockStore.getState().getValue(update.blockId, update.subblockId)
+        return !isEqual(currentValue, update.expectedValue)
+      })
+      if (staleUpdate) {
+        logger.warn('Skipping batch subblock update because expected value changed', {
+          blockId: staleUpdate.blockId,
+          subblockId: staleUpdate.subblockId,
+        })
+        return false
+      }
+
+      const staleSubflowUpdate = undoSubflowUpdates.find((update) => {
+        const currentBlock = useWorkflowStore.getState().blocks[update.blockId]
+        if (!currentBlock || currentBlock.type !== update.blockType) return true
+        return !workflowSearchSubflowFieldMatchesExpected(
+          currentBlock,
+          update.fieldId,
+          update.before
+        )
+      })
+      if (staleSubflowUpdate) {
+        logger.warn('Skipping batch subflow update because expected value changed', {
+          blockId: staleSubflowUpdate.blockId,
+          fieldId: staleSubflowUpdate.fieldId,
+        })
+        return false
+      }
+
+      if (updates.length > 0) {
+        updates.forEach((update) => {
+          useSubBlockStore.getState().setValue(update.blockId, update.subblockId, update.value)
+          useWorkflowStore
+            .getState()
+            .syncDynamicHandleSubblockValue(update.blockId, update.subblockId, update.value)
+        })
+
+        const operationId = generateId()
+        addToQueue({
+          id: operationId,
+          operation: {
+            operation: SUBBLOCK_OPERATIONS.BATCH_UPDATE,
+            target: OPERATION_TARGETS.SUBBLOCK,
+            payload: { updates },
+          },
+          workflowId: activeWorkflowId,
+          userId: session?.user?.id || 'unknown',
+        })
+      }
+
+      undoRedo.recordBatchUpdateSubblocks(
+        updates.map((update) => ({
+          blockId: update.blockId,
+          subBlockId: update.subblockId,
+          before: update.expectedValue,
+          after: update.value,
+        })),
+        undoSubflowUpdates
+      )
+
+      return true
+    },
+    [activeWorkflowId, addToQueue, isBaselineDiffView, session?.user?.id, undoRedo]
+  )
+
   // Immediate tag selection (uses queue but processes immediately, no debouncing)
   const collaborativeSetTagSelection = useCallback(
     (blockId: string, subblockId: string, value: string) => {
@@ -1996,6 +2126,7 @@ export function useCollaborativeWorkflow() {
     collaborativeBatchAddEdges,
     collaborativeBatchRemoveEdges,
     collaborativeSetSubblockValue,
+    collaborativeBatchSetSubblockValues,
     collaborativeSetTagSelection,
 
     // Collaborative variable operations

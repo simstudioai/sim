@@ -27,13 +27,13 @@ export interface ModelPricing {
 
 export type ModelPricingMap = Record<string, ModelPricing>
 
-export interface TokenInfo {
+interface TokenInfo {
   input?: number
   output?: number
   total?: number
 }
 
-export interface TransformedResponse {
+interface TransformedResponse {
   content: string
   tokens?: TokenInfo
 }

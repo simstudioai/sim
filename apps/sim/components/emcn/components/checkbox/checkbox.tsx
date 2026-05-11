@@ -61,7 +61,7 @@ const checkboxIconVariants = cva('stroke-[3]', {
   },
 })
 
-export interface CheckboxProps
+interface CheckboxProps
   extends React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>,
     VariantProps<typeof checkboxVariants> {}
 

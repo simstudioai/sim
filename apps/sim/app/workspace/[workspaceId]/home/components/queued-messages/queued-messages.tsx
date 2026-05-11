@@ -46,9 +46,9 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
         className='flex w-full items-center gap-1.5 px-3.5 py-2 transition-colors hover-hover:bg-[var(--surface-active)]'
       >
         {isExpanded ? (
-          <ChevronDown className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+          <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
         ) : (
-          <ChevronRight className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+          <ChevronRight className='size-[14px] text-[var(--text-icon)]' />
         )}
         <span className='font-medium text-[var(--text-secondary)] text-small'>
           {messageQueue.length} Queued
@@ -62,8 +62,8 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
               key={msg.id}
               className='flex items-center gap-2 py-1.5 pr-2 pl-3.5 transition-colors hover-hover:bg-[var(--surface-active)]'
             >
-              <div className='flex h-[16px] w-[16px] shrink-0 items-center justify-center'>
-                <div className='h-[10px] w-[10px] rounded-full border-[1.5px] border-[color-mix(in_srgb,var(--text-tertiary)_40%,transparent)]' />
+              <div className='flex size-[16px] shrink-0 items-center justify-center'>
+                <div className='size-[10px] rounded-full border-[1.5px] border-[color-mix(in_srgb,var(--text-tertiary)_40%,transparent)]' />
               </div>
 
               <div className='min-w-0 flex-1 overflow-hidden'>
@@ -77,7 +77,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
 
               {msg.fileAttachments && msg.fileAttachments.length > 0 && (
                 <span className='inline-flex min-w-0 max-w-[40%] shrink items-center gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px] py-0.5 text-[var(--text-primary)] text-small'>
-                  <Paperclip className='h-[12px] w-[12px] shrink-0 text-[var(--text-icon)]' />
+                  <Paperclip className='size-[12px] shrink-0 text-[var(--text-icon)]' />
                   {isNarrow ? (
                     <span className='shrink-0 text-[var(--text-secondary)]'>
                       {msg.fileAttachments.length}
@@ -106,7 +106,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
                       }}
                       className='rounded-md p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                     >
-                      <Pencil className='h-[13px] w-[13px]' />
+                      <Pencil className='size-[13px]' />
                     </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top' sideOffset={4}>
@@ -124,7 +124,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
                       }}
                       className='rounded-md p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                     >
-                      <ArrowUp className='h-[13px] w-[13px]' />
+                      <ArrowUp className='size-[13px]' />
                     </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top' sideOffset={4}>
@@ -142,7 +142,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
                       }}
                       className='rounded-md p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                     >
-                      <Trash2 className='h-[13px] w-[13px]' />
+                      <Trash2 className='size-[13px]' />
                     </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top' sideOffset={4}>

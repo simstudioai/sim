@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '@/lib/api/contracts/types'
+import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import type {
   CsvHeaderMapping,
   Filter,
@@ -15,7 +15,7 @@ import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const domainObjectSchema = <T>() => z.custom<T>(isRecord)
+export const domainObjectSchema = <T>() => z.custom<T>(isRecord)
 
 /**
  * Column types are a fixed enum derived from `COLUMN_TYPES` so callers cannot
@@ -330,6 +330,7 @@ export const listTablesContract = defineRouteContract({
     ),
   },
 })
+export type ListTablesResponse = ContractJsonResponse<typeof listTablesContract>
 
 export const createTableContract = defineRouteContract({
   method: 'POST',
@@ -356,6 +357,7 @@ export const getTableContract = defineRouteContract({
     schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),
   },
 })
+export type GetTableResponse = ContractJsonResponse<typeof getTableContract>
 
 export const renameTableContract = defineRouteContract({
   method: 'PATCH',

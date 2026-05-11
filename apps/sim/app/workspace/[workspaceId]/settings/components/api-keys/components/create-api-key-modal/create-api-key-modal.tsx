@@ -30,6 +30,8 @@ interface CreateApiKeyModalProps {
   onKeyCreated?: (key: ApiKey) => void
 }
 
+const EMPTY_KEY_NAMES: string[] = []
+
 /**
  * Reusable modal for creating API keys.
  * Used in both the API keys settings page and the deploy modal.
@@ -38,7 +40,7 @@ export function CreateApiKeyModal({
   open,
   onOpenChange,
   workspaceId,
-  existingKeyNames = [],
+  existingKeyNames = EMPTY_KEY_NAMES,
   allowPersonalApiKeys = true,
   canManageWorkspaceKeys = false,
   defaultKeyType = 'personal',

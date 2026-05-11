@@ -14,14 +14,18 @@ interface TemplateCardButtonProps {
 export function TemplateCardButton({ prompt, className, children }: TemplateCardButtonProps) {
   const router = useRouter()
 
-  function handleClick() {
+  function savePromptAndNavigate() {
     LandingPromptStorage.store(prompt)
     trackLandingCta({ label: 'Template card', section: 'integrations', destination: '/signup' })
     router.push('/signup')
   }
 
   return (
-    <button type='button' onClick={handleClick} className={cn('w-full text-left', className)}>
+    <button
+      type='button'
+      onClick={savePromptAndNavigate}
+      className={cn('w-full text-left', className)}
+    >
       {children}
     </button>
   )

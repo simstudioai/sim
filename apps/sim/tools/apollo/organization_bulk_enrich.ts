@@ -24,7 +24,8 @@ export const apolloOrganizationBulkEnrichTool: ToolConfig<
       type: 'array',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Array of organizations to enrich (max 10)',
+      description:
+        'Array of organizations to enrich (max 10). Each item requires `name` and may include `domain` (e.g., [{"name": "Example Corp", "domain": "example.com"}])',
     },
   },
 
@@ -37,7 +38,7 @@ export const apolloOrganizationBulkEnrichTool: ToolConfig<
       'X-Api-Key': params.apiKey,
     }),
     body: (params: ApolloOrganizationBulkEnrichParams) => ({
-      details: params.organizations.slice(0, 10),
+      organizations: params.organizations.slice(0, 10),
     }),
   },
 
@@ -48,20 +49,28 @@ export const apolloOrganizationBulkEnrichTool: ToolConfig<
     }
 
     const data = await response.json()
+    const organizations = data.organizations ?? []
 
     return {
       success: true,
       output: {
-        organizations: data.matches || [],
-        total: data.matches?.length || 0,
-        enriched: data.matches?.filter((o: any) => o).length || 0,
+        organizations,
+        total: data.total_requested_domains ?? organizations.length,
+        enriched: data.unique_enriched_records ?? organizations.length,
+        missing_records: data.missing_records ?? 0,
+        unique_domains: data.unique_domains ?? organizations.length,
       },
     }
   },
 
   outputs: {
     organizations: { type: 'json', description: 'Array of enriched organization data' },
-    total: { type: 'number', description: 'Total number of organizations processed' },
-    enriched: { type: 'number', description: 'Number of organizations successfully enriched' },
+    total: { type: 'number', description: 'Total number of domains requested' },
+    enriched: { type: 'number', description: 'Number of unique enriched records' },
+    missing_records: {
+      type: 'number',
+      description: 'Number of domains that could not be enriched',
+    },
+    unique_domains: { type: 'number', description: 'Number of unique domains processed' },
   },
 }

@@ -356,8 +356,8 @@ export function CredentialSets() {
   }, [deletingSet, activeOrganization?.id, deleteCredentialSet])
 
   const getProviderIcon = (providerId: string | null) => {
-    if (providerId === 'outlook') return <OutlookIcon className='h-4 w-4' />
-    return <GmailIcon className='h-4 w-4' />
+    if (providerId === 'outlook') return <OutlookIcon className='size-4' />
+    return <GmailIcon className='size-4' />
   }
 
   const activeMemberships = useMemo(
@@ -461,7 +461,7 @@ export function CredentialSets() {
                     {[1, 2].map((i) => (
                       <div key={i} className='flex items-center justify-between'>
                         <div className='flex items-center gap-3'>
-                          <Skeleton className='h-8 w-8 rounded-full' />
+                          <Skeleton className='size-8 rounded-full' />
                           <div className='flex flex-col gap-1'>
                             <Skeleton className='h-[14px] w-[100px]' />
                             <Skeleton className='h-[12px] w-[150px]' />
@@ -612,7 +612,7 @@ export function CredentialSets() {
         <div className='flex items-center gap-2'>
           <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
-              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
             />
             <BaseInput
@@ -624,7 +624,7 @@ export function CredentialSets() {
           </div>
           {canManageCredentialSets && (
             <Button variant='primary' onClick={() => setShowCreateModal(true)}>
-              <Plus className='mr-1.5 h-[13px] w-[13px]' />
+              <Plus className='mr-1.5 size-[13px]' />
               Create
             </Button>
           )}
@@ -653,7 +653,7 @@ export function CredentialSets() {
                       className='flex items-center justify-between'
                     >
                       <div className='flex items-center gap-3'>
-                        <div className='flex h-9 w-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
+                        <div className='flex size-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
                           {getProviderIcon(invitation.providerId)}
                         </div>
                         <div className='flex flex-col'>
@@ -688,7 +688,7 @@ export function CredentialSets() {
                       className='flex items-center justify-between'
                     >
                       <div className='flex items-center gap-3'>
-                        <div className='flex h-9 w-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
+                        <div className='flex size-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
                           {getProviderIcon(membership.providerId)}
                         </div>
                         <div className='flex flex-col'>
@@ -725,7 +725,7 @@ export function CredentialSets() {
                         {[1, 2].map((i) => (
                           <div key={i} className='flex items-center justify-between'>
                             <div className='flex items-center gap-3'>
-                              <Skeleton className='h-9 w-9 rounded-md' />
+                              <Skeleton className='size-9 rounded-md' />
                               <div className='flex flex-col gap-1'>
                                 <Skeleton className='h-[14px] w-[120px]' />
                                 <Skeleton className='h-[12px] w-[80px]' />
@@ -742,7 +742,7 @@ export function CredentialSets() {
                       filteredOwnedSets.map((set) => (
                         <div key={set.id} className='flex items-center justify-between'>
                           <div className='flex items-center gap-3'>
-                            <div className='flex h-9 w-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
+                            <div className='flex size-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
                               {getProviderIcon(set.providerId)}
                             </div>
                             <div className='flex flex-col'>

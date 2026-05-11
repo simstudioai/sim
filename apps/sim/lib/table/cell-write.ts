@@ -117,6 +117,8 @@ export async function writeWorkflowGroupState(
 
   const dataPatch = payload.dataPatch
   const hasOutputs = dataPatch && Object.keys(dataPatch).length > 0
+  const runningBlockIds = payload.executionState.runningBlockIds
+  const blockErrors = payload.executionState.blockErrors
   void appendTableEvent({
     kind: 'cell',
     tableId,
@@ -127,6 +129,8 @@ export async function writeWorkflowGroupState(
     jobId: payload.executionState.jobId ?? null,
     error: payload.executionState.error ?? null,
     ...(hasOutputs ? { outputs: dataPatch } : {}),
+    ...(runningBlockIds && runningBlockIds.length > 0 ? { runningBlockIds } : {}),
+    ...(blockErrors && Object.keys(blockErrors).length > 0 ? { blockErrors } : {}),
   })
 
   return 'wrote'

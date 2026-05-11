@@ -14,6 +14,30 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 
+interface SelectedCountDisplayProps {
+  noneSelected: boolean
+  allSelected: boolean
+  count: number
+}
+
+function SelectedCountDisplay({ noneSelected, allSelected, count }: SelectedCountDisplayProps) {
+  if (noneSelected) {
+    return (
+      <span className='truncate font-medium text-[var(--text-muted)] text-sm'>None selected</span>
+    )
+  }
+  if (allSelected) {
+    return (
+      <span className='truncate font-medium text-[var(--text-primary)] text-sm'>All selected</span>
+    )
+  }
+  return (
+    <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
+      {count} selected
+    </span>
+  )
+}
+
 interface GroupedCheckboxListProps {
   blockId: string
   subBlockId: string
@@ -80,26 +104,6 @@ export function GroupedCheckboxList({
   const allSelected = selectedValues.length === options.length
   const noneSelected = selectedValues.length === 0
 
-  const SelectedCountDisplay = () => {
-    if (noneSelected) {
-      return (
-        <span className='truncate font-medium text-[var(--text-muted)] text-sm'>None selected</span>
-      )
-    }
-    if (allSelected) {
-      return (
-        <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
-          All selected
-        </span>
-      )
-    }
-    return (
-      <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
-        {selectedValues.length} selected
-      </span>
-    )
-  }
-
   return (
     <Modal open={open} onOpenChange={setOpen}>
       <ModalTrigger asChild>
@@ -112,10 +116,14 @@ export function GroupedCheckboxList({
           )}
         >
           <span className='flex flex-1 items-center gap-2 truncate text-[var(--text-muted)]'>
-            <Settings2 className='h-4 w-4 flex-shrink-0 opacity-50' />
+            <Settings2 className='size-4 flex-shrink-0 opacity-50' />
             <span className='truncate'>Configure PII Types</span>
           </span>
-          <SelectedCountDisplay />
+          <SelectedCountDisplay
+            noneSelected={noneSelected}
+            allSelected={allSelected}
+            count={selectedValues.length}
+          />
         </Button>
       </ModalTrigger>
       <ModalContent

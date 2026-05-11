@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, use } from 'react'
 
 /**
  * Provides the list of block types the learner is allowed to add in a sandbox exercise.
@@ -9,5 +9,5 @@ export const SandboxBlockConstraintsContext = createContext<string[] | null>(nul
 
 /** Returns the sandbox-allowed block types, or null if not in a sandbox context. */
 export function useSandboxBlockConstraints(): string[] | null {
-  return useContext(SandboxBlockConstraintsContext)
+  return use(SandboxBlockConstraintsContext)
 }

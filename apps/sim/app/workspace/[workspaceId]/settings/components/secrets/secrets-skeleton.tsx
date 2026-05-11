@@ -13,7 +13,7 @@ function SecretRowSkeleton() {
       <div />
       <Skeleton className='h-9 rounded-md' />
       <Skeleton className='ml-2 h-9 w-[60px] rounded-md' />
-      <Skeleton className='h-9 w-9 rounded-md' />
+      <Skeleton className='size-9 rounded-md' />
     </div>
   )
 }

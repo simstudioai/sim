@@ -4,7 +4,7 @@
 
 export type JsonSchema = unknown
 
-export interface ToolRuntimeSchemaEntry {
+interface ToolRuntimeSchemaEntry {
   parameters?: JsonSchema
   resultSchema?: JsonSchema
 }

@@ -40,7 +40,7 @@ export interface Neo4jExecuteParams extends Neo4jConnectionConfig {
   parameters?: Record<string, unknown>
 }
 
-export interface Neo4jBaseResponse extends ToolResponse {
+interface Neo4jBaseResponse extends ToolResponse {
   output: {
     message: string
     records?: unknown[]
@@ -66,12 +66,12 @@ export interface Neo4jBaseResponse extends ToolResponse {
   error?: string
 }
 
-export interface Neo4jQueryResponse extends Neo4jBaseResponse {}
-export interface Neo4jCreateResponse extends Neo4jBaseResponse {}
-export interface Neo4jMergeResponse extends Neo4jBaseResponse {}
-export interface Neo4jUpdateResponse extends Neo4jBaseResponse {}
-export interface Neo4jDeleteResponse extends Neo4jBaseResponse {}
-export interface Neo4jExecuteResponse extends Neo4jBaseResponse {}
+interface Neo4jQueryResponse extends Neo4jBaseResponse {}
+interface Neo4jCreateResponse extends Neo4jBaseResponse {}
+interface Neo4jMergeResponse extends Neo4jBaseResponse {}
+interface Neo4jUpdateResponse extends Neo4jBaseResponse {}
+interface Neo4jDeleteResponse extends Neo4jBaseResponse {}
+interface Neo4jExecuteResponse extends Neo4jBaseResponse {}
 export interface Neo4jResponse extends Neo4jBaseResponse {}
 
 export interface Neo4jIntrospectParams extends Neo4jConnectionConfig {}

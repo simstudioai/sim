@@ -6,7 +6,7 @@ import {
   createContext,
   isValidElement,
   memo,
-  useContext,
+  use,
   useEffect,
   useMemo,
   useRef,
@@ -191,7 +191,6 @@ const MarkdownCheckboxCtx = createContext<{
   contentRef: React.MutableRefObject<string>
   onToggle: (index: number, checked: boolean) => void
 } | null>(null)
-const MermaidStreamingCtx = createContext(false)
 
 /** Carries the resolved checkbox index from LiRenderer to InputRenderer. */
 const CheckboxIndexCtx = createContext(-1)
@@ -303,7 +302,7 @@ function MermaidSourcePreview({
         <span className='text-[11px] text-[var(--text-tertiary)]'>mermaid</span>
         {(isRendering || status) && (
           <span className='text-[11px] text-[var(--text-muted)]'>
-            {isRendering ? 'Rendering...' : status}
+            {isRendering ? 'Rendering…' : status}
           </span>
         )}
       </div>
@@ -321,7 +320,7 @@ function MermaidCodeBlockSkeleton() {
     <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
       <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
         <span className='text-[11px] text-[var(--text-tertiary)]'>mermaid</span>
-        <span className='text-[11px] text-[var(--text-muted)]'>Rendering...</span>
+        <span className='text-[11px] text-[var(--text-muted)]'>Rendering…</span>
       </div>
       <div className='code-editor-theme bg-[var(--surface-5)]'>
         <div className='space-y-2 p-4'>
@@ -493,17 +492,6 @@ const STATIC_MARKDOWN_COMPONENTS = {
       ) ?? children}
     </>
   ),
-  'mermaid-diagram': ({ definition }: { definition?: string }) => {
-    const isStreaming = useContext(MermaidStreamingCtx)
-    return (
-      <MermaidDiagram
-        definition={definition ?? ''}
-        isStreaming={isStreaming}
-        zoomable
-        zoomClassName='my-4 h-[420px] rounded-lg'
-      />
-    )
-  },
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className='mb-3 break-words text-[14px] text-[var(--text-primary)] leading-[1.6] last:mb-0'>
       {children}
@@ -696,7 +684,7 @@ function LiRenderer({
   children?: React.ReactNode
   node?: HastNode
 }) {
-  const ctx = useContext(MarkdownCheckboxCtx)
+  const ctx = use(MarkdownCheckboxCtx)
   const isTaskItem = typeof className === 'string' && className.includes('task-list-item')
 
   if (isTaskItem) {
@@ -736,8 +724,8 @@ function LiRenderer({
 }
 
 function InputRenderer({ type, checked, ...props }: React.ComponentPropsWithoutRef<'input'>) {
-  const ctx = useContext(MarkdownCheckboxCtx)
-  const index = useContext(CheckboxIndexCtx)
+  const ctx = use(MarkdownCheckboxCtx)
+  const index = use(CheckboxIndexCtx)
 
   if (type !== 'checkbox') return <input type={type} checked={checked} {...props} />
 
@@ -777,10 +765,10 @@ function isInternalHref(
 }
 
 function AnchorRenderer({ href, children }: { href?: string; children?: React.ReactNode }) {
-  const navigate = useContext(NavigateCtx)
+  const navigate = use(NavigateCtx)
   const parsed = href ? isInternalHref(href) : null
 
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleMarkdownLinkClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!parsed || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
 
     e.preventDefault()
@@ -811,7 +799,7 @@ function AnchorRenderer({ href, children }: { href?: string; children?: React.Re
       href={href}
       target={parsed ? undefined : '_blank'}
       rel={parsed ? undefined : 'noopener noreferrer'}
-      onClick={handleClick}
+      onClick={handleMarkdownLinkClick}
       className='break-all text-[var(--brand-secondary)] underline-offset-2 hover:underline'
     >
       {children}
@@ -826,6 +814,20 @@ const MARKDOWN_COMPONENTS = {
   ol: OlRenderer,
   li: LiRenderer,
   input: InputRenderer,
+}
+
+function createMarkdownComponents(isStreaming: boolean) {
+  return {
+    ...MARKDOWN_COMPONENTS,
+    'mermaid-diagram': ({ definition }: { definition?: string }) => (
+      <MermaidDiagram
+        definition={definition ?? ''}
+        isStreaming={isStreaming}
+        zoomable
+        zoomClassName='my-4 h-[420px] rounded-lg'
+      />
+    ),
+  }
 }
 
 function FrontMatterCard({ data }: { data: Record<string, unknown> }) {
@@ -905,21 +907,20 @@ const MarkdownPreview = memo(function MarkdownPreview({
   }, [content])
 
   const streamdownMode = isStreaming ? undefined : 'static'
+  const markdownComponents = useMemo(() => createMarkdownComponents(isStreaming), [isStreaming])
 
   const body = (
     <div ref={autoScrollRef} className='h-full overflow-auto p-6'>
       {frontMatterData && <FrontMatterCard data={frontMatterData} />}
-      <MermaidStreamingCtx.Provider value={isStreaming}>
-        <Streamdown
-          mode={streamdownMode}
-          remarkPlugins={REMARK_PLUGINS}
-          rehypePlugins={REHYPE_PLUGINS}
-          components={MARKDOWN_COMPONENTS}
-          allowedTags={{ 'mermaid-diagram': ['definition'] }}
-        >
-          {markdownContent}
-        </Streamdown>
-      </MermaidStreamingCtx.Provider>
+      <Streamdown
+        mode={streamdownMode}
+        remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={REHYPE_PLUGINS}
+        components={markdownComponents}
+        allowedTags={{ 'mermaid-diagram': ['definition'] }}
+      >
+        {markdownContent}
+      </Streamdown>
     </div>
   )
 

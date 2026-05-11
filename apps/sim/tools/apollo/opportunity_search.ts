@@ -20,29 +20,11 @@ export const apolloOpportunitySearchTool: ToolConfig<
       visibility: 'hidden',
       description: 'Apollo API key',
     },
-    q_keywords: {
+    sort_by_field: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Keywords to search for in opportunity names',
-    },
-    account_ids: {
-      type: 'array',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by specific account IDs (e.g., ["acc_123", "acc_456"])',
-    },
-    stage_ids: {
-      type: 'array',
-      required: false,
-      visibility: 'user-only',
-      description: 'Filter by deal stage IDs',
-    },
-    owner_ids: {
-      type: 'array',
-      required: false,
-      visibility: 'user-only',
-      description: 'Filter by opportunity owner IDs',
+      description: 'Sort field: "amount", "is_closed", or "is_won"',
     },
     page: {
       type: 'number',
@@ -59,24 +41,18 @@ export const apolloOpportunitySearchTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.apollo.io/api/v1/opportunities/search',
-    method: 'POST',
+    url: (params: ApolloOpportunitySearchParams) => {
+      const query = new URLSearchParams()
+      query.set('page', String(params.page || 1))
+      query.set('per_page', String(Math.min(params.per_page || 25, 100)))
+      if (params.sort_by_field) query.set('sort_by_field', params.sort_by_field)
+      return `https://api.apollo.io/api/v1/opportunities/search?${query.toString()}`
+    },
+    method: 'GET',
     headers: (params: ApolloOpportunitySearchParams) => ({
-      'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
     }),
-    body: (params: ApolloOpportunitySearchParams) => {
-      const body: any = {
-        page: params.page || 1,
-        per_page: Math.min(params.per_page || 25, 100),
-      }
-      if (params.q_keywords) body.q_keywords = params.q_keywords
-      if (params.account_ids?.length) body.account_ids = params.account_ids
-      if (params.stage_ids?.length) body.stage_ids = params.stage_ids
-      if (params.owner_ids?.length) body.owner_ids = params.owner_ids
-      return body
-    },
   },
 
   transformResponse: async (response: Response) => {
@@ -90,10 +66,10 @@ export const apolloOpportunitySearchTool: ToolConfig<
     return {
       success: true,
       output: {
-        opportunities: data.opportunities || [],
-        page: data.pagination?.page || 1,
-        per_page: data.pagination?.per_page || 25,
-        total_entries: data.pagination?.total_entries || 0,
+        opportunities: data.opportunities ?? [],
+        page: data.pagination?.page ?? 1,
+        per_page: data.pagination?.per_page ?? 25,
+        total_entries: data.pagination?.total_entries ?? 0,
       },
     }
   },

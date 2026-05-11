@@ -161,12 +161,11 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                             emailErrors.length > 0 &&
                             'border-red-500 focus:border-red-500'
                         )}
-                        autoFocus
                       />
                       {showEmailValidationError && emailErrors.length > 0 && (
                         <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                          {emailErrors.map((error, index) => (
-                            <p key={index}>{error}</p>
+                          {emailErrors.map((error) => (
+                            <p key={error}>{error}</p>
                           ))}
                         </div>
                       )}
@@ -179,8 +178,8 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                     >
                       {requestOtp.isPending ? (
                         <span className='flex items-center gap-2'>
-                          <Loader className='h-4 w-4' animate />
-                          Sending Code...
+                          <Loader className='size-4' animate />
+                          Sending Code…
                         </span>
                       ) : (
                         'Continue'
@@ -232,8 +231,8 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                     >
                       {verifyOtp.isPending ? (
                         <span className='flex items-center gap-2'>
-                          <Loader className='h-4 w-4' animate />
-                          Verifying...
+                          <Loader className='size-4' animate />
+                          Verifying…
                         </span>
                       ) : (
                         'Verify Email'

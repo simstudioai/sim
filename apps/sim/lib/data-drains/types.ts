@@ -65,12 +65,12 @@ export interface DeliveryMetadata {
   runStartedAt: Date
 }
 
-export interface DeliveryResult {
+interface DeliveryResult {
   /** Stable identifier for the written object: e.g. `s3://bucket/key` or `https://host/path`. */
   locator: string
 }
 
-export interface DrainDeliverySession {
+interface DrainDeliverySession {
   deliver(input: {
     body: Buffer
     contentType: 'application/x-ndjson'

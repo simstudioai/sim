@@ -674,7 +674,7 @@ export function getSandboxWorkspaceFilePath(
 
 /**
  * Find a workspace file record in an existing list from either its id or a VFS/name reference.
- * For copilot `open_resource` and the resource panel, use {@link getWorkspaceFile} with a UUID only.
+ * For copilot `open_resource` and the resource panel, use {@link getWorkspaceFile} with the file id.
  */
 export function findWorkspaceFileRecord(
   files: WorkspaceFileRecord[],

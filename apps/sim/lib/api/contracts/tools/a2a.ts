@@ -2,12 +2,12 @@ import { z } from 'zod'
 import { genericToolResponseSchema } from '@/lib/api/contracts/tools/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
-const a2aBaseBodySchema = z.object({
+export const a2aBaseBodySchema = z.object({
   agentUrl: z.string().min(1, 'Agent URL is required'),
   apiKey: z.string().optional(),
 })
 
-const a2aTaskBodySchema = a2aBaseBodySchema.extend({
+export const a2aTaskBodySchema = a2aBaseBodySchema.extend({
   taskId: z.string().min(1, 'Task ID is required'),
 })
 

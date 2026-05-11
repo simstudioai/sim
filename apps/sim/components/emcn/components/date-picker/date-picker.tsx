@@ -385,13 +385,13 @@ function CalendarMonth({
         {showNavigation === 'left' || showNavigation === 'both' ? (
           <button
             type='button'
-            className='flex h-[24px] w-[24px] items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
+            className='flex size-[24px] items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
             onClick={onPrevMonth}
           >
-            <ChevronLeft className='h-4 w-4' />
+            <ChevronLeft className='size-4' />
           </button>
         ) : (
-          <div className='h-[24px] w-[24px]' />
+          <div className='size-[24px]' />
         )}
         <span className='font-medium text-[var(--text-primary)] text-small'>
           {MONTHS[viewMonth]} {viewYear}
@@ -399,13 +399,13 @@ function CalendarMonth({
         {showNavigation === 'right' || showNavigation === 'both' ? (
           <button
             type='button'
-            className='flex h-[24px] w-[24px] items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
+            className='flex size-[24px] items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
             onClick={onNextMonth}
           >
-            <ChevronRight className='h-4 w-4' />
+            <ChevronRight className='size-4' />
           </button>
         ) : (
-          <div className='h-[24px] w-[24px]' />
+          <div className='size-[24px]' />
         )}
       </div>
 
@@ -787,7 +787,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
       />
 
       {/* Today Button */}
-      <div className='border-[var(--border-1)] border-t px-2 py-2'>
+      <div className='border-[var(--border-1)] border-t p-2'>
         <Button variant='active' className='w-full' onClick={handleSelectToday}>
           Today
         </Button>

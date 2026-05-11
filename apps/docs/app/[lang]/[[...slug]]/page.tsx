@@ -306,9 +306,12 @@ export async function generateMetadata(props: {
       siteName: 'Sim Documentation',
       type: 'article',
       locale: OG_LOCALE_MAP[lang] ?? 'en_US',
-      alternateLocale: i18n.languages
-        .filter((l) => l !== lang)
-        .map((l) => OG_LOCALE_MAP[l] ?? 'en_US'),
+      alternateLocale: i18n.languages.reduce<string[]>((locales, l) => {
+        if (l !== lang) {
+          locales.push(OG_LOCALE_MAP[l] ?? 'en_US')
+        }
+        return locales
+      }, []),
       images: [
         {
           url: ogImageUrl,

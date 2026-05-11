@@ -741,7 +741,7 @@ export async function executeRunFromBlock(
   }
 }
 
-export async function executeUpdateWorkflow(
+async function executeUpdateWorkflow(
   params: UpdateWorkflowParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
@@ -1004,7 +1004,7 @@ export async function executeDeleteFolder(
   }
 }
 
-export async function executeRenameFolder(
+async function executeRenameFolder(
   params: RenameFolderParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {

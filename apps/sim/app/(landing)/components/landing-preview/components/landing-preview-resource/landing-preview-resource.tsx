@@ -35,7 +35,7 @@ interface LandingPreviewResourceProps {
 export function ownerCell(initial: string, name: string): PreviewCell {
   return {
     icon: (
-      <span className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+      <span className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
         {initial}
       </span>
     ),
@@ -88,11 +88,11 @@ export function LandingPreviewResource({
       <div className='border-[var(--border)] border-b px-6 py-2.5'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-3'>
-            <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+            <Icon className='size-[14px] text-[var(--text-icon)]' />
             <h1 className='font-medium text-[var(--text-body)] text-sm'>{title}</h1>
           </div>
           <div className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
-            <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+            <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
             {createLabel}
           </div>
         </div>
@@ -102,7 +102,7 @@ export function LandingPreviewResource({
       <div className='border-[var(--border)] border-b px-6 py-2.5'>
         <div className='flex items-center justify-between'>
           <div className='flex flex-1 items-center gap-2.5'>
-            <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+            <Search className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
             <input
               type='text'
               value={search}
@@ -113,7 +113,7 @@ export function LandingPreviewResource({
           </div>
           <div className='flex items-center gap-1.5'>
             <div className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption'>
-              <ListFilter className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+              <ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
               Filter
             </div>
             <button
@@ -121,7 +121,7 @@ export function LandingPreviewResource({
               onClick={() => handleSortClick(sortColId ?? columns[0]?.id)}
               className='flex cursor-default items-center rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-3)]'
             >
-              <ArrowUpDown className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+              <ArrowUpDown className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
               Sort
             </button>
           </div>
@@ -157,9 +157,7 @@ export function LandingPreviewResource({
                     )}
                   >
                     {col.header}
-                    {sortColId === col.id && (
-                      <ArrowUpDown className='h-[10px] w-[10px] opacity-60' />
-                    )}
+                    {sortColId === col.id && <ArrowUpDown className='size-[10px] opacity-60' />}
                   </button>
                 </th>
               ))}

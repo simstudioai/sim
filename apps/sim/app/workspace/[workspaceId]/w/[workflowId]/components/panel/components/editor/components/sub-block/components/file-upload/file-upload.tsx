@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
@@ -12,7 +13,11 @@ import { fileDeleteContract } from '@/lib/api/contracts/storage-transfer'
 import { cn } from '@/lib/core/utils/cn'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import {
+  useUploadWorkspaceFile,
+  useWorkspaceFiles,
+  workspaceFilesKeys,
+} from '@/hooks/queries/workspace-files'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -115,14 +120,14 @@ function SingleFileSelector({
       <Button
         type='button'
         variant='ghost'
-        className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10 h-6 w-6 p-0'
+        className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10 size-6 p-0'
         onClick={onClear}
         disabled={isDeleting}
       >
         {isDeleting ? (
-          <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+          <div className='size-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
         ) : (
-          <X className='h-4 w-4 opacity-50 hover-hover:opacity-100' />
+          <X className='size-4 opacity-50 hover-hover:opacity-100' />
         )}
       </Button>
     </div>
@@ -155,7 +160,7 @@ export function FileUpload({
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { activeWorkflowId } = useWorkflowRegistry()
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const params = useParams()
   const workspaceId = params?.workspaceId as string
 
@@ -164,6 +169,9 @@ export function FileUpload({
     isLoading: loadingWorkspaceFiles,
     refetch: refetchWorkspaceFiles,
   } = useWorkspaceFiles(isPreview ? '' : workspaceId)
+
+  const uploadFileMutation = useUploadWorkspaceFile()
+  const queryClient = useQueryClient()
 
   const value = isPreview ? previewValue : storeValue
 
@@ -310,58 +318,25 @@ export function FileUpload({
 
       for (const file of validFiles) {
         try {
-          const formData = new FormData()
-          formData.append('file', file)
-          formData.append('context', 'workspace')
-
-          if (workspaceId) {
-            formData.append('workspaceId', workspaceId)
-          }
-
-          // boundary-raw-fetch: multipart/form-data upload (FileUpload boundary), incompatible with requestJson which JSON-stringifies bodies
-          const response = await fetch('/api/files/upload', {
-            method: 'POST',
-            body: formData,
+          const data = await uploadFileMutation.mutateAsync({
+            workspaceId,
+            file,
+            skipToast: true,
+            skipInvalidation: true,
           })
 
-          const data = await response.json()
-
-          if (!response.ok) {
-            const errorMessage =
-              data.message || data.error || `Failed to upload file: ${response.status}`
-            uploadErrors.push(`${file.name}: ${errorMessage}`)
-
-            setUploadError(errorMessage)
-
-            if (data.isDuplicate || response.status === 409) {
-              setTimeout(() => setUploadError(null), 5000)
-            }
-            continue
-          }
-
-          if (data.success === false) {
-            const errorMessage = data.error || 'Upload failed'
-            uploadErrors.push(`${file.name}: ${errorMessage}`)
-
-            setUploadError(errorMessage)
-
-            if (data.isDuplicate) {
-              setTimeout(() => setUploadError(null), 5000)
-            }
-            continue
-          }
-
           uploadedFiles.push({
-            name: file.name,
-            path: data.file?.url || data.url, // Workspace: data.file.url, Non-workspace: data.url
-            key: data.file?.key || data.key, // Storage key for proper file access
-            size: file.size,
-            type: file.type,
+            name: data.file.name,
+            path: data.file.url,
+            key: data.file.key,
+            size: data.file.size,
+            type: data.file.type,
           })
         } catch (error) {
           logger.error(`Error uploading ${file.name}:`, error)
           const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           uploadErrors.push(`${file.name}: ${errorMessage}`)
+          setUploadError(errorMessage)
         }
       }
 
@@ -377,6 +352,7 @@ export function FileUpload({
 
         if (workspaceId) {
           void refetchWorkspaceFiles()
+          void queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
         }
 
         if (uploadedFiles.length === 1) {
@@ -541,14 +517,14 @@ export function FileUpload({
         <Button
           type='button'
           variant='ghost'
-          className='-translate-y-1/2 absolute top-1/2 right-[4px] h-6 w-6 p-0'
+          className='-translate-y-1/2 absolute top-1/2 right-[4px] size-6 p-0'
           onClick={(e) => handleRemoveFile(file, e)}
           disabled={isDeleting}
         >
           {isDeleting ? (
-            <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+            <div className='size-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
           ) : (
-            <X className='h-4 w-4 opacity-50' />
+            <X className='size-4 opacity-50' />
           )}
         </Button>
       </div>
@@ -565,8 +541,8 @@ export function FileUpload({
           <span className='text-[var(--text-primary)]'>{file.name}</span>
           <span className='ml-2 text-[var(--text-muted)]'>({formatFileSize(file.size)})</span>
         </div>
-        <div className='flex h-5 w-5 shrink-0 items-center justify-center'>
-          <div className='h-3.5 w-3.5 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+        <div className='flex size-5 shrink-0 items-center justify-center'>
+          <div className='size-3.5 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
         </div>
       </div>
     )
@@ -655,7 +631,7 @@ export function FileUpload({
   }
 
   return (
-    <div className='w-full' onClick={(e) => e.stopPropagation()}>
+    <div role='presentation' className='w-full' onClick={(e) => e.stopPropagation()}>
       <input
         type='file'
         ref={fileInputRef}

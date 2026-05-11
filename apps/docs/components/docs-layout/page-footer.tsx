@@ -46,7 +46,7 @@ export function PageFooter({ previous, next }: PageFooterProps) {
                 Previous
               </span>
               <span className='flex items-center gap-1.5 font-[470] text-[rgba(0,0,0,0.7)] text-sm transition-colors group-hover:text-[rgba(0,0,0,0.88)] dark:text-[rgba(255,255,255,0.7)] dark:group-hover:text-[rgba(255,255,255,0.92)]'>
-                <ChevronLeft className='h-3.5 w-3.5 shrink-0' />
+                <ChevronLeft className='size-3.5 shrink-0' />
                 {previous.name}
               </span>
             </Link>
@@ -68,7 +68,7 @@ export function PageFooter({ previous, next }: PageFooterProps) {
               </span>
               <span className='flex items-center gap-1.5 font-[470] text-[rgba(0,0,0,0.7)] text-sm transition-colors group-hover:text-[rgba(0,0,0,0.88)] dark:text-[rgba(255,255,255,0.7)] dark:group-hover:text-[rgba(255,255,255,0.92)]'>
                 {next.name}
-                <ChevronRight className='h-3.5 w-3.5 shrink-0' />
+                <ChevronRight className='size-3.5 shrink-0' />
               </span>
             </Link>
           ) : (
@@ -90,7 +90,7 @@ export function PageFooter({ previous, next }: PageFooterProps) {
           >
             <svg
               viewBox='0 0 24 24'
-              className='h-5 w-5 fill-gray-400 transition-colors hover:fill-gray-500 dark:fill-gray-500 dark:hover:fill-gray-400'
+              className='size-5 fill-neutral-400 transition-colors hover:fill-neutral-500 dark:fill-neutral-500 dark:hover:fill-neutral-400'
             >
               <path d={link.icon} />
             </svg>

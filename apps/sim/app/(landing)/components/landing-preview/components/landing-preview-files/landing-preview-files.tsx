@@ -81,9 +81,9 @@ const ROWS: PreviewRow[] = [
   {
     id: '1',
     cells: {
-      name: { icon: <PdfIcon className='h-[14px] w-[14px]' />, label: 'Q1 Performance Report.pdf' },
+      name: { icon: <PdfIcon className='size-[14px]' />, label: 'Q1 Performance Report.pdf' },
       size: { label: '2.4 MB' },
-      type: { icon: <PdfIcon className='h-[14px] w-[14px]' />, label: 'PDF' },
+      type: { icon: <PdfIcon className='size-[14px]' />, label: 'PDF' },
       created: { label: '3 hours ago' },
       owner: ownerCell('T', 'Theo L.'),
     },
@@ -91,9 +91,9 @@ const ROWS: PreviewRow[] = [
   {
     id: '2',
     cells: {
-      name: { icon: <ZipIcon className='h-[14px] w-[14px]' />, label: 'product-screenshots.zip' },
+      name: { icon: <ZipIcon className='size-[14px]' />, label: 'product-screenshots.zip' },
       size: { label: '18.7 MB' },
-      type: { icon: <ZipIcon className='h-[14px] w-[14px]' />, label: 'ZIP' },
+      type: { icon: <ZipIcon className='size-[14px]' />, label: 'ZIP' },
       created: { label: '1 day ago' },
       owner: ownerCell('A', 'Alex M.'),
     },
@@ -101,9 +101,9 @@ const ROWS: PreviewRow[] = [
   {
     id: '3',
     cells: {
-      name: { icon: <JsonlIcon className='h-[14px] w-[14px]' />, label: 'training-dataset.jsonl' },
+      name: { icon: <JsonlIcon className='size-[14px]' />, label: 'training-dataset.jsonl' },
       size: { label: '892 KB' },
-      type: { icon: <JsonlIcon className='h-[14px] w-[14px]' />, label: 'JSONL' },
+      type: { icon: <JsonlIcon className='size-[14px]' />, label: 'JSONL' },
       created: { label: '3 days ago' },
       owner: ownerCell('J', 'Jordan P.'),
     },
@@ -111,9 +111,9 @@ const ROWS: PreviewRow[] = [
   {
     id: '4',
     cells: {
-      name: { icon: <PdfIcon className='h-[14px] w-[14px]' />, label: 'brand-guidelines.pdf' },
+      name: { icon: <PdfIcon className='size-[14px]' />, label: 'brand-guidelines.pdf' },
       size: { label: '5.1 MB' },
-      type: { icon: <PdfIcon className='h-[14px] w-[14px]' />, label: 'PDF' },
+      type: { icon: <PdfIcon className='size-[14px]' />, label: 'PDF' },
       created: { label: '1 week ago' },
       owner: ownerCell('S', 'Sarah K.'),
     },
@@ -121,9 +121,9 @@ const ROWS: PreviewRow[] = [
   {
     id: '5',
     cells: {
-      name: { icon: <AudioIcon className='h-[14px] w-[14px]' />, label: 'customer-interviews.mp3' },
+      name: { icon: <AudioIcon className='size-[14px]' />, label: 'customer-interviews.mp3' },
       size: { label: '45.2 MB' },
-      type: { icon: <AudioIcon className='h-[14px] w-[14px]' />, label: 'Audio' },
+      type: { icon: <AudioIcon className='size-[14px]' />, label: 'Audio' },
       created: { label: 'March 20th, 2026' },
       owner: ownerCell('V', 'Vik M.'),
     },
@@ -131,9 +131,9 @@ const ROWS: PreviewRow[] = [
   {
     id: '6',
     cells: {
-      name: { icon: <DocxIcon className='h-[14px] w-[14px]' />, label: 'onboarding-playbook.docx' },
+      name: { icon: <DocxIcon className='size-[14px]' />, label: 'onboarding-playbook.docx' },
       size: { label: '1.1 MB' },
-      type: { icon: <DocxIcon className='h-[14px] w-[14px]' />, label: 'DOCX' },
+      type: { icon: <DocxIcon className='size-[14px]' />, label: 'DOCX' },
       created: { label: 'March 14th, 2026' },
       owner: ownerCell('S', 'Sarah K.'),
     },

@@ -27,8 +27,6 @@ export function generateFileId(): string {
   return `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 }
 
-export { isUuid }
-
 /**
  * Check if a key matches execution file pattern
  * Execution files have keys in format: execution/workspaceId/workflowId/executionId/filename

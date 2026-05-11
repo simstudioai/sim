@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '@/lib/api/contracts/types'
+import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import type { McpToolSchema, McpToolSchemaProperty } from '@/lib/mcp/types'
 
 const dateStringSchema = z.preprocess(
@@ -271,6 +271,7 @@ export const listMcpServersContract = defineRouteContract({
     ),
   },
 })
+export type ListMcpServersResponse = ContractJsonResponse<typeof listMcpServersContract>
 
 export const createMcpServerContract = defineRouteContract({
   method: 'POST',
@@ -343,6 +344,7 @@ export const discoverMcpToolsContract = defineRouteContract({
     ),
   },
 })
+export type DiscoverMcpToolsResponse = ContractJsonResponse<typeof discoverMcpToolsContract>
 
 export const refreshMcpToolsContract = defineRouteContract({
   method: 'POST',

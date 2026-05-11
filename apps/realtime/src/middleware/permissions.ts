@@ -46,6 +46,7 @@ const WRITE_OPERATIONS: string[] = [
   SUBFLOW_OPERATIONS.UPDATE,
   // Subblock operations
   SUBBLOCK_OPERATIONS.UPDATE,
+  SUBBLOCK_OPERATIONS.BATCH_UPDATE,
   // Variable operations
   VARIABLE_OPERATIONS.UPDATE,
   // Workflow operations

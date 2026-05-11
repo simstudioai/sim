@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
+import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 
 const logger = createLogger('LogsExportAPI')
 
@@ -43,6 +44,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       cost: workflowExecutionLogs.cost,
       executionData: workflowExecutionLogs.executionData,
       workflowName: sql<string>`COALESCE(${workflow.name}, 'Deleted Workflow')`,
+    }
+
+    if (params.folderIds) {
+      params.folderIds = await expandFolderIdsWithDescendants(params.workspaceId, params.folderIds)
     }
 
     const workspaceCondition = eq(workflowExecutionLogs.workspaceId, params.workspaceId)

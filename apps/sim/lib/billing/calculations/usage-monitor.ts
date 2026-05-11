@@ -205,7 +205,7 @@ export async function checkUsageStatus(
  * Displays a notification to the user when they're approaching their usage limit
  * Can be called on app startup or before executing actions that might incur costs
  */
-export async function checkAndNotifyUsage(userId: string): Promise<void> {
+async function checkAndNotifyUsage(userId: string): Promise<void> {
   try {
     if (!isBillingEnabled) {
       return

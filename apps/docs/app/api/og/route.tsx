@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { ImageResponse } from 'next/og'
 import type { NextRequest } from 'next/server'
 
@@ -8,6 +9,34 @@ const TITLE_FONT_SIZE = {
   medium: 56,
   small: 48,
 } as const
+const FONT_CACHE_REVALIDATE_SECONDS = 60 * 60 * 24 * 30
+const OG_CONTAINER_STYLE = {
+  height: '100%',
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'space-between',
+  padding: '56px 64px',
+  background: '#121212',
+  fontFamily: 'Geist',
+} satisfies CSSProperties
+const OG_TITLE_STYLE = {
+  fontWeight: 500,
+  color: '#fafafa',
+  lineHeight: 1.2,
+  letterSpacing: '-0.02em',
+} satisfies CSSProperties
+const OG_FOOTER_STYLE = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  width: '100%',
+} satisfies CSSProperties
+const OG_DOMAIN_STYLE = {
+  fontSize: 20,
+  fontWeight: 400,
+  color: '#71717a',
+} satisfies CSSProperties
 
 function getTitleFontSize(title: string): number {
   if (title.length > 45) return TITLE_FONT_SIZE.small
@@ -15,17 +44,34 @@ function getTitleFontSize(title: string): number {
   return TITLE_FONT_SIZE.large
 }
 
+function getTitleStyle(title: string): CSSProperties {
+  return {
+    ...OG_TITLE_STYLE,
+    fontSize: getTitleFontSize(title),
+  }
+}
+
 /**
  * Loads a Google Font dynamically by fetching the CSS and extracting the font URL.
  */
 async function loadGoogleFont(font: string, weights: string, text: string): Promise<ArrayBuffer> {
   const url = `https://fonts.googleapis.com/css2?family=${font}:wght@${weights}&text=${encodeURIComponent(text)}`
-  const css = await (await fetch(url)).text()
+  const cssResponse = await fetch(url, {
+    next: { revalidate: FONT_CACHE_REVALIDATE_SECONDS },
+  })
+
+  if (!cssResponse.ok) {
+    throw new Error(`Failed to load font CSS: ${cssResponse.status} ${cssResponse.statusText}`)
+  }
+
+  const css = await cssResponse.text()
   const resource = css.match(/src: url\((.+)\) format\('(opentype|truetype)'\)/)
 
   if (resource) {
-    const response = await fetch(resource[1])
-    if (response.status === 200) {
+    const response = await fetch(resource[1], {
+      next: { revalidate: FONT_CACHE_REVALIDATE_SECONDS },
+    })
+    if (response.ok) {
       return await response.arrayBuffer()
     }
   }
@@ -72,50 +118,14 @@ export async function GET(request: NextRequest) {
   const fontData = await loadGoogleFont('Geist', '400;500;600', allText)
 
   return new ImageResponse(
-    <div
-      style={{
-        height: '100%',
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        padding: '56px 64px',
-        background: '#121212', // Dark mode background matching docs (hsla 0, 0%, 7%)
-        fontFamily: 'Geist',
-      }}
-    >
+    <div style={OG_CONTAINER_STYLE}>
       {/* Title at top */}
-      <span
-        style={{
-          fontSize: getTitleFontSize(title),
-          fontWeight: 500,
-          color: '#fafafa', // Light text matching docs
-          lineHeight: 1.2,
-          letterSpacing: '-0.02em',
-        }}
-      >
-        {title}
-      </span>
+      <span style={getTitleStyle(title)}>{title}</span>
 
       {/* Footer: icon left, domain right */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          width: '100%',
-        }}
-      >
+      <div style={OG_FOOTER_STYLE}>
         <SimLogoFull />
-        <span
-          style={{
-            fontSize: 20,
-            fontWeight: 400,
-            color: '#71717a',
-          }}
-        >
-          docs.sim.ai
-        </span>
+        <span style={OG_DOMAIN_STYLE}>docs.sim.ai</span>
       </div>
     </div>,
     {

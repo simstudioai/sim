@@ -67,7 +67,7 @@ export function SlackSetupWizard({
         <span className='font-medium font-sans text-[var(--text-primary)] text-sm'>
           Setup Slack App
         </span>
-        <ChevronRight className='h-[14px] w-[14px] text-[var(--text-muted)]' />
+        <ChevronRight className='size-[14px] text-[var(--text-muted)]' />
       </button>
 
       <WizardModal
@@ -191,7 +191,7 @@ interface SubStepProps {
 function SubStep({ n, children }: SubStepProps) {
   return (
     <li className='flex gap-2.5'>
-      <span className='mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--surface-5)] font-medium text-[var(--text-secondary)] text-xs tabular-nums'>
+      <span className='mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--surface-5)] font-medium text-[var(--text-secondary)] text-xs tabular-nums'>
         {n}
       </span>
       <div className='flex-1 text-[var(--text-secondary)] text-sm leading-relaxed'>{children}</div>
@@ -296,9 +296,9 @@ function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
             </span>
             {canCopy &&
               (copied ? (
-                <Check className='h-[12px] w-[12px] text-[var(--text-success)]' />
+                <Check className='size-[12px] text-[var(--text-success)]' />
               ) : (
-                <Clipboard className='h-[12px] w-[12px] text-[var(--text-muted)]' />
+                <Clipboard className='size-[12px] text-[var(--text-muted)]' />
               ))}
           </button>
         </SubStep>
@@ -459,7 +459,7 @@ function StatusRow({ label, ok }: StatusRowProps) {
       />
       <span>
         {label}
-        {!ok && <span className='ml-1 text-[var(--text-muted)]'>— not saved yet</span>}
+        {!ok && <span className='ml-1 text-[var(--text-muted)]'>(not saved yet)</span>}
       </span>
     </span>
   )
@@ -535,7 +535,7 @@ function CapabilityRow({ blockId, capability, checked, disabled }: CapabilityRow
       </Label>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Info className='h-[14px] w-[14px] cursor-default text-[var(--text-muted)]' />
+          <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
         </Tooltip.Trigger>
         <Tooltip.Content side='top' align='start' className='max-w-xs'>
           <p>{capability.description}</p>

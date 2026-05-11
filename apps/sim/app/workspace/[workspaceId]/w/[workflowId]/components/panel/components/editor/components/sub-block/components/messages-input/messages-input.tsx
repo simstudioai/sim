@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { generateShortId } from '@sim/utils/id'
 import { isEqual } from 'es-toolkit'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { Button, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@/components/emcn'
@@ -88,6 +89,7 @@ export function MessagesInput({
 }: MessagesInputProps) {
   const [messages, setMessages] = useSubBlockValue<Message[]>(blockId, subBlockId, false)
   const [localMessages, setLocalMessages] = useState<Message[]>([{ role: 'user', content: '' }])
+  const messageIdsRef = useRef<string[]>([generateShortId()])
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null)
   const subBlockInput = useSubBlockInput({
@@ -193,18 +195,24 @@ export function MessagesInput({
     currentValue: getMessagesJson(),
     onStreamStart: () => {
       streamBufferRef.current = ''
+      messageIdsRef.current = [generateShortId()]
       setLocalMessages([{ role: 'system', content: '' }])
     },
     onStreamChunk: (chunk) => {
       streamBufferRef.current += chunk
       const extracted = extractStreamingMessages(streamBufferRef.current)
       if (extracted.length > 0) {
+        while (messageIdsRef.current.length < extracted.length) {
+          messageIdsRef.current.push(generateShortId())
+        }
+        messageIdsRef.current = messageIdsRef.current.slice(0, extracted.length)
         setLocalMessages(extracted)
       }
     },
     onGeneratedContent: (content) => {
       const validMessages = parseMessages(content)
       if (validMessages) {
+        messageIdsRef.current = validMessages.map(() => generateShortId())
         setLocalMessages(validMessages)
         setMessages(validMessages)
       } else {
@@ -212,6 +220,7 @@ export function MessagesInput({
         const trimmed = content.trim()
         if (trimmed) {
           const fallback: Message[] = [{ role: 'system', content: trimmed }]
+          messageIdsRef.current = [generateShortId()]
           setLocalMessages(fallback)
           setMessages(fallback)
         }
@@ -240,10 +249,12 @@ export function MessagesInput({
   useEffect(() => {
     if (isPreview && previewValue && Array.isArray(previewValue)) {
       if (!isEqual(localMessagesRef.current, previewValue)) {
+        messageIdsRef.current = previewValue.map(() => generateShortId())
         setLocalMessages(previewValue)
       }
     } else if (messages && Array.isArray(messages) && messages.length > 0) {
       if (!isEqual(localMessagesRef.current, messages)) {
+        messageIdsRef.current = messages.map(() => generateShortId())
         setLocalMessages(messages)
       }
     }
@@ -314,6 +325,7 @@ export function MessagesInput({
 
       const newMessages = [...localMessages]
       newMessages.splice(index + 1, 0, { role: 'user' as const, content: '' })
+      messageIdsRef.current.splice(index + 1, 0, generateShortId())
       setLocalMessages(newMessages)
       setMessages(newMessages)
     },
@@ -329,6 +341,7 @@ export function MessagesInput({
 
       const newMessages = [...localMessages]
       newMessages.splice(index, 1)
+      messageIdsRef.current.splice(index, 1)
       setLocalMessages(newMessages)
       setMessages(newMessages)
     },
@@ -346,6 +359,9 @@ export function MessagesInput({
       const temp = newMessages[index]
       newMessages[index] = newMessages[index - 1]
       newMessages[index - 1] = temp
+      const tempId = messageIdsRef.current[index]
+      messageIdsRef.current[index] = messageIdsRef.current[index - 1]
+      messageIdsRef.current[index - 1] = tempId
       setLocalMessages(newMessages)
       setMessages(newMessages)
     },
@@ -363,6 +379,9 @@ export function MessagesInput({
       const temp = newMessages[index]
       newMessages[index] = newMessages[index + 1]
       newMessages[index + 1] = temp
+      const tempId = messageIdsRef.current[index]
+      messageIdsRef.current[index] = messageIdsRef.current[index + 1]
+      messageIdsRef.current[index + 1] = tempId
       setLocalMessages(newMessages)
       setMessages(newMessages)
     },
@@ -526,7 +545,7 @@ export function MessagesInput({
     <div className='flex w-full flex-col gap-2.5'>
       {currentMessages.map((message, index) => (
         <div
-          key={`message-${index}`}
+          key={messageIdsRef.current[index] ?? `fallback-${index}`}
           className={cn(
             'relative flex w-full flex-col rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] transition-colors dark:bg-[var(--surface-5)]',
             disabled && 'opacity-50'
@@ -567,8 +586,17 @@ export function MessagesInput({
               <>
                 {/* Header with role label and add button */}
                 <div
+                  role='group'
+                  aria-label={`Message ${index + 1}`}
                   className='flex cursor-pointer items-center justify-between px-2 pt-1.5'
                   onClick={(e) => handleHeaderClick(index, e)}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      textareaRefs.current[fieldId]?.focus()
+                    }
+                  }}
                 >
                   <Popover
                     open={openPopoverIndex === index}
@@ -627,10 +655,10 @@ export function MessagesInput({
                               deleteMessage(index)
                             }}
                             disabled={disabled}
-                            className='-my-1 -mr-1 h-6 w-6 p-0'
+                            className='-my-1 -mr-1 size-6 p-0'
                             aria-label='Delete message'
                           >
-                            <Trash className='h-3 w-3' />
+                            <Trash className='size-3' />
                           </Button>
                           <Button
                             variant='ghost'
@@ -639,10 +667,10 @@ export function MessagesInput({
                               moveMessageUp(index)
                             }}
                             disabled={disabled || index === 0}
-                            className='-my-1 -mr-1 h-6 w-6 p-0'
+                            className='-my-1 -mr-1 size-6 p-0'
                             aria-label='Move message up'
                           >
-                            <ChevronUp className='h-3 w-3' />
+                            <ChevronUp className='size-3' />
                           </Button>
                           <Button
                             variant='ghost'
@@ -651,10 +679,10 @@ export function MessagesInput({
                               moveMessageDown(index)
                             }}
                             disabled={disabled || index === currentMessages.length - 1}
-                            className='-my-1 -mr-1 h-6 w-6 p-0'
+                            className='-my-1 -mr-1 size-6 p-0'
                             aria-label='Move message down'
                           >
-                            <ChevronDown className='h-3 w-3' />
+                            <ChevronDown className='size-3' />
                           </Button>
                         </>
                       )}
@@ -665,10 +693,10 @@ export function MessagesInput({
                           addMessageAfter(index)
                         }}
                         disabled={disabled}
-                        className='-mr-1.5 -my-1 h-6 w-6 p-0'
+                        className='-mr-1.5 -my-1 size-6 p-0'
                         aria-label='Add message below'
                       >
-                        <Plus className='h-3.5 w-3.5' />
+                        <Plus className='size-3.5' />
                       </Button>
                     </div>
                   )}
@@ -680,7 +708,7 @@ export function MessagesInput({
                     ref={(el) => {
                       textareaRefs.current[fieldId] = el
                     }}
-                    className='relative z-[2] m-0 box-border h-auto min-h-[80px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent px-2 py-2 font-medium font-sans text-sm text-transparent leading-[1.5] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
+                    className='relative z-[2] m-0 box-border h-auto min-h-[80px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-medium font-sans text-sm text-transparent leading-[1.5] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
                     placeholder='Enter message content...'
                     value={message.content}
                     onChange={fieldHandlers.onChange}
@@ -721,7 +749,7 @@ export function MessagesInput({
                       overlayRefs.current[fieldId] = el
                     }}
                     className={cn(
-                      'absolute top-0 left-0 z-[1] m-0 box-border w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent px-2 py-2 font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.5] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                      'absolute top-0 left-0 z-[1] m-0 box-border w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.5] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
                       !(isPreview || disabled) && 'pointer-events-none'
                     )}
                   >
@@ -759,13 +787,15 @@ export function MessagesInput({
 
                   {!isPreview && !disabled && (
                     <div
-                      className='absolute right-1 bottom-1 z-[3] flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                      role='separator'
+                      aria-orientation='horizontal'
+                      className='absolute right-1 bottom-1 z-[3] flex size-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
                       onMouseDown={(e) => handleResizeStart(fieldId, e)}
                       onDragStart={(e) => {
                         e.preventDefault()
                       }}
                     >
-                      <ChevronsUpDown className='h-3 w-3 text-[var(--text-muted)]' />
+                      <ChevronsUpDown className='size-3 text-[var(--text-muted)]' />
                     </div>
                   )}
                 </div>
