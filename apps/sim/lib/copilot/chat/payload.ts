@@ -5,7 +5,7 @@ import { isPaid } from '@/lib/billing/plan-helpers'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { createMcpToolId } from '@/lib/mcp/utils'
+import { buildMothershipToolsForRequest } from '@/lib/mothership/settings/runtime'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { tools } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
@@ -40,6 +40,7 @@ interface BuildPayloadParams {
   workspaceContext?: string
   userPermission?: string
   userTimezone?: string
+  includeMothershipTools?: boolean
 }
 
 export interface ToolSchema {
@@ -48,6 +49,7 @@ export interface ToolSchema {
   input_schema: Record<string, unknown>
   defer_loading?: boolean
   executeLocally?: boolean
+  params?: Record<string, unknown>
   oauth?: { required: boolean; provider: string }
 }
 
@@ -274,6 +276,8 @@ export async function buildCopilotRequestPayload(
   const allContexts = [...(contexts ?? []), ...uploadContexts]
 
   let integrationTools: ToolSchema[] = []
+  let mothershipTools: ToolSchema[] = []
+  let workspaceContext = params.workspaceContext
 
   const payloadLogger = logger.withMetadata({ messageId: userMessageId })
 
@@ -285,32 +289,23 @@ export async function buildCopilotRequestPayload(
       params.workspaceId
     )
 
-    // Discover MCP tools from workspace servers and include as deferred tools
-    if (params.workspaceId) {
+    if (params.includeMothershipTools && params.workspaceId) {
       try {
-        const { mcpService } = await import('@/lib/mcp/service')
-        const mcpTools = await mcpService.discoverTools(userId, params.workspaceId)
-        for (const mcpTool of mcpTools) {
-          integrationTools.push({
-            name: createMcpToolId(mcpTool.serverId, mcpTool.name),
-            description: mcpTool.description || `MCP tool: ${mcpTool.name} (${mcpTool.serverName})`,
-            input_schema: { ...mcpTool.inputSchema },
-            executeLocally: false,
-          })
-        }
-        if (mcpTools.length > 0) {
-          logger.error(
-            userMessageId
-              ? `Added MCP tools to copilot payload [messageId:${userMessageId}]`
-              : 'Added MCP tools to copilot payload',
-            { count: mcpTools.length }
-          )
+        const runtimeTools = await buildMothershipToolsForRequest({
+          workspaceId: params.workspaceId,
+          userId,
+        })
+        mothershipTools = runtimeTools.tools
+        if (runtimeTools.catalogContext) {
+          workspaceContext = [workspaceContext, runtimeTools.catalogContext]
+            .filter(Boolean)
+            .join('\n\n')
         }
       } catch (error) {
         logger.warn(
           userMessageId
-            ? `Failed to discover MCP tools for copilot [messageId:${userMessageId}]`
-            : 'Failed to discover MCP tools for copilot',
+            ? `Failed to build Mothership tools [messageId:${userMessageId}]`
+            : 'Failed to build Mothership tools',
           {
             error: toError(error).message,
           }
@@ -334,8 +329,9 @@ export async function buildCopilotRequestPayload(
     ...(typeof prefetch === 'boolean' ? { prefetch } : {}),
     ...(implicitFeedback ? { implicitFeedback } : {}),
     ...(integrationTools.length > 0 ? { integrationTools } : {}),
+    ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
     ...(commands && commands.length > 0 ? { commands } : {}),
-    ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),
+    ...(workspaceContext ? { workspaceContext } : {}),
     ...(params.userPermission ? { userPermission: params.userPermission } : {}),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     isHosted,

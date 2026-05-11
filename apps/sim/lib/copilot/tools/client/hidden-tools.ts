@@ -1,4 +1,8 @@
-const HIDDEN_TOOL_NAMES = new Set(['tool_search_tool_regex', 'load_agent_skill'])
+const HIDDEN_TOOL_NAMES = new Set([
+  'tool_search_tool_regex',
+  'load_agent_skill',
+  'load_custom_tool',
+])
 
 export function isToolHiddenInUi(toolName: string | undefined): boolean {
   return !!toolName && HIDDEN_TOOL_NAMES.has(toolName)

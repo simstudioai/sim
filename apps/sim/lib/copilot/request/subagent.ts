@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
-import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
+import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1SpanPayloadKind,
@@ -20,6 +20,7 @@ import type {
   StreamingContext,
   ToolCallSummary,
 } from '@/lib/copilot/request/types'
+import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -101,6 +102,7 @@ async function orchestrateSubagentStreamInner(
   const chatId =
     (typeof requestPayload.chatId === 'string' && requestPayload.chatId) || generateId()
   const execContext = await buildExecutionContext(userId, workflowId, workspaceId, chatId)
+  const mothershipBaseURL = await getMothershipBaseURL({ userId })
   let resolvedWorkflowName =
     typeof requestPayload.workflowName === 'string' ? requestPayload.workflowName : undefined
   let resolvedWorkspaceId =
@@ -140,12 +142,13 @@ async function orchestrateSubagentStreamInner(
 
   try {
     await runStreamLoop(
-      `${SIM_AGENT_API_URL}/api/subagent/${agentId}`,
+      `${mothershipBaseURL}/api/subagent/${agentId}`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+          ...getMothershipSourceEnvHeaders(),
           'X-Client-Version': SIM_AGENT_VERSION,
         },
         body: JSON.stringify({

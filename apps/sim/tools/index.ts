@@ -19,7 +19,10 @@ import { parseMcpToolId } from '@/lib/mcp/utils'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
-import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
+import {
+  resolveSkillContent,
+  resolveSkillContentById,
+} from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
@@ -731,7 +734,7 @@ export async function executeTool(
     const scope = resolveToolScope(params, executionContext)
 
     const toolKind: 'skill' | 'custom' | 'mcp' | undefined =
-      normalizedToolId === 'load_skill'
+      normalizedToolId === 'load_skill' || toolId.startsWith('load_skill_')
         ? 'skill'
         : isCustomTool(normalizedToolId)
           ? 'custom'
@@ -746,6 +749,29 @@ export async function executeTool(
         toolKind,
         ctx: executionContext,
       })
+    }
+
+    if (toolId.startsWith('load_skill_')) {
+      const skillId = toolId.slice('load_skill_'.length)
+      if (!skillId || !scope.workspaceId) {
+        return {
+          success: false,
+          output: { error: 'Missing skill id or workspace context' },
+          error: 'Missing skill id or workspace context',
+        }
+      }
+      const loadedSkill = await resolveSkillContentById(skillId, scope.workspaceId)
+      if (!loadedSkill) {
+        return {
+          success: false,
+          output: { error: `Skill "${skillId}" not found` },
+          error: `Skill "${skillId}" not found`,
+        }
+      }
+      return {
+        success: true,
+        output: { name: loadedSkill.name, content: loadedSkill.content },
+      }
     }
 
     if (normalizedToolId === 'load_skill') {

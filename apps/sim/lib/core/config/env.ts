@@ -37,6 +37,10 @@ export const env = createEnv({
     // Copilot
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
+    COPILOT_SOURCE_ENV:                    z.enum(['dev', 'staging', 'prod']).optional(), // Source Sim environment sent to mothership for callbacks
+    COPILOT_DEV_URL:                       z.string().url().optional(),            // Sim agent API URL for the dev mothership environment
+    COPILOT_STAGING_URL:                   z.string().url().optional(),            // Sim agent API URL for the staging mothership environment
+    COPILOT_PROD_URL:                      z.string().url().optional(),            // Sim agent API URL for the production mothership environment
     AGENT_INDEXER_URL:                     z.string().url().optional(),            // URL for agent training data indexer
     AGENT_INDEXER_API_KEY:                 z.string().min(1).optional(),           // API key for agent indexer authentication
     COPILOT_STREAM_TTL_SECONDS:            z.number().optional(),                  // Redis TTL for copilot SSE buffer

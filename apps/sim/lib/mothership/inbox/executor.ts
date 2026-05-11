@@ -18,6 +18,7 @@ import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
 import type { AgentMailAttachment } from '@/lib/mothership/inbox/types'
+import { buildMothershipToolsForRequest } from '@/lib/mothership/settings/runtime'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -109,6 +110,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       requestChatTitle({
         message: titleInput,
         model: 'claude-opus-4-6',
+        userId,
       })
         .then(async (title) => {
           if (title && chatId) {
@@ -165,14 +167,26 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       return { attachments, ...downloaded }
     }
 
-    const [attachmentResult, workspaceContext, integrationTools, userPermission] =
-      await Promise.all([
-        fetchAttachments(),
-        generateWorkspaceContext(ws.id, userId),
-        buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
-        getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
-      ])
+    const [
+      attachmentResult,
+      workspaceContext,
+      integrationTools,
+      mothershipToolRuntime,
+      userPermission,
+    ] = await Promise.all([
+      fetchAttachments(),
+      generateWorkspaceContext(ws.id, userId),
+      buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
+      buildMothershipToolsForRequest({ workspaceId: ws.id, userId }),
+      getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
+    ])
     const { attachments, fileAttachments, storedAttachments } = attachmentResult
+    const workspaceContextWithMothershipTools = [
+      workspaceContext,
+      mothershipToolRuntime.catalogContext,
+    ]
+      .filter(Boolean)
+      .join('\n\n')
 
     const truncatedTask = {
       ...inboxTask,
@@ -188,8 +202,11 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       mode: 'agent',
       messageId: userMessageId,
       isHosted,
-      workspaceContext,
+      workspaceContext: workspaceContextWithMothershipTools,
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
+      ...(mothershipToolRuntime.tools.length > 0
+        ? { mothershipTools: mothershipToolRuntime.tools }
+        : {}),
       ...(userPermission ? { userPermission } : {}),
       ...(fileAttachments.length > 0 ? { fileAttachments } : {}),
     }

@@ -1429,6 +1429,13 @@
       "when": 1778024401275,
       "tag": "0204_powerful_medusa",
       "breakpoints": true
+    },
+    {
+      "idx": 205,
+      "version": "7",
+      "when": 1778540313360,
+      "tag": "0205_smooth_sentinel",
+      "breakpoints": true
     }
   ]
 }

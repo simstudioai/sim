@@ -1,11 +1,8 @@
 'use client'
 
 import { memo, useMemo } from 'react'
-import {
-  Read as ReadTool,
-  ToolSearchToolRegex,
-  WorkspaceFile,
-} from '@/lib/copilot/generated/tool-catalog-v1'
+import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
 import type { ContentBlock, MothershipResource, OptionItem, ToolCallData } from '../../types'
@@ -304,7 +301,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     if (block.type === 'tool_call') {
       if (!block.toolCall) continue
       const tc = block.toolCall
-      if (tc.name === ToolSearchToolRegex.id) continue
+      if (isToolHiddenInUi(tc.name)) continue
       if (tc.name === ReadTool.id && isToolResultRead(tc.params)) continue
       const isDispatch = SUBAGENT_KEYS.has(tc.name) && !tc.calledBy
 

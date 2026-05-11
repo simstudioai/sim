@@ -1,8 +1,20 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { WrenchIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Badge, Button, Input as EmcnInput, Label, Skeleton, Switch } from '@/components/emcn'
+import {
+  Badge,
+  Button,
+  Combobox,
+  type ComboboxOptionGroup,
+  Input as EmcnInput,
+  Label,
+  Skeleton,
+  Switch,
+} from '@/components/emcn'
+import { AgentSkillsIcon, McpIcon } from '@/components/icons'
+import type { MothershipEnvironment, MothershipSettings } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -12,10 +24,33 @@ import {
   useSetUserRole,
   useUnbanUser,
 } from '@/hooks/queries/admin-users'
+import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
+import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
+import {
+  useMothershipSettings,
+  useUpdateMothershipSettings,
+} from '@/hooks/queries/mothership-settings'
+import { useSkills } from '@/hooks/queries/skills'
 import { useImportWorkflow } from '@/hooks/queries/workflows'
 
 const PAGE_SIZE = 20 as const
+
+const MOTHERSHIP_ENV_OPTIONS: { value: MothershipEnvironment; label: string }[] = [
+  { value: 'default', label: 'Default' },
+  { value: 'dev', label: 'Dev' },
+  { value: 'staging', label: 'Staging' },
+  { value: 'prod', label: 'Prod' },
+]
+
+function defaultMothershipSettings(workspaceId: string): MothershipSettings {
+  return {
+    workspaceId,
+    mcpTools: [],
+    customTools: [],
+    skills: [],
+  }
+}
 
 export function Admin() {
   const params = useParams()
@@ -25,6 +60,17 @@ export function Admin() {
   const { data: settings } = useGeneralSettings()
   const updateSetting = useUpdateGeneralSetting()
   const importWorkflow = useImportWorkflow()
+  const adminMothershipWorkspaceId = settings?.superUserModeEnabled ? workspaceId : ''
+  const { data: mothershipSettings } = useMothershipSettings(adminMothershipWorkspaceId)
+  const updateMothershipSettings = useUpdateMothershipSettings()
+  const { data: mcpTools = [], isLoading: mcpToolsLoading } = useMcpToolsQuery(
+    adminMothershipWorkspaceId
+  )
+  const { data: mcpServers = [] } = useMcpServers(adminMothershipWorkspaceId)
+  const { data: customTools = [], isLoading: customToolsLoading } = useCustomTools(
+    adminMothershipWorkspaceId
+  )
+  const { data: skills = [], isLoading: skillsLoading } = useSkills(adminMothershipWorkspaceId)
 
   const setUserRole = useSetUserRole()
   const banUser = useBanUser()
@@ -56,12 +102,163 @@ export function Admin() {
     [usersData?.total]
   )
   const currentPage = useMemo(() => Math.floor(usersOffset / PAGE_SIZE) + 1, [usersOffset])
+  const currentMothershipSettings = mothershipSettings ?? defaultMothershipSettings(workspaceId)
+  const selectedMothershipToolValues = useMemo(
+    () => [
+      ...currentMothershipSettings.mcpTools.map((tool) => `mcp:${tool.serverId}:${tool.toolName}`),
+      ...currentMothershipSettings.customTools.map((tool) => `custom:${tool.customToolId}`),
+      ...currentMothershipSettings.skills.map((s) => `skill:${s.skillId}`),
+    ],
+    [
+      currentMothershipSettings.customTools,
+      currentMothershipSettings.mcpTools,
+      currentMothershipSettings.skills,
+    ]
+  )
+  const selectedMothershipToolCount = selectedMothershipToolValues.length
 
   const handleSuperUserModeToggle = async (checked: boolean) => {
     if (checked !== settings?.superUserModeEnabled && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'superUserModeEnabled', value: checked })
     }
   }
+
+  const handleMothershipEnvironmentChange = useCallback(
+    async (nextEnvironment: MothershipEnvironment) => {
+      if (nextEnvironment !== settings?.mothershipEnvironment && !updateSetting.isPending) {
+        await updateSetting.mutateAsync({
+          key: 'mothershipEnvironment',
+          value: nextEnvironment,
+        })
+      }
+    },
+    [settings?.mothershipEnvironment, updateSetting]
+  )
+
+  const saveMothershipSettings = useCallback(
+    (next: Partial<Omit<MothershipSettings, 'workspaceId'>>) => {
+      updateMothershipSettings.mutate({
+        ...currentMothershipSettings,
+        ...next,
+        workspaceId,
+      })
+    },
+    [currentMothershipSettings, updateMothershipSettings, workspaceId]
+  )
+
+  const connectedServerIds = useMemo(
+    () =>
+      new Set(
+        mcpServers
+          .filter((server) => server.connectionStatus === 'connected')
+          .map((server) => server.id)
+      ),
+    [mcpServers]
+  )
+
+  const mothershipToolOptions = useMemo(() => {
+    const groups: ComboboxOptionGroup[] = []
+    const refs = new Map<
+      string,
+      | {
+          type: 'mcp'
+          serverId: string
+          serverName?: string
+          toolName: string
+          title?: string
+        }
+      | { type: 'custom'; customToolId: string; title?: string }
+      | { type: 'skill'; skillId: string; name?: string }
+    >()
+
+    const availableMcpTools = mcpTools.filter((tool) => connectedServerIds.has(tool.serverId))
+    if (availableMcpTools.length > 0) {
+      groups.push({
+        section: 'MCP Tools',
+        items: availableMcpTools.map((tool) => {
+          const value = `mcp:${tool.serverId}:${tool.name}`
+          refs.set(value, {
+            type: 'mcp',
+            serverId: tool.serverId,
+            serverName: tool.serverName,
+            toolName: tool.name,
+            title: tool.name,
+          })
+          return {
+            label: `${tool.serverName}: ${tool.name}`,
+            value,
+            icon: McpIcon,
+          }
+        }),
+      })
+    }
+
+    if (customTools.length > 0) {
+      groups.push({
+        section: 'Custom Tools',
+        items: customTools.map((tool) => {
+          const value = `custom:${tool.id}`
+          refs.set(value, { type: 'custom', customToolId: tool.id, title: tool.title })
+          return {
+            label: tool.title,
+            value,
+            icon: WrenchIcon,
+          }
+        }),
+      })
+    }
+
+    if (skills.length > 0) {
+      groups.push({
+        section: 'Skills',
+        items: skills.map((skill) => {
+          const value = `skill:${skill.id}`
+          refs.set(value, { type: 'skill', skillId: skill.id, name: skill.name })
+          return {
+            label: skill.name,
+            value,
+            icon: AgentSkillsIcon,
+          }
+        }),
+      })
+    }
+
+    return { groups, refs }
+  }, [connectedServerIds, customTools, mcpTools, skills])
+
+  const handleMothershipToolSelectionChange = useCallback(
+    (values: string[]) => {
+      const mcpTools: MothershipSettings['mcpTools'] = []
+      const customTools: MothershipSettings['customTools'] = []
+      const skills: MothershipSettings['skills'] = []
+
+      for (const value of values) {
+        const ref = mothershipToolOptions.refs.get(value)
+        if (!ref) continue
+        if (ref.type === 'mcp') {
+          mcpTools.push({
+            serverId: ref.serverId,
+            serverName: ref.serverName,
+            toolName: ref.toolName,
+            title: ref.title,
+          })
+        } else if (ref.type === 'custom') {
+          customTools.push({
+            customToolId: ref.customToolId,
+            title: ref.title,
+          })
+        } else {
+          skills.push({
+            skillId: ref.skillId,
+            name: ref.name,
+          })
+        }
+      }
+
+      saveMothershipSettings({ mcpTools, customTools, skills })
+    },
+    [mothershipToolOptions.refs, saveMothershipSettings]
+  )
 
   const handleImport = () => {
     if (!workflowId.trim()) return
@@ -119,13 +316,81 @@ export function Admin() {
   ])
   return (
     <div className='flex h-full flex-col gap-6'>
-      <div className='flex items-center justify-between'>
-        <Label htmlFor='super-user-mode'>Super admin mode</Label>
-        <Switch
-          id='super-user-mode'
-          checked={settings?.superUserModeEnabled ?? false}
-          onCheckedChange={handleSuperUserModeToggle}
-        />
+      <div className='flex flex-col gap-4'>
+        <div className='flex items-center justify-between'>
+          <Label htmlFor='super-user-mode'>Super admin mode</Label>
+          <Switch
+            id='super-user-mode'
+            checked={settings?.superUserModeEnabled ?? false}
+            disabled={updateSetting.isPending}
+            onCheckedChange={handleSuperUserModeToggle}
+          />
+        </div>
+
+        {settings?.superUserModeEnabled && (
+          <>
+            <div className='flex items-center justify-between gap-3'>
+              <div className='flex flex-col gap-1'>
+                <Label className='text-[var(--text-primary)] text-sm'>Mothership Environment</Label>
+                <p className='text-[var(--text-secondary)] text-xs'>
+                  Default uses the configured Sim agent URL.
+                </p>
+              </div>
+              <div className='w-[160px]'>
+                <Combobox
+                  size='sm'
+                  align='end'
+                  dropdownWidth={160}
+                  value={settings?.mothershipEnvironment ?? 'default'}
+                  onChange={(value) =>
+                    handleMothershipEnvironmentChange(value as MothershipEnvironment)
+                  }
+                  placeholder='Select environment'
+                  disabled={updateSetting.isPending}
+                  options={MOTHERSHIP_ENV_OPTIONS}
+                />
+              </div>
+            </div>
+
+            <div className='flex items-center justify-between gap-3'>
+              <div className='flex flex-col gap-1'>
+                <Label className='text-[var(--text-primary)] text-sm'>Mothership Tools</Label>
+                <p className='text-[var(--text-secondary)] text-xs'>
+                  Select workspace MCP tools, custom tools, and skills that Mothership can use.
+                </p>
+              </div>
+              <div className='w-[160px]'>
+                <Combobox
+                  size='sm'
+                  align='end'
+                  dropdownWidth={320}
+                  options={[]}
+                  groups={mothershipToolOptions.groups}
+                  multiSelect
+                  multiSelectValues={selectedMothershipToolValues}
+                  onMultiSelectChange={handleMothershipToolSelectionChange}
+                  overlayContent={
+                    selectedMothershipToolCount > 0
+                      ? `${selectedMothershipToolCount} selected`
+                      : undefined
+                  }
+                  placeholder={
+                    mcpToolsLoading || customToolsLoading || skillsLoading ? 'Loading...' : 'Select'
+                  }
+                  searchPlaceholder='Search tools and skills...'
+                  emptyMessage='No tools or skills available'
+                  disabled={
+                    updateMothershipSettings.isPending ||
+                    mcpToolsLoading ||
+                    customToolsLoading ||
+                    skillsLoading
+                  }
+                  searchable
+                />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className='h-px bg-[var(--border-secondary)]' />

@@ -73,6 +73,31 @@ export async function resolveSkillContent(
   }
 }
 
+export async function resolveSkillContentById(
+  skillId: string,
+  workspaceId: string
+): Promise<{ name: string; content: string } | null> {
+  if (!skillId || !workspaceId) return null
+
+  try {
+    const rows = await db
+      .select({ content: skill.content, name: skill.name })
+      .from(skill)
+      .where(and(eq(skill.workspaceId, workspaceId), eq(skill.id, skillId)))
+      .limit(1)
+
+    if (rows.length === 0) {
+      logger.warn('Skill not found', { skillId, workspaceId })
+      return null
+    }
+
+    return rows[0]
+  } catch (error) {
+    logger.error('Failed to resolve skill content', { error, skillId, workspaceId })
+    return null
+  }
+}
+
 /**
  * Build the system prompt section that lists available skills.
  * Uses XML format per the agentskills.io integration guide.
