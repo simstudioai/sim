@@ -8,15 +8,15 @@ const S3_BUCKET_NAME_RE = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/
 const S3_IPV4_LIKE_RE = /^(\d{1,3}\.){3}\d{1,3}$/
 const AWS_REGION_RE = /^[a-z]{2,}(-[a-z]+)+-\d+$/
 /** GCS bucket component: lowercase alnum + _ / -, start/end alnum. Mirrors gcs.ts. */
-const GCS_BUCKET_COMPONENT_RE = /^[a-z0-9][a-z0-9_-]*[a-z0-9]$/
+const GCS_BUCKET_COMPONENT_RE = /^[a-z0-9]([a-z0-9_-]*[a-z0-9])?$/
 const GOOGLE_RESERVED_PREFIX_RE = /^(goog|google|g00gle)/i
 const GOOGLE_CONTAINS_RE = /(google|g00gle)/i
 function validateGcsBucketComponents(v: string): string | null {
   if (v.length < 3 || v.length > 222) return 'bucket must be 3-222 characters'
   const components = v.split('.')
   for (const c of components) {
-    if (c.length < 3 || c.length > 63) {
-      return 'each dot-separated component must be 3-63 characters'
+    if (c.length < 1 || c.length > 63) {
+      return 'each dot-separated component must be 1-63 characters'
     }
     if (!GCS_BUCKET_COMPONENT_RE.test(c)) {
       return 'each component must be lowercase, start/end alphanumeric, letters/digits/_/- only'

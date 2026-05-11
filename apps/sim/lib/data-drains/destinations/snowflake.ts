@@ -227,8 +227,9 @@ async function executeStatement(input: ExecuteInput): Promise<void> {
   let lastError: unknown
   for (let attempt = 1; attempt <= EXECUTE_MAX_ATTEMPTS; attempt++) {
     if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
-    const perAttempt = AbortSignal.any([input.signal, AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS)])
+    /** Acquire JWT before starting the per-attempt timer so token signing doesn't eat the network budget (mirrors pollStatement). */
     const jwt = await input.getJwt()
+    const perAttempt = AbortSignal.any([input.signal, AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS)])
     const params = new URLSearchParams({ requestId })
     if (attempt > 1) params.set('retry', 'true')
     const url = `${baseUrl}?${params.toString()}`

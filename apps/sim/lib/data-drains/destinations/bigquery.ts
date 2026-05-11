@@ -206,6 +206,8 @@ async function insertAll(input: InsertAllInput): Promise<void> {
       if (response.status === 401 && !refreshedOnce) {
         refreshedOnce = true
         logger.debug('BigQuery returned 401; refreshing access token and retrying once')
+        /** Drain the 401 body before discarding so undici can return the socket to the keep-alive pool. */
+        await response.text().catch(() => '')
         response = await postInsertAll(input, url, body, true)
       }
       if (!RETRYABLE_STATUSES.has(response.status)) break

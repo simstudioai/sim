@@ -27,7 +27,7 @@ const MAX_CUSTOM_METADATA_BYTES = 8 * 1024
 /** GCS object names are at most 1024 bytes when UTF-8 encoded (flat-namespace buckets). */
 const MAX_OBJECT_NAME_BYTES = 1024
 
-const GCS_BUCKET_COMPONENT_RE = /^[a-z0-9][a-z0-9_-]*[a-z0-9]$/
+const GCS_BUCKET_COMPONENT_RE = /^[a-z0-9]([a-z0-9_-]*[a-z0-9])?$/
 const IPV4_LIKE_RE = /^(\d{1,3}\.){3}\d{1,3}$/
 const GOOGLE_RESERVED_RE = /^(goog|google|g00gle)/i
 const GOOGLE_CONTAINS_RE = /(google|g00gle)/i
@@ -36,8 +36,8 @@ function validateGcsBucketComponents(v: string): string | null {
   if (v.length < 3 || v.length > 222) return 'bucket must be 3-222 characters'
   const components = v.split('.')
   for (const c of components) {
-    if (c.length < 3 || c.length > 63) {
-      return 'each dot-separated component must be 3-63 characters'
+    if (c.length < 1 || c.length > 63) {
+      return 'each dot-separated component must be 1-63 characters'
     }
     if (!GCS_BUCKET_COMPONENT_RE.test(c)) {
       return 'each component must be lowercase, start/end alphanumeric, letters/digits/_/- only'
