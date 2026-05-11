@@ -274,12 +274,10 @@ export class PauseResumeManager {
         .select()
         .from(pausedExecutions)
         .where(
-          workflowId
-            ? and(
-                eq(pausedExecutions.executionId, executionId),
-                eq(pausedExecutions.workflowId, workflowId)
-              )
-            : eq(pausedExecutions.executionId, executionId)
+          and(
+            eq(pausedExecutions.executionId, executionId),
+            eq(pausedExecutions.workflowId, workflowId)
+          )
         )
         .for('update')
         .limit(1)
@@ -1548,7 +1546,7 @@ export class PauseResumeManager {
         .where(
           and(
             eq(pausedExecutions.executionId, executionId),
-            ...(workflowId ? [eq(pausedExecutions.workflowId, workflowId)] : []),
+            eq(pausedExecutions.workflowId, workflowId),
             inArray(pausedExecutions.status, [...CANCELLABLE_PAUSED_STATUSES, 'cancelling'])
           )
         )
@@ -1597,12 +1595,10 @@ export class PauseResumeManager {
         .select({ id: pausedExecutions.id, status: pausedExecutions.status })
         .from(pausedExecutions)
         .where(
-          workflowId
-            ? and(
-                eq(pausedExecutions.executionId, executionId),
-                eq(pausedExecutions.workflowId, workflowId)
-              )
-            : eq(pausedExecutions.executionId, executionId)
+          and(
+            eq(pausedExecutions.executionId, executionId),
+            eq(pausedExecutions.workflowId, workflowId)
+          )
         )
         .for('update')
         .limit(1)
@@ -1642,7 +1638,7 @@ export class PauseResumeManager {
         .where(
           and(
             eq(pausedExecutions.executionId, executionId),
-            ...(workflowId ? [eq(pausedExecutions.workflowId, workflowId)] : []),
+            eq(pausedExecutions.workflowId, workflowId),
             inArray(pausedExecutions.status, [...CANCELLABLE_PAUSED_STATUSES, 'cancelling'])
           )
         )
@@ -1688,7 +1684,7 @@ export class PauseResumeManager {
       .where(
         and(
           eq(pausedExecutions.executionId, executionId),
-          ...(workflowId ? [eq(pausedExecutions.workflowId, workflowId)] : []),
+          eq(pausedExecutions.workflowId, workflowId),
           eq(pausedExecutions.status, 'cancelling')
         )
       )
@@ -1714,12 +1710,10 @@ export class PauseResumeManager {
       .select({ status: pausedExecutions.status })
       .from(pausedExecutions)
       .where(
-        workflowId
-          ? and(
-              eq(pausedExecutions.executionId, executionId),
-              eq(pausedExecutions.workflowId, workflowId)
-            )
-          : eq(pausedExecutions.executionId, executionId)
+        and(
+          eq(pausedExecutions.executionId, executionId),
+          eq(pausedExecutions.workflowId, workflowId)
+        )
       )
       .limit(1)
       .then((rows) => rows[0])
@@ -1889,12 +1883,10 @@ export class PauseResumeManager {
           .select()
           .from(pausedExecutions)
           .where(
-            workflowId
-              ? and(
-                  eq(pausedExecutions.executionId, parentExecutionId),
-                  eq(pausedExecutions.workflowId, workflowId)
-                )
-              : eq(pausedExecutions.executionId, parentExecutionId)
+            and(
+              eq(pausedExecutions.executionId, parentExecutionId),
+              eq(pausedExecutions.workflowId, workflowId)
+            )
           )
           .for('update')
           .limit(1)

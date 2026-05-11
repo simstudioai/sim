@@ -78,19 +78,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    if (userFile.key) {
-      if (!authResult.userId) {
-        logger.warn(`[${requestId}] File access check requires userId but none available`)
-        return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
-      }
-      const hasAccess = await verifyFileAccess(userFile.key, authResult.userId)
-      if (!hasAccess) {
-        logger.warn(`[${requestId}] File access denied for user`, {
-          userId: authResult.userId,
-          key: userFile.key,
-        })
-        return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
-      }
+    if (typeof userFile.key !== 'string' || userFile.key.length === 0) {
+      logger.warn(`[${requestId}] File access check rejected: missing key`)
+      return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+    }
+    if (!authResult.userId) {
+      logger.warn(`[${requestId}] File access check requires userId but none available`)
+      return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+    }
+    const hasAccess = await verifyFileAccess(userFile.key, authResult.userId)
+    if (!hasAccess) {
+      logger.warn(`[${requestId}] File access denied for user`, {
+        userId: authResult.userId,
+        key: userFile.key,
+      })
+      return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
     }
 
     logger.info(`[${requestId}] Downloading file from storage`, {
