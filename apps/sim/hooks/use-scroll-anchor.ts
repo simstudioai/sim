@@ -57,6 +57,11 @@ export function useScrollAnchor(isStreaming: boolean, content?: string) {
 
     if (hasUserScrolledRef.current) {
       intendedScrollTopRef.current = el.scrollTop
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+      if (distanceFromBottom <= NEAR_BOTTOM_THRESHOLD) {
+        hasUserScrolledRef.current = false
+        stickyRef.current = true
+      }
       return
     }
 
