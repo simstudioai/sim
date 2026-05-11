@@ -49,7 +49,13 @@ const azureBlobConfigBodySchema = z.object({
 })
 
 const azureBlobCredentialsBodySchema = z.object({
-  accountKey: z.string().min(1, 'accountKey is required'),
+  accountKey: z
+    .string()
+    .min(64, 'accountKey is too short to be a valid Azure storage key')
+    .max(120, 'accountKey is too long to be a valid Azure storage key')
+    .regex(/^[A-Za-z0-9+/]+={0,2}$/, {
+      message: 'accountKey must be a base64-encoded Azure storage account key',
+    }),
 })
 
 const datadogConfigBodySchema = z.object({

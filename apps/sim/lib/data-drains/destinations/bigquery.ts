@@ -205,33 +205,50 @@ async function insertAll(input: InsertAllInput): Promise<void> {
     )
   }
   let attempt = 0
-  let response: Response
+  let response: Response | undefined
   let refreshedOnce = false
   while (true) {
     attempt++
-    response = await postInsertAll(input, url, body)
-    // 401: refresh token and retry once; this attempt does not count toward
-    // the 5xx/429 retry budget.
-    if (response.status === 401 && !refreshedOnce) {
-      refreshedOnce = true
-      logger.debug('BigQuery returned 401; refreshing access token and retrying once')
-      response = await postInsertAll(input, url, body, true)
+    try {
+      response = await postInsertAll(input, url, body)
+      // 401: refresh token and retry once; this attempt does not count toward
+      // the 5xx/429 retry budget.
+      if (response.status === 401 && !refreshedOnce) {
+        refreshedOnce = true
+        logger.debug('BigQuery returned 401; refreshing access token and retrying once')
+        response = await postInsertAll(input, url, body, true)
+      }
+      if (!RETRYABLE_STATUSES.has(response.status)) break
+      if (attempt >= MAX_RETRY_ATTEMPTS) break
+      const retryAfterMs =
+        parseRetryAfter(response.headers.get('retry-after')) ??
+        BASE_RETRY_DELAY_MS * 2 ** (attempt - 1)
+      logger.warn('BigQuery insertAll transient error; retrying', {
+        status: response.status,
+        attempt,
+        retryAfterMs,
+      })
+      // Drain the body so the connection can be reused.
+      await response.text().catch(() => '')
+      await sleepUntilAborted(retryAfterMs, input.signal)
+      if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
+    } catch (error) {
+      // Connection-level failures (DNS, socket reset, timeout) don't produce
+      // a Response — treat them like 5xx and retry with backoff. Re-throw
+      // aborts so callers see the cancel reason instead of a wrapped retry.
+      if (input.signal.aborted) throw input.signal.reason ?? error
+      if (attempt >= MAX_RETRY_ATTEMPTS) throw error
+      const retryAfterMs = BASE_RETRY_DELAY_MS * 2 ** (attempt - 1)
+      logger.warn('BigQuery insertAll network error; retrying', {
+        attempt,
+        retryAfterMs,
+        error: toError(error).message,
+      })
+      await sleepUntilAborted(retryAfterMs, input.signal)
+      if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
     }
-    if (!RETRYABLE_STATUSES.has(response.status)) break
-    if (attempt >= MAX_RETRY_ATTEMPTS) break
-    const retryAfterMs =
-      parseRetryAfter(response.headers.get('retry-after')) ??
-      BASE_RETRY_DELAY_MS * 2 ** (attempt - 1)
-    logger.warn('BigQuery insertAll transient error; retrying', {
-      status: response.status,
-      attempt,
-      retryAfterMs,
-    })
-    // Drain the body so the connection can be reused.
-    await response.text().catch(() => '')
-    await sleepUntilAborted(retryAfterMs, input.signal)
-    if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
   }
+  if (!response) throw new Error('BigQuery insertAll failed: no response')
   if (!response.ok) {
     const text = await response.text().catch(() => '')
     throw new Error(`BigQuery insertAll failed (HTTP ${response.status}): ${text}`)
