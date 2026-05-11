@@ -106,7 +106,7 @@ Inserts each row into a target VARIANT column via the Snowflake SQL API v2 with 
 
 - **Account** — the Snowflake account identifier. Preferred form is `<orgname>-<acctname>` (no dots). Legacy `<locator>.<region>.<cloud>` is also accepted.
 - **User / Warehouse / Database / Schema / Table** — must already exist. The user needs `INSERT` privilege on the table and `USAGE` on the warehouse, database, and schema.
-- **Column** *(optional)* — target VARIANT column name. Defaults to `data`.
+- **Column** *(optional)* — target VARIANT column name. Defaults to `DATA` (matches Snowflake's unquoted identifier folding).
 - **Role** *(optional)* — Snowflake role to assume.
 - **Private key (PEM)** — PKCS8-encoded RSA private key. Register the matching public key on the Snowflake user via `ALTER USER ... SET RSA_PUBLIC_KEY = '...'`.
 

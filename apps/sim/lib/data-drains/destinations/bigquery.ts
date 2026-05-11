@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { JWT } from 'google-auth-library'
 import { z } from 'zod'
 import {
+  backoffWithJitter,
   type ParsedServiceAccount,
   parseNdjsonObjects,
   parseRetryAfter,
@@ -202,9 +203,10 @@ async function insertAll(input: InsertAllInput): Promise<void> {
       }
       if (!RETRYABLE_STATUSES.has(response.status)) break
       if (attempt >= MAX_RETRY_ATTEMPTS) break
-      const retryAfterMs =
-        parseRetryAfter(response.headers.get('retry-after')) ??
-        BASE_RETRY_DELAY_MS * 2 ** (attempt - 1)
+      const retryAfterHeaderMs = parseRetryAfter(response.headers.get('retry-after'))
+      const retryAfterMs = backoffWithJitter(attempt, retryAfterHeaderMs, {
+        baseMs: BASE_RETRY_DELAY_MS,
+      })
       logger.warn('BigQuery insertAll transient error; retrying', {
         status: response.status,
         attempt,
@@ -222,7 +224,7 @@ async function insertAll(input: InsertAllInput): Promise<void> {
        */
       if (input.signal.aborted) throw input.signal.reason ?? error
       if (attempt >= MAX_RETRY_ATTEMPTS) throw error
-      const retryAfterMs = BASE_RETRY_DELAY_MS * 2 ** (attempt - 1)
+      const retryAfterMs = backoffWithJitter(attempt, null, { baseMs: BASE_RETRY_DELAY_MS })
       logger.warn('BigQuery insertAll network error; retrying', {
         attempt,
         retryAfterMs,
@@ -284,9 +286,10 @@ export const bigqueryDestination: DrainDestination<
     const jwt = buildJwt(account)
     const token = await getAccessToken(jwt)
     const url = `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(config.projectId)}/datasets/${encodeURIComponent(config.datasetId)}/tables/${encodeURIComponent(config.tableId)}?fields=id`
+    const perAttempt = AbortSignal.any([signal, AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS)])
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
-      signal,
+      signal: perAttempt,
     })
     if (!response.ok) {
       const text = await response.text().catch(() => '')

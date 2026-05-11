@@ -401,11 +401,11 @@ const snowflakeFormSpec: DestinationFormSpec<SnowflakeState> = {
           onChange={(e) => setState({ ...state, table: e.target.value })}
         />
       </FormField>
-      <FormField label='Column (optional, defaults to "data")'>
+      <FormField label='Column (optional, defaults to "DATA")'>
         <Input
           value={state.column}
           onChange={(e) => setState({ ...state, column: e.target.value })}
-          placeholder='data'
+          placeholder='DATA'
         />
       </FormField>
       <FormField label='Role (optional)'>
