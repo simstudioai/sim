@@ -4,6 +4,7 @@ import { JWT } from 'google-auth-library'
 import { z } from 'zod'
 import {
   type ParsedServiceAccount,
+  parseRetryAfter,
   parseServiceAccount,
   refineServiceAccountJson,
   sleepUntilAborted,
@@ -158,18 +159,6 @@ function buildInsertId(metadata: DeliveryMetadata, index: number): string {
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
 const MAX_RETRY_ATTEMPTS = 3
 const BASE_RETRY_DELAY_MS = 250
-
-function parseRetryAfter(header: string | null): number | null {
-  if (!header) return null
-  const seconds = Number(header)
-  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1000, 30_000)
-  const dateMs = Date.parse(header)
-  if (Number.isFinite(dateMs)) {
-    const delta = dateMs - Date.now()
-    if (delta > 0) return Math.min(delta, 30_000)
-  }
-  return null
-}
 
 /**
  * Streams a chunk of rows to `tabledata.insertAll`.

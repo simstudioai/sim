@@ -27,6 +27,34 @@ export function sleepUntilAborted(ms: number, signal: AbortSignal): Promise<void
  * (it produces an empty-name segment), and we want exactly one boundary
  * between prefix and the rest of the key.
  */
+/**
+ * Maximum HTTP Retry-After value we honor. A server requesting >30s is treated
+ * as a 30s delay so a misconfigured upstream can't stall a drain run.
+ */
+const RETRY_AFTER_MAX_MS = 30_000
+
+/**
+ * Parses an HTTP `Retry-After` header (either delta-seconds or HTTP-date) into
+ * a millisecond delay, capped at 30s. Returns `null` when the header is
+ * absent or unparseable so callers can fall back to their own backoff.
+ */
+export function parseRetryAfter(header: string | null): number | null {
+  if (!header) return null
+  const trimmed = header.trim()
+  if (trimmed.length === 0) return null
+  const seconds = Number(trimmed)
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(Math.floor(seconds * 1000), RETRY_AFTER_MAX_MS)
+  }
+  const dateMs = Date.parse(trimmed)
+  if (!Number.isNaN(dateMs)) {
+    const delta = dateMs - Date.now()
+    if (delta <= 0) return 0
+    return Math.min(delta, RETRY_AFTER_MAX_MS)
+  }
+  return null
+}
+
 export function normalizePrefix(raw: string | undefined): string {
   if (!raw) return ''
   const trimmed = raw.replace(/^\/+/, '').replace(/\/+$/, '')

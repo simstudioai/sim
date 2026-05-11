@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { importPKCS8, SignJWT } from 'jose'
 import { z } from 'zod'
-import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
+import { parseRetryAfter, sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import type { DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainSnowflakeDestination')
@@ -173,30 +173,6 @@ function parseNdjson(body: Buffer): string[] {
     lines.push(line)
   }
   return lines
-}
-
-/**
- * Parses a Retry-After header. Supports both delta-seconds and HTTP-date
- * formats. Returns the delay in milliseconds, or `null` if not parseable.
- */
-/** Cap Retry-After to keep cancellation latency bounded, matching the other destinations. */
-const RETRY_AFTER_MAX_MS = 30_000
-
-function parseRetryAfter(header: string | null): number | null {
-  if (!header) return null
-  const trimmed = header.trim()
-  if (trimmed.length === 0) return null
-  const seconds = Number(trimmed)
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    return Math.min(Math.floor(seconds * 1000), RETRY_AFTER_MAX_MS)
-  }
-  const dateMs = Date.parse(trimmed)
-  if (!Number.isNaN(dateMs)) {
-    const delta = dateMs - Date.now()
-    if (delta <= 0) return 0
-    return Math.min(delta, RETRY_AFTER_MAX_MS)
-  }
-  return null
 }
 
 function isRetryableStatus(status: number): boolean {

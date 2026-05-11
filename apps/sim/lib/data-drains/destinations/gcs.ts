@@ -7,6 +7,7 @@ import {
   buildObjectKey,
   normalizePrefix,
   type ParsedServiceAccount,
+  parseRetryAfter,
   parseServiceAccount,
   refineServiceAccountJson,
   sleepUntilAborted,
@@ -99,21 +100,12 @@ function isRetryableStatus(status: number): boolean {
   )
 }
 
-function backoffMs(attempt: number, retryAfterMs?: number): number {
-  if (retryAfterMs !== undefined) {
+function backoffMs(attempt: number, retryAfterMs: number | null): number {
+  if (retryAfterMs !== null) {
     return Math.min(Math.max(retryAfterMs, BASE_BACKOFF_MS), MAX_BACKOFF_MS)
   }
   const exp = Math.min(BASE_BACKOFF_MS * 2 ** (attempt - 1), MAX_BACKOFF_MS)
   return exp * (0.8 + Math.random() * 0.4)
-}
-
-function parseRetryAfter(header: string | null): number | undefined {
-  if (!header) return undefined
-  const seconds = Number.parseInt(header, 10)
-  if (!Number.isNaN(seconds) && seconds >= 0) return seconds * 1000
-  const dateMs = Date.parse(header)
-  if (!Number.isNaN(dateMs)) return Math.max(0, dateMs - Date.now())
-  return undefined
 }
 
 interface RetryRequestInput {
@@ -149,7 +141,7 @@ async function fetchWithRetry(input: RetryRequestInput): Promise<void> {
         error: toError(error).message,
       })
       if (attempt < MAX_ATTEMPTS) {
-        await sleepUntilAborted(backoffMs(attempt), input.signal)
+        await sleepUntilAborted(backoffMs(attempt, null), input.signal)
         continue
       }
       throw error

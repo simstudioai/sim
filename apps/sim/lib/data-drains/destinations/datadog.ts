@@ -2,7 +2,7 @@ import { gzipSync } from 'node:zlib'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { z } from 'zod'
-import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
+import { parseRetryAfter, sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainDatadogDestination')
@@ -71,9 +71,15 @@ function buildEndpoint(site: DatadogSite): string {
 function parseNdjson(body: Buffer): unknown[] {
   const text = body.toString('utf8')
   const rows: unknown[] = []
-  for (const line of text.split(/\r?\n/)) {
+  const lines = text.split(/\r?\n/)
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
     if (line.length === 0) continue
-    rows.push(JSON.parse(line))
+    try {
+      rows.push(JSON.parse(line))
+    } catch (error) {
+      throw new Error(`NDJSON parse failed at line ${i}: ${toError(error).message}`)
+    }
   }
   return rows
 }
@@ -110,20 +116,8 @@ function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500
 }
 
-function parseRetryAfter(header: string | null): number | undefined {
-  if (!header) return undefined
-  const seconds = Number.parseInt(header, 10)
-  if (!Number.isNaN(seconds) && seconds >= 0) return seconds * 1000
-  const dateMs = Date.parse(header)
-  if (!Number.isNaN(dateMs)) {
-    const delta = dateMs - Date.now()
-    return delta > 0 ? delta : 0
-  }
-  return undefined
-}
-
-function backoffWithJitter(attempt: number, retryAfterMs?: number): number {
-  if (retryAfterMs !== undefined) {
+function backoffWithJitter(attempt: number, retryAfterMs: number | null): number {
+  if (retryAfterMs !== null) {
     return Math.min(Math.max(retryAfterMs, BASE_BACKOFF_MS), MAX_BACKOFF_MS)
   }
   const exponential = Math.min(BASE_BACKOFF_MS * 2 ** (attempt - 1), MAX_BACKOFF_MS)
@@ -173,7 +167,7 @@ async function postWithRetries(input: PostInput): Promise<Response> {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
     const perAttempt = AbortSignal.any([input.signal, AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS)])
-    let retryAfterMs: number | undefined
+    let retryAfterMs: number | null = null
     let response: Response | undefined
     try {
       response = await fetch(input.url, {

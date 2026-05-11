@@ -7,7 +7,7 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
-import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
+import { parseRetryAfter, sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainWebhookDestination')
@@ -92,8 +92,8 @@ function sign(body: Buffer, secret: string, timestamp: number): string {
   return `t=${timestamp},${SIGNATURE_VERSION}=${hmac}`
 }
 
-function backoffWithJitter(attempt: number, retryAfterMs?: number): number {
-  if (retryAfterMs !== undefined) {
+function backoffWithJitter(attempt: number, retryAfterMs: number | null): number {
+  if (retryAfterMs !== null) {
     // Floor at 500ms so a misbehaving server returning Retry-After: 0 cannot
     // pin us in a tight retry loop.
     return Math.min(Math.max(retryAfterMs, BASE_BACKOFF_MS), MAX_BACKOFF_MS)
@@ -101,18 +101,6 @@ function backoffWithJitter(attempt: number, retryAfterMs?: number): number {
   const exponential = Math.min(BASE_BACKOFF_MS * 2 ** (attempt - 1), MAX_BACKOFF_MS)
   // ±20% jitter avoids thundering-herd alignment across drains.
   return exponential * (0.8 + Math.random() * 0.4)
-}
-
-function parseRetryAfter(header: string | null): number | undefined {
-  if (!header) return undefined
-  const seconds = Number.parseInt(header, 10)
-  if (!Number.isNaN(seconds) && seconds >= 0) return seconds * 1000
-  const dateMs = Date.parse(header)
-  if (!Number.isNaN(dateMs)) {
-    const delta = dateMs - Date.now()
-    return delta > 0 ? delta : 0
-  }
-  return undefined
 }
 
 function isRetryableStatus(status: number): boolean {
@@ -206,7 +194,7 @@ export const webhookDestination: DrainDestination<
           // fresh (otherwise long backoffs would push us outside the
           // verifier's skew window).
           const headers = buildHeaders({ config, credentials, body, contentType, metadata })
-          let retryAfterMs: number | undefined
+          let retryAfterMs: number | null = null
           let response: Awaited<ReturnType<typeof secureFetchWithPinnedIP>> | undefined
           try {
             response = await secureFetchWithPinnedIP(config.url, resolvedIP, {
