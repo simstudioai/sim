@@ -90,9 +90,12 @@ export function reduceFilePreviewSessions(
         }
       }
 
+      const successor = pickActiveSessionId(nextSessions, state.activeSessionId)
       return {
         sessions: nextSessions,
-        activeSessionId: pickActiveSessionId(nextSessions, state.activeSessionId),
+        // Preserve linger: if the active session is a completed (lingered) one
+        // and no non-complete successor exists, keep it rather than going null.
+        activeSessionId: successor ?? state.activeSessionId,
       }
     }
 
@@ -108,7 +111,8 @@ export function reduceFilePreviewSessions(
 
       let nextActiveSessionId: string | null
       if (action.activate === false || action.session.status === 'complete') {
-        nextActiveSessionId = pickActiveSessionId(nextSessions, state.activeSessionId)
+        const successor = pickActiveSessionId(nextSessions, state.activeSessionId)
+        nextActiveSessionId = successor ?? state.activeSessionId
       } else {
         // Don't steal active from a session that already has renderable content
         // just because a new empty/pending session arrived. Wait until the new

@@ -174,7 +174,9 @@ export function useScrollAnchor(isStreaming: boolean, content?: string) {
     const spacer = spacerRef.current
     if (!el) return
 
-    if (!hasUserScrolledRef.current) {
+    // Clear the spacer when the user hasn't scrolled (auto-follow mode) or when
+    // streaming has ended (content is stable; no more clip-prevention needed).
+    if (!hasUserScrolledRef.current || !isStreaming) {
       if (spacer) spacer.style.minHeight = '0'
       return
     }
@@ -203,7 +205,7 @@ export function useScrollAnchor(isStreaming: boolean, content?: string) {
     if (el.scrollTop < targetScrollTop) {
       el.scrollTop = targetScrollTop
     }
-  }, [content])
+  }, [content, isStreaming])
 
   return {
     ref: callbackRef,
