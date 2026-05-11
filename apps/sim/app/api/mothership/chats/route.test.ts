@@ -120,7 +120,7 @@ describe('GET /api/mothership/chats', () => {
     ])
   })
 
-  it('skips the reconciliation lookup when no chat has a stream marker set', async () => {
+  it('issues no Redis MGET when no chat has a stream marker set (empty candidateIds)', async () => {
     const now = new Date('2026-05-11T12:00:00Z')
     mockOrderBy.mockResolvedValueOnce([
       { id: 'chat-1', title: null, updatedAt: now, activeStreamId: null, lastSeenAt: null },
