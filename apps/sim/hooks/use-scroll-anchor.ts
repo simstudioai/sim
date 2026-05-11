@@ -21,9 +21,10 @@ export function computeSpacerShortage(
  * Manages scroll for a streaming file-preview container.
  *
  * Never-scrolled: auto-follows new content to the bottom (MutationObserver
- * keeps it pinned). Has-scrolled: position is locked via a spacer element
- * that inflates `scrollHeight` to prevent the browser from clamping `scrollTop`
- * when replace-mode streaming temporarily produces a shorter chunk.
+ * keeps it pinned). Scrolled-up: position is locked via a spacer element that
+ * inflates `scrollHeight` to prevent the browser from clamping `scrollTop` when
+ * replace-mode streaming temporarily produces a shorter chunk. Scrolled back to
+ * the bottom: auto-follow re-engages.
  *
  * @param isStreaming - whether the container is currently receiving streaming content
  * @param content - drives spacer recalculation; pass the current text value

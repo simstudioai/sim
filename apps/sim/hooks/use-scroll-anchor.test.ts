@@ -10,8 +10,6 @@ import { describe, expect, it } from 'vitest'
 import { computeSpacerShortage } from '@/hooks/use-scroll-anchor'
 
 describe('computeSpacerShortage', () => {
-  // ── no shortage needed ────────────────────────────────────────────────────
-
   it('returns 0 when content is exactly tall enough', () => {
     // user at 500, viewport 600 → needs 1100; content is exactly 1100
     expect(computeSpacerShortage(500, 600, 1100, 0)).toBe(0)
@@ -31,8 +29,6 @@ describe('computeSpacerShortage', () => {
     expect(computeSpacerShortage(0, 600, 1000, 0)).toBe(0)
   })
 
-  // ── shortage cases ───────────────────────────────────────────────────────
-
   it('returns positive shortage when content shrank to almost nothing', () => {
     // user at 500, viewport 600 → needs 1100; content shrank to 100
     expect(computeSpacerShortage(500, 600, 100, 0)).toBe(1000)
@@ -46,8 +42,6 @@ describe('computeSpacerShortage', () => {
   it('returns the exact gap when content is one pixel short', () => {
     expect(computeSpacerShortage(500, 600, 1099, 0)).toBe(1)
   })
-
-  // ── spacer already inflated from a previous update ───────────────────────
 
   it('subtracts existing spacer height before recomputing shortage', () => {
     // spacer was 900 from last update; content grew to 1000 natural height
@@ -76,8 +70,6 @@ describe('computeSpacerShortage', () => {
     expect(computeSpacerShortage(500, 600, 2000, 1200)).toBe(300)
   })
 
-  // ── user scrolled deep into a long document ──────────────────────────────
-
   it('handles large scroll positions correctly', () => {
     // user at 5000, viewport 600 → needs 5600; content shrank to 200
     expect(computeSpacerShortage(5000, 600, 200, 0)).toBe(5400)
@@ -88,8 +80,6 @@ describe('computeSpacerShortage', () => {
     // content shrinks to 100; needed = 1400 + 600 = 2000; shortage = 2000 - 100 = 1900
     expect(computeSpacerShortage(1400, 600, 100, 0)).toBe(1900)
   })
-
-  // ── edge: zero-height content (first chunk of a fresh write) ─────────────
 
   it('handles zero-height content', () => {
     // first streaming chunk is empty; user was at 500

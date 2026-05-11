@@ -176,11 +176,6 @@ describe('reduceFilePreviewSessions', () => {
   })
 
   it('lingers on the completed session when it is the only one (no successor)', () => {
-    // Completing the only session must NOT drop activeSessionId to null.
-    // The linger keeps the completed session active so downstream consumers
-    // continue to receive previewText and the file viewer stays mounted,
-    // preserving the user's scroll position until a new tool call arrives
-    // or the session store is reset.
     const onlyStreaming = reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
       type: 'upsert',
       session: createSession({
@@ -247,9 +242,6 @@ describe('reduceFilePreviewSessions', () => {
   })
 
   it('holds the linger when an empty pending session arrives (no content yet)', () => {
-    // Between tool calls, a new empty/pending session may arrive before its
-    // first content chunk. The active session must not switch to it so the
-    // file viewer stays mounted and scroll position is preserved.
     const lingered = reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
       type: 'upsert',
       session: createSession({
@@ -271,7 +263,6 @@ describe('reduceFilePreviewSessions', () => {
       }),
     })
 
-    // New session arrives but with no renderable content (pending, empty).
     const afterEmptyUpsert = reduceFilePreviewSessions(afterComplete, {
       type: 'upsert',
       session: createSession({
@@ -285,7 +276,6 @@ describe('reduceFilePreviewSessions', () => {
 
     expect(afterEmptyUpsert.activeSessionId).toBe('preview-1')
 
-    // Once the first content chunk arrives, active switches.
     const afterContent = reduceFilePreviewSessions(afterEmptyUpsert, {
       type: 'upsert',
       session: createSession({
@@ -465,6 +455,88 @@ describe('reduceFilePreviewSessions', () => {
     expect(hydrated.sessions['preview-1']?.previewText).toBe('current')
     // preview-2 added
     expect(hydrated.sessions['preview-2']?.previewText).toBe('new')
+  })
+
+  it('hydrate preserves linger when no non-complete session exists in incoming batch', () => {
+    const lingered = reduceFilePreviewSessions(
+      reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
+        type: 'upsert',
+        session: createSession({
+          id: 'preview-1',
+          toolCallId: 'preview-1',
+          previewVersion: 2,
+          previewText: 'final',
+        }),
+      }),
+      {
+        type: 'complete',
+        session: createSession({
+          id: 'preview-1',
+          toolCallId: 'preview-1',
+          status: 'complete',
+          previewVersion: 3,
+          completedAt: '2026-04-10T00:00:02.000Z',
+          previewText: 'final',
+        }),
+      }
+    )
+
+    // Hydrate with the same completed session — no non-complete successor.
+    const afterHydrate = reduceFilePreviewSessions(lingered, {
+      type: 'hydrate',
+      sessions: [
+        createSession({
+          id: 'preview-1',
+          toolCallId: 'preview-1',
+          status: 'complete',
+          previewVersion: 3,
+          previewText: 'final',
+          completedAt: '2026-04-10T00:00:02.000Z',
+        }),
+      ],
+    })
+
+    expect(afterHydrate.activeSessionId).toBe('preview-1')
+  })
+
+  it('hydrate releases linger when a non-complete session is present in the incoming batch', () => {
+    const lingered = reduceFilePreviewSessions(
+      reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
+        type: 'upsert',
+        session: createSession({
+          id: 'preview-1',
+          toolCallId: 'preview-1',
+          previewVersion: 2,
+          previewText: 'final',
+        }),
+      }),
+      {
+        type: 'complete',
+        session: createSession({
+          id: 'preview-1',
+          toolCallId: 'preview-1',
+          status: 'complete',
+          previewVersion: 3,
+          completedAt: '2026-04-10T00:00:02.000Z',
+          previewText: 'final',
+        }),
+      }
+    )
+
+    const afterHydrate = reduceFilePreviewSessions(lingered, {
+      type: 'hydrate',
+      sessions: [
+        createSession({
+          id: 'preview-2',
+          toolCallId: 'preview-2',
+          status: 'streaming',
+          previewVersion: 1,
+          previewText: 'new content',
+        }),
+      ],
+    })
+
+    expect(afterHydrate.activeSessionId).toBe('preview-2')
   })
 
   it('complete for a non-active session updates the session but keeps activeSessionId', () => {
