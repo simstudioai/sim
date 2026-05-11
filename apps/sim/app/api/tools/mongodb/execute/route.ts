@@ -1,36 +1,20 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { mongodbExecuteContract } from '@/lib/api/contracts/tools/databases/mongodb'
+import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { createMongoDBConnection, sanitizeCollectionName, validatePipeline } from '../utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  createMongoDBConnection,
+  sanitizeCollectionName,
+  validatePipeline,
+} from '@/app/api/tools/mongodb/utils'
 
 const logger = createLogger('MongoDBExecuteAPI')
 
-const ExecuteSchema = z.object({
-  host: z.string().min(1, 'Host is required'),
-  port: z.coerce.number().int().positive('Port must be a positive integer'),
-  database: z.string().min(1, 'Database name is required'),
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required'),
-  authSource: z.string().optional(),
-  ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
-  collection: z.string().min(1, 'Collection name is required'),
-  pipeline: z
-    .union([z.string(), z.array(z.object({}).passthrough())])
-    .transform((val) => {
-      if (Array.isArray(val)) {
-        return JSON.stringify(val)
-      }
-      return val
-    })
-    .refine((val) => val && val.trim() !== '', {
-      message: 'Pipeline is required',
-    }),
-})
-
-export async function POST(request: NextRequest) {
-  const requestId = randomUUID().slice(0, 8)
+export const POST = withRouteHandler(async (request: NextRequest) => {
+  const requestId = generateId().slice(0, 8)
   let client = null
 
   const auth = await checkInternalAuth(request)
@@ -40,8 +24,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json()
-    const params = ExecuteSchema.parse(body)
+    const parsed = await parseToolRequest(mongodbExecuteContract, request, { logger })
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
 
     logger.info(
       `[${requestId}] Executing aggregation pipeline on ${params.host}:${params.port}/${params.database}.${params.collection}`
@@ -86,14 +71,6 @@ export async function POST(request: NextRequest) {
       documentCount: documents.length,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] MongoDB aggregation failed:`, error)
 
@@ -106,4 +83,4 @@ export async function POST(request: NextRequest) {
       await client.close()
     }
   }
-}
+})
