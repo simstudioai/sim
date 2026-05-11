@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { JWT } from 'google-auth-library'
 import { z } from 'zod'
+import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainBigQueryDestination')
@@ -214,21 +215,6 @@ function buildInsertId(metadata: DeliveryMetadata, index: number): string {
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
 const MAX_RETRY_ATTEMPTS = 3
 const BASE_RETRY_DELAY_MS = 250
-
-function sleepUntilAborted(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve()
-  return new Promise((resolve) => {
-    const onAbort = () => {
-      clearTimeout(timeoutId)
-      resolve()
-    }
-    const timeoutId = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
-}
 
 function parseRetryAfter(header: string | null): number | null {
   if (!header) return null

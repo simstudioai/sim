@@ -2,6 +2,7 @@ import { gzipSync } from 'node:zlib'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { z } from 'zod'
+import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainDatadogDestination')
@@ -70,7 +71,7 @@ function buildEndpoint(site: DatadogSite): string {
 function parseNdjson(body: Buffer): unknown[] {
   const text = body.toString('utf8')
   const rows: unknown[] = []
-  for (const line of text.split('\n')) {
+  for (const line of text.split(/\r?\n/)) {
     if (line.length === 0) continue
     rows.push(JSON.parse(line))
   }
@@ -127,21 +128,6 @@ function backoffWithJitter(attempt: number, retryAfterMs?: number): number {
   }
   const exponential = Math.min(BASE_BACKOFF_MS * 2 ** (attempt - 1), MAX_BACKOFF_MS)
   return exponential * (0.8 + Math.random() * 0.4)
-}
-
-function sleepUntilAborted(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve()
-  return new Promise((resolve) => {
-    const onAbort = () => {
-      clearTimeout(timeoutId)
-      resolve()
-    }
-    const timeoutId = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
 }
 
 interface PreparedBody {

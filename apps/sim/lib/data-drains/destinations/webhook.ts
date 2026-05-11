@@ -7,6 +7,7 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainWebhookDestination')
@@ -89,26 +90,6 @@ export type WebhookDestinationCredentials = z.infer<typeof webhookCredentialsSch
 function sign(body: Buffer, secret: string, timestamp: number): string {
   const hmac = createHmac('sha256', secret).update(`${timestamp}.`).update(body).digest('hex')
   return `t=${timestamp},${SIGNATURE_VERSION}=${hmac}`
-}
-
-/**
- * Resolves after `ms` or as soon as `signal` aborts, whichever happens first.
- * The caller checks `signal.aborted` at the top of the next iteration to
- * surface the abort — keeping resolution side-effect-free here.
- */
-function sleepUntilAborted(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve()
-  return new Promise((resolve) => {
-    const onAbort = () => {
-      clearTimeout(timeoutId)
-      resolve()
-    }
-    const timeoutId = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
 }
 
 function backoffWithJitter(attempt: number, retryAfterMs?: number): number {

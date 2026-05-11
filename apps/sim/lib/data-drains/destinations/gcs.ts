@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
 import { JWT } from 'google-auth-library'
 import { z } from 'zod'
+import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import type { DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainGCSDestination')
@@ -229,7 +229,7 @@ async function fetchWithRetry(input: RetryRequestInput): Promise<void> {
         error: toError(error).message,
       })
       if (attempt < MAX_ATTEMPTS) {
-        await sleep(backoffMs(attempt))
+        await sleepUntilAborted(backoffMs(attempt), input.signal)
         continue
       }
       throw error
@@ -249,7 +249,7 @@ async function fetchWithRetry(input: RetryRequestInput): Promise<void> {
     }
     lastError = new Error(`GCS ${input.action} responded with HTTP ${response.status}`)
     const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
-    await sleep(backoffMs(attempt, retryAfterMs))
+    await sleepUntilAborted(backoffMs(attempt, retryAfterMs), input.signal)
   }
   throw lastError instanceof Error
     ? lastError

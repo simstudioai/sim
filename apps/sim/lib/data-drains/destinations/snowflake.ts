@@ -1,9 +1,9 @@
 import { createHash, createPublicKey } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
 import { importPKCS8, SignJWT } from 'jose'
 import { z } from 'zod'
+import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import type { DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainSnowflakeDestination')
@@ -179,16 +179,22 @@ function parseNdjson(body: Buffer): string[] {
  * Parses a Retry-After header. Supports both delta-seconds and HTTP-date
  * formats. Returns the delay in milliseconds, or `null` if not parseable.
  */
+/** Cap Retry-After to keep cancellation latency bounded, matching the other destinations. */
+const RETRY_AFTER_MAX_MS = 30_000
+
 function parseRetryAfter(header: string | null): number | null {
   if (!header) return null
   const trimmed = header.trim()
   if (trimmed.length === 0) return null
   const seconds = Number(trimmed)
-  if (Number.isFinite(seconds) && seconds >= 0) return Math.floor(seconds * 1000)
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(Math.floor(seconds * 1000), RETRY_AFTER_MAX_MS)
+  }
   const dateMs = Date.parse(trimmed)
   if (!Number.isNaN(dateMs)) {
     const delta = dateMs - Date.now()
-    return delta > 0 ? delta : 0
+    if (delta <= 0) return 0
+    return Math.min(delta, RETRY_AFTER_MAX_MS)
   }
   return null
 }
@@ -254,7 +260,7 @@ async function executeStatement(input: ExecuteInput): Promise<void> {
         error: toError(error).message,
       })
       if (input.signal.aborted || attempt === EXECUTE_MAX_ATTEMPTS) throw error
-      await sleep(computeBackoffDelay(attempt))
+      await sleepUntilAborted(computeBackoffDelay(attempt), input.signal)
       continue
     }
     if (response.status === 202) {
@@ -282,7 +288,7 @@ async function executeStatement(input: ExecuteInput): Promise<void> {
       status: response.status,
       delayMs: delay,
     })
-    await sleep(delay)
+    await sleepUntilAborted(delay, input.signal)
   }
   throw lastError ?? new Error('Snowflake request failed after retries')
 }
@@ -309,7 +315,7 @@ async function pollStatement(input: PollInput): Promise<void> {
   let interval = POLL_INITIAL_INTERVAL_MS
   while (Date.now() < deadline) {
     if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
-    await sleep(interval)
+    await sleepUntilAborted(interval, input.signal)
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${input.jwt}`,
