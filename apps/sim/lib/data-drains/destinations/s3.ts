@@ -9,6 +9,7 @@ import { generateShortId } from '@sim/utils/id'
 import { z } from 'zod'
 import { validateExternalUrl } from '@/lib/core/security/input-validation'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { buildObjectKey, normalizePrefix } from '@/lib/data-drains/destinations/utils'
 import type { DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainS3Destination')
@@ -56,35 +57,6 @@ function buildClient(config: S3DestinationConfig, credentials: S3DestinationCred
     endpoint: config.endpoint,
     forcePathStyle: config.forcePathStyle ?? false,
   })
-}
-
-function normalizePrefix(raw: string | undefined): string {
-  if (!raw) return ''
-  // S3 keys cannot start with `/` (creates an empty-name segment); also
-  // collapse trailing slashes so the joiner produces a single boundary.
-  const trimmed = raw.replace(/^\/+/, '').replace(/\/+$/, '')
-  return trimmed.length === 0 ? '' : `${trimmed}/`
-}
-
-function buildKey(
-  config: S3DestinationConfig,
-  metadata: {
-    drainId: string
-    runId: string
-    source: string
-    sequence: number
-    runStartedAt: Date
-  }
-): string {
-  // Partition by the run's start time so all chunks from one run share a
-  // single date prefix even if delivery crosses a midnight boundary.
-  const partition = metadata.runStartedAt
-  const yyyy = partition.getUTCFullYear().toString().padStart(4, '0')
-  const mm = (partition.getUTCMonth() + 1).toString().padStart(2, '0')
-  const dd = partition.getUTCDate().toString().padStart(2, '0')
-  const seq = metadata.sequence.toString().padStart(5, '0')
-  const prefix = normalizePrefix(config.prefix)
-  return `${prefix}${metadata.source}/${metadata.drainId}/${yyyy}/${mm}/${dd}/${metadata.runId}-${seq}.ndjson`
 }
 
 function isS3ServiceException(error: unknown): error is S3ServiceException {
@@ -192,7 +164,7 @@ export const s3Destination: DrainDestination<S3DestinationConfig, S3DestinationC
       async deliver({ body, contentType, metadata, signal }) {
         if (endpointCheck === null) endpointCheck = assertEndpointIsPublic(config.endpoint)
         await endpointCheck
-        const key = buildKey(config, metadata)
+        const key = buildObjectKey(config.prefix, metadata)
         await withS3ErrorContext('put-object', () =>
           client.send(
             new PutObjectCommand({

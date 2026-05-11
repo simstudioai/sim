@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { z } from 'zod'
+import { buildObjectKey, normalizePrefix } from '@/lib/data-drains/destinations/utils'
 import type { DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainAzureBlobDestination')
@@ -93,31 +94,6 @@ async function buildClients(
   return { containerClient: blobServiceClient.getContainerClient(config.containerName) }
 }
 
-function normalizePrefix(raw: string | undefined): string {
-  if (!raw) return ''
-  const trimmed = raw.replace(/^\/+/, '').replace(/\/+$/, '')
-  return trimmed.length === 0 ? '' : `${trimmed}/`
-}
-
-function buildBlobName(
-  config: AzureBlobDestinationConfig,
-  metadata: {
-    drainId: string
-    runId: string
-    source: string
-    sequence: number
-    runStartedAt: Date
-  }
-): string {
-  const partition = metadata.runStartedAt
-  const yyyy = partition.getUTCFullYear().toString().padStart(4, '0')
-  const mm = (partition.getUTCMonth() + 1).toString().padStart(2, '0')
-  const dd = partition.getUTCDate().toString().padStart(2, '0')
-  const seq = metadata.sequence.toString().padStart(5, '0')
-  const prefix = normalizePrefix(config.prefix)
-  return `${prefix}${metadata.source}/${metadata.drainId}/${yyyy}/${mm}/${dd}/${metadata.runId}-${seq}.ndjson`
-}
-
 interface AzureRestErrorLike {
   statusCode?: number
   code?: string
@@ -182,7 +158,7 @@ export const azureBlobDestination: DrainDestination<
       async deliver({ body, contentType, metadata, signal }) {
         if (clientsPromise === null) clientsPromise = buildClients(config, credentials)
         const { containerClient } = await clientsPromise
-        const blobName = buildBlobName(config, metadata)
+        const blobName = buildObjectKey(config.prefix, metadata)
         const blockBlobClient = containerClient.getBlockBlobClient(blobName)
         await withAzureErrorContext('put-object', () =>
           blockBlobClient.upload(body, body.byteLength, {

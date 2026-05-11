@@ -21,6 +21,41 @@ export function sleepUntilAborted(ms: number, signal: AbortSignal): Promise<void
   })
 }
 
+/**
+ * Strips leading and trailing slashes from a path prefix and re-appends a
+ * single trailing slash. Object stores reject keys that begin with `/`
+ * (it produces an empty-name segment), and we want exactly one boundary
+ * between prefix and the rest of the key.
+ */
+export function normalizePrefix(raw: string | undefined): string {
+  if (!raw) return ''
+  const trimmed = raw.replace(/^\/+/, '').replace(/\/+$/, '')
+  return trimmed.length === 0 ? '' : `${trimmed}/`
+}
+
+export interface ObjectKeyMetadata {
+  drainId: string
+  runId: string
+  source: string
+  sequence: number
+  runStartedAt: Date
+}
+
+/**
+ * Builds a date-partitioned NDJSON object key for blob-store destinations.
+ * Layout: `<prefix><source>/<drainId>/<YYYY>/<MM>/<DD>/<runId>-<seq>.ndjson`.
+ * Partition uses the run's start time so all chunks from a run share one
+ * date prefix even if delivery crosses a UTC midnight boundary.
+ */
+export function buildObjectKey(prefix: string | undefined, metadata: ObjectKeyMetadata): string {
+  const partition = metadata.runStartedAt
+  const yyyy = partition.getUTCFullYear().toString().padStart(4, '0')
+  const mm = (partition.getUTCMonth() + 1).toString().padStart(2, '0')
+  const dd = partition.getUTCDate().toString().padStart(2, '0')
+  const seq = metadata.sequence.toString().padStart(5, '0')
+  return `${normalizePrefix(prefix)}${metadata.source}/${metadata.drainId}/${yyyy}/${mm}/${dd}/${metadata.runId}-${seq}.ndjson`
+}
+
 export interface ParsedServiceAccount {
   clientEmail: string
   privateKey: string

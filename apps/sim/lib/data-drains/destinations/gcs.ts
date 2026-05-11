@@ -4,6 +4,8 @@ import { generateShortId } from '@sim/utils/id'
 import { JWT } from 'google-auth-library'
 import { z } from 'zod'
 import {
+  buildObjectKey,
+  normalizePrefix,
   type ParsedServiceAccount,
   parseServiceAccount,
   refineServiceAccountJson,
@@ -61,31 +63,6 @@ const gcsCredentialsSchema = z
 
 export type GCSDestinationConfig = z.infer<typeof gcsConfigSchema>
 export type GCSDestinationCredentials = z.infer<typeof gcsCredentialsSchema>
-
-function normalizePrefix(raw: string | undefined): string {
-  if (!raw) return ''
-  const trimmed = raw.replace(/^\/+/, '').replace(/\/+$/, '')
-  return trimmed.length === 0 ? '' : `${trimmed}/`
-}
-
-function buildObjectName(
-  config: GCSDestinationConfig,
-  metadata: {
-    drainId: string
-    runId: string
-    source: string
-    sequence: number
-    runStartedAt: Date
-  }
-): string {
-  const partition = metadata.runStartedAt
-  const yyyy = partition.getUTCFullYear().toString().padStart(4, '0')
-  const mm = (partition.getUTCMonth() + 1).toString().padStart(2, '0')
-  const dd = partition.getUTCDate().toString().padStart(2, '0')
-  const seq = metadata.sequence.toString().padStart(5, '0')
-  const prefix = normalizePrefix(config.prefix)
-  return `${prefix}${metadata.source}/${metadata.drainId}/${yyyy}/${mm}/${dd}/${metadata.runId}-${seq}.ndjson`
-}
 
 function buildJwt(account: ParsedServiceAccount): JWT {
   return new JWT({ email: account.clientEmail, key: account.privateKey, scopes: [SCOPE] })
@@ -278,7 +255,7 @@ export const gcsDestination: DrainDestination<GCSDestinationConfig, GCSDestinati
     const jwt = buildJwt(account)
     return {
       async deliver({ body, contentType, metadata, signal }) {
-        const objectName = buildObjectName(config, metadata)
+        const objectName = buildObjectKey(config.prefix, metadata)
         await uploadObject('put-object', {
           bucket: config.bucket,
           objectName,
