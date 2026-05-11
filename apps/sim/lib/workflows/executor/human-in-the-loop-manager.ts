@@ -264,7 +264,7 @@ export class PauseResumeManager {
         .where(eq(pausedExecutions.id, existing.id))
     })
 
-    await PauseResumeManager.processQueuedResumes(executionId)
+    await PauseResumeManager.processQueuedResumes(executionId, workflowId)
   }
 
   static async enqueueOrStartResume(args: EnqueueResumeArgs): Promise<EnqueueResumeResult> {
@@ -504,7 +504,10 @@ export class PauseResumeManager {
         })
       }
 
-      await PauseResumeManager.processQueuedResumes(pausedExecution.executionId)
+      await PauseResumeManager.processQueuedResumes(
+        pausedExecution.executionId,
+        pausedExecution.workflowId
+      )
 
       return result
     } catch (error) {
@@ -532,7 +535,10 @@ export class PauseResumeManager {
         contextId,
         error,
       })
-      await PauseResumeManager.processQueuedResumes(pausedExecution.executionId)
+      await PauseResumeManager.processQueuedResumes(
+        pausedExecution.executionId,
+        pausedExecution.workflowId
+      )
       throw error
     }
   }
@@ -1689,7 +1695,7 @@ export class PauseResumeManager {
           eq(pausedExecutions.status, 'cancelling')
         )
       )
-    await PauseResumeManager.processQueuedResumes(executionId)
+    await PauseResumeManager.processQueuedResumes(executionId, workflowId)
   }
 
   static async getPausedCancellationStatus(
