@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import type {
   AuthContext,
@@ -41,7 +42,7 @@ export const hubspotHandler: WebhookProviderHandler = {
       }
     } catch (error) {
       logger.error(`[${requestId}] Error verifying HubSpot signature`, {
-        error: (error as Error).message,
+        error: toError(error).message,
       })
       return new NextResponse('Unauthorized - Signature verification error', { status: 401 })
     }

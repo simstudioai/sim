@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { validateAirtableId } from '@/lib/core/security/input-validation'
@@ -404,7 +405,7 @@ async function fetchAndProcessAirtablePayloads(
       {
         webhookId: webhookData.id,
         workflowId: workflowData.id,
-        error: (error as Error).message,
+        error: toError(error).message,
       }
     )
   }
@@ -449,7 +450,7 @@ export const airtableHandler: WebhookProviderHandler = {
       }
     } catch (error) {
       logger.error(`[${requestId}] Error verifying Airtable MAC signature`, {
-        error: (error as Error).message,
+        error: toError(error).message,
       })
       return new NextResponse('Unauthorized - Signature verification error', { status: 401 })
     }
@@ -580,7 +581,7 @@ export const airtableHandler: WebhookProviderHandler = {
         },
       }
     } catch (error: unknown) {
-      const err = error as Error
+      const err = toError(error)
       logger.error(
         `[${requestId}] Exception during Airtable webhook creation for webhook ${webhookRecord.id}.`,
         {
@@ -702,7 +703,7 @@ export const airtableHandler: WebhookProviderHandler = {
         } catch (e: unknown) {
           externalIdLookupFailed = true
           logger.warn(`[${requestId}] Error attempting to resolve Airtable externalId`, {
-            error: (e as Error)?.message,
+            error: toError(e).message,
           })
         }
       }
@@ -755,7 +756,7 @@ export const airtableHandler: WebhookProviderHandler = {
         })
       }
     } catch (error: unknown) {
-      const err = error as Error
+      const err = toError(error)
       logger.error(`[${requestId}] Error deleting Airtable webhook`, {
         webhookId: webhookRecord.id,
         error: err.message,
