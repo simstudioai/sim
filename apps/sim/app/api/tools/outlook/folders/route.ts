@@ -40,7 +40,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const sessionUserId = session?.user?.id || ''
 
       if (!sessionUserId) {
-        logger.warn('No user ID found in session')
+        logger.error('No user ID found in session')
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
