@@ -106,15 +106,24 @@ export function reduceFilePreviewSessions(
         [action.session.id]: action.session,
       }
 
-      return {
-        sessions: nextSessions,
-        activeSessionId:
-          action.activate === false
-            ? pickActiveSessionId(nextSessions, state.activeSessionId)
-            : action.session.status === 'complete'
-              ? pickActiveSessionId(nextSessions, state.activeSessionId)
-              : action.session.id,
+      let nextActiveSessionId: string | null
+      if (action.activate === false || action.session.status === 'complete') {
+        nextActiveSessionId = pickActiveSessionId(nextSessions, state.activeSessionId)
+      } else {
+        // Don't steal active from a session that already has renderable content
+        // just because a new empty/pending session arrived. Wait until the new
+        // session has actual content before switching, so the file viewer stays
+        // mounted and the user's scroll position is preserved between tool calls.
+        const currentActive = state.activeSessionId ? nextSessions[state.activeSessionId] : null
+        const currentHasContent = currentActive
+          ? hasRenderableFilePreviewContent(currentActive)
+          : false
+        const incomingHasContent = hasRenderableFilePreviewContent(action.session)
+        nextActiveSessionId =
+          currentHasContent && !incomingHasContent ? state.activeSessionId : action.session.id
       }
+
+      return { sessions: nextSessions, activeSessionId: nextActiveSessionId }
     }
 
     case 'complete': {
@@ -127,12 +136,19 @@ export function reduceFilePreviewSessions(
         [action.session.id]: action.session,
       }
 
+      if (state.activeSessionId !== action.session.id) {
+        return { sessions: nextSessions, activeSessionId: state.activeSessionId }
+      }
+
+      const successor = pickActiveSessionId(nextSessions, null)
       return {
         sessions: nextSessions,
-        activeSessionId:
-          state.activeSessionId === action.session.id
-            ? pickActiveSessionId(nextSessions, null)
-            : state.activeSessionId,
+        // Linger on the completed session when no non-complete successor exists.
+        // This prevents a streamingContent → undefined flicker that would collapse
+        // the file viewer to shorter fetched content, clip scrollTop, and jump the
+        // user's reading position. The linger ends when a new non-complete session
+        // upserts (switching activeSessionId) or reset fires.
+        activeSessionId: successor ?? action.session.id,
       }
     }
 

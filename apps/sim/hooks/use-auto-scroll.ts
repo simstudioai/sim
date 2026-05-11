@@ -49,11 +49,16 @@ export function useAutoScroll(
     const el = containerRef.current
     if (!el) return
 
-    stickyRef.current = true
-    userDetachedRef.current = false
+    // Only pin to bottom if the user is already near the bottom (or the
+    // container has no scrollable content yet). If they've scrolled up to
+    // read, keep their position — they can scroll down to re-engage.
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    const isNearBottom = distanceFromBottom <= STICK_THRESHOLD
+    stickyRef.current = isNearBottom
+    userDetachedRef.current = !isNearBottom
     prevScrollTopRef.current = el.scrollTop
     prevScrollHeightRef.current = el.scrollHeight
-    scrollToBottom()
+    if (isNearBottom) scrollToBottom()
 
     const detach = () => {
       stickyRef.current = false

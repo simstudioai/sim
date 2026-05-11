@@ -175,7 +175,12 @@ describe('reduceFilePreviewSessions', () => {
     expect(completedState.sessions['preview-1']?.id).toBe('preview-1')
   })
 
-  it('clears active session when the only session completes', () => {
+  it('lingers on the completed session when it is the only one (no successor)', () => {
+    // Completing the only session must NOT drop activeSessionId to null.
+    // The linger keeps the completed session active so downstream consumers
+    // continue to receive previewText and the file viewer stays mounted,
+    // preserving the user's scroll position until a new tool call arrives
+    // or the session store is reset.
     const onlyStreaming = reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
       type: 'upsert',
       session: createSession({
@@ -200,8 +205,99 @@ describe('reduceFilePreviewSessions', () => {
       }),
     })
 
-    expect(completed.activeSessionId).toBeNull()
+    expect(completed.activeSessionId).toBe('preview-1')
     expect(completed.sessions['preview-1']?.status).toBe('complete')
+  })
+
+  it('releases the linger when a new non-complete session upserts', () => {
+    const lingered = reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
+      type: 'upsert',
+      session: createSession({
+        id: 'preview-1',
+        toolCallId: 'preview-1',
+        previewVersion: 2,
+        previewText: 'section one',
+      }),
+    })
+    const afterComplete = reduceFilePreviewSessions(lingered, {
+      type: 'complete',
+      session: createSession({
+        id: 'preview-1',
+        toolCallId: 'preview-1',
+        status: 'complete',
+        previewVersion: 3,
+        completedAt: '2026-04-10T00:00:02.000Z',
+        previewText: 'section one',
+      }),
+    })
+
+    // New tool call arrives with content — should switch active to the new session.
+    const afterNew = reduceFilePreviewSessions(afterComplete, {
+      type: 'upsert',
+      session: createSession({
+        id: 'preview-2',
+        toolCallId: 'preview-2',
+        status: 'streaming',
+        previewVersion: 1,
+        previewText: 'section two',
+      }),
+    })
+
+    expect(afterNew.activeSessionId).toBe('preview-2')
+  })
+
+  it('holds the linger when an empty pending session arrives (no content yet)', () => {
+    // Between tool calls, a new empty/pending session may arrive before its
+    // first content chunk. The active session must not switch to it so the
+    // file viewer stays mounted and scroll position is preserved.
+    const lingered = reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
+      type: 'upsert',
+      session: createSession({
+        id: 'preview-1',
+        toolCallId: 'preview-1',
+        previewVersion: 2,
+        previewText: 'existing content',
+      }),
+    })
+    const afterComplete = reduceFilePreviewSessions(lingered, {
+      type: 'complete',
+      session: createSession({
+        id: 'preview-1',
+        toolCallId: 'preview-1',
+        status: 'complete',
+        previewVersion: 3,
+        completedAt: '2026-04-10T00:00:02.000Z',
+        previewText: 'existing content',
+      }),
+    })
+
+    // New session arrives but with no renderable content (pending, empty).
+    const afterEmptyUpsert = reduceFilePreviewSessions(afterComplete, {
+      type: 'upsert',
+      session: createSession({
+        id: 'preview-2',
+        toolCallId: 'preview-2',
+        status: 'pending',
+        previewVersion: 0,
+        previewText: '',
+      }),
+    })
+
+    expect(afterEmptyUpsert.activeSessionId).toBe('preview-1')
+
+    // Once the first content chunk arrives, active switches.
+    const afterContent = reduceFilePreviewSessions(afterEmptyUpsert, {
+      type: 'upsert',
+      session: createSession({
+        id: 'preview-2',
+        toolCallId: 'preview-2',
+        status: 'streaming',
+        previewVersion: 1,
+        previewText: 'new content',
+      }),
+    })
+
+    expect(afterContent.activeSessionId).toBe('preview-2')
   })
 
   it('ignores stale complete events for a newer active session', () => {
@@ -230,5 +326,175 @@ describe('reduceFilePreviewSessions', () => {
     expect(staleCompleteState.activeSessionId).toBe('preview-1')
     expect(staleCompleteState.sessions['preview-1']?.status).toBe('streaming')
     expect(staleCompleteState.sessions['preview-1']?.previewVersion).toBe(3)
+  })
+
+  it('removes a session and clears activeSessionId when the active session is removed', () => {
+    const withSession = reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
+      type: 'upsert',
+      session: createSession({
+        id: 'preview-1',
+        toolCallId: 'preview-1',
+        previewVersion: 1,
+        previewText: 'content',
+      }),
+    })
+
+    const removed = reduceFilePreviewSessions(withSession, {
+      type: 'remove',
+      sessionId: 'preview-1',
+    })
+
+    expect(removed.activeSessionId).toBeNull()
+    expect(removed.sessions['preview-1']).toBeUndefined()
+  })
+
+  it('removes a non-active session without changing activeSessionId', () => {
+    let state = reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
+      type: 'upsert',
+      session: createSession({
+        id: 'preview-1',
+        toolCallId: 'preview-1',
+        previewVersion: 1,
+        previewText: 'active',
+      }),
+    })
+    state = reduceFilePreviewSessions(state, {
+      type: 'upsert',
+      session: createSession({
+        id: 'preview-2',
+        toolCallId: 'preview-2',
+        previewVersion: 1,
+        previewText: 'inactive',
+        status: 'complete',
+        completedAt: '2026-04-10T00:00:01.000Z',
+      }),
+    })
+
+    const removed = reduceFilePreviewSessions(state, {
+      type: 'remove',
+      sessionId: 'preview-2',
+    })
+
+    expect(removed.activeSessionId).toBe('preview-1')
+    expect(removed.sessions['preview-2']).toBeUndefined()
+    expect(removed.sessions['preview-1']).toBeDefined()
+  })
+
+  it('removing a non-existent session is a no-op', () => {
+    const state = reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
+      type: 'upsert',
+      session: createSession({ id: 'preview-1', toolCallId: 'preview-1', previewVersion: 1 }),
+    })
+
+    const next = reduceFilePreviewSessions(state, { type: 'remove', sessionId: 'does-not-exist' })
+
+    expect(next).toBe(state)
+  })
+
+  it('reset clears all sessions and activeSessionId', () => {
+    let state = reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
+      type: 'upsert',
+      session: createSession({ id: 'preview-1', toolCallId: 'preview-1', previewVersion: 1 }),
+    })
+    state = reduceFilePreviewSessions(state, {
+      type: 'complete',
+      session: createSession({
+        id: 'preview-1',
+        toolCallId: 'preview-1',
+        status: 'complete',
+        previewVersion: 2,
+        completedAt: '2026-04-10T00:00:02.000Z',
+        previewText: 'final',
+      }),
+    })
+    // activeSessionId is lingering on preview-1 after complete
+
+    const reset = reduceFilePreviewSessions(state, { type: 'reset' })
+
+    expect(reset.activeSessionId).toBeNull()
+    expect(Object.keys(reset.sessions)).toHaveLength(0)
+  })
+
+  it('hydrate with an empty sessions array is a no-op', () => {
+    const state = reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
+      type: 'upsert',
+      session: createSession({ id: 'preview-1', toolCallId: 'preview-1', previewVersion: 1 }),
+    })
+
+    const next = reduceFilePreviewSessions(state, { type: 'hydrate', sessions: [] })
+
+    expect(next).toBe(state)
+  })
+
+  it('hydrate merges incoming sessions into existing state without replacing non-stale sessions', () => {
+    // Existing state has preview-1 at version 3
+    const existing = reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
+      type: 'upsert',
+      session: createSession({
+        id: 'preview-1',
+        toolCallId: 'preview-1',
+        previewVersion: 3,
+        updatedAt: '2026-04-10T00:00:03.000Z',
+        previewText: 'current',
+      }),
+    })
+
+    // Hydrate with preview-1 at older version 2 + a new preview-2
+    const hydrated = reduceFilePreviewSessions(existing, {
+      type: 'hydrate',
+      sessions: [
+        createSession({
+          id: 'preview-1',
+          toolCallId: 'preview-1',
+          previewVersion: 2,
+          updatedAt: '2026-04-10T00:00:02.000Z',
+          previewText: 'stale',
+        }),
+        createSession({
+          id: 'preview-2',
+          toolCallId: 'preview-2',
+          previewVersion: 1,
+          updatedAt: '2026-04-10T00:00:04.000Z',
+          previewText: 'new',
+        }),
+      ],
+    })
+
+    // preview-1 kept at version 3 (not replaced by stale version 2)
+    expect(hydrated.sessions['preview-1']?.previewVersion).toBe(3)
+    expect(hydrated.sessions['preview-1']?.previewText).toBe('current')
+    // preview-2 added
+    expect(hydrated.sessions['preview-2']?.previewText).toBe('new')
+  })
+
+  it('complete for a non-active session updates the session but keeps activeSessionId', () => {
+    let state = reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
+      type: 'upsert',
+      session: createSession({ id: 'preview-1', toolCallId: 'preview-1', previewVersion: 1 }),
+    })
+    state = reduceFilePreviewSessions(state, {
+      type: 'upsert',
+      session: createSession({
+        id: 'preview-2',
+        toolCallId: 'preview-2',
+        previewVersion: 1,
+        previewText: 'background',
+      }),
+    })
+    // active is now preview-2 (later upsert); preview-1 is no longer active
+    // Complete preview-1 (the non-active session)
+    const completed = reduceFilePreviewSessions(state, {
+      type: 'complete',
+      session: createSession({
+        id: 'preview-1',
+        toolCallId: 'preview-1',
+        status: 'complete',
+        previewVersion: 2,
+        completedAt: '2026-04-10T00:00:02.000Z',
+      }),
+    })
+
+    expect(completed.activeSessionId).toBe('preview-2')
+    expect(completed.sessions['preview-1']?.status).toBe('complete')
   })
 })

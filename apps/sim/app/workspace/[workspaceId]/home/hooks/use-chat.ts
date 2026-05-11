@@ -3402,7 +3402,11 @@ export function useChat(
                 if (parentToolCallId) {
                   subagentByParentToolCallId.delete(parentToolCallId)
                 }
-                if (previewSessionRef.current && !activePreviewSessionIdRef.current) {
+                if (
+                  previewSessionRef.current &&
+                  (!activePreviewSessionIdRef.current ||
+                    previewSessionRef.current.status === 'complete')
+                ) {
                   const lastFileResource = resourcesRef.current.find(
                     (r) => r.type === 'file' && r.id !== 'streaming-file'
                   )
