@@ -62,7 +62,7 @@ const datadogCredentialsBodySchema = z.object({
 })
 
 const bigqueryConfigBodySchema = z.object({
-  projectId: z.string().min(6).max(30),
+  projectId: z.string().min(6).max(94),
   datasetId: z.string().min(1).max(1024),
   tableId: z.string().min(1).max(1024),
 })

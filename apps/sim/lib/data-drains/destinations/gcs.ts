@@ -3,7 +3,12 @@ import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { JWT } from 'google-auth-library'
 import { z } from 'zod'
-import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
+import {
+  type ParsedServiceAccount,
+  parseServiceAccount,
+  refineServiceAccountJson,
+  sleepUntilAborted,
+} from '@/lib/data-drains/destinations/utils'
 import type { DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainGCSDestination')
@@ -52,72 +57,10 @@ const gcsCredentialsSchema = z
   .object({
     serviceAccountJson: z.string().min(1, 'serviceAccountJson is required'),
   })
-  .superRefine((value, ctx) => {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(value.serviceAccountJson)
-    } catch {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['serviceAccountJson'],
-        message: 'serviceAccountJson must be valid JSON',
-      })
-      return
-    }
-    if (typeof parsed !== 'object' || parsed === null) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['serviceAccountJson'],
-        message: 'serviceAccountJson must be a JSON object',
-      })
-      return
-    }
-    const obj = parsed as Record<string, unknown>
-    if (typeof obj.client_email !== 'string' || obj.client_email.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['serviceAccountJson'],
-        message: 'serviceAccountJson is missing client_email',
-      })
-    }
-    if (typeof obj.private_key !== 'string' || obj.private_key.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['serviceAccountJson'],
-        message: 'serviceAccountJson is missing private_key',
-      })
-    }
-  })
+  .superRefine(refineServiceAccountJson)
 
 export type GCSDestinationConfig = z.infer<typeof gcsConfigSchema>
 export type GCSDestinationCredentials = z.infer<typeof gcsCredentialsSchema>
-
-interface ParsedServiceAccount {
-  clientEmail: string
-  privateKey: string
-}
-
-function parseServiceAccount(json: string): ParsedServiceAccount {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(json)
-  } catch {
-    throw new Error('serviceAccountJson must be valid JSON')
-  }
-  if (typeof parsed !== 'object' || parsed === null) {
-    throw new Error('serviceAccountJson must be a JSON object')
-  }
-  const obj = parsed as Record<string, unknown>
-  const clientEmail = obj.client_email
-  const privateKey = obj.private_key
-  if (typeof clientEmail !== 'string' || clientEmail.length === 0) {
-    throw new Error('serviceAccountJson is missing client_email')
-  }
-  if (typeof privateKey !== 'string' || privateKey.length === 0) {
-    throw new Error('serviceAccountJson is missing private_key')
-  }
-  return { clientEmail, privateKey }
-}
 
 function normalizePrefix(raw: string | undefined): string {
   if (!raw) return ''
