@@ -1641,7 +1641,7 @@ export const auth = betterAuth({
                 const name = data.name || data.full_name || data.username || 'Wealthbox User'
 
                 return {
-                  id: `wealthbox-${userId}`,
+                  id: `wealthbox-${userId}-${generateId()}`,
                   name,
                   email,
                   emailVerified: false,
@@ -1666,7 +1666,7 @@ export const auth = betterAuth({
               }
               const tokenHash = createHash('sha256').update(stableToken).digest('hex').slice(0, 24)
               return {
-                id: `wealthbox-${tokenHash}`,
+                id: `wealthbox-${tokenHash}-${generateId()}`,
                 name: 'Wealthbox User',
                 email: `wealthbox-${tokenHash}@wealthbox.user`,
                 emailVerified: false,
