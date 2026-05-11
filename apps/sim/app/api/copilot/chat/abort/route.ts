@@ -10,7 +10,7 @@ import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
 import { withCopilotSpan, withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { abortActiveStream, waitForPendingChatStream } from '@/lib/copilot/request/session'
-import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
+import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -85,6 +85,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
         if (env.COPILOT_API_KEY) {
           headers['x-api-key'] = env.COPILOT_API_KEY
         }
+        Object.assign(headers, getMothershipSourceEnvHeaders())
         const controller = new AbortController()
         const timeout = setTimeout(
           () => controller.abort('timeout:go_explicit_abort_fetch'),

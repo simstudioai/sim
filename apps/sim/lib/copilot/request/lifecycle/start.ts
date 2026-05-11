@@ -38,7 +38,7 @@ import {
 } from '@/lib/copilot/request/session'
 import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
 import { reportTrace, TraceCollector } from '@/lib/copilot/request/trace'
-import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
+import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
 
@@ -507,6 +507,7 @@ export async function requestChatTitle(params: {
   if (env.COPILOT_API_KEY) {
     headers['x-api-key'] = env.COPILOT_API_KEY
   }
+  Object.assign(headers, getMothershipSourceEnvHeaders())
 
   try {
     const { fetchGo } = await import('@/lib/copilot/request/go/fetch')

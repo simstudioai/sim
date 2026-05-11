@@ -20,7 +20,7 @@ import type {
   StreamingContext,
   ToolCallSummary,
 } from '@/lib/copilot/request/types'
-import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
+import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -148,6 +148,7 @@ async function orchestrateSubagentStreamInner(
         headers: {
           'Content-Type': 'application/json',
           ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+          ...getMothershipSourceEnvHeaders(),
           'X-Client-Version': SIM_AGENT_VERSION,
         },
         body: JSON.stringify({

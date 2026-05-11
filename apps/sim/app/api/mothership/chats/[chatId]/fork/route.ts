@@ -16,7 +16,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
-import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
+import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -109,6 +109,7 @@ export const POST = withRouteHandler(
         if (env.COPILOT_API_KEY) {
           copilotHeaders['x-api-key'] = env.COPILOT_API_KEY
         }
+        Object.assign(copilotHeaders, getMothershipSourceEnvHeaders())
         const mothershipBaseURL = await getMothershipBaseURL({ userId })
         const copilotRes = await fetchGo(`${mothershipBaseURL}/api/chats/fork`, {
           method: 'POST',

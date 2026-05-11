@@ -12,6 +12,9 @@ export interface GetMothershipBaseURLOptions {
 }
 
 type ConcreteMothershipEnvironment = Exclude<MothershipEnvironment, 'default'>
+type MothershipSourceEnvironment = 'dev' | 'staging' | 'prod'
+
+export const MOTHERSHIP_SOURCE_ENV_HEADER = 'X-Sim-Source-Env'
 
 const ENVIRONMENT_URLS: Record<ConcreteMothershipEnvironment, string | undefined> = {
   // env vars
@@ -19,6 +22,8 @@ const ENVIRONMENT_URLS: Record<ConcreteMothershipEnvironment, string | undefined
   staging: env.COPILOT_STAGING_URL,
   prod: env.COPILOT_PROD_URL,
 }
+
+const SOURCE_ENVIRONMENTS = new Set<MothershipSourceEnvironment>(['dev', 'staging', 'prod'])
 
 function normalizeUrl(url: string | undefined): string | null {
   if (!url) return null
@@ -62,4 +67,13 @@ export async function getMothershipBaseURL(
   const environment = parsedEnvironment.success ? parsedEnvironment.data : 'default'
 
   return getConfiguredEnvironmentUrl(environment) ?? defaultUrl
+}
+
+export function getMothershipSourceEnvHeaders(): Record<string, string> {
+  const sourceEnv = env.COPILOT_SOURCE_ENV?.trim().toLowerCase()
+  if (!sourceEnv || !SOURCE_ENVIRONMENTS.has(sourceEnv as MothershipSourceEnvironment)) {
+    return {}
+  }
+
+  return { [MOTHERSHIP_SOURCE_ENV_HEADER]: sourceEnv }
 }

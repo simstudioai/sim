@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getMothershipBaseURL } from './agent-url'
+import {
+  getMothershipBaseURL,
+  getMothershipSourceEnvHeaders,
+  MOTHERSHIP_SOURCE_ENV_HEADER,
+} from './agent-url'
 
-const { dbMock, mockRows } = vi.hoisted(() => {
+const { dbMock, envMock, mockRows } = vi.hoisted(() => {
   const mockRows: any[] = []
   const dbMock = {
     select: vi.fn(() => ({
@@ -14,7 +18,13 @@ const { dbMock, mockRows } = vi.hoisted(() => {
       })),
     })),
   }
-  return { dbMock, mockRows }
+  const envMock = {
+    COPILOT_DEV_URL: 'https://dev.mothership.test',
+    COPILOT_STAGING_URL: 'https://staging.mothership.test',
+    COPILOT_PROD_URL: 'https://prod.mothership.test',
+    COPILOT_SOURCE_ENV: undefined as string | undefined,
+  }
+  return { dbMock, envMock, mockRows }
 })
 
 vi.mock('@sim/db', () => ({ db: dbMock }))
@@ -45,17 +55,14 @@ vi.mock('@/lib/copilot/constants', () => ({
   SIM_AGENT_API_URL_DEFAULT: 'https://fallback.mothership.test',
 }))
 vi.mock('@/lib/core/config/env', () => ({
-  env: {
-    COPILOT_DEV_URL: 'https://dev.mothership.test',
-    COPILOT_STAGING_URL: 'https://staging.mothership.test',
-    COPILOT_PROD_URL: 'https://prod.mothership.test',
-  },
+  env: envMock,
 }))
 
 describe('getMothershipBaseURL', () => {
   beforeEach(() => {
     mockRows.length = 0
     dbMock.select.mockClear()
+    envMock.COPILOT_SOURCE_ENV = undefined
   })
 
   it('uses the default URL when there is no user context', async () => {
@@ -114,5 +121,25 @@ describe('getMothershipBaseURL', () => {
     await expect(getMothershipBaseURL({ userId: 'admin-1', environment: 'staging' })).resolves.toBe(
       'https://staging.mothership.test'
     )
+  })
+})
+
+describe('getMothershipSourceEnvHeaders', () => {
+  beforeEach(() => {
+    envMock.COPILOT_SOURCE_ENV = undefined
+  })
+
+  it('emits the source environment header for known hosted environments', () => {
+    envMock.COPILOT_SOURCE_ENV = 'dev'
+
+    expect(getMothershipSourceEnvHeaders()).toEqual({
+      [MOTHERSHIP_SOURCE_ENV_HEADER]: 'dev',
+    })
+  })
+
+  it('omits the source environment header for unknown values', () => {
+    envMock.COPILOT_SOURCE_ENV = 'local'
+
+    expect(getMothershipSourceEnvHeaders()).toEqual({})
   })
 })
