@@ -251,12 +251,12 @@ export const MessageActions = memo(function MessageActions({
                         type='button'
                         aria-label='Copy request ID'
                         onClick={copyRequestId}
-                        className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
+                        className='flex size-[22px] shrink-0 items-center justify-center rounded-full text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
                       >
                         {copiedRequestId ? (
-                          <Check className='h-[14px] w-[14px]' />
+                          <Check className='size-[14px]' />
                         ) : (
-                          <Copy className='h-[14px] w-[14px]' />
+                          <Copy className='size-[14px]' />
                         )}
                       </button>
                     </Tooltip.Trigger>
@@ -283,7 +283,7 @@ export const MessageActions = memo(function MessageActions({
               Cancel
             </Button>
             <Button variant='primary' onClick={handleSubmitFeedback}>
-              Submit
+              Submit feedback
             </Button>
           </ModalFooter>
         </ModalContent>

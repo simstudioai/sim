@@ -460,7 +460,7 @@ async function revokeWorkspaceCredentialMembershipsTx({
   return revokedMemberships.length
 }
 
-export interface MembershipValidationResult {
+interface MembershipValidationResult {
   canAdd: boolean
   reason?: string
   failureCode?: MembershipAdditionFailureCode
@@ -516,7 +516,7 @@ export async function ensureUserInOrganization(
  * Validate if a user can be added to an organization.
  * Checks single-org constraint and seat availability.
  */
-export async function validateMembershipAddition(
+async function validateMembershipAddition(
   userId: string,
   organizationId: string,
   options: { acceptingInvitationId?: string } = {}

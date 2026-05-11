@@ -257,7 +257,7 @@ export async function getAtlassianServiceAccountSecret(
  * blocks call api.atlassian.com/ex/jira/{cloudId}/... with `Authorization: Bearer {apiToken}`.
  * No exchange or refresh is needed; we just decrypt and return the raw token.
  */
-export async function getAtlassianServiceAccountToken(credentialId: string): Promise<string> {
+async function getAtlassianServiceAccountToken(credentialId: string): Promise<string> {
   const secret = await getAtlassianServiceAccountSecret(credentialId)
   return secret.apiToken
 }

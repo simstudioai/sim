@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { formatGeneratedSource } from './format-generated-source'
 
 /**
  * Generate `apps/sim/lib/copilot/generated/trace-spans-v1.ts` from the
@@ -22,12 +23,9 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
 const DEFAULT_CONTRACT_PATH = resolve(
   ROOT,
-  '../copilot/copilot/contracts/trace-spans-v1.schema.json',
+  '../copilot/copilot/contracts/trace-spans-v1.schema.json'
 )
-const OUTPUT_PATH = resolve(
-  ROOT,
-  'apps/sim/lib/copilot/generated/trace-spans-v1.ts',
-)
+const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/trace-spans-v1.ts')
 
 function extractSpanNames(schema: Record<string, unknown>): string[] {
   const defs = (schema.$defs ?? {}) as Record<string, unknown>
@@ -37,9 +35,7 @@ function extractSpanNames(schema: Record<string, unknown>): string[] {
     typeof nameDef !== 'object' ||
     !Array.isArray((nameDef as Record<string, unknown>).enum)
   ) {
-    throw new Error(
-      'trace-spans-v1.schema.json is missing $defs.TraceSpansV1Name.enum',
-    )
+    throw new Error('trace-spans-v1.schema.json is missing $defs.TraceSpansV1Name.enum')
   }
   const enumValues = (nameDef as Record<string, unknown>).enum as unknown[]
   if (!enumValues.every((v) => typeof v === 'string')) {
@@ -63,14 +59,10 @@ function toIdentifier(name: string): string {
   if (parts.length === 0) {
     throw new Error(`Cannot derive identifier for span name: ${name}`)
   }
-  const ident = parts
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
-    .join('')
+  const ident = parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join('')
   // Safety: identifiers may not start with a digit.
   if (/^[0-9]/.test(ident)) {
-    throw new Error(
-      `Derived identifier "${ident}" for span "${name}" starts with a digit`,
-    )
+    throw new Error(`Derived identifier "${ident}" for span "${name}" starts with a digit`)
   }
   return ident
 }
@@ -85,16 +77,12 @@ function render(spanNames: string[]): string {
   for (const p of pairs) {
     const prev = seen.get(p.ident)
     if (prev && prev !== p.name) {
-      throw new Error(
-        `Identifier collision: "${prev}" and "${p.name}" both map to "${p.ident}"`,
-      )
+      throw new Error(`Identifier collision: "${prev}" and "${p.name}" both map to "${p.ident}"`)
     }
     seen.set(p.ident, p.name)
   }
 
-  const constLines = pairs
-    .map((p) => `  ${p.ident}: ${JSON.stringify(p.name)},`)
-    .join('\n')
+  const constLines = pairs.map((p) => `  ${p.ident}: ${JSON.stringify(p.name)},`).join('\n')
   const arrayEntries = spanNames.map((n) => `  ${JSON.stringify(n)},`).join('\n')
 
   return `// AUTO-GENERATED FILE. DO NOT EDIT.
@@ -131,13 +119,13 @@ async function main() {
   const raw = await readFile(inputPath, 'utf8')
   const schema = JSON.parse(raw)
   const spanNames = extractSpanNames(schema)
-  const rendered = render(spanNames)
+  const rendered = formatGeneratedSource(render(spanNames), OUTPUT_PATH, ROOT)
 
   if (checkOnly) {
     const existing = await readFile(OUTPUT_PATH, 'utf8').catch(() => null)
     if (existing !== rendered) {
       throw new Error(
-        'Generated trace spans contract is stale. Run: bun run trace-spans-contract:generate',
+        'Generated trace spans contract is stale. Run: bun run trace-spans-contract:generate'
       )
     }
     console.log('Trace spans contract is up to date.')

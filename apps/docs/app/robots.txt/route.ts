@@ -13,7 +13,6 @@ Disallow: /api/internal/
 Disallow: /_next/static/
 Disallow: /admin/
 Allow: /
-Allow: /api/search
 Allow: /llms.txt
 Allow: /llms-full.txt
 Allow: /llms.mdx/

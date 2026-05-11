@@ -37,7 +37,7 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
               width={24}
               height={24}
               unoptimized
-              className='h-6 w-6 rounded-md object-cover'
+              className='size-6 rounded-md object-cover'
             />
           )}
           <h2 className='font-medium text-[var(--landing-text)] text-lg'>
@@ -55,7 +55,7 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
             className='flex items-center gap-2 text-[var(--landing-text-muted)] text-md transition-colors hover:text-[var(--landing-text)]'
             aria-label={`GitHub repository - ${starCount} stars`}
           >
-            <GithubIcon className='h-[16px] w-[16px]' aria-hidden='true' />
+            <GithubIcon className='size-[16px]' aria-hidden='true' />
             <span aria-live='polite'>{starCount}</span>
           </a>
           {/* Only show Sim logo if no custom branding is set */}

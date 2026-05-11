@@ -29,7 +29,7 @@ export const updatePublicApiBodySchema = z.object({
 
 export type UpdatePublicApiBody = z.input<typeof updatePublicApiBodySchema>
 
-const deploymentVersionMetadataFieldsSchema = z.object({
+export const deploymentVersionMetadataFieldsSchema = z.object({
   name: z
     .string()
     .trim()

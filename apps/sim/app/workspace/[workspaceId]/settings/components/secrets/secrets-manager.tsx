@@ -259,7 +259,7 @@ function WorkspaceVariableRow({
       {canEdit ? (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button variant='ghost' onClick={() => onDelete(envKey)} className='h-9 w-9'>
+            <Button variant='ghost' onClick={() => onDelete(envKey)} className='size-9'>
               <Trash />
             </Button>
           </Tooltip.Trigger>
@@ -414,9 +414,7 @@ export function SecretsManager() {
   const [renamingKey, setRenamingKey] = useState<string | null>(null)
   const [pendingKeyValue, setPendingKeyValue] = useState<string>('')
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
-  const [prevSelectedCredentialId, setPrevSelectedCredentialId] = useState<
-    string | null | undefined
-  >(undefined)
+  const prevSelectedCredentialIdRef = useRef<string | null | undefined>(undefined)
   const [selectedDisplayNameDraft, setSelectedDisplayNameDraft] = useState('')
   const [selectedDescriptionDraft, setSelectedDescriptionDraft] = useState('')
   const [copyIdSuccess, setCopyIdSuccess] = useState(false)
@@ -448,8 +446,8 @@ export function SecretsManager() {
   )
 
   const currentCredentialId = selectedCredential?.id ?? null
-  if (currentCredentialId !== prevSelectedCredentialId) {
-    setPrevSelectedCredentialId(currentCredentialId)
+  if (currentCredentialId !== prevSelectedCredentialIdRef.current) {
+    prevSelectedCredentialIdRef.current = currentCredentialId
     if (!selectedCredential) {
       setSelectedDescriptionDraft('')
       setSelectedDisplayNameDraft('')
@@ -1187,8 +1185,8 @@ export function SecretsManager() {
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='flex flex-col gap-4.5'>
               <div className='flex items-center gap-2.5 border-[var(--border)] border-b pb-3'>
-                <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-5)]'>
-                  <Key className='h-[18px] w-[18px] text-[var(--text-tertiary)]' />
+                <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-5)]'>
+                  <Key className='size-[18px] text-[var(--text-tertiary)]' />
                 </div>
                 <div className='min-w-0 flex-1'>
                   <div className='flex items-center gap-2'>
@@ -1220,7 +1218,7 @@ export function SecretsManager() {
                       <Button
                         variant='ghost'
                         type='button'
-                        className='-my-1 h-5 w-5 p-0'
+                        className='-my-1 size-5 p-0'
                         onClick={() => {
                           navigator.clipboard.writeText(selectedCredential.id)
                           setCopyIdSuccess(true)
@@ -1229,9 +1227,9 @@ export function SecretsManager() {
                         aria-label='Copy value'
                       >
                         {copyIdSuccess ? (
-                          <Check className='h-3 w-3 text-[var(--text-success)]' />
+                          <Check className='size-3 text-[var(--text-success)]' />
                         ) : (
-                          <Clipboard className='h-3 w-3 text-[var(--text-icon)]' />
+                          <Clipboard className='size-3 text-[var(--text-icon)]' />
                         )}
                       </Button>
                     </Tooltip.Trigger>
@@ -1290,7 +1288,7 @@ export function SecretsManager() {
                         )}
                       >
                         <div className='flex min-w-0 items-center gap-2.5'>
-                          <Avatar className='h-8 w-8 flex-shrink-0'>
+                          <Avatar className='size-8 flex-shrink-0'>
                             <AvatarFallback
                               style={{
                                 background: getUserColor(member.userId || member.userEmail || ''),
@@ -1491,7 +1489,7 @@ export function SecretsManager() {
         <div className='flex items-center gap-2'>
           <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
-              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
             />
             <Input
@@ -1545,7 +1543,7 @@ export function SecretsManager() {
                       <div />
                       <Skeleton className='h-9 rounded-md' />
                       <Skeleton className='ml-2 h-9 w-[60px] rounded-md' />
-                      <Skeleton className='h-9 w-9 rounded-md' />
+                      <Skeleton className='size-9 rounded-md' />
                     </div>
                   ))}
                 </div>

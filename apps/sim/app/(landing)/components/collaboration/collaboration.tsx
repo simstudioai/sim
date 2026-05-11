@@ -32,7 +32,7 @@ function DotGrid({ className, cols, rows, gap = 0 }: DotGridProps) {
       }}
     >
       {Array.from({ length: cols * rows }, (_, i) => (
-        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[var(--landing-bg-elevated)]' />
+        <div key={i} className='size-[1.5px] rounded-full bg-[var(--landing-bg-elevated)]' />
       ))}
     </div>
   )
@@ -72,6 +72,15 @@ const CURSOR_ARROW_PATH =
 const CURSOR_ARROW_MIRRORED_PATH =
   'M0.365 2.198L4.522 14.821C5.022 16.339 7.225 16.16 7.472 14.58L8.394 8.702C8.49 8.091 8.946 7.599 9.548 7.456L15.909 5.953C17.5 5.577 17.461 3.299 15.857 2.978L2.11 0.228C0.966 0 0.001 1.09 0.365 2.198Z'
 
+// Long-running decorative loops for the landing visual, not UI feedback transitions.
+const AMBIENT_CURSOR_ANIMATION_SECONDS = {
+  vikhyath: 16,
+  alexa: 13,
+} as const
+
+const getAmbientCursorAnimation = (name: string, durationSeconds: number) =>
+  `${name} ${durationSeconds}s ease-in-out infinite`
+
 function CursorArrow({ fill }: { fill: string }) {
   return (
     <svg width='23.15' height='21.1' viewBox='0 0 17.5 16.4' fill='none'>
@@ -88,8 +97,10 @@ function VikhyathCursor() {
       style={{
         top: '27.47%',
         left: '25%',
-        animation: 'cursorVikhyath 16s ease-in-out infinite',
-        willChange: 'transform',
+        animation: getAmbientCursorAnimation(
+          'cursorVikhyath',
+          AMBIENT_CURSOR_ANIMATION_SECONDS.vikhyath
+        ),
       }}
     >
       <div className='relative h-[37.14px] w-[79.18px]'>
@@ -112,8 +123,7 @@ function AlexaCursor() {
       style={{
         top: '66.80%',
         left: '49%',
-        animation: 'cursorAlexa 13s ease-in-out infinite',
-        willChange: 'transform',
+        animation: getAmbientCursorAnimation('cursorAlexa', AMBIENT_CURSOR_ANIMATION_SECONDS.alexa),
       }}
     >
       <div className='relative h-[35.09px] w-[62.16px]'>
@@ -282,7 +292,7 @@ export default function Collaboration() {
               >
                 Build together
                 <svg
-                  className='h-[10px] w-[10px] shrink-0'
+                  className='size-[10px] shrink-0'
                   viewBox='0 0 10 10'
                   fill='none'
                   xmlns='http://www.w3.org/2000/svg'
@@ -339,7 +349,13 @@ export default function Collaboration() {
           className='relative mx-4 mb-6 flex cursor-none items-center gap-3.5 rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] px-3 py-2.5 transition-colors hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-card)] sm:mx-8 md:absolute md:bottom-10 md:left-16 md:z-20 md:mx-0 md:mb-0'
         >
           <div className='relative h-7 w-11 shrink-0'>
-            <Image src='/landing/multiplayer-cursors.svg' alt='' fill className='object-contain' />
+            <Image
+              src='/landing/multiplayer-cursors.svg'
+              alt=''
+              fill
+              sizes='44px'
+              className='object-contain'
+            />
           </div>
           <div className='flex flex-col gap-0.5'>
             <span className='font-[430] font-season text-[#F6F6F0]/50 text-caption uppercase leading-[100%] tracking-[0.08em]'>

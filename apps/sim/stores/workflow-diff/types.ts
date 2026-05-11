@@ -17,7 +17,7 @@ export interface WorkflowDiffState {
   _triggerMessageId?: string | null
 }
 
-export interface DiffActionOptions {
+interface DiffActionOptions {
   /** Skip recording this operation for undo/redo. Used during undo/redo replay. */
   skipRecording?: boolean
   /** Skip persisting to DB. Use when the server tool already saved (e.g. edit_workflow). */

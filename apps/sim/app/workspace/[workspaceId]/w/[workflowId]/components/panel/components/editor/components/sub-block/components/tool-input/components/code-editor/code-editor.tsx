@@ -35,6 +35,8 @@ interface CodeEditorProps {
   wandButtonDisabled?: boolean
 }
 
+const EMPTY_SCHEMA_PARAMETERS: NonNullable<CodeEditorProps['schemaParameters']> = []
+
 export function CodeEditor({
   value,
   onChange,
@@ -46,19 +48,14 @@ export function CodeEditor({
   highlightVariables = true,
   onKeyDown,
   disabled = false,
-  schemaParameters = [],
+  schemaParameters = EMPTY_SCHEMA_PARAMETERS,
   showWandButton = false,
   onWandClick,
   wandButtonDisabled = false,
 }: CodeEditorProps) {
-  const [code, setCode] = useState(value)
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
 
   const editorRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    setCode(value)
-  }, [value])
 
   useEffect(() => {
     if (!editorRef.current) return
@@ -67,7 +64,7 @@ export function CodeEditor({
       const preElement = editorRef.current?.querySelector('pre')
       if (!preElement) return
 
-      const lines = code.split('\n')
+      const lines = value.split('\n')
       const newVisualLineHeights: number[] = []
 
       const container = document.createElement('div')
@@ -101,9 +98,9 @@ export function CodeEditor({
     resizeObserver.observe(editorRef.current)
 
     return () => resizeObserver.disconnect()
-  }, [code])
+  }, [value])
 
-  const lineCount = code.split('\n').length
+  const lineCount = value.split('\n').length
   const gutterWidth = calculateGutterWidth(lineCount)
 
   const renderLineNumbers = () => {
@@ -194,9 +191,9 @@ export function CodeEditor({
           onClick={onWandClick}
           disabled={wandButtonDisabled}
           aria-label='Generate with AI'
-          className='absolute top-2 right-3 z-10 h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground opacity-0 shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow group-hover:opacity-100'
+          className='absolute top-2 right-3 z-10 size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground opacity-0 shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow group-hover:opacity-100'
         >
-          <Wand2 className='h-4 w-4' />
+          <Wand2 className='size-4' />
         </Button>
       )}
 
@@ -205,16 +202,13 @@ export function CodeEditor({
       </Code.Gutter>
 
       <Code.Content paddingLeft={`${gutterWidth}px`} editorRef={editorRef}>
-        <Code.Placeholder gutterWidth={gutterWidth} show={code.length === 0 && !!placeholder}>
+        <Code.Placeholder gutterWidth={gutterWidth} show={value.length === 0 && !!placeholder}>
           {placeholder}
         </Code.Placeholder>
 
         <Editor
-          value={code}
-          onValueChange={(newCode) => {
-            setCode(newCode)
-            onChange(newCode)
-          }}
+          value={value}
+          onValueChange={onChange}
           onKeyDown={onKeyDown}
           highlight={(code) => customHighlight(code)}
           disabled={disabled}

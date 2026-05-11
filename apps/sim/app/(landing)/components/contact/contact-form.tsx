@@ -149,8 +149,8 @@ export function ContactForm() {
   if (submitSuccess) {
     return (
       <div className='flex flex-col items-center px-8 py-16 text-center'>
-        <div className='flex h-16 w-16 items-center justify-center rounded-full border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg-surface)] text-[var(--landing-text)]'>
-          <Check className='h-8 w-8' />
+        <div className='flex size-16 items-center justify-center rounded-full border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg-surface)] text-[var(--landing-text)]'>
+          <Check className='size-8' />
         </div>
         <h2 className='mt-6 font-[430] font-season text-[24px] text-[var(--landing-text)] leading-[1.2] tracking-[-0.02em]'>
           Message received

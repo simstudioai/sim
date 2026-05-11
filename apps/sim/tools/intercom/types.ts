@@ -1015,16 +1015,16 @@ export const INTERCOM_PAGES_OUTPUT: OutputProperty = {
   properties: INTERCOM_PAGES_OUTPUT_PROPERTIES,
 }
 
-export interface IntercomBaseParams {
+interface IntercomBaseParams {
   accessToken: string
 }
 
-export interface IntercomPaginationParams {
+interface IntercomPaginationParams {
   per_page?: number
   starting_after?: string
 }
 
-export interface IntercomPagingInfo {
+interface IntercomPagingInfo {
   next?: {
     page: number
     starting_after: string
@@ -1032,7 +1032,7 @@ export interface IntercomPagingInfo {
   total_count?: number
 }
 
-export interface IntercomResponse<T> {
+interface IntercomResponse<T> {
   success: boolean
   output: {
     data?: T

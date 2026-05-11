@@ -25,7 +25,7 @@ export interface ParsedRequest<C extends AnyApiRouteContract> {
   headers: ContractHeaders<C>
 }
 
-export interface RouteContextWithParams {
+interface RouteContextWithParams {
   params?:
     | Promise<Record<string, string | string[] | undefined>>
     | Record<string, string | string[] | undefined>
@@ -107,7 +107,7 @@ export function headersToObject(headers: Headers): Record<string, string> {
   return output
 }
 
-export async function parseContextParams<TContext>(
+async function parseContextParams<TContext>(
   context: TContext
 ): Promise<Record<string, string | string[] | undefined>> {
   const candidate = context as RouteContextWithParams

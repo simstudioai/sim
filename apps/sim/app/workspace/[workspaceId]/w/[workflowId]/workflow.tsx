@@ -538,7 +538,8 @@ const WorkflowContent = React.memo(
       if (!isWorkflowReady) return
       if (hasActiveDiff && isDiffReady && blocks !== blocksRef.current) {
         blocksRef.current = blocks
-        setTimeout(() => reapplyDiffMarkers(), 0)
+        const timeoutId = setTimeout(() => reapplyDiffMarkers(), 0)
+        return () => clearTimeout(timeoutId)
       }
     }, [blocks, hasActiveDiff, isDiffReady, reapplyDiffMarkers, isWorkflowReady])
 
@@ -4105,7 +4106,7 @@ const WorkflowContent = React.memo(
             {!isWorkflowReady && (
               <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
                 <div
-                  className='h-[18px] w-[18px] animate-spin rounded-full'
+                  className='size-[18px] animate-spin rounded-full'
                   style={{
                     background:
                       'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',

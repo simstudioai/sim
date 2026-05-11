@@ -69,6 +69,7 @@ vi.mock('@/app/api/files/authorization', () => ({
 vi.mock('@/lib/uploads', () => ({
   getStorageProvider: mockGetStorageProvider,
   isUsingCloudStorage: mockIsUsingCloudStorage,
+  StorageService: storageServiceMock,
 }))
 
 vi.mock('@/lib/file-parsers', () => ({
@@ -172,6 +173,7 @@ describe('File Parse API Route', () => {
 
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue({ canView: true })
     storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('test file content'))
     mockIsSupportedFileType.mockReturnValue(true)
     mockParseFile.mockResolvedValue({
       content: 'parsed content',
@@ -243,6 +245,48 @@ describe('File Parse API Route', () => {
     } else {
       expect(data).toHaveProperty('error')
     }
+  })
+
+  it('should keep known binary extensions as binary even when the bytes are valid UTF-8', async () => {
+    setupFileApiMocks({
+      cloudEnabled: true,
+      storageProvider: 's3',
+      authenticated: true,
+    })
+    mockIsSupportedFileType.mockReturnValue(false)
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('valid utf8 bytes'))
+
+    const req = createMockRequest('POST', {
+      filePath: '/api/files/serve/execution/workspace-1/workflow-1/execution-1/image.png',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.output.content).toBe('[Binary PNG file - 16 bytes]')
+  })
+
+  it('should parse unknown extensions as text when the bytes look like UTF-8 text', async () => {
+    setupFileApiMocks({
+      cloudEnabled: true,
+      storageProvider: 's3',
+      authenticated: true,
+    })
+    mockIsSupportedFileType.mockReturnValue(false)
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('plain text content'))
+
+    const req = createMockRequest('POST', {
+      filePath: '/api/files/serve/execution/workspace-1/workflow-1/execution-1/readme.customtext',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.output.content).toBe('plain text content')
   })
 
   it('should handle multiple files', async () => {

@@ -218,4 +218,4 @@ export function isSupportedFileType(extension: string): extension is SupportedFi
   }
 }
 
-export type { FileParseResult, FileParser, SupportedFileType }
+export type { FileParseResult, SupportedFileType }

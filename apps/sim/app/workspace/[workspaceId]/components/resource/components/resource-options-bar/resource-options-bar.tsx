@@ -17,7 +17,7 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 
 const SEARCH_ICON = (
-  <Search className='pointer-events-none h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+  <Search className='pointer-events-none size-[14px] shrink-0 text-[var(--text-icon)]' />
 )
 
 type SortDirection = 'asc' | 'desc'
@@ -94,9 +94,9 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
         {search && <SearchSection search={search} />}
         <div className='flex items-center gap-1.5'>
           {extras}
-          {filterTags?.map((tag, i) => (
+          {filterTags?.map((tag) => (
             <Button
-              key={`${tag.label}-${i}`}
+              key={tag.label}
               variant='subtle'
               className='max-w-[200px] px-2 py-1 text-caption'
               onClick={tag.onRemove}
@@ -126,7 +126,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
             <PopoverPrimitive.Root>
               <PopoverPrimitive.Trigger asChild>
                 <Button variant='subtle' className='px-2 py-1 text-caption'>
-                  <ListFilter className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+                  <ListFilter className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
                   Filter
                 </Button>
               </PopoverPrimitive.Trigger>
@@ -155,7 +155,7 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
       <div className='flex flex-1 items-center gap-1.5 overflow-x-auto pl-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
         {search.tags?.map((tag, i) => (
           <Button
-            key={`${tag.label}-${tag.value}-${i}`}
+            key={`${tag.label}-${tag.value}`}
             variant='subtle'
             className={cn(
               'shrink-0 px-2 py-1 text-caption',
@@ -182,7 +182,7 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
       {search.tags?.length || search.value ? (
         <button
           type='button'
-          className='mr-0.5 flex h-[14px] w-[14px] shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover-hover:text-[var(--text-secondary)]'
+          className='mr-0.5 flex size-[14px] shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover-hover:text-[var(--text-secondary)]'
           onClick={search.onClearAll ?? (() => search.onChange(''))}
         >
           <span className='text-caption'>✕</span>
@@ -242,7 +242,7 @@ const SortDropdown = memo(function SortDropdown({ config }: { config: SortConfig
               {Icon && <Icon />}
               {option.label}
               {DirectionIcon && (
-                <DirectionIcon className='ml-auto h-[12px] w-[12px] text-[var(--text-tertiary)]' />
+                <DirectionIcon className='ml-auto size-[12px] text-[var(--text-tertiary)]' />
               )}
             </DropdownMenuItem>
           )

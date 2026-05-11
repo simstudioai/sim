@@ -271,7 +271,7 @@ export async function executeVfsRead(
   }
 }
 
-export async function executeVfsList(
+async function executeVfsList(
   params: Record<string, unknown>,
   context: ExecutionContext
 ): Promise<ToolCallResult> {

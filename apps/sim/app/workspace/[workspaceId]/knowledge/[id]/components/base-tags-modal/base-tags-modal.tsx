@@ -18,6 +18,7 @@ import {
 import { requestJson } from '@/lib/api/client/request'
 import { getTagUsageContract, type TagUsageData } from '@/lib/api/contracts/knowledge'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import {
@@ -51,7 +52,7 @@ function DocumentList({ documents, totalCount }: DocumentListProps) {
           const DocumentIcon = getDocumentIcon('', doc.name)
           return (
             <div key={doc.id} className='flex items-center gap-2 border-b p-2 last:border-b-0'>
-              <DocumentIcon className='h-4 w-4 flex-shrink-0 text-[var(--text-muted)]' />
+              <DocumentIcon className='size-4 flex-shrink-0 text-[var(--text-muted)]' />
               <span className='min-w-0 max-w-[120px] truncate text-[var(--text-primary)] text-caption'>
                 {doc.name}
               </span>
@@ -284,8 +285,14 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                   return (
                     <div
                       key={tag.id}
+                      role='button'
+                      tabIndex={0}
                       className='flex cursor-pointer items-center gap-2 rounded-sm border p-2 hover-hover:bg-[var(--surface-2)]'
                       onClick={() => handleViewDocuments(tag)}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return
+                        handleKeyboardActivation(event, () => handleViewDocuments(tag))
+                      }}
                     >
                       <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
                         {tag.displayName}
@@ -304,9 +311,9 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                             e.stopPropagation()
                             handleDeleteTagClick(tag)
                           }}
-                          className='h-4 w-4 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
+                          className='size-4 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
                         >
-                          <Trash className='h-3 w-3' />
+                          <Trash className='size-3' />
                         </Button>
                       </div>
                     </div>

@@ -325,7 +325,7 @@ export async function restoreWorkflow(
   }
 }
 
-export async function archiveWorkflows(
+async function archiveWorkflows(
   workflowIds: string[],
   options: ArchiveWorkflowOptions
 ): Promise<number> {

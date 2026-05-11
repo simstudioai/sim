@@ -8,7 +8,7 @@ export interface WhatsAppSendMessageParams {
   previewUrl?: boolean
 }
 
-export interface WhatsAppMessageContact {
+interface WhatsAppMessageContact {
   input: string
   wa_id?: string | null
 }

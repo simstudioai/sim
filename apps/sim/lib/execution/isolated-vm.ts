@@ -45,7 +45,7 @@ export interface IsolatedVMExecutionRequest {
   task?: IsolatedVMTaskRequest
 }
 
-export interface IsolatedVMTaskRequest {
+interface IsolatedVMTaskRequest {
   id: string
   bundles: string[]
   bootstrap: string
@@ -80,7 +80,7 @@ export interface IsolatedVMExecutionResult {
   timings?: IsolatedVMTaskTimings
 }
 
-export interface IsolatedVMTaskTimings {
+interface IsolatedVMTaskTimings {
   setup: number
   runtimeBootstrap: number
   bundles: number
@@ -92,7 +92,7 @@ export interface IsolatedVMTaskTimings {
   total: number
 }
 
-export interface IsolatedVMError {
+interface IsolatedVMError {
   message: string
   name: string
   stack?: string
@@ -128,7 +128,7 @@ const DISTRIBUTED_MAX_INFLIGHT_PER_OWNER =
   Number.parseInt(env.IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER) ||
   MAX_ACTIVE_PER_OWNER + MAX_QUEUED_PER_OWNER
 const DISTRIBUTED_LEASE_MIN_TTL_MS = Number.parseInt(env.IVM_DISTRIBUTED_LEASE_MIN_TTL_MS) || 120000
-const MAX_EXECUTIONS_PER_WORKER = Number.parseInt(env.IVM_MAX_EXECUTIONS_PER_WORKER) || 500
+const MAX_EXECUTIONS_PER_WORKER = Number.parseInt(env.IVM_MAX_EXECUTIONS_PER_WORKER) || 200
 const MAX_BROKER_ARGS_JSON_CHARS = Number.parseInt(env.IVM_MAX_BROKER_ARGS_JSON_CHARS) || 262_144
 const MAX_BROKER_RESULT_JSON_CHARS =
   Number.parseInt(env.IVM_MAX_BROKER_RESULT_JSON_CHARS) || 16_777_216

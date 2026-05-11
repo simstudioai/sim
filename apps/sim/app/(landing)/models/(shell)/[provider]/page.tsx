@@ -164,7 +164,7 @@ export default async function ProviderModelsPage({
               className='group/link inline-flex items-center gap-1.5 font-season text-[var(--landing-text-muted)] text-sm tracking-[0.02em] hover:text-[var(--landing-text)]'
             >
               <svg
-                className='h-3 w-3 shrink-0'
+                className='size-3 shrink-0'
                 viewBox='0 0 10 10'
                 fill='none'
                 xmlns='http://www.w3.org/2000/svg'
@@ -206,7 +206,7 @@ export default async function ProviderModelsPage({
             <div className='flex items-center gap-4'>
               <ProviderIcon
                 provider={provider}
-                className='h-12 w-12 rounded-[5px]'
+                className='size-12 rounded-[5px]'
                 iconClassName='h-6 w-6'
               />
               <h1

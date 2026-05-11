@@ -229,7 +229,7 @@ export interface WorkflowInput {
   [key: string]: unknown
 }
 
-export interface BlockStateReader {
+interface BlockStateReader {
   getBlockOutput(blockId: string, currentNodeId?: string): NormalizedBlockOutput | undefined
   hasExecuted(blockId: string): boolean
 }

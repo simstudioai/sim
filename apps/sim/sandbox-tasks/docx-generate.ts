@@ -15,6 +15,9 @@ export const docxGenerateTask = defineSandboxTask<SandboxTaskInput>({
     globalThis.addSection = (section) => {
       globalThis.__docxSections.push(section);
     };
+    // Set globalThis.__docxDocOptions = { styles: {...}, numbering: {...} } in chunk 1
+    // to configure document-wide styles and numbering in chunked (addSection) mode.
+    globalThis.__docxDocOptions = null;
 
     // Page geometry constants (twips, 1 twip = 1/1440 inch) for US Letter
     globalThis.PAGE_W    = 12240;  // 8.5"
@@ -79,10 +82,13 @@ export const docxGenerateTask = defineSandboxTask<SandboxTaskInput>({
   finalize: `
     let doc = globalThis.doc;
     if (!doc && globalThis.__docxSections.length > 0) {
-      doc = new globalThis.docx.Document({ sections: globalThis.__docxSections });
+      doc = new globalThis.docx.Document({
+        ...(globalThis.__docxDocOptions || {}),
+        sections: globalThis.__docxSections,
+      });
     }
     if (!doc) {
-      throw new Error('No document created. Use addSection({ children: [...] }) for chunked writes, or set doc = new docx.Document({...}) for a single write.');
+      throw new Error('No document created. Use addSection({ children: [...] }) for chunked writes, or set globalThis.doc = new docx.Document({...}) for a single write.');
     }
     const b64 = await globalThis.docx.Packer.toBase64String(doc);
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';

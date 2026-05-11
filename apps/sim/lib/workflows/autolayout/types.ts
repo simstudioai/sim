@@ -1,7 +1,6 @@
 import type { BlockState, Position } from '@/stores/workflows/workflow/types'
 
 export type { Edge } from 'reactflow'
-export type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 
 export interface LayoutOptions {
   horizontalSpacing?: number
@@ -34,7 +33,7 @@ export interface BoundingBox {
   height: number
 }
 
-export interface LayerInfo {
+interface LayerInfo {
   layer: number
   order: number
 }
@@ -49,7 +48,7 @@ export interface GraphNode {
   position: Position
 }
 
-export interface AdjustmentOptions extends LayoutOptions {
+interface AdjustmentOptions extends LayoutOptions {
   preservePositions?: boolean
   minimalShift?: boolean
 }

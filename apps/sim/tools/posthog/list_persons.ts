@@ -10,7 +10,7 @@ export interface PostHogListPersonsParams {
   distinctId?: string
 }
 
-export interface PostHogPerson {
+interface PostHogPerson {
   id: string
   name: string
   distinct_ids: string[]

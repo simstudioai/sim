@@ -15,7 +15,7 @@ export const MULTIPART_RETRY_DELAY_MS = 2000
 export const MULTIPART_RETRY_BACKOFF = 2
 export const WHOLE_FILE_PARALLEL_UPLOADS = 3
 
-export interface PresignedFileInfo {
+interface PresignedFileInfo {
   path: string
   key: string
   name: string
@@ -163,7 +163,7 @@ export const normalizePresignedData = (data: unknown, context: string): Presigne
   }
 }
 
-export interface GetPresignedOptions {
+interface GetPresignedOptions {
   endpoint: string
   file: File
   signal?: AbortSignal

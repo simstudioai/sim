@@ -80,7 +80,7 @@ export interface RequestTraceV1UsageSummary {
  * This interface was referenced by `RequestTraceV1SimReport`'s JSON-Schema
  * via the `definition` "RequestTraceV1MergedTrace".
  */
-export interface RequestTraceV1MergedTrace {
+interface RequestTraceV1MergedTrace {
   chatId?: string
   cost?: RequestTraceV1CostSummary
   durationMs: number
@@ -99,7 +99,7 @@ export interface RequestTraceV1MergedTrace {
  * This interface was referenced by `RequestTraceV1SimReport`'s JSON-Schema
  * via the `definition` "RequestTraceV1SimReport".
  */
-export interface RequestTraceV1SimReport1 {
+interface RequestTraceV1SimReport1 {
   chatId?: string
   cost?: RequestTraceV1CostSummary
   durationMs: number

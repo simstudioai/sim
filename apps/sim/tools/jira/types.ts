@@ -1033,7 +1033,7 @@ export interface JiraWriteResponse extends ToolResponse {
   }
 }
 
-export interface JiraIssue {
+interface JiraIssue {
   key: string
   summary: string
   status: string
@@ -1042,14 +1042,14 @@ export interface JiraIssue {
   updated: string
 }
 
-export interface JiraProject {
+interface JiraProject {
   id: string
   key: string
   name: string
   url: string
 }
 
-export interface JiraCloudResource {
+interface JiraCloudResource {
   id: string
   url: string
   name: string

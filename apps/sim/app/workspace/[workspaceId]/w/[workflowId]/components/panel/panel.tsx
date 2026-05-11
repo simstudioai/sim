@@ -656,7 +656,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
             <div className='flex gap-1.5'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  <Button className='h-[30px] w-[30px] rounded-[5px]' data-tour='panel-menu'>
+                  <Button className='size-[30px] rounded-[5px]' data-tour='panel-menu'>
                     <MoreHorizontal />
                   </Button>
                 </DropdownMenuTrigger>
@@ -715,7 +715,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 </DropdownMenuContent>
               </DropdownMenu>
               <Button
-                className='h-[30px] w-[30px] rounded-[5px]'
+                className='size-[30px] rounded-[5px]'
                 variant={isChatOpen ? 'active' : 'default'}
                 onClick={() => setIsChatOpen(!isChatOpen)}
               >
@@ -738,9 +738,9 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 disabled={!isExecuting && isButtonDisabled}
               >
                 {isExecuting ? (
-                  <Square className='h-[11.5px] w-[11.5px] fill-current' />
+                  <Square className='size-[11.5px] fill-current' />
                 ) : (
-                  <Play className='h-[11.5px] w-[11.5px]' />
+                  <Play className='size-[11.5px]' />
                 )}
                 {isExecuting ? 'Stop' : 'Run'}
               </Button>
@@ -814,7 +814,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   </h2>
                   <div className='flex items-center gap-2'>
                     <Button variant='ghost' className='p-0' onClick={handleCopilotNewChat}>
-                      <Plus className='h-[14px] w-[14px]' />
+                      <Plus className='size-[14px]' />
                     </Button>
                     <Popover
                       open={isCopilotHistoryOpen}
@@ -825,7 +825,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     >
                       <PopoverTrigger asChild>
                         <Button variant='ghost' className='p-0'>
-                          <History className='h-[14px] w-[14px]' />
+                          <History className='size-[14px]' />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent align='end' side='bottom' sideOffset={8} maxHeight={280}>
@@ -853,14 +853,14 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                                         >
                                           <Button
                                             variant='ghost'
-                                            className='h-[16px] w-[16px] p-0'
+                                            className='size-[16px] p-0'
                                             onClick={(e) => {
                                               e.stopPropagation()
                                               handleCopilotDeleteChat(chat.id)
                                             }}
                                             aria-label='Delete chat'
                                           >
-                                            <Trash className='h-[10px] w-[10px]' />
+                                            <Trash className='size-[10px]' />
                                           </Button>
                                         </div>
                                       }

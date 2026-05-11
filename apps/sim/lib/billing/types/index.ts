@@ -82,7 +82,7 @@ export interface BillingData {
   daysRemaining: number
 }
 
-export interface SubscriptionPlan {
+interface SubscriptionPlan {
   name: string
   priceId: string
   limits: {
@@ -90,7 +90,7 @@ export interface SubscriptionPlan {
   }
 }
 
-export interface BillingEntity {
+interface BillingEntity {
   id: string
   type: 'user' | 'organization'
   referenceId: string
@@ -99,7 +99,7 @@ export interface BillingEntity {
   updatedAt: Date
 }
 
-export interface BillingConfig {
+interface BillingConfig {
   id: string
   entityType: 'user' | 'organization'
   entityId: string
@@ -112,7 +112,7 @@ export interface BillingConfig {
   updatedAt: Date
 }
 
-export interface UsagePeriod {
+interface UsagePeriod {
   id: string
   entityType: 'user' | 'organization'
   entityId: string
@@ -126,12 +126,12 @@ export interface UsagePeriod {
   finalizedAt?: Date
 }
 
-export interface BillingStatus {
+interface BillingStatus {
   status: 'ok' | 'warning' | 'exceeded'
   usageData: UsageData
 }
 
-export interface TeamUsageLimit {
+interface TeamUsageLimit {
   userId: string
   userName: string
   userEmail: string
@@ -143,7 +143,7 @@ export interface TeamUsageLimit {
   limitUpdatedAt: Date | null
 }
 
-export interface BillingSummary {
+interface BillingSummary {
   userId: string
   email: string
   name: string
@@ -158,7 +158,7 @@ export interface BillingSummary {
   billingStatus: 'ok' | 'warning' | 'exceeded'
 }
 
-export interface SubscriptionAPIResponse {
+interface SubscriptionAPIResponse {
   isPaid: boolean
   isPro: boolean
   isTeam: boolean
@@ -170,7 +170,7 @@ export interface SubscriptionAPIResponse {
   usage: UsageData
 }
 
-export interface UsageLimitAPIResponse {
+interface UsageLimitAPIResponse {
   currentLimit: number
   canEdit: boolean
   minimumLimit: number
@@ -195,19 +195,19 @@ export type UsagePeriodStatus = 'active' | 'finalized' | 'billed'
 export type BillingStatusType = 'ok' | 'warning' | 'exceeded'
 
 // Error Types
-export interface BillingError {
+interface BillingError {
   code: string
   message: string
   details?: any
 }
 
-export interface UpdateUsageLimitResult {
+interface UpdateUsageLimitResult {
   success: boolean
   error?: string
 }
 
 // Hook Types for React
-export interface UseSubscriptionStateReturn {
+interface UseSubscriptionStateReturn {
   subscription: {
     isPaid: boolean
     isPro: boolean
@@ -231,7 +231,7 @@ export interface UseSubscriptionStateReturn {
   getDaysRemainingInPeriod: () => number | null
 }
 
-export interface UseUsageLimitReturn {
+interface UseUsageLimitReturn {
   currentLimit: number
   canEdit: boolean
   minimumLimit: number

@@ -1220,7 +1220,7 @@ export const REFRESH_DASHBOARD_OUTPUT_PROPERTIES = {
 /**
  * Base parameters shared by all Salesforce operations
  */
-export interface BaseSalesforceParams {
+interface BaseSalesforceParams {
   accessToken: string
   idToken?: string
   instanceUrl?: string
@@ -1229,13 +1229,13 @@ export interface BaseSalesforceParams {
 /**
  * Common paging structure for list operations
  */
-export interface SalesforcePaging {
+interface SalesforcePaging {
   nextRecordsUrl?: string
   totalSize: number
   done: boolean
 }
 
-export interface SalesforceAccount {
+interface SalesforceAccount {
   Id: string
   Name: string
   Type?: string

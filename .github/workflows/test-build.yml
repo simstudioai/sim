@@ -109,6 +109,9 @@ jobs:
       - name: API contract boundary audit
         run: bun run check:api-validation:strict
 
+      - name: Zustand v5 selector audit
+        run: bun run check:zustand-v5
+
       - name: Verify realtime prune graph
         run: bun run check:realtime-prune
 

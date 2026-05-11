@@ -170,7 +170,7 @@ export default function IntegrationsPage() {
         </section>
 
         {/* Integration request */}
-        <div className='flex flex-col items-start gap-3 px-6 py-6 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='flex flex-col items-start gap-3 p-6 sm:flex-row sm:items-center sm:justify-between'>
           <div>
             <p className='text-[15px] text-white tracking-[-0.02em]'>
               Don&apos;t see the integration you need?

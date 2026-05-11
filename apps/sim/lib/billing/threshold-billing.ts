@@ -199,9 +199,7 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
   }
 }
 
-export async function checkAndBillOrganizationOverageThreshold(
-  organizationId: string
-): Promise<void> {
+async function checkAndBillOrganizationOverageThreshold(organizationId: string): Promise<void> {
   logger.info('=== ENTERED checkAndBillOrganizationOverageThreshold ===', { organizationId })
 
   try {

@@ -122,7 +122,7 @@ export function ChatDeploy({
   const updateChatMutation = useUpdateChat()
   const deleteChatMutation = useDeleteChat()
   const [isIdentifierValid, setIsIdentifierValid] = useState(false)
-  const [hasInitializedForm, setHasInitializedForm] = useState(false)
+  const hasInitializedFormRef = useRef(false)
   const existingPassword = hasExistingPassword(existingChat)
 
   const updateField = <K extends keyof ChatFormData>(field: K, value: ChatFormData[K]) => {
@@ -180,7 +180,7 @@ export function ChatDeploy({
   }, [isFormValid, onValidationChange])
 
   useEffect(() => {
-    if (existingChat && !hasInitializedForm) {
+    if (existingChat && !hasInitializedFormRef.current) {
       setFormData({
         identifier: existingChat.identifier || '',
         title: existingChat.title || '',
@@ -201,13 +201,13 @@ export function ChatDeploy({
         setImageUrl(existingChat.customizations.imageUrl)
       }
 
-      setHasInitializedForm(true)
+      hasInitializedFormRef.current = true
     } else if (!existingChat && !isLoadingChat) {
       setFormData(initialFormData)
       setImageUrl(null)
-      setHasInitializedForm(false)
+      hasInitializedFormRef.current = false
     }
-  }, [existingChat, isLoadingChat, hasInitializedForm])
+  }, [existingChat, isLoadingChat])
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
@@ -265,7 +265,7 @@ export function ChatDeploy({
       }
 
       await onRefetchChat()
-      setHasInitializedForm(false)
+      hasInitializedFormRef.current = false
       setFormInitCounter((c) => c + 1)
     } catch (error: any) {
       newTab?.close()
@@ -289,7 +289,7 @@ export function ChatDeploy({
       })
 
       setImageUrl(null)
-      setHasInitializedForm(false)
+      hasInitializedFormRef.current = false
       setFormInitCounter((c) => c + 1)
       await onRefetchChat()
 
@@ -316,7 +316,7 @@ export function ChatDeploy({
       >
         {errors.general && (
           <div className='flex items-center gap-2 rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-red-400 text-small'>
-            <AlertTriangle className='h-4 w-4 flex-shrink-0' />
+            <AlertTriangle className='size-4 flex-shrink-0' />
             <span>{errors.general}</span>
           </div>
         )}
@@ -549,7 +549,7 @@ function IdentifierInput({
           />
           {isChecking ? (
             <div className='-translate-y-1/2 absolute top-1/2 right-2'>
-              <Loader className='h-4 w-4 text-[var(--text-tertiary)]' animate />
+              <Loader className='size-4 text-[var(--text-tertiary)]' animate />
             </div>
           ) : (
             isValid &&
@@ -558,7 +558,7 @@ function IdentifierInput({
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <div className='-translate-y-1/2 absolute top-1/2 right-2'>
-                    <Check className='h-4 w-4 text-[var(--brand-accent)]' />
+                    <Check className='size-4 text-[var(--brand-accent)]' />
                   </div>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -725,7 +725,7 @@ function AuthSelector({
                     aria-label='Generate password'
                     className='!p-1.5'
                   >
-                    <RefreshCw className='h-3 w-3' />
+                    <RefreshCw className='size-3' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -742,11 +742,7 @@ function AuthSelector({
                     aria-label='Copy password'
                     className='!p-1.5'
                   >
-                    {copySuccess ? (
-                      <Check className='h-3 w-3' />
-                    ) : (
-                      <Clipboard className='h-3 w-3' />
-                    )}
+                    {copySuccess ? <Check className='size-3' /> : <Clipboard className='size-3' />}
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -763,7 +759,7 @@ function AuthSelector({
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                     className='!p-1.5'
                   >
-                    {showPassword ? <EyeOff className='h-3 w-3' /> : <Eye className='h-3 w-3' />}
+                    {showPassword ? <EyeOff className='size-3' /> : <Eye className='size-3' />}
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>

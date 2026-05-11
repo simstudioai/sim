@@ -9,7 +9,7 @@ export default function KnowledgeLoading() {
       <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-[12px]'>
-            <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+            <Skeleton className='size-[14px] rounded-[2px]' />
             <Skeleton className='h-[14px] w-[96px] rounded-[4px]' />
           </div>
           <div className='flex items-center gap-[6px]'>
@@ -20,7 +20,7 @@ export default function KnowledgeLoading() {
 
       <div className='border-[var(--border)] border-b px-[24px] py-[10px]'>
         <div className='flex items-center'>
-          <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+          <Skeleton className='size-[14px] rounded-[2px]' />
           <Skeleton className='ml-[10px] h-[14px] w-[160px] rounded-[4px]' />
         </div>
       </div>
@@ -30,7 +30,7 @@ export default function KnowledgeLoading() {
           <thead>
             <tr className='border-[var(--border)] border-b'>
               <th className='w-[40px] px-[12px] py-[8px]'>
-                <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+                <Skeleton className='size-[14px] rounded-[2px]' />
               </th>
               {Array.from({ length: COLUMN_COUNT }).map((_, i) => (
                 <th key={i} className='px-[12px] py-[8px] text-left'>
@@ -43,7 +43,7 @@ export default function KnowledgeLoading() {
             {Array.from({ length: SKELETON_ROW_COUNT }).map((_, rowIndex) => (
               <tr key={rowIndex} className='border-[var(--border)] border-b'>
                 <td className='w-[40px] px-[12px] py-[10px]'>
-                  <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+                  <Skeleton className='size-[14px] rounded-[2px]' />
                 </td>
                 {Array.from({ length: COLUMN_COUNT }).map((_, colIndex) => (
                   <td key={colIndex} className='px-[12px] py-[10px]'>

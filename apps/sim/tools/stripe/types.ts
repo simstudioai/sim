@@ -1282,7 +1282,7 @@ export const DELETE_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'ID of the deleted resource' },
 } as const satisfies Record<string, OutputProperty>
 
-export interface StripeAddress {
+interface StripeAddress {
   line1?: string
   line2?: string
   city?: string
@@ -1291,7 +1291,7 @@ export interface StripeAddress {
   country?: string
 }
 
-export interface StripeMetadata {
+interface StripeMetadata {
   [key: string]: string
 }
 
@@ -1299,7 +1299,7 @@ export interface StripeMetadata {
 // Payment Intent Types
 // ============================================================================
 
-export interface PaymentIntentObject {
+interface PaymentIntentObject {
   id: string
   object: 'payment_intent'
   amount: number
@@ -1398,7 +1398,7 @@ export interface PaymentIntentListResponse extends ToolResponse {
 // Customer Types
 // ============================================================================
 
-export interface CustomerObject {
+interface CustomerObject {
   id: string
   object: 'customer'
   email?: string
@@ -1488,7 +1488,7 @@ export interface CustomerDeleteResponse extends ToolResponse {
 // Subscription Types
 // ============================================================================
 
-export interface SubscriptionObject {
+interface SubscriptionObject {
   id: string
   object: 'subscription'
   customer: string
@@ -1585,7 +1585,7 @@ export interface SubscriptionListResponse extends ToolResponse {
 // Invoice Types
 // ============================================================================
 
-export interface InvoiceObject {
+interface InvoiceObject {
   id: string
   object: 'invoice'
   customer: string
@@ -1695,7 +1695,7 @@ export interface InvoiceDeleteResponse extends ToolResponse {
 // Charge Types
 // ============================================================================
 
-export interface ChargeObject {
+interface ChargeObject {
   id: string
   object: 'charge'
   amount: number
@@ -1779,7 +1779,7 @@ export interface ChargeListResponse extends ToolResponse {
 // Product Types
 // ============================================================================
 
-export interface ProductObject {
+interface ProductObject {
   id: string
   object: 'product'
   name: string
@@ -1864,7 +1864,7 @@ export interface ProductDeleteResponse extends ToolResponse {
 // Price Types
 // ============================================================================
 
-export interface PriceObject {
+interface PriceObject {
   id: string
   object: 'price'
   product: string
@@ -1944,7 +1944,7 @@ export interface PriceListResponse extends ToolResponse {
 // Event Types
 // ============================================================================
 
-export interface EventObject {
+interface EventObject {
   id: string
   object: 'event'
   type: string

@@ -180,6 +180,7 @@ export function ConditionInput({
   const hasInitializedRef = useRef(false)
   const previousBlockIdRef = useRef<string>(blockId)
   const shouldPersistRef = useRef<boolean>(false)
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   /**
    * Creates default blocks with stable IDs.
@@ -328,9 +329,15 @@ export function ConditionInput({
         shouldPersistRef.current = false
       }
     } finally {
-      setTimeout(() => {
+      clearTimeout(syncTimeoutRef.current)
+      syncTimeoutRef.current = setTimeout(() => {
         isSyncingFromStoreRef.current = false
       }, 0)
+    }
+
+    return () => {
+      clearTimeout(syncTimeoutRef.current)
+      isSyncingFromStoreRef.current = false
     }
   }, [storeValue, previewValue, isPreview, blockId, isReady])
 
@@ -728,10 +735,12 @@ export function ConditionInput({
 
   // Add useEffect to handle keyboard events for both dropdowns
   useEffect(() => {
+    const attached: Array<{ el: Element; handler: (e: Event) => void }> = []
+
     conditionalBlocks.forEach((block) => {
       const textarea = containerRef.current?.querySelector(`[data-block-id="${block.id}"] textarea`)
       if (textarea) {
-        textarea.addEventListener('keydown', (e: Event) => {
+        const handler = (e: Event) => {
           if ((e as KeyboardEvent).key === 'Escape') {
             setConditionalBlocks((blocks) =>
               blocks.map((b) =>
@@ -746,9 +755,17 @@ export function ConditionInput({
               )
             )
           }
-        })
+        }
+        textarea.addEventListener('keydown', handler)
+        attached.push({ el: textarea, handler })
       }
     })
+
+    return () => {
+      for (const { el, handler } of attached) {
+        el.removeEventListener('keydown', handler)
+      }
+    }
   }, [conditionalBlocks.length])
 
   // Capture textarea refs from Editor components (condition mode)
@@ -824,7 +841,7 @@ export function ConditionInput({
   if (!isReady || conditionalBlocks.length === 0) {
     return (
       <div className='flex min-h-[150px] items-center justify-center text-muted-foreground'>
-        Loading conditions...
+        Loading conditions…
       </div>
     )
   }
@@ -858,7 +875,7 @@ export function ConditionInput({
                     disabled={isPreview || disabled || (!isRouterMode && block.title === 'else')}
                     className='h-auto p-0'
                   >
-                    <Plus className='h-[14px] w-[14px]' />
+                    <Plus className='size-[14px]' />
                     <span className='sr-only'>Add Block</span>
                   </Button>
                 </Tooltip.Trigger>
@@ -878,7 +895,7 @@ export function ConditionInput({
                     }
                     className='h-auto p-0'
                   >
-                    <ChevronUp className='h-[14px] w-[14px]' />
+                    <ChevronUp className='size-[14px]' />
                     <span className='sr-only'>Move Up</span>
                   </Button>
                 </Tooltip.Trigger>
@@ -899,7 +916,7 @@ export function ConditionInput({
                     }
                     className='h-auto p-0'
                   >
-                    <ChevronDown className='h-[14px] w-[14px]' />
+                    <ChevronDown className='size-[14px]' />
                     <span className='sr-only'>Move Down</span>
                   </Button>
                 </Tooltip.Trigger>
@@ -916,7 +933,7 @@ export function ConditionInput({
                     }
                     className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
                   >
-                    <Trash className='h-[14px] w-[14px]' />
+                    <Trash className='size-[14px]' />
                     <span className='sr-only'>Delete Block</span>
                   </Button>
                 </Tooltip.Trigger>
@@ -992,13 +1009,15 @@ export function ConditionInput({
               {/* Custom resize handle */}
               {!isPreview && !disabled && (
                 <div
-                  className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                  role='separator'
+                  aria-orientation='horizontal'
+                  className='absolute right-1 bottom-1 flex size-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
                   onMouseDown={(e) => startRouterResize(e, block.id)}
                   onDragStart={(e) => {
                     e.preventDefault()
                   }}
                 >
-                  <ChevronsUpDown className='h-3 w-3 text-[var(--text-muted)]' />
+                  <ChevronsUpDown className='size-3 text-[var(--text-muted)]' />
                 </div>
               )}
 

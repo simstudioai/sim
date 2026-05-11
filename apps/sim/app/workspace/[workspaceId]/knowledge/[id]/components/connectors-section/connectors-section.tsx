@@ -191,7 +191,7 @@ export function ConnectorsSection({
           {Array.from({ length: 2 }).map((_, i) => (
             <div key={i} className='rounded-lg border border-[var(--border-1)] px-3 py-2.5'>
               <div className='flex items-center gap-2.5'>
-                <Skeleton className='h-5 w-5 flex-shrink-0 rounded-sm' />
+                <Skeleton className='size-5 flex-shrink-0 rounded-sm' />
                 <div className='flex flex-col gap-1'>
                   <div className='flex items-center gap-2'>
                     <Skeleton className='h-[14px] w-[100px]' />
@@ -358,9 +358,9 @@ function ConnectorCard({
       <div className='flex items-center justify-between px-3 py-2.5'>
         <div className='flex items-center gap-2.5'>
           <div className='relative flex-shrink-0'>
-            {Icon && <Icon className='h-5 w-5' />}
+            {Icon && <Icon className='size-5' />}
             {connector.status === 'disabled' && (
-              <AlertTriangle className='-right-1 -top-1 absolute h-3 w-3 text-amber-500' />
+              <AlertTriangle className='-right-1 -top-1 absolute size-3 text-amber-500' />
             )}
           </div>
           <div className='flex flex-col gap-0.5'>
@@ -368,7 +368,7 @@ function ConnectorCard({
               <span className='flex items-center gap-1.5 font-medium text-[var(--text-primary)] text-small'>
                 {connectorDef?.name || connector.connectorType}
                 {(isSyncPending || connector.status === 'syncing') && (
-                  <Loader className='h-3 w-3 text-[var(--text-muted)]' animate />
+                  <Loader className='size-3 text-[var(--text-muted)]' animate />
                 )}
               </span>
               <Badge variant={statusConfig.variant} className='text-micro'>
@@ -399,7 +399,7 @@ function ConnectorCard({
               {connector.lastSyncError && (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <AlertCircle className='h-3 w-3 text-[var(--text-error)]' />
+                    <AlertCircle className='size-3 text-[var(--text-error)]' />
                   </Tooltip.Trigger>
                   <Tooltip.Content>{connector.lastSyncError}</Tooltip.Content>
                 </Tooltip.Root>
@@ -415,7 +415,7 @@ function ConnectorCard({
                 <Tooltip.Trigger asChild>
                   <Button
                     variant='ghost'
-                    className='h-7 w-7 p-0'
+                    className='size-7 p-0'
                     onClick={onSync}
                     disabled={
                       connector.status === 'syncing' ||
@@ -439,8 +439,8 @@ function ConnectorCard({
 
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button variant='ghost' className='h-7 w-7 p-0' onClick={onEdit}>
-                    <Settings className='h-3.5 w-3.5' />
+                  <Button variant='ghost' className='size-7 p-0' onClick={onEdit}>
+                    <Settings className='size-3.5' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>Settings</Tooltip.Content>
@@ -450,16 +450,16 @@ function ConnectorCard({
                 <Tooltip.Trigger asChild>
                   <Button
                     variant='ghost'
-                    className='h-7 w-7 p-0'
+                    className='size-7 p-0'
                     onClick={onTogglePause}
                     disabled={isUpdating}
                   >
                     {isUpdating ? (
-                      <Loader className='h-3.5 w-3.5' animate />
+                      <Loader className='size-3.5' animate />
                     ) : connector.status === 'paused' || connector.status === 'disabled' ? (
-                      <Play className='h-3.5 w-3.5' />
+                      <Play className='size-3.5' />
                     ) : (
-                      <Pause className='h-3.5 w-3.5' />
+                      <Pause className='size-3.5' />
                     )}
                   </Button>
                 </Tooltip.Trigger>
@@ -472,8 +472,8 @@ function ConnectorCard({
 
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button variant='ghost' className='h-7 w-7 p-0' onClick={onDelete}>
-                    <Trash className='h-3.5 w-3.5' />
+                  <Button variant='ghost' className='size-7 p-0' onClick={onDelete}>
+                    <Trash className='size-3.5' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>Delete</Tooltip.Content>
@@ -485,7 +485,7 @@ function ConnectorCard({
             <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
-                className='h-7 w-7 p-0'
+                className='size-7 p-0'
                 onClick={() => setExpanded((prev) => !prev)}
               >
                 <ChevronDown
@@ -502,7 +502,7 @@ function ConnectorCard({
         <div className='border-[var(--border-1)] border-t px-3 py-2'>
           <div className='flex flex-col gap-1 rounded-sm border border-amber-200 bg-amber-50 px-2 py-1.5 dark:border-amber-900 dark:bg-amber-950'>
             <div className='flex items-center gap-1.5 font-medium text-amber-800 text-caption dark:text-amber-200'>
-              <AlertTriangle className='h-3 w-3 flex-shrink-0' />
+              <AlertTriangle className='size-3 flex-shrink-0' />
               Connector disabled after repeated sync failures
             </div>
             <p className='text-amber-700 text-micro dark:text-amber-300'>
@@ -541,7 +541,7 @@ function ConnectorCard({
         <div className='border-[var(--border-1)] border-t px-3 py-2'>
           <div className='flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
             <div className='flex items-center font-medium text-caption'>
-              <span className='mr-1.5 inline-block h-[6px] w-[6px] rounded-xs bg-amber-500' />
+              <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-amber-500' />
               Additional permissions required
             </div>
             {canEdit && (
@@ -620,8 +620,8 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
   if (isLoading) {
     return (
       <div className='flex items-center gap-2 py-1 text-[var(--text-muted)] text-xs'>
-        <Loader className='h-3 w-3' animate />
-        Loading sync history...
+        <Loader className='size-3' animate />
+        Loading sync history…
       </div>
     )
   }
@@ -642,11 +642,11 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
           <div key={log.id} className='flex items-start gap-2 text-xs'>
             <div className='mt-[1px] flex-shrink-0'>
               {isRunning ? (
-                <Loader className='h-3 w-3 text-[var(--text-muted)]' animate />
+                <Loader className='size-3 text-[var(--text-muted)]' animate />
               ) : isError ? (
-                <XCircle className='h-3 w-3 text-[var(--text-error)]' />
+                <XCircle className='size-3 text-[var(--text-error)]' />
               ) : (
-                <CheckCircle2 className='h-3 w-3 text-[var(--color-green-600)]' />
+                <CheckCircle2 className='size-3 text-[var(--color-green-600)]' />
               )}
             </div>
 
@@ -689,7 +689,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
                     )}
                   </span>
                 )}
-                {isRunning && <span className='text-[var(--text-muted)]'>In progress...</span>}
+                {isRunning && <span className='text-[var(--text-muted)]'>In progress…</span>}
               </div>
 
               {isError && log.errorMessage && (

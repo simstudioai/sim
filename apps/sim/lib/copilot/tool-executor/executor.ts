@@ -69,7 +69,7 @@ export async function executeTool(
   }
 }
 
-export async function executeToolBatch(
+async function executeToolBatch(
   toolCalls: ToolCallDescriptor[],
   context: ToolExecutionContext
 ): Promise<Map<string, ToolExecutionResult>> {

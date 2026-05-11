@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react'
 import { Upload, X } from 'lucide-react'
 import { Input, Label, Switch, Textarea } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 
 interface InputField {
   name: string
@@ -131,6 +132,9 @@ export function FormField({
         return (
           <div className='space-y-3'>
             <div
+              role='button'
+              tabIndex={0}
+              aria-label='Upload files'
               onDragOver={(e) => {
                 e.preventDefault()
                 setIsDragging(true)
@@ -138,6 +142,9 @@ export function FormField({
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleFileDrop}
               onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(event) =>
+                handleKeyboardActivation(event, () => fileInputRef.current?.click())
+              }
               className={cn(
                 'flex cursor-pointer flex-col items-center justify-center rounded-[10px] border-2 border-dashed px-6 py-8 transition-colors',
                 isDragging
@@ -153,7 +160,7 @@ export function FormField({
                 className='hidden'
               />
               <Upload
-                className='mb-2 h-6 w-6 text-muted-foreground'
+                className='mb-2 size-6 text-muted-foreground'
                 style={isDragging ? { color: primaryColor } : undefined}
               />
               <p className={'text-center text-muted-foreground text-sm'}>
@@ -168,7 +175,7 @@ export function FormField({
               <div className='space-y-2'>
                 {files.map((file, idx) => (
                   <div
-                    key={idx}
+                    key={`${file.name}-${file.size}`}
                     className='flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2'
                   >
                     <div className='min-w-0 flex-1'>
@@ -187,7 +194,7 @@ export function FormField({
                       }}
                       className='ml-2 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
                     >
-                      <X className='h-4 w-4' />
+                      <X className='size-4' />
                     </button>
                   </div>
                 ))}

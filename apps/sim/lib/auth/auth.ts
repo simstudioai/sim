@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { cache } from 'react'
 import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
@@ -1611,27 +1612,71 @@ export const auth = betterAuth({
           clientSecret: env.WEALTHBOX_CLIENT_SECRET as string,
           authorizationUrl: 'https://app.crmworkspace.com/oauth/authorize',
           tokenUrl: 'https://app.crmworkspace.com/oauth/token',
-          userInfoUrl: 'https://dummy-not-used.wealthbox.com', // Dummy URL since no user info endpoint exists
+          userInfoUrl: 'https://api.crmworkspace.com/v1/me',
           scopes: getCanonicalScopesForProvider('wealthbox'),
           responseType: 'code',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/wealthbox`,
-          getUserInfo: async (_tokens) => {
+          getUserInfo: async (tokens) => {
             try {
-              logger.info('Creating Wealthbox user profile from token data')
+              logger.info('Fetching Wealthbox user profile')
 
-              const uniqueId = 'wealthbox-user'
+              const response = await fetch('https://api.crmworkspace.com/v1/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
               const now = new Date()
 
+              if (response.ok) {
+                const data = await response.json()
+                const userId = data.id?.toString()
+                if (!userId) {
+                  return null
+                }
+                const email =
+                  data.email && typeof data.email === 'string'
+                    ? data.email
+                    : `wealthbox-${userId}@wealthbox.user`
+                const name = data.name || data.full_name || data.username || 'Wealthbox User'
+
+                return {
+                  id: `wealthbox-${userId}-${generateId()}`,
+                  name,
+                  email,
+                  emailVerified: false,
+                  createdAt: now,
+                  updatedAt: now,
+                }
+              }
+
+              // Fallback: derive a stable identifier from the refresh token (long-lived)
+              // rather than the access token (rotates every ~2 hours) to avoid creating
+              // duplicate accounts on token refresh.
+              logger.warn(
+                'Wealthbox user info fetch failed, falling back to token-derived identity',
+                {
+                  status: response.status,
+                }
+              )
+              const stableToken = tokens.refreshToken ?? tokens.accessToken
+              if (!stableToken) {
+                logger.error('Wealthbox fallback identity: no refresh or access token available')
+                return null
+              }
+              const tokenHash = createHash('sha256').update(stableToken).digest('hex').slice(0, 24)
               return {
-                id: `${uniqueId}-${generateId()}`,
+                id: `wealthbox-${tokenHash}-${generateId()}`,
                 name: 'Wealthbox User',
-                email: `${uniqueId}@wealthbox.user`,
+                email: `wealthbox-${tokenHash}@wealthbox.user`,
                 emailVerified: false,
                 createdAt: now,
                 updatedAt: now,
               }
             } catch (error) {
-              logger.error('Error creating Wealthbox user profile:', { error })
+              logger.error('Error creating Wealthbox user profile:', {
+                error: toError(error).message,
+              })
               return null
             }
           },
@@ -1730,11 +1775,12 @@ export const auth = betterAuth({
               }
 
               logger.info('HubSpot token metadata response:', {
+                hubId: data.hub_id,
+                hubDomain: data.hub_domain,
+                userId: data.user_id,
                 hasScopes: !!data.scopes,
                 scopesType: typeof data.scopes,
                 scopesIsArray: Array.isArray(data.scopes),
-                scopesValue: data.scopes,
-                fullResponse: data,
               })
 
               return {

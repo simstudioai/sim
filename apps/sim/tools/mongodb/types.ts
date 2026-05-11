@@ -63,7 +63,7 @@ export interface MongoDBCollectionInfo {
   }>
 }
 
-export interface MongoDBBaseResponse extends ToolResponse {
+interface MongoDBBaseResponse extends ToolResponse {
   output: {
     message: string
     documents?: unknown[]
@@ -77,11 +77,11 @@ export interface MongoDBBaseResponse extends ToolResponse {
   error?: string
 }
 
-export interface MongoDBQueryResponse extends MongoDBBaseResponse {}
-export interface MongoDBInsertResponse extends MongoDBBaseResponse {}
-export interface MongoDBUpdateResponse extends MongoDBBaseResponse {}
-export interface MongoDBDeleteResponse extends MongoDBBaseResponse {}
-export interface MongoDBExecuteResponse extends MongoDBBaseResponse {}
+interface MongoDBQueryResponse extends MongoDBBaseResponse {}
+interface MongoDBInsertResponse extends MongoDBBaseResponse {}
+interface MongoDBUpdateResponse extends MongoDBBaseResponse {}
+interface MongoDBDeleteResponse extends MongoDBBaseResponse {}
+interface MongoDBExecuteResponse extends MongoDBBaseResponse {}
 export interface MongoDBResponse extends MongoDBBaseResponse {}
 
 export interface MongoDBIntrospectResponse extends ToolResponse {

@@ -139,7 +139,7 @@ export interface SearchParams {
   returnFormat?: 'markdown' | 'html' | 'text' | 'screenshot' | 'pageshot'
 }
 
-export interface SearchResult {
+interface SearchResult {
   title: string
   description: string
   url: string

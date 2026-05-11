@@ -38,7 +38,7 @@ export function isSupportedFileType(mimeType: string): boolean {
   return SUPPORTED_FILE_TYPES.includes(mimeType.toLowerCase())
 }
 
-export interface CopilotFileAttachment {
+interface CopilotFileAttachment {
   key: string
   filename: string
   media_type: string

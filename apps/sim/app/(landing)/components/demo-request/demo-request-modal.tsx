@@ -251,8 +251,8 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
           {submitSuccess ? (
             <div className='absolute inset-0 flex items-center justify-center px-8 pb-10 sm:px-12 sm:pb-14'>
               <div className='flex max-w-md flex-col items-center justify-center text-center'>
-                <div className='flex h-20 w-20 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] text-[var(--text-primary)]'>
-                  <Check className='h-10 w-10' />
+                <div className='flex size-20 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] text-[var(--text-primary)]'>
+                  <Check className='size-10' />
                 </div>
                 <h2 className='mt-8 font-[430] font-season text-[34px] text-[var(--text-primary)] leading-[1.1] tracking-[-0.03em]'>
                   {SUBMIT_SUCCESS_MESSAGE}

@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { motion } from 'framer-motion'
+import { domAnimation, LazyMotion, m } from 'framer-motion'
 import { Database } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { Blimp } from '@/components/emcn'
@@ -145,133 +145,141 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
 
   if (blockType === 'note' && markdown) {
     return (
-      <motion.div
-        className='relative'
-        initial={animate ? { opacity: 0 } : false}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.45, delay, ease: EASE_OUT }}
-      >
-        <div className='w-[280px] select-none rounded-[8px] border border-[#3d3d3d] bg-[#232323]'>
-          <div className='border-[#3d3d3d] border-b p-2'>
-            <span className='font-medium text-[#e6e6e6] text-[16px]'>Note</span>
+      <LazyMotion features={domAnimation}>
+        <m.div
+          className='relative'
+          initial={animate ? { opacity: 0 } : false}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.45, delay, ease: EASE_OUT }}
+        >
+          <div className='w-[280px] select-none rounded-[8px] border border-[#3d3d3d] bg-[#232323]'>
+            <div className='border-[#3d3d3d] border-b p-2'>
+              <span className='font-medium text-[#e6e6e6] text-[16px]'>Note</span>
+            </div>
+            <div className='p-2.5'>
+              <NoteMarkdown content={markdown} />
+            </div>
           </div>
-          <div className='p-2.5'>
-            <NoteMarkdown content={markdown} />
-          </div>
-        </div>
-      </motion.div>
+        </m.div>
+      </LazyMotion>
     )
   }
 
   const hasContent = rows.length > 0 || (tools && tools.length > 0)
 
   return (
-    <motion.div
-      className='relative'
-      initial={animate ? { opacity: 0 } : false}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.45, delay, ease: EASE_OUT }}
-    >
-      <div className='relative z-[20] w-[250px] select-none rounded-[8px] border border-[#3d3d3d] bg-[#232323]'>
-        {/* Target handle (left side) */}
-        {!hideTargetHandle && (
-          <Handle
-            type='target'
-            position={Position.Left}
-            id='target'
-            className={HANDLE_LEFT}
-            style={{ top: '20px', transform: 'translateY(-50%)' }}
-            isConnectableStart={false}
-            isConnectableEnd={false}
-          />
-        )}
+    <LazyMotion features={domAnimation}>
+      <m.div
+        className='relative'
+        initial={animate ? { opacity: 0 } : false}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.45, delay, ease: EASE_OUT }}
+      >
+        <div className='relative z-[20] w-[250px] select-none rounded-[8px] border border-[#3d3d3d] bg-[#232323]'>
+          {/* Target handle (left side) */}
+          {!hideTargetHandle && (
+            <Handle
+              type='target'
+              position={Position.Left}
+              id='target'
+              className={HANDLE_LEFT}
+              style={{ top: '20px', transform: 'translateY(-50%)' }}
+              isConnectableStart={false}
+              isConnectableEnd={false}
+            />
+          )}
 
-        {/* Header */}
-        <div
-          className={`flex items-center justify-between p-2 ${hasContent ? 'border-[#3d3d3d] border-b' : ''}`}
-        >
-          <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
-            <div
-              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
-              style={{ background: bgColor }}
-            >
-              {Icon && <Icon className='h-[16px] w-[16px] text-white' />}
-            </div>
-            <span className='truncate font-medium text-[#e6e6e6] text-[16px]'>{name}</span>
-          </div>
-        </div>
-
-        {/* Sub-block rows + tools */}
-        {hasContent && (
-          <div className='flex flex-col gap-2 p-2'>
-            {rows.map((row) => {
-              const modelEntry = row.title === 'Model' ? getModelIconEntry(row.value) : null
-              const ModelIcon = modelEntry?.icon
-              return (
-                <div key={row.title} className='flex items-center gap-2'>
-                  <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-[14px] capitalize'>
-                    {row.title}
-                  </span>
-                  {row.value && (
-                    <span className='flex min-w-0 flex-1 items-center justify-end gap-2 font-normal text-[#e6e6e6] text-[14px]'>
-                      {ModelIcon && (
-                        <ModelIcon
-                          className={`inline-block flex-shrink-0 text-[#e6e6e6] ${modelEntry.size ?? 'h-[14px] w-[14px]'}`}
-                        />
-                      )}
-                      <span className='truncate'>{row.value}</span>
-                    </span>
-                  )}
-                </div>
-              )
-            })}
-
-            {/* Tool chips — inline with label */}
-            {tools && tools.length > 0 && (
-              <div className='flex items-center gap-2'>
-                <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-[14px]'>Tools</span>
-                <div className='flex flex-1 flex-wrap items-center justify-end gap-[5px]'>
-                  {tools.map((tool) => {
-                    const ToolIcon = BLOCK_ICONS[tool.type]
-                    return (
-                      <div
-                        key={tool.type}
-                        className='flex items-center gap-[5px] rounded-[5px] border border-[#3d3d3d] bg-[#2a2a2a] px-[6px] py-[3px]'
-                      >
-                        <div
-                          className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
-                          style={{ background: tool.bgColor }}
-                        >
-                          {ToolIcon && <ToolIcon className='h-[10px] w-[10px] text-white' />}
-                        </div>
-                        <span className='font-normal text-[#e6e6e6] text-[12px]'>{tool.name}</span>
-                      </div>
-                    )
-                  })}
-                </div>
+          {/* Header */}
+          <div
+            className={`flex items-center justify-between p-2 ${hasContent ? 'border-[#3d3d3d] border-b' : ''}`}
+          >
+            <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
+              <div
+                className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
+                style={{ background: bgColor }}
+              >
+                {Icon && <Icon className='size-[16px] text-white' />}
               </div>
-            )}
+              <span className='truncate font-medium text-[#e6e6e6] text-[16px]'>{name}</span>
+            </div>
           </div>
-        )}
 
-        {/* Source handle (right side) */}
-        {!hideSourceHandle && (
-          <Handle
-            type='source'
-            position={Position.Right}
-            id='source'
-            className={HANDLE_RIGHT}
-            style={{ top: '20px', transform: 'translateY(-50%)' }}
-            isConnectableStart={false}
-            isConnectableEnd={false}
-          />
-        )}
+          {/* Sub-block rows + tools */}
+          {hasContent && (
+            <div className='flex flex-col gap-2 p-2'>
+              {rows.map((row) => {
+                const modelEntry = row.title === 'Model' ? getModelIconEntry(row.value) : null
+                const ModelIcon = modelEntry?.icon
+                return (
+                  <div key={row.title} className='flex items-center gap-2'>
+                    <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-[14px] capitalize'>
+                      {row.title}
+                    </span>
+                    {row.value && (
+                      <span className='flex min-w-0 flex-1 items-center justify-end gap-2 font-normal text-[#e6e6e6] text-[14px]'>
+                        {ModelIcon && (
+                          <ModelIcon
+                            className={`inline-block flex-shrink-0 text-[#e6e6e6] ${modelEntry.size ?? 'h-[14px] w-[14px]'}`}
+                          />
+                        )}
+                        <span className='truncate'>{row.value}</span>
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
 
-        {isHighlighted && (
-          <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[#33b4ff] ring-[1.75px]' />
-        )}
-      </div>
-    </motion.div>
+              {/* Tool chips — inline with label */}
+              {tools && tools.length > 0 && (
+                <div className='flex items-center gap-2'>
+                  <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-[14px]'>
+                    Tools
+                  </span>
+                  <div className='flex flex-1 flex-wrap items-center justify-end gap-[5px]'>
+                    {tools.map((tool) => {
+                      const ToolIcon = BLOCK_ICONS[tool.type]
+                      return (
+                        <div
+                          key={tool.type}
+                          className='flex items-center gap-[5px] rounded-[5px] border border-[#3d3d3d] bg-[#2a2a2a] px-[6px] py-[3px]'
+                        >
+                          <div
+                            className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                            style={{ background: tool.bgColor }}
+                          >
+                            {ToolIcon && <ToolIcon className='size-[10px] text-white' />}
+                          </div>
+                          <span className='font-normal text-[#e6e6e6] text-[12px]'>
+                            {tool.name}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Source handle (right side) */}
+          {!hideSourceHandle && (
+            <Handle
+              type='source'
+              position={Position.Right}
+              id='source'
+              className={HANDLE_RIGHT}
+              style={{ top: '20px', transform: 'translateY(-50%)' }}
+              isConnectableStart={false}
+              isConnectableEnd={false}
+            />
+          )}
+
+          {isHighlighted && (
+            <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[#33b4ff] ring-[1.75px]' />
+          )}
+        </div>
+      </m.div>
+    </LazyMotion>
   )
 })
 

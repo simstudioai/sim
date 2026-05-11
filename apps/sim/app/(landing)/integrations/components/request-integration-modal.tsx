@@ -84,9 +84,9 @@ export function RequestIntegrationModal() {
           {status === 'success' ? (
             <ModalBody>
               <div className='flex flex-col items-center gap-3 py-6 text-center'>
-                <div className='flex h-10 w-10 items-center justify-center rounded-full bg-[#33C482]/10'>
+                <div className='flex size-10 items-center justify-center rounded-full bg-[#33C482]/10'>
                   <svg
-                    className='h-5 w-5 text-[var(--brand-accent)]'
+                    className='size-5 text-[var(--brand-accent)]'
                     viewBox='0 0 24 24'
                     fill='none'
                     stroke='currentColor'
@@ -98,7 +98,7 @@ export function RequestIntegrationModal() {
                   </svg>
                 </div>
                 <p className='text-[14px] text-[var(--landing-text)]'>
-                  Request submitted — we&apos;ll follow up at{' '}
+                  Request submitted. We&apos;ll follow up at{' '}
                   <span className='font-medium'>{email}</span>.
                 </p>
               </div>

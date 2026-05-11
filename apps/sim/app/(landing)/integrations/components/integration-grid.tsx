@@ -78,7 +78,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
         <div className='relative max-w-[480px] flex-1'>
           <svg
             aria-hidden='true'
-            className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-4 w-4 text-[#555]'
+            className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-[#555]'
             fill='none'
             stroke='currentColor'
             strokeWidth={2}

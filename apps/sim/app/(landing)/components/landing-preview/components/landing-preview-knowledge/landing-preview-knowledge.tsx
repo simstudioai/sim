@@ -16,14 +16,14 @@ import type {
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
 import { LandingPreviewResource } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
 
-const DB_ICON = <Database className='h-[14px] w-[14px]' />
+const DB_ICON = <Database className='size-[14px]' />
 
 function connectorIcons(icons: React.ComponentType<{ className?: string }>[]) {
   return {
     content: (
       <div className='flex items-center gap-1'>
         {icons.map((Icon, i) => (
-          <Icon key={i} className='h-3.5 w-3.5 flex-shrink-0' />
+          <Icon key={i} className='size-3.5 flex-shrink-0' />
         ))}
       </div>
     ),

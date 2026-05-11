@@ -569,8 +569,17 @@ export const WorkflowList = memo(function WorkflowList({
   return (
     <SidebarDragContext.Provider value={dragContextValue}>
       <div
+        role='tree'
+        aria-label='Workflows'
         className='flex min-h-full flex-col pb-2'
         onClick={handleContainerClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            if (e.target !== e.currentTarget) return
+            const { selectOnly, clearAllSelection } = useFolderStore.getState()
+            workflowId ? selectOnly(workflowId) : clearAllSelection()
+          }
+        }}
         onContextMenu={handleContainerContextMenu}
         data-empty-area
       >

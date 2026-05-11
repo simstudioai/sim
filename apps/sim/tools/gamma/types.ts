@@ -3,7 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 /**
  * Base parameters shared across all Gamma API tools.
  */
-export interface GammaBaseParams {
+interface GammaBaseParams {
   apiKey: string
 }
 
@@ -117,7 +117,7 @@ export interface GammaCheckStatusResponse extends ToolResponse {
 /**
  * Theme object from the Gamma API.
  */
-export interface GammaTheme {
+interface GammaTheme {
   id: string
   name: string
   type: string
@@ -139,7 +139,7 @@ export interface GammaListThemesResponse extends ToolResponse {
 /**
  * Folder object from the Gamma API.
  */
-export interface GammaFolder {
+interface GammaFolder {
   id: string
   name: string
 }

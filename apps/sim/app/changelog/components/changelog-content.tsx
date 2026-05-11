@@ -65,21 +65,21 @@ export default async function ChangelogContent() {
                 rel='noopener noreferrer'
                 className='inline-flex items-center gap-2 rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-[9px] py-[5px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
               >
-                <Github className='h-4 w-4' />
+                <Github className='size-4' />
                 View on GitHub
               </Link>
               <Link
                 href='https://docs.sim.ai'
                 className='inline-flex items-center gap-2 rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] py-[5px] text-[13.5px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
               >
-                <BookOpen className='h-4 w-4' />
+                <BookOpen className='size-4' />
                 Documentation
               </Link>
               <Link
                 href='/changelog.xml'
                 className='inline-flex items-center gap-2 rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] py-[5px] text-[13.5px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
               >
-                <Rss className='h-4 w-4' />
+                <Rss className='size-4' />
                 RSS Feed
               </Link>
             </div>

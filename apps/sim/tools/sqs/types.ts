@@ -13,7 +13,7 @@ export interface SqsSendMessageParams extends SqsConnectionConfig {
   messageDeduplicationId?: string | null
 }
 
-export interface SqsBaseResponse extends ToolResponse {
+interface SqsBaseResponse extends ToolResponse {
   output: { message: string; id?: string }
   error?: string
 }

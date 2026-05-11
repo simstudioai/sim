@@ -139,7 +139,7 @@ export async function storeFileIntent(
   })
 }
 
-export async function consumeFileIntent(
+async function consumeFileIntent(
   workspaceId: string,
   fileId: string,
   scope?: FileIntentScope

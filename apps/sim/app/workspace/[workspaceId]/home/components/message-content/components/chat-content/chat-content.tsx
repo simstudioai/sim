@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentPropsWithoutRef, useEffect, useMemo, useRef } from 'react'
+import { type ComponentPropsWithoutRef, memo, useEffect, useMemo, useRef } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import 'prismjs/components/prism-typescript'
@@ -237,7 +237,7 @@ interface ChatContentProps {
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
 }
 
-export function ChatContent({
+function ChatContentInner({
   content,
   isStreaming = false,
   onOptionSelect,
@@ -335,3 +335,5 @@ export function ChatContent({
     </div>
   )
 }
+
+export const ChatContent = memo(ChatContentInner)

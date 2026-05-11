@@ -27,7 +27,7 @@ export type CommandId =
  * This central registry defines the keyboard shortcut and default behavior
  * for whether the command is allowed inside editable elements.
  */
-export interface CommandDefinition {
+interface CommandDefinition {
   /** Stable identifier for the command. */
   id: CommandId
   /** Shortcut string in the form "Mod+Shift+A", "Mod+Enter", etc. */

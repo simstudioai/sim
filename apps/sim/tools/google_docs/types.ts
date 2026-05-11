@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface GoogleDocsMetadata {
+interface GoogleDocsMetadata {
   documentId: string
   title: string
   mimeType?: string

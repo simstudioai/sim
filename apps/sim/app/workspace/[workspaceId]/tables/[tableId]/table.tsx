@@ -513,17 +513,29 @@ export function Table({
           hasWorkflowColumns={selection.hasWorkflowColumns}
           showPlay={selection.selectionStats.hasIncompleteOrFailed}
           showRefresh={selection.selectionStats.hasCompleted}
-          onPlay={() =>
-            selection.selectedRunScope &&
-            runScope({ ...selection.selectedRunScope, runMode: 'incomplete' })
-          }
-          onRefresh={() =>
-            selection.selectedRunScope &&
-            runScope({ ...selection.selectedRunScope, runMode: 'all' })
-          }
-          onStopWorkflows={() =>
-            selection.selectedRunScope && onStopRows(selection.selectedRunScope.rowIds)
-          }
+          onPlay={() => {
+            const scope = selection.selectedRunScope
+            if (!scope) return
+            runScope({
+              groupIds: scope.groupIds,
+              rowIds: scope.allRows ? undefined : scope.rowIds,
+              runMode: 'incomplete',
+            })
+          }}
+          onRefresh={() => {
+            const scope = selection.selectedRunScope
+            if (!scope) return
+            runScope({
+              groupIds: scope.groupIds,
+              rowIds: scope.allRows ? undefined : scope.rowIds,
+              runMode: 'all',
+            })
+          }}
+          onStopWorkflows={() => {
+            const scope = selection.selectedRunScope
+            if (!scope) return
+            scope.allRows ? onStopAll() : onStopRows(scope.rowIds)
+          }}
           onViewExecution={
             selection.singleWorkflowCell?.canViewExecution &&
             selection.singleWorkflowCell.executionId

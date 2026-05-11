@@ -54,7 +54,13 @@ export const ttsUnifiedToolBodySchema = z
     volumeGainDb: z.coerce.number().optional(),
     sampleRateHertz: z.coerce.number().optional(),
     effectsProfileId: z.array(z.string()).optional(),
-    region: z.string().optional(),
+    region: z
+      .string()
+      .regex(
+        /^[a-z][a-z0-9-]{1,30}[a-z0-9]$/,
+        'region must be a valid Azure region identifier (e.g. eastus, westeurope)'
+      )
+      .optional(),
     rate: z.string().optional(),
     styleDegree: z.coerce.number().optional(),
     role: z.string().optional(),

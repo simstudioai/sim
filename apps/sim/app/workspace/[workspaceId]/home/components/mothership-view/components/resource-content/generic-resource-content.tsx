@@ -35,7 +35,7 @@ export function GenericResourceContent({ data }: GenericResourceContentProps) {
           <div className='flex items-center gap-2'>
             {entry.status === 'executing' && (
               <PillsRing
-                className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+                className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
                 animate
               />
             )}

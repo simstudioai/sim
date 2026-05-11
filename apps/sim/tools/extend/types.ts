@@ -47,7 +47,7 @@ export interface ExtendParserV2Input {
 /**
  * Chunk from parsed document
  */
-export interface ExtendParseChunk {
+interface ExtendParseChunk {
   content: string
   page?: number
   metadata?: Record<string, unknown>
@@ -56,7 +56,7 @@ export interface ExtendParseChunk {
 /**
  * Block-level element from parsed document
  */
-export interface ExtendParseBlock {
+interface ExtendParseBlock {
   type: string
   content: string
   bbox?: {
@@ -72,7 +72,7 @@ export interface ExtendParseBlock {
 /**
  * Native Extend API response structure for parsing
  */
-export interface ExtendParserOutputData {
+interface ExtendParserOutputData {
   id: string
   status: string
   chunks: ExtendParseChunk[]

@@ -4,19 +4,7 @@ import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
-import {
-  DEFAULT_RERANKER_MODEL,
-  isSupportedRerankerModel,
-  type RerankerModelId,
-  SUPPORTED_RERANKER_MODELS,
-} from '@/lib/knowledge/reranker-models'
-
-export {
-  DEFAULT_RERANKER_MODEL,
-  isSupportedRerankerModel,
-  type RerankerModelId,
-  SUPPORTED_RERANKER_MODELS,
-}
+import { isSupportedRerankerModel } from '@/lib/knowledge/reranker-models'
 
 const logger = createLogger('Reranker')
 
@@ -36,7 +24,7 @@ export interface RerankItem {
   text: string
 }
 
-export interface RerankedResult<T extends RerankItem> {
+interface RerankedResult<T extends RerankItem> {
   item: T
   relevanceScore: number
 }

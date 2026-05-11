@@ -1,7 +1,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Common types
-export interface ApolloPerson {
+interface ApolloPerson {
   id: string
   first_name: string
   last_name: string
@@ -17,7 +17,7 @@ export interface ApolloPerson {
   }>
 }
 
-export interface ApolloOrganization {
+interface ApolloOrganization {
   id: string
   name: string
   website_url?: string
@@ -28,7 +28,7 @@ export interface ApolloOrganization {
   founded_year?: number
 }
 
-export interface ApolloContact {
+interface ApolloContact {
   id: string
   first_name: string
   last_name: string
@@ -39,7 +39,7 @@ export interface ApolloContact {
   created_at: string
 }
 
-export interface ApolloAccount {
+interface ApolloAccount {
   id: string
   name: string
   domain?: string | null
@@ -56,7 +56,7 @@ export interface ApolloAccount {
   created_at: string
 }
 
-export interface ApolloTask {
+interface ApolloTask {
   id: string
   user_id?: string
   contact_id?: string
@@ -70,7 +70,7 @@ export interface ApolloTask {
   updated_at?: string
 }
 
-export interface ApolloOpportunity {
+interface ApolloOpportunity {
   id: string
   team_id?: string
   name: string
@@ -360,7 +360,7 @@ export interface ApolloContactSearchParams extends ApolloBaseParams {
   per_page?: number
 }
 
-export interface ApolloPagination {
+interface ApolloPagination {
   page?: number
   per_page?: number
   total_entries?: number
@@ -498,7 +498,7 @@ export interface ApolloSequenceAddContactsParams extends ApolloBaseParams {
   auto_unpause_at?: string
 }
 
-export interface ApolloSequenceAddedContact {
+interface ApolloSequenceAddedContact {
   id: string
   first_name?: string
   last_name?: string
@@ -508,7 +508,7 @@ export interface ApolloSequenceAddedContact {
   replied_rate?: number | null
 }
 
-export interface ApolloSequenceSkippedContact {
+interface ApolloSequenceSkippedContact {
   id: string
   reason: string
 }
@@ -561,7 +561,7 @@ export interface ApolloTaskSearchResponse extends ToolResponse {
 // Email Accounts List Types
 export interface ApolloEmailAccountsParams extends ApolloBaseParams {}
 
-export interface ApolloEmailAccount {
+interface ApolloEmailAccount {
   id: string | number
   email: string
   type?: string
@@ -642,7 +642,7 @@ export interface ApolloOpportunityUpdateResponse extends ToolResponse {
 }
 
 // Sequence/Campaign Types
-export interface ApolloSequence {
+interface ApolloSequence {
   id: string
   name: string
   active: boolean

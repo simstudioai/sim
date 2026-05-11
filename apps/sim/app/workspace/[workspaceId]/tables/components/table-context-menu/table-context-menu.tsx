@@ -80,7 +80,7 @@ export function TableContextMenu({
         {onImportCsv && (
           <DropdownMenuItem disabled={disableImport} onSelect={onImportCsv}>
             <Upload />
-            Import CSV...
+            Import CSV…
           </DropdownMenuItem>
         )}
         {onExportCsv && (

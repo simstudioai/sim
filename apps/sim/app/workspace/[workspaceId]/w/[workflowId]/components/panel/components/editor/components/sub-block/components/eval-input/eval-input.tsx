@@ -154,7 +154,7 @@ export function EvalInput({
               disabled={isPreview || disabled}
               className='h-auto p-0'
             >
-              <Plus className='h-[14px] w-[14px]' />
+              <Plus className='size-[14px]' />
               <span className='sr-only'>Add Metric</span>
             </Button>
           </Tooltip.Trigger>
@@ -169,7 +169,7 @@ export function EvalInput({
               disabled={isPreview || disabled || metrics.length === 1}
               className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
             >
-              <Trash className='h-[14px] w-[14px]' />
+              <Trash className='size-[14px]' />
               <span className='sr-only'>Delete Metric</span>
             </Button>
           </Tooltip.Trigger>

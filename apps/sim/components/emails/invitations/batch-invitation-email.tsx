@@ -41,11 +41,13 @@ const getRoleLabel = (role: string) => {
   }
 }
 
+const EMPTY_INVITATIONS: WorkspaceInvitation[] = []
+
 export function BatchInvitationEmail({
   inviterName = 'Someone',
   organizationName = 'the team',
   organizationRole = 'member',
-  workspaceInvitations = [],
+  workspaceInvitations = EMPTY_INVITATIONS,
   acceptUrl,
 }: BatchInvitationEmailProps) {
   const brand = getBrandConfig()

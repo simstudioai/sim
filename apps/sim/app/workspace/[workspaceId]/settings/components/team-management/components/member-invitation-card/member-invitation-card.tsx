@@ -130,7 +130,7 @@ export function MemberInvitationCard({
             >
               {isLoadingWorkspaces ? (
                 <div className='px-1.5 py-4 text-center'>
-                  <p className='text-[var(--text-tertiary)] text-small'>Loading...</p>
+                  <p className='text-[var(--text-tertiary)] text-small'>Loading…</p>
                 </div>
               ) : userWorkspaces.length === 0 ? (
                 <div className='px-1.5 py-4 text-center'>

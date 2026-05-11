@@ -4,10 +4,10 @@
  * React Query hooks for managing user-defined tables.
  */
 
-import { useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   type InfiniteData,
+  infiniteQueryOptions,
   keepPreviousData,
   useInfiniteQuery,
   useMutation,
@@ -210,11 +210,6 @@ interface InfiniteTableRowsParams {
   enabled?: boolean
 }
 
-/**
- * Fetch a single page of rows for a table with pagination/filter/sort. Polls
- * while any cell is in flight so cells reach their terminal state without a
- * manual refresh.
- */
 export function useTableRows({
   workspaceId,
   tableId,
@@ -243,36 +238,30 @@ export function useTableRows({
   })
 }
 
-/**
- * Paginated row fetching with `useInfiniteQuery`. Each page requests `pageSize`
- * rows at the next offset; `getNextPageParam` returns `undefined` once the last
- * page comes back short, signalling end-of-list.
- *
- * Page 0 includes a server `COUNT(*)`; subsequent pages skip it.
- */
-export function useInfiniteTableRows({
+export function tableRowsParamsKey({
+  pageSize,
+  filter,
+  sort,
+}: Pick<InfiniteTableRowsParams, 'pageSize' | 'filter' | 'sort'>): string {
+  return JSON.stringify({ pageSize, filter: filter ?? null, sort: sort ?? null })
+}
+
+export function tableRowsInfiniteOptions({
   workspaceId,
   tableId,
   pageSize,
   filter,
   sort,
-  enabled = true,
-}: InfiniteTableRowsParams) {
-  const paramsKey = JSON.stringify({
-    pageSize,
-    filter: filter ?? null,
-    sort: sort ?? null,
-  })
-  const queryKey = useMemo(() => tableKeys.infiniteRows(tableId, paramsKey), [tableId, paramsKey])
-
-  return useInfiniteQuery({
-    queryKey,
+}: Omit<InfiniteTableRowsParams, 'enabled'>) {
+  const paramsKey = tableRowsParamsKey({ pageSize, filter, sort })
+  return infiniteQueryOptions({
+    queryKey: tableKeys.infiniteRows(tableId, paramsKey),
     queryFn: ({ pageParam, signal }) =>
       fetchTableRows({
         workspaceId,
         tableId,
         limit: pageSize,
-        offset: pageParam,
+        offset: pageParam as number,
         filter,
         sort,
         includeTotal: pageParam === 0,
@@ -281,10 +270,24 @@ export function useInfiniteTableRows({
     initialPageParam: 0,
     getNextPageParam: (lastPage, _allPages, lastPageParam) => {
       if (lastPage.rows.length < pageSize) return undefined
-      return lastPageParam + pageSize
+      return (lastPageParam as number) + pageSize
     },
-    enabled: Boolean(workspaceId && tableId) && enabled,
     staleTime: 30 * 1000,
+  })
+}
+
+/** Page 0 fetches a server-side `COUNT(*)`; subsequent pages skip it. */
+export function useInfiniteTableRows({
+  workspaceId,
+  tableId,
+  pageSize,
+  filter,
+  sort,
+  enabled = true,
+}: InfiniteTableRowsParams) {
+  return useInfiniteQuery({
+    ...tableRowsInfiniteOptions({ workspaceId, tableId, pageSize, filter, sort }),
+    enabled: Boolean(workspaceId && tableId) && enabled,
   })
 }
 
@@ -408,7 +411,6 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
       reconcileCreatedRow(queryClient, tableId, row)
     },
     onError: (error) => {
-      // Validation errors are surfaced inline by the caller (see useUpdateColumn).
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -763,7 +765,6 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
           queryClient.setQueryData(key, data)
         }
       }
-      // Validation errors are surfaced as inline FieldErrors by the caller.
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
@@ -924,6 +925,7 @@ export function useUploadCsvToTable() {
     },
     onError: (error) => {
       logger.error('Failed to upload CSV:', error)
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -1000,9 +1002,9 @@ export function useImportCsvIntoTable() {
     },
     onError: (error) => {
       logger.error('Failed to import CSV into table:', error)
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
-      if (!variables) return
       invalidateRowCount(queryClient, variables.tableId)
     },
   })
@@ -1281,8 +1283,6 @@ export function useRunColumn({ workspaceId, tableId }: RowMutationContext) {
     // patches.
   })
 }
-
-// ───────────────────────── Workflow group mutations ─────────────────────────
 
 interface AddWorkflowGroupVariables {
   group: WorkflowGroup

@@ -1,4 +1,4 @@
-import { Buffer } from 'buffer'
+import { Buffer, isUtf8 } from 'buffer'
 import { createHash } from 'crypto'
 import fsPromises, { readFile } from 'fs/promises'
 import path from 'path'
@@ -39,6 +39,11 @@ const logger = createLogger('FilesParseAPI')
 
 const MAX_DOWNLOAD_SIZE_BYTES = 100 * 1024 * 1024 // 100 MB
 const DOWNLOAD_TIMEOUT_MS = 30000 // 30 seconds
+const BINARY_EXTENSIONS = new Set<string>(binaryExtensionsList)
+
+function isLikelyTextBuffer(fileBuffer: Buffer): boolean {
+  return isUtf8(fileBuffer) && !fileBuffer.includes(0)
+}
 
 interface ExecutionContext {
   workspaceId: string
@@ -126,48 +131,48 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (Array.isArray(filePath)) {
-      const results = []
-      for (const singlePath of filePath) {
-        if (!singlePath || (typeof singlePath === 'string' && singlePath.trim() === '')) {
-          results.push({
-            success: false,
-            error: 'Empty file path in array',
-            filePath: singlePath || '',
-          })
-          continue
-        }
+      const results = await Promise.all(
+        filePath.map(async (singlePath) => {
+          if (!singlePath || (typeof singlePath === 'string' && singlePath.trim() === '')) {
+            return {
+              success: false,
+              error: 'Empty file path in array',
+              filePath: singlePath || '',
+            }
+          }
 
-        const result = await parseFileSingle(
-          singlePath,
-          fileType,
-          workspaceId,
-          userId,
-          executionContext
-        )
-        if (result.metadata) {
-          result.metadata.processingTime = Date.now() - startTime
-        }
+          const result = await parseFileSingle(
+            singlePath,
+            fileType,
+            workspaceId,
+            userId,
+            executionContext
+          )
+          if (result.metadata) {
+            result.metadata.processingTime = Date.now() - startTime
+          }
 
-        if (result.success) {
-          const displayName =
-            result.originalName || extractCleanFilename(result.filePath) || 'unknown'
-          results.push({
-            success: true,
-            output: {
-              content: result.content,
-              name: displayName,
-              fileType: result.metadata?.fileType || 'application/octet-stream',
-              size: result.metadata?.size || 0,
-              binary: false,
-              file: result.userFile,
-            },
-            filePath: result.filePath,
-            viewerUrl: result.viewerUrl,
-          })
-        } else {
-          results.push(result)
-        }
-      }
+          if (result.success) {
+            const displayName =
+              result.originalName || extractCleanFilename(result.filePath) || 'unknown'
+            return {
+              success: true,
+              output: {
+                content: result.content,
+                name: displayName,
+                fileType: result.metadata?.fileType || 'application/octet-stream',
+                size: result.metadata?.size || 0,
+                binary: false,
+                file: result.userFile,
+              },
+              filePath: result.filePath,
+              viewerUrl: result.viewerUrl,
+            }
+          }
+
+          return result
+        })
+      )
 
       return NextResponse.json({
         success: true,
@@ -863,10 +868,11 @@ function handleGenericBuffer(
   extension: string,
   fileType?: string
 ): ParseResult {
-  const isBinary = binaryExtensionsList.includes(extension)
-  const content = isBinary
-    ? `[Binary ${extension.toUpperCase()} file - ${fileBuffer.length} bytes]`
-    : fileBuffer.toString('utf-8')
+  const normalizedExtension = extension.toLowerCase()
+  const content =
+    !BINARY_EXTENSIONS.has(normalizedExtension) && isLikelyTextBuffer(fileBuffer)
+      ? fileBuffer.toString('utf-8')
+      : `[Binary ${normalizedExtension.toUpperCase()} file - ${fileBuffer.length} bytes]`
 
   return {
     success: true,

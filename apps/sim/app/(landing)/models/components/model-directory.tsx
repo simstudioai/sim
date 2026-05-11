@@ -85,7 +85,7 @@ export function ModelDirectory() {
         <div className='relative max-w-[480px] flex-1'>
           <svg
             aria-hidden='true'
-            className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-4 w-4 text-[#555]'
+            className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-[#555]'
             fill='none'
             stroke='currentColor'
             strokeWidth={2}
@@ -157,7 +157,7 @@ export function ModelDirectory() {
               >
                 <ProviderIcon
                   provider={provider}
-                  className='h-8 w-8 rounded-[5px]'
+                  className='size-8 rounded-[5px]'
                   iconClassName='h-4 w-4'
                 />
                 <div className='min-w-0 flex-1'>
@@ -206,7 +206,7 @@ export function ModelDirectory() {
                   >
                     <ProviderIcon
                       provider={provider}
-                      className='h-8 w-8 rounded-[5px]'
+                      className='size-8 rounded-[5px]'
                       iconClassName='h-4 w-4'
                     />
                     <div className='min-w-0 flex-1'>
@@ -236,7 +236,7 @@ function ModelRow({ provider, model }: { provider: CatalogProvider; model: Catal
       >
         <ProviderIcon
           provider={provider}
-          className='h-8 w-8 shrink-0 rounded-[5px]'
+          className='size-8 shrink-0 rounded-[5px]'
           iconClassName='h-4 w-4'
         />
 

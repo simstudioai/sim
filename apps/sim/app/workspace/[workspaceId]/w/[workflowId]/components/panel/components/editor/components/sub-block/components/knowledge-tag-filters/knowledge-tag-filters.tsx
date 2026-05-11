@@ -13,6 +13,7 @@ import {
   Trash,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -236,8 +237,14 @@ export function KnowledgeTagFilters({
    */
   const renderFilterHeader = (filter: TagFilter, index: number) => (
     <div
+      role='button'
+      tabIndex={0}
       className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
       onClick={() => toggleCollapse(filter.id)}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        handleKeyboardActivation(event, () => toggleCollapse(filter.id))
+      }}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
         <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
@@ -249,18 +256,29 @@ export function KnowledgeTagFilters({
           </Badge>
         )}
       </div>
-      <div className='flex items-center gap-2 pl-2' onClick={(e) => e.stopPropagation()}>
-        <Button variant='ghost' onClick={addFilter} disabled={isReadOnly} className='h-auto p-0'>
-          <Plus className='h-[14px] w-[14px]' />
+      <div className='flex items-center gap-2 pl-2'>
+        <Button
+          variant='ghost'
+          onClick={(e) => {
+            e.stopPropagation()
+            addFilter()
+          }}
+          disabled={isReadOnly}
+          className='h-auto p-0'
+        >
+          <Plus className='size-[14px]' />
           <span className='sr-only'>Add Filter</span>
         </Button>
         <Button
           variant='ghost'
-          onClick={() => removeFilter(filter.id)}
+          onClick={(e) => {
+            e.stopPropagation()
+            removeFilter(filter.id)
+          }}
           disabled={isReadOnly}
           className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
         >
-          <Trash className='h-[14px] w-[14px]' />
+          <Trash className='size-[14px]' />
           <span className='sr-only'>Delete Filter</span>
         </Button>
       </div>

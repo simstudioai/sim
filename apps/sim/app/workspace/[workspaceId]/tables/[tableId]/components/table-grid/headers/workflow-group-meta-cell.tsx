@@ -262,7 +262,7 @@ export function WorkflowGroupMetaCell({
     [column]
   )
 
-  const handleClick = useCallback(
+  const selectGroupAndOpenConfig = useCallback(
     (e: React.MouseEvent<HTMLTableCellElement>) => {
       // Ignore clicks that landed on an interactive child (badge, play button,
       // dropdown items rendered via portal). Only the bare meta-cell area
@@ -342,7 +342,7 @@ export function WorkflowGroupMetaCell({
   return (
     <th
       colSpan={size}
-      onClick={handleClick}
+      onClick={selectGroupAndOpenConfig}
       onContextMenu={handleContextMenu}
       draggable={isDraggable}
       onDragStart={isDraggable ? handleDragStart : undefined}
@@ -370,7 +370,7 @@ export function WorkflowGroupMetaCell({
       />
       <div className='flex h-[18px] min-w-0 items-center gap-1.5'>
         <span
-          className='h-[10px] w-[10px] shrink-0 rounded-sm border-[2px]'
+          className='size-[10px] shrink-0 rounded-sm border-[2px]'
           style={{
             backgroundColor: color,
             borderColor: `${color}60`,
@@ -385,12 +385,12 @@ export function WorkflowGroupMetaCell({
             <DropdownMenuTrigger asChild>
               <button
                 type='button'
-                className='flex h-[16px] w-[16px] shrink-0 cursor-pointer items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]'
+                className='flex size-[16px] shrink-0 cursor-pointer items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)]'
                 onClick={(e) => e.stopPropagation()}
                 aria-label='Run group'
                 title='Run group'
               >
-                <PlayOutline className='h-[10px] w-[10px]' />
+                <PlayOutline className='size-[10px]' />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent

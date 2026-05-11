@@ -7,7 +7,7 @@ import type { ToolFileData } from '@/tools/types'
 /**
  * Sends a message to a Slack channel using chat.postMessage
  */
-export async function postSlackMessage(
+async function postSlackMessage(
   accessToken: string,
   channel: string,
   text: string,
@@ -69,7 +69,7 @@ export function formatMessageSuccessResponse(
 /**
  * Uploads files to Slack and returns the uploaded file IDs
  */
-export async function uploadFilesToSlack(
+async function uploadFilesToSlack(
   files: any[],
   accessToken: string,
   requestId: string,
@@ -136,7 +136,7 @@ export async function uploadFilesToSlack(
 /**
  * Completes the file upload process by associating files with a channel
  */
-export async function completeSlackFileUpload(
+async function completeSlackFileUpload(
   uploadedFileIds: string[],
   channel: string,
   text: string,

@@ -9,6 +9,7 @@ import {
   createWorkdaySoapClient,
   extractRefId,
   normalizeSoapArray,
+  parseSoapNumber,
   type WorkdayCompensationDataSoap,
   type WorkdayCompensationPlanSoap,
   type WorkdayWorkerSoap,
@@ -60,7 +61,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const mapPlan = (p: WorkdayCompensationPlanSoap) => ({
       id: extractRefId(p.Compensation_Plan_Reference) ?? null,
       planName: p.Compensation_Plan_Reference?.attributes?.Descriptor ?? null,
-      amount: p.Amount ?? p.Per_Unit_Amount ?? p.Individual_Target_Amount ?? null,
+      amount:
+        parseSoapNumber(p.Amount) ??
+        parseSoapNumber(p.Per_Unit_Amount) ??
+        parseSoapNumber(p.Individual_Target_Amount) ??
+        null,
       currency: extractRefId(p.Currency_Reference) ?? null,
       frequency: extractRefId(p.Frequency_Reference) ?? null,
     })

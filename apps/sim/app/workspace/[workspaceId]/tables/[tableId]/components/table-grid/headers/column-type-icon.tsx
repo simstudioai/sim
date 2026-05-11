@@ -43,8 +43,8 @@ interface ColumnTypeIconProps {
 export function ColumnTypeIcon({ type, isWorkflowColumn, blockIconInfo }: ColumnTypeIconProps) {
   if (isWorkflowColumn) {
     const Icon = blockIconInfo?.icon ?? PlayOutline
-    return <Icon className='h-3 w-3 shrink-0 text-[var(--text-icon)]' />
+    return <Icon className='size-3 shrink-0 text-[var(--text-icon)]' />
   }
   const Icon = COLUMN_TYPE_ICONS[type] ?? TypeText
-  return <Icon className='h-3 w-3 shrink-0 text-[var(--text-icon)]' />
+  return <Icon className='size-3 shrink-0 text-[var(--text-icon)]' />
 }

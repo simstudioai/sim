@@ -86,7 +86,7 @@ export interface NormalizedItemOverview {
 }
 
 /** Normalized field shape matching the Connect API response. */
-export interface NormalizedField {
+interface NormalizedField {
   id: string
   label: string
   type: ConnectFieldType

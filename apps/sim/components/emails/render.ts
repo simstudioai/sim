@@ -28,7 +28,6 @@ import {
 import { HelpConfirmationEmail } from '@/components/emails/support'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
-export type { EmailSubjectType } from './subjects'
 export { getEmailSubject } from './subjects'
 
 interface WorkspaceInvitation {

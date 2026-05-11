@@ -78,7 +78,7 @@ export interface ClerkPhoneNumber {
   updated_at: number
 }
 
-export interface ClerkWeb3Wallet {
+interface ClerkWeb3Wallet {
   id: string
   object: 'web3_wallet'
   web3_wallet: string
@@ -87,7 +87,7 @@ export interface ClerkWeb3Wallet {
   updated_at: number
 }
 
-export interface ClerkExternalAccount {
+interface ClerkExternalAccount {
   id: string
   object: 'external_account'
   provider: string
@@ -106,14 +106,14 @@ export interface ClerkExternalAccount {
   updated_at: number
 }
 
-export interface ClerkVerification {
+interface ClerkVerification {
   status: string
   strategy: string
   attempts: number | null
   expire_at: number | null
 }
 
-export interface ClerkLinkedIdentifier {
+interface ClerkLinkedIdentifier {
   type: string
   id: string
 }
@@ -168,7 +168,7 @@ export interface ClerkSession {
 /**
  * Transformed email address for outputs
  */
-export interface ClerkEmailAddressOutput {
+interface ClerkEmailAddressOutput {
   id: string
   emailAddress: string
   verified?: boolean
@@ -177,7 +177,7 @@ export interface ClerkEmailAddressOutput {
 /**
  * Transformed phone number for outputs
  */
-export interface ClerkPhoneNumberOutput {
+interface ClerkPhoneNumberOutput {
   id: string
   phoneNumber: string
   verified?: boolean
@@ -186,7 +186,7 @@ export interface ClerkPhoneNumberOutput {
 /**
  * Transformed user for list outputs
  */
-export interface ClerkUserOutput {
+interface ClerkUserOutput {
   id: string
   username: string | null
   firstName: string | null
@@ -212,7 +212,7 @@ export interface ClerkUserOutput {
 /**
  * Transformed organization for outputs
  */
-export interface ClerkOrganizationOutput {
+interface ClerkOrganizationOutput {
   id: string
   name: string
   slug: string | null
@@ -231,7 +231,7 @@ export interface ClerkOrganizationOutput {
 /**
  * Transformed session for outputs
  */
-export interface ClerkSessionOutput {
+interface ClerkSessionOutput {
   id: string
   userId: string
   clientId: string

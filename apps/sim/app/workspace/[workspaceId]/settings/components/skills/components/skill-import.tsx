@@ -182,9 +182,9 @@ export function SkillImport({ onImport }: SkillImportProps) {
             className='hidden'
           />
           {fileState === 'loading' ? (
-            <Loader className='h-[20px] w-[20px] text-[var(--text-tertiary)]' animate />
+            <Loader className='size-[20px] text-[var(--text-tertiary)]' animate />
           ) : (
-            <Upload className='h-[20px] w-[20px] text-[var(--text-tertiary)]' />
+            <Upload className='size-[20px] text-[var(--text-tertiary)]' />
           )}
           <div className='flex flex-col gap-0.5 text-center'>
             <span className='text-[14px] text-[var(--text-primary)]'>
@@ -222,7 +222,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
             onClick={handleGithubImport}
             disabled={githubState === 'loading' || !githubUrl.trim()}
           >
-            {githubState === 'loading' ? <Loader className='h-[14px] w-[14px]' animate /> : 'Fetch'}
+            {githubState === 'loading' ? <Loader className='size-[14px]' animate /> : 'Fetch'}
           </Button>
         </div>
         {githubError && <p className='text-[13px] text-[var(--text-error)]'>{githubError}</p>}

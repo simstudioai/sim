@@ -22,7 +22,7 @@ export interface SendGridList {
   }
 }
 
-export interface SendGridTemplateVersion {
+interface SendGridTemplateVersion {
   id: string
   template_id: string
   name: string
@@ -42,14 +42,14 @@ export interface SendGridTemplate {
   versions?: SendGridTemplateVersion[]
 }
 
-export interface SendGridPersonalization {
+interface SendGridPersonalization {
   to: Array<{ email: string; name?: string }>
   cc?: Array<{ email: string }>
   bcc?: Array<{ email: string }>
   dynamic_template_data?: Record<string, unknown>
 }
 
-export interface SendGridAttachment {
+interface SendGridAttachment {
   content: string
   filename: string
   type?: string
@@ -57,7 +57,7 @@ export interface SendGridAttachment {
   content_id?: string
 }
 
-export interface SendGridMailBody {
+interface SendGridMailBody {
   personalizations: SendGridPersonalization[]
   from: { email: string; name?: string }
   subject?: string
@@ -88,7 +88,7 @@ export interface SendGridTemplateVersionRequest {
 }
 
 // Common types
-export interface SendGridBaseParams {
+interface SendGridBaseParams {
   apiKey: string
 }
 
@@ -127,7 +127,7 @@ export interface AddContactParams extends SendGridBaseParams {
   listIds?: string // Comma-separated list IDs
 }
 
-export interface UpdateContactParams extends SendGridBaseParams {
+interface UpdateContactParams extends SendGridBaseParams {
   contactId?: string
   email: string
   firstName?: string
@@ -179,7 +179,7 @@ export interface GetListParams extends SendGridBaseParams {
   listId: string
 }
 
-export interface UpdateListParams extends SendGridBaseParams {
+interface UpdateListParams extends SendGridBaseParams {
   listId: string
   name: string
 }
@@ -226,7 +226,7 @@ export interface GetTemplateParams extends SendGridBaseParams {
   templateId: string
 }
 
-export interface UpdateTemplateParams extends SendGridBaseParams {
+interface UpdateTemplateParams extends SendGridBaseParams {
   templateId: string
   name: string
 }

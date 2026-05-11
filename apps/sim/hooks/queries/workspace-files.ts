@@ -44,7 +44,7 @@ export const workspaceFilesKeys = {
 /**
  * Storage info type
  */
-export interface StorageInfo {
+interface StorageInfo {
   usedBytes: number
   limitBytes: number
   percentUsed: number

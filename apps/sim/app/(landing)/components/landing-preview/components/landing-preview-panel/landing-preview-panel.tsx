@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, domMax, LazyMotion, m } from 'framer-motion'
 import { ArrowUp } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
@@ -174,166 +174,168 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel({
   )
 
   return (
-    <div className='flex h-full w-[280px] flex-shrink-0 flex-col bg-[#1e1e1e]'>
-      <div className='flex h-full flex-col border-[#2c2c2c] border-l pt-3.5'>
-        {/* Header */}
-        <div className='flex flex-shrink-0 items-center justify-between px-2'>
-          <div className='pointer-events-none flex gap-1.5'>
-            <div className='flex h-[30px] w-[30px] items-center justify-center rounded-[5px] border border-[#3d3d3d] bg-[#363636]'>
-              <MoreHorizontal className='h-[14px] w-[14px] text-[#e6e6e6]' />
-            </div>
-            <div className='flex h-[30px] w-[30px] items-center justify-center rounded-[5px] border border-[#3d3d3d] bg-[#363636]'>
-              <BubbleChatPreview className='h-[14px] w-[14px] text-[#e6e6e6]' />
-            </div>
-          </div>
-          <AuthModal defaultView='signup' source='landing_preview'>
-            <button
-              type='button'
-              className='flex gap-1.5'
-              onMouseMove={(e) => setCursorPos({ x: e.clientX, y: e.clientY })}
-              onMouseLeave={() => setCursorPos(null)}
-              onClick={() =>
-                trackLandingCta({
-                  label: 'Deploy',
-                  section: 'landing_preview',
-                  destination: 'auth_modal',
-                })
-              }
-            >
-              <div className='flex h-[30px] items-center rounded-[5px] bg-[#33C482] px-2.5 transition-colors hover:bg-[#2DAC72]'>
-                <span className='font-medium text-[#1b1b1b] text-[12px]'>Deploy</span>
+    <LazyMotion features={domMax}>
+      <div className='flex h-full w-[280px] flex-shrink-0 flex-col bg-[#1e1e1e]'>
+        <div className='flex h-full flex-col border-[#2c2c2c] border-l pt-3.5'>
+          {/* Header */}
+          <div className='flex flex-shrink-0 items-center justify-between px-2'>
+            <div className='pointer-events-none flex gap-1.5'>
+              <div className='flex size-[30px] items-center justify-center rounded-[5px] border border-[#3d3d3d] bg-[#363636]'>
+                <MoreHorizontal className='size-[14px] text-[#e6e6e6]' />
               </div>
-              <div className='flex h-[30px] items-center gap-2 rounded-[5px] bg-[#33C482] px-2.5 transition-colors hover:bg-[#2DAC72]'>
-                <Play className='h-[11.5px] w-[11.5px] text-[#1b1b1b]' />
-                <span className='font-medium text-[#1b1b1b] text-[12px]'>Run</span>
+              <div className='flex size-[30px] items-center justify-center rounded-[5px] border border-[#3d3d3d] bg-[#363636]'>
+                <BubbleChatPreview className='size-[14px] text-[#e6e6e6]' />
               </div>
-            </button>
-          </AuthModal>
-          {cursorPos &&
-            createPortal(
-              <div
-                className='pointer-events-none fixed z-[9999]'
-                style={{ left: cursorPos.x + 14, top: cursorPos.y + 14 }}
+            </div>
+            <AuthModal defaultView='signup' source='landing_preview'>
+              <button
+                type='button'
+                className='flex gap-1.5'
+                onMouseMove={(e) => setCursorPos({ x: e.clientX, y: e.clientY })}
+                onMouseLeave={() => setCursorPos(null)}
+                onClick={() =>
+                  trackLandingCta({
+                    label: 'Deploy',
+                    section: 'landing_preview',
+                    destination: 'auth_modal',
+                  })
+                }
               >
-                <div className='flex h-[4px]'>
-                  <div className='h-full w-[8px] bg-[#2ABBF8]' />
-                  <div className='h-full w-[14px] bg-[#2ABBF8] opacity-60' />
-                  <div className='h-full w-[8px] bg-[#00F701]' />
-                  <div className='h-full w-[16px] bg-[#00F701] opacity-60' />
-                  <div className='h-full w-[8px] bg-[#FFCC02]' />
-                  <div className='h-full w-[10px] bg-[#FFCC02] opacity-60' />
-                  <div className='h-full w-[8px] bg-[#FA4EDF]' />
-                  <div className='h-full w-[14px] bg-[#FA4EDF] opacity-60' />
+                <div className='flex h-[30px] items-center rounded-[5px] bg-[#33C482] px-2.5 transition-colors hover:bg-[#2DAC72]'>
+                  <span className='font-medium text-[#1b1b1b] text-[12px]'>Deploy</span>
                 </div>
-                <div className='flex items-center gap-[5px] bg-white px-1.5 py-1 font-medium text-[#1C1C1C] text-[11px]'>
-                  Get started
-                  <ChevronDown className='-rotate-90 h-[7px] w-[7px] text-[#1C1C1C]' />
+                <div className='flex h-[30px] items-center gap-2 rounded-[5px] bg-[#33C482] px-2.5 transition-colors hover:bg-[#2DAC72]'>
+                  <Play className='size-[11.5px] text-[#1b1b1b]' />
+                  <span className='font-medium text-[#1b1b1b] text-[12px]'>Run</span>
                 </div>
-              </div>,
-              document.body
-            )}
-        </div>
-
-        {/* Tabs with sliding active indicator */}
-        <div className='flex flex-shrink-0 items-center px-2 pt-3.5'>
-          <div className='flex gap-1'>
-            {TABS_WITH_TOOLBAR.map((tab) => {
-              if (tab.disabled) {
-                return (
-                  <div
-                    key={tab.id}
-                    className='pointer-events-none flex h-[28px] items-center rounded-md border border-transparent px-2 py-[5px]'
-                  >
-                    <span className='font-medium text-[#787878] text-[12.5px]'>{tab.label}</span>
-                  </div>
-                )
-              }
-              const isActive = activeTab === tab.id
-              return (
-                <button
-                  key={tab.id}
-                  type='button'
-                  onClick={() => handleTabSwitch(tab.id as PanelTab)}
-                  className='relative flex h-[28px] items-center rounded-md border border-transparent px-2 py-[5px] font-medium text-[12.5px] transition-colors hover:border-[#3d3d3d] hover:bg-[#363636] hover:text-[#e6e6e6]'
-                  style={{ color: isActive ? '#e6e6e6' : '#787878' }}
+              </button>
+            </AuthModal>
+            {cursorPos &&
+              createPortal(
+                <div
+                  className='pointer-events-none fixed z-[9999]'
+                  style={{ left: cursorPos.x + 14, top: cursorPos.y + 14 }}
                 >
-                  {isActive && (
-                    <motion.div
-                      layoutId='panel-tab-indicator'
-                      className='absolute inset-0 rounded-md border border-[#3d3d3d] bg-[#363636]'
-                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                    />
-                  )}
-                  <span className='relative z-10'>{tab.label}</span>
-                </button>
-              )
-            })}
+                  <div className='flex h-[4px]'>
+                    <div className='h-full w-[8px] bg-[#2ABBF8]' />
+                    <div className='h-full w-[14px] bg-[#2ABBF8] opacity-60' />
+                    <div className='h-full w-[8px] bg-[#00F701]' />
+                    <div className='h-full w-[16px] bg-[#00F701] opacity-60' />
+                    <div className='h-full w-[8px] bg-[#FFCC02]' />
+                    <div className='h-full w-[10px] bg-[#FFCC02] opacity-60' />
+                    <div className='h-full w-[8px] bg-[#FA4EDF]' />
+                    <div className='h-full w-[14px] bg-[#FA4EDF] opacity-60' />
+                  </div>
+                  <div className='flex items-center gap-[5px] bg-white px-1.5 py-1 font-medium text-[#1C1C1C] text-[11px]'>
+                    Get started
+                    <ChevronDown className='-rotate-90 size-[7px] text-[#1C1C1C]' />
+                  </div>
+                </div>,
+                document.body
+              )}
           </div>
-        </div>
 
-        {/* Tab content with cross-fade */}
-        <div className='flex flex-1 flex-col overflow-hidden pt-3'>
-          <AnimatePresence mode='wait'>
-            {activeTab === 'copilot' && (
-              <motion.div
-                key='copilot'
-                className='flex h-full flex-col'
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15, ease: EASE_OUT }}
-              >
-                <div className='pointer-events-none mx-[-1px] flex flex-shrink-0 items-center justify-between gap-2 border border-[#2c2c2c] bg-[#292929] px-3 py-1.5'>
-                  <span className='min-w-0 flex-1 truncate font-medium text-[#e6e6e6] text-[14px]'>
-                    New Chat
-                  </span>
-                </div>
-                <div className='px-2 pt-3 pb-2'>
-                  <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-1.5 py-1.5'>
-                    <textarea
-                      ref={textareaRef}
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      placeholder='Build an AI agent...'
-                      rows={2}
-                      className='mb-1.5 min-h-[48px] w-full cursor-text resize-none border-0 bg-transparent px-0.5 py-1 font-base text-[#e6e6e6] text-sm leading-[1.25rem] placeholder-[#787878] caret-[#e6e6e6] outline-none'
-                    />
-                    <div className='flex items-center justify-end'>
-                      <button
-                        type='button'
-                        onClick={handleSubmit}
-                        disabled={isEmpty}
-                        className='flex h-[22px] w-[22px] items-center justify-center rounded-full border-0 p-0 transition-colors'
-                        style={{
-                          background: isEmpty ? '#808080' : '#e0e0e0',
-                          cursor: isEmpty ? 'not-allowed' : 'pointer',
-                        }}
-                      >
-                        <ArrowUp size={14} strokeWidth={2.25} color='#1b1b1b' />
-                      </button>
+          {/* Tabs with sliding active indicator */}
+          <div className='flex flex-shrink-0 items-center px-2 pt-3.5'>
+            <div className='flex gap-1'>
+              {TABS_WITH_TOOLBAR.map((tab) => {
+                if (tab.disabled) {
+                  return (
+                    <div
+                      key={tab.id}
+                      className='pointer-events-none flex h-[28px] items-center rounded-md border border-transparent px-2 py-[5px]'
+                    >
+                      <span className='font-medium text-[#787878] text-[12.5px]'>{tab.label}</span>
+                    </div>
+                  )
+                }
+                const isActive = activeTab === tab.id
+                return (
+                  <button
+                    key={tab.id}
+                    type='button'
+                    onClick={() => handleTabSwitch(tab.id as PanelTab)}
+                    className='relative flex h-[28px] items-center rounded-md border border-transparent px-2 py-[5px] font-medium text-[12.5px] transition-colors hover:border-[#3d3d3d] hover:bg-[#363636] hover:text-[#e6e6e6]'
+                    style={{ color: isActive ? '#e6e6e6' : '#787878' }}
+                  >
+                    {isActive && (
+                      <m.div
+                        layoutId='panel-tab-indicator'
+                        className='absolute inset-0 rounded-md border border-[#3d3d3d] bg-[#363636]'
+                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                      />
+                    )}
+                    <span className='relative z-10'>{tab.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Tab content with cross-fade */}
+          <div className='flex flex-1 flex-col overflow-hidden pt-3'>
+            <AnimatePresence mode='wait'>
+              {activeTab === 'copilot' && (
+                <m.div
+                  key='copilot'
+                  className='flex h-full flex-col'
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15, ease: EASE_OUT }}
+                >
+                  <div className='pointer-events-none mx-[-1px] flex flex-shrink-0 items-center justify-between gap-2 border border-[#2c2c2c] bg-[#292929] px-3 py-1.5'>
+                    <span className='min-w-0 flex-1 truncate font-medium text-[#e6e6e6] text-[14px]'>
+                      New Chat
+                    </span>
+                  </div>
+                  <div className='px-2 pt-3 pb-2'>
+                    <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] p-1.5'>
+                      <textarea
+                        ref={textareaRef}
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder='Build an AI agent...'
+                        rows={2}
+                        className='mb-1.5 min-h-[48px] w-full cursor-text resize-none border-0 bg-transparent px-0.5 py-1 font-base text-[#e6e6e6] text-sm leading-[1.25rem] placeholder-[#787878] caret-[#e6e6e6] outline-none'
+                      />
+                      <div className='flex items-center justify-end'>
+                        <button
+                          type='button'
+                          onClick={handleSubmit}
+                          disabled={isEmpty}
+                          className='flex size-[22px] items-center justify-center rounded-full border-0 p-0 transition-colors'
+                          style={{
+                            background: isEmpty ? '#808080' : '#e0e0e0',
+                            cursor: isEmpty ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          <ArrowUp size={14} strokeWidth={2.25} color='#1b1b1b' />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            )}
+                </m.div>
+              )}
 
-            {activeTab === 'editor' && (
-              <motion.div
-                key='editor'
-                className='flex h-full flex-col'
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15, ease: EASE_OUT }}
-              >
-                <EditorTabContent editorPrompt={editorPrompt} typedLength={typedLength} />
-              </motion.div>
-            )}
-          </AnimatePresence>
+              {activeTab === 'editor' && (
+                <m.div
+                  key='editor'
+                  className='flex h-full flex-col'
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15, ease: EASE_OUT }}
+                >
+                  <EditorTabContent editorPrompt={editorPrompt} typedLength={typedLength} />
+                </m.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
-    </div>
+    </LazyMotion>
   )
 })
 
@@ -384,10 +386,10 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
       <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 border border-[#2c2c2c] bg-[#292929] px-3 py-1.5'>
         {BlockIcon && (
           <div
-            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
-            <BlockIcon className='h-[12px] w-[12px] text-white' />
+            <BlockIcon className='size-[12px] text-white' />
           </div>
         )}
         <span className='min-w-0 flex-1 truncate font-medium text-[#e6e6e6] text-sm'>
@@ -403,11 +405,11 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
             <div className='flex items-center pl-0.5'>
               <span className='font-medium text-[#e6e6e6] text-small'>System Prompt</span>
             </div>
-            <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-2 py-2'>
+            <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] p-2'>
               <p className='min-h-[48px] whitespace-pre-wrap break-words font-medium font-sans text-[#e6e6e6] text-sm leading-[1.5]'>
                 {visibleText}
                 {isTyping && (
-                  <motion.span
+                  <m.span
                     className='inline-block h-[14px] w-[1.5px] translate-y-[2px] bg-[#e6e6e6]'
                     animate={{ opacity: [1, 0] }}
                     transition={{
@@ -428,7 +430,7 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
                 <span className='font-medium text-[#e6e6e6] text-small'>Model</span>
               </div>
               <div className='flex h-[32px] items-center gap-2 rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-2'>
-                {ModelIcon && <ModelIcon className='h-[14px] w-[14px] text-[#e6e6e6]' />}
+                {ModelIcon && <ModelIcon className='size-[14px] text-[#e6e6e6]' />}
                 <span className='flex-1 truncate font-medium text-[#e6e6e6] text-sm'>{model}</span>
                 <ChevronDown className='h-[7px] w-[9px] text-[#636363]' />
               </div>
@@ -451,10 +453,10 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
                     >
                       {ToolIcon && (
                         <div
-                          className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                          className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
                           style={{ background: tool.bgColor }}
                         >
-                          <ToolIcon className='h-[10px] w-[10px] text-white' />
+                          <ToolIcon className='size-[10px] text-white' />
                         </div>
                       )}
                       <span className='font-normal text-[#e6e6e6] text-[12px]'>{tool.name}</span>
@@ -474,7 +476,7 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
             <div className='relative h-[6px] rounded-full bg-[#3d3d3d]'>
               <div className='h-full w-[70%] rounded-full bg-[#e6e6e6]' />
               <div
-                className='-translate-y-1/2 absolute top-1/2 h-[14px] w-[14px] rounded-full border-[#e6e6e6] border-[2px] bg-[#292929]'
+                className='-translate-y-1/2 absolute top-1/2 size-[14px] rounded-full border-[#e6e6e6] border-[2px] bg-[#292929]'
                 style={{ left: 'calc(70% - 7px)' }}
               />
             </div>
@@ -485,7 +487,7 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
             <div className='flex items-center pl-0.5'>
               <span className='font-medium text-[#e6e6e6] text-small'>Response Format</span>
             </div>
-            <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-2 py-2'>
+            <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] p-2'>
               <span className='font-mono text-[#787878] text-[12px]'>plain text</span>
             </div>
           </div>

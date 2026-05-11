@@ -122,7 +122,7 @@ export interface BlockEventHandlerConfig {
   onBlockCompleteCallback?: (blockId: string, output: unknown) => Promise<void>
 }
 
-export interface BlockEventHandlerDeps {
+interface BlockEventHandlerDeps {
   addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry | undefined
   updateConsole: (blockId: string, update: string | ConsoleUpdate, executionId?: string) => void
   setActiveBlocks: (workflowId: string, blocks: Set<string>) => void
@@ -461,7 +461,7 @@ type UpdateConsoleFn = (
  * Bundle of console-store actions used by the execution-level handlers.
  * Mirrors the deps-object pattern established by `createBlockEventHandlers`.
  */
-export interface ExecutionConsoleDeps {
+interface ExecutionConsoleDeps {
   addConsole: AddConsoleFn
   updateConsole: UpdateConsoleFn
   cancelRunningEntries: CancelRunningEntriesFn
@@ -633,7 +633,7 @@ function normalizeSpanError(error: unknown): string | undefined {
   return typeof error === 'string' ? error : toError(error).message
 }
 
-export interface ExecutionTimingFields {
+interface ExecutionTimingFields {
   durationMs: number
   startedAt: string
   endedAt: string
@@ -651,7 +651,7 @@ export function buildExecutionTiming(durationMs?: number): ExecutionTimingFields
   }
 }
 
-export interface ExecutionErrorConsoleParams {
+interface ExecutionErrorConsoleParams {
   workflowId: string
   executionId?: string
   error?: string
@@ -730,7 +730,7 @@ export function handleExecutionErrorConsole(
   addExecutionErrorConsoleEntry(deps.addConsole, params)
 }
 
-export interface HttpErrorConsoleParams {
+interface HttpErrorConsoleParams {
   workflowId: string
   executionId?: string
   error: string
@@ -763,7 +763,7 @@ export function addHttpErrorConsoleEntry(
   })
 }
 
-export interface CancelledConsoleParams {
+interface CancelledConsoleParams {
   workflowId: string
   executionId?: string
   durationMs?: number
@@ -815,7 +815,7 @@ export function handleExecutionCancelledConsole(
   addCancelledConsoleEntry(deps.addConsole, params)
 }
 
-export interface WorkflowExecutionOptions {
+interface WorkflowExecutionOptions {
   workflowId?: string
   workflowInput?: any
   onStream?: (se: StreamingExecution) => Promise<void>

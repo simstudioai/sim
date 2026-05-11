@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ChevronRight } from 'lucide-react'
+import { serializeJsonLd } from '@/lib/json-ld'
 import { cn } from '@/lib/utils'
 
 interface FAQItem {
@@ -76,13 +77,13 @@ export function FAQ({ items, title = 'Common Questions' }: FAQProps) {
     <div className='mt-12'>
       <script
         type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqSchema) }}
       />
       <h2 className='mb-4 font-[500] text-xl'>{title}</h2>
       <div className='border-[rgba(0,0,0,0.08)] border-t border-b dark:border-[rgba(255,255,255,0.08)]'>
         {items.map((item, index) => (
           <div
-            key={index}
+            key={item.question}
             className={cn(
               index !== items.length - 1 &&
                 'border-[rgba(0,0,0,0.08)] border-b dark:border-[rgba(255,255,255,0.08)]'

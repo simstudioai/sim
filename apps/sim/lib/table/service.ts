@@ -213,7 +213,7 @@ export async function getTableById(
  * @param workspaceId - Workspace ID to list tables for
  * @returns Array of table definitions
  */
-export async function countTables(workspaceId: string): Promise<number> {
+async function countTables(workspaceId: string): Promise<number> {
   const [result] = await db
     .select({ count: count() })
     .from(userTableDefinitions)

@@ -14,7 +14,7 @@ export interface PIIValidationInput {
   requestId: string
 }
 
-export interface DetectedPIIEntity {
+interface DetectedPIIEntity {
   type: string
   start: number
   end: number

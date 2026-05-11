@@ -1,15 +1,12 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { onedriveFilesQuerySchema } from '@/lib/api/contracts/selectors/microsoft'
 import { getValidationErrorMessage } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
+import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
 
 export const dynamic = 'force-dynamic'
@@ -24,12 +21,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   logger.info(`[${requestId}] OneDrive files request received`)
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthenticated request rejected`)
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const validation = onedriveFilesQuerySchema.safeParse({
       credentialId: searchParams.get('credentialId') ?? '',
@@ -53,38 +44,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`[${requestId}] Fetching credential`, { credentialId })
 
-    const resolved = await resolveOAuthAccountId(credentialId)
-    if (!resolved) {
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    const credAccess = await authorizeCredentialUse(request, {
+      credentialId,
+      requireWorkflowIdForInternal: false,
+    })
+    if (!credAccess.ok || !credAccess.credentialOwnerUserId) {
+      logger.warn(`[${requestId}] Credential access denied`, { error: credAccess.error })
+      return NextResponse.json({ error: credAccess.error || 'Unauthorized' }, { status: 401 })
     }
-
-    if (resolved.workspaceId) {
-      const { getUserEntityPermissions } = await import('@/lib/workspaces/permissions/utils')
-      const perm = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        resolved.workspaceId
-      )
-      if (perm === null) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-    }
-
-    const credentials = await db
-      .select()
-      .from(account)
-      .where(eq(account.id, resolved.accountId))
-      .limit(1)
-    if (!credentials.length) {
-      logger.warn(`[${requestId}] Credential not found`, { credentialId })
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-    }
-
-    const accountRow = credentials[0]
 
     const accessToken = await refreshAccessTokenIfNeeded(
-      resolved.accountId,
-      accountRow.userId,
+      credentialId,
+      credAccess.credentialOwnerUserId,
       requestId
     )
     if (!accessToken) {
@@ -92,11 +63,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Use search endpoint if query provided, otherwise list root children
-    // Microsoft Graph API doesn't support $filter on file/folder properties for /children endpoint
+    // $filter is unsupported on the /children endpoint; use search when a query is present
     let url: string
     if (query) {
-      // Use search endpoint with query
       const searchParams_new = new URLSearchParams()
       searchParams_new.append(
         '$select',
@@ -105,7 +74,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       searchParams_new.append('$top', '50')
       url = `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(query)}')?${searchParams_new.toString()}`
     } else {
-      // List all children (files and folders) from root
       const searchParams_new = new URLSearchParams()
       searchParams_new.append(
         '$select',
@@ -138,27 +106,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const data = await response.json()
     logger.info(`[${requestId}] Received ${data.value?.length || 0} items from Microsoft Graph`)
 
-    // Log what we received to debug filtering
-    const itemBreakdown = (data.value || []).reduce(
-      (acc: any, item: MicrosoftGraphDriveItem) => {
-        if (item.file) acc.files++
-        if (item.folder) acc.folders++
-        return acc
-      },
-      { files: 0, folders: 0 }
-    )
-    logger.info(`[${requestId}] Item breakdown`, itemBreakdown)
-
     const files = (data.value || [])
-      .filter((item: MicrosoftGraphDriveItem) => {
-        const isFile = !!item.file && !item.folder
-        if (!isFile) {
-          logger.debug(
-            `[${requestId}] Filtering out item: ${item.name} (isFolder: ${!!item.folder})`
-          )
-        }
-        return isFile
-      })
+      .filter((item: MicrosoftGraphDriveItem) => !!item.file && !item.folder)
       .map((file: MicrosoftGraphDriveItem) => ({
         id: file.id,
         name: file.name,
@@ -179,16 +128,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           : [],
       }))
 
-    logger.info(
-      `[${requestId}] Returning ${files.length} files (filtered from ${data.value?.length || 0} items)`
-    )
-
-    // Log the file IDs we're returning
-    if (files.length > 0) {
-      logger.info(`[${requestId}] File IDs being returned:`, {
-        fileIds: files.slice(0, 5).map((f: any) => ({ id: f.id, name: f.name })),
-      })
-    }
+    logger.info(`[${requestId}] Returning ${files.length} files`, {
+      totalItems: data.value?.length || 0,
+    })
 
     return NextResponse.json({ files }, { status: 200 })
   } catch (error) {

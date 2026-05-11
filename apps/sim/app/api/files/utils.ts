@@ -9,7 +9,7 @@ export interface ApiSuccessResponse {
   [key: string]: any
 }
 
-export interface ApiErrorResponse {
+interface ApiErrorResponse {
   error: string
   message?: string
 }

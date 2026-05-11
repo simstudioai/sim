@@ -11,7 +11,7 @@ export interface OpenRouterModelInfo {
   }
 }
 
-export interface ProviderState {
+interface ProviderState {
   models: string[]
   isLoading: boolean
 }

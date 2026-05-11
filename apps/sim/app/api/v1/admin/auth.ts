@@ -15,11 +15,11 @@ import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('AdminAuth')
 
-export interface AdminAuthSuccess {
+interface AdminAuthSuccess {
   authenticated: true
 }
 
-export interface AdminAuthFailure {
+interface AdminAuthFailure {
   authenticated: false
   error: string
   notConfigured?: boolean

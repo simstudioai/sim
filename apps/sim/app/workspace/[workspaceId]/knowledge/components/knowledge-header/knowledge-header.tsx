@@ -123,7 +123,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
               {!hasWorkspace && (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <AlertTriangle className='h-4 w-4 text-amber-500' />
+                    <AlertTriangle className='size-4 text-amber-500' />
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>Not assigned to workspace</Tooltip.Content>
                 </Tooltip.Root>
@@ -144,7 +144,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                           ? 'Updating...'
                           : currentWorkspace?.name || 'No workspace'}
                     </span>
-                    <ChevronDown className='ml-2 h-4 w-4 text-[var(--text-icon)]' />
+                    <ChevronDown className='ml-2 size-4 text-[var(--text-icon)]' />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align='end' side='bottom' sideOffset={4}>
@@ -186,12 +186,12 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
                   className={filterButtonClass}
                   aria-label='Knowledge base actions menu'
                 >
-                  <MoreHorizontal className='h-4 w-4' />
+                  <MoreHorizontal className='size-4' />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='end' side='bottom' sideOffset={4}>
                 <DropdownMenuItem onSelect={() => options.onDeleteKnowledgeBase?.()}>
-                  <Trash className='h-4 w-4' />
+                  <Trash className='size-4' />
                   <span>Delete Knowledge Base</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>

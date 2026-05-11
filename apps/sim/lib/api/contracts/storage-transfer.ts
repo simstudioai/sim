@@ -77,7 +77,7 @@ const connectionFields = {
   passphrase: z.string().nullish(),
 }
 
-function requirePasswordOrPrivateKey<S extends z.ZodType>(schema: S): S {
+export function requirePasswordOrPrivateKey<S extends z.ZodType>(schema: S): S {
   return schema.refine(
     (value) => {
       const connection = value as { password?: string | null; privateKey?: string | null }

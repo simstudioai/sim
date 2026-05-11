@@ -155,7 +155,7 @@ export interface AsanaSearchTasksResponse extends ToolResponse {
   }
 }
 
-export interface AsanaTask {
+interface AsanaTask {
   gid: string
   resource_type: string
   resource_subtype: string
@@ -176,7 +176,7 @@ export interface AsanaTask {
   modified_at: string
 }
 
-export interface AsanaProject {
+interface AsanaProject {
   gid: string
   name: string
   resource_type: string

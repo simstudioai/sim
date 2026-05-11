@@ -169,7 +169,7 @@ export default async function BlogIndex({
           <div key={p.slug}>
             <Link
               href={`/blog/${p.slug}`}
-              className='group flex items-start gap-6 px-6 py-6 transition-colors hover:bg-[var(--landing-bg-elevated)] md:items-center'
+              className='group flex items-start gap-6 p-6 transition-colors hover:bg-[var(--landing-bg-elevated)] md:items-center'
             >
               {/* Date */}
               <span className='hidden w-[120px] shrink-0 pt-1 font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em] md:block'>

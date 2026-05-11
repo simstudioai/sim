@@ -17,6 +17,7 @@ import {
   inferSchemaFromCsv,
   parseCsvBuffer,
   sanitizeName,
+  TABLE_LIMITS,
   type TableSchema,
 } from '@/lib/table'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -67,7 +68,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const { headers, rows } = await parseCsvBuffer(buffer, delimiter)
 
     const { columns, headerToColumn } = inferSchemaFromCsv(headers, rows)
-    const tableName = sanitizeName(file.name.replace(/\.[^.]+$/, ''), 'imported_table')
+    const tableName = sanitizeName(file.name.replace(/\.[^.]+$/, ''), 'imported_table').slice(
+      0,
+      TABLE_LIMITS.MAX_TABLE_NAME_LENGTH
+    )
     const planLimits = await getWorkspaceTableLimits(workspaceId)
 
     const normalizedSchema: TableSchema = {

@@ -157,7 +157,7 @@ export function Versions({
             <div key={i} className='flex h-[36px] items-center px-4'>
               <div className={clsx(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS, 'min-w-0 pr-2')}>
                 <div className='flex items-center gap-4'>
-                  <Skeleton className='h-[6px] w-[6px] rounded-xs' />
+                  <Skeleton className='size-[6px] rounded-xs' />
                   <Skeleton className='h-[12px] w-[60px]' />
                 </div>
               </div>
@@ -174,8 +174,8 @@ export function Versions({
                   'flex justify-end gap-0.5'
                 )}
               >
-                <Skeleton className='h-[20px] w-[20px] rounded-sm' />
-                <Skeleton className='h-[20px] w-[20px] rounded-sm' />
+                <Skeleton className='size-[20px] rounded-sm' />
+                <Skeleton className='size-[20px] rounded-sm' />
               </div>
             </div>
           ))}
@@ -214,6 +214,8 @@ export function Versions({
           return (
             <div
               key={v.id}
+              role='button'
+              tabIndex={0}
               className={clsx(
                 'flex h-[36px] cursor-pointer items-center px-4 transition-colors duration-100',
                 isSelected
@@ -221,6 +223,13 @@ export function Versions({
                   : 'hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--border)]'
               )}
               onClick={() => handleRowClick(v.version)}
+              onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  handleRowClick(v.version)
+                }
+              }}
             >
               <div className={clsx(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS, 'min-w-0 pr-2')}>
                 <div className='flex items-center gap-4'>
@@ -294,7 +303,6 @@ export function Versions({
                   COLUMN_BASE_CLASS,
                   'flex items-center justify-end gap-0.5'
                 )}
-                onClick={(e) => e.stopPropagation()}
               >
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
@@ -305,9 +313,12 @@ export function Versions({
                         !v.description &&
                           'text-[var(--text-quaternary)] hover-hover:text-[var(--text-tertiary)]'
                       )}
-                      onClick={() => handleOpenDescriptionModal(v.version)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleOpenDescriptionModal(v.version)
+                      }}
                     >
-                      <FileText className='h-3.5 w-3.5' />
+                      <FileText className='size-3.5' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top' className='max-w-[240px]'>
@@ -323,27 +334,32 @@ export function Versions({
                   onOpenChange={(open) => setOpenDropdown(open ? v.version : null)}
                 >
                   <PopoverTrigger asChild>
-                    <Button variant='ghost' className='!p-1' disabled={isPromotingVersion}>
-                      <MoreVertical className='h-3.5 w-3.5' />
+                    <Button
+                      variant='ghost'
+                      className='!p-1'
+                      disabled={isPromotingVersion}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreVertical className='size-3.5' />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent align='end' sideOffset={4} minWidth={160} maxWidth={200} border>
                     <PopoverItem onClick={() => handleStartRename(v.version, v.name)}>
-                      <Pencil className='h-3 w-3' />
+                      <Pencil className='size-3' />
                       <span>Rename</span>
                     </PopoverItem>
                     <PopoverItem onClick={() => handleOpenDescriptionModal(v.version)}>
-                      <FileText className='h-3 w-3' />
+                      <FileText className='size-3' />
                       <span>{v.description ? 'Edit description' : 'Add description'}</span>
                     </PopoverItem>
                     {!v.isActive && (
                       <PopoverItem onClick={() => handlePromote(v.version)}>
-                        <RotateCcw className='h-3 w-3' />
+                        <RotateCcw className='size-3' />
                         <span>Promote to live</span>
                       </PopoverItem>
                     )}
                     <PopoverItem onClick={() => handleLoadDeployment(v.version)}>
-                      <SendToBack className='h-3 w-3' />
+                      <SendToBack className='size-3' />
                       <span>Load deployment</span>
                     </PopoverItem>
                   </PopoverContent>

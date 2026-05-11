@@ -369,7 +369,7 @@ export interface SupabaseVectorSearchParams {
   matchCount?: number
 }
 
-export interface SupabaseBaseResponse extends ToolResponse {
+interface SupabaseBaseResponse extends ToolResponse {
   output: {
     message: string
     results: any

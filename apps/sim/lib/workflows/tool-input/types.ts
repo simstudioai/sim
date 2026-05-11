@@ -1,4 +1,4 @@
-export interface StoredToolSchema {
+interface StoredToolSchema {
   description?: string
   properties?: Record<string, unknown>
   required?: string[]

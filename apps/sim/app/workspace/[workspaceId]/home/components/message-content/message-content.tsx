@@ -1,5 +1,6 @@
 'use client'
 
+import { memo, useMemo } from 'react'
 import {
   Read as ReadTool,
   ToolSearchToolRegex,
@@ -407,14 +408,14 @@ interface MessageContentProps {
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
 }
 
-export function MessageContent({
+function MessageContentInner({
   blocks,
   fallbackContent,
   isStreaming = false,
   onOptionSelect,
   onWorkspaceResourceSelect,
 }: MessageContentProps) {
-  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
+  const parsed = useMemo(() => (blocks.length > 0 ? parseBlocks(blocks) : []), [blocks])
 
   const segments: MessageSegment[] =
     parsed.length > 0
@@ -521,7 +522,7 @@ export function MessageContent({
           case 'stopped':
             return (
               <div key={`stopped-${i}`} className='flex items-center gap-[8px]'>
-                <CircleStop className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                <CircleStop className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                 <span className='font-base text-[14px] text-[var(--text-body)]'>
                   Stopped by user
                 </span>
@@ -537,3 +538,5 @@ export function MessageContent({
     </div>
   )
 }
+
+export const MessageContent = memo(MessageContentInner)

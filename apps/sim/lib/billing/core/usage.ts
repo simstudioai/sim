@@ -337,7 +337,7 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
 /**
  * Initialize usage limits for a new user
  */
-export async function initializeUserUsageLimit(userId: string): Promise<void> {
+async function initializeUserUsageLimit(userId: string): Promise<void> {
   // Check if user already has usage stats
   const existingStats = await db
     .select()
@@ -681,7 +681,7 @@ export async function getEffectiveCurrentPeriodCost(userId: string): Promise<num
 /**
  * Calculate billing projection based on current usage
  */
-export async function calculateBillingProjection(userId: string): Promise<BillingData> {
+async function calculateBillingProjection(userId: string): Promise<BillingData> {
   try {
     const usageData = await getUserUsageData(userId)
 

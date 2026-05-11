@@ -16,7 +16,7 @@ export interface SapBaseParams {
   password?: string
 }
 
-export interface ProxyOutput {
+interface ProxyOutput {
   status: number
   data: unknown
 }

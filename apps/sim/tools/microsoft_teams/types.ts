@@ -38,7 +38,7 @@ export interface MicrosoftTeamsAttachment {
   item?: any
 }
 
-export interface MicrosoftTeamsMetadata {
+interface MicrosoftTeamsMetadata {
   messageId?: string
   channelId?: string
   teamId?: string
@@ -130,7 +130,7 @@ export interface MicrosoftTeamsGetMessageParams extends MicrosoftTeamsToolParams
 }
 
 // Member list response
-export interface MicrosoftTeamsMember {
+interface MicrosoftTeamsMember {
   id: string
   displayName: string
   email?: string

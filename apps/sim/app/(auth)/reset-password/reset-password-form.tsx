@@ -67,8 +67,8 @@ export function RequestResetForm({
       <button type='submit' disabled={isSubmitting} className={AUTH_SUBMIT_BTN}>
         {isSubmitting ? (
           <span className='flex items-center gap-2'>
-            <Loader className='h-4 w-4' animate />
-            Sending...
+            <Loader className='size-4' animate />
+            Sending…
           </span>
         ) : (
           'Send Reset Link'
@@ -211,8 +211,8 @@ export function SetNewPasswordForm({
 
         {validationMessages.length > 0 && (
           <div className='mt-1 space-y-1 text-red-400 text-xs'>
-            {validationMessages.map((error, index) => (
-              <p key={index}>{error}</p>
+            {validationMessages.map((error) => (
+              <p key={error}>{error}</p>
             ))}
           </div>
         )}
@@ -232,8 +232,8 @@ export function SetNewPasswordForm({
       <button type='submit' disabled={isSubmitting || !token} className={AUTH_SUBMIT_BTN}>
         {isSubmitting ? (
           <span className='flex items-center gap-2'>
-            <Loader className='h-4 w-4' animate />
-            Resetting...
+            <Loader className='size-4' animate />
+            Resetting…
           </span>
         ) : (
           'Reset Password'

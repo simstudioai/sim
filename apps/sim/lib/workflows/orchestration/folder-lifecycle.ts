@@ -22,7 +22,7 @@ const logger = createLogger('FolderLifecycle')
  * workflows in each folder via {@link archiveWorkflowsByIdsInWorkspace}, then deletes
  * the folder row.
  */
-export async function deleteFolderRecursively(
+async function deleteFolderRecursively(
   folderId: string,
   workspaceId: string,
   archivedAt?: Date
@@ -79,7 +79,7 @@ export async function deleteFolderRecursively(
 /**
  * Counts non-archived workflows in the folder and all descendant folders.
  */
-export async function countWorkflowsInFolderRecursively(
+async function countWorkflowsInFolderRecursively(
   folderId: string,
   workspaceId: string
 ): Promise<number> {

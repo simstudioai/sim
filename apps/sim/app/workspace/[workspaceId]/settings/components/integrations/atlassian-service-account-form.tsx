@@ -117,7 +117,7 @@ export function AtlassianServiceAccountForm({
               setError(null)
               onBack()
             }}
-            className='h-6 w-6 rounded-[4px] p-0 text-[var(--text-muted)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
+            className='size-6 rounded-[4px] p-0 text-[var(--text-muted)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
             aria-label='Back'
           >
             ←
@@ -135,7 +135,7 @@ export function AtlassianServiceAccountForm({
         )}
         <div className='flex flex-col gap-4'>
           <div className='flex items-center gap-3'>
-            <div className='flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[var(--surface-5)]'>
+            <div className='flex size-[40px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[var(--surface-5)]'>
               {service && createElement(service.icon, { className: 'h-[18px] w-[18px]' })}
             </div>
             <div>

@@ -139,9 +139,9 @@ export function ParameterWithLabel({
                     e.stopPropagation()
                     handleSearchSubmit()
                   }}
-                  className='h-[20px] w-[20px] flex-shrink-0 p-0'
+                  className='size-[20px] flex-shrink-0 p-0'
                 >
-                  <ArrowUp className='h-[12px] w-[12px]' />
+                  <ArrowUp className='size-[12px]' />
                 </Button>
               </div>
             ))}
@@ -150,7 +150,7 @@ export function ParameterWithLabel({
               <Tooltip.Trigger asChild>
                 <button
                   type='button'
-                  className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
+                  className='flex size-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
                   onClick={canonicalToggle.onToggle}
                   disabled={canonicalToggle.disabled || disabled}
                   aria-label={

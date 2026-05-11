@@ -676,7 +676,7 @@ export const REACTION_METADATA_OUTPUT_PROPERTIES = {
   reaction: { type: 'string', description: 'Emoji reaction name' },
 } as const satisfies Record<string, OutputProperty>
 
-export interface SlackBaseParams {
+interface SlackBaseParams {
   authMethod: 'oauth' | 'bot_token'
   accessToken: string
   botToken: string
@@ -880,18 +880,18 @@ export interface SlackCanvasResponse extends ToolResponse {
   }
 }
 
-export interface SlackReaction {
+interface SlackReaction {
   name: string
   count: number
   users: string[]
 }
 
-export interface SlackMessageEdited {
+interface SlackMessageEdited {
   user: string
   ts: string
 }
 
-export interface SlackAttachment {
+interface SlackAttachment {
   id?: number
   fallback?: string
   text?: string
@@ -914,13 +914,13 @@ export interface SlackAttachment {
   ts?: string
 }
 
-export interface SlackBlock {
+interface SlackBlock {
   type: string
   block_id?: string
   [key: string]: any // Blocks can have various properties depending on type
 }
 
-export interface SlackMessage {
+interface SlackMessage {
   // Core properties
   type: string
   ts: string
@@ -1030,7 +1030,7 @@ export interface SlackRemoveReactionResponse extends ToolResponse {
   }
 }
 
-export interface SlackChannel {
+interface SlackChannel {
   id: string
   name: string
   is_channel?: boolean
@@ -1067,7 +1067,7 @@ export interface SlackListMembersResponse extends ToolResponse {
   }
 }
 
-export interface SlackUser {
+interface SlackUser {
   id: string
   team_id?: string | null
   name: string
@@ -1212,14 +1212,14 @@ export interface SlackCanvasFile {
   canvas_creator_id?: string | null
 }
 
-export interface SlackCanvasPaging {
+interface SlackCanvasPaging {
   count: number
   total: number
   page: number
   pages: number
 }
 
-export interface SlackCanvasSection {
+interface SlackCanvasSection {
   id: string
 }
 
@@ -1248,7 +1248,7 @@ export interface SlackDeleteCanvasResponse extends ToolResponse {
   }
 }
 
-export interface SlackView {
+interface SlackView {
   id: string
   team_id?: string | null
   type: string

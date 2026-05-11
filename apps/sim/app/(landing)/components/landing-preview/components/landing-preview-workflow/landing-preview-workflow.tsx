@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
+import { domAnimation, LazyMotion, m } from 'framer-motion'
 import ReactFlow, {
   applyEdgeChanges,
   applyNodeChanges,
@@ -62,7 +62,7 @@ function PreviewEdge({
 
   if (data?.animate) {
     return (
-      <motion.path
+      <m.path
         id={id}
         className='react-flow__edge-path'
         d={edgePath}
@@ -172,15 +172,17 @@ export function LandingPreviewWorkflow({
   highlightedBlockId,
 }: LandingPreviewWorkflowProps) {
   return (
-    <div className='h-full w-full'>
-      <ReactFlowProvider key={workflow.id}>
-        <PreviewFlow
-          workflow={workflow}
-          animate={animate}
-          fitViewOptions={fitViewOptions}
-          highlightedBlockId={highlightedBlockId}
-        />
-      </ReactFlowProvider>
-    </div>
+    <LazyMotion features={domAnimation}>
+      <div className='h-full w-full'>
+        <ReactFlowProvider key={workflow.id}>
+          <PreviewFlow
+            workflow={workflow}
+            animate={animate}
+            fitViewOptions={fitViewOptions}
+            highlightedBlockId={highlightedBlockId}
+          />
+        </ReactFlowProvider>
+      </div>
+    </LazyMotion>
   )
 }
