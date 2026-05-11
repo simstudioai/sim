@@ -3,7 +3,10 @@ import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { shopifyStoreCookieSchema } from '@/lib/api/contracts/oauth-connections'
+import {
+  shopifyShopDomainSchema,
+  shopifyStoreCookieSchema,
+} from '@/lib/api/contracts/oauth-connections'
 import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
@@ -37,6 +40,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_missing_data`)
     }
     const { accessToken, shopDomain, scope, returnUrl } = parsedCookies.data
+
+    if (!shopifyShopDomainSchema.safeParse(shopDomain).success) {
+      logger.error('Invalid shop domain format in cookie', { shopDomain })
+      return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_invalid_domain`)
+    }
 
     const shopResponse = await fetch(`https://${shopDomain}/admin/api/2024-10/shop.json`, {
       headers: {
