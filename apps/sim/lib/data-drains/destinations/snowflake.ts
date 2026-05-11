@@ -6,6 +6,7 @@ import { importPKCS8, SignJWT } from 'jose'
 import { z } from 'zod'
 import {
   backoffWithJitter,
+  parseNdjsonLines,
   parseRetryAfter,
   sleepUntilAborted,
 } from '@/lib/data-drains/destinations/utils'
@@ -187,16 +188,6 @@ function buildStatement(config: SnowflakeDestinationConfig, rowCount: number): s
   return `INSERT INTO ${target} (${column}) VALUES ${placeholders}`
 }
 
-function parseNdjson(body: Buffer): string[] {
-  const text = body.toString('utf8')
-  const lines: string[] = []
-  for (const line of text.split(/\r?\n/)) {
-    if (line.length === 0) continue
-    lines.push(line)
-  }
-  return lines
-}
-
 function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || (status >= 500 && status <= 599)
 }
@@ -319,6 +310,7 @@ async function pollStatement(input: PollInput): Promise<void> {
   const deadline = Date.now() + POLL_DEADLINE_MS
   let interval = POLL_INITIAL_INTERVAL_MS
   let isFirstAttempt = true
+  let retryAttempt = 0
   while (Date.now() < deadline) {
     if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
     if (!isFirstAttempt) {
@@ -326,16 +318,50 @@ async function pollStatement(input: PollInput): Promise<void> {
     }
     isFirstAttempt = false
     const jwt = await input.getJwt()
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        Accept: 'application/json',
-        'X-Snowflake-Authorization-Token-Type': 'KEYPAIR_JWT',
-      },
-      signal: input.signal,
-    })
+    const perAttempt = AbortSignal.any([input.signal, AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS)])
+    let response: Response
+    try {
+      response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          Accept: 'application/json',
+          'X-Snowflake-Authorization-Token-Type': 'KEYPAIR_JWT',
+        },
+        signal: perAttempt,
+      })
+    } catch (error) {
+      if (input.signal.aborted) throw error
+      retryAttempt++
+      const delay = backoffWithJitter(retryAttempt, null, {
+        baseMs: EXECUTE_RETRY_BASE_DELAY_MS,
+        maxMs: EXECUTE_RETRY_MAX_DELAY_MS,
+      })
+      logger.warn('Snowflake poll request failed, retrying', {
+        attempt: retryAttempt,
+        delayMs: delay,
+        error: toError(error).message,
+      })
+      await sleepUntilAborted(delay, input.signal)
+      continue
+    }
     if (response.status === 202) {
+      retryAttempt = 0
       interval = Math.min(interval * 2, POLL_MAX_INTERVAL_MS)
+      continue
+    }
+    if (isRetryableStatus(response.status)) {
+      retryAttempt++
+      const retryAfterMs = parseRetryAfter(response.headers.get('Retry-After'))
+      const delay = backoffWithJitter(retryAttempt, retryAfterMs, {
+        baseMs: EXECUTE_RETRY_BASE_DELAY_MS,
+        maxMs: EXECUTE_RETRY_MAX_DELAY_MS,
+      })
+      logger.warn('Snowflake poll retrying after retryable status', {
+        attempt: retryAttempt,
+        status: response.status,
+        delayMs: delay,
+      })
+      await sleepUntilAborted(delay, input.signal)
       continue
     }
     if (!response.ok) {
@@ -383,7 +409,7 @@ export const snowflakeDestination: DrainDestination<
     }
     return {
       async deliver({ body, metadata, signal }) {
-        const rows = parseNdjson(body)
+        const rows = parseNdjsonLines(body)
         if (rows.length === 0) {
           return {
             locator: `snowflake://${config.account}/${config.database}.${config.schema}.${config.table}#${metadata.runId}-${metadata.sequence}`,

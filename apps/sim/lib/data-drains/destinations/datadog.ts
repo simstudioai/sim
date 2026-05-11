@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { z } from 'zod'
 import {
   backoffWithJitter,
+  parseNdjsonObjects,
   parseRetryAfter,
   sleepUntilAborted,
 } from '@/lib/data-drains/destinations/utils'
@@ -56,22 +57,6 @@ interface DatadogLogEntry {
 
 function buildEndpoint(site: DatadogSite): string {
   return `https://http-intake.logs.${SITE_HOSTS[site]}/api/v2/logs`
-}
-
-function parseNdjson(body: Buffer): unknown[] {
-  const text = body.toString('utf8')
-  const rows: unknown[] = []
-  const lines = text.split(/\r?\n/)
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    if (line.length === 0) continue
-    try {
-      rows.push(JSON.parse(line))
-    } catch (error) {
-      throw new Error(`NDJSON parse failed at line ${i + 1}: ${toError(error).message}`)
-    }
-  }
-  return rows
 }
 
 function buildEntries(
@@ -205,7 +190,7 @@ export const datadogDestination: DrainDestination<
     const url = buildEndpoint(config.site)
     return {
       async deliver({ body, metadata, signal }) {
-        const rows = parseNdjson(body)
+        const rows = parseNdjsonObjects(body)
         const entries = buildEntries(rows, config, metadata)
         if (entries.length > MAX_ENTRIES_PER_REQUEST) {
           throw new Error(

@@ -154,7 +154,7 @@ describe('bigqueryDestination', () => {
         metadata: meta,
         signal: new AbortController().signal,
       })
-    ).rejects.toThrow(/NDJSON parse failed at line 1/)
+    ).rejects.toThrow(/NDJSON parse failed at line 2/)
     expect(fetchMock).not.toHaveBeenCalled()
     await session.close()
   })
@@ -169,7 +169,7 @@ describe('bigqueryDestination', () => {
         metadata: meta,
         signal: new AbortController().signal,
       })
-    ).rejects.toThrow(/NDJSON row 1 is not an object/)
+    ).rejects.toThrow(/NDJSON row at line 2 is not an object/)
     await session.close()
   })
 

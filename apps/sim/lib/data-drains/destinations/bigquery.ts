@@ -4,6 +4,7 @@ import { JWT } from 'google-auth-library'
 import { z } from 'zod'
 import {
   type ParsedServiceAccount,
+  parseNdjsonObjects,
   parseRetryAfter,
   parseServiceAccount,
   refineServiceAccountJson,
@@ -84,27 +85,6 @@ async function getAccessToken(jwt: JWT, forceRefresh = false): Promise<string> {
   const { token } = await jwt.getAccessToken()
   if (!token) throw new Error('Failed to obtain BigQuery access token')
   return token
-}
-
-function parseNdjson(body: Buffer): Record<string, unknown>[] {
-  const text = body.toString('utf8')
-  const rows: Record<string, unknown>[] = []
-  const lines = text.split(/\r?\n/)
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    if (line.length === 0) continue
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(line)
-    } catch (error) {
-      throw new Error(`NDJSON parse failed at line ${i}: ${toError(error).message}`)
-    }
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      throw new Error(`NDJSON row ${i} is not an object`)
-    }
-    rows.push(parsed as Record<string, unknown>)
-  }
-  return rows
 }
 
 interface InsertAllInput {
@@ -317,7 +297,7 @@ export const bigqueryDestination: DrainDestination<
     const jwt = buildJwt(account)
     return {
       async deliver({ body, metadata, signal }) {
-        const rows = parseNdjson(body)
+        const rows = parseNdjsonObjects(body, { requireObject: true }) as Record<string, unknown>[]
         if (rows.length === 0) {
           return {
             locator: `bigquery://${config.projectId}/${config.datasetId}/${config.tableId}#${metadata.runId}-${metadata.sequence}`,

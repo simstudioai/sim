@@ -154,6 +154,56 @@ export function parseServiceAccount(json: string): ParsedServiceAccount {
  * is parseable and carries `client_email` + `private_key`. Used by both
  * `gcsCredentialsSchema` and `bigqueryCredentialsSchema`.
  */
+/**
+ * Splits an NDJSON buffer into its non-empty lines (UTF-8). Used by destinations
+ * that ship raw JSON strings (e.g. Snowflake binds each line as a TEXT value).
+ */
+export function parseNdjsonLines(body: Buffer): string[] {
+  const text = body.toString('utf8')
+  const out: string[] = []
+  for (const line of text.split(/\r?\n/)) {
+    if (line.length === 0) continue
+    out.push(line)
+  }
+  return out
+}
+
+export interface ParseNdjsonObjectsOptions {
+  /** When true, throw if a parsed value is not a plain object. */
+  requireObject?: boolean
+}
+
+/**
+ * Parses an NDJSON buffer into per-row JSON values. Error messages use
+ * 1-indexed line numbers so they line up with how editors and `Content-Range`
+ * headers reference NDJSON payloads.
+ */
+export function parseNdjsonObjects(
+  body: Buffer,
+  options: ParseNdjsonObjectsOptions = {}
+): unknown[] {
+  const text = body.toString('utf8')
+  const rows: unknown[] = []
+  const lines = text.split(/\r?\n/)
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (line.length === 0) continue
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(line)
+    } catch (error) {
+      throw new Error(`NDJSON parse failed at line ${i + 1}: ${toError(error).message}`)
+    }
+    if (options.requireObject) {
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        throw new Error(`NDJSON row at line ${i + 1} is not an object`)
+      }
+    }
+    rows.push(parsed)
+  }
+  return rows
+}
+
 export function refineServiceAccountJson(
   value: { serviceAccountJson: string },
   ctx: z.RefinementCtx
