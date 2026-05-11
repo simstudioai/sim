@@ -392,7 +392,17 @@ describe('OAuth Token Refresh', () => {
     it.concurrent(
       'should rotate refresh token for Microsoft providers (microsoft, outlook, onedrive, sharepoint)',
       async () => {
-        const microsoftProviders = ['microsoft', 'outlook', 'onedrive', 'sharepoint']
+        const microsoftProviders = [
+          'microsoft',
+          'outlook',
+          'onedrive',
+          'sharepoint',
+          'microsoft-excel',
+          'microsoft-teams',
+          'microsoft-planner',
+          'microsoft-ad',
+          'microsoft-dataverse',
+        ]
         const oldRefreshToken = 'old_microsoft_refresh_token'
         const rotatedRefreshToken = 'rotated_microsoft_refresh_token'
 
