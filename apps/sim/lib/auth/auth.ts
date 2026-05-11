@@ -1612,7 +1612,7 @@ export const auth = betterAuth({
           clientSecret: env.WEALTHBOX_CLIENT_SECRET as string,
           authorizationUrl: 'https://app.crmworkspace.com/oauth/authorize',
           tokenUrl: 'https://app.crmworkspace.com/oauth/token',
-          userInfoUrl: 'https://dummy-not-used.wealthbox.com', // Dummy URL since no user info endpoint exists
+          userInfoUrl: 'https://api.crmworkspace.com/v1/me',
           scopes: getCanonicalScopesForProvider('wealthbox'),
           responseType: 'code',
           redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/wealthbox`,
