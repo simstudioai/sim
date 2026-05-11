@@ -93,8 +93,6 @@ export function reduceFilePreviewSessions(
       const successor = pickActiveSessionId(nextSessions, state.activeSessionId)
       return {
         sessions: nextSessions,
-        // Preserve linger: if the active session is a completed (lingered) one
-        // and no non-complete successor exists, keep it rather than going null.
         activeSessionId: successor ?? state.activeSessionId,
       }
     }
@@ -114,10 +112,7 @@ export function reduceFilePreviewSessions(
         const successor = pickActiveSessionId(nextSessions, state.activeSessionId)
         nextActiveSessionId = successor ?? state.activeSessionId
       } else {
-        // Don't steal active from a session that already has renderable content
-        // just because a new empty/pending session arrived. Wait until the new
-        // session has actual content before switching, so the file viewer stays
-        // mounted and the user's scroll position is preserved between tool calls.
+        // Don't switch to a new session until it has renderable content — keeps the viewer mounted.
         const currentActive = state.activeSessionId ? nextSessions[state.activeSessionId] : null
         const currentHasContent = currentActive
           ? hasRenderableFilePreviewContent(currentActive)
@@ -147,11 +142,8 @@ export function reduceFilePreviewSessions(
       const successor = pickActiveSessionId(nextSessions, null)
       return {
         sessions: nextSessions,
-        // Linger on the completed session when no non-complete successor exists.
-        // This prevents a streamingContent → undefined flicker that would collapse
-        // the file viewer to shorter fetched content, clip scrollTop, and jump the
-        // user's reading position. The linger ends when a new non-complete session
-        // upserts (switching activeSessionId) or reset fires.
+        // Linger on this session until a successor upserts. Without it, streamingContent
+        // becomes undefined between tool calls, collapsing the viewer and clipping scrollTop.
         activeSessionId: successor ?? action.session.id,
       }
     }
