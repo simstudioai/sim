@@ -38,6 +38,7 @@ const MAX_ROWS_PER_REQUEST = 50_000
 const MAX_ROW_BYTES = 1024 * 1024
 /** `insertId` is capped at 128 characters (encoded length). */
 const MAX_INSERT_ID_LENGTH = 128
+const PER_ATTEMPT_TIMEOUT_MS = 60_000
 
 const bigqueryConfigSchema = z.object({
   projectId: z
@@ -107,6 +108,7 @@ async function postInsertAll(
   forceRefresh = false
 ): Promise<Response> {
   const token = await getAccessToken(input.jwt, forceRefresh)
+  const perAttempt = AbortSignal.any([input.signal, AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS)])
   try {
     return await fetch(url, {
       method: 'POST',
@@ -116,7 +118,7 @@ async function postInsertAll(
         'User-Agent': USER_AGENT,
       },
       body,
-      signal: input.signal,
+      signal: perAttempt,
     })
   } catch (error) {
     logger.warn('BigQuery request failed', {

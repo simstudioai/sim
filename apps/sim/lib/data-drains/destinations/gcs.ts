@@ -21,6 +21,7 @@ const SCOPE = 'https://www.googleapis.com/auth/devstorage.read_write'
 const GCS_HOST = 'https://storage.googleapis.com'
 const USER_AGENT = 'sim-data-drain/1.0'
 const MAX_ATTEMPTS = 4
+const PER_ATTEMPT_TIMEOUT_MS = 60_000
 /** GCS caps total custom metadata at 8 KiB per object (sum of key + value bytes). */
 const MAX_CUSTOM_METADATA_BYTES = 8 * 1024
 /** GCS object names are at most 1024 bytes when UTF-8 encoded (flat-namespace buckets). */
@@ -132,13 +133,14 @@ async function fetchWithRetry(input: RetryRequestInput): Promise<void> {
   let lastError: unknown
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
+    const perAttempt = AbortSignal.any([input.signal, AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS)])
     let response: Response
     try {
       response = await fetch(input.url, {
         method: input.method,
         body: input.body as BodyInit | undefined,
         headers: input.headers,
-        signal: input.signal,
+        signal: perAttempt,
       })
     } catch (error) {
       lastError = error

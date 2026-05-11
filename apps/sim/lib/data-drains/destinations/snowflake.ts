@@ -309,14 +309,14 @@ async function pollStatement(input: PollInput): Promise<void> {
   const url = `https://${input.account}.snowflakecomputing.com/api/v2/statements/${encodeURIComponent(input.handle)}`
   const deadline = Date.now() + POLL_DEADLINE_MS
   let interval = POLL_INITIAL_INTERVAL_MS
-  let isFirstAttempt = true
+  let skipIntervalSleep = true
   let retryAttempt = 0
   while (Date.now() < deadline) {
     if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
-    if (!isFirstAttempt) {
+    if (!skipIntervalSleep) {
       await sleepUntilAborted(interval, input.signal)
     }
-    isFirstAttempt = false
+    skipIntervalSleep = false
     const jwt = await input.getJwt()
     const perAttempt = AbortSignal.any([input.signal, AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS)])
     let response: Response
@@ -342,6 +342,7 @@ async function pollStatement(input: PollInput): Promise<void> {
         error: toError(error).message,
       })
       await sleepUntilAborted(delay, input.signal)
+      skipIntervalSleep = true
       continue
     }
     if (response.status === 202) {
@@ -362,6 +363,7 @@ async function pollStatement(input: PollInput): Promise<void> {
         delayMs: delay,
       })
       await sleepUntilAborted(delay, input.signal)
+      skipIntervalSleep = true
       continue
     }
     if (!response.ok) {
