@@ -47,15 +47,22 @@ export const webflowHandler: WebhookProviderHandler = {
       return new NextResponse('Unauthorized - Webhook timestamp expired', { status: 401 })
     }
 
-    // HMAC-SHA256 of "${timestamp}:${rawBody}"
-    const computedHash = crypto
-      .createHmac('sha256', secretKey)
-      .update(`${timestamp}:${rawBody}`, 'utf8')
-      .digest('hex')
+    try {
+      // HMAC-SHA256 of "${timestamp}:${rawBody}"
+      const computedHash = crypto
+        .createHmac('sha256', secretKey)
+        .update(`${timestamp}:${rawBody}`, 'utf8')
+        .digest('hex')
 
-    if (!safeCompare(computedHash, signature)) {
-      logger.warn(`[${requestId}] Webflow signature verification failed`)
-      return new NextResponse('Unauthorized - Invalid Webflow signature', { status: 401 })
+      if (!safeCompare(computedHash, signature)) {
+        logger.warn(`[${requestId}] Webflow signature verification failed`)
+        return new NextResponse('Unauthorized - Invalid Webflow signature', { status: 401 })
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Error verifying Webflow signature`, {
+        error: (error as Error).message,
+      })
+      return new NextResponse('Unauthorized - Signature verification error', { status: 401 })
     }
 
     return null

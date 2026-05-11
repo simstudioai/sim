@@ -56,14 +56,11 @@ async function fetchAndProcessAirtablePayloads(
   workflowData: Record<string, unknown>,
   requestId: string // Original request ID from the ping, used for the final execution log
 ) {
-  // Logging handles all error logging
   let currentCursor: number | null = null
   let mightHaveMore = true
   let payloadsFetched = 0
   let apiCallCount = 0
-  // Use a Map to consolidate changes per record ID
   const consolidatedChangesMap = new Map<string, AirtableChange>()
-  // Capture raw payloads from Airtable for exposure to workflows
   const allPayloads = []
   const localProviderConfig = {
     ...((webhookData.providerConfig as Record<string, unknown>) || {}),
@@ -221,7 +218,6 @@ async function fetchAndProcessAirtablePayloads(
               error: errorMessage,
             }
           )
-          // Error logging handled by logging session
           mightHaveMore = false
           break
         }
@@ -304,7 +300,6 @@ async function fetchAndProcessAirtablePayloads(
                     }
                   }
                 }
-                // TODO: Handle deleted records (`destroyedRecordIds`) if needed
               }
             }
           }
@@ -316,7 +311,6 @@ async function fetchAndProcessAirtablePayloads(
         if (nextCursor && typeof nextCursor === 'number' && nextCursor !== currentCursor) {
           currentCursor = nextCursor
 
-          // Follow exactly the old implementation - use awaited update instead of parallel
           const updatedConfig = {
             ...localProviderConfig,
             externalWebhookCursor: currentCursor,
@@ -326,7 +320,7 @@ async function fetchAndProcessAirtablePayloads(
             await db
               .update(webhook)
               .set({
-                providerConfig: updatedConfig, // Use full object
+                providerConfig: updatedConfig,
                 updatedAt: new Date(),
               })
               .where(eq(webhook.id, webhookData.id as string))
@@ -339,7 +333,6 @@ async function fetchAndProcessAirtablePayloads(
               cursor: currentCursor,
               error: err.message,
             })
-            // Error logging handled by logging session
             mightHaveMore = false
             throw new Error('Failed to save Airtable cursor, stopping processing.') // Re-throw to break loop clearly
           }
@@ -358,7 +351,6 @@ async function fetchAndProcessAirtablePayloads(
           `[${requestId}] Network error calling Airtable GET /payloads (Call ${apiCallCount}) for webhook ${webhookData.id}`,
           fetchError
         )
-        // Error logging handled by logging session
         mightHaveMore = false
         break
       }
@@ -371,7 +363,6 @@ async function fetchAndProcessAirtablePayloads(
 
     if (finalConsolidatedChanges.length > 0 || allPayloads.length > 0) {
       try {
-        // Build input exposing raw payloads and consolidated changes
         const latestPayload = allPayloads.length > 0 ? allPayloads[allPayloads.length - 1] : null
         const input: Record<string, unknown> = {
           payloads: allPayloads,
@@ -388,9 +379,8 @@ async function fetchAndProcessAirtablePayloads(
           },
         }
 
-        // CRITICAL EXECUTION TRACE POINT
         logger.info(
-          `[${requestId}] CRITICAL_TRACE: Beginning workflow execution with ${finalConsolidatedChanges.length} Airtable changes`,
+          `[${requestId}] Beginning workflow execution with ${finalConsolidatedChanges.length} Airtable changes`,
           {
             workflowId: workflowData.id,
             recordCount: finalConsolidatedChanges.length,
@@ -399,8 +389,7 @@ async function fetchAndProcessAirtablePayloads(
           }
         )
 
-        // Return the processed input for the trigger.dev task to handle
-        logger.info(`[${requestId}] CRITICAL_TRACE: Airtable changes processed, returning input`, {
+        logger.info(`[${requestId}] Airtable changes processed, returning input`, {
           workflowId: workflowData.id,
           recordCount: finalConsolidatedChanges.length,
           rawPayloadCount: allPayloads.length,
@@ -410,7 +399,7 @@ async function fetchAndProcessAirtablePayloads(
         return input
       } catch (processingError: unknown) {
         const err = processingError as Error
-        logger.error(`[${requestId}] CRITICAL_TRACE: Error processing Airtable changes`, {
+        logger.error(`[${requestId}] Error processing Airtable changes`, {
           workflowId: workflowData.id,
           error: err.message,
           stack: err.stack,
@@ -420,8 +409,7 @@ async function fetchAndProcessAirtablePayloads(
         throw processingError
       }
     } else {
-      // DEBUG: Log when no changes are found
-      logger.info(`[${requestId}] TRACE: No Airtable changes to process`, {
+      logger.info(`[${requestId}] No Airtable changes to process`, {
         workflowId: workflowData.id,
         apiCallCount,
         webhookId: webhookData.id,
@@ -437,7 +425,6 @@ async function fetchAndProcessAirtablePayloads(
         error: (error as Error).message,
       }
     )
-    // Error logging handled by logging session
   }
 }
 
