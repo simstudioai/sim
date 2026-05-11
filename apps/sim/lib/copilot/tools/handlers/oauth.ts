@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, lt } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
 
@@ -14,6 +15,10 @@ export async function executeOAuthGetAuthLink(
   const providerName = String(rawParams.providerName || rawParams.provider_name || '')
   const baseUrl = getBaseUrl()
   try {
+    if (!context.workspaceId || !context.userId) {
+      throw new Error('workspaceId and userId are required to generate an OAuth link')
+    }
+    await ensureWorkspaceAccess(context.workspaceId, context.userId, 'write')
     const result = await generateOAuthLink(
       context.userId,
       context.workspaceId,
