@@ -22,8 +22,13 @@ const POLL_DEADLINE_MS = 10 * 60_000
 const EXECUTE_MAX_ATTEMPTS = 3
 const EXECUTE_RETRY_BASE_DELAY_MS = 500
 const EXECUTE_RETRY_MAX_DELAY_MS = 5_000
-/** Snowflake VARIANT max value size is 16 MB. */
-const VARIANT_MAX_BYTES = 16_000_000
+/**
+ * Snowflake VARIANT max value size is 16 MiB (16,777,216 bytes) on accounts
+ * before the 2025_03 behavior change bundle, and 128 MB after it. We use the
+ * conservative pre-bundle limit so the same value works on every account.
+ * https://docs.snowflake.com/en/release-notes/bcr-bundles/2025_03/bcr-1942
+ */
+const VARIANT_MAX_BYTES = 16 * 1024 * 1024
 
 /**
  * Snowflake JWT `iss`/`sub` require the bare account identifier without any

@@ -179,9 +179,9 @@ describe('snowflakeDestination', () => {
     await session.close()
   })
 
-  it('throws a clear error when a binding exceeds the 16 MB VARIANT limit', async () => {
+  it('throws a clear error when a binding exceeds the 16 MiB VARIANT limit', async () => {
     const session = snowflakeDestination.openSession({ config, credentials })
-    const huge = `"${'a'.repeat(16_000_001)}"`
+    const huge = `"${'a'.repeat(16 * 1024 * 1024 + 1)}"`
     const body = Buffer.from(`${huge}\n`, 'utf8')
     await expect(
       session.deliver({

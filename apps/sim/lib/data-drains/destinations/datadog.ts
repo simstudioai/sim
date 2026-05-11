@@ -30,8 +30,13 @@ const MAX_ATTEMPTS = 4
 const BASE_BACKOFF_MS = 500
 const MAX_BACKOFF_MS = 30_000
 const PER_ATTEMPT_TIMEOUT_MS = 30_000
-/** Datadog v2 logs intake limits: 5 MB per request, 1 MB per entry, 1000 entries per request. */
-const MAX_REQUEST_BYTES = 5 * 1024 * 1024
+/**
+ * Datadog v2 logs intake limits: 5 MB uncompressed per request, 6 MB compressed
+ * (we enforce both since gzip can hide a too-large body), 1 MB per entry, 1000
+ * entries per request. https://docs.datadoghq.com/api/latest/logs/
+ */
+const MAX_UNCOMPRESSED_BYTES = 5 * 1024 * 1024
+const MAX_COMPRESSED_BYTES = 6 * 1024 * 1024
 const MAX_ENTRY_BYTES = 1024 * 1024
 const MAX_ENTRIES_PER_REQUEST = 1000
 /** Compress payloads above this threshold; gzip overhead isn't worth it on small bodies. */
@@ -127,12 +132,14 @@ function backoffWithJitter(attempt: number, retryAfterMs: number | null): number
 interface PreparedBody {
   body: Uint8Array | string
   headers: Record<string, string>
-  bytes: number
+  /** On-the-wire (post-gzip) size — what Datadog measures against its compressed limit. */
+  wireBytes: number
+  /** Uncompressed payload size — what Datadog measures against its uncompressed limit. */
+  rawBytes: number
 }
 
 interface PostInput {
   url: string
-  apiKey: string
   prepared: PreparedBody
   signal: AbortSignal
 }
@@ -140,8 +147,8 @@ interface PostInput {
 /**
  * Builds the request body and headers, applying gzip compression for payloads
  * above {@link GZIP_THRESHOLD_BYTES}. Returns the wire body (Buffer or string)
- * along with the headers describing it. The {@link MAX_REQUEST_BYTES} guard
- * applies to whatever is returned here (post-compression when applicable).
+ * along with the headers describing it. Both raw and wire sizes are returned
+ * so callers can enforce Datadog's 5 MB uncompressed / 6 MB compressed limits.
  */
 function buildRequestBody(payload: string, apiKey: string): PreparedBody {
   const headers: Record<string, string> = {
@@ -156,9 +163,9 @@ function buildRequestBody(payload: string, apiKey: string): PreparedBody {
     headers['Content-Encoding'] = 'gzip'
     // Re-wrap as a plain Uint8Array view so the fetch BodyInit overload matches.
     const view = new Uint8Array(compressed.buffer, compressed.byteOffset, compressed.byteLength)
-    return { body: view, headers, bytes: view.byteLength }
+    return { body: view, headers, wireBytes: view.byteLength, rawBytes }
   }
-  return { body: payload, headers, bytes: rawBytes }
+  return { body: payload, headers, wireBytes: rawBytes, rawBytes }
 }
 
 async function postWithRetries(input: PostInput): Promise<Response> {
@@ -217,7 +224,6 @@ export const datadogDestination: DrainDestination<
     ]
     await postWithRetries({
       url: buildEndpoint(config.site),
-      apiKey: credentials.apiKey,
       prepared: buildRequestBody(JSON.stringify(probe), credentials.apiKey),
       signal,
     })
@@ -244,14 +250,20 @@ export const datadogDestination: DrainDestination<
         }
         const payload = JSON.stringify(entries)
         const prepared = buildRequestBody(payload, credentials.apiKey)
-        if (prepared.bytes > MAX_REQUEST_BYTES) {
+        // Reject before sending so we surface a clean client-side error instead
+        // of letting Datadog return a confusing HTTP 413 after decompression.
+        if (prepared.rawBytes > MAX_UNCOMPRESSED_BYTES) {
           throw new Error(
-            `Datadog payload is ${prepared.bytes} bytes, exceeds the ${MAX_REQUEST_BYTES}-byte per-request limit`
+            `Datadog payload is ${prepared.rawBytes} bytes uncompressed, exceeds the ${MAX_UNCOMPRESSED_BYTES}-byte per-request limit`
+          )
+        }
+        if (prepared.wireBytes > MAX_COMPRESSED_BYTES) {
+          throw new Error(
+            `Datadog payload is ${prepared.wireBytes} bytes on the wire, exceeds the ${MAX_COMPRESSED_BYTES}-byte compressed per-request limit`
           )
         }
         const response = await postWithRetries({
           url,
-          apiKey: credentials.apiKey,
           prepared,
           signal,
         })
@@ -259,7 +271,8 @@ export const datadogDestination: DrainDestination<
         logger.debug('Datadog chunk delivered', {
           site: config.site,
           rows: entries.length,
-          bytes: prepared.bytes,
+          rawBytes: prepared.rawBytes,
+          wireBytes: prepared.wireBytes,
         })
         return {
           locator: requestId
