@@ -9765,7 +9765,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'prod'"
+          "default": "'default'"
         },
         "error_notifications_enabled": {
           "name": "error_notifications_enabled",
