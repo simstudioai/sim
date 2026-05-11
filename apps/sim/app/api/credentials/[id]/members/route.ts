@@ -58,7 +58,7 @@ export const GET = withRouteHandler(async (_request: NextRequest, context: Route
       .limit(1)
 
     if (!cred) {
-      return NextResponse.json({ members: [] }, { status: 200 })
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
     const callerPerm = await getUserEntityPermissions(
@@ -67,7 +67,7 @@ export const GET = withRouteHandler(async (_request: NextRequest, context: Route
       cred.workspaceId
     )
     if (callerPerm === null) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
     const members = await db
@@ -120,10 +120,34 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
       .limit(1)
 
     if (existing) {
-      await db
-        .update(credentialMember)
-        .set({ role, status: 'active', updatedAt: now })
-        .where(eq(credentialMember.id, existing.id))
+      const ok = await db.transaction(async (tx) => {
+        const [current] = await tx
+          .select({ role: credentialMember.role })
+          .from(credentialMember)
+          .where(eq(credentialMember.id, existing.id))
+          .limit(1)
+        if (current?.role === 'admin' && role !== 'admin') {
+          const activeAdmins = await tx
+            .select({ id: credentialMember.id })
+            .from(credentialMember)
+            .where(
+              and(
+                eq(credentialMember.credentialId, credentialId),
+                eq(credentialMember.role, 'admin'),
+                eq(credentialMember.status, 'active')
+              )
+            )
+          if (activeAdmins.length <= 1) return false
+        }
+        await tx
+          .update(credentialMember)
+          .set({ role, status: 'active', updatedAt: now })
+          .where(eq(credentialMember.id, existing.id))
+        return true
+      })
+      if (!ok) {
+        return NextResponse.json({ error: 'Cannot demote the last admin' }, { status: 400 })
+      }
       return NextResponse.json({ success: true })
     }
 
