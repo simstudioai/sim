@@ -11,6 +11,7 @@ import {
   processSingleFileToUserFile,
 } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { verifyFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,7 +63,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    // Process file - convert to UserFile format if needed
     const fileData = validatedData.file
 
     let userFile
@@ -76,6 +76,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         },
         { status: 400 }
       )
+    }
+
+    if (typeof userFile.key !== 'string' || userFile.key.length === 0) {
+      logger.warn(`[${requestId}] File access check rejected: missing key`)
+      return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+    }
+    if (!authResult.userId) {
+      logger.warn(`[${requestId}] File access check requires userId but none available`)
+      return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+    }
+    const hasAccess = await verifyFileAccess(userFile.key, authResult.userId)
+    if (!hasAccess) {
+      logger.warn(`[${requestId}] File access denied for user`, {
+        userId: authResult.userId,
+        key: userFile.key,
+      })
+      return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
     }
 
     logger.info(`[${requestId}] Downloading file from storage`, {
@@ -99,7 +116,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    // Use provided filename or fall back to the original file name
     const filename = validatedData.filename || userFile.name
     const mimeType = userFile.type || getMimeTypeFromExtension(getFileExtension(filename))
 
@@ -110,14 +126,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       size: fileBuffer.length,
     })
 
-    // Upload to WordPress using multipart form data
     const formData = new FormData()
-    // Convert Buffer to Uint8Array for Blob compatibility
     const uint8Array = new Uint8Array(fileBuffer)
     const blob = new Blob([uint8Array], { type: mimeType })
     formData.append('file', blob, filename)
 
-    // Add optional metadata
     if (validatedData.title) {
       formData.append('title', validatedData.title)
     }
