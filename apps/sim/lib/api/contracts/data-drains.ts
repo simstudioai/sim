@@ -41,8 +41,9 @@ const BQ_DATASET_RE = /^[A-Za-z0-9_]{1,1024}$/
 const BQ_TABLE_RE = /^[\p{L}\p{M}\p{N}\p{Pc}\p{Pd} ]{1,1024}$/u
 /** Snowflake account + identifier shapes — mirrored from snowflake.ts. */
 const SNOWFLAKE_ACCOUNT_ORG_RE = /^[A-Za-z0-9][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)+$/
+/** First segment allows hyphens so org-account identifiers carrying a region/cloud suffix match. Mirrors snowflake.ts. */
 const SNOWFLAKE_ACCOUNT_LOCATOR_RE =
-  /^[A-Za-z0-9][A-Za-z0-9_]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*){0,2}$/
+  /^[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*){0,2}$/
 const SNOWFLAKE_IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_$]{0,254}$/
 /** Reserved Sim-namespaced header names that cannot be reused as the webhook signature header. */
 const RESERVED_WEBHOOK_SIGNATURE_HEADER_NAMES = new Set([

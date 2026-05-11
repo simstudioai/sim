@@ -19,7 +19,12 @@ const logger = createLogger('DataDrainSnowflakeDestination')
  * - Legacy account locator: `<locator>` or `<locator>.<region>[.<cloud>]` — dots allowed.
  */
 const ACCOUNT_ORG_RE = /^[A-Za-z0-9][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)+$/
-const ACCOUNT_LOCATOR_RE = /^[A-Za-z0-9][A-Za-z0-9_]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*){0,2}$/
+/**
+ * First segment allows hyphens so org-account identifiers (`<orgname>-<acctname>`)
+ * carrying a legacy region/cloud suffix (e.g. `myorg-acct.us-east-1.aws`) match.
+ * `normalizeAccountForJwt` strips the dotted suffix for JWT `iss`/`sub`.
+ */
+const ACCOUNT_LOCATOR_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*){0,2}$/
 function isValidAccount(v: string): boolean {
   return ACCOUNT_ORG_RE.test(v) || ACCOUNT_LOCATOR_RE.test(v)
 }
