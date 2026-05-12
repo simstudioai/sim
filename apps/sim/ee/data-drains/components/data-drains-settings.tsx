@@ -30,7 +30,14 @@ import {
   TableRow,
   toast,
 } from '@/components/emcn'
-import { S3Icon } from '@/components/icons'
+import {
+  AzureIcon,
+  BigQueryIcon,
+  DatadogIcon,
+  GoogleIcon,
+  S3Icon,
+  SnowflakeIcon,
+} from '@/components/icons'
 import { Input as BaseInput } from '@/components/ui'
 import type { CreateDataDrainBody, DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
 import { useSession } from '@/lib/auth/auth-client'
@@ -62,6 +69,11 @@ const SOURCE_LABELS: Record<(typeof SOURCE_TYPES)[number], string> = {
 
 const DESTINATION_LABELS: Record<(typeof DESTINATION_TYPES)[number], string> = {
   s3: 'Amazon S3',
+  gcs: 'Google Cloud Storage',
+  azure_blob: 'Azure Blob Storage',
+  datadog: 'Datadog',
+  bigquery: 'Google BigQuery',
+  snowflake: 'Snowflake',
   webhook: 'HTTPS webhook',
 }
 
@@ -73,8 +85,22 @@ const CADENCE_LABELS: Record<(typeof CADENCE_TYPES)[number], string> = {
 const SOURCE_OPTIONS = SOURCE_TYPES.map((t) => ({ value: t, label: SOURCE_LABELS[t] }))
 const CADENCE_OPTIONS = CADENCE_TYPES.map((t) => ({ value: t, label: CADENCE_LABELS[t] }))
 function getDestinationIcon(type: (typeof DESTINATION_TYPES)[number]) {
-  if (type !== 's3') return null
-  return <S3Icon className='size-[14px] flex-shrink-0 text-[#1B660F]' />
+  switch (type) {
+    case 's3':
+      return <S3Icon className='size-[14px] flex-shrink-0 text-[#1B660F]' />
+    case 'gcs':
+      return <GoogleIcon className='size-[14px] flex-shrink-0' />
+    case 'azure_blob':
+      return <AzureIcon className='size-[14px] flex-shrink-0' />
+    case 'datadog':
+      return <DatadogIcon className='size-[14px] flex-shrink-0' />
+    case 'bigquery':
+      return <BigQueryIcon className='size-[14px] flex-shrink-0' />
+    case 'snowflake':
+      return <SnowflakeIcon className='size-[14px] flex-shrink-0' />
+    default:
+      return null
+  }
 }
 
 const DESTINATION_OPTIONS = DESTINATION_TYPES.map((t) => ({
