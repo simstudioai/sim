@@ -41,6 +41,10 @@ app:
   # Node selector for pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
 
+  # Topology spread constraints for app pods (HA across zones / nodes).
+  # Each entry must include its own labelSelector.
+  topologySpreadConstraints: []
+
   # Pod security context
   podSecurityContext:
     fsGroup: 1001
@@ -409,11 +413,15 @@ realtime:
   
   # Node selector for pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
-  
+
+  # Topology spread constraints for realtime pods (HA across zones / nodes).
+  # Each entry must include its own labelSelector.
+  topologySpreadConstraints: []
+
   # Pod security context
   podSecurityContext:
     fsGroup: 1001
-  
+
   # Container security context
   securityContext:
     runAsNonRoot: true
@@ -1050,19 +1058,6 @@ affinity: {}
 
 # Tolerations for scheduling on tainted nodes
 tolerations: []
-
-# Topology spread constraints — for HA across zones / nodes.
-# Each entry must include its own labelSelector. Common pattern:
-#
-#   topologySpreadConstraints:
-#     - maxSkew: 1
-#       topologyKey: topology.kubernetes.io/zone
-#       whenUnsatisfiable: ScheduleAnyway
-#       labelSelector:
-#         matchLabels:
-#           app.kubernetes.io/name: sim
-#           app.kubernetes.io/instance: my-release
-topologySpreadConstraints: []
 
 # CronJob configuration for scheduled tasks
 cronjobs:

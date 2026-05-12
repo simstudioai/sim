@@ -40,7 +40,7 @@ tests:
     template: deployment-app.yaml
     set:
       <<: *defaults
-      topologySpreadConstraints:
+      app.topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
           whenUnsatisfiable: ScheduleAnyway
@@ -59,7 +59,7 @@ tests:
     template: deployment-realtime.yaml
     set:
       <<: *defaults
-      topologySpreadConstraints:
+      realtime.topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
           whenUnsatisfiable: ScheduleAnyway
@@ -70,3 +70,18 @@ tests:
       - equal:
           path: spec.template.spec.topologySpreadConstraints[0].topologyKey
           value: topology.kubernetes.io/zone
+
+  - it: app topologySpreadConstraints do not leak onto realtime pod
+    template: deployment-realtime.yaml
+    set:
+      <<: *defaults
+      app.topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: sim
+    asserts:
+      - isNull:
+          path: spec.template.spec.topologySpreadConstraints

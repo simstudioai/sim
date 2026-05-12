@@ -37,7 +37,7 @@ spec:
       {{- include "sim.nodeSelector" .Values.realtime | nindent 6 }}
       {{- include "sim.tolerations" .Values | nindent 6 }}
       {{- include "sim.affinity" .Values | nindent 6 }}
-      {{- include "sim.topologySpreadConstraints" .Values | nindent 6 }}
+      {{- include "sim.topologySpreadConstraints" .Values.realtime | nindent 6 }}
       containers:
         - name: realtime
           image: {{ include "sim.image" (dict "imageRoot" .Values.realtime.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}

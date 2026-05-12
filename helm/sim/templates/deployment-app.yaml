@@ -40,7 +40,7 @@ spec:
       {{- include "sim.nodeSelector" .Values.app | nindent 6 }}
       {{- include "sim.tolerations" .Values | nindent 6 }}
       {{- include "sim.affinity" .Values | nindent 6 }}
-      {{- include "sim.topologySpreadConstraints" .Values | nindent 6 }}
+      {{- include "sim.topologySpreadConstraints" .Values.app | nindent 6 }}
       {{- if .Values.migrations.enabled }}
       initContainers:
         - name: migrations
