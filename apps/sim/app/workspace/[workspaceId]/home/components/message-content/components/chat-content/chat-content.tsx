@@ -224,7 +224,7 @@ const MARKDOWN_COMPONENTS = {
   },
   blockquote({ children }: { children?: React.ReactNode }) {
     return (
-      <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 text-[var(--text-primary)] [&>p]:my-2 first:[&>p]:mt-0 last:[&>p]:mb-0'>
+      <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 text-[var(--text-primary)] [&>p]:my-2 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0'>
         {children}
       </blockquote>
     )
