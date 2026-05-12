@@ -60,6 +60,14 @@ function parseFlushEvalArgs(args: unknown[]): {
   }
 }
 
+function isFlushScript(script: string): boolean {
+  return script.includes("redis.call('ZADD'") && script.includes('new_count')
+}
+
+function isResetScript(script: string): boolean {
+  return script.includes('retained_bytes') && script.includes('replayStartEventId')
+}
+
 describe('execution event buffer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -70,7 +78,7 @@ describe('execution event buffer', () => {
     mockRedis.zrangebyscore.mockResolvedValue([])
     mockRedis.zremrangebyrank.mockResolvedValue(0)
     mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
-      if (script.includes('ZADD')) {
+      if (isFlushScript(script)) {
         const { terminalStatus, zaddArgs } = parseFlushEvalArgs(args)
         for (let i = 0; i < zaddArgs.length; i += 2) {
           persistedEntries.push(JSON.parse(zaddArgs[i + 1] as string) as ExecutionEventEntry)
@@ -79,6 +87,9 @@ describe('execution event buffer', () => {
           await mockRedis.hset('meta', { status: terminalStatus })
         }
         return [1, persistedEntries[0]?.eventId ?? false, 0]
+      }
+      if (isResetScript(script)) {
+        return 0
       }
       if (script.includes('DECRBY')) {
         return 1
@@ -338,11 +349,12 @@ describe('execution event buffer', () => {
 
   it('surfaces execution memory limit errors when the Redis budget is exceeded', async () => {
     mockRedis.incrby.mockResolvedValue(100)
-    mockRedis.eval.mockImplementationOnce(async () => [
-      0,
-      'execution_redis_bytes',
-      64 * 1024 * 1024,
-    ])
+    mockRedis.eval.mockImplementation(async (script: string) => {
+      if (isFlushScript(script)) {
+        return [0, 'execution_redis_bytes', 64 * 1024 * 1024]
+      }
+      return [1, 'ok', 0, 0]
+    })
 
     const writer = createExecutionEventWriter('exec-1')
 

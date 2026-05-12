@@ -453,7 +453,12 @@ export async function flushExecutionStreamReplayBuffer(
 }
 
 export async function resetExecutionStreamBuffer(executionId: string): Promise<boolean> {
-  if (canUseMemoryEventBuffer()) {
+  const redis = getRedisClient()
+  if (!redis) {
+    if (!canUseMemoryEventBuffer()) {
+      logger.warn('resetExecutionStreamBuffer: Redis client unavailable', { executionId })
+      return false
+    }
     const stream = getMemoryStream(executionId)
     stream.events = []
     stream.meta = {
@@ -463,12 +468,6 @@ export async function resetExecutionStreamBuffer(executionId: string): Promise<b
     }
     stream.expiresAt = Date.now() + TTL_SECONDS * 1000
     return true
-  }
-
-  const redis = getRedisClient()
-  if (!redis) {
-    logger.warn('resetExecutionStreamBuffer: Redis client unavailable', { executionId })
-    return false
   }
 
   try {
