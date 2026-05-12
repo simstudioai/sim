@@ -5,6 +5,18 @@ export interface SimStudioConfig {
   baseUrl?: string
 }
 
+export interface LargeValueRef {
+  __simLargeValueRef: true
+  version: 1
+  id: string
+  kind: 'array' | 'object' | 'string' | 'json'
+  size: number
+  /** Opaque execution-scoped server storage key. This is not a download URL. */
+  key?: string
+  executionId?: string
+  preview?: unknown
+}
+
 export interface WorkflowExecutionResult {
   success: boolean
   output?: any

@@ -40,6 +40,7 @@ const db = socketDb
 
 const DEFAULT_LOOP_ITERATIONS = 5
 const DEFAULT_PARALLEL_COUNT = 5
+const DEFAULT_PARALLEL_BATCH_SIZE = 20
 
 /** Minimal block shape needed for protection and descendant checks */
 interface DbBlockRef {
@@ -740,8 +741,9 @@ async function handleBlocksOperationTx(
                 workflowId,
                 type: 'parallel',
                 config: {
-                  parallelType: 'fixed',
+                  parallelType: 'count',
                   count: DEFAULT_PARALLEL_COUNT,
+                  batchSize: DEFAULT_PARALLEL_BATCH_SIZE,
                   nodes: [],
                 },
               })
@@ -1620,11 +1622,23 @@ async function handleSubflowOperationTx(
 
       logger.debug(`Updating subflow ${payload.id} with config:`, payload.config)
 
-      // Update the subflow configuration
+      // Read-modify-write merge so partial config payloads never wipe other fields
+      // (e.g. an iteration-only update from one client should not drop batchSize set by another)
+      const existingSubflow = await tx
+        .select({ config: workflowSubflows.config })
+        .from(workflowSubflows)
+        .where(
+          and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId))
+        )
+        .limit(1)
+
+      const existingConfig = (existingSubflow[0]?.config as Record<string, unknown>) || {}
+      const mergedConfig = { ...existingConfig, ...payload.config }
+
       const updateResult = await tx
         .update(workflowSubflows)
         .set({
-          config: payload.config,
+          config: mergedConfig,
           updatedAt: new Date(),
         })
         .where(
@@ -1677,27 +1691,35 @@ async function handleSubflowOperationTx(
           })
           .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
       } else if (payload.type === 'parallel') {
-        // Update the parallel block's data properties
-        const blockData = {
-          ...payload.config,
-          width: 500,
-          height: 300,
+        const existingBlock = await tx
+          .select({ data: workflowBlocks.data })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        const existingData = (existingBlock[0]?.data as any) || {}
+
+        const blockData: any = {
+          ...existingData,
           type: 'subflowNode',
-        }
-
-        // Include count if provided
-        if (payload.config.count !== undefined) {
-          blockData.count = payload.config.count
-        }
-
-        // Include collection if provided
-        if (payload.config.distribution !== undefined) {
-          blockData.collection = payload.config.distribution
-        }
-
-        // Include parallelType if provided
-        if (payload.config.parallelType !== undefined) {
-          blockData.parallelType = payload.config.parallelType
+          width: existingData.width ?? 500,
+          height: existingData.height ?? 300,
+          count:
+            payload.config.count !== undefined
+              ? payload.config.count
+              : (existingData.count ?? DEFAULT_PARALLEL_COUNT),
+          parallelType:
+            payload.config.parallelType !== undefined
+              ? payload.config.parallelType
+              : (existingData.parallelType ?? 'count'),
+          collection:
+            payload.config.distribution !== undefined
+              ? payload.config.distribution
+              : (existingData.collection ?? ''),
+          batchSize:
+            payload.config.batchSize !== undefined
+              ? payload.config.batchSize
+              : (existingData.batchSize ?? DEFAULT_PARALLEL_BATCH_SIZE),
         }
 
         await tx

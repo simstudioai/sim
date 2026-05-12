@@ -49,10 +49,11 @@ class WorkflowStatus:
 class AsyncExecutionResult:
     """Result of an async workflow execution."""
     success: bool
-    task_id: str
-    status: str  # 'queued'
-    created_at: str
-    links: Dict[str, str]
+    job_id: str
+    status_url: str
+    execution_id: Optional[str] = None
+    message: str = ""
+    async_execution: bool = True
 
 
 @dataclass
@@ -237,13 +238,14 @@ class SimStudioClient:
             result_data = response.json()
 
             # Check if this is an async execution response (202 status)
-            if response.status_code == 202 and 'taskId' in result_data:
+            if response.status_code == 202 and 'jobId' in result_data:
                 return AsyncExecutionResult(
                     success=result_data.get('success', True),
-                    task_id=result_data['taskId'],
-                    status=result_data.get('status', 'queued'),
-                    created_at=result_data.get('createdAt', ''),
-                    links=result_data.get('links', {})
+                    job_id=result_data['jobId'],
+                    status_url=result_data['statusUrl'],
+                    execution_id=result_data.get('executionId'),
+                    message=result_data.get('message', ''),
+                    async_execution=result_data.get('async', True)
                 )
 
             return WorkflowExecutionResult(
@@ -374,12 +376,12 @@ class SimStudioClient:
         """Close the underlying HTTP session."""
         self._session.close()
 
-    def get_job_status(self, task_id: str) -> Dict[str, Any]:
+    def get_job_status(self, job_id: str) -> Dict[str, Any]:
         """
         Get the status of an async job.
 
         Args:
-            task_id: The task ID returned from async execution
+            job_id: The job ID returned from async execution
 
         Returns:
             Dictionary containing the job status
@@ -387,7 +389,7 @@ class SimStudioClient:
         Raises:
             SimStudioError: If getting the status fails
         """
-        url = f"{self.base_url}/api/jobs/{task_id}"
+        url = f"{self.base_url}/api/jobs/{job_id}"
 
         try:
             response = self._session.get(url)

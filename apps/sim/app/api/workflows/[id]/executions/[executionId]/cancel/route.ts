@@ -55,14 +55,19 @@ async function completePausedCancellationWithRetry(
 
 async function ensurePausedCancellationEventPublished(
   executionId: string,
-  workflowId: string
+  workflowId: string,
+  context: { workspaceId?: string; userId?: string } = {}
 ): Promise<boolean> {
   const metaState = await readExecutionMetaState(executionId)
   if (metaState.status === 'found' && metaState.meta.status === 'cancelled') {
     return true
   }
 
-  const writer = createExecutionEventWriter(executionId)
+  const writer = createExecutionEventWriter(executionId, {
+    workspaceId: context.workspaceId,
+    workflowId,
+    userId: context.userId,
+  })
   try {
     await writer.writeTerminal(
       {
@@ -195,7 +200,11 @@ export const POST = withRouteHandler(
       if (pausedCancellationStarted) {
         pausedCancellationPublished = await ensurePausedCancellationEventPublished(
           executionId,
-          workflowId
+          workflowId,
+          {
+            workspaceId: workflowAuthorization.workflow?.workspaceId ?? undefined,
+            userId: auth.userId,
+          }
         )
         pausedCancellationPublishFailed = !pausedCancellationPublished
         if (pausedCancellationPublished) {
@@ -205,14 +214,22 @@ export const POST = withRouteHandler(
         if (pendingPausedCancellation === 'cancelled') {
           pausedCancellationPublished = await ensurePausedCancellationEventPublished(
             executionId,
-            workflowId
+            workflowId,
+            {
+              workspaceId: workflowAuthorization.workflow?.workspaceId ?? undefined,
+              userId: auth.userId,
+            }
           )
           pausedCancellationPublishFailed = !pausedCancellationPublished
           pausedCancelled = pausedCancellationPublished
         } else if (pendingPausedCancellation === 'cancelling') {
           pausedCancellationPublished = await ensurePausedCancellationEventPublished(
             executionId,
-            workflowId
+            workflowId,
+            {
+              workspaceId: workflowAuthorization.workflow?.workspaceId ?? undefined,
+              userId: auth.userId,
+            }
           )
           pausedCancellationPublishFailed = !pausedCancellationPublished
           if (pausedCancellationPublished) {

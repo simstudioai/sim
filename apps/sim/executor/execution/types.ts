@@ -35,6 +35,8 @@ export interface ExecutionMetadata {
     parallels?: Record<string, any>
     deploymentVersionId?: string
   }
+  largeValueExecutionIds?: string[]
+  allowLargeValueWorkflowScope?: boolean
   callChain?: string[]
   correlation?: AsyncExecutionCorrelation
   executionMode?: 'sync' | 'stream' | 'async'
@@ -143,6 +145,8 @@ export interface ExecutionCallbacks {
 export interface ContextExtensions {
   workspaceId?: string
   executionId?: string
+  largeValueExecutionIds?: string[]
+  allowLargeValueWorkflowScope?: boolean
   userId?: string
   stream?: boolean
   selectedOutputs?: string[]

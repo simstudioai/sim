@@ -1204,6 +1204,13 @@ describe('buildWorkflowSearchReplacePlan', () => {
       expect.objectContaining({
         blockId: 'parallel-1',
         blockType: 'parallel',
+        fieldId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize,
+        previousValue: '20',
+        nextValue: 3,
+      }),
+      expect.objectContaining({
+        blockId: 'parallel-1',
+        blockType: 'parallel',
         fieldId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations,
         previousValue: '20',
         nextValue: 3,
@@ -1569,8 +1576,8 @@ describe('buildWorkflowSearchReplacePlan', () => {
     expect(plan.subflowUpdates).toEqual([])
     expect(plan.conflicts).toEqual([
       {
-        matchId: matches[0].id,
-        reason: 'Subflow iteration count must be between 1 and 20',
+        matchId: 'subflow-text:parallel-1:subflowBatchSize:0:0',
+        reason: 'Parallel batch size must be between 1 and 20',
       },
     ])
   })

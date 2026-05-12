@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { isPlainRecord } from '@/lib/core/utils/records'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
+import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
@@ -552,10 +553,20 @@ export async function executeWorkflowCore(
       return persistencePromise
     }
 
+    const largeValueExecutionIds = Array.from(
+      new Set([executionId, ...(metadata.largeValueExecutionIds ?? [])].filter(Boolean))
+    )
+    const allowLargeValueWorkflowScope =
+      metadata.allowLargeValueWorkflowScope === true ||
+      metadata.resumeFromSnapshot === true ||
+      Boolean(runFromBlock?.sourceSnapshot)
+
     const contextExtensions: ContextExtensions = {
       stream: !!onStream,
       selectedOutputs,
       executionId,
+      largeValueExecutionIds,
+      allowLargeValueWorkflowScope,
       workspaceId: providedWorkspaceId,
       userId,
       isDeployedContext: !metadata.isClientSession,
@@ -580,6 +591,27 @@ export async function executeWorkflowCore(
       stopAfterBlockId: resolvedStopAfterBlockId,
       onChildWorkflowInstanceReady,
       callChain: metadata.callChain,
+    }
+
+    if (snapshot.state) {
+      await warmLargeValueRefs(snapshot.state, {
+        workspaceId: providedWorkspaceId,
+        workflowId,
+        executionId,
+        largeValueExecutionIds,
+        allowLargeValueWorkflowScope,
+        userId,
+      })
+    }
+    if (runFromBlock?.sourceSnapshot) {
+      await warmLargeValueRefs(runFromBlock.sourceSnapshot, {
+        workspaceId: providedWorkspaceId,
+        workflowId,
+        executionId,
+        largeValueExecutionIds,
+        allowLargeValueWorkflowScope,
+        userId,
+      })
     }
 
     for (const variable of Object.values(workflowVariables)) {

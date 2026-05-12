@@ -27,6 +27,21 @@ const SANDBOX_BUNDLE_FILES = {
 const bundleSourceCache = new Map()
 const activeIsolates = new Map()
 
+/**
+ * Sends an IPC request and reports only actual delivery failures.
+ * Node queues messages under backpressure, so the boolean return value is not
+ * a failure signal.
+ */
+function sendIpcRequest(message, onError) {
+  try {
+    process.send(message, (err) => {
+      if (err) onError(err)
+    })
+  } catch (error) {
+    onError(error instanceof Error ? error : new Error(String(error)))
+  }
+}
+
 function getBundleSource(bundleName) {
   const cached = bundleSourceCache.get(bundleName)
   if (cached) return cached
@@ -180,6 +195,7 @@ async function executeCode(request, executionId) {
   let logCallback = null
   let errorCallback = null
   let fetchCallback = null
+  let brokerCallback = null
   const externalCopies = []
 
   try {
@@ -232,16 +248,49 @@ async function executeCode(request, executionId) {
           }
         }, FETCH_TIMEOUT_MS)
         pendingFetches.set(fetchId, { resolve, timeout })
-        if (process.send && process.connected) {
-          process.send({ type: 'fetch', fetchId, requestId, url, optionsJson })
-        } else {
+        if (!process.send || !process.connected) {
           clearTimeout(timeout)
           pendingFetches.delete(fetchId)
           resolve(JSON.stringify({ error: 'Parent process disconnected' }))
+          return
         }
+        sendIpcRequest({ type: 'fetch', fetchId, requestId, url, optionsJson }, (err) => {
+          const pending = pendingFetches.get(fetchId)
+          if (!pending) return
+          clearTimeout(pending.timeout)
+          pendingFetches.delete(fetchId)
+          pending.resolve(JSON.stringify({ error: `Fetch IPC send failed: ${err.message}` }))
+        })
       })
     })
     await jail.set('__fetchRef', fetchCallback)
+
+    brokerCallback = new ivm.Reference(async (brokerName, argsJson) => {
+      return new Promise((resolve) => {
+        const brokerId = ++brokerIdCounter
+        const timeout = setTimeout(() => {
+          if (pendingBrokerCalls.has(brokerId)) {
+            pendingBrokerCalls.delete(brokerId)
+            resolve(JSON.stringify({ error: `Broker "${brokerName}" timed out` }))
+          }
+        }, BROKER_TIMEOUT_MS)
+        pendingBrokerCalls.set(brokerId, { resolve, timeout, executionId })
+        if (!process.send || !process.connected) {
+          clearTimeout(timeout)
+          pendingBrokerCalls.delete(brokerId)
+          resolve(JSON.stringify({ error: 'Parent process disconnected' }))
+          return
+        }
+        sendIpcRequest({ type: 'broker', brokerId, executionId, brokerName, argsJson }, (err) => {
+          const pending = pendingBrokerCalls.get(brokerId)
+          if (!pending) return
+          clearTimeout(pending.timeout)
+          pendingBrokerCalls.delete(brokerId)
+          pending.resolve(JSON.stringify({ error: `Broker IPC send failed: ${err.message}` }))
+        })
+      })
+    })
+    await jail.set('__brokerRef', brokerCallback)
 
     const bootstrap = `
       // Set up console object
@@ -299,10 +348,57 @@ async function executeCode(request, executionId) {
         };
       }
 
+      const sim = (() => {
+        const broker = __brokerRef;
+        async function callSimBroker(name, args) {
+          let argsJson;
+          try {
+            argsJson = args === undefined ? undefined : JSON.stringify(args);
+          } catch {
+            throw new Error('sim helper arguments must be JSON-serializable');
+          }
+          if (argsJson && argsJson.length > ${MAX_FETCH_OPTIONS_JSON_CHARS}) {
+            throw new Error('sim helper arguments exceed maximum payload size');
+          }
+          const responseJson = await broker.apply(undefined, [name, argsJson], { result: { promise: true } });
+          let response;
+          try {
+            response = JSON.parse(responseJson);
+          } catch {
+            throw new Error('Invalid sim helper response');
+          }
+          if (typeof response.error === 'string') {
+            throw new Error(response.error || 'Sim helper call failed');
+          }
+          return response.resultJson === undefined || response.resultJson === null
+            ? null
+            : JSON.parse(response.resultJson);
+        }
+
+        return Object.freeze({
+          files: Object.freeze({
+            readBase64: (file, options) => callSimBroker('sim.files.readBase64', { file, options }),
+            readText: (file, options) => callSimBroker('sim.files.readText', { file, options }),
+            readBase64Chunk: (file, options) => callSimBroker('sim.files.readBase64Chunk', { file, options }),
+            readTextChunk: (file, options) => callSimBroker('sim.files.readTextChunk', { file, options }),
+          }),
+          values: Object.freeze({
+            read: (ref, options) => callSimBroker('sim.values.read', { ref, options }),
+          }),
+        });
+      })();
+      Object.defineProperty(global, 'sim', {
+        value: sim,
+        writable: false,
+        configurable: false,
+        enumerable: true
+      });
+
       // Prevent access to dangerous globals with stronger protection
       const undefined_globals = [
         'Isolate', 'Context', 'Script', 'Module', 'Callback', 'Reference',
-        'ExternalCopy', 'process', 'require', 'module', 'exports', '__dirname', '__filename'
+        'ExternalCopy', 'process', 'require', 'module', 'exports', '__dirname', '__filename',
+        '__brokerRef', '__broker', '__callSimBroker'
       ];
       for (const name of undefined_globals) {
         try {
@@ -439,6 +535,7 @@ async function executeCode(request, executionId) {
       bootstrapScript,
       ...externalCopies,
       fetchCallback,
+      brokerCallback,
       errorCallback,
       logCallback,
       context,
@@ -662,13 +759,19 @@ async function executeTask(request, executionId) {
           }
         }, BROKER_TIMEOUT_MS)
         pendingBrokerCalls.set(brokerId, { resolve, timeout, executionId })
-        if (process.send && process.connected) {
-          process.send({ type: 'broker', brokerId, executionId, brokerName, argsJson })
-        } else {
+        if (!process.send || !process.connected) {
           clearTimeout(timeout)
           pendingBrokerCalls.delete(brokerId)
           resolve(JSON.stringify({ error: 'Parent process disconnected' }))
+          return
         }
+        sendIpcRequest({ type: 'broker', brokerId, executionId, brokerName, argsJson }, (err) => {
+          const pending = pendingBrokerCalls.get(brokerId)
+          if (!pending) return
+          clearTimeout(pending.timeout)
+          pendingBrokerCalls.delete(brokerId)
+          pending.resolve(JSON.stringify({ error: `Broker IPC send failed: ${err.message}` }))
+        })
       })
     })
     releaseables.push(brokerRef)

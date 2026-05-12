@@ -23,6 +23,9 @@ export interface CodeExecutionInput {
   contextVariables?: Record<string, unknown>
   _context?: {
     workflowId?: string
+    executionId?: string
+    largeValueExecutionIds?: string[]
+    allowLargeValueWorkflowScope?: boolean
     userId?: string
     workspaceId?: string
   }

@@ -115,17 +115,17 @@ result = client.execute_workflow_sync("workflow-id", {"data": "some input"}, tim
 
 **Returns:** `WorkflowExecutionResult`
 
-##### get_job_status(task_id)
+##### get_job_status(job_id)
 
 Get the status of an async job.
 
 ```python
-status = client.get_job_status("task-id-from-async-execution")
+status = client.get_job_status("job-id-from-async-execution")
 print("Job status:", status)
 ```
 
 **Parameters:**
-- `task_id` (str): The task ID returned from async execution
+- `job_id` (str): The job ID returned from async execution
 
 **Returns:** `dict`
 
@@ -248,10 +248,11 @@ class SimStudioError(Exception):
 @dataclass
 class AsyncExecutionResult:
     success: bool
-    task_id: str
-    status: str  # 'queued'
-    created_at: str
-    links: Dict[str, str]
+    job_id: str
+    status_url: str
+    execution_id: Optional[str] = None
+    message: str = ""
+    async_execution: bool = True
 ```
 
 ### RateLimitInfo

@@ -6,6 +6,16 @@ import type { Edge } from 'reactflow'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 
 const DEFAULT_LOOP_ITERATIONS = 5
+const DEFAULT_PARALLEL_BATCH_SIZE = 20
+const MAX_PARALLEL_BATCH_SIZE = 20
+
+export function clampParallelBatchSize(batchSize: unknown): number {
+  const parsed = typeof batchSize === 'number' ? batchSize : Number.parseInt(String(batchSize), 10)
+  if (Number.isNaN(parsed)) {
+    return DEFAULT_PARALLEL_BATCH_SIZE
+  }
+  return Math.max(1, Math.min(MAX_PARALLEL_BATCH_SIZE, parsed))
+}
 
 /**
  * Check if adding an edge would create a cycle in the graph.
@@ -111,6 +121,7 @@ export function convertParallelBlockToParallel(
     validatedParallelType === 'collection' ? parallelBlock.data?.collection || '' : undefined
 
   const count = parallelBlock.data?.count || 5
+  const batchSize = clampParallelBatchSize(parallelBlock.data?.batchSize)
 
   return {
     id: parallelBlockId,
@@ -118,6 +129,7 @@ export function convertParallelBlockToParallel(
     distribution,
     count,
     parallelType: validatedParallelType,
+    batchSize,
     enabled: parallelBlock.enabled,
   }
 }

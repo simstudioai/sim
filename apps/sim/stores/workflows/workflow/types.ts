@@ -84,6 +84,7 @@ export interface WorkflowActions {
   setLoopWhileCondition: (loopId: string, condition: string) => void
   setLoopDoWhileCondition: (loopId: string, condition: string) => void
   updateParallelCount: (parallelId: string, count: number) => void
+  updateParallelBatchSize: (parallelId: string, batchSize: number) => void
   updateParallelCollection: (parallelId: string, collection: string) => void
   updateParallelType: (parallelId: string, parallelType: 'count' | 'collection') => void
   generateLoopBlocks: () => Record<string, Loop>

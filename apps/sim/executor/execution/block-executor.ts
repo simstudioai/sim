@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import {
   containsUserFileWithMetadata,
   hydrateUserFilesWithBase64,
@@ -126,7 +127,12 @@ export class BlockExecutor {
           resolvedInputs: fnInputs,
           displayInputs,
           contextVariables,
-        } = this.resolver.resolveInputsForFunctionBlock(ctx, node.id, block.config.params, block)
+        } = await this.resolver.resolveInputsForFunctionBlock(
+          ctx,
+          node.id,
+          block.config.params,
+          block
+        )
         resolvedInputs = {
           ...fnInputs,
           [FUNCTION_BLOCK_CONTEXT_VARS_KEY]: contextVariables,
@@ -136,7 +142,7 @@ export class BlockExecutor {
         }
         inputsForLog = displayInputs
       } else {
-        resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
+        resolvedInputs = await this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
         inputsForLog = resolvedInputs
       }
 
@@ -189,13 +195,27 @@ export class BlockExecutor {
         normalizedOutput = this.normalizeOutput(output)
       }
 
-      if (containsUserFileWithMetadata(normalizedOutput)) {
+      if (ctx.includeFileBase64 === true && containsUserFileWithMetadata(normalizedOutput)) {
         normalizedOutput = (await hydrateUserFilesWithBase64(normalizedOutput, {
           requestId: ctx.metadata.requestId,
+          workspaceId: ctx.workspaceId,
+          workflowId: ctx.workflowId,
           executionId: ctx.executionId,
+          largeValueExecutionIds: ctx.largeValueExecutionIds,
+          allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
+          userId: ctx.userId,
           maxBytes: ctx.base64MaxBytes,
         })) as NormalizedBlockOutput
       }
+
+      normalizedOutput = (await compactExecutionPayload(normalizedOutput, {
+        workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
+        executionId: ctx.executionId,
+        userId: ctx.userId,
+        preserveUserFileBase64: ctx.includeFileBase64 === true,
+        requireDurable: true,
+      })) as NormalizedBlockOutput
 
       const endedAt = new Date().toISOString()
       const duration = performance.now() - startTime

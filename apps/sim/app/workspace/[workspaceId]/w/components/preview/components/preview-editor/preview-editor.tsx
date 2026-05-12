@@ -572,14 +572,12 @@ const SUBFLOW_CONFIG = {
       while: 'While Loop',
       doWhile: 'Do While Loop',
     },
-    maxIterations: 1000,
   },
   parallel: {
     typeLabels: {
       count: 'Parallel Count',
       collection: 'Parallel Each',
     },
-    maxIterations: 20,
   },
 } as const
 
@@ -685,7 +683,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
               className='mb-1'
             />
             <div className='text-[var(--text-tertiary)] text-micro'>
-              Enter a number between 1 and {config.maxIterations}
+              Enter a whole number greater than 0.
             </div>
           </div>
         ) : (

@@ -81,6 +81,7 @@ describe('FunctionBlockHandler', () => {
       _context: {
         workflowId: mockContext.workflowId,
         workspaceId: mockContext.workspaceId,
+        executionId: mockContext.executionId,
         userId: mockContext.userId,
         isDeployedContext: mockContext.isDeployedContext,
         enforceCredentialAccess: mockContext.enforceCredentialAccess,
@@ -121,6 +122,7 @@ describe('FunctionBlockHandler', () => {
       _context: {
         workflowId: mockContext.workflowId,
         workspaceId: mockContext.workspaceId,
+        executionId: mockContext.executionId,
         userId: mockContext.userId,
         isDeployedContext: mockContext.isDeployedContext,
         enforceCredentialAccess: mockContext.enforceCredentialAccess,
@@ -154,6 +156,7 @@ describe('FunctionBlockHandler', () => {
       _context: {
         workflowId: mockContext.workflowId,
         workspaceId: mockContext.workspaceId,
+        executionId: mockContext.executionId,
         userId: mockContext.userId,
         isDeployedContext: mockContext.isDeployedContext,
         enforceCredentialAccess: mockContext.enforceCredentialAccess,

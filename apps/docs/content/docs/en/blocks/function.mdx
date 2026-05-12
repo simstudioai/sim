@@ -185,6 +185,53 @@ plt.show()
 
 ## Best Practices
 
+### Large Inputs and Payload Limits
+
+Function blocks receive their code, parameters, resolved references, and previous block context in an internal execution request. Sim can safely reference oversized workflow outputs, such as large `loop.results` or `parallel.results`, when you select a smaller nested field like `<loop.results[0][0].id>`. Larger values are stored in execution storage and passed around as small references until code explicitly reads them.
+
+File outputs are metadata-first by default. Referencing `<file.name>`, `<file.url>`, or similar metadata does not hydrate file contents. In JavaScript functions without imports, a direct base64 reference like `<readfile.file.base64>` is automatically rewritten to a lazy server-side read so the base64 string does not cross the Function request body.
+
+You can also call the helper explicitly:
+
+```javascript
+const file = <readfile.file>;
+const base64 = await sim.files.readBase64(file);
+```
+
+`sim.files.readBase64(file)`, `sim.files.readText(file)`, `sim.files.readBase64Chunk(file, { offset, length })`, and `sim.files.readTextChunk(file, { offset, length })` read from server-side execution storage under memory caps. `sim.values.read(ref)` can explicitly read a large execution value reference. These helpers are available only in JavaScript functions without imports. JavaScript with imports, Python, and shell do not support these lazy helpers yet.
+
+Very large full reads can still fail by design; use chunk helpers or return a file when you need to handle more data.
+
+Use text chunks for text-like files such as logs, CSV, JSONL, and markdown:
+
+```javascript
+const file = <readfile.file>;
+const firstMegabyte = await sim.files.readTextChunk(file, {
+  offset: 0,
+  length: 1024 * 1024,
+});
+
+return firstMegabyte.split('\n').slice(0, 10);
+```
+
+Use base64 chunks for binary files such as images, PDFs, audio, archives, or APIs that expect base64 input:
+
+```javascript
+const file = <readfile.file>;
+const firstMegabyteBase64 = await sim.files.readBase64Chunk(file, {
+  offset: 0,
+  length: 1024 * 1024,
+});
+
+return { name: file.name, chunk: firstMegabyteBase64 };
+```
+
+Chunk `offset` and `length` are byte-based. For Unicode text, a chunk can split a multi-byte character at the boundary; use text chunks for approximate text processing and prefer smaller structured references when exact parsing matters.
+
+Avoid passing a full large object into a Function block when you only need one field. For example, prefer `<api.data.customerId>` over `<api.data>` when the API response is large. If a JavaScript Function without imports references a large execution value, Sim automatically reads it through `sim.values.read(...)` at runtime under memory caps.
+
+For large generated data, write the result to a file or table with `outputPath`, `outputSandboxPath`, or `outputTable` instead of returning the entire payload inline.
+
 - **Keep functions focused**: Write functions that do one thing well to improve maintainability and debugging
 - **Handle errors gracefully**: Use try/catch blocks to handle potential errors and provide meaningful error messages
 - **Test edge cases**: Ensure your code handles unusual inputs, null values, and boundary conditions correctly

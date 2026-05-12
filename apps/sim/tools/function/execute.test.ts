@@ -66,6 +66,7 @@ describe('Function Execute Tool', () => {
         outputTable: undefined,
         timeout: 5000,
         workflowId: undefined,
+        executionId: undefined,
         workspaceId: undefined,
         userId: undefined,
       })
@@ -101,6 +102,7 @@ describe('Function Execute Tool', () => {
         outputSandboxPath: undefined,
         outputTable: undefined,
         workflowId: undefined,
+        executionId: undefined,
         workspaceId: undefined,
         userId: undefined,
       })
@@ -128,6 +130,7 @@ describe('Function Execute Tool', () => {
         outputSandboxPath: undefined,
         outputTable: undefined,
         workflowId: undefined,
+        executionId: undefined,
         workspaceId: undefined,
         userId: undefined,
       })

@@ -114,7 +114,6 @@ export async function uploadExecutionFile(
       url: presignedUrl,
       key: fileInfo.key,
       context: 'execution',
-      base64: fileBuffer.toString('base64'),
     }
 
     logger.info(`Successfully uploaded execution file: ${fileName} (${fileBuffer.length} bytes)`, {

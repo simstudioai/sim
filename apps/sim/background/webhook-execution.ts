@@ -578,7 +578,7 @@ async function executeWebhookJobInternal(
       snapshot,
       callbacks: {},
       loggingSession,
-      includeFileBase64: true,
+      includeFileBase64: false,
       base64MaxBytes: undefined,
       abortSignal: timeoutController.signal,
     })

@@ -34,6 +34,7 @@ Choose between two types of parallel execution:
     </div>
     
     Use this when you need to run the same operation multiple times concurrently.
+    If the total count is larger than the batch size, Sim runs the work in serial batches while preserving the original result order.
     
     ```
     Example: Run 5 parallel instances
@@ -57,7 +58,7 @@ Choose between two types of parallel execution:
       />
     </div>
     
-    Each instance processes one item from the collection simultaneously.
+    Each instance processes one item from the collection. Large collections run in serial batches while preserving each item's original index.
     
     ```
     Example: Process ["task1", "task2", "task3"] in parallel
@@ -140,6 +141,12 @@ const allResults = <processtasks.results>;
 // Returns: [result1, result2, result3, ...]
 ```
 
+For large result sets, reference only the entry or field you need, such as `<processtasks.results[10][0].id>`. Sim keeps aggregate results indexable by storing oversized entries in execution storage and hydrating them only when an indexed server-side path is explicitly referenced.
+
+### Batch Size
+
+Parallel blocks run up to 20 branches at a time by default. Increase the total count or collection size to process more work; Sim will execute the next batch after the current batch finishes. You can lower the batch size to reduce concurrency for rate-limited APIs.
+
 ### Instance Isolation
 
 Each parallel instance runs independently:
@@ -157,7 +164,7 @@ Each parallel instance runs independently:
   While parallel execution is faster, be mindful of:
   - API rate limits when making concurrent requests
   - Memory usage with large datasets
-  - Maximum of 20 concurrent instances to prevent resource exhaustion
+  - Maximum of 20 concurrent instances per batch to prevent resource exhaustion
 </Callout>
 
 ## Parallel vs Loop
@@ -185,6 +192,9 @@ Understanding when to use each:
       </li>
       <li>
         <strong>Collection</strong>: Array or object to distribute (collection-based)
+      </li>
+      <li>
+        <strong>Batch size</strong>: Number of branches to run concurrently, from 1 to 20
       </li>
     </ul>
   </Tab>

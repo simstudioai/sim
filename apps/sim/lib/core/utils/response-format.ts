@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { materializeLargeValueRefSyncOrThrow } from '@/lib/execution/payloads/cache'
+import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 
 const logger = createLogger('ResponseFormatUtils')
 
@@ -196,11 +198,19 @@ function traverseObjectPathInternal(obj: any, path: string): any {
   const parts = path.split('.')
 
   for (const part of parts) {
+    if (isLargeValueRef(current)) {
+      current = materializeLargeValueRefSyncOrThrow(current)
+    }
+
     if (current?.[part] !== undefined) {
       current = current[part]
     } else {
       return undefined
     }
+  }
+
+  if (isLargeValueRef(current)) {
+    return current
   }
 
   return current

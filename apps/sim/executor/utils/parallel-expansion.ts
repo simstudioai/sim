@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { SerializedBlock } from '@/serializer/types'
@@ -29,14 +30,12 @@ export interface ExpansionResult {
 }
 
 export class ParallelExpander {
-  /** Monotonically increasing counter for generating unique pre-expansion clone IDs. */
-  private cloneSeq = 0
-
   expandParallel(
     dag: DAG,
     parallelId: string,
     branchCount: number,
-    distributionItems?: any[]
+    distributionItems?: any[],
+    options: { branchIndexOffset?: number; totalBranches?: number } = {}
   ): ExpansionResult {
     const config = dag.parallelConfigs.get(parallelId)
     if (!config) {
@@ -64,6 +63,8 @@ export class ParallelExpander {
 
     const regularSet = new Set(regularBlocks)
     const allBranchNodes: string[] = []
+    const branchIndexOffset = options.branchIndexOffset ?? 0
+    const branchTotal = options.totalBranches ?? branchCount
 
     for (const blockId of regularBlocks) {
       const templateId = buildBranchNodeId(blockId, 0)
@@ -76,10 +77,16 @@ export class ParallelExpander {
 
       for (let i = 0; i < branchCount; i++) {
         const branchNodeId = buildBranchNodeId(blockId, i)
+        const globalBranchIndex = branchIndexOffset + i
         allBranchNodes.push(branchNodeId)
 
         if (i === 0) {
-          this.updateBranchMetadata(templateNode, i, branchCount, distributionItems?.[i])
+          this.updateBranchMetadata(
+            templateNode,
+            globalBranchIndex,
+            branchTotal,
+            distributionItems?.[i]
+          )
           continue
         }
 
@@ -87,7 +94,8 @@ export class ParallelExpander {
           templateNode,
           blockId,
           i,
-          branchCount,
+          globalBranchIndex,
+          branchTotal,
           distributionItems?.[i]
         )
         dag.nodes.set(branchNodeId, branchNode)
@@ -114,20 +122,22 @@ export class ParallelExpander {
         ? buildParallelSentinelEndId(subflowId)
         : buildSentinelEndId(subflowId)
 
-      // Branch 0 uses original nodes
-      if (dag.nodes.has(startId)) entryNodes.push(startId)
-      if (dag.nodes.has(endId)) terminalNodes.push(endId)
+      for (let i = 0; i < branchCount; i++) {
+        const globalBranchIndex = branchIndexOffset + i
+        if (globalBranchIndex === 0) {
+          if (dag.nodes.has(startId)) entryNodes.push(startId)
+          if (dag.nodes.has(endId)) terminalNodes.push(endId)
+          continue
+        }
 
-      // Branches 1..N clone the entire subflow graph (recursively for deep nesting)
-      for (let i = 1; i < branchCount; i++) {
-        const cloned = this.cloneNestedSubflow(dag, subflowId, i, clonedSubflows)
+        const cloned = this.cloneNestedSubflow(dag, subflowId, globalBranchIndex, clonedSubflows)
 
         entryNodes.push(cloned.startId)
         terminalNodes.push(cloned.endId)
         clonedSubflows.push({
           clonedId: cloned.clonedId,
           originalId: subflowId,
-          outerBranchIndex: i,
+          outerBranchIndex: globalBranchIndex,
         })
       }
     }
@@ -161,11 +171,12 @@ export class ParallelExpander {
   private cloneTemplateNode(
     template: DAGNode,
     originalBlockId: string,
+    localBranchIndex: number,
     branchIndex: number,
     branchTotal: number,
     distributionItem?: any
   ): DAGNode {
-    const branchNodeId = buildBranchNodeId(originalBlockId, branchIndex)
+    const branchNodeId = buildBranchNodeId(originalBlockId, localBranchIndex)
     const blockClone: SerializedBlock = {
       ...template.block,
       id: branchNodeId,
@@ -201,7 +212,11 @@ export class ParallelExpander {
         const baseTargetId = extractBaseBlockId(edge.target)
         if (!blocksSet.has(baseTargetId)) continue
 
-        for (let i = 1; i < branchCount; i++) {
+        // Include branch 0 so per-batch re-expansion restores the template's
+        // incoming-edge bookkeeping that earlier batches consumed during
+        // edge processing. Without this, identifyBoundaryNodes mis-classifies
+        // chained children as entry nodes after the first batch.
+        for (let i = 0; i < branchCount; i++) {
           const sourceNodeId = buildBranchNodeId(blockId, i)
           const targetNodeId = buildBranchNodeId(baseTargetId, i)
           const sourceNode = dag.nodes.get(sourceNodeId)
@@ -278,14 +293,20 @@ export class ParallelExpander {
   /**
    * Generates a unique clone ID for pre-expansion cloning.
    *
-   * Pre-expansion clones use `{originalId}__clone{N}__obranch-{branchIndex}` instead
+   * Pre-expansion clones use `{originalId}__clone{digest}__obranch-{branchIndex}` instead
    * of the plain `{originalId}__obranch-{branchIndex}` used by runtime expansion.
-   * The `__clone{N}` segment (from a monotonic counter) prevents naming collisions
-   * when the original (branch-0) subflow later expands at runtime and creates
-   * `{child}__obranch-{branchIndex}`.
+   * The clone segment prevents naming collisions when the original (branch-0)
+   * subflow later expands at runtime and creates `{child}__obranch-{branchIndex}`.
+   * Keeping it deterministic lets pause/resume rebuild the same active branch IDs.
    */
-  private buildPreCloneId(originalId: string, outerBranchIndex: number): string {
-    return `${originalId}__clone${this.cloneSeq++}__obranch-${outerBranchIndex}`
+  private buildPreCloneIdForParent(
+    originalId: string,
+    outerBranchIndex: number,
+    parentCloneId: string
+  ): string {
+    const input = `${parentCloneId}:${originalId}:${outerBranchIndex}`
+    const digest = sha256Hex(input).slice(0, 24)
+    return `${originalId}__clone${digest}__obranch-${outerBranchIndex}`
   }
 
   /**
@@ -293,8 +314,8 @@ export class ParallelExpander {
    *
    * The top-level subflow gets a standard `__obranch-{N}` clone ID (needed by
    * `findEffectiveContainerId` at runtime). All deeper children — both containers
-   * and regular blocks — receive unique `__clone{N}__obranch-{M}` IDs via
-   * {@link buildPreCloneId} to avoid collisions with runtime expansion.
+   * and regular blocks — receive deterministic `__clone{N}__obranch-{M}` IDs to
+   * avoid collisions with runtime expansion.
    */
   private cloneNestedSubflow(
     dag: DAG,
@@ -357,7 +378,7 @@ export class ParallelExpander {
       const isNestedLoop = dag.loopConfigs.has(blockId)
 
       if (isNestedParallel || isNestedLoop) {
-        const nestedClonedId = this.buildPreCloneId(blockId, outerBranchIndex)
+        const nestedClonedId = this.buildPreCloneIdForParent(blockId, outerBranchIndex, clonedId)
         clonedBlockIds.push(nestedClonedId)
 
         const innerResult = this.cloneSubflowGraph(
@@ -377,7 +398,7 @@ export class ParallelExpander {
           outerBranchIndex,
         })
       } else {
-        const clonedBlockId = this.buildPreCloneId(blockId, outerBranchIndex)
+        const clonedBlockId = this.buildPreCloneIdForParent(blockId, outerBranchIndex, clonedId)
         clonedBlockIds.push(clonedBlockId)
 
         if (isParallel) {

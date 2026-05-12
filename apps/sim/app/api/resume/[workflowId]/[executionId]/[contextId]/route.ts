@@ -180,6 +180,10 @@ export const POST = withRouteHandler(
             timeoutMs: preprocessResult.executionTimeout?.sync,
           },
           executionId: enqueueResult.resumeExecutionId,
+          workspaceId: workflow.workspaceId || undefined,
+          workflowId,
+          userId: enqueueResult.userId,
+          allowLargeValueWorkflowScope: true,
           executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
             PauseResumeManager.startResumeExecution({
               ...resumeArgs,

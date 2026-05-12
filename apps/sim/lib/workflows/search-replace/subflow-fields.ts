@@ -5,6 +5,7 @@ export const WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS = {
   iterations: 'subflowIterations',
   items: 'subflowItems',
   condition: 'subflowCondition',
+  batchSize: 'subflowBatchSize',
 } as const
 
 export type WorkflowSearchSubflowFieldId =
@@ -18,6 +19,7 @@ interface WorkflowSearchSubflowBlock {
     loopType?: string
     parallelType?: string
     count?: unknown
+    batchSize?: unknown
     collection?: unknown
     whileCondition?: unknown
     doWhileCondition?: unknown
@@ -113,6 +115,14 @@ export function getWorkflowSearchSubflowFields(
         editable: true,
         valueKind: parallelType === 'count' ? 'number' : 'text',
       },
+      {
+        id: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize,
+        title: 'Parallel Batch Size',
+        type: 'short-input',
+        value: String(block.data?.batchSize ?? 20),
+        editable: true,
+        valueKind: 'number',
+      },
     ]
   }
 
@@ -146,7 +156,10 @@ export function parseWorkflowSearchSubflowReplacement({
 }):
   | { success: true; value: WorkflowSearchSubflowEditableValue }
   | { success: false; reason: string } {
-  if (fieldId !== WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations) {
+  if (
+    fieldId !== WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations &&
+    fieldId !== WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize
+  ) {
     return { success: true, value: replacement }
   }
 
@@ -156,11 +169,17 @@ export function parseWorkflowSearchSubflowReplacement({
   }
 
   const count = Number.parseInt(trimmed, 10)
-  const max = blockType === 'parallel' ? 20 : 1000
-  if (count < 1 || count > max) {
+  const maxBatchSize = 20
+  if (
+    count < 1 ||
+    (fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize && count > maxBatchSize)
+  ) {
     return {
       success: false,
-      reason: `Subflow iteration count must be between 1 and ${max}`,
+      reason:
+        fieldId === WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize
+          ? `Parallel batch size must be between 1 and ${maxBatchSize}`
+          : 'Subflow iteration count must be greater than 0',
     }
   }
 

@@ -1,14 +1,22 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { BlockType } from '@/executor/constants'
+import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import {
+  containsLargeValueRef,
+  getLargeValueMaterializationError,
+  isLargeValueRef,
+} from '@/lib/execution/payloads/large-value-ref'
+import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
+import { BlockType, parseReferencePath, REFERENCE } from '@/executor/constants'
 import type { ExecutionState, LoopScope } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
-import { createEnvVarPattern, replaceValidReferences } from '@/executor/utils/reference-validation'
+import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { BlockResolver } from '@/executor/variables/resolvers/block'
 import { EnvResolver } from '@/executor/variables/resolvers/env'
 import { LoopResolver } from '@/executor/variables/resolvers/loop'
 import { ParallelResolver } from '@/executor/variables/resolvers/parallel'
 import {
+  type AsyncPathNavigator,
   RESOLVED_EMPTY,
   type ResolutionContext,
   type Resolver,
@@ -22,6 +30,48 @@ export const FUNCTION_BLOCK_CONTEXT_VARS_KEY = '_runtimeContextVars'
 export const FUNCTION_BLOCK_DISPLAY_CODE_KEY = '_runtimeDisplayCode'
 
 const logger = createLogger('VariableResolver')
+
+function getNestedLargeValueMaterializationError(): Error {
+  return new Error(
+    'This execution value contains nested large values. Reference the nested field directly so it can be lazy-loaded.'
+  )
+}
+
+async function replaceValidReferencesAsync(
+  template: string,
+  replacer: (match: string, index: number, template: string) => Promise<string>
+): Promise<string> {
+  const pattern = createReferencePattern()
+  let cursor = 0
+  let result = ''
+  for (const match of template.matchAll(pattern)) {
+    const fullMatch = match[0]
+    const index = match.index ?? 0
+    result += template.slice(cursor, index)
+    result += isLikelyReferenceSegment(fullMatch)
+      ? await replacer(fullMatch, index, template)
+      : fullMatch
+    cursor = index + fullMatch.length
+  }
+  return result + template.slice(cursor)
+}
+
+async function replaceEnvVarsAsync(
+  template: string,
+  replacer: (match: string) => Promise<string>
+): Promise<string> {
+  const pattern = createEnvVarPattern()
+  let cursor = 0
+  let result = ''
+  for (const match of template.matchAll(pattern)) {
+    const fullMatch = match[0]
+    const index = match.index ?? 0
+    result += template.slice(cursor, index)
+    result += await replacer(fullMatch)
+    cursor = index + fullMatch.length
+  }
+  return result + template.slice(cursor)
+}
 
 type ShellQuoteContext = 'single' | 'double' | null
 type CodeStringQuoteContext = ShellQuoteContext | 'triple-single' | 'triple-double' | 'template'
@@ -43,12 +93,13 @@ export class VariableResolver {
   constructor(
     workflow: SerializedWorkflow,
     workflowVariables: Record<string, any>,
-    private state: ExecutionState
+    private state: ExecutionState,
+    options: { navigatePathAsync?: AsyncPathNavigator } = {}
   ) {
-    this.blockResolver = new BlockResolver(workflow)
+    this.blockResolver = new BlockResolver(workflow, options.navigatePathAsync)
     this.resolvers = [
-      new LoopResolver(workflow),
-      new ParallelResolver(workflow),
+      new LoopResolver(workflow, options.navigatePathAsync),
+      new ParallelResolver(workflow, options.navigatePathAsync),
       new WorkflowResolver(workflowVariables),
       new EnvResolver(),
       this.blockResolver,
@@ -64,16 +115,16 @@ export class VariableResolver {
    * should inject contextVariables into the function execution request body so the
    * isolated VM can access them as global variables.
    */
-  resolveInputsForFunctionBlock(
+  async resolveInputsForFunctionBlock(
     ctx: ExecutionContext,
     currentNodeId: string,
     params: Record<string, any> | null | undefined,
     block: SerializedBlock
-  ): {
+  ): Promise<{
     resolvedInputs: Record<string, any>
     displayInputs: Record<string, any>
     contextVariables: Record<string, unknown>
-  } {
+  }> {
     const contextVariables: Record<string, unknown> = {}
     const resolved: Record<string, any> = {}
     const display: Record<string, any> = {}
@@ -85,7 +136,7 @@ export class VariableResolver {
     for (const [key, value] of Object.entries(params)) {
       if (key === 'code') {
         if (typeof value === 'string') {
-          const code = this.resolveCodeWithContextVars(
+          const code = await this.resolveCodeWithContextVars(
             ctx,
             currentNodeId,
             value,
@@ -100,7 +151,7 @@ export class VariableResolver {
           const displayItems: any[] = []
           for (const item of value) {
             if (item && typeof item === 'object' && typeof item.content === 'string') {
-              const code = this.resolveCodeWithContextVars(
+              const code = await this.resolveCodeWithContextVars(
                 ctx,
                 currentNodeId,
                 item.content,
@@ -124,11 +175,11 @@ export class VariableResolver {
           resolved[key] = resolvedItems
           display[key] = displayItems
         } else {
-          resolved[key] = this.resolveValue(ctx, currentNodeId, value, undefined, block)
+          resolved[key] = await this.resolveValue(ctx, currentNodeId, value, undefined, block)
           display[key] = resolved[key]
         }
       } else {
-        resolved[key] = this.resolveValue(ctx, currentNodeId, value, undefined, block)
+        resolved[key] = await this.resolveValue(ctx, currentNodeId, value, undefined, block)
         display[key] = resolved[key]
       }
     }
@@ -136,12 +187,12 @@ export class VariableResolver {
     return { resolvedInputs: resolved, displayInputs: display, contextVariables }
   }
 
-  resolveInputs(
+  async resolveInputs(
     ctx: ExecutionContext,
     currentNodeId: string,
     params: Record<string, any>,
     block?: SerializedBlock
-  ): Record<string, any> {
+  ): Promise<Record<string, any>> {
     if (!params) {
       return {}
     }
@@ -152,15 +203,21 @@ export class VariableResolver {
       try {
         const parsed = JSON.parse(params.conditions)
         if (Array.isArray(parsed)) {
-          resolved.conditions = parsed.map((cond: any) => ({
-            ...cond,
-            value:
-              typeof cond.value === 'string'
-                ? this.resolveTemplateWithoutConditionFormatting(ctx, currentNodeId, cond.value)
-                : cond.value,
-          }))
+          resolved.conditions = await Promise.all(
+            parsed.map(async (cond: any) => ({
+              ...cond,
+              value:
+                typeof cond.value === 'string'
+                  ? await this.resolveTemplateWithoutConditionFormatting(
+                      ctx,
+                      currentNodeId,
+                      cond.value
+                    )
+                  : cond.value,
+            }))
+          )
         } else {
-          resolved.conditions = this.resolveValue(
+          resolved.conditions = await this.resolveValue(
             ctx,
             currentNodeId,
             params.conditions,
@@ -173,7 +230,7 @@ export class VariableResolver {
           error: parseError,
           conditions: params.conditions,
         })
-        resolved.conditions = this.resolveValue(
+        resolved.conditions = await this.resolveValue(
           ctx,
           currentNodeId,
           params.conditions,
@@ -187,17 +244,17 @@ export class VariableResolver {
       if (isConditionBlock && key === 'conditions') {
         continue
       }
-      resolved[key] = this.resolveValue(ctx, currentNodeId, value, undefined, block)
+      resolved[key] = await this.resolveValue(ctx, currentNodeId, value, undefined, block)
     }
     return resolved
   }
 
-  resolveSingleReference(
+  async resolveSingleReference(
     ctx: ExecutionContext,
     currentNodeId: string,
     reference: string,
     loopScope?: LoopScope
-  ): any {
+  ): Promise<any> {
     if (typeof reference === 'string') {
       const trimmed = reference.trim()
       if (/^<[^<>]+>$/.test(trimmed)) {
@@ -208,7 +265,7 @@ export class VariableResolver {
           loopScope,
         }
 
-        const result = this.resolveReference(trimmed, resolutionContext)
+        const result = await this.resolveReference(trimmed, resolutionContext)
         if (result === RESOLVED_EMPTY) {
           return null
         }
@@ -219,29 +276,31 @@ export class VariableResolver {
     return this.resolveValue(ctx, currentNodeId, reference, loopScope)
   }
 
-  private resolveValue(
+  private async resolveValue(
     ctx: ExecutionContext,
     currentNodeId: string,
     value: any,
     loopScope?: LoopScope,
     block?: SerializedBlock
-  ): any {
+  ): Promise<any> {
     if (value === null || value === undefined) {
       return value
     }
 
     if (Array.isArray(value)) {
-      return value.map((v) => this.resolveValue(ctx, currentNodeId, v, loopScope, block))
+      return Promise.all(
+        value.map((v) => this.resolveValue(ctx, currentNodeId, v, loopScope, block))
+      )
     }
 
     if (typeof value === 'object') {
-      return Object.entries(value).reduce(
-        (acc, [key, val]) => ({
-          ...acc,
-          [key]: this.resolveValue(ctx, currentNodeId, val, loopScope, block),
-        }),
-        {}
+      const entries = await Promise.all(
+        Object.entries(value).map(async ([key, val]) => [
+          key,
+          await this.resolveValue(ctx, currentNodeId, val, loopScope, block),
+        ])
       )
+      return Object.fromEntries(entries)
     }
 
     if (typeof value === 'string') {
@@ -256,19 +315,20 @@ export class VariableResolver {
    * items, workflow variables, env vars) are still inlined as literals so they remain
    * available without any extra passing mechanism.
    */
-  private resolveCodeWithContextVars(
+  private async resolveCodeWithContextVars(
     ctx: ExecutionContext,
     currentNodeId: string,
     template: string,
     loopScope: LoopScope | undefined,
     block: SerializedBlock,
     contextVarAccumulator: Record<string, unknown>
-  ): { resolvedCode: string; displayCode: string } {
+  ): Promise<{ resolvedCode: string; displayCode: string }> {
     const resolutionContext: ResolutionContext = {
       executionContext: ctx,
       executionState: this.state,
       currentNodeId,
       loopScope,
+      allowLargeValueRefs: true,
     }
 
     const language = (block.config?.params as Record<string, unknown> | undefined)?.language as
@@ -279,14 +339,27 @@ export class VariableResolver {
     let displayResult = ''
     let displayCursor = 0
 
-    let result = replaceValidReferences(template, (match, index) => {
+    let result = await replaceValidReferencesAsync(template, async (match, index) => {
       if (replacementError) return match
       displayResult += template.slice(displayCursor, index)
       displayCursor = index + match.length
 
       try {
+        const lazyBase64 = await this.resolveLazyFileBase64Reference(
+          match,
+          resolutionContext,
+          language,
+          template,
+          index,
+          contextVarAccumulator
+        )
+        if (lazyBase64) {
+          displayResult += lazyBase64.display
+          return lazyBase64.replacement
+        }
+
         if (this.blockResolver.canResolve(match)) {
-          const resolved = this.resolveReference(match, resolutionContext)
+          const resolved = await this.resolveReference(match, resolutionContext)
           if (resolved === undefined) {
             displayResult += match
             return match
@@ -298,13 +371,29 @@ export class VariableResolver {
           // with language-specific runtime access to that stored value.
           const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
           contextVarAccumulator[varName] = effectiveValue
-          const replacement = this.formatContextVariableReference(
-            varName,
-            language,
-            template,
-            index,
-            effectiveValue
-          )
+          let replacement: string
+          if (isLargeValueRef(effectiveValue)) {
+            const lazyReplacement = this.formatLazyLargeValueReference(
+              varName,
+              language,
+              template,
+              index
+            )
+            if (!lazyReplacement) {
+              throw getLargeValueMaterializationError(effectiveValue)
+            }
+            replacement = lazyReplacement
+          } else if (containsLargeValueRef(effectiveValue)) {
+            throw getNestedLargeValueMaterializationError()
+          } else {
+            replacement = this.formatContextVariableReference(
+              varName,
+              language,
+              template,
+              index,
+              effectiveValue
+            )
+          }
           displayResult += this.formatDisplayValueForCodeContext(
             effectiveValue,
             language,
@@ -314,13 +403,38 @@ export class VariableResolver {
           return replacement
         }
 
-        const resolved = this.resolveReference(match, resolutionContext)
+        const resolved = await this.resolveReference(match, resolutionContext)
         if (resolved === undefined) {
           displayResult += match
           return match
         }
 
         const effectiveValue = resolved === RESOLVED_EMPTY ? null : resolved
+
+        if (isLargeValueRef(effectiveValue)) {
+          const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
+          contextVarAccumulator[varName] = effectiveValue
+          const lazyReplacement = this.formatLazyLargeValueReference(
+            varName,
+            language,
+            template,
+            index
+          )
+          if (lazyReplacement) {
+            displayResult += this.formatDisplayValueForCodeContext(
+              effectiveValue,
+              language,
+              template,
+              index
+            )
+            return lazyReplacement
+          }
+          throw getLargeValueMaterializationError(effectiveValue)
+        }
+
+        if (containsLargeValueRef(effectiveValue)) {
+          throw getNestedLargeValueMaterializationError()
+        }
 
         // Non-block reference (loop, parallel, workflow, env): embed as literal
         const replacement = this.blockResolver.formatValueForBlock(
@@ -342,16 +456,239 @@ export class VariableResolver {
       throw replacementError
     }
 
-    result = result.replace(createEnvVarPattern(), (match) => {
-      const resolved = this.resolveReference(match, resolutionContext)
+    result = await replaceEnvVarsAsync(result, async (match) => {
+      const resolved = await this.resolveReference(match, resolutionContext)
       return typeof resolved === 'string' ? resolved : match
     })
-    displayResult = displayResult.replace(createEnvVarPattern(), (match) => {
-      const resolved = this.resolveReference(match, resolutionContext)
+    displayResult = await replaceEnvVarsAsync(displayResult, async (match) => {
+      const resolved = await this.resolveReference(match, resolutionContext)
       return typeof resolved === 'string' ? resolved : match
     })
 
     return { resolvedCode: result, displayCode: displayResult }
+  }
+
+  private async resolveLazyFileBase64Reference(
+    reference: string,
+    context: ResolutionContext,
+    language: string | undefined,
+    template: string,
+    matchIndex: number,
+    contextVarAccumulator: Record<string, unknown>
+  ): Promise<{ replacement: string; display: string } | null> {
+    if (!this.canUseJavaScriptRuntimeHelpers(language, template)) {
+      return null
+    }
+
+    const parts = parseReferencePath(reference)
+    if (parts.length < 3 || parts.at(-1) !== 'base64') {
+      return null
+    }
+
+    const fileReference = `${REFERENCE.START}${parts.slice(0, -1).join(REFERENCE.PATH_DELIMITER)}${REFERENCE.END}`
+    const file = await this.resolveReference(fileReference, context)
+    if (!isUserFileWithMetadata(file)) {
+      return null
+    }
+    if (!file.key) {
+      return null
+    }
+
+    const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
+    const { base64: _base64, ...fileMetadata } = file
+    contextVarAccumulator[varName] = fileMetadata
+    const fileExpression = `globalThis[${JSON.stringify(varName)}]`
+    const lazyExpression = `(await sim.files.readBase64(${fileExpression}))`
+
+    return {
+      replacement: this.formatJavaScriptAsyncExpression(lazyExpression, template, matchIndex),
+      display: reference,
+    }
+  }
+
+  private formatLazyLargeValueReference(
+    varName: string,
+    language: string | undefined,
+    template: string,
+    matchIndex: number
+  ): string | null {
+    if (!this.canUseJavaScriptRuntimeHelpers(language, template)) {
+      return null
+    }
+
+    const expression = `(await sim.values.read(globalThis[${JSON.stringify(varName)}]))`
+    return this.formatJavaScriptAsyncExpression(expression, template, matchIndex, {
+      stringifyInStringContext: true,
+    })
+  }
+
+  private formatJavaScriptAsyncExpression(
+    expression: string,
+    template: string,
+    matchIndex: number,
+    options: { stringifyInStringContext?: boolean } = {}
+  ): string {
+    const quoteContext = this.getCodeStringQuoteContext(template, matchIndex, 'javascript')
+    const stringExpression = options.stringifyInStringContext
+      ? `JSON.stringify(${expression})`
+      : expression
+
+    if (quoteContext === 'template') {
+      return `\${${stringExpression}}`
+    }
+    if (quoteContext === 'single' || quoteContext === 'double') {
+      const quote = this.getCodeStringQuoteToken(quoteContext)
+      return `${quote} + ${stringExpression} + ${quote}`
+    }
+    return expression
+  }
+
+  private canUseJavaScriptRuntimeHelpers(language: string | undefined, template: string): boolean {
+    if (language !== 'javascript') {
+      return false
+    }
+    return !this.hasJavaScriptModuleDependencySyntax(template)
+  }
+
+  private hasJavaScriptModuleDependencySyntax(template: string): boolean {
+    const modes: CodeScanMode[] = [{ type: 'normal' }]
+
+    for (let i = 0; i < template.length; i++) {
+      const char = template[i]
+      const next = template[i + 1]
+      const mode = modes[modes.length - 1]
+
+      if (mode.type === 'line-comment') {
+        if (char === '\n') modes.pop()
+        continue
+      }
+
+      if (mode.type === 'block-comment') {
+        if (char === '*' && next === '/') {
+          modes.pop()
+          i++
+        }
+        continue
+      }
+
+      if (mode.type === 'single' || mode.type === 'double') {
+        const quote = mode.type === 'single' ? "'" : '"'
+        if (char === '\\') {
+          i++
+          continue
+        }
+        if (char === quote || char === '\n') modes.pop()
+        continue
+      }
+
+      if (mode.type === 'template') {
+        if (char === '\\') {
+          i++
+          continue
+        }
+        if (char === '`') {
+          modes.pop()
+          continue
+        }
+        if (char === '$' && next === '{') {
+          modes.push({ type: 'template-expression', depth: 1 })
+          i++
+        }
+        continue
+      }
+
+      const isCodeMode = mode.type === 'normal' || mode.type === 'template-expression'
+      if (!isCodeMode) continue
+
+      if (char === '/' && next === '/') {
+        modes.push({ type: 'line-comment' })
+        i++
+        continue
+      }
+      if (char === '/' && next === '*') {
+        modes.push({ type: 'block-comment' })
+        i++
+        continue
+      }
+      if (char === "'") {
+        modes.push({ type: 'single' })
+        continue
+      }
+      if (char === '"') {
+        modes.push({ type: 'double' })
+        continue
+      }
+      if (char === '`') {
+        modes.push({ type: 'template' })
+        continue
+      }
+
+      if (mode.type === 'template-expression') {
+        if (char === '{') {
+          mode.depth += 1
+          continue
+        }
+        if (char === '}') {
+          mode.depth -= 1
+          if (mode.depth === 0) modes.pop()
+          continue
+        }
+      }
+
+      if (this.startsWithStaticImport(template, i) || this.startsWithRequireCall(template, i)) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  private startsWithStaticImport(template: string, index: number): boolean {
+    if (!this.matchesKeywordAt(template, index, 'import')) {
+      return false
+    }
+    const nextIndex = this.skipWhitespace(template, index + 'import'.length)
+    if (nextIndex === index + 'import'.length) {
+      return false
+    }
+    return template[nextIndex] !== '('
+  }
+
+  private startsWithRequireCall(template: string, index: number): boolean {
+    if (!this.matchesKeywordAt(template, index, 'require')) {
+      return false
+    }
+    const openParenIndex = this.skipWhitespace(template, index + 'require'.length)
+    if (template[openParenIndex] !== '(') {
+      return false
+    }
+    const argumentIndex = this.skipWhitespace(template, openParenIndex + 1)
+    return (
+      template[argumentIndex] === "'" ||
+      template[argumentIndex] === '"' ||
+      template[argumentIndex] === '`'
+    )
+  }
+
+  private matchesKeywordAt(template: string, index: number, keyword: string): boolean {
+    if (!template.startsWith(keyword, index)) {
+      return false
+    }
+    const before = index > 0 ? template[index - 1] : ''
+    const after = template[index + keyword.length] ?? ''
+    return !this.isJavaScriptIdentifierChar(before) && !this.isJavaScriptIdentifierChar(after)
+  }
+
+  private skipWhitespace(template: string, index: number): number {
+    let cursor = index
+    while (cursor < template.length && /\s/.test(template[cursor])) {
+      cursor++
+    }
+    return cursor
+  }
+
+  private isJavaScriptIdentifierChar(char: string): boolean {
+    return /[A-Za-z0-9_$]/.test(char)
   }
 
   private formatContextVariableReference(
@@ -669,13 +1006,13 @@ export class VariableResolver {
     return previous === undefined || /\s|[;&|()<>]/.test(previous)
   }
 
-  private resolveTemplate(
+  private async resolveTemplate(
     ctx: ExecutionContext,
     currentNodeId: string,
     template: string,
     loopScope?: LoopScope,
     block?: SerializedBlock
-  ): string {
+  ): Promise<string> {
     const resolutionContext: ResolutionContext = {
       executionContext: ctx,
       executionState: this.state,
@@ -693,11 +1030,11 @@ export class VariableResolver {
             | undefined)
         : undefined
 
-    let result = replaceValidReferences(template, (match) => {
+    let result = await replaceValidReferencesAsync(template, async (match) => {
       if (replacementError) return match
 
       try {
-        const resolved = this.resolveReference(match, resolutionContext)
+        const resolved = await this.resolveReference(match, resolutionContext)
         if (resolved === undefined) {
           return match
         }
@@ -720,19 +1057,19 @@ export class VariableResolver {
       throw replacementError
     }
 
-    result = result.replace(createEnvVarPattern(), (match) => {
-      const resolved = this.resolveReference(match, resolutionContext)
+    result = await replaceEnvVarsAsync(result, async (match) => {
+      const resolved = await this.resolveReference(match, resolutionContext)
       return typeof resolved === 'string' ? resolved : match
     })
     return result
   }
 
-  private resolveTemplateWithoutConditionFormatting(
+  private async resolveTemplateWithoutConditionFormatting(
     ctx: ExecutionContext,
     currentNodeId: string,
     template: string,
     loopScope?: LoopScope
-  ): string {
+  ): Promise<string> {
     const resolutionContext: ResolutionContext = {
       executionContext: ctx,
       executionState: this.state,
@@ -742,11 +1079,11 @@ export class VariableResolver {
 
     let replacementError: Error | null = null
 
-    let result = replaceValidReferences(template, (match) => {
+    let result = await replaceValidReferencesAsync(template, async (match) => {
       if (replacementError) return match
 
       try {
-        const resolved = this.resolveReference(match, resolutionContext)
+        const resolved = await this.resolveReference(match, resolutionContext)
         if (resolved === undefined) {
           return match
         }
@@ -779,17 +1116,19 @@ export class VariableResolver {
       throw replacementError
     }
 
-    result = result.replace(createEnvVarPattern(), (match) => {
-      const resolved = this.resolveReference(match, resolutionContext)
+    result = await replaceEnvVarsAsync(result, async (match) => {
+      const resolved = await this.resolveReference(match, resolutionContext)
       return typeof resolved === 'string' ? resolved : match
     })
     return result
   }
 
-  private resolveReference(reference: string, context: ResolutionContext): any {
+  private async resolveReference(reference: string, context: ResolutionContext): Promise<any> {
     for (const resolver of this.resolvers) {
       if (resolver.canResolve(reference)) {
-        const result = resolver.resolve(reference, context)
+        const result = resolver.resolveAsync
+          ? await resolver.resolveAsync(reference, context)
+          : resolver.resolve(reference, context)
         return result
       }
     }
