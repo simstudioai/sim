@@ -258,7 +258,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
         aria-expanded={expanded}
         className='flex items-center gap-2'
       >
-        <span className='font-base text-[var(--text-muted)] text-small'>Suggested actions</span>
+        <span className='text-[var(--text-muted)] text-small'>Suggested actions</span>
         <ChevronDown
           className={cn(
             'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
@@ -282,7 +282,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
                   )}
                 >
                   <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                  <span className='flex-1 truncate font-base text-[var(--text-body)] text-sm'>
+                  <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
                     {action.label}
                   </span>
                   <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />

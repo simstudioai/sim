@@ -58,9 +58,6 @@ const RecentlyDeleted = dynamic(() =>
     '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'
   ).then((m) => m.RecentlyDeleted)
 )
-const Skills = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/skills/skills').then((m) => m.Skills)
-)
 const Subscription = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/subscription/subscription').then(
     (m) => m.Subscription
@@ -149,7 +146,6 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'copilot' && <Copilot />}
       {effectiveSection === 'mcp' && <MCP initialServerId={mcpServerId} />}
       {effectiveSection === 'custom-tools' && <CustomTools />}
-      {effectiveSection === 'skills' && <Skills />}
       {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
       {effectiveSection === 'inbox' && <Inbox />}
       {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}

@@ -370,7 +370,7 @@ function WorkspaceHeaderImpl({
               )}
               {!isCollapsed && activeWorkspace?.name && (
                 <>
-                  <span className='min-w-0 truncate font-base text-[var(--text-body)] text-sm'>
+                  <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
                     {activeWorkspace.name}
                   </span>
                   <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
@@ -461,7 +461,7 @@ function WorkspaceHeaderImpl({
                                 }
                                 setEditingWorkspaceId(null)
                               }}
-                              className='w-full border-0 bg-transparent p-0 font-base text-[var(--text-body)] text-sm outline-none selection:bg-[var(--selection-bg)] selection:text-[var(--bg)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
+                              className='w-full border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none selection:bg-[var(--selection-bg)] selection:text-[var(--bg)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
                               maxLength={100}
                               autoComplete='off'
                               autoCorrect='off'
@@ -511,7 +511,7 @@ function WorkspaceHeaderImpl({
                                 {initial}
                               </div>
                             )}
-                            <span className='min-w-0 flex-1 truncate font-base text-[var(--text-body)] text-sm'>
+                            <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
                               {workspace.name}
                             </span>
                             <button
@@ -545,7 +545,7 @@ function WorkspaceHeaderImpl({
                 <div className='flex flex-col gap-0.5'>
                   <button
                     type='button'
-                    className='flex h-[30px] w-full cursor-pointer select-none items-center gap-2 rounded-lg px-2 font-base text-[var(--text-body)] text-sm transition-colors hover-hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
+                    className='flex h-[30px] w-full cursor-pointer select-none items-center gap-2 rounded-lg px-2 text-[var(--text-body)] text-sm transition-colors hover-hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
                     onClick={(e) => {
                       e.stopPropagation()
                       setIsWorkspaceMenuOpen(false)
@@ -566,7 +566,7 @@ function WorkspaceHeaderImpl({
                 <DropdownMenuSeparator className='mx-0' />
                 <button
                   type='button'
-                  className='flex h-[30px] w-full cursor-pointer select-none items-center gap-2 rounded-lg px-2 font-base text-[var(--text-body)] text-sm transition-colors hover-hover:bg-[var(--surface-active)]'
+                  className='flex h-[30px] w-full cursor-pointer select-none items-center gap-2 rounded-lg px-2 text-[var(--text-body)] text-sm transition-colors hover-hover:bg-[var(--surface-active)]'
                   onClick={() => {
                     setIsWorkspaceMenuOpen(false)
                     if (isInvitationsDisabled) {
@@ -615,7 +615,7 @@ function WorkspaceHeaderImpl({
           )}
           {!isCollapsed && activeWorkspace?.name && (
             <>
-              <span className='min-w-0 truncate font-base text-[var(--text-body)] text-sm'>
+              <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
                 {activeWorkspace.name}
               </span>
               <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
@@ -682,9 +682,8 @@ function WorkspaceHeaderImpl({
           <ModalBody>
             <p className='text-[var(--text-secondary)]'>
               Are you sure you want to leave{' '}
-              <span className='font-base text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
-              will lose access to all workflows and data in this workspace. This action cannot be
-              undone.
+              <span className='text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You will lose
+              access to all workflows and data in this workspace. This action cannot be undone.
             </p>
           </ModalBody>
           <ModalFooter>

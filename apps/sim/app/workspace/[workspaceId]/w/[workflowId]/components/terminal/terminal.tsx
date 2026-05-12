@@ -124,19 +124,14 @@ const BlockRow = memo(function BlockRow({
         </div>
         <span
           className={clsx(
-            'min-w-0 truncate font-base text-sm',
+            'min-w-0 truncate text-sm',
             hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
           )}
         >
           {entry.blockName}
         </span>
       </div>
-      <span
-        className={clsx(
-          'flex-shrink-0 font-base text-sm',
-          !isRunning && 'text-[var(--text-secondary)]'
-        )}
-      >
+      <span className={clsx('flex-shrink-0 text-sm', !isRunning && 'text-[var(--text-secondary)]')}>
         <StatusDisplay
           isRunning={isRunning}
           isCanceled={isCanceled}
@@ -192,7 +187,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           <span
             className={clsx(
-              'min-w-0 truncate font-base text-sm',
+              'min-w-0 truncate text-sm',
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
@@ -209,7 +204,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-base text-sm',
+            'flex-shrink-0 text-sm',
             !hasRunningChild && 'text-[var(--text-secondary)]'
           )}
         >
@@ -295,7 +290,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
           </div>
           <span
             className={clsx(
-              'min-w-0 truncate font-base text-sm',
+              'min-w-0 truncate text-sm',
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
@@ -312,7 +307,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-base text-sm',
+            'flex-shrink-0 text-sm',
             !hasRunningDescendant && 'text-[var(--text-secondary)]'
           )}
         >
@@ -408,7 +403,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
           </div>
           <span
             className={clsx(
-              'min-w-0 truncate font-base text-sm',
+              'min-w-0 truncate text-sm',
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
@@ -425,7 +420,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-base text-sm',
+            'flex-shrink-0 text-sm',
             !hasRunningDescendant && 'text-[var(--text-secondary)]'
           )}
         >

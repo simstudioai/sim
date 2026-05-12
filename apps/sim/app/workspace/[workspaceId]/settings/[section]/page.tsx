@@ -21,7 +21,6 @@ const SECTION_TITLES: Record<string, string> = {
   copilot: 'Copilot Keys',
   mcp: 'MCP Tools',
   'custom-tools': 'Custom Tools',
-  skills: 'Skills',
   'workflow-mcp-servers': 'MCP Servers',
   'credential-sets': 'Email Polling',
   'data-retention': 'Data Retention',

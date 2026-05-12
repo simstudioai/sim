@@ -297,7 +297,7 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel({
                       onKeyDown={handleKeyDown}
                       placeholder='Build an AI agent...'
                       rows={2}
-                      className='mb-1.5 min-h-[48px] w-full cursor-text resize-none border-0 bg-transparent px-0.5 py-1 font-base text-[#e6e6e6] text-sm leading-[1.25rem] placeholder-[#787878] caret-[#e6e6e6] outline-none'
+                      className='mb-1.5 min-h-[48px] w-full cursor-text resize-none border-0 bg-transparent px-0.5 py-1 text-[#e6e6e6] text-sm leading-[1.25rem] placeholder-[#787878] caret-[#e6e6e6] outline-none'
                     />
                     <div className='flex items-center justify-end'>
                       <button

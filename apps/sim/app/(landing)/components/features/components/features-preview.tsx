@@ -760,7 +760,7 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
               <tr>
                 {['Workflow', 'Date', 'Status', 'Cost', 'Trigger', 'Duration'].map((col) => (
                   <th key={col} className='h-10 px-6 py-2.5 text-left align-middle'>
-                    <span className='font-base text-[#999] text-[13px]'>{col}</span>
+                    <span className='text-[#999] text-[13px]'>{col}</span>
                   </th>
                 ))}
               </tr>

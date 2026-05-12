@@ -219,52 +219,16 @@ async function generateIconMapping(): Promise<Record<string, string>> {
     const iconMapping: Record<string, string> = {}
     const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
 
+    // Share the parser with `writeIntegrationsJson` so the icon map and the
+    // integrations dataset can never drift. `extractAllBlockConfigs` already
+    // resolves spread inheritance (e.g. V2 blocks built via `...BaseBlock`)
+    // and skips `hideFromToolbar: true`.
     for (const blockFile of blockFiles) {
       const fileContent = fs.readFileSync(blockFile, 'utf-8')
-
-      // For icon mapping, we need ALL blocks including hidden ones
-      // because V2 blocks inherit icons from legacy blocks via spread
-      // First, extract the primary icon from the file (usually the legacy block's icon)
-      const primaryIcon = extractIconNameFromContent(fileContent)
-
-      // Find all block exports and their types
-      const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
-      let match
-
-      while ((match = exportRegex.exec(fileContent)) !== null) {
-        const blockName = match[1]
-        const startIndex = match.index + match[0].length - 1
-
-        // Extract the block content
-        const endIndex = findMatchingClose(fileContent, startIndex)
-
-        if (endIndex !== -1) {
-          const blockContent = fileContent.substring(startIndex, endIndex)
-
-          // Check hideFromToolbar - skip hidden blocks for docs but NOT for icon mapping
-          const hideFromToolbar = /hideFromToolbar\s*:\s*true/.test(blockContent)
-
-          // Get block type
-          const blockType =
-            extractStringPropertyFromContent(blockContent, 'type') || blockName.toLowerCase()
-
-          // Get icon - either from this block or inherited from primary
-          const iconName = extractIconNameFromContent(blockContent) || primaryIcon
-
-          if (!blockType || !iconName) {
-            continue
-          }
-
-          // Canonical integrations filter (icon map mirrors the integrations dataset).
-          // Hidden tools still get icons so legacy nodes render correctly.
-          const category = extractStringPropertyFromContent(blockContent, 'category') || 'misc'
-          if (category !== 'tools') continue
-
-          // Only add non-hidden blocks to icon mapping (docs won't be generated for hidden)
-          if (!hideFromToolbar) {
-            iconMapping[blockType] = iconName
-          }
-        }
+      for (const config of extractAllBlockConfigs(fileContent)) {
+        const { type, category, iconName } = config
+        if (category !== 'tools' || !type || !iconName) continue
+        iconMapping[type] = iconName
       }
     }
 

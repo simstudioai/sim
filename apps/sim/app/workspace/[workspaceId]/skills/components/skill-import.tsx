@@ -7,7 +7,10 @@ import { Upload } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { importSkillContract } from '@/lib/api/contracts'
 import { cn } from '@/lib/core/utils/cn'
-import { extractSkillFromZip, parseSkillMarkdown } from './utils'
+import {
+  extractSkillFromZip,
+  parseSkillMarkdown,
+} from '@/app/workspace/[workspaceId]/skills/components/utils'
 
 interface ImportedSkill {
   name: string

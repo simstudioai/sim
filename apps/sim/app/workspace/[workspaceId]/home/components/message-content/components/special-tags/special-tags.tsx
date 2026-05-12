@@ -401,7 +401,7 @@ export function PendingTagIndicator() {
           />
         ))}
       </div>
-      <span className='font-base text-[var(--text-body)] text-sm'>Thinking…</span>
+      <span className='text-[var(--text-body)] text-sm'>Thinking…</span>
     </div>
   )
 }
@@ -429,7 +429,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
           aria-expanded={expanded}
           className='flex items-center gap-2'
         >
-          <span className='font-base text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
+          <span className='text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
           <ChevronDown
             className={cn(
               'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
@@ -438,7 +438,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
           />
         </button>
       ) : (
-        <span className='font-base text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
+        <span className='text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
       )}
       <Expandable expanded={expanded}>
         <ExpandableContent className='mt-1.5'>
@@ -459,9 +459,9 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
                   )}
                 >
                   <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-                    <span className='font-base text-[var(--text-icon)] text-sm'>{i + 1}</span>
+                    <span className='text-[var(--text-icon)] text-sm'>{i + 1}</span>
                   </div>
-                  <span className='flex-1 font-base text-[var(--text-body)] text-sm'>{title}</span>
+                  <span className='flex-1 text-[var(--text-body)] text-sm'>{title}</span>
                   <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
                 </button>
               )
@@ -616,9 +616,7 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
         className='flex items-center gap-2 rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
       >
         {createElement(Icon, { className: 'h-[16px] w-[16px] shrink-0' })}
-        <span className='flex-1 font-base text-[var(--text-body)] text-sm'>
-          Connect {data.provider}
-        </span>
+        <span className='flex-1 text-[var(--text-body)] text-sm'>Connect {data.provider}</span>
         <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
       </a>
     )
@@ -634,11 +632,7 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
 function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
   const detail = data.code ? `${data.message} (${data.code})` : data.message
 
-  return (
-    <p className='font-base text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>
-      {detail}
-    </p>
-  )
+  return <p className='text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>{detail}</p>
 }
 
 function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {

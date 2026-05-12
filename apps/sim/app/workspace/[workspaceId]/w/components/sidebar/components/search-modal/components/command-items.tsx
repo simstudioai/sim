@@ -32,7 +32,7 @@ export const MemoizedCommandItem = memo(
             )}
           />
         </div>
-        <span className='truncate font-base text-[var(--text-body)]'>{children}</span>
+        <span className='truncate text-[var(--text-body)]'>{children}</span>
       </Command.Item>
     )
   },
@@ -70,12 +70,12 @@ export const MemoizedWorkflowItem = memo(
             backgroundClip: 'padding-box',
           }}
         />
-        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 font-base text-[var(--text-body)]'>
+        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 text-[var(--text-body)]'>
           <span className='truncate'>{name}</span>
           {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
         </span>
         {folderPath && folderPath.length > 0 && (
-          <span className='ml-auto flex min-w-0 pl-2 font-base text-[var(--text-subtle)] text-small'>
+          <span className='ml-auto flex min-w-0 pl-2 text-[var(--text-subtle)] text-small'>
             {folderPath.length > 1 && (
               <>
                 <span className='min-w-0 truncate [flex-shrink:9999]'>
@@ -112,7 +112,7 @@ export const MemoizedTaskItem = memo(
   }) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <span className='truncate font-base text-[var(--text-body)]'>{name}</span>
+        <span className='truncate text-[var(--text-body)]'>{name}</span>
       </Command.Item>
     )
   },
@@ -133,7 +133,7 @@ export const MemoizedWorkspaceItem = memo(
   }) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <span className='flex min-w-0 font-base text-[var(--text-body)]'>
+        <span className='flex min-w-0 text-[var(--text-body)]'>
           <span className='truncate'>{name}</span>
           {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
         </span>
@@ -161,9 +161,9 @@ export const MemoizedPageItem = memo(
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-        <span className='truncate font-base text-[var(--text-body)]'>{name}</span>
+        <span className='truncate text-[var(--text-body)]'>{name}</span>
         {shortcut && (
-          <span className='ml-auto flex-shrink-0 font-base text-[var(--text-subtle)] text-small'>
+          <span className='ml-auto flex-shrink-0 text-[var(--text-subtle)] text-small'>
             {shortcut}
           </span>
         )}
@@ -192,7 +192,7 @@ export const MemoizedIconItem = memo(
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-        <span className='truncate font-base text-[var(--text-body)]'>{name}</span>
+        <span className='truncate text-[var(--text-body)]'>{name}</span>
       </Command.Item>
     )
   },

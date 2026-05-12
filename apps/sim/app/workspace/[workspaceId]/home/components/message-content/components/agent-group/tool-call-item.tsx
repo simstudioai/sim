@@ -98,7 +98,7 @@ export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: 
       <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
         <StatusIcon status={status} toolName={toolName} />
       </div>
-      <span className='font-base text-[13px] text-[var(--text-secondary)]'>
+      <span className='text-[13px] text-[var(--text-secondary)]'>
         {liveWorkspaceFileTitle || displayTitle}
       </span>
     </div>

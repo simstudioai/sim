@@ -50,7 +50,7 @@ const Content = React.forwardRef<
       collisionPadding={8}
       avoidCollisions
       className={cn(
-        'z-[var(--z-tooltip)] max-w-[260px] rounded-[4px] bg-[var(--tooltip-bg)] px-2 py-[3.5px] font-base text-white text-xs shadow-sm dark:text-black',
+        'z-[var(--z-tooltip)] max-w-[260px] rounded-[4px] bg-[var(--tooltip-bg)] px-2 py-[3.5px] text-white text-xs shadow-sm dark:text-black',
         className
       )}
       {...props}

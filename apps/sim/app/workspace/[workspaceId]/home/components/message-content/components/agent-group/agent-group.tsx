@@ -88,7 +88,7 @@ export function AgentGroup({
               <AgentIcon className='h-[16px] w-[16px] text-[var(--text-icon)]' />
             )}
           </div>
-          <span className='font-base text-[var(--text-body)] text-sm'>{agentLabel}</span>
+          <span className='text-[var(--text-body)] text-sm'>{agentLabel}</span>
           <ChevronDown
             className={cn(
               'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
@@ -105,7 +105,7 @@ export function AgentGroup({
               <AgentIcon className='h-[16px] w-[16px] text-[var(--text-icon)]' />
             )}
           </div>
-          <span className='font-base text-[var(--text-body)] text-sm'>{agentLabel}</span>
+          <span className='text-[var(--text-body)] text-sm'>{agentLabel}</span>
         </div>
       )}
       {hasItems && (
@@ -128,7 +128,7 @@ export function AgentGroup({
                   return (
                     <span
                       key={`text-${idx}`}
-                      className='pl-6 font-base text-[13px] text-[var(--text-secondary)] leading-[18px] opacity-60'
+                      className='pl-6 text-[13px] text-[var(--text-secondary)] leading-[18px] opacity-60'
                     >
                       {item.content.trim()}
                     </span>

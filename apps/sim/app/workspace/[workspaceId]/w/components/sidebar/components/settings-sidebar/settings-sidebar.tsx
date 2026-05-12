@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import {
@@ -46,6 +46,9 @@ export function SettingsSidebar({
   isCollapsed = false,
   showCollapsedTooltips = false,
 }: SettingsSidebarProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const scrollContentRef = useRef<HTMLDivElement>(null)
+
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const pathname = usePathname()
@@ -57,7 +60,9 @@ export function SettingsSidebar({
   const confirmNavigation = useSettingsDirtyStore((s) => s.confirmNavigation)
   const cancelNavigation = useSettingsDirtyStore((s) => s.cancelNavigation)
   const isDirty = useSettingsDirtyStore((s) => s.isDirty)
+
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
+  const [hasOverflowTop, setHasOverflowTop] = useState(false)
 
   const { data: session } = useSession()
   const { data: organizationsData } = useOrganizations()
@@ -114,9 +119,6 @@ export function SettingsSidebar({
         return false
       }
       if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) {
-        return false
-      }
-      if (item.id === 'skills' && permissionConfig.disableSkills) {
         return false
       }
 
@@ -226,10 +228,38 @@ export function SettingsSidebar({
     setShowDiscardDialog(false)
   }, [cancelNavigation])
 
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const updateScrollState = () => {
+      setHasOverflowTop(container.scrollTop > 1)
+    }
+
+    updateScrollState()
+    container.addEventListener('scroll', updateScrollState, { passive: true })
+    const observer = new ResizeObserver(updateScrollState)
+    observer.observe(container)
+    if (scrollContentRef.current) {
+      observer.observe(scrollContentRef.current)
+    }
+
+    return () => {
+      container.removeEventListener('scroll', updateScrollState)
+      observer.disconnect()
+    }
+  }, [isCollapsed])
+
   return (
     <>
       {/* Back button */}
-      <div className='mt-3 flex flex-shrink-0 flex-col gap-0.5 px-2'>
+      <div
+        className={cn(
+          SIDEBAR_SECTION_GAP_CLASS,
+          SIDEBAR_ITEM_GAP_CLASS,
+          'flex flex-shrink-0 flex-col px-2 pb-1.5'
+        )}
+      >
         <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
           <button
             type='button'
@@ -239,94 +269,105 @@ export function SettingsSidebar({
             <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
               <ChevronDown className='h-[10px] w-[10px] rotate-90' />
             </div>
-            <span className='truncate font-base text-[var(--text-body)]'>Back</span>
+            <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>Back</span>
           </button>
         </SidebarTooltip>
       </div>
 
       {/* Settings sections */}
       <div
+        ref={isCollapsed ? undefined : scrollContainerRef}
         className={cn(
-          'flex flex-1 flex-col pb-2',
-          !isCollapsed && 'overflow-y-auto overflow-x-hidden'
+          'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-1.5 transition-colors duration-150',
+          !hasOverflowTop && 'border-transparent'
         )}
       >
-        {sectionConfig.map(({ key, title }) => {
-          const sectionItems = navigationItems.filter((item) => item.section === key)
-          if (sectionItems.length === 0) return null
-
-          return (
-            <div key={key} className={cn(SIDEBAR_SECTION_GAP_CLASS, 'flex flex-shrink-0 flex-col')}>
-              <div className='px-4 pb-2'>
-                <div className='font-base text-[var(--text-muted)] text-small'>{title}</div>
-              </div>
-              <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-                {sectionItems.map((item) => {
-                  const Icon = item.icon
-                  const active = activeSection === item.id
-                  const isLocked = item.requiresMax && !subscriptionAccess.hasUsableMaxAccess
-                  const itemClassName = cn(
-                    'group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm',
-                    !active && 'hover-hover:bg-[var(--surface-active)]',
-                    active && 'bg-[var(--surface-active)]'
-                  )
-                  const content = (
-                    <>
-                      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                      <span className='min-w-0 truncate font-base text-[var(--text-body)]'>
-                        {item.label}
-                      </span>
-                      {isLocked && (
-                        <span className='ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
-                          Max
+        <div ref={scrollContentRef} className='flex flex-col'>
+          {sectionConfig
+            .map(({ key, title }) => ({
+              key,
+              title,
+              items: navigationItems.filter((item) => item.section === key),
+            }))
+            .filter(({ items }) => items.length > 0)
+            .map(({ key, title, items: sectionItems }, index) => (
+              <div
+                key={key}
+                className={cn(
+                  index > 0 && SIDEBAR_SECTION_GAP_CLASS,
+                  'flex flex-shrink-0 flex-col'
+                )}
+              >
+                <div className='px-4 pb-2'>
+                  <div className='text-[var(--text-muted)] text-small'>{title}</div>
+                </div>
+                <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
+                  {sectionItems.map((item) => {
+                    const Icon = item.icon
+                    const active = activeSection === item.id
+                    const isLocked = item.requiresMax && !subscriptionAccess.hasUsableMaxAccess
+                    const itemClassName = cn(
+                      'group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm',
+                      !active && 'hover-hover:bg-[var(--surface-active)]',
+                      active && 'bg-[var(--surface-active)]'
+                    )
+                    const content = (
+                      <>
+                        <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                        <span className='sidebar-collapse-hide min-w-0 truncate text-[var(--text-body)]'>
+                          {item.label}
                         </span>
-                      )}
-                    </>
-                  )
+                        {isLocked && (
+                          <span className='sidebar-collapse-hide ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
+                            Max
+                          </span>
+                        )}
+                      </>
+                    )
 
-                  const element = item.externalUrl ? (
-                    <a
-                      href={item.externalUrl}
-                      target='_blank'
-                      rel='noopener noreferrer'
-                      className={itemClassName}
-                    >
-                      {content}
-                    </a>
-                  ) : (
-                    <button
-                      type='button'
-                      className={itemClassName}
-                      onMouseEnter={() => handlePrefetch(item.id)}
-                      onFocus={() => handlePrefetch(item.id)}
-                      onClick={() => {
-                        const section = item.id as SettingsSection
-                        if (section === activeSection) return
-                        if (!requestNavigation(section)) {
-                          setShowDiscardDialog(true)
-                          return
-                        }
-                        router.replace(getSettingsHref({ section }), { scroll: false })
-                      }}
-                    >
-                      {content}
-                    </button>
-                  )
+                    const element = item.externalUrl ? (
+                      <a
+                        href={item.externalUrl}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className={itemClassName}
+                      >
+                        {content}
+                      </a>
+                    ) : (
+                      <button
+                        type='button'
+                        className={itemClassName}
+                        onMouseEnter={() => handlePrefetch(item.id)}
+                        onFocus={() => handlePrefetch(item.id)}
+                        onClick={() => {
+                          const section = item.id as SettingsSection
+                          if (section === activeSection) return
+                          if (!requestNavigation(section)) {
+                            setShowDiscardDialog(true)
+                            return
+                          }
+                          router.replace(getSettingsHref({ section }), { scroll: false })
+                        }}
+                      >
+                        {content}
+                      </button>
+                    )
 
-                  return (
-                    <SidebarTooltip
-                      key={`${item.id}-${isCollapsed}`}
-                      label={item.label}
-                      enabled={showCollapsedTooltips}
-                    >
-                      {element}
-                    </SidebarTooltip>
-                  )
-                })}
+                    return (
+                      <SidebarTooltip
+                        key={item.id}
+                        label={item.label}
+                        enabled={showCollapsedTooltips}
+                      >
+                        {element}
+                      </SidebarTooltip>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          )
-        })}
+            ))}
+        </div>
       </div>
 
       <Modal open={showDiscardDialog} onOpenChange={(open) => !open && handleCancelDiscard()}>

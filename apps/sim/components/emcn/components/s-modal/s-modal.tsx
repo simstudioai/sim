@@ -226,7 +226,7 @@ SModalMain.displayName = 'SModalMain'
 const SModalMainHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => (
     <div ref={ref} className={cn('flex items-center justify-between', className)} {...props}>
-      <span className='font-base text-[var(--text-muted)] text-sm'>{children}</span>
+      <span className='text-[var(--text-muted)] text-sm'>{children}</span>
       <DialogPrimitive.Close asChild>
         <Button
           variant='ghost'

@@ -18,9 +18,9 @@ import {
   ModalTabsTrigger,
   Textarea,
 } from '@/components/emcn'
+import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/skill-import'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useCreateSkill, useUpdateSkill } from '@/hooks/queries/skills'
-import { SkillImport } from './skill-import'
 
 interface SkillModalProps {
   open: boolean

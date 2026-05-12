@@ -484,7 +484,7 @@ export function SearchModal({
                 autoFocus
                 onValueChange={handleSearchChange}
                 placeholder='Search anything...'
-                className='h-full w-full bg-transparent font-base text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
+                className='h-full w-full bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
               />
             </div>
             <Command.List

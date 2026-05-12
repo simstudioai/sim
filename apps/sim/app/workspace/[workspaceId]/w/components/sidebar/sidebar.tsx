@@ -201,7 +201,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>{task.name}</div>
+        <div className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{task.name}</div>
         {task.id !== 'new' && (
           <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
             {(isActive || (!isCurrentRoute && isUnread)) && (
@@ -245,6 +245,19 @@ interface SidebarNavItemData {
   icon: React.ComponentType<{ className?: string }>
   href?: string
   onClick?: () => void
+  /** Extra path prefixes that should also mark this item as active (e.g. sibling tabs). */
+  additionalActivePaths?: string[]
+}
+
+/**
+ * Returns true when the current pathname matches `item.href` or any
+ * `additionalActivePaths` at a segment boundary (avoids `/foo` matching `/foo-bar`).
+ */
+function isNavItemActive(item: SidebarNavItemData, pathname: string | null): boolean {
+  if (!pathname) return false
+  const matches = (p: string) => pathname === p || pathname.startsWith(`${p}/`)
+  if (item.href && matches(item.href)) return true
+  return item.additionalActivePaths?.some(matches) ?? false
 }
 
 const SidebarNavItem = memo(function SidebarNavItem({
@@ -266,7 +279,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
   const content = (
     <>
       <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate font-base text-[var(--text-body)]'>{item.label}</span>
+      <span className='truncate text-[var(--text-body)]'>{item.label}</span>
     </>
   )
 
@@ -701,6 +714,7 @@ export const Sidebar = memo(function Sidebar() {
           label: 'Integrations',
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
+          additionalActivePaths: [`/workspace/${workspaceId}/skills`],
           hidden: permissionConfig.hideIntegrationsTab,
         },
       ].filter((item) => !item.hidden),
@@ -1293,7 +1307,7 @@ export const Sidebar = memo(function Sidebar() {
                     <SidebarNavItem
                       key={item.id}
                       item={item}
-                      active={item.href ? !!pathname?.startsWith(item.href) : false}
+                      active={isNavItemActive(item, pathname)}
                       showCollapsedTooltips={showCollapsedTooltips}
                       onContextMenu={item.href ? handleNavItemContextMenu : undefined}
                     />
@@ -1310,16 +1324,14 @@ export const Sidebar = memo(function Sidebar() {
                   <div ref={scrollContentRef} className='flex flex-col'>
                     <div className='flex flex-shrink-0 flex-col'>
                       <div className='px-4 pb-2'>
-                        <div className='font-base text-[var(--text-muted)] text-small'>
-                          Workspace
-                        </div>
+                        <div className='text-[var(--text-muted)] text-small'>Workspace</div>
                       </div>
                       <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
                         {workspaceNavItems.map((item) => (
                           <SidebarNavItem
                             key={item.id}
                             item={item}
-                            active={item.href ? !!pathname?.startsWith(item.href) : false}
+                            active={isNavItemActive(item, pathname)}
                             showCollapsedTooltips={showCollapsedTooltips}
                             onContextMenu={handleNavItemContextMenu}
                           />
@@ -1334,7 +1346,7 @@ export const Sidebar = memo(function Sidebar() {
                       )}
                     >
                       <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
-                        <div className='font-base text-[var(--text-muted)] text-small'>Tasks</div>
+                        <div className='text-[var(--text-muted)] text-small'>Tasks</div>
                         {!isCollapsed && (
                           <div className='flex items-center justify-center gap-2'>
                             <Tooltip.Root>
@@ -1421,7 +1433,7 @@ export const Sidebar = memo(function Sidebar() {
                                         onChange={(e) => taskFlyoutRename.setValue(e.target.value)}
                                         onKeyDown={taskFlyoutRename.handleKeyDown}
                                         onBlur={handleTaskRenameBlur}
-                                        className='min-w-0 flex-1 border-none bg-transparent font-base text-[14px] text-[var(--text-body)] outline-none'
+                                        className='min-w-0 flex-1 border-none bg-transparent text-[14px] text-[var(--text-body)] outline-none'
                                       />
                                     </div>
                                   )
@@ -1452,7 +1464,7 @@ export const Sidebar = memo(function Sidebar() {
                                       ? handleSeeMoreTasks
                                       : handleSeeLessTasks
                                   }
-                                  className='mx-0.5 flex h-[30px] items-center rounded-lg px-2 font-base text-[var(--text-muted)] text-small hover-hover:bg-[var(--surface-active)]'
+                                  className='mx-0.5 flex h-[30px] items-center rounded-lg px-2 text-[var(--text-muted)] text-small hover-hover:bg-[var(--surface-active)]'
                                 >
                                   {tasks.length > visibleTaskCount ? 'See more' : 'See less'}
                                 </button>
@@ -1470,9 +1482,7 @@ export const Sidebar = memo(function Sidebar() {
                       )}
                     >
                       <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
-                        <div className='font-base text-[var(--text-muted)] text-small'>
-                          Workflows
-                        </div>
+                        <div className='text-[var(--text-muted)] text-small'>Workflows</div>
                         {!isCollapsed && (
                           <div className='flex items-center justify-center gap-2'>
                             <DropdownMenu>
@@ -1642,7 +1652,7 @@ export const Sidebar = memo(function Sidebar() {
                           className='group mx-0.5 flex h-[30px] items-center gap-2 rounded-[8px] px-2 text-[14px] hover-hover:bg-[var(--surface-active)]'
                         >
                           <HelpCircle className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                          <span className='sidebar-collapse-hide truncate font-base text-[var(--text-body)]'>
+                          <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>
                             Help
                           </span>
                         </button>

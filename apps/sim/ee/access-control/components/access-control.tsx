@@ -146,7 +146,7 @@ function AddMembersModal({
                     placeholder='Search members...'
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                    className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
                   />
                 </div>
                 <Button variant='default' onClick={handleToggleAll}>
@@ -877,7 +877,7 @@ export function AccessControl() {
                         placeholder='Search providers...'
                         value={providerSearchTerm}
                         onChange={(e) => setProviderSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                        className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
                       />
                     </div>
                     <Button
@@ -938,7 +938,7 @@ export function AccessControl() {
                         placeholder='Search blocks...'
                         value={integrationSearchTerm}
                         onChange={(e) => setIntegrationSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                        className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
                       />
                     </div>
                     <Button
@@ -1048,7 +1048,7 @@ export function AccessControl() {
                         placeholder='Search features...'
                         value={platformSearchTerm}
                         onChange={(e) => setPlatformSearchTerm(e.target.value)}
-                        className='h-auto flex-1 border-0 bg-transparent p-0 font-base text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                        className='h-auto flex-1 border-0 bg-transparent p-0 text-sm leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
                       />
                     </div>
                     <Button
@@ -1206,7 +1206,7 @@ export function AccessControl() {
               placeholder='Search permission groups...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='h-auto flex-1 border-0 bg-transparent p-0 leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
           </div>
           <Button variant='primary' onClick={() => setShowCreateModal(true)}>

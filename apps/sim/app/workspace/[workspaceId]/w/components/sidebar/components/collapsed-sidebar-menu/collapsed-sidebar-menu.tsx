@@ -65,7 +65,7 @@ interface CollapsedWorkflowFlyoutItemProps {
 }
 
 const EDIT_ROW_CLASS =
-  'flex h-[30px] min-w-0 cursor-default select-none items-center gap-2 rounded-lg bg-[var(--surface-active)] px-2 font-base text-[var(--text-body)] text-small'
+  'flex h-[30px] min-w-0 cursor-default select-none items-center gap-2 rounded-lg bg-[var(--surface-active)] px-2 text-[var(--text-body)] text-small'
 
 function WorkflowColorSwatch({ color }: { color: string }) {
   return (
@@ -153,7 +153,7 @@ export function CollapsedTaskFlyoutItem({
           onChange={(e) => onEditValueChange?.(e.target.value)}
           onKeyDown={onEditKeyDown}
           onBlur={onEditBlur}
-          className='w-full min-w-0 border-0 bg-transparent p-0 font-base text-[var(--text-body)] text-small outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+          className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-small outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
           maxLength={100}
           disabled={isRenaming}
           onClick={(e) => {
@@ -231,7 +231,7 @@ export function CollapsedWorkflowFlyoutItem({
           onChange={(e) => onEditValueChange?.(e.target.value)}
           onKeyDown={onEditKeyDown}
           onBlur={onEditBlur}
-          className='w-full min-w-0 border-0 bg-transparent p-0 font-base text-[var(--text-body)] text-small outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+          className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-small outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
           maxLength={100}
           disabled={isRenaming}
           onClick={(e) => {

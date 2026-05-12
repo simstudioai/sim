@@ -446,7 +446,7 @@ export function WorkflowItem({
                 onChange={(e) => setEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleInputBlur}
-                className='w-full min-w-0 border-0 bg-transparent p-0 font-base text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
                 maxLength={100}
                 disabled={isRenaming}
                 onClick={(e) => {
@@ -460,7 +460,7 @@ export function WorkflowItem({
               />
             ) : (
               <div
-                className='min-w-0 truncate font-base text-[var(--text-body)]'
+                className='min-w-0 truncate text-[var(--text-body)]'
                 onDoubleClick={handleDoubleClick}
               >
                 {workflow.name}
