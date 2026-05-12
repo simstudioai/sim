@@ -60,7 +60,8 @@ export function InputMapping({
   const [mapping, setMapping] = useSubBlockValue(blockId, subBlockId)
   const storeWorkflowId = useCanonicalSubBlockValue<string>(blockId, 'workflowId')
   const selectedWorkflowId = previewContextValues
-    ? resolvePreviewContextValue(previewContextValues.workflowId)
+    ? (resolvePreviewContextValue(previewContextValues.workflowId) ??
+      resolvePreviewContextValue(previewContextValues.manualWorkflowId))
     : storeWorkflowId
 
   const inputController = useSubBlockInput({
