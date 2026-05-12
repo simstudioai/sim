@@ -269,43 +269,6 @@ export async function assertWorkspaceFileFolderTarget(
   return normalized
 }
 
-async function workspaceFileFolderExists(
-  workspaceId: string,
-  name: string,
-  parentId?: string | null,
-  excludeFolderId?: string
-): Promise<boolean> {
-  const rows = await db
-    .select({ id: workspaceFileFolder.id })
-    .from(workspaceFileFolder)
-    .where(
-      and(
-        eq(workspaceFileFolder.workspaceId, workspaceId),
-        eq(workspaceFileFolder.name, name),
-        folderParentCondition(parentId),
-        isNull(workspaceFileFolder.deletedAt)
-      )
-    )
-    .limit(2)
-
-  return rows.some((row) => row.id !== excludeFolderId)
-}
-
-async function nextFolderSortOrder(workspaceId: string, parentId?: string | null): Promise<number> {
-  const [result] = await db
-    .select({ minSortOrder: min(workspaceFileFolder.sortOrder) })
-    .from(workspaceFileFolder)
-    .where(
-      and(
-        eq(workspaceFileFolder.workspaceId, workspaceId),
-        folderParentCondition(parentId),
-        isNull(workspaceFileFolder.deletedAt)
-      )
-    )
-
-  return result?.minSortOrder != null ? result.minSortOrder - 1 : 0
-}
-
 export async function createWorkspaceFileFolder(params: {
   workspaceId: string
   userId: string
@@ -318,11 +281,52 @@ export async function createWorkspaceFileFolder(params: {
   const folder = await db.transaction(async (tx) => {
     await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
 
-    const parentId = await assertWorkspaceFileFolderTarget(params.workspaceId, params.parentId)
+    const parentId = normalizeParentId(params.parentId)
+    if (parentId) {
+      const [target] = await tx
+        .select({ id: workspaceFileFolder.id })
+        .from(workspaceFileFolder)
+        .where(
+          and(
+            eq(workspaceFileFolder.id, parentId),
+            eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            isNull(workspaceFileFolder.deletedAt)
+          )
+        )
+        .limit(1)
 
-    if (await workspaceFileFolderExists(params.workspaceId, name, parentId)) {
+      if (!target) {
+        throw new Error('Target folder not found')
+      }
+    }
+
+    const existingFolders = await tx
+      .select({ id: workspaceFileFolder.id })
+      .from(workspaceFileFolder)
+      .where(
+        and(
+          eq(workspaceFileFolder.workspaceId, params.workspaceId),
+          eq(workspaceFileFolder.name, name),
+          folderParentCondition(parentId),
+          isNull(workspaceFileFolder.deletedAt)
+        )
+      )
+      .limit(1)
+
+    if (existingFolders.length > 0) {
       throw new WorkspaceFileFolderConflictError(name)
     }
+
+    const [sortOrderResult] = await tx
+      .select({ minSortOrder: min(workspaceFileFolder.sortOrder) })
+      .from(workspaceFileFolder)
+      .where(
+        and(
+          eq(workspaceFileFolder.workspaceId, params.workspaceId),
+          folderParentCondition(parentId),
+          isNull(workspaceFileFolder.deletedAt)
+        )
+      )
 
     const id = generateId()
     try {
@@ -334,7 +338,9 @@ export async function createWorkspaceFileFolder(params: {
           userId: params.userId,
           workspaceId: params.workspaceId,
           parentId,
-          sortOrder: params.sortOrder ?? (await nextFolderSortOrder(params.workspaceId, parentId)),
+          sortOrder:
+            params.sortOrder ??
+            (sortOrderResult?.minSortOrder != null ? sortOrderResult.minSortOrder - 1 : 0),
         })
         .returning()
       return inserted
@@ -395,35 +401,6 @@ export async function ensureWorkspaceFileFolderPath(params: {
   return parentId
 }
 
-async function getDescendantFolderIds(
-  workspaceId: string,
-  folderId: string,
-  options?: { includeDeleted?: boolean }
-): Promise<string[]> {
-  const folders = await listWorkspaceFileFolders(workspaceId, {
-    scope: options?.includeDeleted ? 'all' : 'active',
-  })
-  const childrenByParent = new Map<string, string[]>()
-
-  for (const folder of folders) {
-    if (!folder.parentId) continue
-    const children = childrenByParent.get(folder.parentId) ?? []
-    children.push(folder.id)
-    childrenByParent.set(folder.parentId, children)
-  }
-
-  const descendants: string[] = []
-  const visit = (id: string) => {
-    for (const childId of childrenByParent.get(id) ?? []) {
-      descendants.push(childId)
-      visit(childId)
-    }
-  }
-  visit(folderId)
-
-  return descendants
-}
-
 function collectDescendantFolderIds(
   folders: Array<Pick<WorkspaceFileFolderRecord, 'id' | 'parentId'>>,
   folderId: string
@@ -456,60 +433,122 @@ export async function updateWorkspaceFileFolder(params: {
   parentId?: string | null
   sortOrder?: number
 }): Promise<WorkspaceFileFolderRecord> {
-  const existing = await getWorkspaceFileFolder(params.workspaceId, params.folderId)
-  if (!existing) throw new Error('Folder not found')
+  const folder = await db.transaction(async (tx) => {
+    await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
 
-  const updates: Partial<typeof workspaceFileFolder.$inferInsert> = { updatedAt: new Date() }
-  const finalName =
-    params.name !== undefined
-      ? normalizeWorkspaceFileItemName(params.name, 'Folder')
-      : existing.name
-  const finalParentId =
-    params.parentId !== undefined
-      ? await assertWorkspaceFileFolderTarget(params.workspaceId, params.parentId)
-      : existing.parentId
-
-  if (finalParentId === params.folderId) throw new Error('Folder cannot be its own parent')
-
-  if (params.parentId !== undefined) {
-    const descendants = await getDescendantFolderIds(params.workspaceId, params.folderId)
-    if (finalParentId && descendants.includes(finalParentId)) {
-      throw new Error('Cannot move a folder into one of its descendants')
-    }
-  }
-
-  if (
-    (finalName !== existing.name || finalParentId !== existing.parentId) &&
-    (await workspaceFileFolderExists(params.workspaceId, finalName, finalParentId, params.folderId))
-  ) {
-    throw new WorkspaceFileFolderConflictError(finalName)
-  }
-
-  if (params.name !== undefined) {
-    updates.name = finalName
-  }
-
-  if (params.parentId !== undefined) {
-    updates.parentId = finalParentId
-  }
-
-  if (params.sortOrder !== undefined) {
-    updates.sortOrder = params.sortOrder
-  }
-
-  const [folder] = await db
-    .update(workspaceFileFolder)
-    .set(updates)
-    .where(
-      and(
-        eq(workspaceFileFolder.id, params.folderId),
-        eq(workspaceFileFolder.workspaceId, params.workspaceId),
-        isNull(workspaceFileFolder.deletedAt)
+    const [existing] = await tx
+      .select()
+      .from(workspaceFileFolder)
+      .where(
+        and(
+          eq(workspaceFileFolder.id, params.folderId),
+          eq(workspaceFileFolder.workspaceId, params.workspaceId),
+          isNull(workspaceFileFolder.deletedAt)
+        )
       )
-    )
-    .returning()
+      .limit(1)
 
-  if (!folder) throw new Error('Folder not found')
+    if (!existing) throw new Error('Folder not found')
+
+    const updates: Partial<typeof workspaceFileFolder.$inferInsert> = { updatedAt: new Date() }
+    const finalName =
+      params.name !== undefined
+        ? normalizeWorkspaceFileItemName(params.name, 'Folder')
+        : existing.name
+    const finalParentId =
+      params.parentId !== undefined ? normalizeParentId(params.parentId) : existing.parentId
+
+    if (finalParentId === params.folderId) throw new Error('Folder cannot be its own parent')
+
+    if (finalParentId) {
+      const [target] = await tx
+        .select({ id: workspaceFileFolder.id })
+        .from(workspaceFileFolder)
+        .where(
+          and(
+            eq(workspaceFileFolder.id, finalParentId),
+            eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            isNull(workspaceFileFolder.deletedAt)
+          )
+        )
+        .limit(1)
+
+      if (!target) {
+        throw new Error('Target folder not found')
+      }
+    }
+
+    if (params.parentId !== undefined) {
+      const activeFolders = await tx
+        .select({ id: workspaceFileFolder.id, parentId: workspaceFileFolder.parentId })
+        .from(workspaceFileFolder)
+        .where(
+          and(
+            eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            isNull(workspaceFileFolder.deletedAt)
+          )
+        )
+
+      const descendants = collectDescendantFolderIds(activeFolders, params.folderId)
+      if (finalParentId && descendants.includes(finalParentId)) {
+        throw new Error('Cannot move a folder into one of its descendants')
+      }
+    }
+
+    if (finalName !== existing.name || finalParentId !== existing.parentId) {
+      const conflictingFolders = await tx
+        .select({ id: workspaceFileFolder.id })
+        .from(workspaceFileFolder)
+        .where(
+          and(
+            eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            eq(workspaceFileFolder.name, finalName),
+            folderParentCondition(finalParentId),
+            isNull(workspaceFileFolder.deletedAt)
+          )
+        )
+        .limit(2)
+
+      if (conflictingFolders.some((row) => row.id !== params.folderId)) {
+        throw new WorkspaceFileFolderConflictError(finalName)
+      }
+    }
+
+    if (params.name !== undefined) {
+      updates.name = finalName
+    }
+
+    if (params.parentId !== undefined) {
+      updates.parentId = finalParentId
+    }
+
+    if (params.sortOrder !== undefined) {
+      updates.sortOrder = params.sortOrder
+    }
+
+    try {
+      const [updatedFolder] = await tx
+        .update(workspaceFileFolder)
+        .set(updates)
+        .where(
+          and(
+            eq(workspaceFileFolder.id, params.folderId),
+            eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            isNull(workspaceFileFolder.deletedAt)
+          )
+        )
+        .returning()
+
+      if (!updatedFolder) throw new Error('Folder not found')
+      return updatedFolder
+    } catch (error) {
+      if (getPostgresErrorCode(error) === '23505') {
+        throw new WorkspaceFileFolderConflictError(finalName)
+      }
+      throw error
+    }
+  })
+
   return mapFolderWithPath(params.workspaceId, folder)
 }
 
@@ -544,76 +583,128 @@ export async function moveWorkspaceFileItems(params: {
 }): Promise<{ movedFiles: number; movedFolders: number }> {
   const fileIds = Array.from(new Set(params.fileIds ?? []))
   const folderIds = Array.from(new Set(params.folderIds ?? []))
-  const targetFolderId = await assertWorkspaceFileFolderTarget(
-    params.workspaceId,
-    params.targetFolderId
-  )
-
-  if (folderIds.includes(targetFolderId ?? '')) {
-    throw new Error('Cannot move a folder into itself')
-  }
-
-  for (const folderId of folderIds) {
-    const descendants = await getDescendantFolderIds(params.workspaceId, folderId)
-    if (targetFolderId && descendants.includes(targetFolderId)) {
-      throw new Error('Cannot move a folder into one of its descendants')
-    }
-  }
-
-  const movingFiles =
-    fileIds.length > 0
-      ? await db
-          .select({ id: workspaceFiles.id, name: workspaceFiles.originalName })
-          .from(workspaceFiles)
-          .where(
-            and(
-              inArray(workspaceFiles.id, fileIds),
-              eq(workspaceFiles.workspaceId, params.workspaceId),
-              eq(workspaceFiles.context, 'workspace'),
-              isNull(workspaceFiles.deletedAt)
-            )
-          )
-      : []
-
-  const movingFolders =
-    folderIds.length > 0
-      ? await db
-          .select({ id: workspaceFileFolder.id, name: workspaceFileFolder.name })
-          .from(workspaceFileFolder)
-          .where(
-            and(
-              inArray(workspaceFileFolder.id, folderIds),
-              eq(workspaceFileFolder.workspaceId, params.workspaceId),
-              isNull(workspaceFileFolder.deletedAt)
-            )
-          )
-      : []
-
-  for (const file of movingFiles) {
-    if (
-      await fileNameExistsInWorkspaceFolder(params.workspaceId, file.name, targetFolderId, file.id)
-    ) {
-      throw new WorkspaceFileMoveConflictError(file.name)
-    }
-  }
-
-  const movingFolderNameCounts = new Map<string, number>()
-  for (const folder of movingFolders) {
-    movingFolderNameCounts.set(folder.name, (movingFolderNameCounts.get(folder.name) ?? 0) + 1)
-    if (
-      await workspaceFileFolderExists(params.workspaceId, folder.name, targetFolderId, folder.id)
-    ) {
-      throw new WorkspaceFileFolderConflictError(folder.name)
-    }
-  }
-
-  for (const [name, count] of movingFolderNameCounts) {
-    if (count > 1) {
-      throw new WorkspaceFileFolderConflictError(name)
-    }
-  }
+  const targetFolderId = normalizeParentId(params.targetFolderId)
 
   return db.transaction(async (tx) => {
+    await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
+
+    if (targetFolderId) {
+      const [target] = await tx
+        .select({ id: workspaceFileFolder.id })
+        .from(workspaceFileFolder)
+        .where(
+          and(
+            eq(workspaceFileFolder.id, targetFolderId),
+            eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            isNull(workspaceFileFolder.deletedAt)
+          )
+        )
+        .limit(1)
+
+      if (!target) {
+        throw new Error('Target folder not found')
+      }
+    }
+
+    if (folderIds.includes(targetFolderId ?? '')) {
+      throw new Error('Cannot move a folder into itself')
+    }
+
+    if (folderIds.length > 0) {
+      const activeFolders = await tx
+        .select({ id: workspaceFileFolder.id, parentId: workspaceFileFolder.parentId })
+        .from(workspaceFileFolder)
+        .where(
+          and(
+            eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            isNull(workspaceFileFolder.deletedAt)
+          )
+        )
+
+      for (const folderId of folderIds) {
+        const descendants = collectDescendantFolderIds(activeFolders, folderId)
+        if (targetFolderId && descendants.includes(targetFolderId)) {
+          throw new Error('Cannot move a folder into one of its descendants')
+        }
+      }
+    }
+
+    const movingFiles =
+      fileIds.length > 0
+        ? await tx
+            .select({ id: workspaceFiles.id, name: workspaceFiles.originalName })
+            .from(workspaceFiles)
+            .where(
+              and(
+                inArray(workspaceFiles.id, fileIds),
+                eq(workspaceFiles.workspaceId, params.workspaceId),
+                eq(workspaceFiles.context, 'workspace'),
+                isNull(workspaceFiles.deletedAt)
+              )
+            )
+        : []
+
+    const movingFolders =
+      folderIds.length > 0
+        ? await tx
+            .select({ id: workspaceFileFolder.id, name: workspaceFileFolder.name })
+            .from(workspaceFileFolder)
+            .where(
+              and(
+                inArray(workspaceFileFolder.id, folderIds),
+                eq(workspaceFileFolder.workspaceId, params.workspaceId),
+                isNull(workspaceFileFolder.deletedAt)
+              )
+            )
+        : []
+
+    for (const file of movingFiles) {
+      const conflictingFiles = await tx
+        .select({ id: workspaceFiles.id })
+        .from(workspaceFiles)
+        .where(
+          and(
+            eq(workspaceFiles.workspaceId, params.workspaceId),
+            eq(workspaceFiles.originalName, file.name),
+            eq(workspaceFiles.context, 'workspace'),
+            fileFolderCondition(targetFolderId),
+            isNull(workspaceFiles.deletedAt)
+          )
+        )
+        .limit(2)
+
+      if (conflictingFiles.some((row) => row.id !== file.id)) {
+        throw new WorkspaceFileMoveConflictError(file.name)
+      }
+    }
+
+    const movingFolderNameCounts = new Map<string, number>()
+    for (const folder of movingFolders) {
+      movingFolderNameCounts.set(folder.name, (movingFolderNameCounts.get(folder.name) ?? 0) + 1)
+      const conflictingFolders = await tx
+        .select({ id: workspaceFileFolder.id })
+        .from(workspaceFileFolder)
+        .where(
+          and(
+            eq(workspaceFileFolder.workspaceId, params.workspaceId),
+            eq(workspaceFileFolder.name, folder.name),
+            folderParentCondition(targetFolderId),
+            isNull(workspaceFileFolder.deletedAt)
+          )
+        )
+        .limit(2)
+
+      if (conflictingFolders.some((row) => row.id !== folder.id)) {
+        throw new WorkspaceFileFolderConflictError(folder.name)
+      }
+    }
+
+    for (const [name, count] of movingFolderNameCounts) {
+      if (count > 1) {
+        throw new WorkspaceFileFolderConflictError(name)
+      }
+    }
+
     const movedFiles =
       fileIds.length > 0
         ? await tx

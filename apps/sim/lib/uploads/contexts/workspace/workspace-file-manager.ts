@@ -535,7 +535,7 @@ export async function fileExistsInWorkspace(
   folderId?: string | null
 ): Promise<boolean> {
   try {
-    return fileNameExistsInWorkspaceFolder(workspaceId, fileName, folderId)
+    return await fileNameExistsInWorkspaceFolder(workspaceId, fileName, folderId)
   } catch (error) {
     logger.error(`Failed to check file existence for ${fileName}:`, error)
     return false

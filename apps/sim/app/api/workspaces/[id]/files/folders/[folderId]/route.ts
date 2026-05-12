@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   deleteWorkspaceFileFolderContract,
@@ -45,10 +46,24 @@ export const PATCH = withRouteHandler(
       return NextResponse.json({ success: true, folder })
     } catch (error) {
       logger.error('Failed to update workspace file folder:', error)
-      const message = error instanceof Error ? error.message : 'Failed to update folder'
+      if (error instanceof WorkspaceFileFolderConflictError) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 409 })
+      }
+      if (getPostgresErrorCode(error) === '23505') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'A folder with this name already exists in this location',
+          },
+          { status: 409 }
+        )
+      }
       return NextResponse.json(
-        { success: false, error: message },
-        { status: error instanceof WorkspaceFileFolderConflictError ? 409 : 400 }
+        {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to update folder',
+        },
+        { status: 400 }
       )
     }
   }
