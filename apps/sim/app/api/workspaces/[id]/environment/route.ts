@@ -104,9 +104,9 @@ export const PUT = withRouteHandler(
       ).then((entries) => Object.fromEntries(entries))
 
       const { existingEncrypted, merged } = await db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT id FROM workspace_environment WHERE workspace_id = ${workspaceId} FOR UPDATE`
-        )
+        // Advisory lock serialises all writes for this workspaceId, including concurrent
+        // first-inserts where no row exists yet and FOR UPDATE would acquire nothing.
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${workspaceId}))`)
 
         const [existingRow] = await tx
           .select()
@@ -191,9 +191,7 @@ export const DELETE = withRouteHandler(
       const { keys } = parsed.data.body
 
       const result = await db.transaction(async (tx) => {
-        await tx.execute(
-          sql`SELECT id FROM workspace_environment WHERE workspace_id = ${workspaceId} FOR UPDATE`
-        )
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${workspaceId}))`)
 
         const [existingRow] = await tx
           .select()

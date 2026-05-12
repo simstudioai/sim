@@ -83,12 +83,17 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
 
     let body: string | Buffer | Uint8Array | undefined
     if (init?.body !== undefined && init.body !== null) {
-      body =
-        typeof init.body === 'string' || Buffer.isBuffer(init.body)
-          ? (init.body as string | Buffer)
-          : init.body instanceof Uint8Array
-            ? (init.body as Uint8Array)
-            : undefined
+      if (typeof init.body === 'string' || Buffer.isBuffer(init.body)) {
+        body = init.body as string | Buffer
+      } else if (init.body instanceof Uint8Array) {
+        body = init.body
+      } else if (init.body instanceof ArrayBuffer) {
+        body = new Uint8Array(init.body)
+      } else {
+        // URLSearchParams, Blob, ReadableStream, FormData — read as text via Response
+        const text = await new Response(init.body as BodyInit).text()
+        if (text) body = text
+      }
     } else if (input instanceof Request && !input.bodyUsed) {
       const text = await input.text()
       if (text) body = text
