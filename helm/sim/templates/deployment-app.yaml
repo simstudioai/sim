@@ -66,6 +66,12 @@ spec:
             - name: http
               containerPort: {{ .Values.app.service.targetPort }}
               protocol: TCP
+          {{- /*
+            All keys from .Values.app.env are mounted via envFrom (see below).
+            Chart-computed values and operational tunables (.Values.app.envDefaults)
+            are inlined here so they don't leak into the chart-managed Secret and
+            don't need to be mapped when externalSecrets.enabled=true.
+          */}}
           env:
             - name: DATABASE_URL
               value: {{ include "sim.databaseUrl" . | quote }}
@@ -73,12 +79,21 @@ spec:
               value: {{ include "sim.socketServerUrl" . | quote }}
             - name: OLLAMA_URL
               value: {{ include "sim.ollamaUrl" . | quote }}
-            {{- $appPart := include "sim.partitionEnv" (omit .Values.app.env "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL") | fromJson }}
-            {{- range $key, $value := $appPart.plain }}
+            {{- /*
+              Skip envDefaults keys that the user has explicitly overridden in app.env
+              with a non-empty value. K8s `env` takes precedence over `envFrom`, so an
+              inline default would otherwise mask the user's Secret-bound value.
+            */}}
+            {{- $appEnv := .Values.app.env | default dict }}
+            {{- range $key, $value := .Values.app.envDefaults | default dict }}
+            {{- $override := index $appEnv $key }}
+            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (or (not $override) (eq (toString $override) "") (eq (toString $override) "<nil>")) }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
+            {{- end }}
             {{- if .Values.telemetry.enabled }}
+            {{- $nodeEnv := default (default "production" (index (.Values.app.envDefaults | default dict) "NODE_ENV")) (index (.Values.app.env | default dict) "NODE_ENV") }}
             # OpenTelemetry configuration
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://{{ include "sim.fullname" . }}-otel-collector:4318"
@@ -87,7 +102,7 @@ spec:
             - name: OTEL_SERVICE_VERSION
               value: {{ .Chart.AppVersion | quote }}
             - name: OTEL_RESOURCE_ATTRIBUTES
-              value: "service.name=sim-app,service.version={{ .Chart.AppVersion }},deployment.environment={{ .Values.app.env.NODE_ENV }}"
+              value: "service.name=sim-app,service.version={{ .Chart.AppVersion }},deployment.environment={{ $nodeEnv }}"
             {{- end }}
             {{- with .Values.extraEnvVars }}
             {{- toYaml . | nindent 12 }}

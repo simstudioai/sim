@@ -23,23 +23,23 @@
 # --------------------------
 # Pick one of three modes — see helm/sim/README.md for details.
 #
-#   1. Inline (default below): set sensitive keys directly in app.env.
-#      The chart writes them into a chart-managed Secret. Simplest, but
-#      stores plaintext in your values file.
+#   1. Inline (default below): set values directly in app.env. The chart
+#      writes every key into a chart-managed Secret. Simplest, but stores
+#      plaintext in your values file.
 #
 #   2. existingSecret: pre-create a Kubernetes Secret out-of-band and
 #      reference it via app.secrets.existingSecret.name. You are
-#      responsible for ensuring the Secret contains every sensitive key
-#      your app needs (BETTER_AUTH_SECRET, ENCRYPTION_KEY,
-#      INTERNAL_API_SECRET, AZURE_OPENAI_API_KEY, AZURE_ACCOUNT_KEY, ...).
-#      The chart filters sensitive keys out of inline env, so anything
-#      missing from your Secret will be empty at runtime.
+#      responsible for ensuring the Secret contains every key your app
+#      needs (BETTER_AUTH_SECRET, ENCRYPTION_KEY, INTERNAL_API_SECRET,
+#      AZURE_OPENAI_API_KEY, AZURE_ACCOUNT_KEY, ...). The chart-managed
+#      Secret is not rendered in this mode, so anything missing from your
+#      Secret will be empty at runtime.
 #
-#   3. External Secrets Operator (ESO): sync from Azure Key Vault via
-#      the External Secrets Operator. Map each sensitive key via
+#   3. External Secrets Operator (ESO): sync from Azure Key Vault via the
+#      External Secrets Operator. Map every key via
 #      externalSecrets.remoteRefs.app.<KEY>. The chart fails template
-#      rendering if a sensitive key is set in app.env but not mapped
-#      — see the commented ESO block at the bottom of this file.
+#      rendering if a key is set in app.env but not mapped — see the
+#      commented ESO block at the bottom of this file.
 
 # Global configuration
 global:
@@ -284,8 +284,8 @@ ingressInternal:
 #   1. Install external-secrets in the cluster (https://external-secrets.io).
 #   2. Create a ClusterSecretStore backed by Azure Key Vault and grant
 #      Workload Identity / managed-identity access from this namespace.
-#   3. Remove the sensitive entries from app.env above (or leave them and the
-#      chart will fail-fast naming each unmapped key).
+#   3. Remove entries from app.env above (or leave them and the chart will
+#      fail-fast naming each unmapped key).
 #   4. Uncomment the block below and replace the paths with the names of the
 #      secrets in your Key Vault.
 #

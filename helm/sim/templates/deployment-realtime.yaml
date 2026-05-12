@@ -44,16 +44,17 @@ spec:
             - name: http
               containerPort: {{ .Values.realtime.service.targetPort }}
               protocol: TCP
+          {{- /*
+            All keys from .Values.realtime.env are mounted via envFrom (see below).
+            Chart-computed values and operational tunables (.Values.realtime.envDefaults)
+            are inlined here so they don't leak into the chart-managed Secret and don't
+            need to be mapped when externalSecrets.enabled=true.
+          */}}
           env:
             - name: DATABASE_URL
               value: {{ include "sim.databaseUrl" . | quote }}
-            {{- /* REDIS_URL is shipped via the app secret (envFrom) — never inline. */}}
-            {{- $rtPart := include "sim.partitionEnv" (.Values.realtime.env | default dict) | fromJson }}
-            {{- range $key, $value := $rtPart.plain }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
             {{- if .Values.telemetry.enabled }}
+            {{- $nodeEnv := default (default "production" (index (.Values.realtime.envDefaults | default dict) "NODE_ENV")) (index (.Values.realtime.env | default dict) "NODE_ENV") }}
             # OpenTelemetry configuration
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://{{ include "sim.fullname" . }}-otel-collector:4318"
@@ -62,7 +63,20 @@ spec:
             - name: OTEL_SERVICE_VERSION
               value: {{ .Chart.AppVersion | quote }}
             - name: OTEL_RESOURCE_ATTRIBUTES
-              value: "service.name=sim-realtime,service.version={{ .Chart.AppVersion }},deployment.environment={{ .Values.realtime.env.NODE_ENV }}"
+              value: "service.name=sim-realtime,service.version={{ .Chart.AppVersion }},deployment.environment={{ $nodeEnv }}"
+            {{- end }}
+            {{- /*
+              Inline realtime.envDefaults, skipping keys explicitly set in realtime.env
+              (K8s `env` overrides `envFrom`, so an inline default would otherwise mask
+              a user's Secret-bound value).
+            */}}
+            {{- $rtEnv := .Values.realtime.env | default dict }}
+            {{- range $key, $value := .Values.realtime.envDefaults | default dict }}
+            {{- $override := index $rtEnv $key }}
+            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (or (not $override) (eq (toString $override) "") (eq (toString $override) "<nil>")) }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
             {{- end }}
             {{- with .Values.extraEnvVars }}
             {{- toYaml . | nindent 12 }}

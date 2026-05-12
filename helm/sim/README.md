@@ -148,7 +148,7 @@ kubectl delete statefulset sim-copilot-postgresql --namespace sim --cascade=orph
 helm upgrade sim ./helm/sim --namespace sim --values my-values.yaml
 ```
 
-Other defaults that changed in `1.0.0`: image tags default to `Chart.AppVersion` (not `latest`), `pullPolicy` defaults to `IfNotPresent` (not `Always`), Ollama mount moved from `/root/.ollama` to `/data` (models must be re-pulled), `networkPolicy.egress` became an object `{exceptCidrs, extraRules}` instead of a list, `automountServiceAccountToken: false` is set on every pod, and sensitive keys in `app.env` / `realtime.env` are now moved into a chart-managed Secret instead of inlined on the Deployment. ESO users must map every sensitive key via `externalSecrets.remoteRefs.app.<KEY>` — the chart fails template rendering if a key is missing.
+Other defaults that changed in `1.0.0`: image tags default to `Chart.AppVersion` (not `latest`), `pullPolicy` defaults to `IfNotPresent` (not `Always`), Ollama mount moved from `/root/.ollama` to `/data` (models must be re-pulled), `networkPolicy.egress` became an object `{exceptCidrs, extraRules}` instead of a list, `automountServiceAccountToken: false` is set on every pod, and every value in `app.env` / `realtime.env` is now written to a chart-managed Secret instead of inlined on the Deployment (chart-computed values `DATABASE_URL`, `SOCKET_SERVER_URL`, `OLLAMA_URL` remain inline). ESO users must map every key via `externalSecrets.remoteRefs.app.<KEY>` — the chart fails template rendering if a key is missing.
 
 ---
 
@@ -334,7 +334,7 @@ User-supplied `securityContext` values are merged with the defaults — your val
 Other security features:
 
 * `automountServiceAccountToken: false` on the ServiceAccount **and** every pod.
-* App secrets are auto-discovered from `app.env` / `realtime.env` by suffix (`_SECRET`, `_TOKEN`, `_PASSWORD`, `_API_KEY`, `_PRIVATE_KEY`) and an explicit allowlist, then mounted via `envFrom: secretRef` — never inline.
+* Every value in `app.env` and `realtime.env` is written to a chart-managed Secret and mounted via `envFrom: secretRef` — no values are inlined on the container spec. This eliminates a sensitivity classifier (no static list of "secret" keys to maintain) and ensures new provider keys can never accidentally leak into pod manifests. Two categories are inlined on the container instead: chart-computed values (`DATABASE_URL`, `SOCKET_SERVER_URL`, `OLLAMA_URL`) and operational defaults under `app.envDefaults` / `realtime.envDefaults` (rate limits, timeouts, IVM tunables, feature-flag defaults, branding defaults, `http://localhost:3000` URL fallbacks). Operational defaults are non-sensitive by design — moving them out of `app.env` keeps the Secret small and means External Secrets Operator users only have to map the keys they actually set, not every chart default. A value placed in `app.env` always wins over the same key in `app.envDefaults` (the template skips the inline default when an override exists).
 * Optional `networkPolicy.enabled=true` enforces east-west isolation and blocks cloud metadata endpoints in egress.
 
 ---
