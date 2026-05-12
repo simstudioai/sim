@@ -241,8 +241,8 @@ const MARKDOWN_COMPONENTS = {
   del({ children }: { children?: React.ReactNode }) {
     return <del className='text-[var(--text-tertiary)] line-through'>{children}</del>
   },
-  img({ src, alt }: { src?: string; alt?: string }) {
-    if (!src) return null
+  img({ src, alt }: ComponentPropsWithoutRef<'img'>) {
+    if (typeof src !== 'string' || !src) return null
     return (
       <img
         src={src}
