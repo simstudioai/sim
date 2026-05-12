@@ -6,6 +6,7 @@ import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { useCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
@@ -57,7 +58,7 @@ export function InputMapping({
   previewContextValues,
 }: InputMappingProps) {
   const [mapping, setMapping] = useSubBlockValue(blockId, subBlockId)
-  const [storeWorkflowId] = useSubBlockValue(blockId, 'workflowId')
+  const storeWorkflowId = useCanonicalSubBlockValue<string>(blockId, 'workflowId')
   const selectedWorkflowId = previewContextValues
     ? resolvePreviewContextValue(previewContextValues.workflowId)
     : storeWorkflowId
