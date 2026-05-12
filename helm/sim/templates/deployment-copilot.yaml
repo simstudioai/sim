@@ -38,6 +38,7 @@ spec:
   template:
     metadata:
       annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets-copilot.yaml") . | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

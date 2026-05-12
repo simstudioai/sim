@@ -1051,6 +1051,19 @@ affinity: {}
 # Tolerations for scheduling on tainted nodes
 tolerations: []
 
+# Topology spread constraints — for HA across zones / nodes.
+# Each entry must include its own labelSelector. Common pattern:
+#
+#   topologySpreadConstraints:
+#     - maxSkew: 1
+#       topologyKey: topology.kubernetes.io/zone
+#       whenUnsatisfiable: ScheduleAnyway
+#       labelSelector:
+#         matchLabels:
+#           app.kubernetes.io/name: sim
+#           app.kubernetes.io/instance: my-release
+topologySpreadConstraints: []
+
 # CronJob configuration for scheduled tasks
 cronjobs:
   # Enable/disable all cron jobs

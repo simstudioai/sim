@@ -527,6 +527,19 @@ affinity:
 {{- end }}
 
 {{/*
+Topology spread constraints — spreads pods across failure domains.
+Pass the per-component spec (.Values.app, .Values.realtime, ...). Users supply
+the full constraint list including labelSelector; pattern mirrors affinity.
+Usage: {{ include "sim.topologySpreadConstraints" .Values.app | nindent 6 }}
+*/}}
+{{- define "sim.topologySpreadConstraints" -}}
+{{- if .topologySpreadConstraints }}
+topologySpreadConstraints:
+  {{- toYaml .topologySpreadConstraints | nindent 2 }}
+{{- end }}
+{{- end }}
+
+{{/*
 Copilot environment secret name
 */}}
 {{- define "sim.copilot.envSecretName" -}}
