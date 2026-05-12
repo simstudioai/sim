@@ -141,7 +141,7 @@ tests:
           path: metadata.name
           value: t-sim-otel-collector
 
-  - it: networkPolicy.egress (custom rules) are appended to both app and realtime NetworkPolicies
+  - it: networkPolicy.egress (custom rules) are appended to the app NetworkPolicy
     set:
       <<: *defaults
       networkPolicy.egress:
@@ -150,6 +150,24 @@ tests:
             - protocol: TCP
               port: 5432
     documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to: []
+            ports:
+              - protocol: TCP
+                port: 5432
+
+  - it: networkPolicy.egress (custom rules) are appended to the realtime NetworkPolicy
+    set:
+      <<: *defaults
+      networkPolicy.egress:
+        - to: []
+          ports:
+            - protocol: TCP
+              port: 5432
+    documentIndex: 1
     asserts:
       - contains:
           path: spec.egress
