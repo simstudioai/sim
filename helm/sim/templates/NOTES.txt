@@ -44,8 +44,15 @@ Your release is named {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
 3. Required secrets:
 
    Sim requires three application secrets and a Postgres password to start.
-   {{- if not .Values.app.secrets.existingSecret.enabled }}
-   {{- if or (eq (default "" .Values.app.env.BETTER_AUTH_SECRET) "") (eq (default "" .Values.app.env.ENCRYPTION_KEY) "") (eq (default "" .Values.app.env.INTERNAL_API_SECRET) "") }}
+   {{- if .Values.externalSecrets.enabled }}
+
+   Using External Secrets Operator. Verify the ExternalSecret has synced:
+     kubectl --namespace {{ .Release.Namespace }} get externalsecret
+     kubectl --namespace {{ .Release.Namespace }} get secret {{ include "sim.fullname" . }}-app-secrets
+   {{- else if .Values.app.secrets.existingSecret.enabled }}
+
+   Using existing Kubernetes Secret: {{ .Values.app.secrets.existingSecret.name }}
+   {{- else if or (eq (default "" .Values.app.env.BETTER_AUTH_SECRET) "") (eq (default "" .Values.app.env.ENCRYPTION_KEY) "") (eq (default "" .Values.app.env.INTERNAL_API_SECRET) "") }}
 
    WARNING: one or more required secrets is empty. The pods will fail to start
    until these are set. Generate values with:
@@ -61,10 +68,6 @@ Your release is named {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
    Secrets are set inline. For production, prefer pre-existing Kubernetes
    Secrets or External Secrets Operator — see
    examples/values-existing-secret.yaml and examples/values-external-secrets.yaml.
-   {{- end }}
-   {{- else }}
-
-   Using existing Kubernetes Secret: {{ .Values.app.secrets.existingSecret.name }}
    {{- end }}
 
 4. Useful commands:
