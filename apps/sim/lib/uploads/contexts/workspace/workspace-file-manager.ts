@@ -34,6 +34,7 @@ import {
   buildWorkspaceFileFolderPathMap,
   fileNameExistsInWorkspaceFolder,
   listWorkspaceFileFolders,
+  normalizeWorkspaceFileItemName,
 } from './workspace-file-folder-manager'
 
 const logger = createLogger('WorkspaceFileStorage')
@@ -161,6 +162,7 @@ export async function uploadWorkspaceFile(
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
 
   const folderId = await assertWorkspaceFileFolderTarget(workspaceId, options?.folderId)
+  const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
   const quotaCheck = await checkStorageQuota(userId, fileBuffer.length)
 
   if (!quotaCheck.allowed) {
@@ -169,7 +171,11 @@ export async function uploadWorkspaceFile(
 
   let lastError: unknown
   for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
-    const uniqueName = await allocateUniqueWorkspaceFileName(workspaceId, fileName, folderId)
+    const uniqueName = await allocateUniqueWorkspaceFileName(
+      workspaceId,
+      normalizedFileName,
+      folderId
+    )
     const storageKey = generateWorkspaceFileKey(workspaceId, uniqueName)
     let fileId = `wf_${generateShortId()}`
 
@@ -308,6 +314,7 @@ export async function registerUploadedWorkspaceFile(params: {
 }): Promise<RegisterUploadedWorkspaceFileResult> {
   const { workspaceId, userId, key, originalName, contentType } = params
   const folderId = await assertWorkspaceFileFolderTarget(workspaceId, params.folderId)
+  const normalizedOriginalName = normalizeWorkspaceFileItemName(originalName, 'File')
 
   if (!hasCloudStorage()) {
     throw new Error('Direct-upload registration requires cloud storage')
@@ -356,7 +363,11 @@ export async function registerUploadedWorkspaceFile(params: {
     let lastInsertError: unknown
     for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
       fileId = `wf_${generateShortId()}`
-      displayName = await allocateUniqueWorkspaceFileName(workspaceId, originalName, folderId)
+      displayName = await allocateUniqueWorkspaceFileName(
+        workspaceId,
+        normalizedOriginalName,
+        folderId
+      )
       try {
         await insertFileMetadata({
           id: fileId,
@@ -391,7 +402,7 @@ export async function registerUploadedWorkspaceFile(params: {
       )
       await cleanupOrphan('metadata insert failure')
       if (getPostgresErrorCode(lastInsertError) === '23505') {
-        throw new FileConflictError(originalName)
+        throw new FileConflictError(normalizedOriginalName)
       }
       throw lastInsertError instanceof Error
         ? lastInsertError
@@ -887,29 +898,27 @@ export async function renameWorkspaceFile(
   logger.info(`Renaming workspace file: ${fileId} to "${newName}" in workspace ${workspaceId}`)
 
   const trimmedName = newName.trim()
-  if (!trimmedName) {
-    throw new Error('File name cannot be empty')
-  }
+  const normalizedName = normalizeWorkspaceFileItemName(trimmedName, 'File')
 
   const fileRecord = await getWorkspaceFile(workspaceId, fileId)
   if (!fileRecord) {
     throw new Error('File not found')
   }
 
-  if (fileRecord.name === trimmedName) {
+  if (fileRecord.name === normalizedName) {
     return fileRecord
   }
 
-  const exists = await fileExistsInWorkspace(workspaceId, trimmedName, fileRecord.folderId)
+  const exists = await fileExistsInWorkspace(workspaceId, normalizedName, fileRecord.folderId)
   if (exists) {
-    throw new FileConflictError(trimmedName)
+    throw new FileConflictError(normalizedName)
   }
 
   let updated: { id: string }[]
   try {
     updated = await db
       .update(workspaceFiles)
-      .set({ originalName: trimmedName, updatedAt: new Date() })
+      .set({ originalName: normalizedName, updatedAt: new Date() })
       .where(
         and(
           eq(workspaceFiles.id, fileId),
@@ -920,7 +929,7 @@ export async function renameWorkspaceFile(
       .returning({ id: workspaceFiles.id })
   } catch (error: unknown) {
     if (getPostgresErrorCode(error) === '23505') {
-      throw new FileConflictError(trimmedName)
+      throw new FileConflictError(normalizedName)
     }
     throw error
   }
@@ -929,11 +938,11 @@ export async function renameWorkspaceFile(
     throw new Error('File not found or could not be renamed')
   }
 
-  logger.info(`Successfully renamed workspace file ${fileId} to "${trimmedName}"`)
+  logger.info(`Successfully renamed workspace file ${fileId} to "${normalizedName}"`)
 
   return {
     ...fileRecord,
-    name: trimmedName,
+    name: normalizedName,
   }
 }
 

@@ -97,8 +97,13 @@ export function inferContentType(fileName: string, explicitType?: string): strin
 export function validateFlatWorkspaceFileName(fileName: string): string | null {
   const trimmed = fileName.trim()
   if (!trimmed) return 'File name cannot be empty'
-  if (trimmed.split('/').some((segment) => !segment.trim()))
+  const segments = trimmed.split('/').map((segment) => segment.trim())
+  if (segments.some((segment) => !segment)) {
     return 'File path cannot contain empty segments'
+  }
+  if (segments.some((segment) => segment === '.' || segment === '..' || segment.includes('\\'))) {
+    return 'File path cannot contain dot segments or backslashes'
+  }
   return null
 }
 

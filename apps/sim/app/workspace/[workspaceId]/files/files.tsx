@@ -689,7 +689,7 @@ export function Files() {
   )
 
   async function uploadFiles(filesToUpload: File[], targetFolderId = currentFolderId) {
-    if (!workspaceId || filesToUpload.length === 0) return
+    if (!workspaceId || filesToUpload.length === 0 || !canEdit) return
 
     const oversized: string[] = []
     const sizeFiltered = filesToUpload.filter((f) => {
@@ -904,14 +904,19 @@ export function Files() {
   }, [selectedFileIds, selectedFolderIds, currentFolderId])
 
   const handleMoveSelected = useCallback(async () => {
-    await moveItems.mutateAsync({
-      workspaceId,
-      fileIds: selectedFileIds,
-      folderIds: selectedFolderIds,
-      targetFolderId: moveTargetFolderId,
-    })
-    setSelectedRowIds(new Set())
-    setShowMoveModal(false)
+    try {
+      await moveItems.mutateAsync({
+        workspaceId,
+        fileIds: selectedFileIds,
+        folderIds: selectedFolderIds,
+        targetFolderId: moveTargetFolderId,
+      })
+      setSelectedRowIds(new Set())
+      setShowMoveModal(false)
+    } catch (error) {
+      logger.error('Failed to move selected items:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to move selected items')
+    }
   }, [workspaceId, selectedFileIds, selectedFolderIds, moveTargetFolderId, moveItems])
 
   const fileDetailBreadcrumbs = useMemo(
@@ -1075,10 +1080,21 @@ export function Files() {
 
   const handleContextMenuDownload = useCallback(() => {
     const item = contextMenuItemRef.current
-    if (!item || item.kind !== 'file') return
+    if (!item) return
+    const rowId = item.kind === 'file' ? fileRowId(item.file.id) : folderRowId(item.folder.id)
+    if (selectedRowIds.has(rowId) && selectedRowIds.size > 1) {
+      handleBulkDownload()
+      closeContextMenu()
+      return
+    }
+    if (item.kind === 'folder') {
+      window.location.href = `/api/workspaces/${workspaceId}/files/download?folderIds=${encodeURIComponent(item.folder.id)}`
+      closeContextMenu()
+      return
+    }
     handleDownload(item.file)
     closeContextMenu()
-  }, [handleDownload, closeContextMenu])
+  }, [selectedRowIds, handleBulkDownload, closeContextMenu, workspaceId, handleDownload])
 
   const handleContextMenuRename = useCallback(() => {
     const item = contextMenuItemRef.current
@@ -1091,6 +1107,12 @@ export function Files() {
   const handleContextMenuDelete = useCallback(() => {
     const item = contextMenuItemRef.current
     if (!item) return
+    const rowId = item.kind === 'file' ? fileRowId(item.file.id) : folderRowId(item.folder.id)
+    if (selectedRowIds.has(rowId) && selectedRowIds.size > 1) {
+      handleBulkDelete()
+      closeContextMenu()
+      return
+    }
     setDeleteTarget(
       item.kind === 'file'
         ? { fileIds: [item.file.id], folderIds: [], name: item.file.name }
@@ -1098,7 +1120,7 @@ export function Files() {
     )
     setShowDeleteConfirm(true)
     closeContextMenu()
-  }, [closeContextMenu])
+  }, [selectedRowIds, handleBulkDelete, closeContextMenu])
 
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -1115,9 +1137,10 @@ export function Files() {
   )
 
   const handleListUploadFile = useCallback(() => {
+    if (!canEdit || uploading) return
     fileInputRef.current?.click()
     closeListContextMenu()
-  }, [closeListContextMenu])
+  }, [canEdit, uploading, closeListContextMenu])
 
   const prevFileIdRef = useRef(fileIdFromRoute)
   if (fileIdFromRoute !== prevFileIdRef.current) {
@@ -1279,8 +1302,9 @@ export function Files() {
   )
 
   const handleUploadClick = useCallback(() => {
+    if (!canEdit || uploading) return
     fileInputRef.current?.click()
-  }, [])
+  }, [canEdit, uploading])
 
   const searchConfig: SearchConfig = {
     value: inputValue,
@@ -1310,6 +1334,7 @@ export function Files() {
         label: uploadButtonLabel,
         icon: Upload,
         onClick: handleUploadClick,
+        disabled: uploading || !canEdit,
       },
       {
         label: 'New folder',
@@ -1372,14 +1397,20 @@ export function Files() {
     () => [
       { value: '__root__', label: 'Files' },
       ...folders
-        .filter((folder) => !selectedFolderIds.includes(folder.id))
+        .filter((folder) => {
+          if (selectedFolderIds.includes(folder.id)) return false
+          return selectedFolderIds.every(
+            (selectedFolderId) =>
+              !descendantFolderIdsByFolderId.get(selectedFolderId)?.has(folder.id)
+          )
+        })
         .map((folder) => ({
           value: folder.id,
           label: folder.path,
           icon: Folder,
         })),
     ],
-    [folders, selectedFolderIds]
+    [folders, selectedFolderIds, descendantFolderIdsByFolderId]
   )
 
   const sortConfig: SortConfig = useMemo(
@@ -1734,7 +1765,7 @@ export function Files() {
         type='file'
         className='hidden'
         onChange={handleFileChange}
-        disabled={uploading}
+        disabled={uploading || !canEdit}
         accept={ACCEPT_ATTR}
         multiple
       />

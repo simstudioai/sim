@@ -34,13 +34,22 @@ const workspaceFileFoldersSuccessSchema = z.object({
   success: z.boolean(),
 })
 
+const workspaceFileFolderNameSchema = z
+  .string({ error: 'Name is required' })
+  .trim()
+  .min(1, 'Name is required')
+  .refine(
+    (name) => name !== '.' && name !== '..' && !name.includes('/') && !name.includes('\\'),
+    'Name cannot contain path separators or dot segments'
+  )
+
 export const createWorkspaceFileFolderBodySchema = z.object({
-  name: z.string({ error: 'Name is required' }).trim().min(1, 'Name is required'),
+  name: workspaceFileFolderNameSchema,
   parentId: z.string().nullable().optional(),
 })
 
 export const updateWorkspaceFileFolderBodySchema = z.object({
-  name: z.string().trim().min(1, 'Name is required').optional(),
+  name: workspaceFileFolderNameSchema.optional(),
   parentId: z.string().nullable().optional(),
   sortOrder: z.number().int().optional(),
 })

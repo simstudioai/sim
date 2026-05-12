@@ -15,10 +15,17 @@ export const listWorkspaceFilesQuerySchema = z.object({
   scope: workspaceFileScopeSchema.default('active'),
 })
 
+const workspaceFileNameSchema = z
+  .string({ error: 'Name is required' })
+  .trim()
+  .min(1, 'Name is required')
+  .refine(
+    (name) => name !== '.' && name !== '..' && !name.includes('/') && !name.includes('\\'),
+    'Name cannot contain path separators or dot segments'
+  )
+
 export const renameWorkspaceFileBodySchema = z.object({
-  name: z
-    .string({ error: 'Name is required' })
-    .refine((name) => name.trim().length > 0, { message: 'Name is required' }),
+  name: workspaceFileNameSchema,
 })
 
 export const updateWorkspaceFileContentBodySchema = z.object({
@@ -166,7 +173,7 @@ export const workspaceFileCompiledCheckContract = defineRouteContract({
 })
 
 export const workspacePresignedUploadBodySchema = z.object({
-  fileName: z.string().min(1, 'fileName is required'),
+  fileName: workspaceFileNameSchema,
   contentType: z.string().min(1, 'contentType is required'),
   fileSize: z.number().nonnegative('fileSize must be a non-negative number'),
   folderId: z.string().nullable().optional(),
@@ -203,7 +210,7 @@ export const workspacePresignedUploadContract = defineRouteContract({
 
 export const registerWorkspaceFileBodySchema = z.object({
   key: z.string().min(1, 'key is required'),
-  name: z.string().min(1, 'name is required'),
+  name: workspaceFileNameSchema,
   contentType: z.string().min(1, 'contentType is required'),
   folderId: z.string().nullable().optional(),
 })

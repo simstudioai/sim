@@ -17,7 +17,10 @@ const logger = createLogger('WorkspaceFilesDownloadAPI')
 function safeZipPath(path: string): string {
   return path
     .split('/')
-    .map((segment) => segment.trim().replace(/[<>:"\\|?*\x00-\x1f]/g, '_'))
+    .map((segment) => {
+      const cleaned = segment.trim().replace(/[<>:"\\|?*\x00-\x1f]/g, '_')
+      return cleaned === '.' || cleaned === '..' ? '_' : cleaned
+    })
     .filter(Boolean)
     .join('/')
 }
