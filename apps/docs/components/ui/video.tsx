@@ -45,7 +45,11 @@ export function Video({
       playsInline={playsInline}
       width={width}
       height={height}
-      className={cn(className, enableLightbox && 'transition-opacity group-hover:opacity-[0.97]')}
+      className={cn(
+        className,
+        enableLightbox &&
+          'cursor-pointer transition-opacity group-hover:opacity-[0.97] group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2'
+      )}
       src={getAssetUrl(src)}
     />
   )
@@ -57,7 +61,7 @@ export function Video({
           type='button'
           onClick={openLightbox}
           aria-label={`Open ${src} in media viewer`}
-          className='group block w-full cursor-pointer rounded-xl p-0 text-left'
+          className='group contents'
         >
           {video}
         </button>
