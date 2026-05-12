@@ -25,6 +25,7 @@ import {
 import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
@@ -123,12 +124,12 @@ export const WorkflowOutputSection = memo(
                       e.stopPropagation()
                       handleCopy()
                     }}
-                    className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                    className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                   >
                     {copied ? (
-                      <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
+                      <Check className='size-[10px] text-[var(--text-success)]' />
                     ) : (
-                      <Clipboard className='h-[10px] w-[10px]' />
+                      <Clipboard className='size-[10px]' />
                     )}
                   </Button>
                 </Tooltip.Trigger>
@@ -143,9 +144,9 @@ export const WorkflowOutputSection = memo(
                       e.stopPropagation()
                       activateSearch()
                     }}
-                    className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                    className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                   >
-                    <Search className='h-[10px] w-[10px]' />
+                    <Search className='size-[10px]' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>Search</Tooltip.Content>
@@ -157,6 +158,7 @@ export const WorkflowOutputSection = memo(
         {/* Search Overlay */}
         {isSearchActive && (
           <div
+            role='presentation'
             className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-sm'
             onClick={(e) => e.stopPropagation()}
           >
@@ -183,7 +185,7 @@ export const WorkflowOutputSection = memo(
               disabled={matchCount === 0}
               aria-label='Previous match'
             >
-              <ArrowUp className='h-[12px] w-[12px]' />
+              <ArrowUp className='size-[12px]' />
             </Button>
             <Button
               variant='ghost'
@@ -192,7 +194,7 @@ export const WorkflowOutputSection = memo(
               disabled={matchCount === 0}
               aria-label='Next match'
             >
-              <ArrowDown className='h-[12px] w-[12px]' />
+              <ArrowDown className='size-[12px]' />
             </Button>
             <Button
               variant='ghost'
@@ -200,7 +202,7 @@ export const WorkflowOutputSection = memo(
               onClick={closeSearch}
               aria-label='Close search'
             >
-              <X className='h-[12px] w-[12px]' />
+              <X className='size-[12px]' />
             </Button>
           </div>
         )}
@@ -375,7 +377,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                           (!log.workflowId ? DELETED_WORKFLOW_COLOR : undefined)
                     return (
                       <div
-                        className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px] border-[1.5px]'
+                        className='size-[8px] flex-shrink-0 rounded-[2px] border-[1.5px]'
                         style={{
                           backgroundColor: c,
                           borderColor: c ? workflowBorderColor(c) : undefined,
@@ -399,6 +401,9 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
               {/* Run ID — click to copy */}
               {log.executionId && (
                 <div
+                  role='button'
+                  tabIndex={0}
+                  aria-label='Copy run ID'
                   className='flex h-10 min-w-0 cursor-pointer items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'
                   onClick={() => {
                     navigator.clipboard.writeText(log.executionId!)
@@ -409,6 +414,17 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                       1500
                     )
                   }}
+                  onKeyDown={(event) =>
+                    handleKeyboardActivation(event, () => {
+                      navigator.clipboard.writeText(log.executionId!)
+                      if (copiedRunIdTimerRef.current) clearTimeout(copiedRunIdTimerRef.current)
+                      setCopiedRunId(true)
+                      copiedRunIdTimerRef.current = window.setTimeout(
+                        () => setCopiedRunId(false),
+                        1500
+                      )
+                    })
+                  }
                 >
                   <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
                     Run ID
@@ -433,7 +449,9 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                 {log.trigger ? (
                   <TriggerBadge trigger={log.trigger} />
                 ) : (
-                  <span className='font-medium text-[var(--text-secondary)] text-caption'>—</span>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption'>
+                    None
+                  </span>
                 )}
               </div>
 
@@ -473,7 +491,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                     className='gap-1'
                     onClick={() => setIsExecutionSnapshotOpen(true)}
                   >
-                    <Eye className='h-3 w-3' />
+                    <Eye className='size-3' />
                     View Snapshot
                   </Button>
                 </div>
@@ -729,7 +747,7 @@ export const LogDetails = memo(function LogDetails({
                           disabled={isRetryPending}
                           aria-label='Retry execution'
                         >
-                          <Redo className='h-[14px] w-[14px]' />
+                          <Redo className='size-[14px]' />
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content side='bottom'>Retry</Tooltip.Content>
@@ -742,7 +760,7 @@ export const LogDetails = memo(function LogDetails({
                   disabled={!hasPrev}
                   aria-label='Previous log'
                 >
-                  <ChevronUp className='h-[14px] w-[14px]' />
+                  <ChevronUp className='size-[14px]' />
                 </Button>
                 <Button
                   variant='ghost'
@@ -751,10 +769,10 @@ export const LogDetails = memo(function LogDetails({
                   disabled={!hasNext}
                   aria-label='Next log'
                 >
-                  <ChevronUp className='h-[14px] w-[14px] rotate-180' />
+                  <ChevronUp className='size-[14px] rotate-180' />
                 </Button>
                 <Button variant='ghost' className='!p-1' onClick={onClose} aria-label='Close'>
-                  <X className='h-[14px] w-[14px]' />
+                  <X className='size-[14px]' />
                 </Button>
               </div>
             </div>

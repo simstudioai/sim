@@ -57,6 +57,8 @@ export function useFloatDrag({ position, width, height, onPositionChange }: UseF
     },
     [onPositionChange, width, height]
   )
+  const handleMouseMoveRef = useRef(handleMouseMove)
+  handleMouseMoveRef.current = handleMouseMove
 
   /**
    * Handle mouse up - stop dragging
@@ -69,19 +71,28 @@ export function useFloatDrag({ position, width, height, onPositionChange }: UseF
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
   }, [])
+  const handleMouseUpRef = useRef(handleMouseUp)
+  handleMouseUpRef.current = handleMouseUp
 
   /**
    * Set up global mouse event listeners
    */
   useEffect(() => {
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      handleMouseMoveRef.current(e)
+    }
+    const handleGlobalMouseUp = () => {
+      handleMouseUpRef.current()
+    }
+
+    window.addEventListener('mousemove', handleGlobalMouseMove)
+    window.addEventListener('mouseup', handleGlobalMouseUp)
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('mousemove', handleGlobalMouseMove)
+      window.removeEventListener('mouseup', handleGlobalMouseUp)
     }
-  }, [handleMouseMove, handleMouseUp])
+  }, [])
 
   return {
     handleMouseDown,

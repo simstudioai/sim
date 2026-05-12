@@ -41,7 +41,7 @@ export interface ReductoParserV2Input {
 /**
  * Bounding box for spatial location data
  */
-export interface ReductoBoundingBox {
+interface ReductoBoundingBox {
   left: number
   top: number
   width: number
@@ -52,7 +52,7 @@ export interface ReductoBoundingBox {
 /**
  * Granular confidence scores
  */
-export interface ReductoGranularConfidence {
+interface ReductoGranularConfidence {
   ocr: string | null
   layout: string | null
   order: string | null
@@ -81,7 +81,7 @@ export type ReductoBlockType =
 /**
  * Parse block - structured content element
  */
-export interface ReductoParseBlock {
+interface ReductoParseBlock {
   type: ReductoBlockType
   bbox: ReductoBoundingBox
   content: string
@@ -95,7 +95,7 @@ export interface ReductoParseBlock {
 /**
  * Parse chunk - document segment
  */
-export interface ReductoParseChunk {
+interface ReductoParseChunk {
   content: string
   embed: string
   enriched: string | null
@@ -106,7 +106,7 @@ export interface ReductoParseChunk {
 /**
  * OCR word data
  */
-export interface ReductoOcrWord {
+interface ReductoOcrWord {
   text: string
   bbox: ReductoBoundingBox
   confidence: number
@@ -115,7 +115,7 @@ export interface ReductoOcrWord {
 /**
  * OCR line data
  */
-export interface ReductoOcrLine {
+interface ReductoOcrLine {
   text: string
   bbox: ReductoBoundingBox
   words: ReductoOcrWord[]
@@ -124,7 +124,7 @@ export interface ReductoOcrLine {
 /**
  * OCR result data
  */
-export interface ReductoOcrResult {
+interface ReductoOcrResult {
   lines: ReductoOcrLine[]
   words: ReductoOcrWord[]
 }
@@ -132,7 +132,7 @@ export interface ReductoOcrResult {
 /**
  * Full result - when response fits in payload
  */
-export interface ReductoFullResult {
+interface ReductoFullResult {
   type: 'full'
   chunks: ReductoParseChunk[]
   ocr: ReductoOcrResult | null
@@ -142,7 +142,7 @@ export interface ReductoFullResult {
 /**
  * URL result - when response exceeds size limits
  */
-export interface ReductoUrlResult {
+interface ReductoUrlResult {
   type: 'url'
   url: string
 }
@@ -150,7 +150,7 @@ export interface ReductoUrlResult {
 /**
  * Usage information returned by Reducto API
  */
-export interface ReductoUsage {
+interface ReductoUsage {
   num_pages: number
   credits: number | null
 }
@@ -158,7 +158,7 @@ export interface ReductoUsage {
 /**
  * Native Reducto API response structure
  */
-export interface ReductoParserOutputData {
+interface ReductoParserOutputData {
   job_id: string
   duration: number
   usage: ReductoUsage

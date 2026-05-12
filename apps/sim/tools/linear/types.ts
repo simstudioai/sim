@@ -522,7 +522,7 @@ export const ISSUE_LIST_OUTPUT_PROPERTIES = {
 
 // ===== Core Types =====
 
-export interface LinearIssue {
+interface LinearIssue {
   id: string
   title: string
   description?: string
@@ -553,7 +553,7 @@ export interface LinearIssue {
   url?: string
 }
 
-export interface LinearComment {
+interface LinearComment {
   id: string
   body: string
   createdAt: string
@@ -569,7 +569,7 @@ export interface LinearComment {
   }
 }
 
-export interface LinearProject {
+interface LinearProject {
   id: string
   name: string
   description?: string
@@ -591,7 +591,7 @@ export interface LinearProject {
   url?: string
 }
 
-export interface LinearUser {
+interface LinearUser {
   id: string
   name: string
   email: string
@@ -601,14 +601,14 @@ export interface LinearUser {
   avatarUrl?: string
 }
 
-export interface LinearTeam {
+interface LinearTeam {
   id: string
   name: string
   key: string
   description?: string
 }
 
-export interface LinearLabel {
+interface LinearLabel {
   id: string
   name: string
   color: string
@@ -623,7 +623,7 @@ export interface LinearLabel {
   }
 }
 
-export interface LinearWorkflowState {
+interface LinearWorkflowState {
   id: string
   name: string
   description?: string
@@ -639,7 +639,7 @@ export interface LinearWorkflowState {
   }
 }
 
-export interface LinearCycle {
+interface LinearCycle {
   id: string
   number: number
   name?: string
@@ -1235,7 +1235,7 @@ export interface LinearGetActiveCycleResponse extends ToolResponse {
   }
 }
 
-export interface LinearAttachment {
+interface LinearAttachment {
   id: string
   title?: string
   subtitle?: string
@@ -1272,7 +1272,7 @@ export interface LinearDeleteAttachmentResponse extends ToolResponse {
   }
 }
 
-export interface LinearIssueRelation {
+interface LinearIssueRelation {
   id: string
   type: string
   issue: {
@@ -1307,7 +1307,7 @@ export interface LinearDeleteIssueRelationResponse extends ToolResponse {
   }
 }
 
-export interface LinearFavorite {
+interface LinearFavorite {
   id: string
   type: string
   issue?: {
@@ -1340,7 +1340,7 @@ export interface LinearListFavoritesResponse extends ToolResponse {
   }
 }
 
-export interface LinearProjectUpdate {
+interface LinearProjectUpdate {
   id: string
   body: string
   health: string
@@ -1367,7 +1367,7 @@ export interface LinearListProjectUpdatesResponse extends ToolResponse {
   }
 }
 
-export interface LinearNotification {
+interface LinearNotification {
   id: string
   type: string
   createdAt: string
@@ -1396,7 +1396,7 @@ export interface LinearUpdateNotificationResponse extends ToolResponse {
 
 // ===== Customer Types =====
 
-export interface LinearCustomer {
+interface LinearCustomer {
   id: string
   name: string
   domains: string[]
@@ -1449,7 +1449,7 @@ export interface LinearListCustomersResponse extends ToolResponse {
 
 // ===== Customer Need (Request) Types =====
 
-export interface LinearCustomerNeed {
+interface LinearCustomerNeed {
   id: string
   body?: string
   priority: number
@@ -1579,7 +1579,7 @@ export interface LinearMergeCustomersResponse extends ToolResponse {
 
 // ===== Customer Status Types =====
 
-export interface LinearCustomerStatus {
+interface LinearCustomerStatus {
   id: string
   name: string
   description?: string
@@ -1651,7 +1651,7 @@ export interface LinearListCustomerStatusesResponse extends ToolResponse {
 
 // ===== Customer Tier Types =====
 
-export interface LinearCustomerTier {
+interface LinearCustomerTier {
   id: string
   name: string
   displayName: string
@@ -1722,7 +1722,7 @@ export interface LinearListCustomerTiersResponse extends ToolResponse {
 
 // ===== Project Label Types =====
 
-export interface LinearProjectLabel {
+interface LinearProjectLabel {
   id: string
   name: string
   description?: string
@@ -1818,7 +1818,7 @@ export interface LinearRemoveLabelFromProjectResponse extends ToolResponse {
 
 // ===== Project Milestone Types =====
 
-export interface LinearProjectMilestone {
+interface LinearProjectMilestone {
   id: string
   name: string
   description?: string
@@ -1889,7 +1889,7 @@ export interface LinearListProjectMilestonesResponse extends ToolResponse {
 
 // ===== Project Status Types =====
 
-export interface LinearProjectStatus {
+interface LinearProjectStatus {
   id: string
   name: string
   description?: string

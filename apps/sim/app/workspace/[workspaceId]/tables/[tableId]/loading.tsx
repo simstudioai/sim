@@ -9,7 +9,7 @@ export default function TableDetailLoading() {
       <div className='border-[var(--border)] border-b px-[16px] py-[8.5px]'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-[8px]'>
-            <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+            <Skeleton className='size-[14px] rounded-[2px]' />
             <Skeleton className='h-[14px] w-[44px] rounded-[4px]' />
             <Skeleton className='h-[14px] w-[8px] rounded-[2px]' />
             <Skeleton className='h-[14px] w-[100px] rounded-[4px]' />

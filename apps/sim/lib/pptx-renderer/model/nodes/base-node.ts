@@ -23,7 +23,7 @@ export interface PlaceholderInfo {
 }
 
 /** Shape-level hyperlink click action (from cNvPr > a:hlinkClick). */
-export interface HlinkAction {
+interface HlinkAction {
   /** Action URI, e.g. "ppaction://hlinksldjump", "ppaction://hlinkpres", or empty for URL links. */
   action?: string
   /** Relationship ID for the target (slide, URL, etc.). */

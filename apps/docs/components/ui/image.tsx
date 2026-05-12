@@ -19,25 +19,35 @@ export function Image({
 }: ImageProps) {
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
 
-  const handleImageClick = () => {
-    if (enableLightbox) {
-      setIsLightboxOpen(true)
-    }
-  }
+  const openLightbox = () => setIsLightboxOpen(true)
+
+  const image = (
+    <NextImage
+      className={cn(
+        'overflow-hidden rounded-xl border border-border object-cover',
+        enableLightbox && 'transition-opacity group-hover:opacity-95',
+        className
+      )}
+      alt={alt}
+      src={src}
+      {...props}
+    />
+  )
 
   return (
     <>
-      <NextImage
-        className={cn(
-          'overflow-hidden rounded-xl border border-border object-cover',
-          enableLightbox && 'cursor-pointer transition-opacity hover:opacity-95',
-          className
-        )}
-        alt={alt}
-        src={src}
-        onClick={handleImageClick}
-        {...props}
-      />
+      {enableLightbox ? (
+        <button
+          type='button'
+          onClick={openLightbox}
+          aria-label={`Open ${alt} in media viewer`}
+          className='group block w-full cursor-pointer rounded-xl p-0 text-left'
+        >
+          {image}
+        </button>
+      ) : (
+        image
+      )}
 
       {enableLightbox && (
         <Lightbox

@@ -40,6 +40,8 @@ interface VoiceInterfaceProps {
   chatId?: string
 }
 
+const EMPTY_MESSAGES: Array<{ content: string; type: 'user' | 'assistant' }> = []
+
 export function VoiceInterface({
   onCallEnd,
   onVoiceTranscript,
@@ -49,7 +51,7 @@ export function VoiceInterface({
   isStreaming = false,
   isPlayingAudio = false,
   audioContextRef: sharedAudioContextRef,
-  messages = [],
+  messages = EMPTY_MESSAGES,
   className,
   chatId,
 }: VoiceInterfaceProps) {
@@ -57,9 +59,7 @@ export function VoiceInterface({
   const [isInitialized, setIsInitialized] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [audioLevels, setAudioLevels] = useState<number[]>(() => new Array(200).fill(0))
-  const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>(
-    'prompt'
-  )
+  const permissionStatusRef = useRef<'prompt' | 'granted' | 'denied'>('prompt')
   const [currentTranscript, setCurrentTranscript] = useState('')
 
   const currentStateRef = useRef<'idle' | 'listening' | 'agent_speaking'>('idle')
@@ -251,7 +251,7 @@ export function VoiceInterface({
         },
       })
 
-      setPermissionStatus('granted')
+      permissionStatusRef.current = 'granted'
       mediaStreamRef.current = stream
 
       const ac = new AudioContext({ sampleRate: SAMPLE_RATE })
@@ -300,7 +300,7 @@ export function VoiceInterface({
       return true
     } catch (error) {
       logger.error('Error setting up audio pipeline:', error)
-      setPermissionStatus('denied')
+      permissionStatusRef.current = 'denied'
       return false
     }
   }, [])
@@ -514,12 +514,12 @@ export function VoiceInterface({
   const getButtonContent = () => {
     if (state === 'agent_speaking') {
       return (
-        <svg className='h-6 w-6' viewBox='0 0 24 24' fill='currentColor'>
+        <svg className='size-6' viewBox='0 0 24 24' fill='currentColor'>
           <rect x='6' y='6' width='12' height='12' rx='2' />
         </svg>
       )
     }
-    return isMuted ? <MicOff className='h-6 w-6' /> : <Mic className='h-6 w-6' />
+    return isMuted ? <MicOff className='size-6' /> : <Mic className='size-6' />
   }
 
   return (
@@ -560,14 +560,14 @@ export function VoiceInterface({
       </div>
 
       <div className='px-8 pb-12'>
-        <div className='flex items-center justify-center space-x-12'>
+        <div className='flex items-center justify-center gap-x-12'>
           <Button
             onClick={handleCallEnd}
             variant='outline'
             size='icon'
-            className='h-14 w-14 rounded-full border-[var(--border-1)] hover:bg-[var(--landing-bg-elevated)]'
+            className='size-14 rounded-full border-[var(--border-1)] hover:bg-[var(--landing-bg-elevated)]'
           >
-            <Phone className='h-6 w-6 rotate-[135deg]' />
+            <Phone className='size-6 rotate-[135deg]' />
           </Button>
 
           <Button

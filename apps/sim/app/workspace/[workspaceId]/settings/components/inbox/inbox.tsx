@@ -44,7 +44,7 @@ export function Inbox() {
           onClick={() => router.push(`/workspace/${workspaceId}/settings/subscription`)}
         >
           Upgrade to Max
-          <ArrowRight className='ml-1.5 h-[14px] w-[14px]' />
+          <ArrowRight className='ml-1.5 size-[14px]' />
         </Button>
       </div>
     )

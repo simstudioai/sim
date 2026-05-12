@@ -1,12 +1,12 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface ServiceNowRecord {
+interface ServiceNowRecord {
   sys_id: string
   number?: string
   [key: string]: any
 }
 
-export interface ServiceNowBaseParams {
+interface ServiceNowBaseParams {
   instanceUrl: string
   username: string
   password: string

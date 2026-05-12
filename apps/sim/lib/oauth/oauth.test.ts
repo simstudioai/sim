@@ -389,6 +389,46 @@ describe('OAuth Token Refresh', () => {
       })
     })
 
+    it.concurrent(
+      'should rotate refresh token for Microsoft providers (microsoft, outlook, onedrive, sharepoint)',
+      async () => {
+        const microsoftProviders = [
+          'microsoft',
+          'outlook',
+          'onedrive',
+          'sharepoint',
+          'microsoft-excel',
+          'microsoft-teams',
+          'microsoft-planner',
+          'microsoft-ad',
+          'microsoft-dataverse',
+        ]
+        const oldRefreshToken = 'old_microsoft_refresh_token'
+        const rotatedRefreshToken = 'rotated_microsoft_refresh_token'
+
+        for (const providerId of microsoftProviders) {
+          const mockFetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+              access_token: 'new_access_token',
+              expires_in: 3600,
+              refresh_token: rotatedRefreshToken,
+            }),
+          })
+
+          const result = await withMockFetch(mockFetch, () =>
+            refreshOAuthToken(providerId, oldRefreshToken)
+          )
+
+          expect(result).toEqual({
+            accessToken: 'new_access_token',
+            expiresIn: 3600,
+            refreshToken: rotatedRefreshToken,
+          })
+        }
+      }
+    )
+
     it.concurrent('should use original refresh token when new one is not provided', async () => {
       const refreshToken = 'original_refresh_token'
 

@@ -21,7 +21,7 @@ export const MemoizedCommandItem = memo(
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <div
-          className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+          className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
           style={{ background: showColoredIcon ? bgColor : 'transparent' }}
         >
           <Icon
@@ -64,7 +64,7 @@ export const MemoizedWorkflowItem = memo(
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
         <div
-          className='h-[14px] w-[14px] flex-shrink-0 rounded-sm border-[2px]'
+          className='size-[14px] flex-shrink-0 rounded-sm border-[2px]'
           style={{
             backgroundColor: color,
             borderColor: workflowBorderColor(color),
@@ -113,8 +113,8 @@ export const MemoizedTaskItem = memo(
   }) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-          <Blimp className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+        <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
+          <Blimp className='size-[14px] text-[var(--text-icon)]' />
         </div>
         <span className='truncate font-base text-[var(--text-body)]'>{name}</span>
       </Command.Item>
@@ -164,8 +164,8 @@ export const MemoizedPageItem = memo(
   }) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-          <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+        <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
+          <Icon className='size-[14px] text-[var(--text-icon)]' />
         </div>
         <span className='truncate font-base text-[var(--text-body)]'>{name}</span>
         {shortcut && (
@@ -197,8 +197,8 @@ export const MemoizedIconItem = memo(
   }) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-          <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+        <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
+          <Icon className='size-[14px] text-[var(--text-icon)]' />
         </div>
         <span className='truncate font-base text-[var(--text-body)]'>{name}</span>
       </Command.Item>

@@ -35,7 +35,7 @@ interface GoogleSheetsWebhookConfig {
   maxRowsPerPoll?: number
 }
 
-export interface GoogleSheetsWebhookPayload {
+interface GoogleSheetsWebhookPayload {
   row: Record<string, string> | null
   rawRow: string[]
   headers: string[]

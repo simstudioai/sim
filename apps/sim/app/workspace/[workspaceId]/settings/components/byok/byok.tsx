@@ -228,7 +228,7 @@ export function BYOK() {
         <div className='flex items-center gap-2'>
           <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
-              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
             />
             <Input
@@ -261,8 +261,8 @@ export function BYOK() {
                 return (
                   <div key={provider.id} className='flex items-center justify-between gap-3'>
                     <div className='flex items-center gap-3'>
-                      <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-[var(--surface-6)]'>
-                        <Icon className='h-4 w-4' />
+                      <div className='flex size-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-[var(--surface-6)]'>
+                        <Icon className='size-4' />
                       </div>
                       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                         <span className='font-medium text-base'>{provider.name}</span>
@@ -363,13 +363,13 @@ export function BYOK() {
                 />
                 <Button
                   variant='ghost'
-                  className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] p-0'
+                  className='-translate-y-1/2 absolute top-1/2 right-[4px] size-[28px] p-0'
                   onClick={() => setShowApiKey(!showApiKey)}
                 >
                   {showApiKey ? (
-                    <EyeOff className='h-[14px] w-[14px]' />
+                    <EyeOff className='size-[14px]' />
                   ) : (
-                    <Eye className='h-[14px] w-[14px]' />
+                    <Eye className='size-[14px]' />
                   )}
                 </Button>
               </div>

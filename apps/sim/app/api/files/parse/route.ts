@@ -131,48 +131,48 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (Array.isArray(filePath)) {
-      const results = []
-      for (const singlePath of filePath) {
-        if (!singlePath || (typeof singlePath === 'string' && singlePath.trim() === '')) {
-          results.push({
-            success: false,
-            error: 'Empty file path in array',
-            filePath: singlePath || '',
-          })
-          continue
-        }
+      const results = await Promise.all(
+        filePath.map(async (singlePath) => {
+          if (!singlePath || (typeof singlePath === 'string' && singlePath.trim() === '')) {
+            return {
+              success: false,
+              error: 'Empty file path in array',
+              filePath: singlePath || '',
+            }
+          }
 
-        const result = await parseFileSingle(
-          singlePath,
-          fileType,
-          workspaceId,
-          userId,
-          executionContext
-        )
-        if (result.metadata) {
-          result.metadata.processingTime = Date.now() - startTime
-        }
+          const result = await parseFileSingle(
+            singlePath,
+            fileType,
+            workspaceId,
+            userId,
+            executionContext
+          )
+          if (result.metadata) {
+            result.metadata.processingTime = Date.now() - startTime
+          }
 
-        if (result.success) {
-          const displayName =
-            result.originalName || extractCleanFilename(result.filePath) || 'unknown'
-          results.push({
-            success: true,
-            output: {
-              content: result.content,
-              name: displayName,
-              fileType: result.metadata?.fileType || 'application/octet-stream',
-              size: result.metadata?.size || 0,
-              binary: false,
-              file: result.userFile,
-            },
-            filePath: result.filePath,
-            viewerUrl: result.viewerUrl,
-          })
-        } else {
-          results.push(result)
-        }
-      }
+          if (result.success) {
+            const displayName =
+              result.originalName || extractCleanFilename(result.filePath) || 'unknown'
+            return {
+              success: true,
+              output: {
+                content: result.content,
+                name: displayName,
+                fileType: result.metadata?.fileType || 'application/octet-stream',
+                size: result.metadata?.size || 0,
+                binary: false,
+                file: result.userFile,
+              },
+              filePath: result.filePath,
+              viewerUrl: result.viewerUrl,
+            }
+          }
+
+          return result
+        })
+      )
 
       return NextResponse.json({
         success: true,

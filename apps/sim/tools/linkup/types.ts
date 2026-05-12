@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface LinkupSource {
+interface LinkupSource {
   name: string
   url: string
   snippet: string

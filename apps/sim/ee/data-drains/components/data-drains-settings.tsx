@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { ChevronDown, Plus, Search } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -19,7 +20,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  ModalTitle,
   MoreHorizontal,
   Switch,
   Table,
@@ -30,6 +30,15 @@ import {
   TableRow,
   toast,
 } from '@/components/emcn'
+import {
+  AzureIcon,
+  BigQueryIcon,
+  DatadogIcon,
+  GoogleIcon,
+  S3Icon,
+  SnowflakeIcon,
+} from '@/components/icons'
+import { Input as BaseInput } from '@/components/ui'
 import type { CreateDataDrainBody, DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
@@ -60,6 +69,11 @@ const SOURCE_LABELS: Record<(typeof SOURCE_TYPES)[number], string> = {
 
 const DESTINATION_LABELS: Record<(typeof DESTINATION_TYPES)[number], string> = {
   s3: 'Amazon S3',
+  gcs: 'Google Cloud Storage',
+  azure_blob: 'Azure Blob Storage',
+  datadog: 'Datadog',
+  bigquery: 'Google BigQuery',
+  snowflake: 'Snowflake',
   webhook: 'HTTPS webhook',
 }
 
@@ -70,9 +84,29 @@ const CADENCE_LABELS: Record<(typeof CADENCE_TYPES)[number], string> = {
 
 const SOURCE_OPTIONS = SOURCE_TYPES.map((t) => ({ value: t, label: SOURCE_LABELS[t] }))
 const CADENCE_OPTIONS = CADENCE_TYPES.map((t) => ({ value: t, label: CADENCE_LABELS[t] }))
+function getDestinationIcon(type: (typeof DESTINATION_TYPES)[number]) {
+  switch (type) {
+    case 's3':
+      return <S3Icon className='size-[14px] flex-shrink-0 text-[#1B660F]' />
+    case 'gcs':
+      return <GoogleIcon className='size-[14px] flex-shrink-0' />
+    case 'azure_blob':
+      return <AzureIcon className='size-[14px] flex-shrink-0' />
+    case 'datadog':
+      return <DatadogIcon className='size-[14px] flex-shrink-0' />
+    case 'bigquery':
+      return <BigQueryIcon className='size-[14px] flex-shrink-0' />
+    case 'snowflake':
+      return <SnowflakeIcon className='size-[14px] flex-shrink-0' />
+    default:
+      return null
+  }
+}
+
 const DESTINATION_OPTIONS = DESTINATION_TYPES.map((t) => ({
   value: t,
   label: DESTINATION_LABELS[t],
+  iconElement: getDestinationIcon(t),
 }))
 
 export function DataDrainsSettings() {
@@ -89,6 +123,19 @@ export function DataDrainsSettings() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [expandedDrainId, setExpandedDrainId] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+
+  const query = searchTerm.trim().toLowerCase()
+  const filteredDrains = !query
+    ? (drains ?? [])
+    : (drains ?? []).filter((drain) =>
+        [
+          drain.name,
+          SOURCE_LABELS[drain.source],
+          DESTINATION_LABELS[drain.destinationType],
+          CADENCE_LABELS[drain.scheduleCadence],
+        ].some((value) => value.toLowerCase().includes(query))
+      )
 
   if (sessionPending || orgsLoading || drainsLoading) {
     return <DataDrainsSkeleton />
@@ -111,61 +158,75 @@ export function DataDrainsSettings() {
   }
 
   return (
-    <div className='flex flex-col gap-6'>
+    <div className='flex h-full flex-col gap-4.5'>
       <Callout>
         Drains continuously export Sim data to your own storage on a schedule. Combine with Data
         Retention to satisfy long-term compliance archives.
       </Callout>
 
-      <div className='flex items-center justify-between'>
-        <div className='text-[13px] text-[var(--text-muted)]'>
-          {drains?.length ?? 0} drain{(drains?.length ?? 0) === 1 ? '' : 's'}
+      <div className='flex items-center gap-2'>
+        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+          <Search
+            className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+            strokeWidth={2}
+          />
+          <BaseInput
+            placeholder='Search data drains...'
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+          />
         </div>
         <Button variant='primary' onClick={() => setCreateOpen(true)}>
+          <Plus className='mr-1.5 size-[13px]' />
           New drain
         </Button>
       </div>
 
-      {drainsError ? (
-        <Callout variant='destructive'>
-          Failed to load data drains: {toError(drainsError).message}
-        </Callout>
-      ) : drains && drains.length > 0 ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Source</TableHead>
-              <TableHead>Destination</TableHead>
-              <TableHead>Cadence</TableHead>
-              <TableHead>Last run</TableHead>
-              <TableHead>Enabled</TableHead>
-              <TableHead className='w-[40px]' />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {drains.map((drain) => (
-              <DrainRow
-                key={drain.id}
-                drain={drain}
-                organizationId={orgId}
-                expanded={expandedDrainId === drain.id}
-                onToggleExpand={() =>
-                  setExpandedDrainId(expandedDrainId === drain.id ? null : drain.id)
-                }
-              />
-            ))}
-          </TableBody>
-        </Table>
-      ) : (
-        <div className='flex flex-col items-center justify-center gap-3 rounded-lg border border-[var(--border)] border-dashed py-12 text-center'>
-          <div className='text-[14px] text-[var(--text-primary)]'>No drains yet</div>
-          <div className='max-w-[400px] text-[13px] text-[var(--text-muted)]'>
-            Create a drain to start exporting workflow logs, audit events, and copilot data to S3 or
-            your own webhook.
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        {drainsError ? (
+          <Callout variant='destructive'>
+            Failed to load data drains: {toError(drainsError).message}
+          </Callout>
+        ) : drains && drains.length > 0 ? (
+          filteredDrains.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Destination</TableHead>
+                  <TableHead>Cadence</TableHead>
+                  <TableHead>Last run</TableHead>
+                  <TableHead>Enabled</TableHead>
+                  <TableHead className='w-[40px]' />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredDrains.map((drain) => (
+                  <DrainRow
+                    key={drain.id}
+                    drain={drain}
+                    organizationId={orgId}
+                    expanded={expandedDrainId === drain.id}
+                    onToggleExpand={() =>
+                      setExpandedDrainId(expandedDrainId === drain.id ? null : drain.id)
+                    }
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className='flex h-full items-center justify-center py-12 text-[var(--text-muted)] text-sm'>
+              No results for "{searchTerm.trim()}"
+            </div>
+          )
+        ) : (
+          <div className='flex h-full items-center justify-center py-12 text-[var(--text-muted)] text-sm'>
+            Click "New drain" above to get started
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {createOpen && (
         <CreateDrainModal organizationId={orgId} onClose={() => setCreateOpen(false)} />
@@ -231,7 +292,17 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
   return (
     <>
       <TableRow className='cursor-pointer' onClick={onToggleExpand}>
-        <TableCell className='font-medium'>{drain.name}</TableCell>
+        <TableCell className='font-medium'>
+          <div className='flex items-center gap-1.5'>
+            <ChevronDown
+              className={cn(
+                'size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
+                expanded && 'rotate-180'
+              )}
+            />
+            <span>{drain.name}</span>
+          </div>
+        </TableCell>
         <TableCell>
           <Badge>{SOURCE_LABELS[drain.source]}</Badge>
         </TableCell>
@@ -239,7 +310,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           <Badge>{DESTINATION_LABELS[drain.destinationType]}</Badge>
         </TableCell>
         <TableCell>{CADENCE_LABELS[drain.scheduleCadence]}</TableCell>
-        <TableCell className='text-[13px] text-[var(--text-muted)]'>
+        <TableCell className='text-[13px] text-[var(--text-muted)]' suppressHydrationWarning>
           {drain.lastRunAt ? new Date(drain.lastRunAt).toLocaleString() : 'Never'}
         </TableCell>
         <TableCell onClick={(e) => e.stopPropagation()}>
@@ -253,7 +324,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant='ghost' size='sm' aria-label='Drain actions'>
-                <MoreHorizontal className='h-4 w-4' />
+                <MoreHorizontal className='size-4' />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
@@ -317,7 +388,7 @@ function RunRow({ run }: { run: DataDrainRun }) {
         <div className='flex items-center gap-2'>
           <span className={cn('font-medium', statusColor)}>{run.status}</span>
           <span className='text-[var(--text-muted)]'>{run.trigger}</span>
-          <span className='text-[var(--text-muted)]'>
+          <span className='text-[var(--text-muted)]' suppressHydrationWarning>
             {new Date(run.startedAt).toLocaleString()}
           </span>
         </div>
@@ -378,47 +449,57 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
 
   return (
     <Modal open onOpenChange={(open) => !open && onClose()}>
-      <ModalContent className='max-w-[560px]'>
-        <ModalHeader>
-          <ModalTitle>New data drain</ModalTitle>
-        </ModalHeader>
-        <ModalBody className='flex flex-col gap-4'>
-          <FormField label='Name'>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder='Workflow logs to S3'
-            />
-          </FormField>
-          <FormField label='Source'>
-            <Combobox
-              value={source}
-              onChange={(v) => setSource(v as (typeof SOURCE_TYPES)[number])}
-              options={SOURCE_OPTIONS}
-              dropdownWidth='trigger'
-            />
-          </FormField>
-          <FormField label='Cadence'>
-            <Combobox
-              value={cadence}
-              onChange={(v) => setCadence(v as (typeof CADENCE_TYPES)[number])}
-              options={CADENCE_OPTIONS}
-              dropdownWidth='trigger'
-            />
-          </FormField>
-          <FormField label='Destination'>
-            <Combobox
-              value={destinationType}
-              onChange={(v) => handleDestinationChange(v as (typeof DESTINATION_TYPES)[number])}
-              options={DESTINATION_OPTIONS}
-              dropdownWidth='trigger'
-            />
-          </FormField>
+      <ModalContent size='md' className='max-h-[76vh]'>
+        <ModalHeader>New data drain</ModalHeader>
+        <ModalBody className='flex min-h-0 flex-1 flex-col gap-3'>
+          <section className='flex flex-col gap-3'>
+            <FormField label='Name'>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder='Workflow logs export'
+              />
+            </FormField>
+            <FormField label='Source'>
+              <Combobox
+                value={source}
+                onChange={(v) => setSource(v as (typeof SOURCE_TYPES)[number])}
+                options={SOURCE_OPTIONS}
+                dropdownWidth='trigger'
+              />
+            </FormField>
+            <FormField label='Cadence'>
+              <Combobox
+                value={cadence}
+                onChange={(v) => setCadence(v as (typeof CADENCE_TYPES)[number])}
+                options={CADENCE_OPTIONS}
+                dropdownWidth='trigger'
+              />
+            </FormField>
+            <FormField label='Destination'>
+              <Combobox
+                value={destinationType}
+                onChange={(v) => handleDestinationChange(v as (typeof DESTINATION_TYPES)[number])}
+                options={DESTINATION_OPTIONS}
+                dropdownWidth='trigger'
+                overlayContent={
+                  <div className='flex items-center gap-2'>
+                    {getDestinationIcon(destinationType)}
+                    <span className='truncate text-[var(--text-primary)]'>
+                      {DESTINATION_LABELS[destinationType]}
+                    </span>
+                  </div>
+                }
+              />
+            </FormField>
+          </section>
 
-          <spec.FormFields state={destState} setState={setDestState} />
+          <section className='flex flex-col gap-3'>
+            <spec.FormFields state={destState} setState={setDestState} />
+          </section>
         </ModalBody>
         <ModalFooter>
-          <Button variant='secondary' onClick={onClose}>
+          <Button variant='default' onClick={onClose}>
             Cancel
           </Button>
           <Button

@@ -13,7 +13,7 @@ import { isUuid } from '@/executor/constants'
 
 const logger = createLogger('FileAuthorization')
 
-export interface AuthorizationResult {
+interface AuthorizationResult {
   granted: boolean
   reason: string
   workspaceId?: string
@@ -24,7 +24,7 @@ export interface AuthorizationResult {
  * @param key Storage key to lookup
  * @returns Workspace file info or null if not found
  */
-export async function lookupWorkspaceFileByKey(
+async function lookupWorkspaceFileByKey(
   key: string,
   options?: { includeDeleted?: boolean }
 ): Promise<{ workspaceId: string; uploadedBy: string } | null> {
@@ -551,7 +551,7 @@ async function verifyRegularFileAccess(
 /**
  * Unified authorization function that returns structured result
  */
-export async function authorizeFileAccess(
+async function authorizeFileAccess(
   key: string,
   userId: string,
   context?: StorageContext,

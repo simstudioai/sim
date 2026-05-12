@@ -61,4 +61,5 @@ export const useSubscription = () => {
   }
 }
 
-export const { signIn, signUp, signOut } = client
+const { signIn, signUp, signOut } = client
+export { signOut }

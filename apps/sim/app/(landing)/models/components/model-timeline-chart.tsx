@@ -83,7 +83,7 @@ export function ModelTimelineChart({ models, providerId }: ModelTimelineChartPro
               >
                 {/* Dot — centered exactly on the line (70px - 4.5px) */}
                 <div
-                  className='-translate-x-1/2 absolute top-[66px] left-1/2 h-[9px] w-[9px] rounded-full transition-[filter,transform] duration-150 group-hover:scale-150 group-hover:brightness-150'
+                  className='-translate-x-1/2 absolute top-[66px] left-1/2 size-[9px] rounded-full transition-[filter,transform] duration-150 group-hover:scale-150 group-hover:brightness-150'
                   style={{ backgroundColor: color, opacity: 0.85 }}
                 />
 

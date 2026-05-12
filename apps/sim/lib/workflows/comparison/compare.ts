@@ -35,7 +35,7 @@ export function hasWorkflowChanged(
 /**
  * Represents a single field change with old and new values
  */
-export interface FieldChange {
+interface FieldChange {
   field: string
   oldValue: unknown
   newValue: unknown

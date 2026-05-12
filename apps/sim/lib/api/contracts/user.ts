@@ -61,6 +61,9 @@ export const userSettingsEmailPreferencesSchema = z.object({
   unsubscribeNotifications: z.boolean().optional(),
 })
 
+export const mothershipEnvironmentSchema = z.enum(['default', 'dev', 'staging', 'prod'])
+export type MothershipEnvironment = z.infer<typeof mothershipEnvironmentSchema>
+
 export const userSettingsSchema = z.object({
   theme: z.enum(['system', 'light', 'dark']).default('system'),
   autoConnect: z.boolean().default(true),
@@ -69,6 +72,7 @@ export const userSettingsSchema = z.object({
   billingUsageNotificationsEnabled: z.boolean().default(true),
   showTrainingControls: z.boolean().default(false),
   superUserModeEnabled: z.boolean().default(false),
+  mothershipEnvironment: mothershipEnvironmentSchema.default('default'),
   errorNotificationsEnabled: z.boolean().default(true),
   snapToGridSize: z.number().min(0).max(50).default(0),
   showActionBar: z.boolean().default(true),
@@ -85,6 +89,7 @@ export const updateUserSettingsBodySchema = z.object({
   billingUsageNotificationsEnabled: z.boolean().optional(),
   showTrainingControls: z.boolean().optional(),
   superUserModeEnabled: z.boolean().optional(),
+  mothershipEnvironment: mothershipEnvironmentSchema.optional(),
   errorNotificationsEnabled: z.boolean().optional(),
   snapToGridSize: z.number().min(0).max(50).optional(),
   showActionBar: z.boolean().optional(),

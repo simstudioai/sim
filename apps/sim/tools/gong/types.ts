@@ -1,7 +1,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 /** Base parameters shared by all Gong tools */
-export interface GongBaseParams {
+interface GongBaseParams {
   accessKey: string
   accessKeySecret: string
 }
@@ -14,7 +14,7 @@ export interface GongListCallsParams extends GongBaseParams {
   workspaceId?: string
 }
 
-export interface GongCallBasic {
+interface GongCallBasic {
   id: string
   title: string | null
   scheduled: string | null
@@ -37,7 +37,7 @@ export interface GongCallBasic {
   calendarEventId: string | null
 }
 
-export interface GongParty {
+interface GongParty {
   id: string | null
   name: string | null
   emailAddress: string | null
@@ -76,19 +76,19 @@ export interface GongGetCallTranscriptParams extends GongBaseParams {
   cursor?: string
 }
 
-export interface GongTranscriptSentence {
+interface GongTranscriptSentence {
   start: number
   end: number
   text: string
 }
 
-export interface GongTranscriptEntry {
+interface GongTranscriptEntry {
   speakerId: string | null
   topic: string | null
   sentences: GongTranscriptSentence[]
 }
 
-export interface GongCallTranscript {
+interface GongCallTranscript {
   callId: string
   transcript: GongTranscriptEntry[]
 }
@@ -110,7 +110,7 @@ export interface GongGetExtensiveCallsParams extends GongBaseParams {
   cursor?: string
 }
 
-export interface GongExtensiveCall {
+interface GongExtensiveCall {
   metaData: Record<string, unknown>
   parties: GongParty[]
   content: Record<string, unknown>
@@ -132,7 +132,7 @@ export interface GongListUsersParams extends GongBaseParams {
   includeAvatars?: string
 }
 
-export interface GongUserSettings {
+interface GongUserSettings {
   webConferencesRecorded: boolean
   preventWebConferenceRecording: boolean
   telephonyCallsImported: boolean
@@ -142,12 +142,12 @@ export interface GongUserSettings {
   gongConnectEnabled: boolean
 }
 
-export interface GongSpokenLanguage {
+interface GongSpokenLanguage {
   language: string
   primary: boolean
 }
 
-export interface GongUser {
+interface GongUser {
   id: string
   emailAddress: string | null
   created: string | null
@@ -210,7 +210,7 @@ export interface GongAggregateActivityParams extends GongBaseParams {
   cursor?: string
 }
 
-export interface GongUserActivity {
+interface GongUserActivity {
   userId: string
   userEmailAddress: string | null
   callsAsHost: number | null
@@ -241,12 +241,12 @@ export interface GongAggregateActivityResponse extends ToolResponse {
 }
 
 /** Interaction Stats */
-export interface GongInteractionStatEntry {
+interface GongInteractionStatEntry {
   name: string
   value: number | null
 }
 
-export interface GongUserInteractionStats {
+interface GongUserInteractionStats {
   userId: string
   userEmailAddress: string | null
   personInteractionStats: GongInteractionStatEntry[]
@@ -280,7 +280,7 @@ export interface GongAnsweredScorecardsParams extends GongBaseParams {
   cursor?: string
 }
 
-export interface GongScorecardAnswer {
+interface GongScorecardAnswer {
   questionId: number | null
   questionRevisionId: number | null
   isOverall: boolean | null
@@ -289,7 +289,7 @@ export interface GongScorecardAnswer {
   notApplicable: boolean | null
 }
 
-export interface GongAnsweredScorecard {
+interface GongAnsweredScorecard {
   answeredScorecardId: number
   scorecardId: number | null
   scorecardName: string | null
@@ -314,7 +314,7 @@ export interface GongListLibraryFoldersParams extends GongBaseParams {
   workspaceId?: string
 }
 
-export interface GongLibraryFolder {
+interface GongLibraryFolder {
   id: string
   name: string
   parentFolderId: string | null
@@ -333,12 +333,12 @@ export interface GongGetFolderContentParams extends GongBaseParams {
   folderId: string
 }
 
-export interface GongFolderCallSnippet {
+interface GongFolderCallSnippet {
   fromSec: number | null
   toSec: number | null
 }
 
-export interface GongFolderCall {
+interface GongFolderCall {
   id: string
   title: string | null
   note: string | null
@@ -361,7 +361,7 @@ export interface GongGetFolderContentResponse extends ToolResponse {
 /** List Scorecards */
 export interface GongListScorecardsParams extends GongBaseParams {}
 
-export interface GongScorecardQuestion {
+interface GongScorecardQuestion {
   questionId: string
   questionText: string
   questionRevisionId: string | null
@@ -371,7 +371,7 @@ export interface GongScorecardQuestion {
   updaterUserId: string | null
 }
 
-export interface GongScorecard {
+interface GongScorecard {
   scorecardId: string
   scorecardName: string
   workspaceId: string | null
@@ -393,13 +393,13 @@ export interface GongListTrackersParams extends GongBaseParams {
   workspaceId?: string
 }
 
-export interface GongTrackerLanguageKeyword {
+interface GongTrackerLanguageKeyword {
   language: string | null
   keywords: string[]
   includeRelatedForms: boolean
 }
 
-export interface GongTracker {
+interface GongTracker {
   trackerId: string
   trackerName: string
   workspaceId: string | null
@@ -427,7 +427,7 @@ export interface GongListTrackersResponse extends ToolResponse {
 /** List Workspaces */
 export interface GongListWorkspacesParams extends GongBaseParams {}
 
-export interface GongWorkspace {
+interface GongWorkspace {
   id: string
   name: string | null
   description: string | null
@@ -446,7 +446,7 @@ export interface GongListFlowsParams extends GongBaseParams {
   cursor?: string
 }
 
-export interface GongFlow {
+interface GongFlow {
   id: string
   name: string | null
   folderId: string | null
@@ -501,7 +501,7 @@ export interface GongGetCoachingResponse extends ToolResponse {
 }
 
 /** Shared data-privacy sub-types */
-export interface GongCallReference {
+interface GongCallReference {
   id: string
   status: string
   externalSystems: {
@@ -513,7 +513,7 @@ export interface GongCallReference {
   }[]
 }
 
-export interface GongEmailMessage {
+interface GongEmailMessage {
   id: string
   from: string
   sentTime: string
@@ -521,11 +521,11 @@ export interface GongEmailMessage {
   messageHash: string
 }
 
-export interface GongMeeting {
+interface GongMeeting {
   id: string
 }
 
-export interface GongCustomerDataObject {
+interface GongCustomerDataObject {
   id: string
   objectType: string
   externalId: string
@@ -533,12 +533,12 @@ export interface GongCustomerDataObject {
   fields: { name: string; value: unknown }[]
 }
 
-export interface GongCustomerData {
+interface GongCustomerData {
   system: string
   objects: GongCustomerDataObject[]
 }
 
-export interface GongCustomerEngagement {
+interface GongCustomerEngagement {
   eventType: string
   eventName: string
   timestamp: string

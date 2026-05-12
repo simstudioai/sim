@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
@@ -22,10 +23,13 @@ const logger = createLogger('CancelExecutionAPI')
 const PAUSED_CANCELLATION_DB_ATTEMPTS = 3
 const PAUSED_CANCELLATION_DB_RETRY_MS = 200
 
-async function completePausedCancellationWithRetry(executionId: string): Promise<boolean> {
+async function completePausedCancellationWithRetry(
+  executionId: string,
+  workflowId: string
+): Promise<boolean> {
   for (let attempt = 1; attempt <= PAUSED_CANCELLATION_DB_ATTEMPTS; attempt++) {
     try {
-      const cancelled = await PauseResumeManager.completePausedCancellation(executionId)
+      const cancelled = await PauseResumeManager.completePausedCancellation(executionId, workflowId)
       if (cancelled) {
         logger.info('Paused execution cancelled in database', { executionId, attempt })
         return true
@@ -129,7 +133,10 @@ export const POST = withRouteHandler(
       let pausedCancellationStarted = false
       let pausedCancelled = false
       try {
-        pausedCancellationStarted = await PauseResumeManager.beginPausedCancellation(executionId)
+        pausedCancellationStarted = await PauseResumeManager.beginPausedCancellation(
+          executionId,
+          workflowId
+        )
       } catch (error) {
         logger.warn('Failed to begin paused execution cancellation in database', {
           executionId,
@@ -138,7 +145,7 @@ export const POST = withRouteHandler(
       }
       const pendingPausedCancellation = pausedCancellationStarted
         ? null
-        : await PauseResumeManager.getPausedCancellationStatus(executionId)
+        : await PauseResumeManager.getPausedCancellationStatus(executionId, workflowId)
       const isPausedCancellationPath =
         pausedCancellationStarted || pendingPausedCancellation !== null
 
@@ -161,22 +168,26 @@ export const POST = withRouteHandler(
       }
 
       if (!isPausedCancellationPath && (cancellation.durablyRecorded || locallyAborted)) {
-        await PauseResumeManager.blockQueuedResumesForCancellation(executionId).catch((error) => {
-          logger.warn('Failed to block queued paused resumes after cancellation', {
-            executionId,
-            error,
-          })
-        })
-      } else if (!isPausedCancellationPath) {
-        await PauseResumeManager.clearPausedCancellationIntent(executionId).catch((error) => {
-          logger.warn(
-            'Failed to clear paused cancellation intent after unsuccessful cancellation',
-            {
+        await PauseResumeManager.blockQueuedResumesForCancellation(executionId, workflowId).catch(
+          (error) => {
+            logger.warn('Failed to block queued paused resumes after cancellation', {
               executionId,
               error,
-            }
-          )
-        })
+            })
+          }
+        )
+      } else if (!isPausedCancellationPath) {
+        await PauseResumeManager.clearPausedCancellationIntent(executionId, workflowId).catch(
+          (error) => {
+            logger.warn(
+              'Failed to clear paused cancellation intent after unsuccessful cancellation',
+              {
+                executionId,
+                error,
+              }
+            )
+          }
+        )
       }
 
       let pausedCancellationPublished = false
@@ -188,7 +199,7 @@ export const POST = withRouteHandler(
         )
         pausedCancellationPublishFailed = !pausedCancellationPublished
         if (pausedCancellationPublished) {
-          pausedCancelled = await completePausedCancellationWithRetry(executionId)
+          pausedCancelled = await completePausedCancellationWithRetry(executionId, workflowId)
         }
       } else {
         if (pendingPausedCancellation === 'cancelled') {
@@ -205,7 +216,7 @@ export const POST = withRouteHandler(
           )
           pausedCancellationPublishFailed = !pausedCancellationPublished
           if (pausedCancellationPublished) {
-            pausedCancelled = await completePausedCancellationWithRetry(executionId)
+            pausedCancelled = await completePausedCancellationWithRetry(executionId, workflowId)
           }
         }
       }
@@ -214,12 +225,14 @@ export const POST = withRouteHandler(
         pausedCancellationPublishFailed &&
         (pausedCancellationStarted || pendingPausedCancellation === 'cancelling')
       ) {
-        await PauseResumeManager.clearPausedCancellationIntent(executionId).catch((error) => {
-          logger.warn('Failed to clear paused cancellation intent after publish failure', {
-            executionId,
-            error,
-          })
-        })
+        await PauseResumeManager.clearPausedCancellationIntent(executionId, workflowId).catch(
+          (error) => {
+            logger.warn('Failed to clear paused cancellation intent after publish failure', {
+              executionId,
+              error,
+            })
+          }
+        )
       }
 
       if ((cancellation.durablyRecorded || locallyAborted) && !pausedCancelled) {
@@ -281,10 +294,14 @@ export const POST = withRouteHandler(
         pausedCancelled,
         reason,
       })
-    } catch (error: any) {
-      logger.error('Failed to cancel execution', { workflowId, executionId, error: error.message })
+    } catch (error) {
+      logger.error('Failed to cancel execution', {
+        workflowId,
+        executionId,
+        error: toError(error).message,
+      })
       return NextResponse.json(
-        { error: error.message || 'Failed to cancel execution' },
+        { error: toError(error).message || 'Failed to cancel execution' },
         { status: 500 }
       )
     }

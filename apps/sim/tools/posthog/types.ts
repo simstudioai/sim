@@ -2,21 +2,21 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Common base parameters
-export interface PostHogBaseParams {
+interface PostHogBaseParams {
   region?: 'us' | 'eu'
 }
 
-export interface PostHogPublicParams extends PostHogBaseParams {
+interface PostHogPublicParams extends PostHogBaseParams {
   projectApiKey: string
 }
 
-export interface PostHogPrivateParams extends PostHogBaseParams {
+interface PostHogPrivateParams extends PostHogBaseParams {
   apiKey: string
   projectId: string
 }
 
 // Common data types
-export interface PostHogPerson {
+interface PostHogPerson {
   id: string
   name: string
   distinct_ids: string[]
@@ -25,7 +25,7 @@ export interface PostHogPerson {
   uuid: string
 }
 
-export interface PostHogEvent {
+interface PostHogEvent {
   id: string
   distinct_id: string
   properties: Record<string, any>
@@ -34,7 +34,7 @@ export interface PostHogEvent {
   person?: PostHogPerson
 }
 
-export interface PostHogFeatureFlag {
+interface PostHogFeatureFlag {
   id: number
   name: string
   key: string
@@ -48,7 +48,7 @@ export interface PostHogFeatureFlag {
   ensure_experience_continuity?: boolean
 }
 
-export interface PostHogInsight {
+interface PostHogInsight {
   id: number
   name: string
   description: string
@@ -65,7 +65,7 @@ export interface PostHogInsight {
   short_id: string
 }
 
-export interface PostHogDashboard {
+interface PostHogDashboard {
   id: number
   name: string
   description: string
@@ -80,7 +80,7 @@ export interface PostHogDashboard {
   tiles: any[]
 }
 
-export interface PostHogCohort {
+interface PostHogCohort {
   id: number
   name: string
   description: string
@@ -96,7 +96,7 @@ export interface PostHogCohort {
   version?: number
 }
 
-export interface PostHogExperiment {
+interface PostHogExperiment {
   id: number
   name: string
   description: string
@@ -111,7 +111,7 @@ export interface PostHogExperiment {
   archived: boolean
 }
 
-export interface PostHogSurvey {
+interface PostHogSurvey {
   id: string
   name: string
   description: string
@@ -126,7 +126,7 @@ export interface PostHogSurvey {
   created_by: any
 }
 
-export interface PostHogSessionRecording {
+interface PostHogSessionRecording {
   id: string
   distinct_id: string
   viewed: boolean
@@ -141,7 +141,7 @@ export interface PostHogSessionRecording {
   person?: PostHogPerson
 }
 
-export interface PostHogAnnotation {
+interface PostHogAnnotation {
   id: number
   content: string
   date_marker: string
@@ -153,7 +153,7 @@ export interface PostHogAnnotation {
   deleted: boolean
 }
 
-export interface PostHogEventDefinition {
+interface PostHogEventDefinition {
   id: string
   name: string
   description: string
@@ -165,7 +165,7 @@ export interface PostHogEventDefinition {
   verified: boolean
 }
 
-export interface PostHogPropertyDefinition {
+interface PostHogPropertyDefinition {
   id: string
   name: string
   description: string
@@ -177,7 +177,7 @@ export interface PostHogPropertyDefinition {
   verified: boolean
 }
 
-export interface PostHogProject {
+interface PostHogProject {
   id: number
   uuid: string
   organization: string
@@ -194,7 +194,7 @@ export interface PostHogProject {
   is_demo: boolean
 }
 
-export interface PostHogOrganization {
+interface PostHogOrganization {
   id: string
   name: string
   created_at: string

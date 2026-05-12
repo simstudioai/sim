@@ -145,7 +145,7 @@ export async function updateRunStatus(
   )
 }
 
-export async function getLatestRunForExecution(executionId: string) {
+async function getLatestRunForExecution(executionId: string) {
   return withDbSpan(
     TraceSpan.CopilotAsyncRunsGetLatestForExecution,
     'SELECT',
@@ -191,7 +191,7 @@ export async function getRunSegment(runId: string) {
   )
 }
 
-export async function createRunCheckpoint(input: {
+async function createRunCheckpoint(input: {
   runId: string
   pendingToolCallId: string
   conversationSnapshot: Record<string, unknown>
@@ -314,7 +314,7 @@ export async function getAsyncToolCall(toolCallId: string) {
   )
 }
 
-export async function markAsyncToolStatus(
+async function markAsyncToolStatus(
   toolCallId: string,
   status: CopilotAsyncToolStatus,
   updates: {
@@ -402,7 +402,7 @@ export async function markAsyncToolDelivered(toolCallId: string) {
   })
 }
 
-export async function listAsyncToolCallsForRun(runId: string) {
+async function listAsyncToolCallsForRun(runId: string) {
   return withDbSpan(
     TraceSpan.CopilotAsyncRunsListForRun,
     'SELECT',
@@ -462,7 +462,7 @@ export async function claimCompletedAsyncToolCall(toolCallId: string, workerId: 
   )
 }
 
-export async function releaseCompletedAsyncToolClaim(toolCallId: string, workerId: string) {
+async function releaseCompletedAsyncToolClaim(toolCallId: string, workerId: string) {
   return withDbSpan(
     TraceSpan.CopilotAsyncRunsReleaseClaim,
     'UPDATE',

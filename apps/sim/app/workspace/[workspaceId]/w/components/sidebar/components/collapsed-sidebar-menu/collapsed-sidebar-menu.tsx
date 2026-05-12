@@ -89,7 +89,7 @@ function FlyoutMoreButton({
         isVisible && 'opacity-100'
       )}
     >
-      <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+      <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
     </button>
   )
 }
@@ -105,7 +105,7 @@ function TaskStatusIcon({
 }) {
   return (
     <span className='relative flex-shrink-0'>
-      <Blimp className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+      <Blimp className='size-[16px] text-[var(--text-icon)]' />
       {isActive && (
         <span
           className={cn(
@@ -129,7 +129,7 @@ function TaskStatusIcon({
 function WorkflowColorSwatch({ color }: { color: string }) {
   return (
     <div
-      className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
+      className='size-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
       style={{
         backgroundColor: color,
         borderColor: workflowBorderColor(color),
@@ -172,7 +172,7 @@ export function CollapsedSidebarMenu({
           {primaryAction && (
             <>
               <DropdownMenuItem onSelect={primaryAction.onSelect}>
-                <Plus className='h-[14px] w-[14px]' />
+                <Plus className='size-[14px]' />
                 {primaryAction.label}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -285,7 +285,7 @@ export function CollapsedWorkflowFlyoutItem({
   if (isEditing) {
     return (
       <div className='group relative'>
-        <div className='flex min-w-0 cursor-default select-none items-center gap-2 rounded-[5px] bg-[var(--surface-active)] px-2 py-2 font-medium text-[var(--text-body)] text-caption outline-none'>
+        <div className='flex min-w-0 cursor-default select-none items-center gap-2 rounded-[5px] bg-[var(--surface-active)] p-2 font-medium text-[var(--text-body)] text-caption outline-none'>
           <WorkflowColorSwatch color={workflow.color} />
           <input
             aria-label={`Rename workflow ${workflow.name}`}
@@ -341,18 +341,18 @@ export function CollapsedWorkflowFlyoutItem({
         >
           <DropdownMenuSubTrigger
             aria-label='Workflow options'
-            className='-translate-y-1/2 absolute top-1/2 right-[8px] z-10 h-[18px] w-[18px] min-w-0 justify-center gap-0 rounded-sm p-0 opacity-0 transition-opacity focus:bg-transparent group-hover:opacity-100 data-[state=open]:bg-transparent data-[state=open]:opacity-100 [&>svg:last-child]:hidden [&_svg]:pointer-events-auto [&_svg]:size-[16px]'
+            className='-translate-y-1/2 absolute top-1/2 right-[8px] z-10 size-[18px] min-w-0 justify-center gap-0 rounded-sm p-0 opacity-0 transition-opacity focus:bg-transparent group-hover:opacity-100 data-[state=open]:bg-transparent data-[state=open]:opacity-100 [&>svg:last-child]:hidden [&_svg]:pointer-events-auto [&_svg]:size-[16px]'
             onClick={(e) => {
               e.stopPropagation()
               setActionsOpen((prev) => !prev)
             }}
           >
-            <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+            <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
             {onOpenInNewTab && (
               <DropdownMenuItem onSelect={onOpenInNewTab}>
-                <SquareArrowUpRight className='h-[14px] w-[14px]' />
+                <SquareArrowUpRight className='size-[14px]' />
                 Open in new tab
               </DropdownMenuItem>
             )}
@@ -365,7 +365,7 @@ export function CollapsedWorkflowFlyoutItem({
                   onRename()
                 }}
               >
-                <Pencil className='h-[14px] w-[14px]' />
+                <Pencil className='size-[14px]' />
                 Rename
               </DropdownMenuItem>
             )}
@@ -416,7 +416,7 @@ export function CollapsedFolderItems({
         if (!hasChildren) {
           return (
             <DropdownMenuItem key={folder.id} disabled>
-              <Folder className='h-[14px] w-[14px]' />
+              <Folder className='size-[14px]' />
               <span className='truncate'>{folder.name}</span>
             </DropdownMenuItem>
           )
@@ -425,7 +425,7 @@ export function CollapsedFolderItems({
         return (
           <DropdownMenuSub key={folder.id}>
             <DropdownMenuSubTrigger className='focus:bg-[var(--surface-hover)] data-[state=open]:bg-[var(--surface-hover)]'>
-              <Folder className='h-[14px] w-[14px]' />
+              <Folder className='size-[14px]' />
               <span className='truncate'>{folder.name}</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>

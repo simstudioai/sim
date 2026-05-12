@@ -128,6 +128,7 @@ async function dispatchRow(row: DueRow, now: Date): Promise<RowResult> {
     try {
       const enqueueResult = await PauseResumeManager.enqueueOrStartResume({
         executionId: row.executionId,
+        workflowId: row.workflowId,
         contextId: point.contextId,
         resumeInput: {},
         userId,

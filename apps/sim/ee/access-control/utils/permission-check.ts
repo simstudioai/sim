@@ -388,7 +388,7 @@ export async function validatePublicApiAllowed(
 
 export type ToolKind = 'mcp' | 'custom' | 'skill'
 
-export interface PermissionAssertion {
+interface PermissionAssertion {
   userId: string | undefined
   workspaceId: string | undefined
   model?: string

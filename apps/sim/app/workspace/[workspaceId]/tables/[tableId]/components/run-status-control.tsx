@@ -23,7 +23,7 @@ export const RunStatusControl = memo(function RunStatusControl({
   return (
     <div className='flex items-center gap-1.5'>
       <div className='flex items-center gap-1.5 px-1 text-[var(--text-tertiary)] text-caption'>
-        <Loader animate className='h-[14px] w-[14px] shrink-0' />
+        <Loader animate className='size-[14px] shrink-0' />
         <span className='tabular-nums'>{running}</span>
         <span>running</span>
       </div>
@@ -33,7 +33,7 @@ export const RunStatusControl = memo(function RunStatusControl({
         onClick={onStopAll}
         disabled={isStopping}
       >
-        <Square className='mr-1.5 h-[14px] w-[14px]' />
+        <Square className='mr-1.5 size-[14px]' />
         Stop all
       </Button>
     </div>

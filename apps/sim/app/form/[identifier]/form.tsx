@@ -329,8 +329,8 @@ export default function Form({ identifier }: { identifier: string }) {
                 <button type='submit' disabled={isSubmitting} className={AUTH_SUBMIT_BTN}>
                   {isSubmitting ? (
                     <span className='flex items-center gap-2'>
-                      <Loader className='h-4 w-4' animate />
-                      Submitting...
+                      <Loader className='size-4' animate />
+                      Submitting…
                     </span>
                   ) : (
                     'Submit'

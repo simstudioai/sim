@@ -23,6 +23,7 @@ import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validat
 const logger = createLogger('WorkflowDBHelpers')
 
 export type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
+
 export type WorkflowDeploymentVersion = InferSelectModel<typeof workflowDeploymentVersion>
 
 function hasReturnedRows(result: unknown): boolean {
@@ -974,7 +975,7 @@ export async function activateWorkflowVersion(params: {
   }
 }
 
-export async function activateWorkflowVersionById(params: {
+async function activateWorkflowVersionById(params: {
   workflowId: string
   deploymentVersionId: string
 }): Promise<{

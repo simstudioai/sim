@@ -4,7 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
-import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
+import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1RunKind,
@@ -33,6 +33,7 @@ import type {
   StreamEvent,
   StreamingContext,
 } from '@/lib/copilot/request/types'
+import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
@@ -191,6 +192,7 @@ async function runCheckpointLoop(
   let payload: Record<string, unknown> = initialPayload
   let resumeAttempt = 0
   const callerOnEvent = options.onEvent
+  const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
 
   for (;;) {
     context.streamComplete = false
@@ -245,12 +247,13 @@ async function runCheckpointLoop(
 
     try {
       await runStreamLoop(
-        `${SIM_AGENT_API_URL}${route}`,
+        `${mothershipBaseURL}${route}`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+            ...getMothershipSourceEnvHeaders(),
             'X-Client-Version': SIM_AGENT_VERSION,
           },
           body: JSON.stringify(payload),

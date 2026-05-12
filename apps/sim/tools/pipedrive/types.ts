@@ -252,7 +252,7 @@ export const PIPEDRIVE_METADATA_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 // Common Pipedrive types
-export interface PipedriveLead {
+interface PipedriveLead {
   id: string
   title: string
   person_id?: number
@@ -269,7 +269,7 @@ export interface PipedriveLead {
   update_time: string
 }
 
-export interface PipedriveDeal {
+interface PipedriveDeal {
   id: number
   title: string
   value: number
@@ -288,7 +288,7 @@ export interface PipedriveDeal {
   expected_close_date?: string
 }
 
-export interface PipedriveActivity {
+interface PipedriveActivity {
   id: number
   subject: string
   type: string
@@ -304,7 +304,7 @@ export interface PipedriveActivity {
   update_time: string
 }
 
-export interface PipedriveFile {
+interface PipedriveFile {
   id: number
   name: string
   file_type: string
@@ -317,7 +317,7 @@ export interface PipedriveFile {
   url: string
 }
 
-export interface PipedrivePipeline {
+interface PipedrivePipeline {
   id: number
   name: string
   url_title: string
@@ -328,7 +328,7 @@ export interface PipedrivePipeline {
   update_time: string
 }
 
-export interface PipedriveProject {
+interface PipedriveProject {
   id: number
   title: string
   description?: string
@@ -340,7 +340,7 @@ export interface PipedriveProject {
   update_time: string
 }
 
-export interface PipedriveMailMessage {
+interface PipedriveMailMessage {
   id: number
   subject: string
   snippet: string
@@ -368,7 +368,7 @@ export interface PipedriveGetAllDealsParams {
   cursor?: string
 }
 
-export interface PipedriveGetAllDealsOutput {
+interface PipedriveGetAllDealsOutput {
   deals: PipedriveDeal[]
   metadata: {
     total_items: number
@@ -388,7 +388,7 @@ export interface PipedriveGetDealParams {
   deal_id: string
 }
 
-export interface PipedriveGetDealOutput {
+interface PipedriveGetDealOutput {
   deal: PipedriveDeal
   success: boolean
 }
@@ -411,7 +411,7 @@ export interface PipedriveCreateDealParams {
   expected_close_date?: string
 }
 
-export interface PipedriveCreateDealOutput {
+interface PipedriveCreateDealOutput {
   deal: PipedriveDeal
   success: boolean
 }
@@ -431,7 +431,7 @@ export interface PipedriveUpdateDealParams {
   expected_close_date?: string
 }
 
-export interface PipedriveUpdateDealOutput {
+interface PipedriveUpdateDealOutput {
   deal: PipedriveDeal
   success: boolean
 }
@@ -449,7 +449,7 @@ export interface PipedriveGetFilesParams {
   downloadFiles?: boolean
 }
 
-export interface PipedriveGetFilesOutput {
+interface PipedriveGetFilesOutput {
   files: PipedriveFile[]
   downloadedFiles?: ToolFileData[]
   total_items: number
@@ -469,7 +469,7 @@ export interface PipedriveGetMailMessagesParams {
   start?: string
 }
 
-export interface PipedriveGetMailMessagesOutput {
+interface PipedriveGetMailMessagesOutput {
   messages: PipedriveMailMessage[]
   total_items: number
   has_more?: boolean
@@ -487,7 +487,7 @@ export interface PipedriveGetMailThreadParams {
   thread_id: string
 }
 
-export interface PipedriveGetMailThreadOutput {
+interface PipedriveGetMailThreadOutput {
   messages: PipedriveMailMessage[]
   metadata: {
     thread_id: string
@@ -509,7 +509,7 @@ export interface PipedriveGetPipelinesParams {
   start?: string
 }
 
-export interface PipedriveGetPipelinesOutput {
+interface PipedriveGetPipelinesOutput {
   pipelines: PipedrivePipeline[]
   total_items: number
   has_more?: boolean
@@ -530,7 +530,7 @@ export interface PipedriveGetPipelineDealsParams {
   start?: string
 }
 
-export interface PipedriveGetPipelineDealsOutput {
+interface PipedriveGetPipelineDealsOutput {
   deals: PipedriveDeal[]
   metadata: {
     pipeline_id: string
@@ -554,7 +554,7 @@ export interface PipedriveGetProjectsParams {
   cursor?: string
 }
 
-export interface PipedriveGetProjectsOutput {
+interface PipedriveGetProjectsOutput {
   projects?: PipedriveProject[]
   project?: PipedriveProject
   total_items?: number
@@ -576,7 +576,7 @@ export interface PipedriveCreateProjectParams {
   end_date?: string
 }
 
-export interface PipedriveCreateProjectOutput {
+interface PipedriveCreateProjectOutput {
   project: PipedriveProject
   success: boolean
 }
@@ -595,7 +595,7 @@ export interface PipedriveGetActivitiesParams {
   start?: string
 }
 
-export interface PipedriveGetActivitiesOutput {
+interface PipedriveGetActivitiesOutput {
   activities: PipedriveActivity[]
   total_items: number
   has_more?: boolean
@@ -621,7 +621,7 @@ export interface PipedriveCreateActivityParams {
   note?: string
 }
 
-export interface PipedriveCreateActivityOutput {
+interface PipedriveCreateActivityOutput {
   activity: PipedriveActivity
   success: boolean
 }
@@ -642,7 +642,7 @@ export interface PipedriveUpdateActivityParams {
   note?: string
 }
 
-export interface PipedriveUpdateActivityOutput {
+interface PipedriveUpdateActivityOutput {
   activity: PipedriveActivity
   success: boolean
 }
@@ -663,7 +663,7 @@ export interface PipedriveGetLeadsParams {
   start?: string
 }
 
-export interface PipedriveGetLeadsOutput {
+interface PipedriveGetLeadsOutput {
   leads?: PipedriveLead[]
   lead?: PipedriveLead
   total_items?: number
@@ -689,7 +689,7 @@ export interface PipedriveCreateLeadParams {
   visible_to?: string
 }
 
-export interface PipedriveCreateLeadOutput {
+interface PipedriveCreateLeadOutput {
   lead: PipedriveLead
   success: boolean
 }
@@ -712,7 +712,7 @@ export interface PipedriveUpdateLeadParams {
   is_archived?: string
 }
 
-export interface PipedriveUpdateLeadOutput {
+interface PipedriveUpdateLeadOutput {
   lead: PipedriveLead
   success: boolean
 }
@@ -727,7 +727,7 @@ export interface PipedriveDeleteLeadParams {
   lead_id: string
 }
 
-export interface PipedriveDeleteLeadOutput {
+interface PipedriveDeleteLeadOutput {
   data: any
   success: boolean
 }

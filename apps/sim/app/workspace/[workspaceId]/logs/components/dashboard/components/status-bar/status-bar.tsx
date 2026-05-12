@@ -1,4 +1,5 @@
 import { memo, useMemo, useState } from 'react'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 
 export interface StatusBarSegment {
   successRate: number
@@ -75,6 +76,9 @@ function StatusBarInner({
           return (
             <div
               key={i}
+              role='button'
+              tabIndex={0}
+              aria-pressed={isSelected}
               className={`h-6 flex-1 rounded-[3px] ${color} ${hoverBrightness} cursor-pointer transition-all ${
                 isSelected
                   ? 'relative z-10 scale-105 shadow-sm ring-1 ring-[var(--text-secondary)]'
@@ -90,6 +94,11 @@ function StatusBarInner({
                 const mode = e.shiftKey ? 'range' : e.metaKey || e.ctrlKey ? 'toggle' : 'single'
                 onSegmentClick(workflowId, i, segment.timestamp, mode)
               }}
+              onKeyDown={(event) =>
+                handleKeyboardActivation(event, () =>
+                  onSegmentClick(workflowId, i, segment.timestamp, 'single')
+                )
+              }
             />
           )
         })}

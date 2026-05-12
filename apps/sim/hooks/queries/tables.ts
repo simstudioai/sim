@@ -1140,6 +1140,10 @@ function isInfiniteRowsCache(value: unknown): value is InfiniteRowsCache {
  * patchers pass `false` so live cell updates don't kick the row query off the
  * network.
  */
+/** Walks every cached query under `rowsRoot(tableId)` and applies `transform`
+ *  to each row. Transform returns the new row or `null` to skip. Returns the
+ *  list of [queryKey, prior data] entries so optimistic-update callers can
+ *  roll back. SSE patchers can ignore the return value. */
 export async function snapshotAndMutateRows(
   queryClient: ReturnType<typeof useQueryClient>,
   tableId: string,

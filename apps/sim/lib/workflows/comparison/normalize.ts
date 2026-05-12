@@ -333,7 +333,7 @@ interface NormalizedSubBlock {
 }
 
 /** Normalized workflow state structure */
-export interface NormalizedWorkflowState {
+interface NormalizedWorkflowState {
   blocks: Record<string, NormalizedBlock>
   edges: Array<{
     source: string

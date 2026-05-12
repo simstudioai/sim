@@ -11,14 +11,14 @@ export interface ParallelSearchParams {
   apiKey: string
 }
 
-export interface ParallelSearchResult {
+interface ParallelSearchResult {
   url: string | null
   title: string | null
   publish_date?: string | null
   excerpts: string[]
 }
 
-export interface ParallelSearchResponse extends ToolResponse {
+interface ParallelSearchResponse extends ToolResponse {
   output: {
     search_id: string | null
     results: ParallelSearchResult[]
@@ -33,7 +33,7 @@ export interface ParallelExtractParams {
   apiKey: string
 }
 
-export interface ParallelExtractResult {
+interface ParallelExtractResult {
   url: string | null
   title?: string | null
   publish_date?: string | null
@@ -41,7 +41,7 @@ export interface ParallelExtractResult {
   full_content?: string | null
 }
 
-export interface ParallelExtractResponse extends ToolResponse {
+interface ParallelExtractResponse extends ToolResponse {
   output: {
     extract_id: string | null
     results: ParallelExtractResult[]
@@ -56,7 +56,7 @@ export interface ParallelDeepResearchParams {
   apiKey: string
 }
 
-export interface ParallelDeepResearchBasis {
+interface ParallelDeepResearchBasis {
   field: string
   reasoning: string
   citations: {
@@ -67,7 +67,7 @@ export interface ParallelDeepResearchBasis {
   confidence: string
 }
 
-export interface ParallelDeepResearchResponse extends ToolResponse {
+interface ParallelDeepResearchResponse extends ToolResponse {
   output: {
     status: string
     run_id: string

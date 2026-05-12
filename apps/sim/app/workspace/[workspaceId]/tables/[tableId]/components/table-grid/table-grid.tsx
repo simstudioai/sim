@@ -1527,25 +1527,6 @@ export function TableGrid({
         return
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
-        e.preventDefault()
-        const rws = rowsRef.current
-        const currentCols = columnsRef.current
-        if (rws.length > 0 && currentCols.length > 0) {
-          suppressFocusScrollRef.current = true
-          setEditingCell(null)
-          setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
-          lastCheckboxRowRef.current = null
-          setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
-          setSelectionFocus({
-            rowIndex: rws.length - 1,
-            colIndex: currentCols.length - 1,
-          })
-          setIsColumnSelection(false)
-        }
-        return
-      }
-
       if ((e.metaKey || e.ctrlKey) && e.key === ' ') {
         const a = selectionAnchorRef.current
         if (!a || editingCellRef.current) return
@@ -2281,6 +2262,33 @@ export function TableGrid({
     }
   }, [])
 
+  useEffect(() => {
+    if (embedded) return
+    const handleSelectAll = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== 'a') return
+      const target = e.target as HTMLElement
+      const tag = target.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (target.isContentEditable) return
+      if (target.closest('[role="dialog"]')) return
+      if (!containerRef.current) return
+      const rws = rowsRef.current
+      const currentCols = columnsRef.current
+      if (rws.length > 0 && currentCols.length > 0) {
+        e.preventDefault()
+        suppressFocusScrollRef.current = true
+        setEditingCell(null)
+        setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
+        lastCheckboxRowRef.current = null
+        setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
+        setSelectionFocus({ rowIndex: rws.length - 1, colIndex: currentCols.length - 1 })
+        setIsColumnSelection(false)
+      }
+    }
+    document.addEventListener('keydown', handleSelectAll)
+    return () => document.removeEventListener('keydown', handleSelectAll)
+  }, [embedded])
+
   const navigateAfterSave = useCallback((reason: SaveReason) => {
     const anchor = selectionAnchorRef.current
     if (!anchor) return
@@ -2907,7 +2915,7 @@ export function TableGrid({
   if (!isLoadingTable && !tableData) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <TableX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
+        <TableX className='size-[32px] text-[var(--text-muted)]' />
         <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>Table not found</h2>
           <p className='text-[var(--text-muted)] text-small'>
@@ -2973,20 +2981,20 @@ export function TableGrid({
                   <tr>
                     <th className={CELL_HEADER_CHECKBOX}>
                       <div className='flex items-center justify-center'>
-                        <Skeleton className='h-[14px] w-[14px] rounded-xs' />
+                        <Skeleton className='size-[14px] rounded-xs' />
                       </div>
                     </th>
                     {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
                       <th key={i} className={CELL_HEADER}>
                         <div className='flex h-[20px] min-w-0 items-center gap-1.5'>
-                          <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
+                          <Skeleton className='size-[14px] shrink-0 rounded-xs' />
                           <Skeleton className='h-[14px]' style={{ width: `${56 + i * 16}px` }} />
                         </div>
                       </th>
                     ))}
                     <th className={CELL_HEADER}>
                       <div className='flex h-[20px] items-center gap-2'>
-                        <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
+                        <Skeleton className='size-[14px] shrink-0 rounded-xs' />
                         <Skeleton className='h-[14px] w-[72px]' />
                       </div>
                     </th>

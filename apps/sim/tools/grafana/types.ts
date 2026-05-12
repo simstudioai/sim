@@ -2,16 +2,16 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Common parameters for all Grafana tools
-export interface GrafanaBaseParams {
+interface GrafanaBaseParams {
   apiKey: string
   baseUrl: string
   organizationId?: string
 }
 
 // Health Check types
-export interface GrafanaHealthCheckParams extends GrafanaBaseParams {}
+interface GrafanaHealthCheckParams extends GrafanaBaseParams {}
 
-export interface GrafanaHealthCheckResponse extends ToolResponse {
+interface GrafanaHealthCheckResponse extends ToolResponse {
   output: {
     commit: string
     database: string
@@ -19,11 +19,11 @@ export interface GrafanaHealthCheckResponse extends ToolResponse {
   }
 }
 
-export interface GrafanaDataSourceHealthParams extends GrafanaBaseParams {
+interface GrafanaDataSourceHealthParams extends GrafanaBaseParams {
   dataSourceId: string
 }
 
-export interface GrafanaDataSourceHealthResponse extends ToolResponse {
+interface GrafanaDataSourceHealthResponse extends ToolResponse {
   output: {
     status: string
     message: string
@@ -35,7 +35,7 @@ export interface GrafanaGetDashboardParams extends GrafanaBaseParams {
   dashboardUid: string
 }
 
-export interface GrafanaDashboardMeta {
+interface GrafanaDashboardMeta {
   type: string
   canSave: boolean
   canEdit: boolean
@@ -60,7 +60,7 @@ export interface GrafanaDashboardMeta {
   provisionedExternalId: string
 }
 
-export interface GrafanaDashboard {
+interface GrafanaDashboard {
   id: number
   uid: string
   title: string
@@ -93,7 +93,7 @@ export interface GrafanaListDashboardsParams extends GrafanaBaseParams {
   limit?: number
 }
 
-export interface GrafanaDashboardSearchResult {
+interface GrafanaDashboardSearchResult {
   id: number
   uid: string
   title: string
@@ -150,7 +150,7 @@ export interface GrafanaUpdateDashboardParams extends GrafanaBaseParams {
   message?: string
 }
 
-export interface GrafanaUpdateDashboardResponse extends ToolResponse {
+interface GrafanaUpdateDashboardResponse extends ToolResponse {
   output: {
     id: number
     uid: string
@@ -176,7 +176,7 @@ export interface GrafanaDeleteDashboardResponse extends ToolResponse {
 // Alert Rule types
 export interface GrafanaListAlertRulesParams extends GrafanaBaseParams {}
 
-export interface GrafanaAlertRule {
+interface GrafanaAlertRule {
   uid: string
   title: string
   condition: string
@@ -241,7 +241,7 @@ export interface GrafanaUpdateAlertRuleParams extends GrafanaBaseParams {
   labels?: string // JSON string
 }
 
-export interface GrafanaUpdateAlertRuleResponse extends ToolResponse {
+interface GrafanaUpdateAlertRuleResponse extends ToolResponse {
   output: GrafanaAlertRule
 }
 
@@ -265,7 +265,7 @@ export interface GrafanaCreateAnnotationParams extends GrafanaBaseParams {
   timeEnd?: number // epoch ms
 }
 
-export interface GrafanaAnnotation {
+interface GrafanaAnnotation {
   id: number
   dashboardId: number
   dashboardUID: string
@@ -332,7 +332,7 @@ export interface GrafanaDeleteAnnotationResponse extends ToolResponse {
 // Data Source types
 export interface GrafanaListDataSourcesParams extends GrafanaBaseParams {}
 
-export interface GrafanaDataSource {
+interface GrafanaDataSource {
   id: number
   uid: string
   orgId: number
@@ -370,7 +370,7 @@ export interface GrafanaListFoldersParams extends GrafanaBaseParams {
   page?: number
 }
 
-export interface GrafanaFolder {
+interface GrafanaFolder {
   id: number
   uid: string
   title: string
@@ -404,7 +404,7 @@ export interface GrafanaCreateFolderResponse extends ToolResponse {
 // Contact Points types
 export interface GrafanaListContactPointsParams extends GrafanaBaseParams {}
 
-export interface GrafanaContactPoint {
+interface GrafanaContactPoint {
   uid: string
   name: string
   type: string

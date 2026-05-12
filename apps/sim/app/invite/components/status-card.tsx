@@ -19,12 +19,14 @@ interface InviteStatusCardProps {
   isExpiredError?: boolean
 }
 
+const EMPTY_ACTIONS: NonNullable<InviteStatusCardProps['actions']> = []
+
 export function InviteStatusCard({
   type,
   title,
   description,
   icon: _icon,
-  actions = [],
+  actions = EMPTY_ACTIONS,
   isExpiredError = false,
 }: InviteStatusCardProps) {
   const router = useRouter()
@@ -39,7 +41,7 @@ export function InviteStatusCard({
           <p className='font-[380] text-[var(--landing-text-muted)] text-md'>{description}</p>
         </div>
         <div className='mt-8 flex w-full items-center justify-center py-8'>
-          <Loader className='h-8 w-8 text-[var(--landing-text-muted)]' animate />
+          <Loader className='size-8 text-[var(--landing-text-muted)]' animate />
         </div>
       </>
     )
@@ -63,7 +65,7 @@ export function InviteStatusCard({
 
         {actions.map((action, index) => (
           <button
-            key={index}
+            key={action.label}
             onClick={action.onClick}
             disabled={action.disabled || action.loading}
             className={cn(
@@ -74,7 +76,7 @@ export function InviteStatusCard({
           >
             {action.loading ? (
               <span className='flex items-center gap-2'>
-                <Loader className='h-4 w-4' animate />
+                <Loader className='size-4' animate />
                 {action.label}...
               </span>
             ) : (

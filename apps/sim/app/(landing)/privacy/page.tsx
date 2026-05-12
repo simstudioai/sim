@@ -584,7 +584,7 @@ export default function PrivacyPolicy() {
           Please note that we may ask you to verify your identity before responding to such
           requests.
         </p>
-        <p className='mb-4 border-[var(--landing-border-strong)] border-l-4 bg-[var(--landing-bg-elevated)] p-3 text-[var(--landing-text)]'>
+        <p className='mb-4 bg-[var(--landing-bg-elevated)] p-3 text-[var(--landing-text)] shadow-[inset_2px_0_0_var(--landing-border-strong)]'>
           You have the right to complain to a Data Protection Authority about our collection and use
           of your Personal Information. For more information, please contact your local data
           protection authority in the European Economic Area (EEA).

@@ -406,8 +406,8 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
                 >
                   <div className='overflow-hidden'>
                     <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                      {nameErrors.map((error, index) => (
-                        <p key={index}>{error}</p>
+                      {nameErrors.map((error) => (
+                        <p key={error}>{error}</p>
                       ))}
                     </div>
                   </div>
@@ -451,7 +451,7 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
                   <div className='overflow-hidden'>
                     <div className='mt-1 space-y-1 text-red-400 text-xs'>
                       {showEmailValidationError && emailErrors.length > 0 ? (
-                        emailErrors.map((error, index) => <p key={index}>{error}</p>)
+                        emailErrors.map((error) => <p key={error}>{error}</p>)
                       ) : emailError && !showEmailValidationError ? (
                         <p>{emailError}</p>
                       ) : null}
@@ -503,8 +503,8 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
                 >
                   <div className='overflow-hidden'>
                     <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                      {passwordErrors.map((error, index) => (
-                        <p key={index}>{error}</p>
+                      {passwordErrors.map((error) => (
+                        <p key={error}>{error}</p>
                       ))}
                     </div>
                   </div>
@@ -530,8 +530,8 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
           <button type='submit' disabled={isLoading} className={cn('!mt-6', AUTH_SUBMIT_BTN)}>
             {isLoading ? (
               <span className='flex items-center gap-2'>
-                <Loader className='h-4 w-4' animate />
-                Creating account...
+                <Loader className='size-4' animate />
+                Creating account…
               </span>
             ) : (
               'Create account'
@@ -628,9 +628,7 @@ export default function SignupPage({
   isProduction,
 }: SignupFormProps) {
   return (
-    <Suspense
-      fallback={<div className='flex h-screen items-center justify-center'>Loading...</div>}
-    >
+    <Suspense fallback={<div className='flex h-screen items-center justify-center'>Loading…</div>}>
       <SignupFormContent
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}

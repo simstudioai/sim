@@ -93,7 +93,7 @@ export interface ProcessedDocumentTags {
 
 /** These types use string dates for JSON serialization */
 
-export interface ExtendedChunkingConfig extends ChunkingConfig {
+interface ExtendedChunkingConfig extends ChunkingConfig {
   chunkSize?: number
   minCharactersPerChunk?: number
   recipe?: string
@@ -186,14 +186,14 @@ export interface ChunkData {
   updatedAt: string
 }
 
-export interface ChunksPagination {
+interface ChunksPagination {
   total: number
   limit: number
   offset: number
   hasMore: boolean
 }
 
-export interface DocumentsPagination {
+interface DocumentsPagination {
   total: number
   limit: number
   offset: number

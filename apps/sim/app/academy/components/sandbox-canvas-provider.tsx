@@ -357,7 +357,7 @@ export function SandboxCanvasProvider({
   if (!isReady) {
     return (
       <div className='flex h-full w-full items-center justify-center bg-[#0e0e0e]'>
-        <div className='h-5 w-5 animate-spin rounded-full border-2 border-[#ECECEC] border-t-transparent' />
+        <div className='size-5 animate-spin rounded-full border-2 border-[#ECECEC] border-t-transparent' />
       </div>
     )
   }

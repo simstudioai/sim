@@ -21,7 +21,7 @@ export default function BlogPostLoading() {
             <div className='mt-6 flex items-center gap-6'>
               <Skeleton className='h-[12px] w-[100px] rounded-[4px] bg-[var(--landing-bg-elevated)]' />
               <div className='flex items-center gap-2'>
-                <Skeleton className='h-[20px] w-[20px] rounded-full bg-[var(--landing-bg-elevated)]' />
+                <Skeleton className='size-[20px] rounded-full bg-[var(--landing-bg-elevated)]' />
                 <Skeleton className='h-[12px] w-[80px] rounded-[4px] bg-[var(--landing-bg-elevated)]' />
               </div>
             </div>

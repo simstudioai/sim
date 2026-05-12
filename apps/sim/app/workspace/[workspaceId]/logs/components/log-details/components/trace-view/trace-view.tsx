@@ -307,7 +307,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
           <Button
             type='button'
             variant='ghost'
-            className='h-[14px] w-[14px] flex-shrink-0 p-0 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
+            className='size-[14px] flex-shrink-0 p-0 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
             onClick={(e) => {
               e.stopPropagation()
               onToggleExpand(id)
@@ -322,11 +322,11 @@ const TraceTreeRow = memo(function TraceTreeRow({
             />
           </Button>
         ) : (
-          <div className='h-[14px] w-[14px] flex-shrink-0' />
+          <div className='size-[14px] flex-shrink-0' />
         )}
         {!isIterationType(span.type) && (
           <div
-            className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+            className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
             style={{ background: bgColor }}
           >
             {BlockIcon && (
@@ -499,12 +499,12 @@ function DetailCodeSection({
                         e.stopPropagation()
                         handleCopy()
                       }}
-                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                      className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                     >
                       {copied ? (
-                        <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
+                        <Check className='size-[10px] text-[var(--text-success)]' />
                       ) : (
-                        <Clipboard className='h-[10px] w-[10px]' />
+                        <Clipboard className='size-[10px]' />
                       )}
                     </Button>
                   </Tooltip.Trigger>
@@ -519,9 +519,9 @@ function DetailCodeSection({
                         e.stopPropagation()
                         activateSearch()
                       }}
-                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                      className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                     >
-                      <Search className='h-[10px] w-[10px]' />
+                      <Search className='size-[10px]' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>Search</Tooltip.Content>
@@ -531,6 +531,7 @@ function DetailCodeSection({
           </div>
           {isSearchActive && (
             <div
+              role='presentation'
               className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-sm'
               onClick={(e) => e.stopPropagation()}
             >
@@ -557,7 +558,7 @@ function DetailCodeSection({
                 disabled={matchCount === 0}
                 aria-label='Previous match'
               >
-                <ArrowUp className='h-[12px] w-[12px]' />
+                <ArrowUp className='size-[12px]' />
               </Button>
               <Button
                 variant='ghost'
@@ -566,7 +567,7 @@ function DetailCodeSection({
                 disabled={matchCount === 0}
                 aria-label='Next match'
               >
-                <ArrowDown className='h-[12px] w-[12px]' />
+                <ArrowDown className='size-[12px]' />
               </Button>
               <Button
                 variant='ghost'
@@ -574,7 +575,7 @@ function DetailCodeSection({
                 onClick={closeSearch}
                 aria-label='Close search'
               >
-                <X className='h-[12px] w-[12px]' />
+                <X className='size-[12px]' />
               </Button>
             </div>
           )}
@@ -694,7 +695,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
       <div className='flex items-start gap-2'>
         {!isIterationType(span.type) && (
           <div
-            className='mt-[2px] flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='mt-[2px] flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
             {BlockIcon && (
@@ -720,7 +721,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
             {Number.isFinite(startedAt) && startedAt > 0 && (
               <>
                 <span>·</span>
-                <span title={new Date(startedAt).toISOString()}>
+                <span title={new Date(startedAt).toISOString()} suppressHydrationWarning>
                   {new Date(startedAt).toLocaleTimeString()}
                 </span>
               </>
@@ -767,10 +768,10 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
 
       {Number.isFinite(startedAt) && Number.isFinite(endedAt) && startedAt > 0 && endedAt > 0 && (
         <div className='flex items-center justify-between font-medium text-[var(--text-tertiary)] text-caption'>
-          <span title={new Date(startedAt).toISOString()}>
+          <span title={new Date(startedAt).toISOString()} suppressHydrationWarning>
             Started {new Date(startedAt).toLocaleTimeString()}
           </span>
-          <span title={new Date(endedAt).toISOString()}>
+          <span title={new Date(endedAt).toISOString()} suppressHydrationWarning>
             Ended {new Date(endedAt).toLocaleTimeString()}
           </span>
         </div>
@@ -1003,7 +1004,7 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
         })()}
         <div className='ml-auto flex items-center gap-1'>
           <div className='relative'>
-            <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-[7px] h-[11px] w-[11px] text-[var(--text-tertiary)]' />
+            <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-[7px] size-[11px] text-[var(--text-tertiary)]' />
             <Input
               type='text'
               value={searchQuery}
@@ -1021,7 +1022,7 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
                 onClick={() => setExpandedNodes(new Set(allIds))}
                 aria-label='Expand all'
               >
-                <ChevronsUpDown className='h-[12px] w-[12px]' />
+                <ChevronsUpDown className='size-[12px]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Expand all</Tooltip.Content>
@@ -1035,7 +1036,7 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
                 onClick={() => setExpandedNodes(new Set())}
                 aria-label='Collapse all'
               >
-                <ChevronsDownUp className='h-[12px] w-[12px]' />
+                <ChevronsDownUp className='size-[12px]' />
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Collapse all</Tooltip.Content>
@@ -1075,6 +1076,8 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
         </div>
         {/* Resize handle */}
         <div
+          role='separator'
+          aria-orientation='vertical'
           className='relative w-px flex-shrink-0 cursor-ew-resize bg-[var(--border)] transition-colors hover-hover:bg-[var(--border-1)]'
           onMouseDown={(e) => {
             isResizingRef.current = true

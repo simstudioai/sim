@@ -4,7 +4,6 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1SessionKind,
@@ -39,6 +38,7 @@ import {
 } from '@/lib/copilot/request/session'
 import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
 import { reportTrace, TraceCollector } from '@/lib/copilot/request/trace'
+import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
 
@@ -228,6 +228,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             chatId,
             currentChat,
             isNewChat,
+            userId,
             message,
             titleModel,
             titleProvider,
@@ -435,6 +436,7 @@ function fireTitleGeneration(params: {
   chatId?: string
   currentChat: CurrentChatSummary
   isNewChat: boolean
+  userId?: string
   message: string
   titleModel: string
   titleProvider?: string
@@ -447,6 +449,7 @@ function fireTitleGeneration(params: {
     chatId,
     currentChat,
     isNewChat,
+    userId,
     message,
     titleModel,
     titleProvider,
@@ -461,6 +464,7 @@ function fireTitleGeneration(params: {
     message,
     model: titleModel,
     provider: titleProvider,
+    userId,
     otelContext,
   })
     .then(async (title) => {
@@ -491,9 +495,10 @@ export async function requestChatTitle(params: {
   message: string
   model: string
   provider?: string
+  userId?: string
   otelContext?: Context
 }): Promise<string | null> {
-  const { message, model, provider, otelContext } = params
+  const { message, model, provider, userId, otelContext } = params
   if (!message || !model) return null
 
   const headers: Record<string, string> = {
@@ -502,10 +507,12 @@ export async function requestChatTitle(params: {
   if (env.COPILOT_API_KEY) {
     headers['x-api-key'] = env.COPILOT_API_KEY
   }
+  Object.assign(headers, getMothershipSourceEnvHeaders())
 
   try {
     const { fetchGo } = await import('@/lib/copilot/request/go/fetch')
-    const response = await fetchGo(`${SIM_AGENT_API_URL}/api/generate-chat-title`, {
+    const mothershipBaseURL = await getMothershipBaseURL({ userId })
+    const response = await fetchGo(`${mothershipBaseURL}/api/generate-chat-title`, {
       method: 'POST',
       headers,
       body: JSON.stringify({

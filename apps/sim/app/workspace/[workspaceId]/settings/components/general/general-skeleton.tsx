@@ -8,11 +8,11 @@ export function GeneralSkeleton() {
   return (
     <div className='flex h-full flex-col gap-4.5'>
       <div className='flex items-center gap-3'>
-        <Skeleton className='h-9 w-9 rounded-full' />
+        <Skeleton className='size-9 rounded-full' />
         <div className='flex flex-1 flex-col justify-center gap-[1px]'>
           <div className='flex items-center gap-2'>
             <Skeleton className='h-4 w-24' />
-            <Skeleton className='h-[10.5px] w-[10.5px]' />
+            <Skeleton className='size-[10.5px]' />
           </div>
           <Skeleton className='h-3.5 w-40' />
         </div>

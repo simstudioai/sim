@@ -15,7 +15,7 @@ import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('V1AuditLogsAuth')
 
-export interface EnterpriseAuditContext {
+interface EnterpriseAuditContext {
   organizationId: string
   orgMemberIds: string[]
 }

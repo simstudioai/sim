@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface CloudflareBaseParams {
+interface CloudflareBaseParams {
   apiKey: string
 }
 
@@ -15,7 +15,7 @@ export interface CloudflareListZonesParams extends CloudflareBaseParams {
   match?: string
 }
 
-export interface CloudflareZonePlan {
+interface CloudflareZonePlan {
   id: string
   name: string
   price: number
@@ -25,7 +25,7 @@ export interface CloudflareZonePlan {
   legacy_id: string
 }
 
-export interface CloudflareZoneMeta {
+interface CloudflareZoneMeta {
   cdn_only: boolean
   custom_certificate_quota: number
   dns_only: boolean
@@ -35,7 +35,7 @@ export interface CloudflareZoneMeta {
   step: number
 }
 
-export interface CloudflareZone {
+interface CloudflareZone {
   id: string
   name: string
   status: string
@@ -165,11 +165,11 @@ export interface CloudflareListDnsRecordsParams extends CloudflareBaseParams {
   commentFilter?: string
 }
 
-export interface CloudflareDnsRecordMeta {
+interface CloudflareDnsRecordMeta {
   source: string
 }
 
-export interface CloudflareDnsRecord {
+interface CloudflareDnsRecord {
   id: string
   zone_id: string
   zone_name: string
@@ -287,11 +287,11 @@ export interface CloudflareListCertificatesParams extends CloudflareBaseParams {
   deploy?: string
 }
 
-export interface CloudflareCertificateGeoRestrictions {
+interface CloudflareCertificateGeoRestrictions {
   label: string
 }
 
-export interface CloudflareCertificate {
+interface CloudflareCertificate {
   id: string
   hosts: string[]
   issuer: string
@@ -306,11 +306,11 @@ export interface CloudflareCertificate {
   geo_restrictions?: CloudflareCertificateGeoRestrictions
 }
 
-export interface CloudflareCertificateValidationError {
+interface CloudflareCertificateValidationError {
   message: string
 }
 
-export interface CloudflareDcvDelegationRecord {
+interface CloudflareDcvDelegationRecord {
   cname: string
   cname_target: string
   emails: string[]
@@ -321,7 +321,7 @@ export interface CloudflareDcvDelegationRecord {
   txt_value: string
 }
 
-export interface CloudflareCertificatePack {
+interface CloudflareCertificatePack {
   id: string
   type: string
   hosts: string[]
@@ -370,7 +370,7 @@ export interface CloudflareDnsAnalyticsParams extends CloudflareBaseParams {
   limit?: number
 }
 
-export interface CloudflareDnsAnalyticsTotals {
+interface CloudflareDnsAnalyticsTotals {
   queryCount: number
   uncachedCount: number
   staleCount: number
@@ -380,7 +380,7 @@ export interface CloudflareDnsAnalyticsTotals {
   responseTime99th?: number
 }
 
-export interface CloudflareDnsAnalyticsQuery {
+interface CloudflareDnsAnalyticsQuery {
   since: string
   until: string
   metrics: string[]
@@ -409,7 +409,7 @@ export interface CloudflareGetZoneSettingsParams extends CloudflareBaseParams {
   zoneId: string
 }
 
-export interface CloudflareZoneSetting {
+interface CloudflareZoneSetting {
   id: string
   value: string
   editable: boolean

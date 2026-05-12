@@ -103,10 +103,10 @@ export const AddRowButton = React.memo(function AddRowButton({ onClick }: { onCl
         type='button'
         variant='ghost'
         size='sm'
-        className='h-[20px] gap-2 px-0 py-0 text-[var(--text-body)]'
+        className='h-[20px] gap-2 p-0 text-[var(--text-body)]'
         onClick={onClick}
       >
-        <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+        <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
         <span className='font-medium text-small'>New row</span>
       </Button>
     </div>

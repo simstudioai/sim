@@ -320,14 +320,14 @@ export function Files() {
         id: file.id,
         cells: {
           name: {
-            icon: <Icon className='h-[14px] w-[14px]' />,
+            icon: <Icon className='size-[14px]' />,
             label: file.name,
           },
           size: {
             label: formatFileSize(file.size, { includeBytes: true }),
           },
           type: {
-            icon: <Icon className='h-[14px] w-[14px]' />,
+            icon: <Icon className='size-[14px]' />,
             label: formatFileType(file.type, file.name),
           },
           created: timeCell(file.uploadedAt),
@@ -359,7 +359,7 @@ export function Files() {
             content: (
               <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
                 <span className='flex-shrink-0 text-[var(--text-icon)]'>
-                  <Icon className='h-[14px] w-[14px]' />
+                  <Icon className='size-[14px]' />
                 </span>
                 <InlineRenameInput
                   value={listRename.editValue}
@@ -894,10 +894,10 @@ export function Files() {
             src={m.image}
             alt={m.name}
             referrerPolicy='no-referrer'
-            className='h-[14px] w-[14px] rounded-full border border-[var(--border)] object-cover'
+            className='size-[14px] rounded-full border border-[var(--border)] object-cover'
           />
         ) : (
-          <span className='flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+          <span className='flex size-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
             {m.name.charAt(0).toUpperCase()}
           </span>
         ),
@@ -1083,7 +1083,7 @@ export function Files() {
       <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
         <ResourceHeader icon={FilesIcon} breadcrumbs={loadingBreadcrumbs} />
         <div className='flex flex-1 items-center justify-center bg-[var(--surface-1)]'>
-          <Loader className='h-[20px] w-[20px] text-[var(--text-secondary)]' animate />
+          <Loader className='size-[20px] text-[var(--text-secondary)]' animate />
         </div>
       </div>
     )
@@ -1104,7 +1104,6 @@ export function Files() {
             workspaceId={workspaceId}
             canEdit={canEdit}
             previewMode={previewMode}
-            autoFocus={isNewFile || justCreatedFileIdRef.current === selectedFile.id}
             onDirtyChange={setIsDirty}
             onSaveStatusChange={setSaveStatus}
             saveRef={saveRef}
@@ -1167,7 +1166,7 @@ export function Files() {
         overlay={
           isDraggingOver ? (
             <div className='pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 border border-[var(--accent)] border-dashed bg-[var(--surface-4)] transition-colors'>
-              <Upload className='h-5 w-5 text-[var(--accent)]' />
+              <Upload className='size-5 text-[var(--accent)]' />
               <div className='flex flex-col gap-0.5 text-center'>
                 <p className='font-medium text-[14px] text-[var(--accent)]'>Drop to upload</p>
                 <p className='text-[11px] text-[var(--text-tertiary)]'>

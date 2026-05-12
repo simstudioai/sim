@@ -31,6 +31,7 @@ import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-ch
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 import { applyOperationsToWorkflowState } from './engine'
+import { formatWorkflowLintMessage, hasWorkflowLintIssues, lintEditedWorkflowState } from './lint'
 import type { EditWorkflowParams, ValidationError } from './types'
 import { preValidateCredentialInputs, validateWorkflowSelectorIds } from './validation'
 
@@ -266,6 +267,11 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       isDeployed: false,
     }
 
+    const workflowLint = lintEditedWorkflowState(workflowStateForDb as any)
+    const workflowLintMessage = hasWorkflowLintIssues(workflowLint)
+      ? formatWorkflowLintMessage(workflowLint)
+      : undefined
+
     assertServerToolNotAborted(context)
     const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowStateForDb as any)
     if (!saveResult.success) {
@@ -306,6 +312,10 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       workflowId,
       workflowName: workflowName ?? 'Workflow',
       workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
+      ...(workflowLintMessage && {
+        workflowLint,
+        workflowLintMessage,
+      }),
       ...(inputErrors && {
         inputValidationErrors: inputErrors,
         inputValidationMessage: `${inputErrors.length} input(s) were rejected due to validation errors. The workflow was still updated with valid inputs only. Errors: ${inputErrors.join('; ')}`,

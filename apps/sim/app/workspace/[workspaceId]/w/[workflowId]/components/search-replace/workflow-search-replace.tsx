@@ -497,6 +497,8 @@ export function WorkflowSearchReplace() {
       : `${activeMatchIndex >= 0 ? activeMatchIndex + 1 : 1} of ${hydratedMatches.length}`
   return (
     <div
+      role='dialog'
+      aria-label='Search and replace'
       className='fixed z-[var(--z-dropdown)] flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
       style={{
         left: `${actualPosition.x}px`,
@@ -506,6 +508,7 @@ export function WorkflowSearchReplace() {
       }}
     >
       <div
+        role='presentation'
         className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >
@@ -515,12 +518,13 @@ export function WorkflowSearchReplace() {
           </span>
         </div>
         <div
+          role='presentation'
           className='flex shrink-0 items-center gap-2'
           onMouseDown={(event) => event.stopPropagation()}
         >
           <span className='text-[var(--text-muted)] text-xs'>{matchCountLabel}</span>
-          <Button variant='ghost' className='h-[26px] w-[26px] p-0' onClick={close}>
-            <X className='h-[14px] w-[14px]' />
+          <Button variant='ghost' className='size-[26px] p-0' onClick={close}>
+            <X className='size-[14px]' />
           </Button>
         </div>
       </div>
@@ -528,7 +532,7 @@ export function WorkflowSearchReplace() {
       <div className='grid grid-cols-[2rem_minmax(0,1fr)_2rem_2rem] items-start gap-1.5'>
         <Button
           variant='ghost'
-          className='h-8 w-8 p-0'
+          className='size-8 p-0'
           aria-label={isReplaceExpanded ? 'Hide replace controls' : 'Show replace controls'}
           onClick={() => setIsReplaceExpanded((expanded) => !expanded)}
         >
@@ -552,19 +556,19 @@ export function WorkflowSearchReplace() {
         />
         <Button
           variant='ghost'
-          className='h-8 w-8 p-0'
+          className='size-8 p-0'
           disabled={hydratedMatches.length === 0}
           onClick={() => handleMoveActiveMatch(-1)}
         >
-          <ChevronUp className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+          <ChevronUp className='size-[14px] text-[var(--text-icon)]' />
         </Button>
         <Button
           variant='ghost'
-          className='h-8 w-8 p-0'
+          className='size-8 p-0'
           disabled={hydratedMatches.length === 0}
           onClick={() => handleMoveActiveMatch(1)}
         >
-          <ChevronDown className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+          <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
         </Button>
 
         {isReplaceExpanded && (

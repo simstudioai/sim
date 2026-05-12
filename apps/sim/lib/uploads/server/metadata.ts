@@ -21,7 +21,7 @@ export interface FileMetadataInsertOptions {
   id?: string
 }
 
-export interface FileMetadataQueryOptions {
+interface FileMetadataQueryOptions {
   context?: StorageContext
   workspaceId?: string
   userId?: string
@@ -163,7 +163,7 @@ export async function getFileMetadataById(
 /**
  * Get file metadata by context with optional workspaceId/userId filters
  */
-export async function getFileMetadataByContext(
+async function getFileMetadataByContext(
   context: StorageContext,
   options?: FileMetadataQueryOptions & { includeDeleted?: boolean }
 ): Promise<FileMetadataRecord[]> {

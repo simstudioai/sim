@@ -29,6 +29,167 @@ interface WorkflowTableRow {
   cells: Record<string, string>
 }
 
+interface TableCellProps {
+  row: WorkflowTableRow
+  rowIndex: number
+  column: string
+  cellIndex: number
+  columnsCount: number
+  isPreview: boolean
+  disabled: boolean
+  blockId: string
+  inputController: ReturnType<typeof useSubBlockInput>
+  updateCellValue: (rowIndex: number, column: string, newValue: string) => void
+  inputRefs: React.MutableRefObject<Map<string, HTMLInputElement>>
+  overlayRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
+  accessiblePrefixes: ReturnType<typeof useAccessibleReferencePrefixes>
+  workspaceId: string
+}
+
+function TableCell({
+  row,
+  rowIndex,
+  column,
+  cellIndex,
+  columnsCount,
+  isPreview,
+  disabled,
+  blockId,
+  inputController,
+  updateCellValue,
+  inputRefs,
+  overlayRefs,
+  accessiblePrefixes,
+  workspaceId,
+}: TableCellProps) {
+  // Defensive programming: ensure row.cells exists and has the expected structure
+  const hasValidCells = row.cells && typeof row.cells === 'object'
+  if (!hasValidCells) logger.warn('Table row has malformed cells data:', row)
+
+  const cells = hasValidCells ? row.cells : {}
+
+  const cellValue = cells[column] || ''
+  const cellKey = `${rowIndex}-${column}`
+
+  // Get field state and handlers for this cell
+  const fieldState = inputController.fieldHelpers.getFieldState(cellKey)
+  const handlers = inputController.fieldHelpers.createFieldHandlers(
+    cellKey,
+    cellValue,
+    (newValue) => updateCellValue(rowIndex, column, newValue)
+  )
+  const handleScroll = (e: React.UIEvent<HTMLInputElement>) => {
+    const overlay = overlayRefs.current.get(cellKey)
+    if (overlay) {
+      overlay.scrollLeft = e.currentTarget.scrollLeft
+    }
+  }
+
+  const syncScrollAfterUpdate = () => {
+    requestAnimationFrame(() => {
+      const input = inputRefs.current.get(cellKey)
+      const overlay = overlayRefs.current.get(cellKey)
+      if (input && overlay) {
+        overlay.scrollLeft = input.scrollLeft
+      }
+    })
+  }
+
+  const baseTagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
+    cellKey,
+    cellValue,
+    (newValue) => updateCellValue(rowIndex, column, newValue)
+  )
+  const tagSelectHandler = (tag: string) => {
+    baseTagSelectHandler(tag)
+    syncScrollAfterUpdate()
+  }
+
+  const baseEnvVarSelectHandler = inputController.fieldHelpers.createEnvVarSelectHandler(
+    cellKey,
+    cellValue,
+    (newValue) => updateCellValue(rowIndex, column, newValue)
+  )
+  const envVarSelectHandler = (envVar: string) => {
+    baseEnvVarSelectHandler(envVar)
+    syncScrollAfterUpdate()
+  }
+
+  return (
+    <td
+      className={cn(
+        'relative bg-transparent p-0',
+        cellIndex < columnsCount - 1 && 'border-[var(--border-1)] border-r'
+      )}
+    >
+      <div className='relative w-full'>
+        <Input
+          ref={(el) => {
+            if (el) inputRefs.current.set(cellKey, el)
+          }}
+          value={cellValue}
+          placeholder={column}
+          onChange={handlers.onChange}
+          onKeyDown={handlers.onKeyDown}
+          onScroll={handleScroll}
+          onDrop={handlers.onDrop}
+          onDragOver={handlers.onDragOver}
+          onFocus={handlers.onFocus}
+          disabled={isPreview || disabled}
+          autoComplete='off'
+          className='w-full border-0 bg-transparent px-2.5 py-2 font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
+        />
+        <div
+          ref={(el) => {
+            if (el) overlayRefs.current.set(cellKey, el)
+          }}
+          data-overlay={cellKey}
+          className='scrollbar-hide pointer-events-none absolute top-0 right-[10px] bottom-0 left-[10px] overflow-x-auto overflow-y-hidden bg-transparent'
+        >
+          <div className='whitespace-pre py-2 font-medium text-[var(--text-primary)] text-sm leading-[21px]'>
+            {formatDisplayText(cellValue, {
+              accessiblePrefixes,
+              highlightAll: !accessiblePrefixes,
+            })}
+          </div>
+        </div>
+        {fieldState.showEnvVars && (
+          <EnvVarDropdown
+            visible={fieldState.showEnvVars}
+            onSelect={envVarSelectHandler}
+            searchTerm={fieldState.searchTerm}
+            inputValue={cellValue}
+            cursorPosition={fieldState.cursorPosition}
+            workspaceId={workspaceId}
+            onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
+            inputRef={
+              {
+                current: inputRefs.current.get(cellKey) || null,
+              } as React.RefObject<HTMLInputElement>
+            }
+          />
+        )}
+        {fieldState.showTags && (
+          <TagDropdown
+            visible={fieldState.showTags}
+            onSelect={tagSelectHandler}
+            blockId={blockId}
+            activeSourceBlockId={fieldState.activeSourceBlockId}
+            inputValue={cellValue}
+            cursorPosition={fieldState.cursorPosition}
+            onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
+            inputRef={
+              {
+                current: inputRefs.current.get(cellKey) || null,
+              } as React.RefObject<HTMLInputElement>
+            }
+          />
+        )}
+      </div>
+    </td>
+  )
+}
+
 export function Table({
   blockId,
   subBlockId,
@@ -165,141 +326,6 @@ export function Table({
     </thead>
   )
 
-  const renderCell = (
-    row: WorkflowTableRow,
-    rowIndex: number,
-    column: string,
-    cellIndex: number
-  ) => {
-    // Defensive programming: ensure row.cells exists and has the expected structure
-    const hasValidCells = row.cells && typeof row.cells === 'object'
-    if (!hasValidCells) logger.warn('Table row has malformed cells data:', row)
-
-    const cells = hasValidCells ? row.cells : { ...emptyCellsTemplate }
-
-    const cellValue = cells[column] || ''
-    const cellKey = `${rowIndex}-${column}`
-
-    // Get field state and handlers for this cell
-    const fieldState = inputController.fieldHelpers.getFieldState(cellKey)
-    const handlers = inputController.fieldHelpers.createFieldHandlers(
-      cellKey,
-      cellValue,
-      (newValue) => updateCellValue(rowIndex, column, newValue)
-    )
-    const handleScroll = (e: React.UIEvent<HTMLInputElement>) => {
-      const overlay = overlayRefs.current.get(cellKey)
-      if (overlay) {
-        overlay.scrollLeft = e.currentTarget.scrollLeft
-      }
-    }
-
-    const syncScrollAfterUpdate = () => {
-      requestAnimationFrame(() => {
-        const input = inputRefs.current.get(cellKey)
-        const overlay = overlayRefs.current.get(cellKey)
-        if (input && overlay) {
-          overlay.scrollLeft = input.scrollLeft
-        }
-      })
-    }
-
-    const baseTagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
-      cellKey,
-      cellValue,
-      (newValue) => updateCellValue(rowIndex, column, newValue)
-    )
-    const tagSelectHandler = (tag: string) => {
-      baseTagSelectHandler(tag)
-      syncScrollAfterUpdate()
-    }
-
-    const baseEnvVarSelectHandler = inputController.fieldHelpers.createEnvVarSelectHandler(
-      cellKey,
-      cellValue,
-      (newValue) => updateCellValue(rowIndex, column, newValue)
-    )
-    const envVarSelectHandler = (envVar: string) => {
-      baseEnvVarSelectHandler(envVar)
-      syncScrollAfterUpdate()
-    }
-
-    return (
-      <td
-        key={`${row.id}-${column}`}
-        className={cn(
-          'relative bg-transparent p-0',
-          cellIndex < columns.length - 1 && 'border-[var(--border-1)] border-r'
-        )}
-      >
-        <div className='relative w-full'>
-          <Input
-            ref={(el) => {
-              if (el) inputRefs.current.set(cellKey, el)
-            }}
-            value={cellValue}
-            placeholder={column}
-            onChange={handlers.onChange}
-            onKeyDown={handlers.onKeyDown}
-            onScroll={handleScroll}
-            onDrop={handlers.onDrop}
-            onDragOver={handlers.onDragOver}
-            onFocus={handlers.onFocus}
-            disabled={isPreview || disabled}
-            autoComplete='off'
-            className='w-full border-0 bg-transparent px-2.5 py-2 font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
-          />
-          <div
-            ref={(el) => {
-              if (el) overlayRefs.current.set(cellKey, el)
-            }}
-            data-overlay={cellKey}
-            className='scrollbar-hide pointer-events-none absolute top-0 right-[10px] bottom-0 left-[10px] overflow-x-auto overflow-y-hidden bg-transparent'
-          >
-            <div className='whitespace-pre py-2 font-medium text-[var(--text-primary)] text-sm leading-[21px]'>
-              {formatDisplayText(cellValue, {
-                accessiblePrefixes,
-                highlightAll: !accessiblePrefixes,
-              })}
-            </div>
-          </div>
-          {fieldState.showEnvVars && (
-            <EnvVarDropdown
-              visible={fieldState.showEnvVars}
-              onSelect={envVarSelectHandler}
-              searchTerm={fieldState.searchTerm}
-              inputValue={cellValue}
-              cursorPosition={fieldState.cursorPosition}
-              workspaceId={workspaceId}
-              onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
-              inputRef={
-                {
-                  current: inputRefs.current.get(cellKey) || null,
-                } as React.RefObject<HTMLInputElement>
-              }
-            />
-          )}
-          {fieldState.showTags && (
-            <TagDropdown
-              visible={fieldState.showTags}
-              onSelect={tagSelectHandler}
-              blockId={blockId}
-              activeSourceBlockId={fieldState.activeSourceBlockId}
-              inputValue={cellValue}
-              cursorPosition={fieldState.cursorPosition}
-              onClose={() => inputController.fieldHelpers.hideFieldDropdowns(cellKey)}
-              inputRef={
-                {
-                  current: inputRefs.current.get(cellKey) || null,
-                } as React.RefObject<HTMLInputElement>
-              }
-            />
-          )}
-        </div>
-      </td>
-    )
-  }
-
   const renderDeleteButton = (rowIndex: number) =>
     rows.length > 1 &&
     !isPreview &&
@@ -310,7 +336,7 @@ export function Table({
           className='-translate-y-1/2 absolute top-1/2 right-[8px] opacity-0 transition-opacity group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}
         >
-          <Trash className='h-[14px] w-[14px]' />
+          <Trash className='size-[14px]' />
         </Button>
       </td>
     )
@@ -326,7 +352,25 @@ export function Table({
                 key={row.id}
                 className='group relative border-[var(--border-1)] border-t bg-transparent'
               >
-                {columns.map((column, cellIndex) => renderCell(row, rowIndex, column, cellIndex))}
+                {columns.map((column, cellIndex) => (
+                  <TableCell
+                    key={`${row.id}-${column}`}
+                    row={row}
+                    rowIndex={rowIndex}
+                    column={column}
+                    cellIndex={cellIndex}
+                    columnsCount={columns.length}
+                    isPreview={isPreview}
+                    disabled={disabled}
+                    blockId={blockId}
+                    inputController={inputController}
+                    updateCellValue={updateCellValue}
+                    inputRefs={inputRefs}
+                    overlayRefs={overlayRefs}
+                    accessiblePrefixes={accessiblePrefixes}
+                    workspaceId={workspaceId}
+                  />
+                ))}
                 {renderDeleteButton(rowIndex)}
               </tr>
             ))}

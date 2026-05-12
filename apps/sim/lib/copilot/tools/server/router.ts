@@ -42,7 +42,6 @@ import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit
 import { getExecutionSummaryServerTool } from '@/lib/copilot/tools/server/workflow/get-execution-summary'
 import { getWorkflowLogsServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-logs'
 
-export { ExecuteResponseSuccessSchema }
 export type ExecuteResponseSuccess = z.output<typeof ExecuteResponseSuccessSchema>
 
 const ExecuteResponseSuccessSchema = z.object({

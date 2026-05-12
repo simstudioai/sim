@@ -337,3 +337,99 @@ describe('syncTextEditorContentState — streaming finalize shortcuts', () => {
     expect(next.content).toBe('v2')
   })
 })
+
+describe('syncTextEditorContentState — inter-session content shrink (replace mode)', () => {
+  it('replaces long linger content with a short first chunk from a new session', () => {
+    const lingerState = streaming(
+      'a very long document with many paragraphs',
+      'a very long document with many paragraphs',
+      ''
+    )
+    const next = syncTextEditorContentState(lingerState, {
+      canReconcileToFetchedContent: false,
+      fetchedContent: undefined,
+      streamingContent: 'short',
+      streamingMode: 'replace',
+    })
+    expect(next.phase).toBe('streaming')
+    expect(next.content).toBe('short')
+    expect(next.lastStreamedContent).toBe('short')
+  })
+
+  it('correctly transitions to the new chunk even when it is a single character', () => {
+    const lingerState = streaming(
+      'full document\nmany lines\nof content',
+      'full document\nmany lines\nof content',
+      ''
+    )
+    const next = syncTextEditorContentState(lingerState, {
+      canReconcileToFetchedContent: false,
+      fetchedContent: undefined,
+      streamingContent: '#',
+      streamingMode: 'replace',
+    })
+    expect(next.phase).toBe('streaming')
+    expect(next.content).toBe('#')
+  })
+
+  it('does not finalize early when the new short chunk happens to equal savedContent', () => {
+    const lingerState = streaming('long content', 'long content', 'old saved')
+    const next = syncTextEditorContentState(lingerState, {
+      canReconcileToFetchedContent: false,
+      fetchedContent: undefined,
+      streamingContent: '',
+      streamingMode: 'replace',
+    })
+    expect(next.phase).toBe('streaming')
+    expect(next.content).toBe('')
+  })
+
+  it('stays streaming across multiple growing chunks after the shrink', () => {
+    const lingerState = streaming('final long document', 'final long document', '')
+
+    const chunk1 = syncTextEditorContentState(lingerState, {
+      canReconcileToFetchedContent: false,
+      fetchedContent: undefined,
+      streamingContent: '# New',
+      streamingMode: 'replace',
+    })
+    expect(chunk1.phase).toBe('streaming')
+    expect(chunk1.content).toBe('# New')
+
+    const chunk2 = syncTextEditorContentState(chunk1, {
+      canReconcileToFetchedContent: false,
+      fetchedContent: undefined,
+      streamingContent: '# New Section\n\nSome text',
+      streamingMode: 'replace',
+    })
+    expect(chunk2.phase).toBe('streaming')
+    expect(chunk2.content).toBe('# New Section\n\nSome text')
+
+    const chunk3 = syncTextEditorContentState(chunk2, {
+      canReconcileToFetchedContent: false,
+      fetchedContent: undefined,
+      streamingContent: '# New Section\n\nSome text that is now longer than the original',
+      streamingMode: 'replace',
+    })
+    expect(chunk3.phase).toBe('streaming')
+    expect(chunk3.content).toBe('# New Section\n\nSome text that is now longer than the original')
+  })
+
+  it('synthetic file (canReconcile=false) finalizes with current content when streaming ends', () => {
+    const finalChunk = streaming(
+      '# Complete Document\n\nAll done.',
+      '# Complete Document\n\nAll done.',
+      ''
+    )
+    const next = syncTextEditorContentState(finalChunk, {
+      canReconcileToFetchedContent: false,
+      fetchedContent: undefined,
+      streamingContent: undefined,
+      streamingMode: 'replace',
+    })
+    expect(next.phase).toBe('ready')
+    expect(next.content).toBe('# Complete Document\n\nAll done.')
+    expect(next.savedContent).toBe('# Complete Document\n\nAll done.')
+    expect(next.lastStreamedContent).toBeNull()
+  })
+})

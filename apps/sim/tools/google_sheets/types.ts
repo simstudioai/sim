@@ -3,14 +3,14 @@ import type { GoogleSheetsV2DeleteSheetResponse } from '@/tools/google_sheets/de
 import type { GoogleSheetsV2DeleteSpreadsheetResponse } from '@/tools/google_sheets/delete_spreadsheet'
 import type { ToolResponse } from '@/tools/types'
 
-export interface GoogleSheetsRange {
+interface GoogleSheetsRange {
   sheetId?: number
   sheetName?: string
   range: string
   values: any[][]
 }
 
-export interface GoogleSheetsMetadata {
+interface GoogleSheetsMetadata {
   spreadsheetId: string
   spreadsheetUrl?: string
   title?: string

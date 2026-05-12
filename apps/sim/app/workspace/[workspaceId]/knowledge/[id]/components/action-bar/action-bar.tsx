@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { domAnimation, LazyMotion, m } from 'framer-motion'
 import { Circle, CircleOff } from 'lucide-react'
 import { Button, Tooltip, Trash2 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -46,93 +46,95 @@ export function ActionBar({
     isAllPageSelected && !isAllSelected && totalCount > selectedCount && onSelectAll
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 10 }}
-      transition={{ duration: 0.2 }}
-      className={cn('-translate-x-1/2 fixed bottom-6 z-50 transform', className)}
-      style={{ left: '50%' }}
-    >
-      <div className='flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
-        <span className='px-1 text-[var(--text-secondary)] text-small'>
-          {isAllSelected ? totalCount : selectedCount} selected
-          {showSelectAllOption && (
-            <>
-              {' · '}
-              <button
-                type='button'
-                onClick={onSelectAll}
-                className='text-[var(--brand-primary)] hover-hover:underline'
-              >
-                Select all
-              </button>
-            </>
-          )}
-          {isAllSelected && onClearSelectAll && (
-            <>
-              {' · '}
-              <button
-                type='button'
-                onClick={onClearSelectAll}
-                className='text-[var(--brand-primary)] hover-hover:underline'
-              >
-                Clear
-              </button>
-            </>
-          )}
-        </span>
-
-        <div className='flex items-center gap-[5px]'>
-          {showEnableButton && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  onClick={onEnable}
-                  disabled={isLoading}
-                  className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+    <LazyMotion features={domAnimation}>
+      <m.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 10 }}
+        transition={{ duration: 0.2 }}
+        className={cn('-translate-x-1/2 fixed bottom-6 z-50 transform', className)}
+        style={{ left: '50%' }}
+      >
+        <div className='flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
+          <span className='px-1 text-[var(--text-secondary)] text-small'>
+            {isAllSelected ? totalCount : selectedCount} selected
+            {showSelectAllOption && (
+              <>
+                {' · '}
+                <button
+                  type='button'
+                  onClick={onSelectAll}
+                  className='text-[var(--brand-primary)] hover-hover:underline'
                 >
-                  <Circle className='h-[12px] w-[12px]' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>Enable</Tooltip.Content>
-            </Tooltip.Root>
-          )}
-
-          {showDisableButton && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  onClick={onDisable}
-                  disabled={isLoading}
-                  className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                  Select all
+                </button>
+              </>
+            )}
+            {isAllSelected && onClearSelectAll && (
+              <>
+                {' · '}
+                <button
+                  type='button'
+                  onClick={onClearSelectAll}
+                  className='text-[var(--brand-primary)] hover-hover:underline'
                 >
-                  <CircleOff className='h-[12px] w-[12px]' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>Disable</Tooltip.Content>
-            </Tooltip.Root>
-          )}
+                  Clear
+                </button>
+              </>
+            )}
+          </span>
 
-          {onDelete && canEdit && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  onClick={onDelete}
-                  disabled={isLoading}
-                  className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                >
-                  <Trash2 className='h-[12px] w-[12px]' />
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>Delete</Tooltip.Content>
-            </Tooltip.Root>
-          )}
+          <div className='flex items-center gap-[5px]'>
+            {showEnableButton && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
+                    onClick={onEnable}
+                    disabled={isLoading}
+                    className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                  >
+                    <Circle className='size-[12px]' />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top'>Enable</Tooltip.Content>
+              </Tooltip.Root>
+            )}
+
+            {showDisableButton && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
+                    onClick={onDisable}
+                    disabled={isLoading}
+                    className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                  >
+                    <CircleOff className='size-[12px]' />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top'>Disable</Tooltip.Content>
+              </Tooltip.Root>
+            )}
+
+            {onDelete && canEdit && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <Button
+                    variant='ghost'
+                    onClick={onDelete}
+                    disabled={isLoading}
+                    className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                  >
+                    <Trash2 className='size-[12px]' />
+                  </Button>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top'>Delete</Tooltip.Content>
+              </Tooltip.Root>
+            )}
+          </div>
         </div>
-      </div>
-    </motion.div>
+      </m.div>
+    </LazyMotion>
   )
 }

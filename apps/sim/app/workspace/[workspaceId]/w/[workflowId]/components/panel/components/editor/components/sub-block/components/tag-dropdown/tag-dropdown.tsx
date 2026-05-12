@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { isEqual } from 'es-toolkit'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
@@ -386,7 +386,7 @@ const TagIcon: React.FC<{
   color: string
 }> = ({ icon, color }) => (
   <div
-    className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded'
+    className='flex size-[14px] flex-shrink-0 items-center justify-center rounded'
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (
@@ -1641,6 +1641,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     setSelectedIndex(0)
   }, [flatTagList.length])
 
+  const onCloseEvent = useEffectEvent(() => onClose?.())
+
   useEffect(() => {
     if (visible) {
       const handleKeyboardEvent = (e: KeyboardEvent) => {
@@ -1648,7 +1650,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           case 'Escape':
             e.preventDefault()
             e.stopPropagation()
-            onClose?.()
+            onCloseEvent()
             break
         }
       }
@@ -1656,7 +1658,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       window.addEventListener('keydown', handleKeyboardEvent, true)
       return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
     }
-  }, [visible, onClose])
+  }, [visible])
 
   if (!visible || tags.length === 0 || flatTagList.length === 0) return null
 

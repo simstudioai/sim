@@ -25,6 +25,7 @@ import {
 import { getDisplayPlanName, isFree } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
@@ -385,11 +386,11 @@ function WorkspaceHeaderImpl({
                     <img
                       src={activeWorkspaceFull.logoUrl}
                       alt={activeWorkspaceFull.name || 'Workspace logo'}
-                      className='h-[20px] w-[20px] flex-shrink-0 rounded-sm object-cover'
+                      className='size-[20px] flex-shrink-0 rounded-sm object-cover'
                     />
                   ) : (
                     <div
-                      className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
+                      className='flex size-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
                       style={{
                         backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)',
                       }}
@@ -398,7 +399,7 @@ function WorkspaceHeaderImpl({
                     </div>
                   )
                 ) : (
-                  <Skeleton className='h-[20px] w-[20px] flex-shrink-0 rounded-sm' />
+                  <Skeleton className='size-[20px] flex-shrink-0 rounded-sm' />
                 )}
                 {!isCollapsed && (
                   <>
@@ -431,21 +432,21 @@ function WorkspaceHeaderImpl({
             >
               {isWorkspacesLoading ? (
                 <div className='px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption'>
-                  Loading workspaces...
+                  Loading workspaces…
                 </div>
               ) : (
                 <>
-                  <div className='flex items-center gap-2 px-0.5 py-0.5'>
+                  <div className='flex items-center gap-2 p-0.5'>
                     {activeWorkspaceFull ? (
                       activeWorkspaceFull.logoUrl ? (
                         <img
                           src={activeWorkspaceFull.logoUrl}
                           alt={activeWorkspaceFull.name || 'Workspace logo'}
-                          className='h-[32px] w-[32px] flex-shrink-0 rounded-md object-cover'
+                          className='size-[32px] flex-shrink-0 rounded-md object-cover'
                         />
                       ) : (
                         <div
-                          className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-md font-medium text-caption text-white'
+                          className='flex size-[32px] flex-shrink-0 items-center justify-center rounded-md font-medium text-caption text-white'
                           style={{
                             backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)',
                           }}
@@ -454,7 +455,7 @@ function WorkspaceHeaderImpl({
                         </div>
                       )
                     ) : (
-                      <Skeleton className='h-[32px] w-[32px] flex-shrink-0 rounded-md' />
+                      <Skeleton className='size-[32px] flex-shrink-0 rounded-md' />
                     )}
                     <div className='flex min-w-0 flex-1 flex-col'>
                       <span className='truncate font-medium text-[var(--text-primary)] text-small'>
@@ -486,7 +487,7 @@ function WorkspaceHeaderImpl({
                   {workspaces.length > WORKSPACE_SEARCH_THRESHOLD && (
                     <div className='mt-1 flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-transparent px-2 py-1 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
                       <Search
-                        className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-tertiary)]'
+                        className='size-[12px] flex-shrink-0 text-[var(--text-tertiary)]'
                         strokeWidth={2}
                       />
                       <Input
@@ -589,6 +590,8 @@ function WorkspaceHeaderImpl({
                             </div>
                           ) : (
                             <div
+                              role='group'
+                              aria-label={workspace.name}
                               className={cn(
                                 'group flex cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors',
                                 workspace.id !== workspaceId &&
@@ -617,6 +620,10 @@ function WorkspaceHeaderImpl({
                                 }
                               }}
                               onContextMenu={(e) => handleContextMenu(e, workspace)}
+                              onKeyDown={(event) => {
+                                if (event.target !== event.currentTarget) return
+                                handleKeyboardActivation(event, () => onWorkspaceSwitch(workspace))
+                              }}
                             >
                               <span className='min-w-0 flex-1 truncate'>{workspace.name}</span>
                               <button
@@ -636,7 +643,7 @@ function WorkspaceHeaderImpl({
                                   menuOpenWorkspaceId === workspace.id && 'opacity-100'
                                 )}
                               >
-                                <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+                                <MoreHorizontal className='size-[14px] text-[var(--text-tertiary)]' />
                               </button>
                             </div>
                           )}
@@ -657,7 +664,7 @@ function WorkspaceHeaderImpl({
                       disabled={isCreatingWorkspace || !canCreateWorkspace}
                       title={createWorkspaceDisabledReason ?? undefined}
                     >
-                      <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+                      <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
                       Create new workspace
                     </button>
                   </div>
@@ -675,7 +682,7 @@ function WorkspaceHeaderImpl({
                         disabled={inviteButtonDisabled}
                         title={inviteDisabledReason ?? undefined}
                       >
-                        <UserPlus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+                        <UserPlus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
                         Invite members
                       </button>
                     </>
@@ -700,18 +707,18 @@ function WorkspaceHeaderImpl({
                 <img
                   src={activeWorkspaceFull.logoUrl}
                   alt={activeWorkspaceFull.name || 'Workspace logo'}
-                  className='h-[20px] w-[20px] flex-shrink-0 rounded-sm object-cover'
+                  className='size-[20px] flex-shrink-0 rounded-sm object-cover'
                 />
               ) : (
                 <div
-                  className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
+                  className='flex size-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
                   style={{ backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)' }}
                 >
                   {workspaceInitial}
                 </div>
               )
             ) : (
-              <Skeleton className='h-[20px] w-[20px] flex-shrink-0 rounded-sm' />
+              <Skeleton className='size-[20px] flex-shrink-0 rounded-sm' />
             )}
             {!isCollapsed && (
               <>

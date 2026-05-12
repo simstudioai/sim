@@ -27,6 +27,7 @@ import { createRequestId } from '@/lib/copilot/request/http'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { orchestrateSubagentStream } from '@/lib/copilot/request/subagent'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
+import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/definitions'
 import { env } from '@/lib/core/config/env'
@@ -445,10 +446,36 @@ async function handleDirectToolCall(
   userId: string
 ): Promise<CallToolResult> {
   try {
+    const rawWorkflowId = (args.workflowId as string) || ''
+    let resolvedWorkspaceId: string | undefined
+    if (rawWorkflowId) {
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId: rawWorkflowId,
+        userId,
+        action: 'read',
+      })
+      if (!authorization.allowed) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                { success: false, error: 'Workflow not found or access denied' },
+                null,
+                2
+              ),
+            },
+          ],
+          isError: true,
+        }
+      }
+      resolvedWorkspaceId = authorization.workflow?.workspaceId || undefined
+    }
     const execContext = await prepareExecutionContext(
       userId,
-      (args.workflowId as string) || '',
-      (args.chatId as string) || undefined
+      rawWorkflowId,
+      (args.chatId as string) || undefined,
+      { workspaceId: resolvedWorkspaceId }
     )
 
     const toolCall = {
@@ -642,12 +669,46 @@ async function handleSubagentToolCall(
       context.plan = args.plan
     }
 
+    // Authorize user-supplied workflowId / workspaceId before forwarding downstream
+    const rawWorkflowId = args.workflowId as string | undefined
+    const rawWorkspaceId = args.workspaceId as string | undefined
+    let resolvedWorkflowId: string | undefined
+    let resolvedWorkspaceId: string | undefined
+
+    if (rawWorkflowId) {
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId: rawWorkflowId,
+        userId,
+        action: 'read',
+      })
+      if (!authorization.allowed) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                { success: false, error: 'Workflow not found or access denied' },
+                null,
+                2
+              ),
+            },
+          ],
+          isError: true,
+        }
+      }
+      resolvedWorkflowId = rawWorkflowId
+      resolvedWorkspaceId = authorization.workflow?.workspaceId || undefined
+    } else if (rawWorkspaceId) {
+      await ensureWorkspaceAccess(rawWorkspaceId, userId, 'read')
+      resolvedWorkspaceId = rawWorkspaceId
+    }
+
     const result = await orchestrateSubagentStream(
       toolDef.agentId,
       {
         message: requestText,
-        workflowId: args.workflowId,
-        workspaceId: args.workspaceId,
+        workflowId: resolvedWorkflowId,
+        workspaceId: resolvedWorkspaceId,
         context,
         model: DEFAULT_COPILOT_MODEL,
         headless: true,
@@ -655,8 +716,8 @@ async function handleSubagentToolCall(
       },
       {
         userId,
-        workflowId: args.workflowId as string | undefined,
-        workspaceId: args.workspaceId as string | undefined,
+        workflowId: resolvedWorkflowId,
+        workspaceId: resolvedWorkspaceId,
         simRequestId,
         abortSignal,
       }

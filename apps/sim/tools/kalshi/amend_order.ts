@@ -174,7 +174,7 @@ export interface KalshiAmendOrderV2Params extends KalshiAuthParams {
   countFp?: string // Count in fixed-point for fractional contracts
 }
 
-export interface KalshiAmendOrderV2Order {
+interface KalshiAmendOrderV2Order {
   order_id: string
   user_id: string | null
   ticker: string

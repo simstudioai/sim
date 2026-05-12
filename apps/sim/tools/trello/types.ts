@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface TrelloBoard {
+interface TrelloBoard {
   id: string
   name: string
   desc: string

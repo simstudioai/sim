@@ -60,14 +60,14 @@ interface OutlookEmail {
   parentFolderId: string
 }
 
-export interface OutlookAttachment {
+interface OutlookAttachment {
   name: string
   data: Buffer
   contentType: string
   size: number
 }
 
-export interface SimplifiedOutlookEmail {
+interface SimplifiedOutlookEmail {
   id: string
   conversationId: string
   subject: string
@@ -85,7 +85,7 @@ export interface SimplifiedOutlookEmail {
   threadId: string
 }
 
-export interface OutlookWebhookPayload {
+interface OutlookWebhookPayload {
   email: SimplifiedOutlookEmail
   timestamp: string
   rawEmail?: OutlookEmail

@@ -3086,7 +3086,7 @@ function extractManualLayoutGrid(
 }
 
 /** Result of parsing chart XML: option for ECharts, optional data table info. */
-export interface ParseChartResult {
+interface ParseChartResult {
   option: echarts.EChartsOption
   dataTable?: DataTableInfo
 }

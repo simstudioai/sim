@@ -1,5 +1,4 @@
 export type {
-  EmailRateLimitStatus,
   EmailRateLimitsData,
   EmailUsageData,
   WorkflowNotificationEmailProps,

@@ -24,7 +24,7 @@ export interface ValidateRowOptions {
 }
 
 /** Error information for a single row in batch validation. */
-export interface BatchRowError {
+interface BatchRowError {
   row: number
   errors: string[]
 }

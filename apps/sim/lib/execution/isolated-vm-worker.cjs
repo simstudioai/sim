@@ -183,7 +183,7 @@ async function executeCode(request, executionId) {
   const externalCopies = []
 
   try {
-    isolate = new ivm.Isolate({ memoryLimit: 256 })
+    isolate = new ivm.Isolate({ memoryLimit: 128 })
     if (executionId !== undefined) activeIsolates.set(executionId, isolate)
     context = await isolate.createContext()
     const jail = context.global
@@ -388,7 +388,7 @@ async function executeCode(request, executionId) {
           stdout,
           error: {
             message:
-              'Execution exceeded memory limit (256 MB). Reduce image sizes or split the work into smaller batches.',
+              'Execution exceeded memory limit (128 MB). Reduce image sizes or split the work into smaller batches.',
             name: 'MemoryLimitError',
           },
         }
@@ -529,7 +529,7 @@ async function executeTask(request, executionId) {
   let tPhase = tStart
 
   try {
-    isolate = new ivm.Isolate({ memoryLimit: 256 })
+    isolate = new ivm.Isolate({ memoryLimit: 128 })
     if (executionId !== undefined) activeIsolates.set(executionId, isolate)
     context = await isolate.createContext()
     const jail = context.global
@@ -945,7 +945,7 @@ async function executeTask(request, executionId) {
           stdout,
           error: {
             message:
-              'Execution exceeded memory limit (256 MB). Reduce image sizes or split the work into smaller batches.',
+              'Execution exceeded memory limit (128 MB). Reduce image sizes or split the work into smaller batches.',
             name: 'MemoryLimitError',
           },
           timings,

@@ -41,7 +41,7 @@ function useButtonGroupContext() {
   return context
 }
 
-export interface ButtonGroupProps
+interface ButtonGroupProps
   extends Omit<HTMLAttributes<HTMLDivElement>, 'onChange'>,
     VariantProps<typeof buttonGroupVariants> {
   /** Currently selected value */
@@ -122,7 +122,7 @@ const buttonGroupItemVariants = cva(
   }
 )
 
-export interface ButtonGroupItemProps extends Omit<HTMLAttributes<HTMLButtonElement>, 'onClick'> {
+interface ButtonGroupItemProps extends Omit<HTMLAttributes<HTMLButtonElement>, 'onClick'> {
   /** Value associated with this item */
   value: string
   /** Disables this specific item */

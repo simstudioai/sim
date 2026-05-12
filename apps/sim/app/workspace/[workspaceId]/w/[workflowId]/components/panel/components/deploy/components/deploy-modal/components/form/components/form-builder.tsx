@@ -262,8 +262,8 @@ export function FormBuilder({
               {/* Drop indicator line - shown above this item */}
               {showIndicatorAbove && (
                 <div className='-translate-y-1/2 pointer-events-none absolute top-0 right-0 left-0 z-20 h-[2px] bg-[var(--brand-accent)]'>
-                  <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-[6px] w-[6px] rounded-full bg-[var(--brand-accent)]' />
-                  <div className='-translate-y-1/2 absolute top-1/2 right-0 h-[6px] w-[6px] translate-x-1/2 rounded-full bg-[var(--brand-accent)]' />
+                  <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 size-[6px] rounded-full bg-[var(--brand-accent)]' />
+                  <div className='-translate-y-1/2 absolute top-1/2 right-0 size-[6px] translate-x-1/2 rounded-full bg-[var(--brand-accent)]' />
                 </div>
               )}
 
@@ -276,7 +276,7 @@ export function FormBuilder({
                   onDragEnd={handleDragEnd}
                   className='-my-1.5 -ml-1.5 flex cursor-grab items-center py-1.5 pl-1.5 text-[var(--text-muted)] hover-hover:text-[var(--text-tertiary)] active:cursor-grabbing'
                 >
-                  <GripVertical className='h-[12px] w-[12px]' />
+                  <GripVertical className='size-[12px]' />
                 </div>
                 <input
                   type='text'
@@ -346,8 +346,8 @@ export function FormBuilder({
         {/* Drop indicator at the end */}
         {dropTargetIndex === fieldConfigs.length && draggedIndex !== null && (
           <div className='pointer-events-none absolute right-0 bottom-0 left-0 z-20 h-[2px] translate-y-1/2 bg-[var(--brand-accent)]'>
-            <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-[6px] w-[6px] rounded-full bg-[var(--brand-accent)]' />
-            <div className='-translate-y-1/2 absolute top-1/2 right-0 h-[6px] w-[6px] translate-x-1/2 rounded-full bg-[var(--brand-accent)]' />
+            <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 size-[6px] rounded-full bg-[var(--brand-accent)]' />
+            <div className='-translate-y-1/2 absolute top-1/2 right-0 size-[6px] translate-x-1/2 rounded-full bg-[var(--brand-accent)]' />
           </div>
         )}
       </div>

@@ -4,7 +4,7 @@ export const PENDING_OAUTH_CREDENTIAL_DRAFT_KEY = 'sim.pending-oauth-credential-
 export const PENDING_CREDENTIAL_CREATE_REQUEST_KEY = 'sim.pending-credential-create-request'
 export const PENDING_CREDENTIAL_CREATE_REQUEST_EVENT = 'sim:pending-credential-create-request'
 
-export interface PendingOAuthCredentialDraft {
+interface PendingOAuthCredentialDraft {
   workspaceId: string
   providerId: string
   displayName: string

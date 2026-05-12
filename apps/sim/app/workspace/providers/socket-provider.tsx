@@ -3,8 +3,8 @@
 import {
   createContext,
   type ReactNode,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -138,7 +138,7 @@ const SocketContext = createContext<SocketContextType>({
   onOperationFailed: () => {},
 })
 
-export const useSocket = () => useContext(SocketContext)
+export const useSocket = () => use(SocketContext)
 
 interface SocketProviderProps {
   children: ReactNode

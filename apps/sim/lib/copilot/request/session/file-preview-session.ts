@@ -19,16 +19,11 @@ const DEFAULT_COMPLETED_TTL_SECONDS = 5 * 60
 const RETRY_DELAYS_MS = [0, 50, 150] as const
 
 export type {
-  FilePreviewContentMode,
   FilePreviewSession,
   FilePreviewStatus,
   FilePreviewTargetKind,
 } from './file-preview-session-contract'
-export {
-  FILE_PREVIEW_SESSION_SCHEMA_VERSION,
-  isFilePreviewSession,
-  sortFilePreviewSessions,
-} from './file-preview-session-contract'
+export { sortFilePreviewSessions } from './file-preview-session-contract'
 
 function getPreviewSessionsKey(streamId: string): string {
   return `${STREAM_OUTBOX_PREFIX}${streamId}:preview_sessions`

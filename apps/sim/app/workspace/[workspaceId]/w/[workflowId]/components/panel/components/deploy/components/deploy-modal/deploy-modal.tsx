@@ -482,11 +482,12 @@ export function DeployModal({
   const handleCloseModal = useCallback(() => {
     deployActionIdRef.current += 1
     setIsFinalizingDeploy(false)
+    if (workflowId) releaseDeployAction(workflowId)
     setChatSubmitting(false)
     setDeployError(null)
     setDeployWarnings([])
     onOpenChange(false)
-  }, [onOpenChange])
+  }, [workflowId, onOpenChange])
 
   const handleChatDeployed = useCallback(async () => {
     if (!workflowId) return
@@ -610,9 +611,9 @@ export function DeployModal({
                       {deployError}
                     </Badge>
                   )}
-                  {deployWarnings.map((warning, index) => (
+                  {deployWarnings.map((warning) => (
                     <Badge
-                      key={index}
+                      key={warning}
                       variant='amber'
                       size='lg'
                       dot
@@ -1121,7 +1122,7 @@ function GeneralFooter({
         <div className='max-w-[260px] text-muted-foreground text-xs'>{blockedMessage}</div>
         <div className='flex items-center gap-2'>
           <Button variant='tertiary' onClick={onDeploy} disabled={isDeployBlocked}>
-            {deployActionLoading && <Loader className='mr-1.5 h-3.5 w-3.5' animate />}
+            {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
             Deploy
           </Button>
         </div>
@@ -1143,7 +1144,7 @@ function GeneralFooter({
         </Button>
         {(needsRedeployment || isDeploymentSettling) && (
           <Button variant='tertiary' onClick={onRedeploy} disabled={isDeployBlocked}>
-            {deployActionLoading && <Loader className='mr-1.5 h-3.5 w-3.5' animate />}
+            {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
             Update
           </Button>
         )}

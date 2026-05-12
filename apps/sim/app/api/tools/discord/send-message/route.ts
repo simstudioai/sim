@@ -134,21 +134,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
     formData.append('payload_json', JSON.stringify(payload))
 
-    for (let i = 0; i < userFiles.length; i++) {
-      const userFile = userFiles[i]
-      logger.info(`[${requestId}] Downloading file ${i}: ${userFile.name}`)
+    const downloadedFiles = await Promise.all(
+      userFiles.map(async (userFile, i) => {
+        logger.info(`[${requestId}] Downloading file ${i}: ${userFile.name}`)
+        const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+        logger.info(`[${requestId}] Added file ${i}: ${userFile.name} (${buffer.length} bytes)`)
+        return { userFile, buffer }
+      })
+    )
 
-      const buffer = await downloadFileFromStorage(userFile, requestId, logger)
+    for (let i = 0; i < downloadedFiles.length; i++) {
+      const { userFile, buffer } = downloadedFiles[i]
       filesOutput.push({
         name: userFile.name,
         mimeType: userFile.type || 'application/octet-stream',
         data: buffer.toString('base64'),
         size: buffer.length,
       })
-
       const blob = new Blob([new Uint8Array(buffer)], { type: userFile.type })
       formData.append(`files[${i}]`, blob, userFile.name)
-      logger.info(`[${requestId}] Added file ${i}: ${userFile.name} (${buffer.length} bytes)`)
     }
 
     logger.info(`[${requestId}] Sending multipart request with ${userFiles.length} file(s)`)

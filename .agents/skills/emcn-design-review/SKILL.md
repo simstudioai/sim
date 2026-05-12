@@ -234,7 +234,7 @@ Use for context menus and action menus:
 <DropdownMenu>
   <DropdownMenuTrigger asChild>
     <Button variant="ghost">
-      <MoreHorizontal className="h-[14px] w-[14px]" />
+      <MoreHorizontal className="size-[14px]" />
     </Button>
   </DropdownMenuTrigger>
   <DropdownMenuContent align="end">
@@ -281,19 +281,21 @@ Rules:
 - Stack multiple skeletons for lists
 
 ### Icons
-Standard sizing — `h-[14px] w-[14px]` is the dominant pattern (400+ uses):
+Standard sizing — use the `size-*` shorthand. `size-[14px]` is the dominant pattern:
 
 ```tsx
-<Icon className="h-[14px] w-[14px] text-[var(--text-icon)]" />
+<Icon className="size-[14px] text-[var(--text-icon)]" />
 ```
 
-Size scale by frequency:
-1. `h-[14px] w-[14px]` — default for inline icons (most common)
-2. `h-[16px] w-[16px]` — slightly larger inline icons
-3. `h-3 w-3` (12px) — compact/tight spaces
-4. `h-4 w-4` (16px) — Tailwind equivalent, also common
-5. `h-3.5 w-3.5` (14px) — Tailwind equivalent of 14px
-6. `h-5 w-5` (20px) — larger icons, section headers
+Always prefer `size-*` over the legacy `h-* w-*` pair. `size-[14px]` is canonical; treat any `h-[Npx] w-[Npx]` or `h-N w-N` pair as a refactor target.
+
+Size scale (most common first):
+1. `size-[14px]` — default for inline icons
+2. `size-[16px]` — slightly larger inline icons
+3. `size-3` (12px) — compact/tight spaces
+4. `size-4` (16px) — Tailwind equivalent
+5. `size-3.5` (14px) — Tailwind equivalent of 14px
+6. `size-5` (20px) — larger icons, section headers
 
 Use `text-[var(--text-icon)]` for icon color (113+ uses in codebase).
 
@@ -332,4 +334,5 @@ Use `text-[var(--text-icon)]` for icon color (113+ uses in codebase).
 - Importing from emcn subpaths instead of barrel export
 - Using arbitrary z-index (`z-50`, `z-[9999]`) instead of z-index tokens
 - Custom shadows instead of shadow tokens
-- Icon sizes that don't follow the established scale (default to `h-[14px] w-[14px]`)
+- Icon sizes that don't follow the established scale (default to `size-[14px]`)
+- Splitting equal height/width into `h-* w-*` pairs instead of the `size-*` shorthand

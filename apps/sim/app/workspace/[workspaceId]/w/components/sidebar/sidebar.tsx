@@ -132,7 +132,7 @@ export function SidebarTooltip({
 function SidebarItemSkeleton() {
   return (
     <div className='sidebar-collapse-hide mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2'>
-      <Skeleton className='h-[16px] w-[16px] flex-shrink-0 rounded-sm' />
+      <Skeleton className='size-[16px] flex-shrink-0 rounded-sm' />
       <Skeleton className='h-[14px] w-full rounded-sm' />
     </div>
   )
@@ -207,17 +207,17 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+        <Blimp className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
         <div className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>{task.name}</div>
-        <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
+        <div className='relative flex size-[18px] flex-shrink-0 items-center justify-center'>
           {isActive && !isCurrentRoute && !isMenuOpen && (
-            <span className='absolute h-[7px] w-[7px] animate-ping rounded-full bg-amber-400 opacity-30 group-hover:hidden' />
+            <span className='absolute size-[7px] animate-ping rounded-full bg-amber-400 opacity-30 group-hover:hidden' />
           )}
           {isActive && !isCurrentRoute && !isMenuOpen && (
-            <span className='absolute h-[7px] w-[7px] rounded-full bg-amber-400 group-hover:hidden' />
+            <span className='absolute size-[7px] rounded-full bg-amber-400 group-hover:hidden' />
           )}
           {!isActive && isUnread && !isCurrentRoute && !isMenuOpen && (
-            <span className='absolute h-[7px] w-[7px] rounded-full bg-[var(--brand-accent)] group-hover:hidden' />
+            <span className='absolute size-[7px] rounded-full bg-[var(--brand-accent)] group-hover:hidden' />
           )}
           <button
             type='button'
@@ -233,7 +233,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
               isMenuOpen && 'opacity-100'
             )}
           >
-            <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+            <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
           </button>
         </div>
       </Link>
@@ -267,7 +267,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
 
   const content = (
     <>
-      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+      <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
       <span className='truncate font-base text-[var(--text-body)]'>{item.label}</span>
     </>
   )
@@ -1045,6 +1045,15 @@ export const Sidebar = memo(function Sidebar() {
     workflowId ? selectOnly(workflowId) : clearAllSelection()
   }
 
+  const handleSidebarKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'BUTTON' || target.closest('button, [role="button"], a')) return
+      const { selectOnly, clearAllSelection } = useFolderStore.getState()
+      workflowId ? selectOnly(workflowId) : clearAllSelection()
+    }
+  }
+
   const handleRenameWorkspace = useCallback(
     async (workspaceIdToRename: string, newName: string) => {
       await updateWorkspace(workspaceIdToRename, { name: newName })
@@ -1096,14 +1105,14 @@ export const Sidebar = memo(function Sidebar() {
   )
 
   const tasksCollapsedIcon = useMemo(
-    () => <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />,
+    () => <Blimp className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />,
     []
   )
 
   const workflowsCollapsedIcon = useMemo(
     () => (
       <div
-        className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
+        className='size-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
         style={WORKFLOW_ICON_STYLE}
       />
     ),
@@ -1267,6 +1276,7 @@ export const Sidebar = memo(function Sidebar() {
           data-collapsed={isCollapsed || undefined}
           aria-label='Workspace sidebar'
           onClick={handleSidebarClick}
+          onKeyDown={handleSidebarKeyDown}
         >
           <div className='flex h-full flex-col pt-3'>
             <div className='flex flex-shrink-0 items-center pr-2 pb-2 pl-2.5'>
@@ -1293,7 +1303,7 @@ export const Sidebar = memo(function Sidebar() {
                         alt={brand.name}
                         width={16}
                         height={16}
-                        className='h-[16px] w-[16px] flex-shrink-0 object-contain'
+                        className='size-[16px] flex-shrink-0 object-contain'
                         unoptimized
                       />
                     ) : (
@@ -1304,7 +1314,7 @@ export const Sidebar = memo(function Sidebar() {
                     <Link
                       href={`/workspace/${workspaceId}/home`}
                       onClick={handleExpandSidebar}
-                      className='sidebar-collapse-show !transition-none group absolute top-0 left-0 flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover-hover:bg-[var(--surface-hover)]'
+                      className='sidebar-collapse-show !transition-none group absolute top-0 left-0 flex size-[30px] items-center justify-center rounded-[8px] hover-hover:bg-[var(--surface-hover)]'
                       tabIndex={isCollapsed ? undefined : -1}
                       aria-label='Expand sidebar'
                     >
@@ -1314,13 +1324,13 @@ export const Sidebar = memo(function Sidebar() {
                           alt=''
                           width={16}
                           height={16}
-                          className='h-[16px] w-[16px] flex-shrink-0 object-contain group-hover:hidden'
+                          className='size-[16px] flex-shrink-0 object-contain group-hover:hidden'
                           unoptimized
                         />
                       ) : (
-                        <Sim className='h-[16px] w-[16px] flex-shrink-0 group-hover:hidden' />
+                        <Sim className='size-[16px] flex-shrink-0 group-hover:hidden' />
                       )}
-                      <PanelLeft className='hidden h-[16px] w-[16px] rotate-180 text-[var(--text-icon)] group-hover:block' />
+                      <PanelLeft className='hidden size-[16px] rotate-180 text-[var(--text-icon)] group-hover:block' />
                     </Link>
                   </SidebarTooltip>
                 </div>
@@ -1335,7 +1345,7 @@ export const Sidebar = memo(function Sidebar() {
                   )}
                   aria-label='Collapse sidebar'
                 >
-                  <PanelLeft className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                  <PanelLeft className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                 </button>
               </SidebarTooltip>
             </div>
@@ -1423,11 +1433,11 @@ export const Sidebar = memo(function Sidebar() {
                               <Tooltip.Trigger asChild>
                                 <Button
                                   variant='ghost'
-                                  className='h-[18px] w-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-hover)]'
+                                  className='size-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-hover)]'
                                   onClick={handleNewTask}
                                   disabled={createTaskMutation.isPending}
                                 >
-                                  <Plus className='h-[16px] w-[16px]' />
+                                  <Plus className='size-[16px]' />
                                 </Button>
                               </Tooltip.Trigger>
                               <Tooltip.Content>
@@ -1449,8 +1459,8 @@ export const Sidebar = memo(function Sidebar() {
                         >
                           {tasksLoading ? (
                             <DropdownMenuItem disabled>
-                              <Loader className='h-[14px] w-[14px]' animate />
-                              Loading...
+                              <Loader className='size-[14px]' animate />
+                              Loading…
                             </DropdownMenuItem>
                           ) : (
                             tasks.map((task) => (
@@ -1490,7 +1500,7 @@ export const Sidebar = memo(function Sidebar() {
                                       key={task.id}
                                       className='mx-0.5 flex h-[30px] items-center gap-2 rounded-lg bg-[var(--surface-active)] px-2 text-sm'
                                     >
-                                      <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                                      <Blimp className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                                       <input
                                         ref={taskFlyoutRename.inputRef}
                                         value={taskFlyoutRename.value}
@@ -1526,7 +1536,7 @@ export const Sidebar = memo(function Sidebar() {
                                   onClick={handleSeeMoreTasks}
                                   className='mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-[var(--text-icon)] text-sm hover-hover:bg-[var(--surface-hover)]'
                                 >
-                                  <MoreHorizontal className='h-[16px] w-[16px] flex-shrink-0' />
+                                  <MoreHorizontal className='size-[16px] flex-shrink-0' />
                                   <span className='font-base'>See more</span>
                                 </button>
                               )}
@@ -1552,13 +1562,13 @@ export const Sidebar = memo(function Sidebar() {
                                   <DropdownMenuTrigger asChild>
                                     <Button
                                       variant='ghost'
-                                      className='h-[18px] w-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-hover)]'
+                                      className='size-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-hover)]'
                                       disabled={!canEdit}
                                     >
                                       {isImporting || isCreatingFolder ? (
-                                        <Loader className='h-[16px] w-[16px]' animate />
+                                        <Loader className='size-[16px]' animate />
                                       ) : (
-                                        <MoreHorizontal className='h-[16px] w-[16px]' />
+                                        <MoreHorizontal className='size-[16px]' />
                                       )}
                                     </Button>
                                   </DropdownMenuTrigger>
@@ -1592,16 +1602,16 @@ export const Sidebar = memo(function Sidebar() {
                               <Tooltip.Trigger asChild>
                                 <Button
                                   variant='ghost'
-                                  className='h-[18px] w-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-hover)]'
+                                  className='size-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-hover)]'
                                   onClick={handleCreateWorkflow}
                                   disabled={isCreatingWorkflow || !canEdit}
                                 >
-                                  <Plus className='h-[16px] w-[16px]' />
+                                  <Plus className='size-[16px]' />
                                 </Button>
                               </Tooltip.Trigger>
                               <Tooltip.Content>
                                 {isCreatingWorkflow ? (
-                                  <p>Creating workflow...</p>
+                                  <p>Creating workflow…</p>
                                 ) : (
                                   <Tooltip.Shortcut keys={isMac ? '⌘⇧P' : 'Ctrl+Shift+P'}>
                                     New workflow
@@ -1622,8 +1632,8 @@ export const Sidebar = memo(function Sidebar() {
                         >
                           {workflowsLoading && regularWorkflows.length === 0 ? (
                             <DropdownMenuItem disabled>
-                              <Loader className='h-[14px] w-[14px]' animate />
-                              Loading...
+                              <Loader className='size-[14px]' animate />
+                              Loading…
                             </DropdownMenuItem>
                           ) : regularWorkflows.length === 0 ? (
                             <DropdownMenuItem disabled>No workflows yet</DropdownMenuItem>
@@ -1710,7 +1720,7 @@ export const Sidebar = memo(function Sidebar() {
                           data-item-id='help'
                           className='group mx-0.5 flex h-[30px] items-center gap-2 rounded-[8px] px-2 text-[14px] hover-hover:bg-[var(--surface-hover)]'
                         >
-                          <HelpCircle className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                          <HelpCircle className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                           <span className='sidebar-collapse-hide truncate font-base text-[var(--text-body)]'>
                             Help
                           </span>
@@ -1719,15 +1729,15 @@ export const Sidebar = memo(function Sidebar() {
                     </SidebarTooltip>
                     <DropdownMenuContent align='start' side='top' sideOffset={4}>
                       <DropdownMenuItem onSelect={handleOpenDocs}>
-                        <BookOpen className='h-[14px] w-[14px]' />
+                        <BookOpen className='size-[14px]' />
                         Docs
                       </DropdownMenuItem>
                       <DropdownMenuItem onSelect={handleOpenHelpFromMenu}>
-                        <HelpCircle className='h-[14px] w-[14px]' />
+                        <HelpCircle className='size-[14px]' />
                         Report an issue
                       </DropdownMenuItem>
                       <DropdownMenuItem onSelect={handleStartTour}>
-                        <Compass className='h-[14px] w-[14px]' />
+                        <Compass className='size-[14px]' />
                         Take a tour
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -1798,9 +1808,9 @@ export const Sidebar = memo(function Sidebar() {
             )}
             onMouseDown={isCollapsed ? undefined : handleMouseDown}
             onClick={isCollapsed ? toggleCollapsed : undefined}
-            onKeyDown={isCollapsed ? handleEdgeKeyDown : undefined}
+            onKeyDown={handleEdgeKeyDown}
             role={isCollapsed ? 'button' : 'separator'}
-            tabIndex={isCollapsed ? 0 : undefined}
+            tabIndex={0}
             aria-orientation={isCollapsed ? undefined : 'vertical'}
             aria-label={isCollapsed ? 'Expand sidebar' : 'Resize sidebar'}
           />

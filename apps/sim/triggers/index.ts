@@ -134,7 +134,7 @@ export function isTriggerValid(triggerId: string): boolean {
   return triggerId in TRIGGER_REGISTRY
 }
 
-export type { TriggerConfig, TriggerRegistry } from '@/triggers/types'
+export type { TriggerConfig } from '@/triggers/types'
 
 /**
  * Options for building trigger subBlocks

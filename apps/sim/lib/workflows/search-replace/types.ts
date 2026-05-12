@@ -70,7 +70,7 @@ export interface WorkflowSearchMatch {
   reason?: string
 }
 
-export interface WorkflowSearchSubBlockState extends Omit<SubBlockState, 'value'> {
+interface WorkflowSearchSubBlockState extends Omit<SubBlockState, 'value'> {
   value: unknown
 }
 
@@ -129,7 +129,7 @@ export interface WorkflowSearchReplaceSubflowUpdate {
   matchIds: string[]
 }
 
-export interface WorkflowSearchReplaceSkipped {
+interface WorkflowSearchReplaceSkipped {
   matchId: string
   reason: string
 }

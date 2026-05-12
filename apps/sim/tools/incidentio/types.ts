@@ -271,7 +271,7 @@ export const INCIDENTIO_PAGINATION_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 // Common parameters for all incident.io tools
-export interface IncidentioBaseParams {
+interface IncidentioBaseParams {
   apiKey: string
 }
 
@@ -281,7 +281,7 @@ export interface IncidentioIncidentsListParams extends IncidentioBaseParams {
   after?: string
 }
 
-export interface IncidentioIncident {
+interface IncidentioIncident {
   id: string
   name: string
   summary?: string
@@ -341,7 +341,7 @@ export interface IncidentioIncidentsShowParams extends IncidentioBaseParams {
   id: string
 }
 
-export interface IncidentioIncidentDetailed extends IncidentioIncident {
+interface IncidentioIncidentDetailed extends IncidentioIncident {
   description?: string
   mode?: string
   permalink?: string
@@ -398,7 +398,7 @@ export interface IncidentioActionsListParams extends IncidentioBaseParams {
   incident_id?: string
 }
 
-export interface IncidentioAction {
+interface IncidentioAction {
   id: string
   description: string
   assignee?: {
@@ -447,7 +447,7 @@ export interface IncidentioFollowUpsListParams extends IncidentioBaseParams {
   incident_id?: string
 }
 
-export interface IncidentioFollowUp {
+interface IncidentioFollowUp {
   id: string
   title: string
   description?: string
@@ -499,7 +499,7 @@ export interface IncidentioFollowUpsShowResponse extends ToolResponse {
 }
 
 // Workflow types
-export interface Workflow {
+interface Workflow {
   id: string
   name: string
   state: 'active' | 'draft' | 'disabled'
@@ -586,7 +586,7 @@ export interface WorkflowsDeleteResponse extends ToolResponse {
 // Custom field types
 export type CustomFieldType = 'text' | 'single_select' | 'multi_select' | 'numeric' | 'link'
 
-export interface CustomField {
+interface CustomField {
   id: string
   name: string
   description?: string
@@ -596,7 +596,7 @@ export interface CustomField {
   options?: CustomFieldOption[]
 }
 
-export interface CustomFieldOption {
+interface CustomFieldOption {
   id: string
   value: string
   sort_key: number
@@ -665,7 +665,7 @@ export interface IncidentioUsersListParams extends IncidentioBaseParams {
   after?: string
 }
 
-export interface IncidentioUser {
+interface IncidentioUser {
   id: string
   name: string
   email: string
@@ -697,7 +697,7 @@ export interface IncidentioUsersShowResponse extends ToolResponse {
 // Severities list tool types
 export interface IncidentioSeveritiesListParams extends IncidentioBaseParams {}
 
-export interface IncidentioSeverity {
+interface IncidentioSeverity {
   id: string
   name: string
   description: string
@@ -713,7 +713,7 @@ export interface IncidentioSeveritiesListResponse extends ToolResponse {
 // Incident statuses list tool types
 export interface IncidentioIncidentStatusesListParams extends IncidentioBaseParams {}
 
-export interface IncidentioIncidentStatus {
+interface IncidentioIncidentStatus {
   id: string
   name: string
   description: string
@@ -729,7 +729,7 @@ export interface IncidentioIncidentStatusesListResponse extends ToolResponse {
 // Incident types list tool types
 export interface IncidentioIncidentTypesListParams extends IncidentioBaseParams {}
 
-export interface IncidentioIncidentType {
+interface IncidentioIncidentType {
   id: string
   name: string
   description: string
@@ -792,7 +792,7 @@ export type IncidentioResponse =
 // Escalations types
 export interface IncidentioEscalationsListParams extends IncidentioBaseParams {}
 
-export interface IncidentioEscalation {
+interface IncidentioEscalation {
   id: string
   name: string
   created_at?: string
@@ -834,7 +834,7 @@ export interface IncidentioSchedulesListParams extends IncidentioBaseParams {
   after?: string
 }
 
-export interface IncidentioSchedule {
+interface IncidentioSchedule {
   id: string
   name: string
   timezone: string
@@ -898,7 +898,7 @@ export interface IncidentioSchedulesDeleteResponse extends ToolResponse {
 }
 
 // Incident Roles types
-export interface IncidentioIncidentRole {
+interface IncidentioIncidentRole {
   id: string
   name: string
   description?: string
@@ -966,7 +966,7 @@ export interface IncidentioIncidentRolesDeleteResponse extends ToolResponse {
 }
 
 // Incident Timestamps types
-export interface IncidentioIncidentTimestamp {
+interface IncidentioIncidentTimestamp {
   id: string
   name: string
   rank: number
@@ -993,7 +993,7 @@ export interface IncidentioIncidentTimestampsShowResponse extends ToolResponse {
 }
 
 // Incident Updates types
-export interface IncidentioIncidentUpdate {
+interface IncidentioIncidentUpdate {
   id: string
   incident_id: string
   message: string
@@ -1033,7 +1033,7 @@ export interface IncidentioIncidentUpdatesListResponse extends ToolResponse {
 }
 
 // Schedule Entries types
-export interface IncidentioScheduleEntry {
+interface IncidentioScheduleEntry {
   id: string
   schedule_id: string
   user: {
@@ -1068,7 +1068,7 @@ export interface IncidentioScheduleEntriesListResponse extends ToolResponse {
 }
 
 // Schedule Overrides types
-export interface IncidentioScheduleOverride {
+interface IncidentioScheduleOverride {
   id: string
   rotation_id: string
   schedule_id: string
@@ -1100,7 +1100,7 @@ export interface IncidentioScheduleOverridesCreateResponse extends ToolResponse 
 }
 
 // Escalation Paths types
-export interface IncidentioEscalationPathTarget {
+interface IncidentioEscalationPathTarget {
   id: string
   type: string
   schedule_id?: string
@@ -1108,12 +1108,12 @@ export interface IncidentioEscalationPathTarget {
   urgency: string
 }
 
-export interface IncidentioEscalationPathLevel {
+interface IncidentioEscalationPathLevel {
   targets: IncidentioEscalationPathTarget[]
   time_to_ack_seconds: number
 }
 
-export interface IncidentioEscalationPath {
+interface IncidentioEscalationPath {
   id: string
   name: string
   path: IncidentioEscalationPathLevel[]

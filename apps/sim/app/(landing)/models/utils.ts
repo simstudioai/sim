@@ -780,12 +780,14 @@ export function buildModelCapabilityFacts(model: CatalogModel): CapabilityFact[]
 }
 
 export function getCheapestProviderModel(provider: CatalogProvider): CatalogModel | null {
-  return [...provider.models].sort((a, b) => a.pricing.input - b.pricing.input)[0] ?? null
+  if (provider.models.length === 0) return null
+  return provider.models.reduce((min, m) => (m.pricing.input < min.pricing.input ? m : min))
 }
 
 export function getLargestContextProviderModel(provider: CatalogProvider): CatalogModel | null {
-  return (
-    [...provider.models].sort((a, b) => (b.contextWindow ?? 0) - (a.contextWindow ?? 0))[0] ?? null
+  if (provider.models.length === 0) return null
+  return provider.models.reduce((max, m) =>
+    (m.contextWindow ?? 0) > (max.contextWindow ?? 0) ? m : max
   )
 }
 

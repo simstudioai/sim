@@ -74,4 +74,8 @@ describe('resolveToolDisplay', () => {
       'Executed Deploy Api'
     )
   })
+
+  it('hides internal deferred tool loaders', () => {
+    expect(resolveToolDisplay('load_custom_tool', ClientToolCallState.executing)).toBeUndefined()
+  })
 })

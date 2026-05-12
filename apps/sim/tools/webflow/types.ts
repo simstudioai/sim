@@ -43,7 +43,7 @@ export const WEBFLOW_LIST_METADATA_OUTPUT_PROPERTIES = {
   limit: { type: 'number', description: 'Maximum items per page', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
-export interface WebflowBaseParams {
+interface WebflowBaseParams {
   accessToken: string
   siteId: string
   collectionId: string
@@ -54,7 +54,7 @@ export interface WebflowListItemsParams extends WebflowBaseParams {
   limit?: number
 }
 
-export interface WebflowListItemsOutput {
+interface WebflowListItemsOutput {
   items: any[]
   metadata: {
     itemCount: number
@@ -72,7 +72,7 @@ export interface WebflowGetItemParams extends WebflowBaseParams {
   itemId: string
 }
 
-export interface WebflowGetItemOutput {
+interface WebflowGetItemOutput {
   item: any
   metadata: {
     itemId: string
@@ -88,7 +88,7 @@ export interface WebflowCreateItemParams extends WebflowBaseParams {
   fieldData: Record<string, any>
 }
 
-export interface WebflowCreateItemOutput {
+interface WebflowCreateItemOutput {
   item: any
   metadata: {
     itemId: string
@@ -105,7 +105,7 @@ export interface WebflowUpdateItemParams extends WebflowBaseParams {
   fieldData: Record<string, any>
 }
 
-export interface WebflowUpdateItemOutput {
+interface WebflowUpdateItemOutput {
   item: any
   metadata: {
     itemId: string
@@ -121,7 +121,7 @@ export interface WebflowDeleteItemParams extends WebflowBaseParams {
   itemId: string
 }
 
-export interface WebflowDeleteItemOutput {
+interface WebflowDeleteItemOutput {
   success: boolean
   metadata: {
     deleted: boolean

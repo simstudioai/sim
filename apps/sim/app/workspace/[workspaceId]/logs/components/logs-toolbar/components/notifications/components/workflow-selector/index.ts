@@ -1,1 +1,1 @@
-export { default, WorkflowSelector } from './workflow-selector'
+export { WorkflowSelector } from './workflow-selector'

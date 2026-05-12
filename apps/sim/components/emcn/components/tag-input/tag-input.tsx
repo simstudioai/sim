@@ -42,6 +42,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { Paperclip, Plus, X } from 'lucide-react'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 
 /**
  * Variant styles for the Tag component.
@@ -68,7 +69,7 @@ const tagVariants = cva(
 /**
  * Props for the Tag component.
  */
-export interface TagProps extends VariantProps<typeof tagVariants> {
+interface TagProps extends VariantProps<typeof tagVariants> {
   /** The tag value to display */
   value: string
   /** Callback when remove button is clicked */
@@ -110,7 +111,7 @@ const Tag = React.memo(function Tag({
           )}
           aria-label={`Remove ${value}`}
         >
-          <X className='h-3 w-3 translate-y-[0.5px]' />
+          <X className='size-3 translate-y-[0.5px]' />
         </button>
       )}
     </div>
@@ -162,7 +163,7 @@ export interface FileInputOptions {
 /**
  * Props for the TagInput component.
  */
-export interface TagInputProps extends VariantProps<typeof tagInputVariants> {
+interface TagInputProps extends VariantProps<typeof tagInputVariants> {
   /** Array of tag items with value and validity status */
   items: TagItem[]
   /**
@@ -201,6 +202,38 @@ export interface TagInputProps extends VariantProps<typeof tagInputVariants> {
   /** Variant for valid tags (defaults to 'default') */
   tagVariant?: 'default' | 'secondary'
 }
+
+interface TagInputTagProps {
+  item: TagItem
+  index: number
+  onRemove: TagInputProps['onRemove']
+  disabled: boolean
+  tagVariant: 'default' | 'secondary'
+  suffix?: React.ReactNode
+}
+
+const TagInputTag = React.memo(function TagInputTag({
+  item,
+  index,
+  onRemove,
+  disabled,
+  tagVariant,
+  suffix,
+}: TagInputTagProps) {
+  const handleRemove = React.useCallback(() => {
+    onRemove(item.value, index, item.isValid)
+  }, [item.value, item.isValid, index, onRemove])
+
+  return (
+    <Tag
+      value={item.value}
+      variant={item.isValid ? tagVariant : 'invalid'}
+      onRemove={handleRemove}
+      disabled={disabled}
+      suffix={suffix}
+    />
+  )
+})
 
 /**
  * An input component for managing a list of tags.
@@ -377,6 +410,8 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
 
     return (
       <div
+        role='group'
+        aria-label='Tag input'
         className={cn(
           tagInputVariants({ variant }),
           maxHeight,
@@ -386,6 +421,10 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           className
         )}
         onClick={handleContainerClick}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return
+          handleKeyboardActivation(event, handleContainerClick)
+        }}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -405,13 +444,14 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           </div>
         )}
         {items.map((item, index) => (
-          <Tag
+          <TagInputTag
             key={`item-${index}`}
-            value={item.value}
-            variant={item.isValid ? tagVariant : 'invalid'}
-            onRemove={() => onRemove(item.value, index, item.isValid)}
+            item={item}
+            index={index}
+            onRemove={onRemove}
             disabled={disabled}
             suffix={item.isValid ? renderTagSuffix?.(item.value, index) : undefined}
+            tagVariant={tagVariant}
           />
         ))}
         <div
@@ -477,7 +517,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
               disabled={disabled}
               aria-label='Add tag'
             >
-              <Plus className='h-3 w-3' />
+              <Plus className='size-3' />
             </button>
           )}
         </div>
@@ -493,7 +533,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                 className='-m-1.5 absolute right-2 bottom-[9px] p-1.5 text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-secondary)]'
                 aria-label={fileInputOptions?.tooltip ?? 'Upload file'}
               >
-                <FileIcon className='h-3.5 w-3.5' strokeWidth={2} />
+                <FileIcon className='size-3.5' strokeWidth={2} />
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>

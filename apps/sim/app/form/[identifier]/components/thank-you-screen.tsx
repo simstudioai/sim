@@ -21,10 +21,10 @@ export function ThankYouScreen({ title, message, primaryColor }: ThankYouScreenP
     <main className='flex flex-1 flex-col items-center justify-center p-4'>
       <div className='flex flex-col items-center text-center'>
         <div
-          className='flex h-20 w-20 items-center justify-center rounded-full'
+          className='flex size-20 items-center justify-center rounded-full'
           style={{ backgroundColor: `${thankYouColor}15` }}
         >
-          <CheckCircle2 className='h-10 w-10' style={{ color: thankYouColor }} />
+          <CheckCircle2 className='size-10' style={{ color: thankYouColor }} />
         </div>
         <h2
           className={'mt-6 font-[500] text-[32px] tracking-tight'}

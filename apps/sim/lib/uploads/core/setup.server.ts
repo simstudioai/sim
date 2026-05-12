@@ -13,7 +13,7 @@ export const UPLOAD_DIR_SERVER = join(PROJECT_ROOT, 'uploads')
 /**
  * Server-only function to ensure uploads directory exists
  */
-export async function ensureUploadsDirectory() {
+async function ensureUploadsDirectory() {
   if (USE_S3_STORAGE) {
     logger.info('Using S3 storage, skipping local uploads directory creation')
     return true

@@ -103,7 +103,7 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
             onClick={handleAdd}
             className='px-2 py-1 text-[var(--text-secondary)] text-xs'
           >
-            <Plus className='mr-1 h-[10px] w-[10px]' />
+            <Plus className='mr-1 size-[10px]' />
             Add filter
           </Button>
           <div className='flex items-center gap-1.5'>
@@ -163,7 +163,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
         <DropdownMenuTrigger asChild>
           <button className='flex h-[28px] min-w-[100px] items-center justify-between rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none hover-hover:border-[var(--border-1)]'>
             <span className='truncate'>{rule.column || 'Column'}</span>
-            <ChevronDown className='ml-1 h-[10px] w-[10px] shrink-0 text-[var(--text-icon)]' />
+            <ChevronDown className='ml-1 size-[10px] shrink-0 text-[var(--text-icon)]' />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start'>
@@ -182,7 +182,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
         <DropdownMenuTrigger asChild>
           <button className='flex h-[28px] min-w-[90px] items-center justify-between rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none hover-hover:border-[var(--border-1)]'>
             <span className='truncate'>{OPERATOR_LABELS[rule.operator] ?? rule.operator}</span>
-            <ChevronDown className='ml-1 h-[10px] w-[10px] shrink-0 text-[var(--text-icon)]' />
+            <ChevronDown className='ml-1 size-[10px] shrink-0 text-[var(--text-icon)]' />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start'>
@@ -210,9 +210,9 @@ const FilterRuleRow = memo(function FilterRuleRow({
 
       <button
         onClick={() => onRemove(rule.id)}
-        className='flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-[5px] text-[var(--text-tertiary)] transition-colors hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
+        className='flex size-[28px] shrink-0 items-center justify-center rounded-[5px] text-[var(--text-tertiary)] transition-colors hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
       >
-        <X className='h-[12px] w-[12px]' />
+        <X className='size-[12px]' />
       </button>
     </div>
   )

@@ -625,7 +625,7 @@ export interface NotionCreateDatabaseParams {
   accessToken: string
 }
 
-export interface NotionReadDatabaseParams {
+interface NotionReadDatabaseParams {
   databaseId: string
   accessToken: string
 }

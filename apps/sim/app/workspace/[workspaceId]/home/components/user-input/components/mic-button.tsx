@@ -22,7 +22,7 @@ export const MicButton = React.memo(function MicButton({ isListening, onToggle }
       )}
       title={isListening ? 'Stop listening' : 'Voice input'}
     >
-      <Mic className='h-[16px] w-[16px]' strokeWidth={2} />
+      <Mic className='size-[16px]' strokeWidth={2} />
     </button>
   )
 })

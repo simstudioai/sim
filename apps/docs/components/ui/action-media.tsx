@@ -19,23 +19,33 @@ interface ActionVideoProps {
 export function ActionImage({ src, alt, enableLightbox = true }: ActionImageProps) {
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
 
-  const handleClick = () => {
-    if (enableLightbox) {
-      setIsLightboxOpen(true)
-    }
-  }
+  const openLightbox = () => setIsLightboxOpen(true)
+
+  const image = (
+    <img
+      src={src}
+      alt={alt}
+      className={cn(
+        'inline-block w-full max-w-[200px] rounded border border-neutral-200 dark:border-neutral-700',
+        enableLightbox && 'transition-opacity group-hover:opacity-90'
+      )}
+    />
+  )
 
   return (
     <>
-      <img
-        src={src}
-        alt={alt}
-        onClick={handleClick}
-        className={cn(
-          'inline-block w-full max-w-[200px] rounded border border-neutral-200 dark:border-neutral-700',
-          enableLightbox && 'cursor-pointer transition-opacity hover:opacity-90'
-        )}
-      />
+      {enableLightbox ? (
+        <button
+          type='button'
+          onClick={openLightbox}
+          aria-label={`Open ${alt} in media viewer`}
+          className='group inline-block cursor-pointer rounded p-0 text-left'
+        >
+          {image}
+        </button>
+      ) : (
+        image
+      )}
       {enableLightbox && (
         <Lightbox
           isOpen={isLightboxOpen}
@@ -55,28 +65,40 @@ export function ActionVideo({ src, alt, enableLightbox = true }: ActionVideoProp
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const resolvedSrc = getAssetUrl(src)
 
-  const handleClick = () => {
-    if (enableLightbox) {
-      startTimeRef.current = videoRef.current?.currentTime ?? 0
-      setIsLightboxOpen(true)
-    }
+  const openLightbox = () => {
+    startTimeRef.current = videoRef.current?.currentTime ?? 0
+    setIsLightboxOpen(true)
   }
+
+  const video = (
+    <video
+      ref={videoRef}
+      src={resolvedSrc}
+      autoPlay
+      loop
+      muted
+      playsInline
+      className={cn(
+        'inline-block w-full max-w-[200px] rounded border border-neutral-200 dark:border-neutral-700',
+        enableLightbox && 'transition-opacity group-hover:opacity-90'
+      )}
+    />
+  )
 
   return (
     <>
-      <video
-        ref={videoRef}
-        src={resolvedSrc}
-        autoPlay
-        loop
-        muted
-        playsInline
-        onClick={handleClick}
-        className={cn(
-          'inline-block w-full max-w-[200px] rounded border border-neutral-200 dark:border-neutral-700',
-          enableLightbox && 'cursor-pointer transition-opacity hover:opacity-90'
-        )}
-      />
+      {enableLightbox ? (
+        <button
+          type='button'
+          onClick={openLightbox}
+          aria-label={`Open ${alt} in media viewer`}
+          className='group inline-block cursor-pointer rounded p-0 text-left'
+        >
+          {video}
+        </button>
+      ) : (
+        video
+      )}
       {enableLightbox && (
         <Lightbox
           isOpen={isLightboxOpen}

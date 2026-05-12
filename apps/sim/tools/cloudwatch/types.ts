@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface CloudWatchConnectionConfig {
+interface CloudWatchConnectionConfig {
   awsRegion: string
   awsAccessKeyId: string
   awsSecretAccessKey: string

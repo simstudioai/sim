@@ -206,7 +206,7 @@ export interface WikipediaPageSummaryParams {
   pageTitle: string
 }
 
-export interface WikipediaPageSummary {
+interface WikipediaPageSummary {
   type: string
   title: string
   displaytitle: string
@@ -260,7 +260,7 @@ export interface WikipediaSearchParams {
   searchLimit?: number
 }
 
-export interface WikipediaSearchResult {
+interface WikipediaSearchResult {
   id: number
   key: string
   title: string
@@ -291,7 +291,7 @@ export interface WikipediaPageContentParams {
   pageTitle: string
 }
 
-export interface WikipediaPageContent {
+interface WikipediaPageContent {
   title: string
   pageid: number
   html: string
@@ -309,7 +309,7 @@ export interface WikipediaPageContentResponse extends ToolResponse {
 }
 
 // Random Page tool types
-export interface WikipediaRandomPage {
+interface WikipediaRandomPage {
   type: string
   title: string
   displaytitle: string

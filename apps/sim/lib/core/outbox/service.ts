@@ -32,7 +32,7 @@ class OutboxHandlerTimeoutError extends Error {
  * lands on the same Stripe invoice id / charge id rather than creating
  * a duplicate. The outbox lease CAS handles our DB side.
  */
-export interface OutboxEventContext {
+interface OutboxEventContext {
   eventId: string
   eventType: string
   /** How many times this event has been attempted (zero on first run). */

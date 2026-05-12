@@ -938,7 +938,7 @@ export class PptxViewer extends EventTarget {
 // Standalone helper (shared with Renderer.ts)
 // -----------------------------------------------------------------------
 
-export async function normalizePreviewInput(input: PreviewInput): Promise<ArrayBuffer> {
+async function normalizePreviewInput(input: PreviewInput): Promise<ArrayBuffer> {
   if (input instanceof ArrayBuffer) return input
   if (input instanceof Uint8Array) {
     const bytes = new Uint8Array(input.byteLength)

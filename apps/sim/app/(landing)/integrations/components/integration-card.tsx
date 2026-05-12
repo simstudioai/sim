@@ -25,7 +25,7 @@ export function IntegrationCard({ integration, IconComponent }: IntegrationCardP
         bgColor={bgColor}
         name={name}
         Icon={IconComponent}
-        className='h-10 w-10 rounded-[5px]'
+        className='size-10 rounded-[5px]'
         aria-hidden='true'
       />
       <div className='flex flex-col gap-2'>
@@ -61,7 +61,7 @@ export function IntegrationRow({ integration, IconComponent }: IntegrationRowPro
           bgColor={bgColor}
           name={name}
           Icon={IconComponent}
-          className='h-8 w-8 shrink-0 rounded-[5px]'
+          className='size-8 shrink-0 rounded-[5px]'
           iconClassName='h-4 w-4'
           fallbackClassName='text-[13px]'
           aria-hidden='true'

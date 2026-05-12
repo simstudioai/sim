@@ -133,7 +133,7 @@ function buildWhatsAppIdempotencyKey(keys: Set<string>): string | null {
 /**
  * Handle WhatsApp verification requests
  */
-export async function handleWhatsAppVerification(
+async function handleWhatsAppVerification(
   requestId: string,
   path: string,
   mode: string | null,

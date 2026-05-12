@@ -102,7 +102,7 @@ export interface ProcessingOptions {
   lang?: string
 }
 
-export interface DocumentJobData {
+interface DocumentJobData {
   knowledgeBaseId: string
   documentId: string
   docData: {
@@ -115,7 +115,7 @@ export interface DocumentJobData {
   requestId: string
 }
 
-export async function dispatchDocumentProcessingJob(payload: DocumentJobData): Promise<void> {
+async function dispatchDocumentProcessingJob(payload: DocumentJobData): Promise<void> {
   if (isTriggerAvailable()) {
     await tasks.trigger('knowledge-process-document', payload, {
       tags: [`knowledgeBaseId:${payload.knowledgeBaseId}`, `documentId:${payload.documentId}`],
@@ -131,13 +131,13 @@ export async function dispatchDocumentProcessingJob(payload: DocumentJobData): P
   )
 }
 
-export interface DocumentTagData {
+interface DocumentTagData {
   tagName: string
   fieldType: string
   value: string
 }
 
-export async function processDocumentTags(
+async function processDocumentTags(
   knowledgeBaseId: string,
   tagData: DocumentTagData[],
   requestId: string
@@ -700,7 +700,7 @@ export function isTriggerAvailable(): boolean {
   return Boolean(env.TRIGGER_SECRET_KEY) && isTriggerDevEnabled
 }
 
-export async function processDocumentsWithTrigger(
+async function processDocumentsWithTrigger(
   documents: DocumentProcessingPayload[],
   requestId: string
 ): Promise<{ success: boolean; message: string; batchIds?: string[] }> {
@@ -1892,7 +1892,7 @@ async function excludeConnectorDocuments(
   return updated.length
 }
 
-export async function deleteDocumentsByLifecyclePolicy(
+async function deleteDocumentsByLifecyclePolicy(
   documentIds: string[],
   requestId: string
 ): Promise<number> {

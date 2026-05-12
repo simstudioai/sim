@@ -21,8 +21,6 @@ export const invitationKeys = {
   list: (workspaceId: string) => [...invitationKeys.lists(), workspaceId] as const,
 }
 
-export type { PendingInvitationRow }
-
 export interface WorkspaceInvitation {
   email: string
   permissionType: 'admin' | 'write' | 'read'

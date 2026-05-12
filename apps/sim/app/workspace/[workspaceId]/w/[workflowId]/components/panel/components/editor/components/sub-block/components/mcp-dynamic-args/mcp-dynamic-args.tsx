@@ -137,7 +137,7 @@ export function McpDynamicArgs({
     switch (inputType) {
       case 'switch':
         return (
-          <div key={`${paramName}-switch`} className='flex items-center space-x-3'>
+          <div key={`${paramName}-switch`} className='flex items-center gap-x-3'>
             <Switch
               id={`${paramName}-switch`}
               checked={!!value}
@@ -295,7 +295,7 @@ export function McpDynamicArgs({
   ) {
     return (
       <div className='rounded-lg border p-8 text-center'>
-        <p className='text-muted-foreground text-sm'>Loading tool schema...</p>
+        <p className='text-muted-foreground text-sm'>Loading tool schema…</p>
       </div>
     )
   }

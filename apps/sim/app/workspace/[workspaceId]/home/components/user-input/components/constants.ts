@@ -27,7 +27,7 @@ export interface SpeechRecognitionInstance extends EventTarget {
   onerror: ((ev: SpeechRecognitionErrorEvent) => void) | null
 }
 
-export interface SpeechRecognitionStatic {
+interface SpeechRecognitionStatic {
   new (): SpeechRecognitionInstance
 }
 

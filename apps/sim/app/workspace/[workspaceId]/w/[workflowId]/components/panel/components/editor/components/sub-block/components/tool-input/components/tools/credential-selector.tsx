@@ -27,7 +27,7 @@ const getProviderIcon = (providerName: OAuthProvider) => {
   const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
   if (!baseProviderConfig) {
-    return <ExternalLink className='h-3 w-3' />
+    return <ExternalLink className='size-3' />
   }
   return createElement(baseProviderConfig.icon, { className: 'h-3 w-3' })
 }
@@ -61,11 +61,13 @@ interface ToolCredentialSelectorProps {
   disabled?: boolean
 }
 
+const EMPTY_SCOPES: string[] = []
+
 export function ToolCredentialSelector({
   value,
   onChange,
   provider,
-  requiredScopes = [],
+  requiredScopes = EMPTY_SCOPES,
   label,
   serviceId,
   disabled = false,
@@ -219,7 +221,7 @@ export function ToolCredentialSelector({
       {needsUpdate && (
         <div className='mt-2 flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
           <div className='flex items-center font-medium text-caption'>
-            <span className='mr-1.5 inline-block h-[6px] w-[6px] rounded-xs bg-amber-500' />
+            <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-amber-500' />
             Additional permissions required
           </div>
           <Button

@@ -5,7 +5,7 @@ export interface EmailBisonBaseParams {
   apiBaseUrl: string
 }
 
-export interface EmailBisonCustomVariable {
+interface EmailBisonCustomVariable {
   name: string | null
   value: string | null
 }

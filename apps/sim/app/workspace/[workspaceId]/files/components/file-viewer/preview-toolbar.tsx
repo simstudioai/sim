@@ -59,10 +59,10 @@ function PreviewNavigationControls({
         size='sm'
         onClick={onPrevious}
         disabled={!canPrevious}
-        className='h-6 w-6 p-0 text-[var(--text-icon)]'
+        className='size-6 p-0 text-[var(--text-icon)]'
         aria-label={`Previous ${label}`}
       >
-        <ChevronLeft className='h-[14px] w-[14px]' />
+        <ChevronLeft className='size-[14px]' />
       </Button>
       <span className='min-w-[5rem] text-center text-[12px] text-[var(--text-secondary)]'>
         {total > 0 ? `${current} / ${total}` : '0 / 0'}
@@ -72,10 +72,10 @@ function PreviewNavigationControls({
         size='sm'
         onClick={onNext}
         disabled={!canNext}
-        className='h-6 w-6 p-0 text-[var(--text-icon)]'
+        className='size-6 p-0 text-[var(--text-icon)]'
         aria-label={`Next ${label}`}
       >
-        <ChevronRight className='h-[14px] w-[14px]' />
+        <ChevronRight className='size-[14px]' />
       </Button>
     </>
   )
@@ -107,10 +107,10 @@ function PreviewZoomControls({
         size='sm'
         onClick={onZoomOut}
         disabled={!canZoomOut}
-        className='h-6 w-6 p-0 text-[var(--text-icon)]'
+        className='size-6 p-0 text-[var(--text-icon)]'
         aria-label='Zoom out'
       >
-        <ZoomOut className='h-[14px] w-[14px]' />
+        <ZoomOut className='size-[14px]' />
       </Button>
       <span className='min-w-[3rem] text-center text-[12px] text-[var(--text-secondary)]'>
         {label}
@@ -120,10 +120,10 @@ function PreviewZoomControls({
         size='sm'
         onClick={onZoomIn}
         disabled={!canZoomIn}
-        className='h-6 w-6 p-0 text-[var(--text-icon)]'
+        className='size-6 p-0 text-[var(--text-icon)]'
         aria-label='Zoom in'
       >
-        <ZoomIn className='h-[14px] w-[14px]' />
+        <ZoomIn className='size-[14px]' />
       </Button>
     </>
   )

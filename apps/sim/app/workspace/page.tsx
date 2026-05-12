@@ -63,7 +63,7 @@ export default function WorkspacePage() {
     return (
       <div className='flex h-screen w-full items-center justify-center'>
         <div
-          className='h-[18px] w-[18px] animate-spin rounded-full'
+          className='size-[18px] animate-spin rounded-full'
           style={{
             background:
               'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',

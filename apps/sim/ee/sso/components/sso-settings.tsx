@@ -436,13 +436,13 @@ export function SSO() {
                   type='button'
                   variant='ghost'
                   onClick={() => copyToClipboard(providerCallbackUrl)}
-                  className='-translate-y-1/2 absolute top-1/2 right-[8px] h-6 w-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
+                  className='-translate-y-1/2 absolute top-1/2 right-[8px] size-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
                   aria-label='Copy callback URL'
                 >
                   {copied ? (
-                    <Check className='h-[14px] w-[14px]' />
+                    <Check className='size-[14px]' />
                   ) : (
-                    <Clipboard className='h-[14px] w-[14px]' />
+                    <Clipboard className='size-[14px]' />
                   )}
                 </Button>
               </div>
@@ -659,13 +659,13 @@ export function SSO() {
                     type='button'
                     variant='ghost'
                     onClick={() => setShowClientSecret((s) => !s)}
-                    className='-translate-y-1/2 absolute top-1/2 right-[8px] h-6 w-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    className='-translate-y-1/2 absolute top-1/2 right-[8px] size-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                     aria-label={showClientSecret ? 'Hide client secret' : 'Show client secret'}
                   >
                     {showClientSecret ? (
-                      <EyeOff className='h-[14px] w-[14px]' />
+                      <EyeOff className='size-[14px]' />
                     ) : (
-                      <Eye className='h-[14px] w-[14px]' />
+                      <Eye className='size-[14px]' />
                     )}
                   </Button>
                 </div>
@@ -824,14 +824,10 @@ export function SSO() {
                 type='button'
                 variant='ghost'
                 onClick={() => copyToClipboard(callbackUrl)}
-                className='-translate-y-1/2 absolute top-1/2 right-[8px] h-6 w-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
+                className='-translate-y-1/2 absolute top-1/2 right-[8px] size-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
                 aria-label='Copy callback URL'
               >
-                {copied ? (
-                  <Check className='h-[14px] w-[14px]' />
-                ) : (
-                  <Clipboard className='h-[14px] w-[14px]' />
-                )}
+                {copied ? <Check className='size-[14px]' /> : <Clipboard className='size-[14px]' />}
               </Button>
             </div>
             <p className='text-[var(--text-muted)] text-small'>
