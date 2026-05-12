@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   removeWorkspaceEnvironmentContract,
@@ -113,23 +113,24 @@ export const PUT = withRouteHandler(
         })
       ).then((entries) => Object.fromEntries(entries))
 
-      const merged = { ...existingEncrypted, ...encryptedIncoming }
-
-      // Upsert by unique workspace_id
       await db
         .insert(workspaceEnvironment)
         .values({
           id: generateId(),
           workspaceId,
-          variables: merged,
+          variables: encryptedIncoming,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
         .onConflictDoUpdate({
           target: [workspaceEnvironment.workspaceId],
-          set: { variables: merged, updatedAt: new Date() },
+          set: {
+            variables: sql`${workspaceEnvironment.variables} || excluded.variables`,
+            updatedAt: new Date(),
+          },
         })
 
+      const merged = { ...existingEncrypted, ...encryptedIncoming }
       const newKeys = Object.keys(variables).filter((k) => !(k in existingEncrypted))
       await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId: userId })
 
@@ -203,18 +204,15 @@ export const DELETE = withRouteHandler(
       }
 
       await db
-        .insert(workspaceEnvironment)
-        .values({
-          id: wsRows[0]?.id || generateId(),
-          workspaceId,
-          variables: current,
-          createdAt: wsRows[0]?.createdAt || new Date(),
+        .update(workspaceEnvironment)
+        .set({
+          variables: sql`${workspaceEnvironment.variables} - ARRAY[${sql.join(
+            keys.map((k) => sql`${k}`),
+            sql`, `
+          )}]::text[]`,
           updatedAt: new Date(),
         })
-        .onConflictDoUpdate({
-          target: [workspaceEnvironment.workspaceId],
-          set: { variables: current, updatedAt: new Date() },
-        })
+        .where(eq(workspaceEnvironment.workspaceId, workspaceId))
 
       await deleteWorkspaceEnvCredentials({ workspaceId, removedKeys: keys })
 
