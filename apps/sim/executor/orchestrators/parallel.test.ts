@@ -8,6 +8,14 @@ import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { ExecutionContext } from '@/executor/types'
 import { buildBranchNodeId } from '@/executor/utils/subflow-utils'
 
+const { mockCompactSubflowResults } = vi.hoisted(() => ({
+  mockCompactSubflowResults: vi.fn(async (results: unknown) => results),
+}))
+
+vi.mock('@/lib/execution/payloads/serializer', () => ({
+  compactSubflowResults: mockCompactSubflowResults,
+}))
+
 function createDag(): DAG {
   return {
     nodes: new Map(),
@@ -76,6 +84,7 @@ function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionCont
 describe('ParallelOrchestrator', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCompactSubflowResults.mockImplementation(async (results: unknown) => results)
   })
 
   it('awaits empty-subflow lifecycle callbacks before returning the empty scope', async () => {
@@ -243,5 +252,58 @@ describe('ParallelOrchestrator', () => {
     expect(state.deleteBlockState).not.toHaveBeenCalledWith(previousBranchId)
     expect(state.unmarkExecuted).toHaveBeenCalledWith(incomingBranchId)
     expect(state.unmarkExecuted).not.toHaveBeenCalledWith(previousBranchId)
+  })
+
+  it('compacts accumulated outputs before scheduling later batches', async () => {
+    const dag = createDag()
+    const templateBranchId = buildBranchNodeId('task-1', 0)
+    dag.nodes.set(templateBranchId, {
+      id: templateBranchId,
+      block: {
+        id: 'task-1',
+        position: { x: 0, y: 0 },
+        config: { tool: '', params: {} },
+        inputs: {},
+        outputs: {},
+        metadata: { id: 'function', name: 'Task 1' },
+        enabled: true,
+      },
+      incomingEdges: new Set(),
+      outgoingEdges: new Set(),
+      metadata: { parallelId: 'parallel-1', isParallelBranch: true, branchIndex: 0 },
+    })
+    const orchestrator = new ParallelOrchestrator(dag, createState(), null, {})
+    const previousOutputs = [{ output: 'previous' }]
+    const incomingOutputs = [{ output: 'incoming' }]
+    const compactedPrevious = [{ output: 'compacted-previous' }]
+    const compactedIncoming = [{ output: 'compacted-incoming' }]
+    mockCompactSubflowResults.mockResolvedValueOnce([compactedPrevious, compactedIncoming])
+    const scope = {
+      parallelId: 'parallel-1',
+      totalBranches: 3,
+      batchSize: 1,
+      currentBatchStart: 0,
+      currentBatchSize: 2,
+      accumulatedOutputs: new Map([[0, previousOutputs]]),
+      branchOutputs: new Map([[1, incomingOutputs]]),
+    }
+    const ctx = createContext({
+      parallelExecutions: new Map([['parallel-1', scope]]),
+    })
+
+    const result = await orchestrator.aggregateParallelResults(ctx, 'parallel-1')
+
+    expect(result).toMatchObject({ allBranchesComplete: false, completedBranches: 2 })
+    expect(mockCompactSubflowResults).toHaveBeenCalledWith(
+      [previousOutputs, incomingOutputs],
+      expect.objectContaining({
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        requireDurable: true,
+      })
+    )
+    expect(scope.accumulatedOutputs.get(0)).toBe(compactedPrevious)
+    expect(scope.accumulatedOutputs.get(1)).toBe(compactedIncoming)
   })
 })

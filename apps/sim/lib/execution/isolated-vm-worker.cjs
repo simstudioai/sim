@@ -27,6 +27,21 @@ const SANDBOX_BUNDLE_FILES = {
 const bundleSourceCache = new Map()
 const activeIsolates = new Map()
 
+/**
+ * Sends an IPC request and reports only actual delivery failures.
+ * Node queues messages under backpressure, so the boolean return value is not
+ * a failure signal.
+ */
+function sendIpcRequest(message, onError) {
+  try {
+    process.send(message, (err) => {
+      if (err) onError(err)
+    })
+  } catch (error) {
+    onError(error instanceof Error ? error : new Error(String(error)))
+  }
+}
+
 function getBundleSource(bundleName) {
   const cached = bundleSourceCache.get(bundleName)
   if (cached) return cached
@@ -233,13 +248,19 @@ async function executeCode(request, executionId) {
           }
         }, FETCH_TIMEOUT_MS)
         pendingFetches.set(fetchId, { resolve, timeout })
-        if (process.send && process.connected) {
-          process.send({ type: 'fetch', fetchId, requestId, url, optionsJson })
-        } else {
+        if (!process.send || !process.connected) {
           clearTimeout(timeout)
           pendingFetches.delete(fetchId)
           resolve(JSON.stringify({ error: 'Parent process disconnected' }))
+          return
         }
+        sendIpcRequest({ type: 'fetch', fetchId, requestId, url, optionsJson }, (err) => {
+          const pending = pendingFetches.get(fetchId)
+          if (!pending) return
+          clearTimeout(pending.timeout)
+          pendingFetches.delete(fetchId)
+          pending.resolve(JSON.stringify({ error: `Fetch IPC send failed: ${err.message}` }))
+        })
       })
     })
     await jail.set('__fetchRef', fetchCallback)
@@ -254,13 +275,19 @@ async function executeCode(request, executionId) {
           }
         }, BROKER_TIMEOUT_MS)
         pendingBrokerCalls.set(brokerId, { resolve, timeout, executionId })
-        if (process.send && process.connected) {
-          process.send({ type: 'broker', brokerId, executionId, brokerName, argsJson })
-        } else {
+        if (!process.send || !process.connected) {
           clearTimeout(timeout)
           pendingBrokerCalls.delete(brokerId)
           resolve(JSON.stringify({ error: 'Parent process disconnected' }))
+          return
         }
+        sendIpcRequest({ type: 'broker', brokerId, executionId, brokerName, argsJson }, (err) => {
+          const pending = pendingBrokerCalls.get(brokerId)
+          if (!pending) return
+          clearTimeout(pending.timeout)
+          pendingBrokerCalls.delete(brokerId)
+          pending.resolve(JSON.stringify({ error: `Broker IPC send failed: ${err.message}` }))
+        })
       })
     })
     await jail.set('__brokerRef', brokerCallback)
@@ -732,13 +759,19 @@ async function executeTask(request, executionId) {
           }
         }, BROKER_TIMEOUT_MS)
         pendingBrokerCalls.set(brokerId, { resolve, timeout, executionId })
-        if (process.send && process.connected) {
-          process.send({ type: 'broker', brokerId, executionId, brokerName, argsJson })
-        } else {
+        if (!process.send || !process.connected) {
           clearTimeout(timeout)
           pendingBrokerCalls.delete(brokerId)
           resolve(JSON.stringify({ error: 'Parent process disconnected' }))
+          return
         }
+        sendIpcRequest({ type: 'broker', brokerId, executionId, brokerName, argsJson }, (err) => {
+          const pending = pendingBrokerCalls.get(brokerId)
+          if (!pending) return
+          clearTimeout(pending.timeout)
+          pendingBrokerCalls.delete(brokerId)
+          pending.resolve(JSON.stringify({ error: `Broker IPC send failed: ${err.message}` }))
+        })
       })
     })
     releaseables.push(brokerRef)

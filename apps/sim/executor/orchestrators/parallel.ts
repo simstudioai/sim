@@ -333,6 +333,30 @@ export class ParallelOrchestrator {
     const nextBatchStart =
       (scope.currentBatchStart ?? 0) + (scope.currentBatchSize ?? scope.totalBranches)
     if (nextBatchStart < scope.totalBranches) {
+      /**
+       * Compact accumulated outputs before scheduling the next batch. Each
+       * block output is already individually compacted by `block-executor`, but
+       * many below-threshold branch results can still exceed the aggregate
+       * threshold over time. Re-running the existing subflow compactor over the
+       * accumulated entries forces aggregate-size spills while existing
+       * LargeValueRefs stay stable.
+       */
+      if (accumulatedOutputs.size > 0) {
+        const accumulatedBranchIndexes = Array.from(accumulatedOutputs.keys()).sort((a, b) => a - b)
+        const accumulatedResults = accumulatedBranchIndexes.map(
+          (idx) => accumulatedOutputs.get(idx) ?? []
+        )
+        const compactedAccumulated = await compactSubflowResults(accumulatedResults, {
+          workspaceId: ctx.workspaceId,
+          workflowId: ctx.workflowId,
+          executionId: ctx.executionId,
+          userId: ctx.userId,
+          requireDurable: true,
+        })
+        accumulatedBranchIndexes.forEach((branchIdx, position) => {
+          accumulatedOutputs.set(branchIdx, compactedAccumulated[position])
+        })
+      }
       await this.scheduleNextBatch(ctx, scope, nextBatchStart)
       return {
         allBranchesComplete: false,
