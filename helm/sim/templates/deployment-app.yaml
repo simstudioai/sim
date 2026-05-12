@@ -83,13 +83,20 @@ spec:
               Skip envDefaults keys that the user has explicitly overridden in app.env
               with a non-empty value. K8s `env` takes precedence over `envFrom`, so an
               inline default would otherwise mask the user's Secret-bound value.
+              Also skip envDefaults entirely in existingSecret mode: the pre-existing
+              Secret is the source of truth, and inlining localhost URL defaults would
+              silently shadow keys (NEXT_PUBLIC_APP_URL, BETTER_AUTH_URL, etc.) the
+              user stored in their Secret but left empty in app.env.
             */}}
             {{- $appEnv := .Values.app.env | default dict }}
+            {{- $useExistingSecret := and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
+            {{- if not $useExistingSecret }}
             {{- range $key, $value := .Values.app.envDefaults | default dict }}
             {{- $override := index $appEnv $key }}
             {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (or (not $override) (eq (toString $override) "") (eq (toString $override) "<nil>")) }}
             - name: {{ $key }}
               value: {{ $value | quote }}
+            {{- end }}
             {{- end }}
             {{- end }}
             {{- /*

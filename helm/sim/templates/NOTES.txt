@@ -109,7 +109,17 @@ Your release is named {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
    Store it durably (values.yaml / existingSecret / ESO) — the app and
    realtime pods both read it to authenticate inter-service requests.
 
-7. Where to go next:
+7. Also new in 1.0.0: `networkPolicy.egress` shape changed.
+
+   Was: a list of custom egress rules.
+   Now: a map with `exceptCidrs` (CIDRs excluded from broad HTTPS egress)
+   and `extraRules` (custom rules appended to the policy).
+
+   If you previously set custom rules under `networkPolicy.egress:`, move
+   them to `networkPolicy.egress.extraRules:` — old-shape values are
+   silently ignored after upgrade.
+
+8. Where to go next:
 {{- else }}
 5. Where to go next:
 {{- end }}

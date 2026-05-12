@@ -75,6 +75,14 @@ spec:
             */}}
             {{- $rtEnv := .Values.realtime.env | default dict }}
             {{- $appEnv := .Values.app.env | default dict }}
+            {{- $useExistingSecret := and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
+            {{- /*
+              Skip envDefaults entirely in existingSecret mode — same rationale as
+              deployment-app.yaml: the pre-existing Secret is the source of truth,
+              and inlining localhost defaults would shadow URL keys (BETTER_AUTH_URL,
+              ALLOWED_ORIGINS, NEXT_PUBLIC_APP_URL, etc.) stored in the Secret.
+            */}}
+            {{- if not $useExistingSecret }}
             {{- range $key, $value := .Values.realtime.envDefaults | default dict }}
             {{- $rtOverride := index $rtEnv $key }}
             {{- $appOverride := index $appEnv $key }}
@@ -83,6 +91,7 @@ spec:
             {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (not $hasRt) (not $hasApp) }}
             - name: {{ $key }}
               value: {{ $value | quote }}
+            {{- end }}
             {{- end }}
             {{- end }}
             {{- /*
