@@ -281,7 +281,24 @@ async function executeStatement(input: ExecuteInput): Promise<void> {
       })
       return
     }
-    if (response.ok) return
+    if (response.ok) {
+      /**
+       * Synchronous completions return 200 — same statement-level error envelope as
+       * the polled 200 path, so check `sqlState` here too instead of silently passing
+       * failures. Consuming the body also lets undici reuse the socket.
+       */
+      const completion = (await response.json().catch(() => ({}))) as {
+        code?: string
+        sqlState?: string
+        message?: string
+      }
+      if (completion.sqlState && completion.sqlState !== '00000') {
+        throw new Error(
+          `Snowflake statement failed (sqlState ${completion.sqlState}${completion.code ? `, code ${completion.code}` : ''}): ${completion.message ?? ''}`
+        )
+      }
+      return
+    }
     const text = await response.text().catch(() => '')
     const error = new Error(`Snowflake responded with HTTP ${response.status}: ${text}`)
     if (!isRetryableStatus(response.status) || attempt === EXECUTE_MAX_ATTEMPTS) throw error

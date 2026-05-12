@@ -161,8 +161,11 @@ async function fetchWithRetry(input: RetryRequestInput): Promise<void> {
       }
       throw error
     }
-    if (response.ok) return
-    if (input.successStatuses?.includes(response.status)) return
+    if (response.ok || input.successStatuses?.includes(response.status)) {
+      /** Drain the success body so undici can return the socket to the keep-alive pool. */
+      await response.text().catch(() => '')
+      return
+    }
     if (!isRetryableStatus(response.status) || attempt === MAX_ATTEMPTS) {
       const text = await response.text().catch(() => '')
       logger.warn('GCS operation failed', {
