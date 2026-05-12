@@ -95,7 +95,18 @@ Your release is named {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
    Then re-run `helm upgrade`. See README → "Upgrading from a pre-1.0.0 build"
    for the full procedure. Skip this step if you're already on 1.0.0+.
 
-6. Where to go next:
+6. Also new in 1.0.0: `app.env.INTERNAL_API_SECRET` is now required.
+
+   Older charts treated this as optional. Upgrades will fail at template
+   render with `app.env.INTERNAL_API_SECRET is required for production
+   deployment` if you never set it. Generate one and pass it on upgrade:
+
+     --set app.env.INTERNAL_API_SECRET=$(openssl rand -hex 32)
+
+   Store it durably (values.yaml / existingSecret / ESO) — the app and
+   realtime pods both read it to authenticate inter-service requests.
+
+7. Where to go next:
 {{- else }}
 5. Where to go next:
 {{- end }}
