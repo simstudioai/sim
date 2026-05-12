@@ -46,9 +46,8 @@ export function useScrollAnchor(isStreaming: boolean, content?: string) {
   const spacerRef = useRef<HTMLDivElement | null>(null)
   const hasUserScrolledRef = useRef(false)
   const stickyRef = useRef(false)
-  // Tracks the user's last intentional position; updated only on genuine user events, never programmatic ones.
   const intendedScrollTopRef = useRef(0)
-  // Mirrors the spacer's current minHeight so onScroll can check it without a layout read.
+  // Avoids a layout read inside onScroll.
   const spacerHeightRef = useRef(0)
 
   const scrollToBottom = useCallback(() => {
@@ -59,7 +58,6 @@ export function useScrollAnchor(isStreaming: boolean, content?: string) {
 
   const onWheel = useCallback((e: WheelEvent) => {
     if (e.deltaY >= 0 || hasUserScrolledRef.current) return
-    // Upward wheel before any scroll event fires — mark detached immediately.
     hasUserScrolledRef.current = true
     stickyRef.current = false
     const el = containerRef.current
@@ -151,8 +149,7 @@ export function useScrollAnchor(isStreaming: boolean, content?: string) {
       return
     }
 
-    // Capture before any layout read: reading scrollHeight forces a reflow which can
-    // synchronously fire 'scroll' and overwrite intendedScrollTopRef with the clamped value.
+    // Must read before scrollHeight: that forced reflow can synchronously fire 'scroll' and clamp the value.
     const targetScrollTop = intendedScrollTopRef.current
 
     const prevSpacerHeight = spacer ? spacer.offsetHeight : 0
