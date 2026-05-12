@@ -37,6 +37,14 @@ const PER_ATTEMPT_TIMEOUT_MS = 60_000
 const POLL_INITIAL_INTERVAL_MS = 500
 const POLL_MAX_INTERVAL_MS = 5_000
 const POLL_DEADLINE_MS = 10 * 60_000
+/**
+ * Cap on consecutive failed poll attempts (network errors or retryable HTTP
+ * statuses). Independent of the 10-minute wall-clock deadline so that
+ * persistent failures surface in seconds, not minutes — matches the
+ * MAX_ATTEMPTS shape used by `executeStatement`. Reset to 0 on a successful
+ * 202 (still-executing) response.
+ */
+const POLL_MAX_CONSECUTIVE_RETRIES = 8
 /** Maximum number of attempts (including the initial attempt) for retryable POST failures. */
 const EXECUTE_MAX_ATTEMPTS = 3
 const EXECUTE_RETRY_BASE_DELAY_MS = 500
@@ -354,6 +362,7 @@ async function pollStatement(input: PollInput): Promise<void> {
     } catch (error) {
       if (input.signal.aborted) throw error
       retryAttempt++
+      if (retryAttempt > POLL_MAX_CONSECUTIVE_RETRIES) throw error
       const delay = backoffWithJitter(retryAttempt, null, {
         baseMs: EXECUTE_RETRY_BASE_DELAY_MS,
         maxMs: EXECUTE_RETRY_MAX_DELAY_MS,
@@ -376,6 +385,13 @@ async function pollStatement(input: PollInput): Promise<void> {
     }
     if (isRetryableStatus(response.status)) {
       retryAttempt++
+      if (retryAttempt > POLL_MAX_CONSECUTIVE_RETRIES) {
+        /** Drain the body so undici can return the socket to the keep-alive pool. */
+        const text = await response.text().catch(() => '')
+        throw new Error(
+          `Snowflake poll failed after ${POLL_MAX_CONSECUTIVE_RETRIES} consecutive retries (HTTP ${response.status}): ${text}`
+        )
+      }
       const retryAfterMs = parseRetryAfter(response.headers.get('Retry-After'))
       const delay = backoffWithJitter(retryAttempt, retryAfterMs, {
         baseMs: EXECUTE_RETRY_BASE_DELAY_MS,

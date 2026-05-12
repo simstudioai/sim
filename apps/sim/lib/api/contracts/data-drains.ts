@@ -211,6 +211,7 @@ const datadogConfigBodySchema = z.object({
   service: z.string().min(1).max(100).optional(),
   tags: z
     .string()
+    .min(1)
     .max(1024)
     .refine(
       (v) =>
