@@ -22,6 +22,7 @@ export type {
   ResourceCell,
   ResourceColumn,
   ResourceRow,
+  RowDragDropConfig,
   SelectableConfig,
 } from './resource/resource'
 export { Resource, ResourceTable } from './resource/resource'

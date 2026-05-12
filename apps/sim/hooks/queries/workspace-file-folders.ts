@@ -1,0 +1,154 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requestJson } from '@/lib/api/client/request'
+import {
+  bulkArchiveWorkspaceFileItemsContract,
+  createWorkspaceFileFolderContract,
+  deleteWorkspaceFileFolderContract,
+  listWorkspaceFileFoldersContract,
+  moveWorkspaceFileItemsContract,
+  updateWorkspaceFileFolderContract,
+  type WorkspaceFileFolderApi,
+} from '@/lib/api/contracts/workspace-file-folders'
+import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+
+type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
+export type { WorkspaceFileFolderApi }
+
+export const workspaceFileFolderKeys = {
+  all: ['workspaceFileFolders'] as const,
+  lists: () => [...workspaceFileFolderKeys.all, 'list'] as const,
+  list: (workspaceId: string, scope: WorkspaceFileFolderScope = 'active') =>
+    [...workspaceFileFolderKeys.lists(), workspaceId, scope] as const,
+}
+
+async function fetchWorkspaceFileFolders(
+  workspaceId: string,
+  scope: WorkspaceFileFolderScope,
+  signal?: AbortSignal
+): Promise<WorkspaceFileFolderApi[]> {
+  const data = await requestJson(listWorkspaceFileFoldersContract, {
+    params: { id: workspaceId },
+    query: { scope },
+    signal,
+  })
+  return data.folders
+}
+
+function invalidateWorkspaceFileBrowsers(
+  queryClient: ReturnType<typeof useQueryClient>,
+  workspaceId: string
+) {
+  queryClient.invalidateQueries({ queryKey: workspaceFileFolderKeys.lists() })
+  queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+  queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
+  queryClient.invalidateQueries({ queryKey: workspaceFileFolderKeys.list(workspaceId) })
+}
+
+export function useWorkspaceFileFolders(
+  workspaceId: string,
+  scope: WorkspaceFileFolderScope = 'active'
+) {
+  return useQuery({
+    queryKey: workspaceFileFolderKeys.list(workspaceId, scope),
+    queryFn: ({ signal }) => fetchWorkspaceFileFolders(workspaceId, scope, signal),
+    enabled: Boolean(workspaceId),
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useCreateWorkspaceFileFolder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (variables: {
+      workspaceId: string
+      name: string
+      parentId?: string | null
+    }) => {
+      const data = await requestJson(createWorkspaceFileFolderContract, {
+        params: { id: variables.workspaceId },
+        body: { name: variables.name, parentId: variables.parentId },
+      })
+      return data.folder
+    },
+    onSettled: (_data, _error, variables) => {
+      invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
+    },
+  })
+}
+
+export function useUpdateWorkspaceFileFolder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (variables: {
+      workspaceId: string
+      folderId: string
+      updates: { name?: string; parentId?: string | null; sortOrder?: number }
+    }) => {
+      const data = await requestJson(updateWorkspaceFileFolderContract, {
+        params: { id: variables.workspaceId, folderId: variables.folderId },
+        body: variables.updates,
+      })
+      return data.folder
+    },
+    onSettled: (_data, _error, variables) => {
+      invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
+    },
+  })
+}
+
+export function useDeleteWorkspaceFileFolder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (variables: { workspaceId: string; folderId: string }) => {
+      return requestJson(deleteWorkspaceFileFolderContract, {
+        params: { id: variables.workspaceId, folderId: variables.folderId },
+      })
+    },
+    onSettled: (_data, _error, variables) => {
+      invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
+    },
+  })
+}
+
+export function useMoveWorkspaceFileItems() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (variables: {
+      workspaceId: string
+      fileIds: string[]
+      folderIds: string[]
+      targetFolderId?: string | null
+    }) => {
+      return requestJson(moveWorkspaceFileItemsContract, {
+        params: { id: variables.workspaceId },
+        body: {
+          fileIds: variables.fileIds,
+          folderIds: variables.folderIds,
+          targetFolderId: variables.targetFolderId,
+        },
+      })
+    },
+    onSettled: (_data, _error, variables) => {
+      invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
+    },
+  })
+}
+
+export function useBulkArchiveWorkspaceFileItems() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (variables: {
+      workspaceId: string
+      fileIds: string[]
+      folderIds: string[]
+    }) => {
+      return requestJson(bulkArchiveWorkspaceFileItemsContract, {
+        params: { id: variables.workspaceId },
+        body: { fileIds: variables.fileIds, folderIds: variables.folderIds },
+      })
+    },
+    onSettled: (_data, _error, variables) => {
+      invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
+    },
+  })
+}

@@ -7,6 +7,7 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
+import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   deleteWorkspaceFile,
   fetchWorkspaceFileBuffer as downloadWsFile,
@@ -96,10 +97,25 @@ export function inferContentType(fileName: string, explicitType?: string): strin
 export function validateFlatWorkspaceFileName(fileName: string): string | null {
   const trimmed = fileName.trim()
   if (!trimmed) return 'File name cannot be empty'
-  if (trimmed.includes('/')) {
-    return 'Workspace files use a flat namespace. Use a plain file name like "report.csv", not a path like "files/reports/report.csv".'
-  }
+  if (trimmed.split('/').some((segment) => !segment.trim()))
+    return 'File path cannot contain empty segments'
   return null
+}
+
+export function splitWorkspaceFilePath(fileName: string): {
+  folderSegments: string[]
+  leafName: string
+} {
+  const segments = fileName
+    .trim()
+    .replace(/^files\//, '')
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+  return {
+    folderSegments: segments.slice(0, -1),
+    leafName: segments[segments.length - 1] ?? '',
+  }
 }
 
 export interface DocumentFormatInfo {
@@ -186,15 +202,21 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
-          const fileName = target.fileName
+          const { folderSegments, leafName } = splitWorkspaceFilePath(target.fileName)
+          const fileName = leafName
           const content = normalized.content ?? ''
           const explicitType = normalized.contentType
-          const fileNameValidationError = validateFlatWorkspaceFileName(fileName)
+          const fileNameValidationError = validateFlatWorkspaceFileName(target.fileName)
           if (fileNameValidationError) return { success: false, message: fileNameValidationError }
 
-          const existingFile = await getWorkspaceFileByName(workspaceId, fileName)
+          const folderId = await ensureWorkspaceFileFolderPath({
+            workspaceId,
+            userId: context.userId,
+            pathSegments: folderSegments,
+          })
+          const existingFile = await getWorkspaceFileByName(workspaceId, fileName, { folderId })
           if (existingFile) {
-            return { success: false, message: `File "${fileName}" already exists` }
+            return { success: false, message: `File "${target.fileName}" already exists` }
           }
 
           const docInfo = getDocumentFormatInfo(fileName)
@@ -223,7 +245,8 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             context.userId,
             fileBuffer,
             fileName,
-            contentType
+            contentType,
+            { folderId }
           )
 
           logger.info('Workspace file created via copilot', {

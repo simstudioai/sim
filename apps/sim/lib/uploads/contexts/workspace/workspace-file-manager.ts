@@ -29,6 +29,12 @@ import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
+import {
+  assertWorkspaceFileFolderTarget,
+  buildWorkspaceFileFolderPathMap,
+  fileNameExistsInWorkspaceFolder,
+  listWorkspaceFileFolders,
+} from './workspace-file-folder-manager'
 
 const logger = createLogger('WorkspaceFileStorage')
 
@@ -51,6 +57,8 @@ export interface WorkspaceFileRecord {
   size: number
   type: string
   uploadedBy: string
+  folderId?: string | null
+  folderPath?: string | null
   deletedAt?: Date | null
   uploadedAt: Date
   updatedAt: Date
@@ -124,14 +132,15 @@ function withCopySuffix(fileName: string, n: number): string {
  */
 async function allocateUniqueWorkspaceFileName(
   workspaceId: string,
-  baseName: string
+  baseName: string,
+  folderId?: string | null
 ): Promise<string> {
-  if (!(await fileExistsInWorkspace(workspaceId, baseName))) {
+  if (!(await fileExistsInWorkspace(workspaceId, baseName, folderId))) {
     return baseName
   }
   for (let n = 1; n <= MAX_COPY_SUFFIX; n++) {
     const candidate = withCopySuffix(baseName, n)
-    if (!(await fileExistsInWorkspace(workspaceId, candidate))) {
+    if (!(await fileExistsInWorkspace(workspaceId, candidate, folderId))) {
       return candidate
     }
   }
@@ -146,10 +155,12 @@ export async function uploadWorkspaceFile(
   userId: string,
   fileBuffer: Buffer,
   fileName: string,
-  contentType: string
+  contentType: string,
+  options?: { folderId?: string | null }
 ): Promise<UserFile> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
 
+  const folderId = await assertWorkspaceFileFolderTarget(workspaceId, options?.folderId)
   const quotaCheck = await checkStorageQuota(userId, fileBuffer.length)
 
   if (!quotaCheck.allowed) {
@@ -158,7 +169,7 @@ export async function uploadWorkspaceFile(
 
   let lastError: unknown
   for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
-    const uniqueName = await allocateUniqueWorkspaceFileName(workspaceId, fileName)
+    const uniqueName = await allocateUniqueWorkspaceFileName(workspaceId, fileName, folderId)
     const storageKey = generateWorkspaceFileKey(workspaceId, uniqueName)
     let fileId = `wf_${generateShortId()}`
 
@@ -171,6 +182,7 @@ export async function uploadWorkspaceFile(
         purpose: 'workspace',
         userId: userId,
         workspaceId: workspaceId,
+        ...(folderId ? { folderId } : {}),
       }
 
       const uploadResult = await uploadFile({
@@ -193,6 +205,7 @@ export async function uploadWorkspaceFile(
           key: uploadResult.key,
           userId,
           workspaceId,
+          folderId,
           context: 'workspace',
           originalName: uniqueName,
           contentType,
@@ -210,6 +223,7 @@ export async function uploadWorkspaceFile(
             key: uploadResult.key,
             userId,
             workspaceId,
+            folderId,
             context: 'workspace',
             originalName: uniqueName,
             contentType,
@@ -290,8 +304,10 @@ export async function registerUploadedWorkspaceFile(params: {
   key: string
   originalName: string
   contentType: string
+  folderId?: string | null
 }): Promise<RegisterUploadedWorkspaceFileResult> {
   const { workspaceId, userId, key, originalName, contentType } = params
+  const folderId = await assertWorkspaceFileFolderTarget(workspaceId, params.folderId)
 
   if (!hasCloudStorage()) {
     throw new Error('Direct-upload registration requires cloud storage')
@@ -340,13 +356,14 @@ export async function registerUploadedWorkspaceFile(params: {
     let lastInsertError: unknown
     for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
       fileId = `wf_${generateShortId()}`
-      displayName = await allocateUniqueWorkspaceFileName(workspaceId, originalName)
+      displayName = await allocateUniqueWorkspaceFileName(workspaceId, originalName, folderId)
       try {
         await insertFileMetadata({
           id: fileId,
           key,
           userId,
           workspaceId,
+          folderId,
           context: 'workspace',
           originalName: displayName,
           contentType,
@@ -503,26 +520,37 @@ export async function trackChatUpload(
  */
 export async function fileExistsInWorkspace(
   workspaceId: string,
-  fileName: string
+  fileName: string,
+  folderId?: string | null
 ): Promise<boolean> {
   try {
-    const existing = await db
-      .select()
-      .from(workspaceFiles)
-      .where(
-        and(
-          eq(workspaceFiles.workspaceId, workspaceId),
-          eq(workspaceFiles.originalName, fileName),
-          eq(workspaceFiles.context, 'workspace'),
-          isNull(workspaceFiles.deletedAt)
-        )
-      )
-      .limit(1)
-
-    return existing.length > 0
+    return fileNameExistsInWorkspaceFolder(workspaceId, fileName, folderId)
   } catch (error) {
     logger.error(`Failed to check file existence for ${fileName}:`, error)
     return false
+  }
+}
+
+function mapWorkspaceFileRecord(
+  file: typeof workspaceFiles.$inferSelect,
+  workspaceId: string,
+  folderPaths: Map<string, string>
+): WorkspaceFileRecord {
+  const pathPrefix = getServePathPrefix()
+  return {
+    id: file.id,
+    workspaceId: file.workspaceId || workspaceId,
+    name: file.originalName,
+    key: file.key,
+    path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
+    size: file.size,
+    type: file.contentType,
+    uploadedBy: file.userId,
+    folderId: file.folderId,
+    folderPath: file.folderId ? (folderPaths.get(file.folderId) ?? null) : null,
+    deletedAt: file.deletedAt,
+    uploadedAt: file.uploadedAt,
+    updatedAt: file.updatedAt,
   }
 }
 
@@ -533,8 +561,10 @@ export async function fileExistsInWorkspace(
  */
 export async function getWorkspaceFileByName(
   workspaceId: string,
-  fileName: string
+  fileName: string,
+  options?: { folderId?: string | null }
 ): Promise<WorkspaceFileRecord | null> {
+  const folderId = options?.folderId ?? null
   const files = await db
     .select()
     .from(workspaceFiles)
@@ -543,6 +573,7 @@ export async function getWorkspaceFileByName(
         eq(workspaceFiles.workspaceId, workspaceId),
         eq(workspaceFiles.originalName, fileName),
         eq(workspaceFiles.context, 'workspace'),
+        folderId ? eq(workspaceFiles.folderId, folderId) : isNull(workspaceFiles.folderId),
         isNull(workspaceFiles.deletedAt)
       )
     )
@@ -550,22 +581,9 @@ export async function getWorkspaceFileByName(
 
   if (files.length === 0) return null
 
-  const pathPrefix = getServePathPrefix()
-
-  const file = files[0]
-  return {
-    id: file.id,
-    workspaceId: file.workspaceId || workspaceId,
-    name: file.originalName,
-    key: file.key,
-    path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
-    size: file.size,
-    type: file.contentType,
-    uploadedBy: file.userId,
-    deletedAt: file.deletedAt,
-    uploadedAt: file.uploadedAt,
-    updatedAt: file.updatedAt,
-  }
+  const folders = await listWorkspaceFileFolders(workspaceId, { scope: 'all' })
+  const folderPaths = buildWorkspaceFileFolderPathMap(folders)
+  return mapWorkspaceFileRecord(files[0], workspaceId, folderPaths)
 }
 
 /**
@@ -600,21 +618,10 @@ export async function listWorkspaceFiles(
       )
       .orderBy(workspaceFiles.uploadedAt)
 
-    const pathPrefix = getServePathPrefix()
+    const folders = await listWorkspaceFileFolders(workspaceId, { scope: 'all' })
+    const folderPaths = buildWorkspaceFileFolderPathMap(folders)
 
-    return files.map((file) => ({
-      id: file.id,
-      workspaceId: file.workspaceId || workspaceId, // Use query workspaceId as fallback (should never be null for workspace files)
-      name: file.originalName,
-      key: file.key,
-      path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
-      size: file.size,
-      type: file.contentType,
-      uploadedBy: file.userId,
-      deletedAt: file.deletedAt,
-      uploadedAt: file.uploadedAt,
-      updatedAt: file.updatedAt,
-    }))
+    return files.map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
     return []
@@ -691,7 +698,22 @@ export function findWorkspaceFileRecord(
     return normalizedIdMatch
   }
 
-  const segmentKey = normalizeVfsSegment(normalizedReference)
+  const segmentKey = normalizedReference
+    .split('/')
+    .map((segment) => normalizeVfsSegment(segment))
+    .join('/')
+  const normalizedPathMatch = files.find((file) => {
+    const folderPath = file.folderPath
+      ?.split('/')
+      .map((segment) => normalizeVfsSegment(segment))
+      .join('/')
+    const fullPath = folderPath
+      ? `${folderPath}/${normalizeVfsSegment(file.name)}`
+      : normalizeVfsSegment(file.name)
+    return fullPath === segmentKey
+  })
+  if (normalizedPathMatch) return normalizedPathMatch
+
   return files.find((file) => normalizeVfsSegment(file.name) === segmentKey) ?? null
 }
 
@@ -737,22 +759,9 @@ export async function getWorkspaceFile(
 
     if (files.length === 0) return null
 
-    const pathPrefix = getServePathPrefix()
-
-    const file = files[0]
-    return {
-      id: file.id,
-      workspaceId: file.workspaceId || workspaceId, // Use query workspaceId as fallback (should never be null for workspace files)
-      name: file.originalName,
-      key: file.key,
-      path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
-      size: file.size,
-      type: file.contentType,
-      uploadedBy: file.userId,
-      deletedAt: file.deletedAt,
-      uploadedAt: file.uploadedAt,
-      updatedAt: file.updatedAt,
-    }
+    const folders = await listWorkspaceFileFolders(workspaceId, { scope: 'all' })
+    const folderPaths = buildWorkspaceFileFolderPathMap(folders)
+    return mapWorkspaceFileRecord(files[0], workspaceId, folderPaths)
   } catch (error) {
     logger.error(`Failed to get workspace file ${fileId}:`, error)
     return null
@@ -816,6 +825,7 @@ export async function updateWorkspaceFileContent(
       purpose: 'workspace',
       userId,
       workspaceId,
+      ...(fileRecord.folderId ? { folderId: fileRecord.folderId } : {}),
     }
 
     await uploadFile({
@@ -890,7 +900,7 @@ export async function renameWorkspaceFile(
     return fileRecord
   }
 
-  const exists = await fileExistsInWorkspace(workspaceId, trimmedName)
+  const exists = await fileExistsInWorkspace(workspaceId, trimmedName, fileRecord.folderId)
   if (exists) {
     throw new FileConflictError(trimmedName)
   }
@@ -992,14 +1002,14 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
     try {
       const newName = await generateRestoreName(
         fileRecord.name,
-        (candidate) => fileExistsInWorkspace(workspaceId, candidate),
+        (candidate) => fileExistsInWorkspace(workspaceId, candidate, null),
         { hasExtension: true }
       )
       attemptedRestoreName = newName
 
       await db
         .update(workspaceFiles)
-        .set({ deletedAt: null, originalName: newName, updatedAt: new Date() })
+        .set({ deletedAt: null, folderId: null, originalName: newName, updatedAt: new Date() })
         .where(
           and(
             eq(workspaceFiles.id, fileId),

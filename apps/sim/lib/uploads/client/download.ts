@@ -24,3 +24,14 @@ export async function triggerFileDownload(record: WorkspaceFileRecord): Promise<
   document.body.removeChild(a)
   URL.revokeObjectURL(objectUrl)
 }
+
+export function triggerBlobDownload(blob: Blob, fileName: string): void {
+  const objectUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(objectUrl)
+}

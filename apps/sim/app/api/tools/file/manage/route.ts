@@ -3,13 +3,16 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { splitWorkspaceFilePath } from '@/lib/copilot/tools/server/files/workspace-file'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
   getWorkspaceFileByName,
+  resolveWorkspaceFileReference,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -91,14 +94,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       case 'write': {
         const { fileName, content, contentType } = body
-        const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(fileName))
+        const { folderSegments, leafName } = splitWorkspaceFilePath(fileName)
+        const folderId = await ensureWorkspaceFileFolderPath({
+          workspaceId,
+          userId,
+          pathSegments: folderSegments,
+        })
+        const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(leafName))
         const fileBuffer = Buffer.from(content ?? '', 'utf-8')
         const result = await uploadWorkspaceFile(
           workspaceId,
           userId,
           fileBuffer,
-          fileName,
-          mimeType
+          leafName,
+          mimeType,
+          { folderId }
         )
 
         logger.info('File created', {
@@ -121,7 +131,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       case 'append': {
         const { fileName, content } = body
 
-        const existing = await getWorkspaceFileByName(workspaceId, fileName)
+        const existing = await resolveWorkspaceFileReference(workspaceId, fileName)
         if (!existing) {
           return NextResponse.json(
             { success: false, error: `File not found: "${fileName}"` },

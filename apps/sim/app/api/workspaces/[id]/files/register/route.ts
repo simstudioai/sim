@@ -33,7 +33,7 @@ export const POST = withRouteHandler(
     if (!parsed.success) return parsed.response
     const { params, body } = parsed.data
     const workspaceId = params.id
-    const { key, name, contentType } = body
+    const { key, name, contentType, folderId } = body
 
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (permission !== 'admin' && permission !== 'write') {
@@ -56,6 +56,7 @@ export const POST = withRouteHandler(
         key,
         originalName: name,
         contentType,
+        folderId,
       })
 
       if (created) {

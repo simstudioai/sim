@@ -36,6 +36,8 @@ export const workspaceFileRecordSchema = z.object({
   size: z.number(),
   type: z.string(),
   uploadedBy: z.string(),
+  folderId: z.string().nullable(),
+  folderPath: z.string().nullable().optional(),
   deletedAt: z.coerce.date().nullable().optional(),
   uploadedAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -167,6 +169,7 @@ export const workspacePresignedUploadBodySchema = z.object({
   fileName: z.string().min(1, 'fileName is required'),
   contentType: z.string().min(1, 'contentType is required'),
   fileSize: z.number().nonnegative('fileSize must be a non-negative number'),
+  folderId: z.string().nullable().optional(),
 })
 
 export type WorkspacePresignedUploadBody = z.input<typeof workspacePresignedUploadBodySchema>
@@ -202,6 +205,7 @@ export const registerWorkspaceFileBodySchema = z.object({
   key: z.string().min(1, 'key is required'),
   name: z.string().min(1, 'name is required'),
   contentType: z.string().min(1, 'contentType is required'),
+  folderId: z.string().nullable().optional(),
 })
 
 export type RegisterWorkspaceFileBody = z.input<typeof registerWorkspaceFileBodySchema>

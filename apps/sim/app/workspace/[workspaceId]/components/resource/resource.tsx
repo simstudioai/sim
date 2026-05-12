@@ -1,5 +1,14 @@
 'use client'
-import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type DragEvent,
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ArrowDown, ArrowUp, Button, Checkbox, Loader, Plus, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -36,6 +45,17 @@ export interface SelectableConfig {
   disabled?: boolean
 }
 
+export interface RowDragDropConfig {
+  activeDropTargetId?: string | null
+  isRowDraggable?: (rowId: string) => boolean
+  isRowDropTarget?: (rowId: string) => boolean
+  onDragStart?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
+  onDragOver?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
+  onDragLeave?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
+  onDrop?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
+  onDragEnd?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
+}
+
 export interface PaginationConfig {
   currentPage: number
   totalPages: number
@@ -55,6 +75,7 @@ interface ResourceProps {
   rows: ResourceRow[]
   selectedRowId?: string | null
   selectable?: SelectableConfig
+  rowDragDrop?: RowDragDropConfig
   onRowClick?: (rowId: string) => void
   onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
@@ -90,6 +111,7 @@ export const Resource = memo(function Resource({
   rows,
   selectedRowId,
   selectable,
+  rowDragDrop,
   onRowClick,
   onRowHover,
   onRowContextMenu,
@@ -128,6 +150,7 @@ export const Resource = memo(function Resource({
         sort={sortOverride}
         selectedRowId={selectedRowId}
         selectable={selectable}
+        rowDragDrop={rowDragDrop}
         onRowClick={onRowClick}
         onRowHover={onRowHover}
         onRowContextMenu={onRowContextMenu}
@@ -148,6 +171,7 @@ export interface ResourceTableProps {
   sort?: SortConfig
   selectedRowId?: string | null
   selectable?: SelectableConfig
+  rowDragDrop?: RowDragDropConfig
   onRowClick?: (rowId: string) => void
   onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
@@ -172,6 +196,7 @@ export const ResourceTable = memo(function ResourceTable({
   sort: externalSort,
   selectedRowId,
   selectable,
+  rowDragDrop,
   onRowClick,
   onRowHover,
   onRowContextMenu,
@@ -327,6 +352,7 @@ export const ResourceTable = memo(function ResourceTable({
                 columns={columns}
                 selectedRowId={selectedRowId}
                 selectable={selectable}
+                rowDragDrop={rowDragDrop}
                 onRowClick={onRowClick}
                 onRowHover={onRowHover}
                 onRowContextMenu={onRowContextMenu}
@@ -442,6 +468,7 @@ interface DataRowProps {
   columns: ResourceColumn[]
   selectedRowId?: string | null
   selectable?: SelectableConfig
+  rowDragDrop?: RowDragDropConfig
   onRowClick?: (rowId: string) => void
   onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
@@ -453,12 +480,16 @@ const DataRow = memo(function DataRow({
   columns,
   selectedRowId,
   selectable,
+  rowDragDrop,
   onRowClick,
   onRowHover,
   onRowContextMenu,
   hasCheckbox,
 }: DataRowProps) {
   const isSelected = selectable?.selectedIds.has(row.id) ?? false
+  const isDraggable = rowDragDrop?.isRowDraggable?.(row.id) ?? false
+  const isDropTarget = rowDragDrop?.isRowDropTarget?.(row.id) ?? false
+  const isActiveDropTarget = rowDragDrop?.activeDropTargetId === row.id
 
   const handleClick = useCallback(() => {
     onRowClick?.(row.id)
@@ -482,6 +513,41 @@ const DataRow = memo(function DataRow({
     [selectable, row.id]
   )
 
+  const handleDragStart = useCallback(
+    (e: DragEvent<HTMLTableRowElement>) => {
+      rowDragDrop?.onDragStart?.(e, row.id)
+    },
+    [rowDragDrop, row.id]
+  )
+
+  const handleDragOver = useCallback(
+    (e: DragEvent<HTMLTableRowElement>) => {
+      rowDragDrop?.onDragOver?.(e, row.id)
+    },
+    [rowDragDrop, row.id]
+  )
+
+  const handleDragLeave = useCallback(
+    (e: DragEvent<HTMLTableRowElement>) => {
+      rowDragDrop?.onDragLeave?.(e, row.id)
+    },
+    [rowDragDrop, row.id]
+  )
+
+  const handleDrop = useCallback(
+    (e: DragEvent<HTMLTableRowElement>) => {
+      rowDragDrop?.onDrop?.(e, row.id)
+    },
+    [rowDragDrop, row.id]
+  )
+
+  const handleDragEnd = useCallback(
+    (e: DragEvent<HTMLTableRowElement>) => {
+      rowDragDrop?.onDragEnd?.(e, row.id)
+    },
+    [rowDragDrop, row.id]
+  )
+
   return (
     <tr
       data-resource-row
@@ -489,11 +555,21 @@ const DataRow = memo(function DataRow({
       className={cn(
         'transition-colors hover-hover:bg-[var(--surface-3)]',
         onRowClick && 'cursor-pointer',
-        (selectedRowId === row.id || isSelected) && 'bg-[var(--surface-3)]'
+        isDraggable && 'cursor-grab active:cursor-grabbing',
+        isDropTarget && 'data-[drop-target=true]:outline-offset-[-1px]',
+        (selectedRowId === row.id || isSelected) && 'bg-[var(--surface-3)]',
+        isActiveDropTarget && 'bg-[var(--surface-4)] outline outline-1 outline-[var(--accent)]'
       )}
+      data-drop-target={isDropTarget || undefined}
+      draggable={isDraggable}
       onClick={onRowClick ? handleClick : undefined}
       onMouseEnter={handleMouseEnter}
       onContextMenu={onRowContextMenu ? handleContextMenu : undefined}
+      onDragStart={isDraggable ? handleDragStart : undefined}
+      onDragOver={isDropTarget ? handleDragOver : undefined}
+      onDragLeave={isDropTarget ? handleDragLeave : undefined}
+      onDrop={isDropTarget ? handleDrop : undefined}
+      onDragEnd={isDraggable ? handleDragEnd : undefined}
     >
       {hasCheckbox && selectable && (
         <td className='w-[52px] py-2.5 pr-0 pl-5 align-middle'>

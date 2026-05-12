@@ -203,6 +203,7 @@ export function useStorageInfo(enabled = true) {
 interface UploadFileParams {
   workspaceId: string
   file: File
+  folderId?: string | null
   onProgress?: (event: UploadProgressEvent) => void
   signal?: AbortSignal
   skipToast?: boolean
@@ -217,10 +218,12 @@ interface UploadFileResponse {
 async function uploadViaApiFallback(
   workspaceId: string,
   file: File,
+  folderId?: string | null,
   signal?: AbortSignal
 ): Promise<UploadFileResponse> {
   const formData = new FormData()
   formData.append('file', file)
+  if (folderId) formData.append('folderId', folderId)
 
   // boundary-raw-fetch: multipart/form-data fallback upload, requestJson only supports JSON bodies
   const response = await fetch(`/api/workspaces/${workspaceId}/files`, {
@@ -250,6 +253,7 @@ async function parseUploadResponse(
 async function uploadWorkspaceFile(
   workspaceId: string,
   file: File,
+  folderId?: string | null,
   onProgress?: (event: UploadProgressEvent) => void,
   signal?: AbortSignal
 ): Promise<UploadFileResponse> {
@@ -258,6 +262,7 @@ async function uploadWorkspaceFile(
     result = await runUploadStrategy({
       file,
       presignedEndpoint: `/api/workspaces/${workspaceId}/files/presigned`,
+      presignedBody: { folderId },
       workspaceId,
       context: 'workspace',
       onProgress,
@@ -265,12 +270,12 @@ async function uploadWorkspaceFile(
     })
   } catch (error) {
     if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
-      return uploadViaApiFallback(workspaceId, file, signal)
+      return uploadViaApiFallback(workspaceId, file, folderId, signal)
     }
     throw error
   }
 
-  const data = await registerWithRetry(workspaceId, result, signal)
+  const data = await registerWithRetry(workspaceId, result, folderId, signal)
 
   if (!data.success || !data.file) {
     throw new Error(data.error || 'Failed to register file')
@@ -289,6 +294,7 @@ const REGISTER_RETRY_DELAY_MS = 500
 async function registerWithRetry(
   workspaceId: string,
   result: { key: string; name: string; contentType: string },
+  folderId?: string | null,
   signal?: AbortSignal
 ) {
   let lastError: unknown
@@ -300,6 +306,7 @@ async function registerWithRetry(
           key: result.key,
           name: result.name,
           contentType: result.contentType,
+          folderId,
         },
         signal,
       })
@@ -319,8 +326,8 @@ export function useUploadWorkspaceFile() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ workspaceId, file, onProgress, signal }: UploadFileParams) =>
-      uploadWorkspaceFile(workspaceId, file, onProgress, signal),
+    mutationFn: ({ workspaceId, file, folderId, onProgress, signal }: UploadFileParams) =>
+      uploadWorkspaceFile(workspaceId, file, folderId, onProgress, signal),
     onSettled: (_data, _error, variables) => {
       if (variables.skipInvalidation) return
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })

@@ -7,15 +7,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Plus, Upload } from '@/components/emcn/icons'
+import { FolderPlus, Plus, Upload } from '@/components/emcn/icons'
 
 interface FilesListContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
   onClose: () => void
   onCreateFile?: () => void
+  onCreateFolder?: () => void
   onUploadFile?: () => void
   disableCreate?: boolean
+  disableCreateFolder?: boolean
   disableUpload?: boolean
 }
 
@@ -24,8 +26,10 @@ export const FilesListContextMenu = memo(function FilesListContextMenu({
   position,
   onClose,
   onCreateFile,
+  onCreateFolder,
   onUploadFile,
   disableCreate = false,
+  disableCreateFolder = false,
   disableUpload = false,
 }: FilesListContextMenuProps) {
   return (
@@ -54,6 +58,12 @@ export const FilesListContextMenu = memo(function FilesListContextMenu({
           <DropdownMenuItem disabled={disableCreate} onSelect={onCreateFile}>
             <Plus />
             New file
+          </DropdownMenuItem>
+        )}
+        {onCreateFolder && (
+          <DropdownMenuItem disabled={disableCreateFolder} onSelect={onCreateFolder}>
+            <FolderPlus />
+            New folder
           </DropdownMenuItem>
         )}
         {onUploadFile && (

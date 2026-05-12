@@ -866,11 +866,19 @@ export class WorkspaceVFS {
 
       for (const file of files) {
         const safeName = sanitizeName(file.name)
+        const safeFolderPath = file.folderPath
+          ?.split('/')
+          .map((segment) => sanitizeName(segment))
+          .join('/')
+        const fileVfsPath = safeFolderPath ? `${safeFolderPath}/${safeName}` : safeName
         this.files.set(
-          `files/${safeName}/meta.json`,
+          `files/${fileVfsPath}/meta.json`,
           serializeFileMeta({
             id: file.id,
             name: file.name,
+            folderId: file.folderId,
+            folderPath: file.folderPath,
+            vfsPath: `files/${fileVfsPath}`,
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
@@ -881,6 +889,9 @@ export class WorkspaceVFS {
           serializeFileMeta({
             id: file.id,
             name: file.name,
+            folderId: file.folderId,
+            folderPath: file.folderPath,
+            vfsPath: `files/${fileVfsPath}`,
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
@@ -888,7 +899,12 @@ export class WorkspaceVFS {
         )
       }
 
-      return files.map((f) => ({ id: f.id, name: f.name, type: f.type, size: f.size }))
+      return files.map((f) => ({
+        id: f.id,
+        name: f.folderPath ? `${f.folderPath}/${f.name}` : f.name,
+        type: f.type,
+        size: f.size,
+      }))
     } catch (err) {
       logger.warn('Failed to materialize files', {
         workspaceId,
@@ -1379,11 +1395,19 @@ export class WorkspaceVFS {
 
       for (const file of archivedFiles) {
         const safeName = sanitizeName(file.name)
+        const safeFolderPath = file.folderPath
+          ?.split('/')
+          .map((segment) => sanitizeName(segment))
+          .join('/')
+        const fileVfsPath = safeFolderPath ? `${safeFolderPath}/${safeName}` : safeName
         this.files.set(
-          `recently-deleted/files/${safeName}/meta.json`,
+          `recently-deleted/files/${fileVfsPath}/meta.json`,
           serializeFileMeta({
             id: file.id,
             name: file.name,
+            folderId: file.folderId,
+            folderPath: file.folderPath,
+            vfsPath: `recently-deleted/files/${fileVfsPath}`,
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
