@@ -29,6 +29,9 @@ spec:
           labels:
             {{- include "sim.selectorLabels" $ | nindent 12 }}
             app.kubernetes.io/component: cronjob-{{ $jobConfig.name }}
+            # Stable group label so NetworkPolicy can allow all cron pods → app
+            # without enumerating each job's component value.
+            simstudio.ai/component-group: cronjob
         spec:
           serviceAccountName: {{ include "sim.serviceAccountName" $ }}
           automountServiceAccountToken: false

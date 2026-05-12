@@ -29,7 +29,7 @@ tests:
     documentIndex: 0
     asserts:
       - equal:
-          path: spec.ingress[1].from
+          path: spec.ingress[2].from
           value:
             - {}
 
@@ -43,7 +43,7 @@ tests:
     documentIndex: 0
     asserts:
       - equal:
-          path: spec.ingress[1].from
+          path: spec.ingress[2].from
           value:
             - namespaceSelector:
                 matchLabels:
@@ -90,6 +90,43 @@ tests:
                 port: 4317
               - protocol: TCP
                 port: 4318
+
+  - it: app NetworkPolicy allows ingress from cron pods when cronjobs.enabled=true
+    set:
+      <<: *defaults
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: sim
+                    app.kubernetes.io/instance: t
+                    simstudio.ai/component-group: cronjob
+            ports:
+              - protocol: TCP
+                port: 3000
+
+  - it: cron→app ingress rule is omitted when cronjobs.enabled=false
+    set:
+      <<: *defaults
+      cronjobs.enabled: false
+    documentIndex: 0
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: sim
+                    app.kubernetes.io/instance: t
+                    simstudio.ai/component-group: cronjob
+            ports:
+              - protocol: TCP
+                port: 3000
 
   - it: egress.extraRules are appended to both app and realtime NetworkPolicies
     set:

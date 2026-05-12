@@ -26,6 +26,18 @@ spec:
     - protocol: TCP
       port: {{ .Values.app.service.targetPort }}
   {{- end }}
+  # Allow ingress from cron pods (every cron job curls /api/schedules/execute,
+  # webhook polls, etc. against the app service)
+  {{- if .Values.cronjobs.enabled }}
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.selectorLabels" . | nindent 10 }}
+          simstudio.ai/component-group: cronjob
+    ports:
+    - protocol: TCP
+      port: {{ .Values.app.service.targetPort }}
+  {{- end }}
   # Allow ingress from ingress controller (configurable peers; defaults to any)
   {{- if .Values.ingress.enabled }}
   - from:
