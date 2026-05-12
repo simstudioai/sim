@@ -271,6 +271,26 @@ than enforced.
 {{- if and .Values.externalSecrets .Values.externalSecrets.enabled -}}
 {{- $remoteRefs := default (dict) (default (dict) .Values.externalSecrets.remoteRefs).app -}}
 {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" -}}
+{{- $appEnv := default (dict) .Values.app.env -}}
+{{/*
+  Required-key coverage: these are non-optional at runtime. With ESO enabled
+  the chart-managed Secret is not rendered, so a missing key surfaces as a
+  runtime CrashLoopBackOff with cryptic env errors. Fail at template time
+  if the key is neither set in app.env nor mapped via remoteRefs.app.
+*/}}
+{{- if .Values.app.enabled -}}
+{{- $required := list "BETTER_AUTH_SECRET" "ENCRYPTION_KEY" "INTERNAL_API_SECRET" -}}
+{{- if .Values.cronjobs.enabled -}}
+{{- $required = append $required "CRON_SECRET" -}}
+{{- end -}}
+{{- range $key := $required -}}
+{{- $inEnv := index $appEnv $key -}}
+{{- $mapped := index $remoteRefs $key -}}
+{{- if and (or (not $inEnv) (eq (toString $inEnv) "") (eq (toString $inEnv) "<nil>")) (not $mapped) -}}
+{{- fail (printf "Required key '%s' is missing: externalSecrets.enabled=true but the key is neither set in app.env nor mapped in externalSecrets.remoteRefs.app. Map it via externalSecrets.remoteRefs.app.%s='path/in/store' so it is synced into the app Secret." $key $key) }}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- if .Values.app.enabled -}}
 {{- range $key, $value := default (dict) .Values.app.env -}}
 {{- if not (has $key $chartComputed) -}}
