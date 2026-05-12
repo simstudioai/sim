@@ -222,11 +222,35 @@ const MARKDOWN_COMPONENTS = {
       </code>
     )
   },
+  blockquote({ children }: { children?: React.ReactNode }) {
+    return (
+      <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 text-[var(--text-primary)] italic [&>p]:my-2 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0'>
+        {children}
+      </blockquote>
+    )
+  },
   input({ type, checked }: { type?: string; checked?: boolean }) {
     if (type === 'checkbox') {
       return <Checkbox checked={checked || false} disabled size='sm' className='mt-1.5 shrink-0' />
     }
     return <input type={type} checked={checked} readOnly />
+  },
+  em({ children }: { children?: React.ReactNode }) {
+    return <em className='text-[var(--text-primary)] italic'>{children}</em>
+  },
+  del({ children }: { children?: React.ReactNode }) {
+    return <del className='text-[var(--text-tertiary)] line-through'>{children}</del>
+  },
+  img({ src, alt }: ComponentPropsWithoutRef<'img'>) {
+    if (typeof src !== 'string' || !src) return null
+    return (
+      <img
+        src={src}
+        alt={alt ?? ''}
+        loading='lazy'
+        className='my-4 h-auto max-w-full rounded-lg border border-[var(--divider)]'
+      />
+    )
   },
 }
 
