@@ -622,12 +622,22 @@ postgresql:
     targetPort: 5432
   
   # Health checks
+  # startupProbe shields liveness from slow first-boot scenarios (pgvector
+  # extension init, WAL replay after a crash on a large data dir). Gives
+  # postgres up to 150s (30 * 5s) to become ready before liveness takes over.
+  startupProbe:
+    exec:
+      command: ["pg_isready", "-U", "postgres", "-d", "sim"]
+    periodSeconds: 5
+    failureThreshold: 30
+    timeoutSeconds: 5
+
   livenessProbe:
     exec:
       command: ["pg_isready", "-U", "postgres", "-d", "sim"]
     initialDelaySeconds: 10
     periodSeconds: 5
-  
+
   readinessProbe:
     exec:
       command: ["pg_isready", "-U", "postgres", "-d", "sim"]
@@ -1440,6 +1450,16 @@ copilot:
       targetPort: 5432
 
     # Health checks
+    # startupProbe shields liveness from slow first-boot scenarios (pgvector
+    # extension init, WAL replay after a crash). Gives postgres up to 150s
+    # (30 * 5s) to become ready before liveness takes over.
+    startupProbe:
+      exec:
+        command: ["pg_isready", "-U", "copilot", "-d", "copilot"]
+      periodSeconds: 5
+      failureThreshold: 30
+      timeoutSeconds: 5
+
     livenessProbe:
       exec:
         command: ["pg_isready", "-U", "copilot", "-d", "copilot"]
@@ -1447,7 +1467,7 @@ copilot:
       periodSeconds: 5
       timeoutSeconds: 5
       failureThreshold: 10
-    
+
     readinessProbe:
       exec:
         command: ["pg_isready", "-U", "copilot", "-d", "copilot"]

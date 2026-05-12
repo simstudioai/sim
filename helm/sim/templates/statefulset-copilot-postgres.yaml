@@ -115,6 +115,10 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ include "sim.fullname" . }}-copilot-postgresql-secret
+          {{- if .Values.copilot.postgresql.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.copilot.postgresql.startupProbe | nindent 12 }}
+          {{- end }}
           {{- if .Values.copilot.postgresql.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.copilot.postgresql.livenessProbe | nindent 12 }}

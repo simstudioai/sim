@@ -140,6 +140,10 @@ spec:
                 name: {{ include "sim.fullname" . }}-postgresql-env
             - secretRef:
                 name: {{ include "sim.postgresqlSecretName" . }}
+          {{- if .Values.postgresql.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.postgresql.startupProbe | nindent 12 }}
+          {{- end }}
           {{- if .Values.postgresql.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.postgresql.livenessProbe | nindent 12 }}

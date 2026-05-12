@@ -128,6 +128,19 @@ tests:
               - protocol: TCP
                 port: 3000
 
+  - it: telemetry collector NetworkPolicy renders when telemetry.enabled=true
+    set:
+      <<: *defaults
+      telemetry.enabled: true
+    documentIndex: 3
+    asserts:
+      - equal:
+          path: kind
+          value: NetworkPolicy
+      - equal:
+          path: metadata.name
+          value: t-sim-otel-collector
+
   - it: networkPolicy.egress (custom rules) are appended to both app and realtime NetworkPolicies
     set:
       <<: *defaults
