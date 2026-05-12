@@ -79,7 +79,9 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
     const headers =
       rawHeaders instanceof Headers
         ? Object.fromEntries(rawHeaders.entries())
-        : (rawHeaders as Record<string, string> | undefined)
+        : Array.isArray(rawHeaders)
+          ? Object.fromEntries(rawHeaders as string[][])
+          : (rawHeaders as Record<string, string> | undefined)
 
     let body: string | Buffer | Uint8Array | undefined
     if (init?.body !== undefined && init.body !== null) {
