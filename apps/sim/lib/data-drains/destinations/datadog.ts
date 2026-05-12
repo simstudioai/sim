@@ -172,7 +172,11 @@ async function postWithRetries(input: PostInput): Promise<Response> {
       logger.debug('Datadog request failed', { attempt, error: toError(error).message })
     }
     if (response) {
-      if (response.ok) return response
+      if (response.ok) {
+        /** Drain the success body so undici can return the socket to the keep-alive pool. Headers remain readable after consumption. */
+        await response.text().catch(() => '')
+        return response
+      }
       if (!isRetryableStatus(response.status)) {
         const text = await response.text().catch(() => '')
         throw new Error(`Datadog responded with HTTP ${response.status}: ${text}`)

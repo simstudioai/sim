@@ -304,6 +304,8 @@ export const bigqueryDestination: DrainDestination<
       const text = await response.text().catch(() => '')
       throw new Error(`BigQuery probe failed (HTTP ${response.status}): ${text}`)
     }
+    /** Drain the success body so undici can return the socket to the keep-alive pool. */
+    await response.text().catch(() => '')
   },
 
   openSession({ config, credentials }) {
