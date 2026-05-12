@@ -161,12 +161,16 @@ monitoring:
 
 networkPolicy:
   enabled: true
-  # Custom egress rules to allow database connectivity
+  # Custom egress rules to allow database connectivity to an external DB.
+  # The chart's app/realtime NetworkPolicies already permit egress to
+  # `postgresql.service.targetPort` when `postgresql.enabled=true`. For an
+  # external DB on a different port (or off-cluster), append to extraRules.
   egress:
-    - to: []  # Allow outbound connections to external database
-      ports:
-      - protocol: TCP
-        port: 5432
+    extraRules:
+      - to: []
+        ports:
+        - protocol: TCP
+          port: 5432
 
 # Example deployment command with secure secret generation:
 # helm install sim ./helm/sim \

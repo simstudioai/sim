@@ -68,6 +68,20 @@ spec:
     - protocol: TCP
       port: {{ .Values.ollama.service.targetPort }}
   {{- end }}
+  # Allow egress to OpenTelemetry collector (OTLP gRPC + HTTP)
+  {{- if .Values.telemetry.enabled }}
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: {{ include "sim.name" . }}
+          app.kubernetes.io/instance: {{ .Release.Name }}
+          app.kubernetes.io/component: telemetry
+    ports:
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
+  {{- end }}
   # Allow DNS resolution
   - to: []
     ports:
@@ -134,6 +148,20 @@ spec:
     ports:
     - protocol: TCP
       port: {{ .Values.postgresql.service.targetPort }}
+  {{- end }}
+  # Allow egress to OpenTelemetry collector (OTLP gRPC + HTTP)
+  {{- if .Values.telemetry.enabled }}
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: {{ include "sim.name" . }}
+          app.kubernetes.io/instance: {{ .Release.Name }}
+          app.kubernetes.io/component: telemetry
+    ports:
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
   {{- end }}
   # Allow DNS resolution
   - to: []
