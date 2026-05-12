@@ -10,6 +10,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { verifyFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
@@ -122,6 +123,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const attachmentBuffers = await Promise.all(
           attachments.map(async (file) => {
             try {
+              if (typeof file.key !== 'string' || file.key.length === 0) {
+                logger.warn(`[${requestId}] File access check rejected: missing key`)
+                throw new Error('File not found')
+              }
+              if (!authResult.userId) {
+                logger.warn(`[${requestId}] File access check requires userId but none available`)
+                throw new Error('File not found')
+              }
+              const hasAccess = await verifyFileAccess(file.key, authResult.userId)
+              if (!hasAccess) {
+                logger.warn(`[${requestId}] File access denied for user`, {
+                  userId: authResult.userId,
+                  key: file.key,
+                })
+                throw new Error('File not found')
+              }
               logger.info(
                 `[${requestId}] Downloading attachment: ${file.name} (${file.size} bytes)`
               )

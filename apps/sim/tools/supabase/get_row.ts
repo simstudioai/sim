@@ -50,16 +50,17 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
 
   request: {
     url: (params) => {
-      // Construct the URL for the Supabase REST API
-      const selectColumns = params.select?.trim() || '*'
-      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=${encodeURIComponent(selectColumns)}`
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(params.table)) {
+        throw new Error('Invalid table name: must contain only letters, digits, and underscores')
+      }
 
-      // Add filters (required for get_row) - using PostgREST syntax
+      const selectColumns = params.select?.trim() || '*'
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=${encodeURIComponent(selectColumns)}`
+
       if (params.filter?.trim()) {
         url += `&${params.filter.trim()}`
       }
 
-      // Limit to 1 row since we want a single row
       url += `&limit=1`
 
       return url

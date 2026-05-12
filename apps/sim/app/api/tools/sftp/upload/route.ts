@@ -7,6 +7,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
   createSftpConnection,
   getSftp,
@@ -95,6 +96,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         for (const file of userFiles) {
           try {
+            if (typeof file.key !== 'string' || file.key.length === 0) {
+              logger.warn(`[${requestId}] File access check rejected: missing key`)
+              return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+            }
+            if (!authResult.userId) {
+              logger.warn(`[${requestId}] File access check requires userId but none available`)
+              return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+            }
+            const hasAccess = await verifyFileAccess(file.key, authResult.userId)
+            if (!hasAccess) {
+              logger.warn(`[${requestId}] File access denied for user`, {
+                userId: authResult.userId,
+                key: file.key,
+              })
+              return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+            }
             logger.info(
               `[${requestId}] Downloading file for upload: ${file.name} (${file.size} bytes)`
             )

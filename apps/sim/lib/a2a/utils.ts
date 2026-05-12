@@ -14,11 +14,17 @@ import {
   type Client,
   ClientFactory,
   ClientFactoryOptions,
+  DefaultAgentCardResolver,
+  JsonRpcTransportFactory,
+  RestTransportFactory,
 } from '@a2a-js/sdk/client'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { A2A_TERMINAL_STATES } from './constants'
 
@@ -60,13 +66,55 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
     throw new Error(validation.error || 'Agent URL validation failed')
   }
 
+  const resolvedIP = validation.resolvedIP!
+
+  const pinnedFetch = (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1]
+  ): Promise<Response> =>
+    secureFetchWithPinnedIP(input.toString(), resolvedIP, {
+      method: init?.method,
+      headers:
+        init?.headers instanceof Headers
+          ? Object.fromEntries(init.headers.entries())
+          : (init?.headers as Record<string, string> | undefined),
+      body:
+        typeof init?.body === 'string' || Buffer.isBuffer(init?.body)
+          ? (init?.body as string | Buffer)
+          : init?.body instanceof Uint8Array
+            ? (init.body as Uint8Array)
+            : undefined,
+      signal: init?.signal instanceof AbortSignal ? init.signal : undefined,
+    }).then(async (res) => {
+      const headers = new Headers(res.headers.toRecord())
+      const body = await res.text()
+      return new Response(body, {
+        status: res.status,
+        statusText: res.statusText,
+        headers,
+      })
+    })
+
+  const pinnedTransports = [
+    new JsonRpcTransportFactory({ fetchImpl: pinnedFetch }),
+    new RestTransportFactory({ fetchImpl: pinnedFetch }),
+  ]
+
+  const pinnedCardResolver = new DefaultAgentCardResolver({ fetchImpl: pinnedFetch })
+
+  const baseOptions = ClientFactoryOptions.createFrom(ClientFactoryOptions.default, {
+    transports: pinnedTransports,
+    cardResolver: pinnedCardResolver,
+  })
+
   const factoryOptions = apiKey
-    ? ClientFactoryOptions.createFrom(ClientFactoryOptions.default, {
+    ? ClientFactoryOptions.createFrom(baseOptions, {
         clientConfig: {
           interceptors: [new ApiKeyInterceptor(apiKey)],
         },
       })
-    : ClientFactoryOptions.default
+    : baseOptions
+
   const factory = new ClientFactory(factoryOptions)
 
   // Try standard A2A path first (/.well-known/agent.json)
