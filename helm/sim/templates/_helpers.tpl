@@ -170,7 +170,8 @@ Usage: {{ include "sim.image" (dict "imageRoot" .Values.app.image "global" .Valu
 {{- if ne $digest "" -}}
 {{- printf "%s@%s" $repoPath $digest }}
 {{- else -}}
-{{- printf "%s:%s" $repoPath $tag }}
+{{- $resolvedTag := required (printf "sim.image: no tag or digest resolvable for %q (set imageRoot.tag, imageRoot.digest, or Chart.AppVersion)" $repository) $tag -}}
+{{- printf "%s:%s" $repoPath $resolvedTag }}
 {{- end -}}
 {{- end }}
 
@@ -220,6 +221,10 @@ Skip validation when using existing secrets or External Secrets Operator
 {{- end }}
 {{- if and .Values.realtime.enabled (eq .Values.realtime.env.BETTER_AUTH_SECRET "CHANGE-ME-32-CHAR-SECRET-FOR-PRODUCTION-USE") }}
 {{- fail "realtime.env.BETTER_AUTH_SECRET must not use the default placeholder value. Generate a secure secret with: openssl rand -hex 32" }}
+{{- end }}
+{{- /* CRON_SECRET is required when cronjobs are enabled — pods reference it via secretKeyRef and would fail to start if the key is missing from the Secret. */ -}}
+{{- if and .Values.cronjobs.enabled (not .Values.app.env.CRON_SECRET) }}
+{{- fail "app.env.CRON_SECRET is required when cronjobs.enabled=true (every cron pod authenticates with this token). Generate one with: openssl rand -hex 32, or set cronjobs.enabled=false." }}
 {{- end }}
 {{- end }}
 {{- /* PostgreSQL password validation - skip if using existing secret or ESO */ -}}
