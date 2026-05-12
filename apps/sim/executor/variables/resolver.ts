@@ -501,7 +501,7 @@ export class VariableResolver {
     const { base64: _base64, ...fileMetadata } = file
     contextVarAccumulator[varName] = fileMetadata
     const fileExpression = `globalThis[${JSON.stringify(varName)}]`
-    const lazyExpression = `await sim.files.readBase64(${fileExpression})`
+    const lazyExpression = `(await sim.files.readBase64(${fileExpression}))`
 
     return {
       replacement: this.formatJavaScriptAsyncExpression(lazyExpression, template, matchIndex),
@@ -519,7 +519,7 @@ export class VariableResolver {
       return null
     }
 
-    const expression = `await sim.values.read(globalThis[${JSON.stringify(varName)}])`
+    const expression = `(await sim.values.read(globalThis[${JSON.stringify(varName)}]))`
     return this.formatJavaScriptAsyncExpression(expression, template, matchIndex, {
       stringifyInStringContext: true,
     })

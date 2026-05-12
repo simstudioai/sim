@@ -148,7 +148,7 @@ describe('VariableResolver function block inputs', () => {
     )
 
     expect(result.resolvedInputs.code).toBe(
-      'const base64 = await sim.files.readBase64(globalThis["__blockRef_0"]);\nreturn base64'
+      'const base64 = (await sim.files.readBase64(globalThis["__blockRef_0"]));\nreturn base64'
     )
     expect(result.displayInputs.code).toBe('const base64 = <Producer.file.base64>;\nreturn base64')
     expect(result.contextVariables.__blockRef_0).toMatchObject({
@@ -156,6 +156,21 @@ describe('VariableResolver function block inputs', () => {
       name: 'image.png',
     })
     expect(result.contextVariables.__blockRef_0).not.toHaveProperty('base64')
+  })
+
+  it('wraps lazy JavaScript file base64 reads before member access', async () => {
+    const { block, ctx, resolver } = createResolver('javascript')
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      ctx,
+      'function',
+      { code: 'return <Producer.file.base64>.length' },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      'return (await sim.files.readBase64(globalThis["__blockRef_0"])).length'
+    )
   })
 
   it('uses existing inline base64 for keyless files instead of lazy storage reads', async () => {
@@ -231,7 +246,7 @@ describe('VariableResolver function block inputs', () => {
     )
 
     expect(result.resolvedInputs.code).toBe(
-      'return await sim.values.read(globalThis["__blockRef_0"])'
+      'return (await sim.values.read(globalThis["__blockRef_0"]))'
     )
     expect(result.contextVariables.__blockRef_0).toMatchObject({
       __simLargeValueRef: true,
