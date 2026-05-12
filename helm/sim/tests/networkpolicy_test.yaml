@@ -128,15 +128,46 @@ tests:
               - protocol: TCP
                 port: 3000
 
-  - it: egress.extraRules are appended to both app and realtime NetworkPolicies
+  - it: telemetry collector NetworkPolicy renders when telemetry.enabled=true
     set:
       <<: *defaults
-      networkPolicy.egress.extraRules:
+      telemetry.enabled: true
+    documentIndex: 3
+    asserts:
+      - equal:
+          path: kind
+          value: NetworkPolicy
+      - equal:
+          path: metadata.name
+          value: t-sim-otel-collector
+
+  - it: networkPolicy.egress (custom rules) are appended to the app NetworkPolicy
+    set:
+      <<: *defaults
+      networkPolicy.egress:
         - to: []
           ports:
             - protocol: TCP
               port: 5432
     documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to: []
+            ports:
+              - protocol: TCP
+                port: 5432
+
+  - it: networkPolicy.egress (custom rules) are appended to the realtime NetworkPolicy
+    set:
+      <<: *defaults
+      networkPolicy.egress:
+        - to: []
+          ports:
+            - protocol: TCP
+              port: 5432
+    documentIndex: 1
     asserts:
       - contains:
           path: spec.egress

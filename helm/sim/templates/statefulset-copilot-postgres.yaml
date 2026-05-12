@@ -66,7 +66,11 @@ metadata:
     {{- include "sim.labels" . | nindent 4 }}
     app.kubernetes.io/component: copilot-postgresql
 spec:
-  serviceName: {{ include "sim.fullname" . }}-copilot-postgresql-headless
+  # Must remain {{ include "sim.fullname" . }}-copilot-postgresql (not the
+  # -headless name) — spec.serviceName is immutable on a StatefulSet, and
+  # the prior chart shipped with this value. Same rationale as the main
+  # postgresql STS; see statefulset-postgresql.yaml for details.
+  serviceName: {{ include "sim.fullname" . }}-copilot-postgresql
   replicas: 1
   podManagementPolicy: OrderedReady
   updateStrategy:
@@ -111,6 +115,10 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ include "sim.fullname" . }}-copilot-postgresql-secret
+          {{- if .Values.copilot.postgresql.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.copilot.postgresql.startupProbe | nindent 12 }}
+          {{- end }}
           {{- if .Values.copilot.postgresql.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.copilot.postgresql.livenessProbe | nindent 12 }}

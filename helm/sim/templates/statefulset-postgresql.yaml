@@ -90,7 +90,12 @@ metadata:
   labels:
     {{- include "sim.postgresql.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "sim.fullname" . }}-postgresql-headless
+  # Must remain {{ include "sim.fullname" . }}-postgresql (not the -headless
+  # name) — spec.serviceName is immutable on a StatefulSet, and the prior
+  # chart shipped with this value. Changing it would break `helm upgrade` for
+  # every existing install with `Forbidden: updates to statefulset spec ...`.
+  # The headless Service in services.yaml is added alongside, not as a swap.
+  serviceName: {{ include "sim.fullname" . }}-postgresql
   replicas: 1
   minReadySeconds: 10
   podManagementPolicy: OrderedReady
@@ -135,6 +140,10 @@ spec:
                 name: {{ include "sim.fullname" . }}-postgresql-env
             - secretRef:
                 name: {{ include "sim.postgresqlSecretName" . }}
+          {{- if .Values.postgresql.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.postgresql.startupProbe | nindent 12 }}
+          {{- end }}
           {{- if .Values.postgresql.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.postgresql.livenessProbe | nindent 12 }}
