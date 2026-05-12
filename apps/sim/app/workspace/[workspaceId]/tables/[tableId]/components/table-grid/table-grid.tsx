@@ -1527,25 +1527,6 @@ export function TableGrid({
         return
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
-        e.preventDefault()
-        const rws = rowsRef.current
-        const currentCols = columnsRef.current
-        if (rws.length > 0 && currentCols.length > 0) {
-          suppressFocusScrollRef.current = true
-          setEditingCell(null)
-          setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
-          lastCheckboxRowRef.current = null
-          setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
-          setSelectionFocus({
-            rowIndex: rws.length - 1,
-            colIndex: currentCols.length - 1,
-          })
-          setIsColumnSelection(false)
-        }
-        return
-      }
-
       if ((e.metaKey || e.ctrlKey) && e.key === ' ') {
         const a = selectionAnchorRef.current
         if (!a || editingCellRef.current) return
@@ -2280,6 +2261,33 @@ export function TableGrid({
       el.removeEventListener('paste', handlePaste)
     }
   }, [])
+
+  useEffect(() => {
+    if (embedded) return
+    const handleSelectAll = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== 'a') return
+      const target = e.target as HTMLElement
+      const tag = target.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (target.isContentEditable) return
+      if (target.closest('[role="dialog"]')) return
+      if (!containerRef.current) return
+      const rws = rowsRef.current
+      const currentCols = columnsRef.current
+      if (rws.length > 0 && currentCols.length > 0) {
+        e.preventDefault()
+        suppressFocusScrollRef.current = true
+        setEditingCell(null)
+        setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
+        lastCheckboxRowRef.current = null
+        setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
+        setSelectionFocus({ rowIndex: rws.length - 1, colIndex: currentCols.length - 1 })
+        setIsColumnSelection(false)
+      }
+    }
+    document.addEventListener('keydown', handleSelectAll)
+    return () => document.removeEventListener('keydown', handleSelectAll)
+  }, [embedded])
 
   const navigateAfterSave = useCallback((reason: SaveReason) => {
     const anchor = selectionAnchorRef.current
