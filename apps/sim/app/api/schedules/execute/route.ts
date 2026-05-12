@@ -21,8 +21,8 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 3600
 
 const logger = createLogger('ScheduledExecuteAPI')
-const MAX_CRON_CLAIMS = 20
-const RESERVED_WORKFLOW_CLAIMS = 10
+const MAX_CRON_CLAIMS = 200
+const RESERVED_WORKFLOW_CLAIMS = 100
 const RESERVED_JOB_CLAIMS = MAX_CRON_CLAIMS - RESERVED_WORKFLOW_CLAIMS
 const STALE_SCHEDULE_CLAIM_MS = getMaxExecutionTimeout()
 
