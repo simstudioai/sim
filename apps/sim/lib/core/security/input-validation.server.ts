@@ -409,15 +409,21 @@ export async function secureFetchWithPinnedIP(
         },
       })
 
-      async function readBodyAsBuffer(): Promise<Buffer> {
-        const reader = body.getReader()
-        const buffers: Uint8Array[] = []
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          if (value) buffers.push(value)
+      let bodyBufferPromise: Promise<Buffer> | null = null
+      function readBodyAsBuffer(): Promise<Buffer> {
+        if (!bodyBufferPromise) {
+          bodyBufferPromise = (async () => {
+            const reader = body.getReader()
+            const buffers: Uint8Array[] = []
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              if (value) buffers.push(value)
+            }
+            return Buffer.concat(buffers.map((b) => Buffer.from(b)))
+          })()
         }
-        return Buffer.concat(buffers.map((b) => Buffer.from(b)))
+        return bodyBufferPromise
       }
 
       settledResolve({
@@ -430,7 +436,7 @@ export async function secureFetchWithPinnedIP(
         json: async () => JSON.parse((await readBodyAsBuffer()).toString('utf-8')),
         arrayBuffer: async () => {
           const buf = await readBodyAsBuffer()
-          return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+          return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
         },
       })
     })

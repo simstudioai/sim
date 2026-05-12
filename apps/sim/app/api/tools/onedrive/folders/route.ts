@@ -47,7 +47,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       credentialId,
       requireWorkflowIdForInternal: false,
     })
-    if (!authz.ok || !authz.credentialOwnerUserId) {
+    if (!authz.ok || !authz.credentialOwnerUserId || !authz.resolvedCredentialId) {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
 
