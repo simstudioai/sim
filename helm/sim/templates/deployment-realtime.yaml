@@ -85,6 +85,23 @@ spec:
               value: {{ $value | quote }}
             {{- end }}
             {{- end }}
+            {{- /*
+              In existingSecret mode the chart-managed Secret is not rendered, so
+              non-empty values in realtime.env / app.env would otherwise go nowhere
+              — inline them here so the user's overrides actually reach the pod.
+              realtime.env wins over app.env on collision (realtime-specific intent).
+              Skipped in ESO mode and inline mode for the same reasons as the app
+              deployment.
+            */}}
+            {{- if and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
+            {{- $merged := merge (dict) $rtEnv $appEnv }}
+            {{- range $key, $value := $merged }}
+            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             {{- with .Values.extraEnvVars }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

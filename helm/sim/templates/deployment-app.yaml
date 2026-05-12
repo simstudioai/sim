@@ -92,6 +92,21 @@ spec:
               value: {{ $value | quote }}
             {{- end }}
             {{- end }}
+            {{- /*
+              In existingSecret mode the chart-managed Secret is not rendered, so
+              non-empty values in app.env would otherwise go nowhere — inline them
+              here so the user's overrides actually reach the pod. Skipped in ESO
+              mode (ESO is the source of truth; inlining would mask the synced value)
+              and in inline mode (values flow through the chart-managed Secret).
+            */}}
+            {{- if and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
+            {{- range $key, $value := $appEnv }}
+            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             {{- if .Values.telemetry.enabled }}
             {{- $nodeEnv := default (default "production" (index (.Values.app.envDefaults | default dict) "NODE_ENV")) (index (.Values.app.env | default dict) "NODE_ENV") }}
             # OpenTelemetry configuration
