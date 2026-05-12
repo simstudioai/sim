@@ -100,8 +100,9 @@ spec:
               and in inline mode (values flow through the chart-managed Secret).
             */}}
             {{- if and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
+            {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" }}
             {{- range $key, $value := $appEnv }}
-            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") }}
+            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (not (has $key $chartComputed)) }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
