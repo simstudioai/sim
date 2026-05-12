@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workspaceFileFolder, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 
@@ -127,6 +128,82 @@ function mapFolder(
   }
 }
 
+async function getRawWorkspaceFileFolder(
+  workspaceId: string,
+  folderId: string,
+  options?: { includeDeleted?: boolean }
+): Promise<RawWorkspaceFileFolder | null> {
+  const { includeDeleted = false } = options ?? {}
+  const [folder] = await db
+    .select()
+    .from(workspaceFileFolder)
+    .where(
+      includeDeleted
+        ? and(
+            eq(workspaceFileFolder.id, folderId),
+            eq(workspaceFileFolder.workspaceId, workspaceId)
+          )
+        : and(
+            eq(workspaceFileFolder.id, folderId),
+            eq(workspaceFileFolder.workspaceId, workspaceId),
+            isNull(workspaceFileFolder.deletedAt)
+          )
+    )
+    .limit(1)
+
+  return folder ?? null
+}
+
+async function findRawWorkspaceFileFolderByName(
+  workspaceId: string,
+  name: string,
+  parentId?: string | null
+): Promise<RawWorkspaceFileFolder | null> {
+  const [folder] = await db
+    .select()
+    .from(workspaceFileFolder)
+    .where(
+      and(
+        eq(workspaceFileFolder.workspaceId, workspaceId),
+        eq(workspaceFileFolder.name, name),
+        folderParentCondition(parentId),
+        isNull(workspaceFileFolder.deletedAt)
+      )
+    )
+    .limit(1)
+
+  return folder ?? null
+}
+
+async function buildWorkspaceFileFolderPath(
+  workspaceId: string,
+  folder: Pick<RawWorkspaceFileFolder, 'id' | 'name' | 'parentId'>,
+  options?: { includeDeleted?: boolean }
+): Promise<string> {
+  const segments: string[] = []
+  const seen = new Set<string>()
+  let current: Pick<RawWorkspaceFileFolder, 'id' | 'name' | 'parentId'> | null = folder
+
+  while (current && !seen.has(current.id)) {
+    segments.unshift(current.name)
+    seen.add(current.id)
+    current = current.parentId
+      ? await getRawWorkspaceFileFolder(workspaceId, current.parentId, options)
+      : null
+  }
+
+  return segments.join('/')
+}
+
+async function mapFolderWithPath(
+  workspaceId: string,
+  folder: RawWorkspaceFileFolder,
+  options?: { includeDeleted?: boolean }
+): Promise<WorkspaceFileFolderRecord> {
+  const path = await buildWorkspaceFileFolderPath(workspaceId, folder, options)
+  return mapFolder(folder, new Map([[folder.id, path]]))
+}
+
 export async function listWorkspaceFileFolders(
   workspaceId: string,
   options?: { scope?: WorkspaceFileFolderScope }
@@ -160,29 +237,8 @@ export async function getWorkspaceFileFolder(
   options?: { includeDeleted?: boolean }
 ): Promise<WorkspaceFileFolderRecord | null> {
   const { includeDeleted = false } = options ?? {}
-  const rows = await db
-    .select()
-    .from(workspaceFileFolder)
-    .where(
-      includeDeleted
-        ? and(
-            eq(workspaceFileFolder.id, folderId),
-            eq(workspaceFileFolder.workspaceId, workspaceId)
-          )
-        : and(
-            eq(workspaceFileFolder.id, folderId),
-            eq(workspaceFileFolder.workspaceId, workspaceId),
-            isNull(workspaceFileFolder.deletedAt)
-          )
-    )
-    .limit(1)
-
-  if (rows.length === 0) return null
-
-  const folders = await listWorkspaceFileFolders(workspaceId, {
-    scope: includeDeleted ? 'all' : 'active',
-  })
-  return folders.find((folder) => folder.id === folderId) ?? null
+  const folder = await getRawWorkspaceFileFolder(workspaceId, folderId, { includeDeleted })
+  return folder ? mapFolderWithPath(workspaceId, folder, { includeDeleted }) : null
 }
 
 export async function assertWorkspaceFileFolderTarget(
@@ -252,20 +308,28 @@ export async function createWorkspaceFileFolder(params: {
   }
 
   const id = generateId()
-  const [folder] = await db
-    .insert(workspaceFileFolder)
-    .values({
-      id,
-      name,
-      userId: params.userId,
-      workspaceId: params.workspaceId,
-      parentId,
-      sortOrder: params.sortOrder ?? (await nextFolderSortOrder(params.workspaceId, parentId)),
-    })
-    .returning()
+  let folder: RawWorkspaceFileFolder
+  try {
+    const [inserted] = await db
+      .insert(workspaceFileFolder)
+      .values({
+        id,
+        name,
+        userId: params.userId,
+        workspaceId: params.workspaceId,
+        parentId,
+        sortOrder: params.sortOrder ?? (await nextFolderSortOrder(params.workspaceId, parentId)),
+      })
+      .returning()
+    folder = inserted
+  } catch (error) {
+    if (getPostgresErrorCode(error) === '23505') {
+      throw new WorkspaceFileFolderConflictError(name)
+    }
+    throw error
+  }
 
-  const folders = await listWorkspaceFileFolders(params.workspaceId)
-  return folders.find((item) => item.id === folder.id) ?? mapFolder(folder, new Map())
+  return mapFolderWithPath(params.workspaceId, folder)
 }
 
 export async function ensureWorkspaceFileFolderPath(params: {
@@ -277,20 +341,38 @@ export async function ensureWorkspaceFileFolderPath(params: {
   for (const rawSegment of params.pathSegments) {
     const name = normalizeWorkspaceFileItemName(rawSegment, 'Folder')
 
-    const folders = await listWorkspaceFileFolders(params.workspaceId)
-    const existing = folders.find(
-      (folder) => folder.name === name && (folder.parentId ?? null) === parentId
-    )
-    parentId = existing
-      ? existing.id
-      : (
-          await createWorkspaceFileFolder({
-            workspaceId: params.workspaceId,
-            userId: params.userId,
-            name,
-            parentId,
-          })
-        ).id
+    const existing = await findRawWorkspaceFileFolderByName(params.workspaceId, name, parentId)
+    if (existing) {
+      parentId = existing.id
+      continue
+    }
+
+    try {
+      parentId = (
+        await createWorkspaceFileFolder({
+          workspaceId: params.workspaceId,
+          userId: params.userId,
+          name,
+          parentId,
+        })
+      ).id
+    } catch (error) {
+      if (
+        error instanceof WorkspaceFileFolderConflictError ||
+        getPostgresErrorCode(error) === '23505'
+      ) {
+        const concurrentExisting = await findRawWorkspaceFileFolderByName(
+          params.workspaceId,
+          name,
+          parentId
+        )
+        if (concurrentExisting) {
+          parentId = concurrentExisting.id
+          continue
+        }
+      }
+      throw error
+    }
   }
 
   return parentId
@@ -386,9 +468,7 @@ export async function updateWorkspaceFileFolder(params: {
     .returning()
 
   if (!folder) throw new Error('Folder not found')
-  return (
-    (await getWorkspaceFileFolder(params.workspaceId, folder.id)) ?? mapFolder(folder, new Map())
-  )
+  return mapFolderWithPath(params.workspaceId, folder)
 }
 
 export async function fileNameExistsInWorkspaceFolder(

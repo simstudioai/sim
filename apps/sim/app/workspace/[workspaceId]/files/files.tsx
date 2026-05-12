@@ -568,6 +568,73 @@ export function Files() {
     [descendantFolderIdsByFolderId]
   )
 
+  const uploadFiles = useCallback(
+    async (filesToUpload: File[], targetFolderId = currentFolderId) => {
+      if (!workspaceId || filesToUpload.length === 0 || !canEdit) return
+
+      const oversized: string[] = []
+      const sizeFiltered = filesToUpload.filter((f) => {
+        if (f.size > MAX_WORKSPACE_FILE_SIZE) {
+          oversized.push(f.name)
+          return false
+        }
+        return true
+      })
+      if (oversized.length > 0) {
+        toast.error(
+          oversized.length === 1
+            ? `${oversized[0]} exceeds the 5 GiB upload limit`
+            : `${oversized.length} files exceed the 5 GiB upload limit`
+        )
+      }
+
+      const unsupported: string[] = []
+      const allowedFiles = sizeFiltered.filter((f) => {
+        const ext = getFileExtension(f.name)
+        const ok = SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number])
+        if (!ok) unsupported.push(f.name)
+        return ok
+      })
+
+      if (unsupported.length > 0) {
+        logger.warn('Unsupported file types skipped:', unsupported)
+      }
+
+      if (allowedFiles.length === 0) return
+
+      try {
+        setUploading(true)
+        setUploadProgress({ completed: 0, total: allowedFiles.length, currentPercent: 0 })
+
+        for (let i = 0; i < allowedFiles.length; i++) {
+          try {
+            await uploadFile.mutateAsync({
+              workspaceId,
+              file: allowedFiles[i],
+              folderId: targetFolderId,
+              onProgress: ({ percent }) => {
+                setUploadProgress((prev) => ({ ...prev, currentPercent: percent }))
+              },
+            })
+            setUploadProgress({
+              completed: i + 1,
+              total: allowedFiles.length,
+              currentPercent: 0,
+            })
+          } catch (err) {
+            logger.error('Error uploading file:', err)
+          }
+        }
+      } catch (err) {
+        logger.error('Error uploading file:', err)
+      } finally {
+        setUploading(false)
+        setUploadProgress({ completed: 0, total: 0, currentPercent: 0 })
+      }
+    },
+    [workspaceId, canEdit, currentFolderId, uploadFile.mutateAsync]
+  )
+
   const rowDragDropConfig = useMemo<RowDragDropConfig>(
     () => ({
       activeDropTargetId,
@@ -688,70 +755,6 @@ export function Files() {
     ]
   )
 
-  async function uploadFiles(filesToUpload: File[], targetFolderId = currentFolderId) {
-    if (!workspaceId || filesToUpload.length === 0 || !canEdit) return
-
-    const oversized: string[] = []
-    const sizeFiltered = filesToUpload.filter((f) => {
-      if (f.size > MAX_WORKSPACE_FILE_SIZE) {
-        oversized.push(f.name)
-        return false
-      }
-      return true
-    })
-    if (oversized.length > 0) {
-      toast.error(
-        oversized.length === 1
-          ? `${oversized[0]} exceeds the 5 GiB upload limit`
-          : `${oversized.length} files exceed the 5 GiB upload limit`
-      )
-    }
-
-    const unsupported: string[] = []
-    const allowedFiles = sizeFiltered.filter((f) => {
-      const ext = getFileExtension(f.name)
-      const ok = SUPPORTED_EXTENSIONS.includes(ext as (typeof SUPPORTED_EXTENSIONS)[number])
-      if (!ok) unsupported.push(f.name)
-      return ok
-    })
-
-    if (unsupported.length > 0) {
-      logger.warn('Unsupported file types skipped:', unsupported)
-    }
-
-    if (allowedFiles.length === 0) return
-
-    try {
-      setUploading(true)
-      setUploadProgress({ completed: 0, total: allowedFiles.length, currentPercent: 0 })
-
-      for (let i = 0; i < allowedFiles.length; i++) {
-        try {
-          await uploadFile.mutateAsync({
-            workspaceId,
-            file: allowedFiles[i],
-            folderId: targetFolderId,
-            onProgress: ({ percent }) => {
-              setUploadProgress((prev) => ({ ...prev, currentPercent: percent }))
-            },
-          })
-          setUploadProgress({
-            completed: i + 1,
-            total: allowedFiles.length,
-            currentPercent: 0,
-          })
-        } catch (err) {
-          logger.error('Error uploading file:', err)
-        }
-      }
-    } catch (err) {
-      logger.error('Error uploading file:', err)
-    } finally {
-      setUploading(false)
-      setUploadProgress({ completed: 0, total: 0, currentPercent: 0 })
-    }
-  }
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files
     if (!list || list.length === 0) return
@@ -819,12 +822,16 @@ export function Files() {
       if (target.fileIds.includes(fileIdFromRouteRef.current ?? '')) {
         setIsDirty(false)
         setSaveStatus('idle')
-        router.push(`/workspace/${workspaceId}/files`)
+        router.push(
+          currentFolderId
+            ? `/workspace/${workspaceId}/files?folderId=${currentFolderId}`
+            : `/workspace/${workspaceId}/files`
+        )
       }
     } catch (err) {
       logger.error('Failed to delete file:', err)
     }
-  }, [workspaceId, router, bulkArchiveItems, deleteFile])
+  }, [workspaceId, router, currentFolderId, bulkArchiveItems, deleteFile])
 
   const isDirtyRef = useRef(isDirty)
   isDirtyRef.current = isDirty

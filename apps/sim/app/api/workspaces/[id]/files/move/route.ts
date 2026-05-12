@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { moveWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { parseRequest } from '@/lib/api/server'
@@ -6,6 +7,7 @@ import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   moveWorkspaceFileItems,
+  WorkspaceFileFolderConflictError,
   WorkspaceFileMoveConflictError,
 } from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -42,9 +44,24 @@ export const POST = withRouteHandler(
       })
     } catch (error) {
       logger.error('Failed to move workspace file items:', error)
+      if (
+        error instanceof WorkspaceFileMoveConflictError ||
+        error instanceof WorkspaceFileFolderConflictError
+      ) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 409 })
+      }
+      if (getPostgresErrorCode(error) === '23505') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'A file or folder with this name already exists in the destination folder',
+          },
+          { status: 409 }
+        )
+      }
       return NextResponse.json(
         { success: false, error: error instanceof Error ? error.message : 'Failed to move items' },
-        { status: error instanceof WorkspaceFileMoveConflictError ? 409 : 400 }
+        { status: 400 }
       )
     }
   }
