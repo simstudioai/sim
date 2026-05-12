@@ -25,8 +25,7 @@ export function Image({
     <NextImage
       className={cn(
         'overflow-hidden rounded-xl border border-border object-cover',
-        enableLightbox &&
-          'cursor-pointer transition-opacity group-hover:opacity-95 group-focus-visible:ring-2 group-focus-visible:ring-inset group-focus-visible:ring-ring',
+        enableLightbox && 'cursor-pointer transition-opacity group-hover:opacity-95',
         className
       )}
       alt={alt}

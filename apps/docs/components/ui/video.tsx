@@ -47,8 +47,7 @@ export function Video({
       height={height}
       className={cn(
         className,
-        enableLightbox &&
-          'cursor-pointer transition-opacity group-hover:opacity-[0.97] group-focus-visible:ring-2 group-focus-visible:ring-inset group-focus-visible:ring-ring'
+        enableLightbox && 'cursor-pointer transition-opacity group-hover:opacity-[0.97]'
       )}
       src={getAssetUrl(src)}
     />
