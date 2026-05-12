@@ -1,13 +1,14 @@
 /**
  * @vitest-environment node
  *
- * Tests for the pure `computeSpacerShortage` function extracted from
- * `useScrollAnchor`. The hook's DOM-interaction behaviour (event listeners,
- * MutationObserver, and the forced-reflow / scroll-event race condition fix)
- * requires a real browser layout engine and is covered by manual QA.
+ * Tests for the pure functions extracted from `useScrollAnchor`:
+ * `computeSpacerShortage` and `shouldReengage`. The hook's DOM-interaction
+ * behaviour (event listeners, MutationObserver, and the forced-reflow /
+ * scroll-event race condition fix) requires a real browser layout engine
+ * and is covered by manual QA.
  */
 import { describe, expect, it } from 'vitest'
-import { computeSpacerShortage } from '@/hooks/use-scroll-anchor'
+import { computeSpacerShortage, shouldReengage } from '@/hooks/use-scroll-anchor'
 
 describe('computeSpacerShortage', () => {
   it('returns 0 when content is exactly tall enough', () => {
@@ -89,5 +90,44 @@ describe('computeSpacerShortage', () => {
   it('never returns a negative value', () => {
     expect(computeSpacerShortage(0, 600, 10000, 0)).toBe(0)
     expect(computeSpacerShortage(0, 600, 0, 0)).toBe(600)
+  })
+})
+
+describe('shouldReengage', () => {
+  it('returns false when the spacer is active, even at distanceFromBottom = 0', () => {
+    // The spacer inflates scrollHeight to exactly targetScrollTop + clientHeight,
+    // so programmatic scroll restoration always produces distanceFromBottom = 0.
+    // Without this guard, onScroll would falsely re-engage auto-follow, clear the
+    // spacer on the next content update, and jump the user to the top.
+    expect(shouldReengage(0, 1000)).toBe(false)
+  })
+
+  it('returns false when spacer is active and distance is within threshold', () => {
+    expect(shouldReengage(15, 500)).toBe(false)
+  })
+
+  it('returns false when spacer is even slightly active', () => {
+    expect(shouldReengage(0, 1)).toBe(false)
+  })
+
+  it('returns true when the user genuinely reaches the document bottom (no spacer)', () => {
+    expect(shouldReengage(0, 0)).toBe(true)
+  })
+
+  it('returns true when within threshold and spacer is cleared', () => {
+    expect(shouldReengage(30, 0)).toBe(true)
+  })
+
+  it('returns true when one pixel within threshold', () => {
+    expect(shouldReengage(29, 0)).toBe(true)
+  })
+
+  it('returns false when beyond threshold regardless of spacer', () => {
+    expect(shouldReengage(31, 0)).toBe(false)
+    expect(shouldReengage(31, 1000)).toBe(false)
+  })
+
+  it('returns false when exactly at threshold + 1', () => {
+    expect(shouldReengage(31, 0)).toBe(false)
   })
 })

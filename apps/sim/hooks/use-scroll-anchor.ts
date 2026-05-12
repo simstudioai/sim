@@ -18,6 +18,18 @@ export function computeSpacerShortage(
 }
 
 /**
+ * Returns whether the scroll container should re-engage auto-follow.
+ *
+ * Re-engagement is blocked while the spacer is active. The spacer inflates
+ * `scrollHeight` to exactly `targetScrollTop + clientHeight`, so programmatic
+ * scroll restoration produces `distanceFromBottom = 0` — which is artificial
+ * proximity, not the user genuinely reaching the document bottom.
+ */
+export function shouldReengage(distanceFromBottom: number, spacerHeight: number): boolean {
+  return distanceFromBottom <= NEAR_BOTTOM_THRESHOLD && spacerHeight === 0
+}
+
+/**
  * Manages scroll for a streaming file-preview container.
  *
  * Never-scrolled: auto-follows new content to the bottom (MutationObserver
@@ -37,9 +49,6 @@ export function useScrollAnchor(isStreaming: boolean, content?: string) {
   // Tracks the user's last intentional position; updated only on genuine user events, never programmatic ones.
   const intendedScrollTopRef = useRef(0)
   // Mirrors the spacer's current minHeight so onScroll can check it without a layout read.
-  // Re-engagement is blocked while the spacer is active: the spacer inflates scrollHeight to
-  // exactly targetScrollTop + clientHeight, so distanceFromBottom = 0 after restoration —
-  // which would otherwise falsely trigger the re-engage branch and clear the spacer.
   const spacerHeightRef = useRef(0)
 
   const scrollToBottom = useCallback(() => {
@@ -64,10 +73,7 @@ export function useScrollAnchor(isStreaming: boolean, content?: string) {
     if (hasUserScrolledRef.current) {
       intendedScrollTopRef.current = el.scrollTop
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-      // Only re-engage when the spacer is not active. While the spacer is inflated,
-      // distanceFromBottom reads 0 after programmatic scroll restoration — that is
-      // artificial proximity, not the user genuinely reaching the document bottom.
-      if (distanceFromBottom <= NEAR_BOTTOM_THRESHOLD && spacerHeightRef.current === 0) {
+      if (shouldReengage(distanceFromBottom, spacerHeightRef.current)) {
         hasUserScrolledRef.current = false
         stickyRef.current = true
       }
