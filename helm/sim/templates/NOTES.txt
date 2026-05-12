@@ -78,7 +78,27 @@ Your release is named {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
      # Upgrade after changing values
      helm upgrade {{ .Release.Name }} ./helm/sim --namespace {{ .Release.Namespace }} -f your-values.yaml
 
+{{- if .Release.IsUpgrade }}
+5. Upgrading from a pre-1.0.0 build?
+
+   The internal Postgres StatefulSet's `spec.serviceName` was renamed to point
+   at a new headless Service. That field is immutable, so `helm upgrade` will
+   fail with: `Forbidden: updates to statefulset spec for fields other than
+   ...`. Orphan-delete the StatefulSet first (preserves pods and PVCs, traffic
+   keeps flowing):
+
+     kubectl --namespace {{ .Release.Namespace }} delete statefulset {{ include "sim.fullname" . }}-postgresql --cascade=orphan
+{{- if .Values.copilot.enabled }}
+     kubectl --namespace {{ .Release.Namespace }} delete statefulset {{ include "sim.fullname" . }}-copilot-postgresql --cascade=orphan
+{{- end }}
+
+   Then re-run `helm upgrade`. See README → "Upgrading from a pre-1.0.0 build"
+   for the full procedure. Skip this step if you're already on 1.0.0+.
+
+6. Where to go next:
+{{- else }}
 5. Where to go next:
+{{- end }}
 
    * Production checklist:  helm/sim/README.md (search "Production checklist")
    * Troubleshooting:       helm/sim/README.md (search "Troubleshooting")

@@ -67,13 +67,20 @@ spec:
             {{- end }}
             {{- /*
               Inline realtime.envDefaults, skipping keys explicitly set in realtime.env
-              (K8s `env` overrides `envFrom`, so an inline default would otherwise mask
-              a user's Secret-bound value).
+              OR app.env (K8s `env` overrides `envFrom`, so an inline default would
+              otherwise mask a Secret-bound value). The chart-managed Secret is shared
+              between app and realtime via envFrom, so a key set in app.env (e.g.
+              NEXT_PUBLIC_APP_URL=https://prod.example.com) lands on the realtime pod
+              too — inlining the localhost envDefault here would mask it.
             */}}
             {{- $rtEnv := .Values.realtime.env | default dict }}
+            {{- $appEnv := .Values.app.env | default dict }}
             {{- range $key, $value := .Values.realtime.envDefaults | default dict }}
-            {{- $override := index $rtEnv $key }}
-            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (or (not $override) (eq (toString $override) "") (eq (toString $override) "<nil>")) }}
+            {{- $rtOverride := index $rtEnv $key }}
+            {{- $appOverride := index $appEnv $key }}
+            {{- $hasRt := and $rtOverride (ne (toString $rtOverride) "") (ne (toString $rtOverride) "<nil>") }}
+            {{- $hasApp := and $appOverride (ne (toString $appOverride) "") (ne (toString $appOverride) "<nil>") }}
+            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (not $hasRt) (not $hasApp) }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
