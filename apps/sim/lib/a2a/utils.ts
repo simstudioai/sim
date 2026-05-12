@@ -107,8 +107,7 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
 
     const res = await secureFetchWithPinnedIP(url, resolvedIP, { method, headers, body, signal })
     const resHeaders = new Headers(res.headers.toRecord())
-    const resBody = await res.text()
-    return new Response(resBody, {
+    return new Response(res.body, {
       status: res.status,
       statusText: res.statusText,
       headers: resHeaders,
