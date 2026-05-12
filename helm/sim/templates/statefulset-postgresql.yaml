@@ -90,9 +90,12 @@ metadata:
   labels:
     {{- include "sim.postgresql.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "sim.fullname" . }}-postgresql
+  serviceName: {{ include "sim.fullname" . }}-postgresql-headless
   replicas: 1
   minReadySeconds: 10
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       {{- include "sim.postgresql.selectorLabels" . | nindent 6 }}
@@ -113,13 +116,14 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      automountServiceAccountToken: false
       {{- include "sim.podSecurityContext" .Values.postgresql | nindent 6 }}
       {{- include "sim.nodeSelector" .Values.postgresql | nindent 6 }}
       {{- include "sim.tolerations" .Values | nindent 6 }}
       {{- include "sim.affinity" .Values | nindent 6 }}
       containers:
         - name: postgresql
-          image: {{ include "sim.image" (dict "context" . "image" .Values.postgresql.image) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.postgresql.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
           args: ["-c", "config_file=/etc/postgresql/postgresql.conf"]
           ports:
@@ -140,7 +144,7 @@ spec:
             {{- toYaml .Values.postgresql.readinessProbe | nindent 12 }}
           {{- end }}
           {{- include "sim.resources" .Values.postgresql | nindent 10 }}
-          {{- include "sim.securityContext" .Values.postgresql | nindent 10 }}
+          {{- include "sim.containerSecurityContext" .Values.postgresql | nindent 10 }}
           volumeMounts:
             {{- if .Values.postgresql.persistence.enabled }}
             - name: postgresql-data

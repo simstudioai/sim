@@ -1,423 +1,332 @@
 # Sim Helm Chart
 
-This Helm chart deploys Sim, a lightweight AI agent workflow platform, on Kubernetes.
+Deploy [Sim](https://sim.ai) — the open-source AI workspace where teams build, deploy, and manage AI agents — on Kubernetes.
+
+* **Chart version:** see `Chart.yaml`
+* **App version:** tracks the upstream Sim release
+* **Kubernetes:** 1.25+
+* **License:** Apache-2.0
+
+---
+
+## TL;DR
+
+```bash
+# Generate required secrets
+export BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+export ENCRYPTION_KEY=$(openssl rand -hex 32)
+export INTERNAL_API_SECRET=$(openssl rand -hex 32)
+export CRON_SECRET=$(openssl rand -hex 32)
+export POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')
+
+# Install from this repository
+helm install sim ./helm/sim \
+  --namespace sim --create-namespace \
+  --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+  --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+  --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --set app.env.CRON_SECRET="$CRON_SECRET" \
+  --set postgresql.auth.password="$POSTGRES_PASSWORD"
+```
+
+After install, follow the on-screen `NOTES.txt` to reach the app.
+
+---
+
+## Introduction
+
+This chart deploys the Sim platform on a Kubernetes cluster using the Helm package manager. A default install includes:
+
+* **`app`** — the Sim Next.js web application (Deployment).
+* **`realtime`** — the WebSocket service for live workflow updates (Deployment).
+* **`postgresql`** — an in-cluster `pgvector/pgvector` Postgres (StatefulSet, with a headless Service for stable per-pod DNS).
+* **`migrations`** — a Job that applies database migrations on install/upgrade.
+* **`cronjobs`** — scheduled jobs for workflow schedule execution, inbox/calendar/drive polling (Gmail, Outlook, Calendar, Drive, Sheets, IMAP, RSS), inactivity alerts, subscription renewal, data drains, and connector syncs.
+* **`serviceaccount`** — a dedicated ServiceAccount with `automountServiceAccountToken: false`.
+
+Optional components (off by default):
+
+* **`copilot`** — the Sim Copilot service plus its own Postgres StatefulSet.
+* **`ollama`** — local LLM inference, with optional NVIDIA GPU support.
+* **`telemetry`** — OpenTelemetry Collector wired to Jaeger / Prometheus / OTLP backends.
+* **`ingress`** — NGINX-style Ingress for the app and realtime services.
+* **`networkPolicy`** — east-west and egress isolation (blocks cloud metadata endpoints by default).
+* **`hpa`** — HorizontalPodAutoscaler for `app` and `realtime`.
+* **`podDisruptionBudget`** — auto-activates when `replicaCount > 1`.
+* **`servicemonitor`** — Prometheus Operator integration.
+
+---
 
 ## Prerequisites
 
-- Kubernetes 1.19+
-- Helm 3.0+
-- PV provisioner support in the underlying infrastructure (for persistent storage)
+| Requirement | Version / Notes |
+|---|---|
+| Kubernetes | **1.25+** (`Chart.yaml` enforces `kubeVersion: ">=1.25.0-0"`) |
+| Helm | **3.8+** |
+| StorageClass | A default StorageClass that supports `ReadWriteOnce` PVCs (for Postgres, Ollama). Set `global.storageClass` to pick a non-default class. |
+| Ingress controller | Only if `ingress.enabled=true`. The chart's defaults assume `nginx`. |
+| cert-manager | Only if you want auto-issued TLS certificates. See [cert-manager docs](https://cert-manager.io/docs/). |
+| metrics-server | Only if `autoscaling.enabled=true` (HPA needs metrics). |
+| External Secrets Operator | Only if `externalSecrets.enabled=true`. See [ESO docs](https://external-secrets.io/). |
+| Prometheus Operator | Only if `monitoring.serviceMonitor.enabled=true`. |
+| Namespace PSS labels | Recommended: `pod-security.kubernetes.io/enforce=restricted`. The chart's pod and container security contexts are PSS-restricted by default. |
 
-## Installation
+---
 
-### Quick Start
+## Generate required secrets
 
-Install the chart from this repository:
+Sim will not start without these. Generate them once and feed them via `--set`, an existing Kubernetes Secret, or External Secrets Operator.
 
 ```bash
-# From the repository root
-helm install sim ./helm/sim
+# Application secrets (32 bytes hex each)
+openssl rand -hex 32   # BETTER_AUTH_SECRET    - signs auth JWTs
+openssl rand -hex 32   # ENCRYPTION_KEY        - encrypts sensitive env vars
+openssl rand -hex 32   # INTERNAL_API_SECRET   - service-to-service auth
+openssl rand -hex 32   # CRON_SECRET           - required if cronjobs.enabled (default true)
+openssl rand -hex 32   # API_ENCRYPTION_KEY    - optional; encrypts user API keys at rest
+
+# Postgres password
+openssl rand -base64 24 | tr -d '/+='
 ```
 
-### Custom Configuration
+If you set `app.secrets.existingSecret.enabled=true` and point at a pre-created Secret, you do **not** also pass these via `--set` — pick one path.
 
-Install with custom values:
+---
+
+## Installing the chart
+
+### From this repository
 
 ```bash
-helm install sim ./helm/sim -f custom-values.yaml
+helm install sim ./helm/sim \
+  --namespace sim --create-namespace \
+  --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+  --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+  --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --set app.env.CRON_SECRET="$CRON_SECRET" \
+  --set postgresql.auth.password="$POSTGRES_PASSWORD"
 ```
 
-## Configuration Examples
-
-The chart includes several pre-configured values files for different scenarios:
-
-| Example File | Description | Use Case |
-|-------------|-------------|----------|
-| `values-development.yaml` | Minimal resources, no SSL | Local development and testing |
-| `values-production.yaml` | High availability, security-focused | Generic production deployment |
-| `values-external-db.yaml` | External database configuration | Production with managed database |
-| `values-azure.yaml` | Azure AKS optimized | Azure Kubernetes Service |
-| `values-aws.yaml` | AWS EKS optimized | Amazon Elastic Kubernetes Service |
-| `values-gcp.yaml` | GCP GKE optimized | Google Kubernetes Engine |
-| `values-external-secrets.yaml` | External Secrets Operator integration | Using Azure Key Vault, AWS Secrets Manager, Vault |
-| `values-existing-secret.yaml` | Pre-existing Kubernetes secrets | GitOps, Sealed Secrets, manual secret management |
-
-### Development Environment
+### With a values file
 
 ```bash
-helm install sim-dev ./helm/sim \
-  --values ./helm/sim/examples/values-development.yaml \
-  --namespace simstudio-dev --create-namespace
+helm install sim ./helm/sim \
+  --namespace sim --create-namespace \
+  --values my-values.yaml
 ```
 
-### Production Environment
+Run `helm template ./helm/sim --values my-values.yaml | less` first to see what will be applied.
+
+### Validate the install
 
 ```bash
-helm install sim-prod ./helm/sim \
+helm install sim ./helm/sim --dry-run --debug \
+  --values my-values.yaml \
+  --set app.env.BETTER_AUTH_SECRET=$(openssl rand -hex 16) \
+  --set app.env.ENCRYPTION_KEY=$(openssl rand -hex 16) \
+  --set app.env.INTERNAL_API_SECRET=$(openssl rand -hex 16) \
+  --set app.env.CRON_SECRET=$(openssl rand -hex 16) \
+  --set postgresql.auth.password=$(openssl rand -base64 12 | tr -d '/+=')
+```
+
+---
+
+## Upgrading
+
+```bash
+helm upgrade sim ./helm/sim --namespace sim --values my-values.yaml
+```
+
+---
+
+## Uninstalling
+
+```bash
+helm uninstall sim --namespace sim
+```
+
+**PVCs are not deleted by `helm uninstall`.** If you want to wipe data too:
+
+```bash
+# WARNING: this destroys all Postgres, Ollama, and shared-storage data.
+kubectl delete pvc --namespace sim \
+  -l app.kubernetes.io/instance=sim
+
+# Or list and delete by name
+kubectl get pvc --namespace sim
+kubectl delete pvc <pvc-name> --namespace sim
+
+# Then delete the namespace if you're done with it
+kubectl delete namespace sim
+```
+
+---
+
+## Examples
+
+Pre-built values files for common scenarios live in `helm/sim/examples/`. Each file has a header explaining when to use it and any prerequisites.
+
+| File | When to use |
+|---|---|
+| `values-development.yaml` | Local dev / `kind` / `minikube`. Minimal resources, no TLS. |
+| `values-production.yaml` | Generic production: HA, network policy, autoscaling, monitoring. |
+| `values-aws.yaml` | EKS — EBS GP3 storage, ALB ingress, IRSA-friendly. |
+| `values-gcp.yaml` | GKE — Persistent Disk storage, GCP managed certs, Workload Identity. |
+| `values-azure.yaml` | AKS — managed-csi storage, NGINX ingress, GPU node pools. |
+| `values-external-db.yaml` | Production with a managed Postgres (RDS, Cloud SQL, Azure DB). |
+| `values-external-secrets.yaml` | Sync secrets from Vault / AWS SM / Azure KV / GCP SM via External Secrets Operator. |
+| `values-existing-secret.yaml` | GitOps / Sealed Secrets / SOPS — reference pre-created Kubernetes Secrets. |
+| `values-copilot.yaml` | Enables the Copilot service + its Postgres StatefulSet. |
+| `values-whitelabeled.yaml` | Custom branding (logo, name, support links). |
+
+Use one with:
+
+```bash
+helm install sim ./helm/sim \
+  --namespace sim --create-namespace \
   --values ./helm/sim/examples/values-production.yaml \
-  --namespace simstudio-prod --create-namespace
+  --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+  --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+  --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --set postgresql.auth.password="$POSTGRES_PASSWORD"
 ```
 
-### Azure Environment
+---
+
+## Parameters
+
+This chart is intentionally configurable. Rather than maintain a hand-curated parameter table (which would drift), read the canonical sources:
 
 ```bash
-helm install sim-azure ./helm/sim \
-  --values ./helm/sim/examples/values-azure.yaml \
-  --namespace simstudio --create-namespace
+# Print all values with comments and defaults
+helm show values ./helm/sim
+
+# Print the JSON Schema (used by `helm install` to validate your values)
+cat ./helm/sim/values.schema.json
 ```
 
-### AWS Environment (EKS)
+`values.yaml` is heavily commented; each top-level section explains what it controls and which sub-keys are required vs optional. For per-cloud examples and idiomatic overrides, see `examples/`.
+
+---
+
+## Production checklist
+
+Before installing in production, confirm each of the following:
+
+* **High availability** — scale `app.replicaCount > 1`. The chart auto-creates a `PodDisruptionBudget` with `minAvailable: 1`. Set `podDisruptionBudget.maxUnavailable: "25%"` for a more permissive policy or `minAvailable: "50%"` for a stricter one.
+* **Pinned images** — override `image.tag` (or `image.digest`) with an explicit version. Do not rely on the chart's default tag in production.
+* **Secrets management** — provide secrets via External Secrets Operator (ESO) or pre-created Kubernetes Secrets. Never commit secrets to `values.yaml`.
+* **TLS / Ingress** — set the `cert-manager.io/cluster-issuer` annotation on the ingress and tune `proxy-body-size` / `proxy-read-timeout` for your workload. See commented examples in `values.yaml`.
+* **Network policy egress** — review `networkPolicy.egress.exceptCidrs`. Defaults block cloud metadata endpoints (`169.254.169.254/32`, `169.254.170.2/32`); add your cluster's API server CIDR for stronger isolation.
+* **Namespace hardening** — label the install namespace with Pod Security Standards `restricted` enforcement (`pod-security.kubernetes.io/enforce=restricted`).
+* **Env validation** — keys under `app.env`, `realtime.env`, and `copilot.env` are passed through to the application and validated at startup. The JSON Schema intentionally does not enforce `additionalProperties: false` (would break custom user envs), so typos like `OPENA_API_KEY` (instead of `OPENAI_API_KEY`) surface as missing-key errors at runtime, not at `helm install` time. Review your env block carefully.
+* **Set public URLs** — `app.env.NEXT_PUBLIC_APP_URL` and `app.env.BETTER_AUTH_URL` must match your public origin (e.g. `https://sim.example.com`). Leaving them as `localhost` breaks sign-in.
+
+---
+
+## Secrets
+
+The chart supports three ways to provide secrets, in increasing order of production-readiness:
+
+### 1. Inline `--set` (dev / dry-run only)
 
 ```bash
-helm install sim-aws ./helm/sim \
-  --values ./helm/sim/examples/values-aws.yaml \
-  --namespace simstudio --create-namespace
+helm install sim ./helm/sim --set app.env.BETTER_AUTH_SECRET=...
 ```
 
-### GCP Environment (GKE)
+Discouraged for production — values land in `helm get values` output.
+
+### 2. Pre-existing Kubernetes Secret
+
+Create the Secret first, then reference it:
 
 ```bash
-helm install sim-gcp ./helm/sim \
-  --values ./helm/sim/examples/values-gcp.yaml \
-  --namespace simstudio --create-namespace
+kubectl create secret generic sim-app-secrets --namespace sim \
+  --from-literal=BETTER_AUTH_SECRET=$(openssl rand -hex 32) \
+  --from-literal=ENCRYPTION_KEY=$(openssl rand -hex 32) \
+  --from-literal=INTERNAL_API_SECRET=$(openssl rand -hex 32) \
+  --from-literal=CRON_SECRET=$(openssl rand -hex 32)
+
+kubectl create secret generic sim-postgres-secret --namespace sim \
+  --from-literal=POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')
 ```
 
-### External Database (Managed Services)
+```yaml
+app:
+  secrets:
+    existingSecret:
+      enabled: true
+      name: sim-app-secrets
 
-```bash
-helm install sim-prod ./helm/sim \
-  --values ./helm/sim/examples/values-external-db.yaml \
-  --set externalDatabase.host="your-rds-endpoint.com" \
-  --set externalDatabase.username="simstudio_user" \
-  --set externalDatabase.password="secure-password" \
-  --set externalDatabase.database="simstudio_prod" \
-  --namespace simstudio --create-namespace
+postgresql:
+  auth:
+    existingSecret:
+      enabled: true
+      name: sim-postgres-secret
+      passwordKey: POSTGRES_PASSWORD
 ```
 
-## Cloud-Specific Features
+See `examples/values-existing-secret.yaml`.
 
-Each cloud platform example includes optimized configurations:
+### 3. External Secrets Operator (recommended)
 
-### Azure (AKS)
-- **Storage**: Premium managed disks (`managed-csi-premium`)
-- **Node Selectors**: Role-based node targeting (`node-role: application`, `node-role: datalake`)
-- **GPU Support**: NVIDIA GPU nodes with tolerations
-- **Ingress**: NGINX ingress controller with SSL redirect
+Sync from Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, or GCP Secret Manager. Install ESO once, create a `ClusterSecretStore`, then:
 
-### AWS (EKS)
-- **Storage**: EBS GP3 volumes for optimal performance
-- **EBS CSI Driver**: Required for persistent storage (install as EKS add-on)
-- **Node Selectors**: Instance type targeting (`t3.large`, `r5.large`, `g4dn.xlarge`)
-- **GPU Support**: GPU-optimized instances (G4, P3 families)
-- **Ingress**: Application Load Balancer (ALB) with AWS Certificate Manager
-- **IAM**: Service Account annotations for IAM roles
-
-**Prerequisites for AWS:**
-```bash
-# Install EBS CSI driver add-on
-aws eks create-addon --cluster-name your-cluster --addon-name aws-ebs-csi-driver
-
-# Create IAM role for EBS CSI driver (if using IRSA)
-aws iam create-role --role-name AmazonEKS_EBS_CSI_DriverRole \
-  --assume-role-policy-document file://ebs-csi-trust-policy.json
-aws iam attach-role-policy --role-name AmazonEKS_EBS_CSI_DriverRole \
-  --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+```yaml
+externalSecrets:
+  enabled: true
+  refreshInterval: 1h
+  secretStoreRef:
+    name: my-secret-store
+    kind: ClusterSecretStore
+  remoteRefs:
+    app:
+      BETTER_AUTH_SECRET: sim/app/better-auth-secret
+      ENCRYPTION_KEY: sim/app/encryption-key
+      INTERNAL_API_SECRET: sim/app/internal-api-secret
+    postgresql:
+      password: sim/postgresql/password
 ```
 
-### GCP (GKE)
-- **Storage**: Persistent Disk with standard and premium options
-- **Node Selectors**: Node pool and machine family targeting
-- **GPU Support**: Tesla T4/V100 GPUs with GKE accelerator labels
-- **Ingress**: Google Cloud Load Balancer with managed certificates
-- **Workload Identity**: Service Account annotations for GCP IAM
+See `examples/values-external-secrets.yaml`.
 
-## Configuration
+---
 
-The following table lists the configurable parameters and their default values.
+## Persistence
 
-### Global Parameters
+Postgres, Ollama, and any configured `sharedStorage.volumes[]` use PersistentVolumeClaims. PVCs **survive `helm uninstall`** — see [Uninstalling](#uninstalling) for full cleanup.
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `global.imageRegistry` | Global Docker image registry | `"ghcr.io"` |
-| `global.useRegistryForAllImages` | Use custom registry for all images (not just simstudioai/*) | `false` |
-| `global.imagePullSecrets` | Global Docker registry secret names | `[]` |
-| `global.storageClass` | Global storage class for PVCs | `""` |
-| `global.commonLabels` | Common labels to add to all resources | `{}` |
+| Component | Default size | Access mode | Storage class |
+|---|---|---|---|
+| `postgresql` | 10Gi | `ReadWriteOnce` | `global.storageClass` |
+| `copilot.postgresql` | 10Gi | `ReadWriteOnce` | `global.storageClass` |
+| `ollama` | 100Gi | `ReadWriteOnce` | `global.storageClass` |
+| `sharedStorage.volumes[]` | user-defined | `ReadWriteMany` recommended | `sharedStorage.storageClass` |
 
-### Application Parameters
+For production, use a `StorageClass` with `reclaimPolicy: Retain` on database volumes.
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `app.enabled` | Enable the main application | `true` |
-| `app.replicaCount` | Number of app replicas | `1` |
-| `app.image.repository` | App image repository | `simstudioai/sim` |
-| `app.image.tag` | App image tag | `latest` |
-| `app.image.pullPolicy` | App image pull policy | `Always` |
-| `app.resources` | App resource limits and requests | See values.yaml |
-| `app.nodeSelector` | App node selector | `{}` |
-| `app.podSecurityContext` | App pod security context | `fsGroup: 1001` |
-| `app.securityContext` | App container security context | `runAsNonRoot: true, runAsUser: 1001` |
-| `app.service.type` | App service type | `ClusterIP` |
-| `app.service.port` | App service port | `3000` |
-| `app.service.targetPort` | App service target port | `3000` |
-| `app.livenessProbe` | App liveness probe configuration | See values.yaml |
-| `app.readinessProbe` | App readiness probe configuration | See values.yaml |
-| `app.env` | App environment variables | See values.yaml |
+---
 
-### Realtime Service Parameters
+## Security
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `realtime.enabled` | Enable the realtime service | `true` |
-| `realtime.replicaCount` | Number of realtime replicas | `1` |
-| `realtime.image.repository` | Realtime image repository | `simstudioai/realtime` |
-| `realtime.image.tag` | Realtime image tag | `latest` |
-| `realtime.image.pullPolicy` | Realtime image pull policy | `Always` |
-| `realtime.resources` | Realtime resource limits and requests | See values.yaml |
-| `realtime.nodeSelector` | Realtime node selector | `{}` |
-| `realtime.podSecurityContext` | Realtime pod security context | `fsGroup: 1001` |
-| `realtime.securityContext` | Realtime container security context | `runAsNonRoot: true, runAsUser: 1001` |
-| `realtime.service.type` | Realtime service type | `ClusterIP` |
-| `realtime.service.port` | Realtime service port | `3002` |
-| `realtime.service.targetPort` | Realtime service target port | `3002` |
-| `realtime.livenessProbe` | Realtime liveness probe configuration | See values.yaml |
-| `realtime.readinessProbe` | Realtime readiness probe configuration | See values.yaml |
-| `realtime.env` | Realtime environment variables | See values.yaml |
+The chart applies [Pod Security Standards `restricted`](https://kubernetes.io/docs/concepts/security/pod-security-standards/) defaults to every workload:
 
-### PostgreSQL Parameters
+* `runAsNonRoot: true`
+* `allowPrivilegeEscalation: false`
+* `capabilities.drop: [ALL]`
+* `seccompProfile.type: RuntimeDefault`
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `postgresql.enabled` | Enable internal PostgreSQL | `true` |
-| `postgresql.image.repository` | PostgreSQL image repository | `pgvector/pgvector` |
-| `postgresql.image.tag` | PostgreSQL image tag | `pg17` |
-| `postgresql.image.pullPolicy` | PostgreSQL image pull policy | `IfNotPresent` |
-| `postgresql.auth.username` | PostgreSQL username | `postgres` |
-| `postgresql.auth.password` | PostgreSQL password | `""` (REQUIRED) |
-| `postgresql.auth.database` | PostgreSQL database name | `sim` |
-| `postgresql.nodeSelector` | PostgreSQL node selector | `{}` |
-| `postgresql.resources` | PostgreSQL resource limits and requests | See values.yaml |
-| `postgresql.podSecurityContext` | PostgreSQL pod security context | `fsGroup: 999` |
-| `postgresql.securityContext` | PostgreSQL container security context | `runAsUser: 999` |
-| `postgresql.persistence.enabled` | Enable PostgreSQL persistence | `true` |
-| `postgresql.persistence.storageClass` | PostgreSQL storage class | `""` |
-| `postgresql.persistence.size` | PostgreSQL PVC size | `10Gi` |
-| `postgresql.persistence.accessModes` | PostgreSQL PVC access modes | `["ReadWriteOnce"]` |
-| `postgresql.tls.enabled` | Enable PostgreSQL SSL/TLS | `false` |
-| `postgresql.tls.certificatesSecret` | PostgreSQL TLS certificates secret | `postgres-tls-secret` |
-| `postgresql.config.maxConnections` | PostgreSQL max connections | `1000` |
-| `postgresql.config.sharedBuffers` | PostgreSQL shared buffers | `"1280MB"` |
-| `postgresql.config.maxWalSize` | PostgreSQL max WAL size | `"4GB"` |
-| `postgresql.config.minWalSize` | PostgreSQL min WAL size | `"80MB"` |
-| `postgresql.service.type` | PostgreSQL service type | `ClusterIP` |
-| `postgresql.service.port` | PostgreSQL service port | `5432` |
-| `postgresql.service.targetPort` | PostgreSQL service target port | `5432` |
-| `postgresql.livenessProbe` | PostgreSQL liveness probe configuration | See values.yaml |
-| `postgresql.readinessProbe` | PostgreSQL readiness probe configuration | See values.yaml |
+User-supplied `securityContext` values are merged with the defaults — your values win, but you don't have to repeat the defaults.
 
-### External Database Parameters
+Other security features:
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `externalDatabase.enabled` | Use external database instead of internal PostgreSQL | `false` |
-| `externalDatabase.host` | External database host | `"external-db.example.com"` |
-| `externalDatabase.port` | External database port | `5432` |
-| `externalDatabase.username` | External database username | `postgres` |
-| `externalDatabase.password` | External database password | `""` |
-| `externalDatabase.database` | External database name | `sim` |
-| `externalDatabase.sslMode` | External database SSL mode | `require` |
+* `automountServiceAccountToken: false` on the ServiceAccount **and** every pod.
+* Every value in `app.env` and `realtime.env` is written to a chart-managed Secret and mounted via `envFrom: secretRef` — no values are inlined on the container spec. This eliminates a sensitivity classifier (no static list of "secret" keys to maintain) and ensures new provider keys can never accidentally leak into pod manifests. Two categories are inlined on the container instead: chart-computed values (`DATABASE_URL`, `SOCKET_SERVER_URL`, `OLLAMA_URL`) and operational defaults under `app.envDefaults` / `realtime.envDefaults` (rate limits, timeouts, IVM tunables, feature-flag defaults, branding defaults, `http://localhost:3000` URL fallbacks). Operational defaults are non-sensitive by design — moving them out of `app.env` keeps the Secret small and means External Secrets Operator users only have to map the keys they actually set, not every chart default. A value placed in `app.env` always wins over the same key in `app.envDefaults` (the template skips the inline default when an override exists).
+* Optional `networkPolicy.enabled=true` enforces east-west isolation and blocks cloud metadata endpoints in egress.
 
-### Ollama Parameters
+---
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `ollama.enabled` | Enable Ollama for local AI models | `false` |
-| `ollama.image.repository` | Ollama image repository | `ollama/ollama` |
-| `ollama.image.tag` | Ollama image tag | `latest` |
-| `ollama.image.pullPolicy` | Ollama image pull policy | `Always` |
-| `ollama.replicaCount` | Number of Ollama replicas | `1` |
-| `ollama.gpu.enabled` | Enable GPU support for Ollama | `false` |
-| `ollama.gpu.count` | Number of GPUs to allocate | `1` |
-| `ollama.nodeSelector` | Ollama node selector | `accelerator: nvidia` |
-| `ollama.tolerations` | Ollama tolerations for GPU nodes | See values.yaml |
-| `ollama.resources` | Ollama resource limits and requests | See values.yaml |
-| `ollama.env` | Ollama environment variables | See values.yaml |
-| `ollama.persistence.enabled` | Enable Ollama persistence | `true` |
-| `ollama.persistence.storageClass` | Ollama storage class | `""` |
-| `ollama.persistence.size` | Ollama PVC size | `100Gi` |
-| `ollama.persistence.accessModes` | Ollama PVC access modes | `["ReadWriteOnce"]` |
-| `ollama.service.type` | Ollama service type | `ClusterIP` |
-| `ollama.service.port` | Ollama service port | `11434` |
-| `ollama.service.targetPort` | Ollama service target port | `11434` |
-| `ollama.startupProbe` | Ollama startup probe configuration | See values.yaml |
-| `ollama.livenessProbe` | Ollama liveness probe configuration | See values.yaml |
-| `ollama.readinessProbe` | Ollama readiness probe configuration | See values.yaml |
-
-### Ingress Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `ingress.enabled` | Enable ingress | `false` |
-| `ingress.className` | Ingress class name | `nginx` |
-| `ingress.annotations` | Ingress annotations | See values.yaml |
-| `ingress.app.host` | App ingress hostname | `sim.local` |
-| `ingress.app.paths` | App ingress paths | `[{path: "/", pathType: "Prefix"}]` |
-| `ingress.realtime.host` | Realtime ingress hostname | `sim-ws.local` |
-| `ingress.realtime.paths` | Realtime ingress paths | `[{path: "/", pathType: "Prefix"}]` |
-| `ingress.tls.enabled` | Enable TLS for ingress | `false` |
-| `ingress.tls.secretName` | TLS secret name | `sim-tls-secret` |
-
-### Autoscaling Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `autoscaling.enabled` | Enable Horizontal Pod Autoscaler | `false` |
-| `autoscaling.minReplicas` | Minimum number of replicas | `1` |
-| `autoscaling.maxReplicas` | Maximum number of replicas | `10` |
-| `autoscaling.targetCPUUtilizationPercentage` | Target CPU utilization | `80` |
-| `autoscaling.targetMemoryUtilizationPercentage` | Target memory utilization | `80` |
-| `autoscaling.customMetrics` | Custom metrics for scaling | `[]` |
-| `autoscaling.behavior` | Scaling behavior configuration | `{}` |
-
-### Monitoring Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `monitoring.serviceMonitor.enabled` | Enable ServiceMonitor for Prometheus | `false` |
-| `monitoring.serviceMonitor.labels` | Additional labels for ServiceMonitor | `{}` |
-| `monitoring.serviceMonitor.annotations` | Additional annotations for ServiceMonitor | `{}` |
-| `monitoring.serviceMonitor.path` | Metrics endpoint path | `/metrics` |
-| `monitoring.serviceMonitor.interval` | Scrape interval | `30s` |
-| `monitoring.serviceMonitor.scrapeTimeout` | Scrape timeout | `10s` |
-| `monitoring.serviceMonitor.targetLabels` | Target labels to add to scraped metrics | `[]` |
-| `monitoring.serviceMonitor.metricRelabelings` | Metric relabeling configurations | `[]` |
-| `monitoring.serviceMonitor.relabelings` | Relabeling configurations | `[]` |
-
-### Security Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `networkPolicy.enabled` | Enable network policies | `false` |
-| `networkPolicy.ingress` | Custom ingress rules | `[]` |
-| `networkPolicy.egress` | Custom egress rules | `[]` |
-| `podDisruptionBudget.enabled` | Enable pod disruption budget | `false` |
-| `podDisruptionBudget.minAvailable` | Minimum available pods | `1` |
-
-### Migration Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `migrations.enabled` | Enable database migrations job | `true` |
-| `migrations.image.repository` | Migrations image repository | `simstudioai/migrations` |
-| `migrations.image.tag` | Migrations image tag | `latest` |
-| `migrations.image.pullPolicy` | Migrations image pull policy | `Always` |
-| `migrations.resources` | Migrations resource limits and requests | See values.yaml |
-| `migrations.podSecurityContext` | Migrations pod security context | `fsGroup: 1001` |
-| `migrations.securityContext` | Migrations container security context | `runAsNonRoot: true, runAsUser: 1001` |
-
-### CronJob Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `cronjobs.enabled` | Enable all scheduled cron jobs | `true` |
-| `cronjobs.image.repository` | CronJob image repository for HTTP requests | `curlimages/curl` |
-| `cronjobs.image.tag` | CronJob image tag | `8.5.0` |
-| `cronjobs.image.pullPolicy` | CronJob image pull policy | `IfNotPresent` |
-| `cronjobs.resources` | CronJob resource limits and requests | See values.yaml |
-| `cronjobs.restartPolicy` | CronJob pod restart policy | `OnFailure` |
-| `cronjobs.activeDeadlineSeconds` | CronJob active deadline in seconds | `300` |
-| `cronjobs.startingDeadlineSeconds` | CronJob starting deadline in seconds | `60` |
-| `cronjobs.podSecurityContext` | CronJob pod security context | `fsGroup: 1001` |
-| `cronjobs.securityContext` | CronJob container security context | `runAsNonRoot: true, runAsUser: 1001` |
-| `cronjobs.jobs.scheduleExecution.enabled` | Enable schedule execution cron job | `true` |
-| `cronjobs.jobs.scheduleExecution.name` | Schedule execution job name | `schedule-execution` |
-| `cronjobs.jobs.scheduleExecution.schedule` | Schedule execution cron schedule | `"*/1 * * * *"` |
-| `cronjobs.jobs.scheduleExecution.path` | Schedule execution API path | `"/api/schedules/execute"` |
-| `cronjobs.jobs.scheduleExecution.concurrencyPolicy` | Schedule execution concurrency policy | `Forbid` |
-| `cronjobs.jobs.scheduleExecution.successfulJobsHistoryLimit` | Schedule execution successful jobs history | `3` |
-| `cronjobs.jobs.scheduleExecution.failedJobsHistoryLimit` | Schedule execution failed jobs history | `1` |
-| `cronjobs.jobs.gmailWebhookPoll.enabled` | Enable Gmail webhook polling cron job | `true` |
-| `cronjobs.jobs.gmailWebhookPoll.name` | Gmail webhook polling job name | `gmail-webhook-poll` |
-| `cronjobs.jobs.gmailWebhookPoll.schedule` | Gmail webhook polling cron schedule | `"*/1 * * * *"` |
-| `cronjobs.jobs.gmailWebhookPoll.path` | Gmail webhook polling API path | `"/api/webhooks/poll/gmail"` |
-| `cronjobs.jobs.gmailWebhookPoll.concurrencyPolicy` | Gmail webhook polling concurrency policy | `Forbid` |
-| `cronjobs.jobs.gmailWebhookPoll.successfulJobsHistoryLimit` | Gmail webhook polling successful jobs history | `3` |
-| `cronjobs.jobs.gmailWebhookPoll.failedJobsHistoryLimit` | Gmail webhook polling failed jobs history | `1` |
-| `cronjobs.jobs.outlookWebhookPoll.enabled` | Enable Outlook webhook polling cron job | `true` |
-| `cronjobs.jobs.outlookWebhookPoll.name` | Outlook webhook polling job name | `outlook-webhook-poll` |
-| `cronjobs.jobs.outlookWebhookPoll.schedule` | Outlook webhook polling cron schedule | `"*/1 * * * *"` |
-| `cronjobs.jobs.outlookWebhookPoll.path` | Outlook webhook polling API path | `"/api/webhooks/poll/outlook"` |
-| `cronjobs.jobs.outlookWebhookPoll.concurrencyPolicy` | Outlook webhook polling concurrency policy | `Forbid` |
-| `cronjobs.jobs.outlookWebhookPoll.successfulJobsHistoryLimit` | Outlook webhook polling successful jobs history | `3` |
-| `cronjobs.jobs.outlookWebhookPoll.failedJobsHistoryLimit` | Outlook webhook polling failed jobs history | `1` |
-
-### Shared Storage Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sharedStorage.enabled` | Enable shared storage for multi-pod data sharing | `false` |
-| `sharedStorage.storageClass` | Storage class for shared volumes (must support ReadWriteMany) | `""` |
-| `sharedStorage.defaultAccessModes` | Default access modes for shared volumes | `["ReadWriteMany"]` |
-| `sharedStorage.volumes` | Array of shared volume definitions | `[]` |
-| `sharedStorage.volumes[].name` | Shared volume name | Required |
-| `sharedStorage.volumes[].size` | Shared volume size | Required |
-| `sharedStorage.volumes[].accessModes` | Shared volume access modes | Uses default |
-| `sharedStorage.volumes[].storageClass` | Shared volume storage class | Uses global |
-| `sharedStorage.volumes[].annotations` | Shared volume annotations | `{}` |
-| `sharedStorage.volumes[].selector` | Shared volume selector | `{}` |
-
-### Telemetry Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `telemetry.enabled` | Enable telemetry and observability collection | `false` |
-| `telemetry.replicaCount` | Number of telemetry collector replicas | `1` |
-| `telemetry.image.repository` | Telemetry collector image repository | `otel/opentelemetry-collector-contrib` |
-| `telemetry.image.tag` | Telemetry collector image tag | `0.91.0` |
-| `telemetry.image.pullPolicy` | Telemetry collector image pull policy | `IfNotPresent` |
-| `telemetry.resources` | Telemetry collector resource limits and requests | See values.yaml |
-| `telemetry.nodeSelector` | Telemetry collector node selector | `{}` |
-| `telemetry.tolerations` | Telemetry collector tolerations | `[]` |
-| `telemetry.affinity` | Telemetry collector affinity | `{}` |
-| `telemetry.service.type` | Telemetry collector service type | `ClusterIP` |
-| `telemetry.jaeger.enabled` | Enable Jaeger tracing backend | `false` |
-| `telemetry.jaeger.endpoint` | Jaeger collector endpoint | `"http://jaeger-collector:14250"` |
-| `telemetry.jaeger.tls.enabled` | Enable TLS for Jaeger connection | `false` |
-| `telemetry.prometheus.enabled` | Enable Prometheus metrics backend | `false` |
-| `telemetry.prometheus.endpoint` | Prometheus remote write endpoint | `"http://prometheus-server/api/v1/write"` |
-| `telemetry.prometheus.auth` | Prometheus authentication header | `""` |
-| `telemetry.otlp.enabled` | Enable generic OTLP backend | `false` |
-| `telemetry.otlp.endpoint` | OTLP collector endpoint | `"http://otlp-collector:4317"` |
-| `telemetry.otlp.tls.enabled` | Enable TLS for OTLP connection | `false` |
-
-### Service Account Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `serviceAccount.create` | Create a service account | `true` |
-| `serviceAccount.annotations` | Service account annotations | `{}` |
-| `serviceAccount.name` | Service account name (auto-generated if empty) | `""` |
-
-### Common Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `nameOverride` | Override the name of the chart | `""` |
-| `fullnameOverride` | Override the fullname of the chart | `""` |
-| `extraVolumes` | Additional volumes for all pods | `[]` |
-| `extraVolumeMounts` | Additional volume mounts for all containers | `[]` |
-| `extraEnvVars` | Additional environment variables for all containers | `[]` |
-| `podAnnotations` | Additional annotations for all pods | `{}` |
-| `podLabels` | Additional labels for all pods | `{}` |
-| `affinity` | Affinity settings for all pods | `{}` |
-| `tolerations` | Tolerations for all pods | `[]` |
-
-## Enterprise Features
-
-### Autoscaling
-
-Enable automatic horizontal scaling based on CPU and memory usage:
+## Autoscaling
 
 ```yaml
 autoscaling:
@@ -428,391 +337,97 @@ autoscaling:
   targetMemoryUtilizationPercentage: 80
 ```
 
-### Shared Storage
+When `autoscaling.enabled=true`, the chart omits `spec.replicas` from the Deployment so the HPA owns replica count. Requires `metrics-server` in the cluster.
 
-Enable shared storage for multi-pod data sharing and enterprise workflows:
+---
 
-```yaml
-sharedStorage:
-  enabled: true
-  storageClass: "managed-csi-premium"
-  volumes:
-    - name: output-share
-      size: 100Gi
-      accessModes:
-        - ReadWriteMany
-    - name: model-share
-      size: 200Gi
-      accessModes:
-        - ReadWriteMany
-    - name: logs-share
-      size: 50Gi
-      accessModes:
-        - ReadWriteMany
-```
-
-This creates persistent volume claims that can be shared across multiple pods for:
-- Output data sharing between workflow steps
-- Model storage and caching
-- Centralized logging and audit trails
-- Temporary data exchange
-
-### Telemetry and Observability
-
-Enable comprehensive telemetry collection with OpenTelemetry:
-
-```yaml
-telemetry:
-  enabled: true
-  resources:
-    limits:
-      memory: "1Gi"
-      cpu: "500m"
-    requests:
-      memory: "512Mi"
-      cpu: "200m"
-  
-  # Enable Jaeger for distributed tracing
-  jaeger:
-    enabled: true
-    endpoint: "http://jaeger-collector:14250"
-  
-  # Enable Prometheus for metrics
-  prometheus:
-    enabled: true
-    endpoint: "http://prometheus-server/api/v1/write"
-    auth: "Bearer your-prometheus-token"
-  
-  # Enable generic OTLP for flexibility
-  otlp:
-    enabled: true
-    endpoint: "http://otlp-collector:4317"
-```
-
-This automatically configures:
-- OpenTelemetry Collector for metrics, traces, and logs
-- Automatic service discovery for Sim components
-- Environment variable injection for applications
-- Support for multiple observability backends
-
-### GPU Support
-
-Enable GPU device plugin support for AI workloads:
-
-```yaml
-ollama:
-  enabled: true
-  gpu:
-    enabled: true
-    count: 1
-  nodeSelector:
-    accelerator: nvidia
-  tolerations:
-    - key: "sku"
-      operator: "Equal"
-      value: "gpu"
-      effect: "NoSchedule"
-```
-
-This deploys:
-- NVIDIA Device Plugin DaemonSet
-- RuntimeClass for NVIDIA container runtime
-- Proper node scheduling and resource allocation
-
-### Monitoring Integration
-
-Enable Prometheus monitoring with ServiceMonitor:
+## Monitoring
 
 ```yaml
 monitoring:
   serviceMonitor:
     enabled: true
-    labels:
-      monitoring: "prometheus"
-    interval: 15s
+    interval: 30s
 ```
 
-### Network Security
+Requires the Prometheus Operator CRDs. Scrapes `/metrics` on the app and realtime services.
 
-Enable network policies for micro-segmentation:
-
-```yaml
-networkPolicy:
-  enabled: true
-```
-
-This creates network policies that:
-- Allow communication between Sim components
-- Restrict unnecessary network access
-- Permit DNS resolution and HTTPS egress
-- Support custom ingress/egress rules
-
-### CronJobs for Scheduled Tasks
-
-Enable automated scheduled tasks functionality:
-
-```yaml
-cronjobs:
-  enabled: true
-  
-  # Customize individual jobs
-  jobs:
-    scheduleExecution:
-      enabled: true
-      schedule: "*/1 * * * *"  # Every minute
-    
-    gmailWebhookPoll:
-      enabled: true
-      schedule: "*/1 * * * *"  # Every minute
-    
-    outlookWebhookPoll:
-      enabled: true
-      schedule: "*/1 * * * *"  # Every minute
-    
-      
-  # Global job configuration
-  resources:
-    limits:
-      memory: "256Mi"
-      cpu: "200m"
-    requests:
-      memory: "128Mi"
-      cpu: "100m"
-```
-
-This creates Kubernetes CronJob resources that:
-- Execute HTTP requests to your application's API endpoints
-- Handle retries and error logging automatically
-- Use minimal resources with curl-based containers
-- Support individual enable/disable per job
-- Follow Kubernetes security best practices
-
-### High Availability
-
-Configure pod disruption budgets and anti-affinity:
-
-```yaml
-podDisruptionBudget:
-  enabled: true
-  minAvailable: 1
-
-affinity:
-  podAntiAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchExpressions:
-              - key: app.kubernetes.io/name
-                operator: In
-                values: ["simstudio"]
-          topologyKey: kubernetes.io/hostname
-```
-
-## Upgrading
-
-To upgrade your release:
-
-```bash
-helm upgrade sim ./helm/sim
-```
-
-## Uninstalling
-
-To uninstall/delete the release:
-
-```bash
-helm uninstall sim
-```
-
-## External Secret Management
-
-The chart supports integration with external secret management systems for production-grade secret handling. This enables you to store secrets in secure vaults and have them automatically synced to Kubernetes.
-
-### Option 1: External Secrets Operator (Recommended)
-
-[External Secrets Operator](https://external-secrets.io/) is the industry-standard solution for syncing secrets from external stores like Azure Key Vault, AWS Secrets Manager, HashiCorp Vault, and GCP Secret Manager.
-
-**Prerequisites:**
-```bash
-# Install External Secrets Operator
-helm repo add external-secrets https://charts.external-secrets.io
-helm install external-secrets external-secrets/external-secrets \
-  -n external-secrets --create-namespace
-```
-
-**Configuration:**
-```yaml
-externalSecrets:
-  enabled: true
-  refreshInterval: "1h"
-  secretStoreRef:
-    name: "my-secret-store"
-    kind: "ClusterSecretStore"
-  remoteRefs:
-    app:
-      BETTER_AUTH_SECRET: "sim/app/better-auth-secret"
-      ENCRYPTION_KEY: "sim/app/encryption-key"
-      INTERNAL_API_SECRET: "sim/app/internal-api-secret"
-    postgresql:
-      password: "sim/postgresql/password"
-```
-
-See `examples/values-external-secrets.yaml` for complete examples including SecretStore configurations for Azure, AWS, GCP, and Vault.
-
-### Option 2: Pre-Existing Kubernetes Secrets
-
-Reference secrets you've created manually, via GitOps (Sealed Secrets, SOPS), or through other automation.
-
-**Configuration:**
-```yaml
-app:
-  secrets:
-    existingSecret:
-      enabled: true
-      name: "my-app-secrets"
-
-postgresql:
-  auth:
-    existingSecret:
-      enabled: true
-      name: "my-postgresql-secret"
-      passwordKey: "POSTGRES_PASSWORD"
-
-externalDatabase:
-  existingSecret:
-    enabled: true
-    name: "my-external-db-secret"
-    passwordKey: "password"
-```
-
-**Create secrets manually:**
-```bash
-# Generate secure values
-BETTER_AUTH_SECRET=$(openssl rand -hex 32)
-ENCRYPTION_KEY=$(openssl rand -hex 32)
-INTERNAL_API_SECRET=$(openssl rand -hex 32)
-POSTGRES_PASSWORD=$(openssl rand -base64 16 | tr -d '/+=')
-
-# Create app secrets
-kubectl create secret generic my-app-secrets \
-  --namespace sim \
-  --from-literal=BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
-  --from-literal=ENCRYPTION_KEY="$ENCRYPTION_KEY" \
-  --from-literal=INTERNAL_API_SECRET="$INTERNAL_API_SECRET"
-
-# Create PostgreSQL secret
-kubectl create secret generic my-postgresql-secret \
-  --namespace sim \
-  --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
-```
-
-See `examples/values-existing-secret.yaml` for more details.
-
-### Redis
-
-Redis is optional. When configured via `REDIS_URL`, it enables features like copilot chat stream coordination and caching. Without Redis, the application uses in-memory fallbacks.
-
-### External Secrets Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `app.secrets.existingSecret.enabled` | Use existing secret for app credentials | `false` |
-| `app.secrets.existingSecret.name` | Name of existing secret | `""` |
-| `app.secrets.existingSecret.keys` | Key name mappings | See values.yaml |
-| `postgresql.auth.existingSecret.enabled` | Use existing secret for PostgreSQL | `false` |
-| `postgresql.auth.existingSecret.name` | Name of existing secret | `""` |
-| `postgresql.auth.existingSecret.passwordKey` | Key containing password | `"POSTGRES_PASSWORD"` |
-| `externalDatabase.existingSecret.enabled` | Use existing secret for external DB | `false` |
-| `externalDatabase.existingSecret.name` | Name of existing secret | `""` |
-| `externalDatabase.existingSecret.passwordKey` | Key containing password | `"EXTERNAL_DB_PASSWORD"` |
-| `externalSecrets.enabled` | Enable External Secrets Operator integration | `false` |
-| `externalSecrets.refreshInterval` | How often to sync secrets | `"1h"` |
-| `externalSecrets.secretStoreRef.name` | Name of SecretStore/ClusterSecretStore | `""` |
-| `externalSecrets.secretStoreRef.kind` | Kind of store | `"ClusterSecretStore"` |
-| `externalSecrets.remoteRefs.app.*` | Remote paths for app secrets | See values.yaml |
-| `externalSecrets.remoteRefs.postgresql.password` | Remote path for PostgreSQL password | `""` |
-| `externalSecrets.remoteRefs.externalDatabase.password` | Remote path for external DB password | `""` |
-
-## Security Considerations
-
-### Production Secrets
-
-For production deployments, make sure to:
-
-1. **Change default secrets**: Update `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, and `INTERNAL_API_SECRET` with secure, randomly generated values using `openssl rand -hex 32`
-2. **Use strong database passwords**: Set `postgresql.auth.password` to a strong password
-3. **Enable TLS**: Configure `postgresql.tls.enabled=true` and provide proper certificates
-4. **Configure ingress TLS**: Enable HTTPS with proper SSL certificates
-
-**Required Secrets:**
-- `BETTER_AUTH_SECRET`: Authentication JWT signing (minimum 32 characters)
-- `ENCRYPTION_KEY`: Encrypts sensitive data like environment variables (minimum 32 characters)
-- `INTERNAL_API_SECRET`: Internal service-to-service authentication (minimum 32 characters)
-
-**Optional Security (Recommended for Production):**
-- `CRON_SECRET`: Authenticates scheduled job requests to API endpoints (required only if `cronjobs.enabled=true`)
-- `API_ENCRYPTION_KEY`: Encrypts API keys at rest in database (must be exactly 64 hex characters). If not set, API keys are stored in plain text. Generate using: `openssl rand -hex 32` (outputs 64 hex chars representing 32 bytes)
-
-### Example secure values:
-
-```yaml
-app:
-  env:
-    BETTER_AUTH_SECRET: "your-secure-random-string-here"
-    ENCRYPTION_KEY: "your-secure-encryption-key-here"
-    INTERNAL_API_SECRET: "your-secure-internal-api-secret-here"
-    CRON_SECRET: "your-secure-cron-secret-here"
-    API_ENCRYPTION_KEY: "your-64-char-hex-string-for-api-key-encryption"  # Optional but recommended
-
-postgresql:
-  auth:
-    password: "your-secure-database-password"
-  tls:
-    enabled: true
-    certificatesSecret: "postgres-tls-secret"
-
-ingress:
-  enabled: true
-  tls:
-    enabled: true
-    secretName: "simstudio-tls-secret"
-```
+---
 
 ## Troubleshooting
 
-### Common Issues
+### `Error: execution error at (sim/templates/...): app.env.BETTER_AUTH_SECRET is required for production deployment`
 
-1. **Database Connection Issues**
-   - Check if PostgreSQL pod is running: `kubectl get pods -l app.kubernetes.io/component=postgresql`
-   - Verify database credentials in the secret: `kubectl get secret <release>-postgresql-secret -o yaml`
-
-2. **Migration Issues**
-   - Check migration job logs: `kubectl logs job/<release>-migrations`
-   - Ensure database is accessible from the migration job
-
-3. **Image Pull Issues**
-   - Verify image names and tags in values.yaml
-   - Check if image pull secrets are configured correctly
-
-### Getting Logs
+You ran `helm install` without setting required secrets. Generate them and pass with `--set`:
 
 ```bash
-# App logs
-kubectl logs deployment/<release>-app
-
-# Realtime logs
-kubectl logs deployment/<release>-realtime
-
-# PostgreSQL logs
-kubectl logs statefulset/<release>-postgresql
-
-# Migration logs
-kubectl logs job/<release>-migrations
+helm install sim ./helm/sim \
+  --set app.env.BETTER_AUTH_SECRET=$(openssl rand -hex 32) \
+  --set app.env.ENCRYPTION_KEY=$(openssl rand -hex 32) \
+  --set app.env.INTERNAL_API_SECRET=$(openssl rand -hex 32) \
+  --set postgresql.auth.password=$(openssl rand -base64 24 | tr -d '/+=')
 ```
+
+### App pods stuck in `CrashLoopBackOff`
+
+```bash
+kubectl logs --namespace sim deploy/sim-app --tail 200
+```
+
+Common causes:
+
+* `NEXT_PUBLIC_APP_URL` still set to `http://localhost:3000` in a clustered deploy → set it to your public origin.
+* `DATABASE_URL` not reachable → check the Postgres pod is running and `postgresql.auth.password` matches.
+* Missing migration → check `kubectl logs job/sim-migrations`.
+
+### Image pull errors (`ErrImagePull` / `ImagePullBackOff`)
+
+* You pushed Sim to a private registry but haven't configured pull secrets. Set `global.imagePullSecrets` and `global.imageRegistry`.
+* You overrode `image.tag` to a tag that doesn't exist in the registry. `helm get values sim` and verify.
+
+### Postgres pod `Pending`
+
+```bash
+kubectl describe pvc --namespace sim
+```
+
+Almost always one of:
+
+* No default `StorageClass` → set `global.storageClass`.
+* No PV provisioner → install one (e.g. EBS CSI on EKS, `local-path-provisioner` for dev).
+* StorageClass exists but doesn't support `ReadWriteOnce` → pick another class.
+
+### Ingress not routing
+
+```bash
+kubectl get ingress --namespace sim
+kubectl describe ingress --namespace sim
+```
+
+* Ingress controller not installed → install `ingress-nginx` or similar.
+* `ingress.className` doesn't match your controller → set it to your installed class.
+* DNS not pointed at the ingress's external IP / LoadBalancer.
+
+### Get logs from each component
+
+```bash
+kubectl --namespace sim logs -f deployment/sim-app
+kubectl --namespace sim logs -f deployment/sim-realtime
+kubectl --namespace sim logs -f statefulset/sim-postgresql
+kubectl --namespace sim logs job/sim-migrations
+```
+
+---
 
 ## Support
 
-- Documentation: https://docs.sim.ai
-- GitHub Issues: https://github.com/simstudioai/sim/issues
-- Discord: https://discord.gg/Hr4UWYEcTT
+* **Docs:** https://docs.sim.ai
+* **GitHub:** https://github.com/simstudioai/sim
+* **Issues:** https://github.com/simstudioai/sim/issues
+* **Discord:** https://discord.gg/Hr4UWYEcTT
+
+---
+
+## License
+
+Apache-2.0 © Sim. See [LICENSE](../../LICENSE).

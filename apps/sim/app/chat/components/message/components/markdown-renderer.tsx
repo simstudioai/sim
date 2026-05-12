@@ -115,7 +115,7 @@ const COMPONENTS = {
   ),
 
   blockquote: ({ children }: React.HTMLAttributes<HTMLQuoteElement>) => (
-    <blockquote className='my-4 border-gray-300 border-l-4 py-1 pl-4 font-sans text-gray-700 italic dark:border-gray-600 dark:text-gray-300'>
+    <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 font-sans text-[var(--text-primary)] italic [&>p]:my-2 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0'>
       {children}
     </blockquote>
   ),

@@ -20,8 +20,11 @@ app:
   # Image configuration
   image:
     repository: simstudioai/simstudio
-    tag: latest
-    pullPolicy: Always
+    # tag defaults to Chart.AppVersion. Override with a release tag (e.g. "0.6.73") or pin via image.digest.
+    tag: ""
+    # Optional image digest pin: "sha256:..." — when set, overrides tag.
+    digest: ""
+    pullPolicy: IfNotPresent
 
   # Number of replicas
   replicaCount: 1
@@ -37,6 +40,10 @@ app:
 
   # Node selector for pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
+
+  # Topology spread constraints for app pods (HA across zones / nodes).
+  # Each entry must include its own labelSelector.
+  topologySpreadConstraints: []
 
   # Pod security context
   podSecurityContext:
@@ -68,11 +75,12 @@ app:
 
   # Environment variables
   env:
-    # Application URLs — set NEXT_PUBLIC_APP_URL to your public origin (e.g. https://sim.example.com).
-    # Leaving these at localhost in a production deployment will break sign-up/sign-in for browsers,
-    # because the auth client and Better Auth `trustedOrigins` use these values.
-    NEXT_PUBLIC_APP_URL: "http://localhost:3000"
-    BETTER_AUTH_URL: "http://localhost:3000"
+    # Application URLs — set NEXT_PUBLIC_APP_URL / BETTER_AUTH_URL to your public origin
+    # (e.g. https://sim.example.com). Defaults to http://localhost:3000 via app.envDefaults
+    # for local installs; override here (or via --set) for production. Set values here go
+    # into the chart-managed Secret and take precedence over envDefaults at runtime.
+    NEXT_PUBLIC_APP_URL: ""
+    BETTER_AUTH_URL: ""
     INTERNAL_API_BASE_URL: ""  # Optional server-side internal base URL for /api self-calls (include http:// or https://); falls back to NEXT_PUBLIC_APP_URL when empty
     # TRUSTED_ORIGINS: comma-separated extra public origins to trust for auth (e.g. apex+www, alias hostnames).
     # Merged into Better Auth `trustedOrigins` alongside NEXT_PUBLIC_APP_URL. Leave empty when serving from a single origin.
@@ -82,10 +90,6 @@ app:
     # page's own origin (assumes the ingress/reverse proxy routes /socket.io to the realtime service).
     # Set explicitly only when realtime is on a separate host:port from the app (e.g. wss://socket.example.com).
     NEXT_PUBLIC_SOCKET_URL: ""
-    
-    # Node environment
-    NODE_ENV: "production"
-    NEXT_TELEMETRY_DISABLED: "1"
 
     # Telemetry & Monitoring
     TELEMETRY_ENDPOINT: ""                                # OTLP endpoint for traces/logs (e.g., "https://otlp-collector:4318/v1/traces")
@@ -101,12 +105,12 @@ app:
     CRON_SECRET: ""         # OPTIONAL - required only if cronjobs.enabled=true, authenticates scheduled job requests
 
     # Optional: API Key Encryption (RECOMMENDED for production)
-    # Generate 64-character hex string using: openssl rand -hex 32 (outputs 64 hex chars = 32 bytes)
-    API_ENCRYPTION_KEY: ""  # OPTIONAL - encrypts API keys at rest, must be exactly 64 hex characters, if not set keys stored in plain text
+    # Generate with: openssl rand -hex 32 (produces the required 64-hex-char / 32-byte value).
+    API_ENCRYPTION_KEY: ""  # OPTIONAL - encrypts API keys at rest; if unset, keys are stored in plain text
     REDIS_URL: ""           # OPTIONAL - Redis connection string for caching/sessions; can also come from app secret or External Secrets
     
     # Email & Communication
-    EMAIL_VERIFICATION_ENABLED: "false"                   # Enable email verification for user registration and login (defaults to false)
+    EMAIL_VERIFICATION_ENABLED: ""                        # Set to "true" to enable email verification for user registration and login (default "false" via envDefaults)
     RESEND_API_KEY: ""                                    # Resend API key for transactional emails
     FROM_EMAIL_ADDRESS: ""                                # Complete from address (e.g., "Sim <noreply@domain.com>" or "DoNotReply@domain.com")
     EMAIL_DOMAIN: ""                                      # Domain for sending emails (fallback when FROM_EMAIL_ADDRESS not set)
@@ -121,7 +125,7 @@ app:
 
     # Google Vertex AI Configuration
     VERTEX_PROJECT: ""                                    # Google Cloud project ID for Vertex AI
-    VERTEX_LOCATION: "us-central1"                        # Google Cloud region for Vertex AI (e.g., "us-central1")
+    VERTEX_LOCATION: ""                                   # Google Cloud region for Vertex AI (default "us-central1" via envDefaults)
 
     # Azure OpenAI Configuration (leave empty if not using Azure OpenAI)
     AZURE_OPENAI_ENDPOINT: ""                             # Azure OpenAI service endpoint (e.g., https://your-resource.openai.azure.com)
@@ -145,58 +149,9 @@ app:
     ANTHROPIC_API_KEY_3: ""                               # Additional Anthropic API key for load balancing
     OLLAMA_URL: ""                                        # Ollama local LLM server URL
     ELEVENLABS_API_KEY: ""                                # ElevenLabs API key for text-to-speech in deployed chat
-    
-    # Admission Gate Configuration
-    ADMISSION_GATE_MAX_INFLIGHT: "500"                    # Max concurrent in-flight execution requests per pod
-
-    # Rate Limiting Configuration (per minute)
-    RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
-    RATE_LIMIT_FREE_SYNC: "50"                            # Sync API executions per minute
-    RATE_LIMIT_FREE_ASYNC: "200"                          # Async API executions per minute
-
-    # Execution Timeout Configuration (in seconds)
-    # Sync timeouts apply to synchronous API calls
-    EXECUTION_TIMEOUT_FREE: "300"                         # Free tier sync timeout (5 minutes)
-    EXECUTION_TIMEOUT_PRO: "3000"                         # Pro tier sync timeout (50 minutes)
-    EXECUTION_TIMEOUT_TEAM: "3000"                        # Team tier sync timeout (50 minutes)
-    EXECUTION_TIMEOUT_ENTERPRISE: "3000"                  # Enterprise tier sync timeout (50 minutes)
-    # Async timeouts apply to async/background job executions
-    EXECUTION_TIMEOUT_ASYNC_FREE: "5400"                  # Free tier async timeout (90 minutes)
-    EXECUTION_TIMEOUT_ASYNC_PRO: "5400"                   # Pro tier async timeout (90 minutes)
-    EXECUTION_TIMEOUT_ASYNC_TEAM: "5400"                  # Team tier async timeout (90 minutes)
-    EXECUTION_TIMEOUT_ASYNC_ENTERPRISE: "5400"            # Enterprise tier async timeout (90 minutes)
-
-    # Table Feature Limits (per workspace, per plan)
-    # Apply when billing is disabled (free tier defaults) or for billed plans
-    FREE_TABLES_LIMIT: "3"                                # Max user tables per workspace on free tier
-    FREE_TABLE_ROWS_LIMIT: "1000"                         # Max rows per table on free tier
-    PRO_TABLES_LIMIT: "25"                                # Max user tables per workspace on pro tier
-    PRO_TABLE_ROWS_LIMIT: "5000"                          # Max rows per table on pro tier
-    TEAM_TABLES_LIMIT: "100"                              # Max user tables per workspace on team tier
-    TEAM_TABLE_ROWS_LIMIT: "10000"                        # Max rows per table on team tier
-    ENTERPRISE_TABLES_LIMIT: "10000"                      # Max user tables per workspace on enterprise tier
-    ENTERPRISE_TABLE_ROWS_LIMIT: "1000000"                # Max rows per table on enterprise tier
-
-    # Isolated-VM Worker Pool Configuration
-    IVM_POOL_SIZE: "4"                                    # Max worker processes in pool
-    IVM_MAX_CONCURRENT: "10000"                           # Max concurrent executions globally
-    IVM_MAX_PER_WORKER: "2500"                            # Max concurrent executions per worker
-    IVM_WORKER_IDLE_TIMEOUT_MS: "60000"                   # Worker idle cleanup timeout (ms)
-    IVM_QUEUE_TIMEOUT_MS: "300000"                        # Max queue wait before rejection (ms)
-    IVM_MAX_QUEUE_SIZE: "10000"                           # Max queued executions globally
-    IVM_MAX_ACTIVE_PER_OWNER: "200"                       # Max concurrent executions per user
-    IVM_MAX_QUEUED_PER_OWNER: "2000"                      # Max queued executions per user
-    IVM_MAX_OWNER_WEIGHT: "5"                             # Max scheduling weight per user
-    IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: "2200"        # Max in-flight per user across instances (Redis)
-    IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: "120000"            # Min distributed lease TTL (ms)
-    IVM_MAX_FETCH_RESPONSE_BYTES: "8388608"               # Max fetch response size (8MB)
-    IVM_MAX_FETCH_RESPONSE_CHARS: "4000000"               # Max fetch response chars
-    IVM_MAX_FETCH_URL_LENGTH: "8192"                      # Max fetch URL length
-    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: "262144"            # Max fetch options payload (256KB)
-    IVM_MAX_STDOUT_CHARS: "200000"                        # Max stdout capture per execution
 
     # UI Branding & Whitelabeling Configuration
-    NEXT_PUBLIC_BRAND_NAME: "Sim"                         # Custom brand name
+    NEXT_PUBLIC_BRAND_NAME: ""                            # Custom brand name (default "Sim" via envDefaults)
     NEXT_PUBLIC_BRAND_LOGO_URL: ""                        # Custom logo URL — square icon, shown in collapsed sidebar
     NEXT_PUBLIC_BRAND_WORDMARK_URL: ""                    # Custom wordmark URL — wide image, shown in expanded sidebar
     NEXT_PUBLIC_BRAND_FAVICON_URL: ""                     # Custom favicon URL (leave empty for default)
@@ -204,7 +159,7 @@ app:
     NEXT_PUBLIC_BRAND_ACCENT_COLOR: ""                    # Accent color (hex, e.g., "#9333ea")
     NEXT_PUBLIC_BRAND_BACKGROUND_COLOR: ""                # Background color (hex, e.g., "#ffffff")
     NEXT_PUBLIC_CUSTOM_CSS_URL: ""                        # Custom stylesheet URL (leave empty for none)
-    NEXT_PUBLIC_SUPPORT_EMAIL: "help@sim.ai"             # Support email address
+    NEXT_PUBLIC_SUPPORT_EMAIL: ""                        # Support email address (default "help@sim.ai" via envDefaults)
     NEXT_PUBLIC_DOCUMENTATION_URL: ""                    # Documentation URL (leave empty for none)
     NEXT_PUBLIC_TERMS_URL: ""                            # Terms of service URL (leave empty for none)
     NEXT_PUBLIC_PRIVACY_URL: ""                          # Privacy policy URL (leave empty for none)
@@ -226,11 +181,11 @@ app:
     # Admin API Configuration
     ADMIN_API_KEY: ""                                    # Admin API key for organization/user management (generate with: openssl rand -hex 32)
 
-    # Organizations & Permission Groups
-    ACCESS_CONTROL_ENABLED: "false"                      # Enable permission groups feature ("true" to enable)
-    ORGANIZATIONS_ENABLED: "false"                       # Enable organizations feature ("true" to enable)
-    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: "false"          # Show permission groups UI ("true" to enable)
-    NEXT_PUBLIC_ORGANIZATIONS_ENABLED: "false"           # Show organizations UI ("true" to enable)
+    # Organizations & Permission Groups (defaults to "false" via envDefaults — set "true" here to enable)
+    ACCESS_CONTROL_ENABLED: ""                           # Enable permission groups feature ("true" to enable)
+    ORGANIZATIONS_ENABLED: ""                            # Enable organizations feature ("true" to enable)
+    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: ""               # Show permission groups UI ("true" to enable)
+    NEXT_PUBLIC_ORGANIZATIONS_ENABLED: ""                # Show organizations UI ("true" to enable)
 
     # LLM Provider/Model Restrictions (leave empty if not restricting)
     BLACKLISTED_PROVIDERS: ""                            # Comma-separated provider IDs to hide from UI (e.g., "openai,anthropic,google")
@@ -312,6 +267,82 @@ app:
     AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: ""            # Azure container for OpenGraph preview images
     AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME: ""      # Azure container for workspace logos
 
+  # Operational tunables shipped with the chart. These are rendered as inline `env:` on the
+  # app container — NOT written into the chart-managed Secret and NOT required to be mapped
+  # when externalSecrets.enabled=true. Override any key by setting `app.envDefaults.KEY` in
+  # your values file. Move a key into `app.env` above only if it must be treated as secret.
+  envDefaults:
+    # Application URLs (override in app.env or app.envDefaults for production)
+    NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+    BETTER_AUTH_URL: "http://localhost:3000"
+
+    # Node environment
+    NODE_ENV: "production"
+    NEXT_TELEMETRY_DISABLED: "1"
+
+    # Email defaults
+    EMAIL_VERIFICATION_ENABLED: "false"
+
+    # Vertex AI defaults
+    VERTEX_LOCATION: "us-central1"
+
+    # Branding defaults
+    NEXT_PUBLIC_BRAND_NAME: "Sim"
+    NEXT_PUBLIC_SUPPORT_EMAIL: "help@sim.ai"
+
+    # Feature flags (default off — set "true" in app.env or app.envDefaults to enable)
+    ACCESS_CONTROL_ENABLED: "false"
+    ORGANIZATIONS_ENABLED: "false"
+    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: "false"
+    NEXT_PUBLIC_ORGANIZATIONS_ENABLED: "false"
+
+    # Admission Gate
+    ADMISSION_GATE_MAX_INFLIGHT: "500"                    # Max concurrent in-flight execution requests per pod
+
+    # Rate Limiting (per minute)
+    RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
+    RATE_LIMIT_FREE_SYNC: "50"                            # Sync API executions per minute
+    RATE_LIMIT_FREE_ASYNC: "200"                          # Async API executions per minute
+
+    # Execution Timeouts (seconds) — sync timeouts apply to synchronous API calls
+    EXECUTION_TIMEOUT_FREE: "300"                         # Free tier sync timeout (5 minutes)
+    EXECUTION_TIMEOUT_PRO: "3000"                         # Pro tier sync timeout (50 minutes)
+    EXECUTION_TIMEOUT_TEAM: "3000"                        # Team tier sync timeout (50 minutes)
+    EXECUTION_TIMEOUT_ENTERPRISE: "3000"                  # Enterprise tier sync timeout (50 minutes)
+    # Async timeouts apply to async/background job executions
+    EXECUTION_TIMEOUT_ASYNC_FREE: "5400"                  # Free tier async timeout (90 minutes)
+    EXECUTION_TIMEOUT_ASYNC_PRO: "5400"                   # Pro tier async timeout (90 minutes)
+    EXECUTION_TIMEOUT_ASYNC_TEAM: "5400"                  # Team tier async timeout (90 minutes)
+    EXECUTION_TIMEOUT_ASYNC_ENTERPRISE: "5400"            # Enterprise tier async timeout (90 minutes)
+
+    # Table Feature Limits (per workspace, per plan)
+    FREE_TABLES_LIMIT: "3"                                # Max user tables per workspace on free tier
+    FREE_TABLE_ROWS_LIMIT: "1000"                         # Max rows per table on free tier
+    PRO_TABLES_LIMIT: "25"                                # Max user tables per workspace on pro tier
+    PRO_TABLE_ROWS_LIMIT: "5000"                          # Max rows per table on pro tier
+    TEAM_TABLES_LIMIT: "100"                              # Max user tables per workspace on team tier
+    TEAM_TABLE_ROWS_LIMIT: "10000"                        # Max rows per table on team tier
+    ENTERPRISE_TABLES_LIMIT: "10000"                      # Max user tables per workspace on enterprise tier
+    ENTERPRISE_TABLE_ROWS_LIMIT: "1000000"                # Max rows per table on enterprise tier
+
+    # Isolated-VM Worker Pool
+    IVM_POOL_SIZE: "4"                                    # Max worker processes in pool
+    IVM_MAX_CONCURRENT: "10000"                           # Max concurrent executions globally
+    IVM_MAX_PER_WORKER: "2500"                            # Max concurrent executions per worker
+    IVM_WORKER_IDLE_TIMEOUT_MS: "60000"                   # Worker idle cleanup timeout (ms)
+    IVM_QUEUE_TIMEOUT_MS: "300000"                        # Max queue wait before rejection (ms)
+    IVM_MAX_QUEUE_SIZE: "10000"                           # Max queued executions globally
+    IVM_MAX_ACTIVE_PER_OWNER: "200"                       # Max concurrent executions per user
+    IVM_MAX_QUEUED_PER_OWNER: "2000"                      # Max queued executions per user
+    IVM_MAX_OWNER_WEIGHT: "5"                             # Max scheduling weight per user
+    IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: "2200"        # Max in-flight per user across instances (Redis)
+    IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: "120000"            # Min distributed lease TTL (ms)
+    IVM_MAX_FETCH_RESPONSE_BYTES: "8388608"               # Max fetch response size (8MB)
+    IVM_MAX_FETCH_RESPONSE_CHARS: "4000000"               # Max fetch response chars
+    IVM_MAX_FETCH_URL_LENGTH: "8192"                      # Max fetch URL length
+    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: "262144"            # Max fetch options payload (256KB)
+    IVM_MAX_STDOUT_CHARS: "200000"                        # Max stdout capture per execution
+
   # Service configuration
   service:
     type: ClusterIP
@@ -319,22 +350,36 @@ app:
     targetPort: 3000
   
   # Health checks
+  # startupProbe shields a slow Next.js cold start (large bundle, 4Gi memory limits) from
+  # liveness restarts. Once it succeeds, liveness + readiness take over. Total cold-start
+  # budget: failureThreshold * periodSeconds = 60 * 5s = 300s (5 minutes).
+  startupProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 60
+
+  # Liveness: lenient — only restart on true deadlock. failureThreshold * periodSeconds = 180s.
   livenessProbe:
     httpGet:
       path: /
       port: 3000
-    initialDelaySeconds: 10
-    periodSeconds: 90
+    initialDelaySeconds: 30
+    periodSeconds: 30
     timeoutSeconds: 5
-    failureThreshold: 3
-  
+    failureThreshold: 6
+
+  # Readiness: fast — shift traffic in/out within ~30s of state change.
   readinessProbe:
     httpGet:
       path: /
       port: 3000
-    initialDelaySeconds: 10
-    periodSeconds: 90
-    timeoutSeconds: 5
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
     failureThreshold: 3
 
   # Additional volumes for app deployment (e.g., branding assets, custom configs)
@@ -349,8 +394,10 @@ realtime:
   # Image configuration
   image:
     repository: simstudioai/realtime
-    tag: latest
-    pullPolicy: Always
+    # tag defaults to Chart.AppVersion. Override with a release tag or pin via image.digest.
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
 
   # Number of replicas
   replicaCount: 1
@@ -366,21 +413,26 @@ realtime:
   
   # Node selector for pod scheduling (leave empty to allow scheduling on any node)
   nodeSelector: {}
-  
+
+  # Topology spread constraints for realtime pods (HA across zones / nodes).
+  # Each entry must include its own labelSelector.
+  topologySpreadConstraints: []
+
   # Pod security context
   podSecurityContext:
     fsGroup: 1001
-  
+
   # Container security context
   securityContext:
     runAsNonRoot: true
     runAsUser: 1001
   
-  # Environment variables
+  # Environment variables — Secret-bound. See `envDefaults` below for chart-shipped defaults.
   env:
     # Application URLs — must mirror the public origin used by the main app.
-    NEXT_PUBLIC_APP_URL: "http://localhost:3000"
-    BETTER_AUTH_URL: "http://localhost:3000"
+    # Defaults to http://localhost:3000 via envDefaults; override here for production.
+    NEXT_PUBLIC_APP_URL: ""
+    BETTER_AUTH_URL: ""
 
     # Authentication secret (REQUIRED for production)
     # Must match the BETTER_AUTH_SECRET value from the main app configuration
@@ -389,9 +441,16 @@ realtime:
     # Cross-Origin Resource Sharing (CORS) allowed origins for the realtime service.
     # Set to the same public origin(s) as the main app (comma-separated). The realtime
     # service rejects WebSocket upgrades from origins not in this list.
+    # Defaults to http://localhost:3000 via envDefaults; override here for production.
+    ALLOWED_ORIGINS: ""
+
+  # Operational defaults shipped with the chart. Rendered as inline `env:` on the realtime
+  # container (NOT written into the Secret, NOT required in externalSecrets.remoteRefs).
+  # User-set values in `realtime.env` above take precedence.
+  envDefaults:
+    NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+    BETTER_AUTH_URL: "http://localhost:3000"
     ALLOWED_ORIGINS: "http://localhost:3000"
-    
-    # Node environment
     NODE_ENV: "production"
   
   # Service configuration
@@ -401,22 +460,34 @@ realtime:
     targetPort: 3002
   
   # Health checks
+  # Startup probe absorbs cold-start time. Total budget: 30 * 5s = 150s.
+  startupProbe:
+    httpGet:
+      path: /health
+      port: 3002
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+
+  # Liveness: lenient. failureThreshold * periodSeconds = 180s.
   livenessProbe:
     httpGet:
       path: /health
       port: 3002
-    initialDelaySeconds: 10
-    periodSeconds: 90
+    initialDelaySeconds: 30
+    periodSeconds: 30
     timeoutSeconds: 5
-    failureThreshold: 3
-  
+    failureThreshold: 6
+
+  # Readiness: fast.
   readinessProbe:
     httpGet:
       path: /health
       port: 3002
-    initialDelaySeconds: 10
-    periodSeconds: 90
-    timeoutSeconds: 5
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
     failureThreshold: 3
 
   # Additional volumes for realtime deployment
@@ -431,8 +502,10 @@ migrations:
   # Image configuration
   image:
     repository: simstudioai/migrations
-    tag: latest
-    pullPolicy: Always
+    # tag defaults to Chart.AppVersion. Override with a release tag or pin via image.digest.
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
   
   # Resource limits and requests
   resources:
@@ -486,13 +559,21 @@ postgresql:
       cpu: "500m"
   
   # Pod security context
+  # PostgreSQL image's `postgres` user is uid/gid 999.
   podSecurityContext:
-    fsGroup: 999
-  
-  # Container security context
-  securityContext:
+    runAsNonRoot: true
     runAsUser: 999
-  
+    runAsGroup: 999
+    fsGroup: 999
+
+  # Container security context
+  # readOnlyRootFilesystem is intentionally false — Postgres writes to /var/lib/postgresql/data
+  # (mounted from PVC) and needs to manage its own data directory.
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    runAsGroup: 999
+
   # Persistence configuration
   persistence:
     enabled: true
@@ -500,7 +581,7 @@ postgresql:
     size: 10Gi
     accessModes:
       - ReadWriteOnce
-  
+
   # SSL/TLS configuration (enable for production deployments with certificates)
   # Requires cert-manager to be installed in the cluster
   tls:
@@ -583,8 +664,12 @@ ollama:
   # Image configuration
   image:
     repository: ollama/ollama
-    tag: latest
-    pullPolicy: Always
+    # Pinned to a stable release rather than "latest" to keep deployments reproducible.
+    # 0.23.2 is the latest stable Ollama as of May 2026
+    # (https://github.com/ollama/ollama/releases/tag/v0.23.2).
+    tag: "0.23.2"
+    digest: ""
+    pullPolicy: IfNotPresent
 
   # Number of replicas
   replicaCount: 1
@@ -620,12 +705,34 @@ ollama:
       memory: "4Gi"
       cpu: "1000m"
   
+  # Pod security context
+  # The upstream ollama/ollama image is built to run as root and writes models to
+  # /root/.ollama by default. To meet Pod Security Standards "restricted", we run
+  # as a non-root user (1001) and rely on fsGroup to make the mounted PVC writable.
+  # Override OLLAMA_MODELS env (or remount /root/.ollama) if your image expects root.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+
+  # Container security context
+  # readOnlyRootFilesystem is intentionally false — Ollama writes model blobs to its data dir.
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+
   # Environment variables
   env:
     NVIDIA_DRIVER_CAPABILITIES: "all"
     OLLAMA_LOAD_TIMEOUT: "-1"
     OLLAMA_KEEP_ALIVE: "-1"
     OLLAMA_DEBUG: "1"
+    # The default OLLAMA model dir is /root/.ollama, which a non-root user can't write.
+    # Point it at a path under the writable PVC mount instead.
+    HOME: "/tmp"
+    OLLAMA_MODELS: "/data/models"
   
   # Persistence configuration
   persistence:
@@ -683,6 +790,18 @@ ingress:
 
   annotations:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Production recommendations (uncomment & adjust to your environment):
+    #
+    # Automatic TLS via cert-manager. Issuer name varies per cluster
+    # (e.g. letsencrypt-prod, letsencrypt-staging, internal-ca).
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    #
+    # Allow larger uploads (knowledge base / file ingestion).
+    # nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    #
+    # Long timeouts for streaming SSE / LLM responses.
+    # nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    # nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
 
   # Main application (use / as catch-all)
   app:
@@ -749,7 +868,10 @@ serviceAccount:
   # The name of the service account to use
   name: ""
 
-# Horizontal Pod Autoscaler
+# Horizontal Pod Autoscaler for app and realtime deployments.
+# When enabled, the chart omits spec.replicas from the Deployment so the HPA
+# owns replica count. Requires metrics-server (or a custom metrics adapter
+# if you use customMetrics) installed in the cluster.
 autoscaling:
   enabled: false
   minReplicas: 1
@@ -779,22 +901,33 @@ autoscaling:
   behavior: {}
 
 # Pod disruption budget
-# Note: PDBs only protect against voluntary disruptions (node drains, autoscaler)
-# They do NOT affect rolling updates - use deployment.strategy.rollingUpdate for that
+# Note: PDBs only protect against voluntary disruptions (node drains, autoscaler).
+# They do NOT affect rolling updates — use deployment.strategy.rollingUpdate for that.
+#
+# Tri-state activation:
+#   enabled: true   → force PDB on (any replicaCount)
+#   enabled: false  → force PDB off (explicit opt-out, even at replicaCount > 1)
+#   enabled: null   → auto-enable when replicaCount > 1 (recommended default)
 podDisruptionBudget:
-  enabled: false
-  # Use either minAvailable or maxUnavailable (not both)
-  # Recommendation: Use maxUnavailable as it scales better with HPA
-  # - minAvailable: minimum pods that must remain available (e.g., 1, "50%")
+  enabled: null
+  # Use either minAvailable or maxUnavailable (not both).
+  # Percentages scale with HPA / replicaCount; absolute numbers do not.
+  # Default `maxUnavailable: "25%"` allows rolling updates while keeping
+  # 75% of pods serving — matches the K8s docs guidance for stateless HA
+  # frontends (https://kubernetes.io/docs/tasks/run-application/configure-pdb/).
+  # - minAvailable: minimum pods that must remain available (e.g., 1, "90%")
   # - maxUnavailable: maximum pods that can be unavailable (e.g., 1, "25%")
   minAvailable: null
-  maxUnavailable: 1
+  maxUnavailable: "25%"
   # unhealthyPodEvictionPolicy: allows eviction of unhealthy pods during node drains
   # Options: IfHealthyBudget (default) | AlwaysAllow (recommended for production)
   # Set to null to use K8s default (IfHealthyBudget)
   unhealthyPodEvictionPolicy: null
 
-# Monitoring configuration
+# Prometheus monitoring integration.
+# Creates a ServiceMonitor CR scraped by the Prometheus Operator. Requires
+# the kube-prometheus-stack (or prometheus-operator) CRDs to be installed
+# in the cluster — otherwise the manifest is rejected by the API server.
 monitoring:
   # ServiceMonitor for Prometheus
   serviceMonitor:
@@ -816,15 +949,40 @@ monitoring:
     # Relabeling configurations
     relabelings: []
 
-# Network policies
+# NetworkPolicy for east-west and egress isolation.
+# When enabled, the chart creates policies that allow Sim components to talk
+# to each other and to required external services (DNS, HTTPS) while blocking
+# everything else. The egress block additionally blacklists cloud metadata
+# endpoints (169.254.169.254/32, 169.254.170.2/32) by default — extend
+# egress.exceptCidrs with your cluster's API server CIDR for tighter isolation.
+# Your CNI must support NetworkPolicy (Calico, Cilium, GKE Dataplane V2, etc.).
 networkPolicy:
   enabled: false
-  
-  # Custom ingress rules
+
+  # NetworkPolicyPeers allowed to reach the app/realtime pods on the
+  # ingress-controller path. Defaults to `- {}` (any source), which matches the
+  # common case where the ingress controller is the only thing routing to these
+  # ports. To restrict ingress to a specific controller namespace, replace with:
+  #   ingressFrom:
+  #     - namespaceSelector:
+  #         matchLabels:
+  #           kubernetes.io/metadata.name: ingress-nginx
+  ingressFrom:
+    - {}
+
+  # Custom ingress rules appended to the policy
   ingress: []
-  
-  # Custom egress rules  
-  egress: []
+
+  # Egress configuration
+  egress:
+    # CIDRs excluded from broad HTTPS (443) egress.
+    # Defaults block AWS/GCP/Azure IMDS (169.254.169.254/32) and ECS task metadata
+    # (169.254.170.2/32). Add your cluster's API server CIDR for stronger isolation.
+    exceptCidrs:
+      - "169.254.169.254/32"
+      - "169.254.170.2/32"
+    # Custom egress rules appended to the policy
+    extraRules: []
 
 # Shared storage for enterprise workflows requiring data sharing between pods
 sharedStorage:
@@ -1118,9 +1276,11 @@ copilot:
     # Image configuration
     image:
       repository: simstudioai/copilot
-      tag: latest
-      pullPolicy: Always
-    
+      # tag defaults to Chart.AppVersion. Override with a release tag or pin via image.digest.
+      tag: ""
+      digest: ""
+      pullPolicy: IfNotPresent
+
     # Number of replicas
     replicaCount: 1
     
@@ -1184,23 +1344,33 @@ copilot:
       targetPort: 8080
     
     # Health checks
+    # Startup probe absorbs cold-start time. Total budget: 30 * 5s = 150s.
+    startupProbe:
+      httpGet:
+        path: /healthz
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 30
+
     readinessProbe:
       httpGet:
         path: /healthz
         port: 8080
       initialDelaySeconds: 5
       periodSeconds: 10
-      timeoutSeconds: 5
+      timeoutSeconds: 3
       failureThreshold: 3
-    
+
     livenessProbe:
       httpGet:
         path: /healthz
         port: 8080
-      initialDelaySeconds: 15
+      initialDelaySeconds: 30
       periodSeconds: 30
       timeoutSeconds: 5
-      failureThreshold: 3
+      failureThreshold: 6
 
     # Pod Disruption Budget for high availability
     podDisruptionBudget:
@@ -1239,13 +1409,20 @@ copilot:
         cpu: "250m"
     
     # Pod security context
+    # PostgreSQL image's `postgres` user is uid/gid 999.
     podSecurityContext:
-      fsGroup: 999
-    
-    # Container security context
-    securityContext:
+      runAsNonRoot: true
       runAsUser: 999
-    
+      runAsGroup: 999
+      fsGroup: 999
+
+    # Container security context
+    # readOnlyRootFilesystem is intentionally false — Postgres writes to /var/lib/postgresql/data.
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 999
+      runAsGroup: 999
+
     # Persistence configuration
     persistence:
       enabled: true
@@ -1253,13 +1430,13 @@ copilot:
       size: 10Gi
       accessModes:
         - ReadWriteOnce
-    
+
     # Service configuration
     service:
       type: ClusterIP
       port: 5432
       targetPort: 5432
-    
+
     # Health checks
     livenessProbe:
       exec:
@@ -1291,9 +1468,11 @@ copilot:
     # Image configuration (same as server)
     image:
       repository: simstudioai/copilot
-      tag: latest
-      pullPolicy: Always
-    
+      # tag defaults to Chart.AppVersion. Override with a release tag or pin via image.digest.
+      tag: ""
+      digest: ""
+      pullPolicy: IfNotPresent
+
     # Resource limits and requests
     resources:
       limits:
@@ -1324,8 +1503,10 @@ externalSecrets:
   # Enable External Secrets Operator integration
   enabled: false
 
-  # ESO API version - use "v1" for ESO v0.17+ (recommended), "v1beta1" for older versions
-  apiVersion: "v1"
+  # ESO API version. Default "v1beta1" — supported by every ESO release from
+  # v0.7+ (mid-2023) through current. Set to "v1" only when targeting ESO
+  # v0.17+ clusters where the v1 API has graduated.
+  apiVersion: "v1beta1"
 
   # How often to sync secrets from the external store
   refreshInterval: "1h"
@@ -1413,3 +1594,21 @@ certManager:
   # This is the issuer that applications should reference for obtaining certificates
   caIssuer:
     name: "sim-ca-issuer"
+# Helm test hook (helm test) connectivity probes.
+# Renders a Pod with helm.sh/hook=test that checks the app and realtime
+# Services are reachable from inside the cluster. Run with: helm test <release>
+tests:
+  enabled: true
+  image:
+    repository: busybox
+    tag: "1.36"
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+  timeoutSeconds: 5
+  resources:
+    limits:
+      cpu: 100m
+      memory: 64Mi
+    requests:
+      cpu: 10m
+      memory: 16Mi

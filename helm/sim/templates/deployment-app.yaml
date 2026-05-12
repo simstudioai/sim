@@ -8,13 +8,19 @@ metadata:
   labels:
     {{- include "sim.app.labels" . | nindent 4 }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.app.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "sim.app.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets-app.yaml") . | sha256sum }}
+        {{- if .Values.branding.enabled }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-branding.yaml") . | sha256sum }}
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -29,14 +35,16 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      automountServiceAccountToken: false
       {{- include "sim.podSecurityContext" .Values.app | nindent 6 }}
       {{- include "sim.nodeSelector" .Values.app | nindent 6 }}
       {{- include "sim.tolerations" .Values | nindent 6 }}
       {{- include "sim.affinity" .Values | nindent 6 }}
+      {{- include "sim.topologySpreadConstraints" .Values.app | nindent 6 }}
       {{- if .Values.migrations.enabled }}
       initContainers:
         - name: migrations
-          image: {{ include "sim.image" (dict "context" . "image" .Values.migrations.image) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.migrations.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.migrations.image.pullPolicy }}
           command: ["/bin/sh", "-c"]
           args:
@@ -53,16 +61,22 @@ spec:
                 name: {{ include "sim.externalDbSecretName" . }}
             {{- end }}
           {{- include "sim.resources" .Values.migrations | nindent 10 }}
-          {{- include "sim.securityContext" .Values.migrations | nindent 10 }}
+          {{- include "sim.containerSecurityContext" .Values.migrations | nindent 10 }}
       {{- end }}
       containers:
         - name: app
-          image: {{ include "sim.image" (dict "context" . "image" .Values.app.image) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.app.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.app.image.pullPolicy }}
           ports:
             - name: http
               containerPort: {{ .Values.app.service.targetPort }}
               protocol: TCP
+          {{- /*
+            All keys from .Values.app.env are mounted via envFrom (see below).
+            Chart-computed values and operational tunables (.Values.app.envDefaults)
+            are inlined here so they don't leak into the chart-managed Secret and
+            don't need to be mapped when externalSecrets.enabled=true.
+          */}}
           env:
             - name: DATABASE_URL
               value: {{ include "sim.databaseUrl" . | quote }}
@@ -70,11 +84,44 @@ spec:
               value: {{ include "sim.socketServerUrl" . | quote }}
             - name: OLLAMA_URL
               value: {{ include "sim.ollamaUrl" . | quote }}
-            {{- range $key, $value := omit .Values.app.env "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" }}
+            {{- /*
+              Skip envDefaults keys that the user has explicitly overridden in app.env
+              with a non-empty value. K8s `env` takes precedence over `envFrom`, so an
+              inline default would otherwise mask the user's Secret-bound value.
+              Also skip envDefaults entirely in existingSecret mode: the pre-existing
+              Secret is the source of truth, and inlining localhost URL defaults would
+              silently shadow keys (NEXT_PUBLIC_APP_URL, BETTER_AUTH_URL, etc.) the
+              user stored in their Secret but left empty in app.env.
+            */}}
+            {{- $appEnv := .Values.app.env | default dict }}
+            {{- $useExistingSecret := and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
+            {{- if not $useExistingSecret }}
+            {{- range $key, $value := .Values.app.envDefaults | default dict }}
+            {{- $override := index $appEnv $key }}
+            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (or (not $override) (eq (toString $override) "") (eq (toString $override) "<nil>")) }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- /*
+              In existingSecret mode the chart-managed Secret is not rendered, so
+              non-empty values in app.env would otherwise go nowhere — inline them
+              here so the user's overrides actually reach the pod. Skipped in ESO
+              mode (ESO is the source of truth; inlining would mask the synced value)
+              and in inline mode (values flow through the chart-managed Secret).
+            */}}
+            {{- if and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
+            {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" }}
+            {{- range $key, $value := $appEnv }}
+            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (not (has $key $chartComputed)) }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             {{- if .Values.telemetry.enabled }}
+            {{- $nodeEnv := default (default "production" (index (.Values.app.envDefaults | default dict) "NODE_ENV")) (index (.Values.app.env | default dict) "NODE_ENV") }}
             # OpenTelemetry configuration
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://{{ include "sim.fullname" . }}-otel-collector:4318"
@@ -83,7 +130,7 @@ spec:
             - name: OTEL_SERVICE_VERSION
               value: {{ .Chart.AppVersion | quote }}
             - name: OTEL_RESOURCE_ATTRIBUTES
-              value: "service.name=sim-app,service.version={{ .Chart.AppVersion }},deployment.environment={{ .Values.app.env.NODE_ENV }}"
+              value: "service.name=sim-app,service.version={{ .Chart.AppVersion }},deployment.environment={{ $nodeEnv }}"
             {{- end }}
             {{- with .Values.extraEnvVars }}
             {{- toYaml . | nindent 12 }}
@@ -100,6 +147,10 @@ spec:
             - secretRef:
                 name: {{ include "sim.externalDbSecretName" . }}
             {{- end }}
+          {{- if .Values.app.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.app.startupProbe | nindent 12 }}
+          {{- end }}
           {{- if .Values.app.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.app.livenessProbe | nindent 12 }}
@@ -109,7 +160,7 @@ spec:
             {{- toYaml .Values.app.readinessProbe | nindent 12 }}
           {{- end }}
           {{- include "sim.resources" .Values.app | nindent 10 }}
-          {{- include "sim.securityContext" .Values.app | nindent 10 }}
+          {{- include "sim.containerSecurityContext" .Values.app | nindent 10 }}
           {{- $hasBranding := and .Values.branding.enabled (or .Values.branding.files .Values.branding.binaryFiles) }}
           {{- if or $hasBranding .Values.extraVolumeMounts .Values.app.extraVolumeMounts }}
           volumeMounts:

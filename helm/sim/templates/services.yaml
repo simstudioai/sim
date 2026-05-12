@@ -42,7 +42,7 @@ spec:
 
 {{- if .Values.postgresql.enabled }}
 ---
-# Service for PostgreSQL
+# Service for PostgreSQL (ClusterIP — used by client workloads)
 apiVersion: v1
 kind: Service
 metadata:
@@ -52,6 +52,25 @@ metadata:
     {{- include "sim.postgresql.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.postgresql.service.type }}
+  ports:
+    - port: {{ .Values.postgresql.service.port }}
+      targetPort: {{ .Values.postgresql.service.targetPort }}
+      protocol: TCP
+      name: postgresql
+  selector:
+    {{- include "sim.postgresql.selectorLabels" . | nindent 4 }}
+---
+# Headless Service for PostgreSQL StatefulSet (stable per-pod DNS)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sim.fullname" . }}-postgresql-headless
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.postgresql.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
   ports:
     - port: {{ .Values.postgresql.service.port }}
       targetPort: {{ .Values.postgresql.service.targetPort }}
