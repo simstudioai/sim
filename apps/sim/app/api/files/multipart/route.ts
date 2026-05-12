@@ -136,29 +136,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const config = getStorageConfig(storageContext)
 
         let customKey: string | undefined
-        if (context === 'workspace') {
-          const { MAX_WORKSPACE_FILE_SIZE } = await import('@/lib/uploads/shared/types')
-          if (typeof fileSize === 'number' && fileSize > MAX_WORKSPACE_FILE_SIZE) {
-            return NextResponse.json(
-              { error: `File size exceeds maximum of ${MAX_WORKSPACE_FILE_SIZE} bytes` },
-              { status: 413 }
-            )
-          }
-
-          const { generateWorkspaceFileKey } = await import(
-            '@/lib/uploads/contexts/workspace/workspace-file-manager'
-          )
-          customKey = generateWorkspaceFileKey(workspaceId, fileName)
-
-          const { checkStorageQuota } = await import('@/lib/billing/storage')
-          const quotaCheck = await checkStorageQuota(userId, fileSize)
-          if (!quotaCheck.allowed) {
-            return NextResponse.json(
-              { error: quotaCheck.error || 'Storage limit exceeded' },
-              { status: 413 }
-            )
-          }
-        } else if (context === 'mothership') {
+        if (context === 'workspace' || context === 'mothership') {
           const { MAX_WORKSPACE_FILE_SIZE } = await import('@/lib/uploads/shared/types')
           if (typeof fileSize === 'number' && fileSize > MAX_WORKSPACE_FILE_SIZE) {
             return NextResponse.json(

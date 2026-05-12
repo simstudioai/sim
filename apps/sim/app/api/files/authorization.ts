@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, workspaceFile } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, like, or } from 'drizzle-orm'
+import { NextResponse } from 'next/server'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { BLOB_CHAT_CONFIG, S3_CHAT_CONFIG } from '@/lib/uploads/config'
@@ -585,6 +586,36 @@ async function authorizeFileAccess(
     granted: false,
     reason: 'Access denied - insufficient permissions or file not found',
   }
+}
+
+/**
+ * Guard helper for tool routes that download user files from storage.
+ *
+ * Validates that `key` is a non-empty string, that `userId` is present, and
+ * that the authenticated user owns the file. Returns a 404 `NextResponse` on
+ * any failure so callers can `return` it immediately; returns `null` when
+ * access is granted.
+ */
+export async function assertToolFileAccess(
+  key: unknown,
+  userId: string | undefined,
+  requestId: string,
+  routeLogger: ReturnType<typeof createLogger>
+): Promise<NextResponse | null> {
+  if (typeof key !== 'string' || key.length === 0) {
+    routeLogger.warn(`[${requestId}] File access check rejected: missing key`)
+    return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+  }
+  if (!userId) {
+    routeLogger.warn(`[${requestId}] File access check requires userId but none available`)
+    return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+  }
+  const hasAccess = await verifyFileAccess(key, userId)
+  if (!hasAccess) {
+    routeLogger.warn(`[${requestId}] File access denied for user`, { userId, key })
+    return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+  }
+  return null
 }
 
 /**
