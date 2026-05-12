@@ -9,6 +9,7 @@ import {
 } from '@/lib/execution/payloads/large-value-ref'
 import {
   assertDurableLargeValueSize,
+  assertInlineMaterializationSize,
   assertLargeValueRefAccess,
   isValidLargeValueKey,
   readLargeValueRefFromStorage,
@@ -25,6 +26,7 @@ export interface LargeValueStoreContext {
   allowLargeValueWorkflowScope?: boolean
   userId?: string
   requireDurable?: boolean
+  maxBytes?: number
 }
 
 function getKind(value: unknown): LargeValueKind {
@@ -132,6 +134,7 @@ export async function materializeLargeValueRef(
   }
 
   assertLargeValueRefAccess(ref, context)
+  assertInlineMaterializationSize(ref.size, context.maxBytes)
 
   const cached = materializeLargeValueRefSync(ref, context)
   if (cached !== undefined) {
@@ -150,7 +153,7 @@ export async function materializeLargeValueRef(
       largeValueExecutionIds: context.largeValueExecutionIds,
       allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
       userId: context.userId,
-      maxBytes: ref.size,
+      maxBytes: context.maxBytes ?? ref.size,
     })
     if (value === undefined) {
       return undefined

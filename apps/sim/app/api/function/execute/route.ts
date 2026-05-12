@@ -18,11 +18,11 @@ import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import {
   MAX_FUNCTION_INLINE_BYTES,
   MAX_INLINE_MATERIALIZATION_BYTES,
-  readLargeValueRefFromStorage,
   readUserFileContent,
   unavailableLargeValueError,
 } from '@/lib/execution/payloads/materialization.server'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
@@ -779,7 +779,7 @@ function createFunctionRuntimeBrokers(
       if (!context.executionId) {
         throw new Error('Large execution values require an execution context.')
       }
-      const value = await readLargeValueRefFromStorage(ref, {
+      const value = await materializeLargeValueRef(ref, {
         ...base,
         maxBytes: clampInlineBytes(options.maxBytes, MAX_INLINE_MATERIALIZATION_BYTES),
       })

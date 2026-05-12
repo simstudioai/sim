@@ -286,6 +286,50 @@ describe('large execution payload store', () => {
     expect(materializeLargeValueRefSync(unrecoverableRef, scope)).toEqual({ retained: true })
   })
 
+  it('materializes keyless cached refs through the async helper', async () => {
+    const scope = {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    }
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_KEYLESSCACHE',
+      kind: 'object',
+      size: 32,
+      executionId: scope.executionId,
+    } as const
+    cacheLargeValue(ref.id, { retained: true }, ref.size, scope)
+
+    await expect(materializeLargeValueRef(ref, scope)).resolves.toEqual({ retained: true })
+    expect(mockDownloadFile).not.toHaveBeenCalled()
+  })
+
+  it('enforces maxBytes before returning cached refs', async () => {
+    const scope = {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    }
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_CACHEDMAXBYTE',
+      kind: 'object',
+      size: 2048,
+      executionId: scope.executionId,
+    } as const
+    cacheLargeValue(ref.id, { retained: true }, ref.size, scope)
+
+    await expect(materializeLargeValueRef(ref, { ...scope, maxBytes: 1024 })).rejects.toMatchObject(
+      {
+        code: EXECUTION_RESOURCE_LIMIT_CODE,
+      }
+    )
+    expect(mockDownloadFile).not.toHaveBeenCalled()
+  })
+
   it('rejects durable refs when caller omits workspace and workflow context', async () => {
     await expect(
       readLargeValueRefFromStorage(
