@@ -81,7 +81,16 @@ Your release is named {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
      # Upgrade after changing values
      helm upgrade {{ .Release.Name }} ./helm/sim --namespace {{ .Release.Namespace }} -f your-values.yaml
 
-5. Where to go next:
+5. Upgrade notes (read before upgrading from a chart version released before this one):
+
+   * externalSecrets.apiVersion default is "v1beta1" (was "v1"). v1beta1 is
+     supported by every ESO release from v0.7+ through current. If you're on
+     ESO v0.17+ and want the graduated v1 API, set externalSecrets.apiVersion: "v1".
+   * networkPolicy.egress remains a list of custom egress rules (unchanged).
+     Cloud-metadata CIDR blocking is now configured via networkPolicy.egressExceptCidrs
+     (defaults to AWS/GCP/Azure IMDS + ECS task metadata).
+
+6. Where to go next:
 
    * Production checklist:  helm/sim/README.md (search "Production checklist")
    * Troubleshooting:       helm/sim/README.md (search "Troubleshooting")

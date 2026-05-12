@@ -128,10 +128,10 @@ tests:
               - protocol: TCP
                 port: 3000
 
-  - it: egress.extraRules are appended to both app and realtime NetworkPolicies
+  - it: networkPolicy.egress (custom rules) are appended to both app and realtime NetworkPolicies
     set:
       <<: *defaults
-      networkPolicy.egress.extraRules:
+      networkPolicy.egress:
         - to: []
           ports:
             - protocol: TCP

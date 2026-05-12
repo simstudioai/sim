@@ -954,7 +954,7 @@ monitoring:
 # to each other and to required external services (DNS, HTTPS) while blocking
 # everything else. The egress block additionally blacklists cloud metadata
 # endpoints (169.254.169.254/32, 169.254.170.2/32) by default — extend
-# egress.exceptCidrs with your cluster's API server CIDR for tighter isolation.
+# egressExceptCidrs with your cluster's API server CIDR for tighter isolation.
 # Your CNI must support NetworkPolicy (Calico, Cilium, GKE Dataplane V2, etc.).
 networkPolicy:
   enabled: false
@@ -973,16 +973,18 @@ networkPolicy:
   # Custom ingress rules appended to the policy
   ingress: []
 
-  # Egress configuration
-  egress:
-    # CIDRs excluded from broad HTTPS (443) egress.
-    # Defaults block AWS/GCP/Azure IMDS (169.254.169.254/32) and ECS task metadata
-    # (169.254.170.2/32). Add your cluster's API server CIDR for stronger isolation.
-    exceptCidrs:
-      - "169.254.169.254/32"
-      - "169.254.170.2/32"
-    # Custom egress rules appended to the policy
-    extraRules: []
+  # Custom egress rules appended to the policy.
+  # Kept as a top-level list (not a map) for backward compatibility with the
+  # pre-1.0 chart that shipped `networkPolicy.egress: []`. Existing values
+  # files continue to work without changes.
+  egress: []
+
+  # CIDRs excluded from broad HTTPS (443) egress.
+  # Defaults block AWS/GCP/Azure IMDS (169.254.169.254/32) and ECS task metadata
+  # (169.254.170.2/32). Add your cluster's API server CIDR for stronger isolation.
+  egressExceptCidrs:
+    - "169.254.169.254/32"
+    - "169.254.170.2/32"
 
 # Shared storage for enterprise workflows requiring data sharing between pods
 sharedStorage:
