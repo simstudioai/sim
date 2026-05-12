@@ -36,6 +36,11 @@ export function useScrollAnchor(isStreaming: boolean, content?: string) {
   const stickyRef = useRef(false)
   // Tracks the user's last intentional position; updated only on genuine user events, never programmatic ones.
   const intendedScrollTopRef = useRef(0)
+  // Mirrors the spacer's current minHeight so onScroll can check it without a layout read.
+  // Re-engagement is blocked while the spacer is active: the spacer inflates scrollHeight to
+  // exactly targetScrollTop + clientHeight, so distanceFromBottom = 0 after restoration —
+  // which would otherwise falsely trigger the re-engage branch and clear the spacer.
+  const spacerHeightRef = useRef(0)
 
   const scrollToBottom = useCallback(() => {
     const el = containerRef.current
@@ -59,7 +64,10 @@ export function useScrollAnchor(isStreaming: boolean, content?: string) {
     if (hasUserScrolledRef.current) {
       intendedScrollTopRef.current = el.scrollTop
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-      if (distanceFromBottom <= NEAR_BOTTOM_THRESHOLD) {
+      // Only re-engage when the spacer is not active. While the spacer is inflated,
+      // distanceFromBottom reads 0 after programmatic scroll restoration — that is
+      // artificial proximity, not the user genuinely reaching the document bottom.
+      if (distanceFromBottom <= NEAR_BOTTOM_THRESHOLD && spacerHeightRef.current === 0) {
         hasUserScrolledRef.current = false
         stickyRef.current = true
       }
@@ -132,6 +140,7 @@ export function useScrollAnchor(isStreaming: boolean, content?: string) {
     if (!el) return
 
     if (!hasUserScrolledRef.current || !isStreaming) {
+      spacerHeightRef.current = 0
       if (spacer) spacer.style.minHeight = '0'
       return
     }
@@ -148,6 +157,7 @@ export function useScrollAnchor(isStreaming: boolean, content?: string) {
       prevSpacerHeight
     )
 
+    spacerHeightRef.current = shortage
     if (spacer) spacer.style.minHeight = `${shortage}px`
     if (el.scrollTop < targetScrollTop) el.scrollTop = targetScrollTop
   }, [content, isStreaming])
