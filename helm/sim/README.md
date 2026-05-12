@@ -39,7 +39,7 @@ This chart deploys the Sim platform on a Kubernetes cluster using the Helm packa
 * **`realtime`** — the WebSocket service for live workflow updates (Deployment).
 * **`postgresql`** — an in-cluster `pgvector/pgvector` Postgres (StatefulSet, with a headless Service for stable per-pod DNS).
 * **`migrations`** — a Job that applies database migrations on install/upgrade.
-* **`cronjobs`** — scheduled API pokes for schedule execution and Gmail/Outlook webhook polling.
+* **`cronjobs`** — scheduled jobs for workflow schedule execution, inbox/calendar/drive polling (Gmail, Outlook, Calendar, Drive, Sheets, IMAP, RSS), inactivity alerts, subscription renewal, data drains, and connector syncs.
 * **`serviceaccount`** — a dedicated ServiceAccount with `automountServiceAccountToken: false`.
 
 Optional components (off by default):
@@ -141,9 +141,9 @@ helm upgrade sim ./helm/sim --namespace sim --values my-values.yaml
 If you previously installed this chart from a git checkout before the `1.0.0` tag, the internal Postgres StatefulSets had their `serviceName` renamed to point at new headless Services. `StatefulSet.spec.serviceName` is immutable, so `helm upgrade` will fail with `Forbidden: updates to statefulset spec ...`. Orphan-delete the affected StatefulSet(s) first — pods and PVCs are preserved, traffic continues to flow:
 
 ```bash
-kubectl delete statefulset sim-sim-postgresql --namespace sim --cascade=orphan
+kubectl delete statefulset sim-postgresql --namespace sim --cascade=orphan
 # If copilot is enabled, also:
-kubectl delete statefulset sim-sim-copilot-postgresql --namespace sim --cascade=orphan
+kubectl delete statefulset sim-copilot-postgresql --namespace sim --cascade=orphan
 
 helm upgrade sim ./helm/sim --namespace sim --values my-values.yaml
 ```
@@ -384,14 +384,14 @@ helm install sim ./helm/sim \
 ### App pods stuck in `CrashLoopBackOff`
 
 ```bash
-kubectl logs --namespace sim deploy/sim-sim-app --tail 200
+kubectl logs --namespace sim deploy/sim-app --tail 200
 ```
 
 Common causes:
 
 * `NEXT_PUBLIC_APP_URL` still set to `http://localhost:3000` in a clustered deploy → set it to your public origin.
 * `DATABASE_URL` not reachable → check the Postgres pod is running and `postgresql.auth.password` matches.
-* Missing migration → check `kubectl logs job/sim-sim-migrations`.
+* Missing migration → check `kubectl logs job/sim-migrations`.
 
 ### Image pull errors (`ErrImagePull` / `ImagePullBackOff`)
 
@@ -428,10 +428,10 @@ You're upgrading from a pre-1.0.0 build of the chart. The `StatefulSet.serviceNa
 ### Get logs from each component
 
 ```bash
-kubectl --namespace sim logs -f deployment/sim-sim-app
-kubectl --namespace sim logs -f deployment/sim-sim-realtime
-kubectl --namespace sim logs -f statefulset/sim-sim-postgresql
-kubectl --namespace sim logs job/sim-sim-migrations
+kubectl --namespace sim logs -f deployment/sim-app
+kubectl --namespace sim logs -f deployment/sim-realtime
+kubectl --namespace sim logs -f statefulset/sim-postgresql
+kubectl --namespace sim logs job/sim-migrations
 ```
 
 ---
