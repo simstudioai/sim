@@ -61,9 +61,9 @@ export function SubflowEditor({
     editorContainerRef,
     handleSubflowTypeChange,
     handleSubflowIterationsChange,
-    handleSubflowIterationsSave,
+    handleSubflowIterationsBlur,
     handleParallelBatchSizeChange,
-    handleParallelBatchSizeSave,
+    handleParallelBatchSizeBlur,
     handleSubflowEditorChange,
     handleSubflowTagSelect,
     highlightWithReferences,
@@ -153,8 +153,7 @@ export function SubflowEditor({
                   type='text'
                   value={inputValue}
                   onChange={handleSubflowIterationsChange}
-                  onBlur={handleSubflowIterationsSave}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSubflowIterationsSave()}
+                  onBlur={handleSubflowIterationsBlur}
                   disabled={!userCanEdit}
                   className='mb-1'
                 />
@@ -219,8 +218,7 @@ export function SubflowEditor({
                 type='text'
                 value={batchSizeValue}
                 onChange={handleParallelBatchSizeChange}
-                onBlur={handleParallelBatchSizeSave}
-                onKeyDown={(e) => e.key === 'Enter' && handleParallelBatchSizeSave()}
+                onBlur={handleParallelBatchSizeBlur}
                 disabled={!userCanEdit}
                 className='mb-1'
               />

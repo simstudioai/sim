@@ -212,7 +212,11 @@ export class ParallelExpander {
         const baseTargetId = extractBaseBlockId(edge.target)
         if (!blocksSet.has(baseTargetId)) continue
 
-        for (let i = 1; i < branchCount; i++) {
+        // Include branch 0 so per-batch re-expansion restores the template's
+        // incoming-edge bookkeeping that earlier batches consumed during
+        // edge processing. Without this, identifyBoundaryNodes mis-classifies
+        // chained children as entry nodes after the first batch.
+        for (let i = 0; i < branchCount; i++) {
           const sourceNodeId = buildBranchNodeId(blockId, i)
           const targetNodeId = buildBranchNodeId(baseTargetId, i)
           const sourceNode = dag.nodes.get(sourceNodeId)

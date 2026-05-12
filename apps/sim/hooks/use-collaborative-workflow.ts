@@ -1774,23 +1774,32 @@ export function useCollaborativeWorkflow() {
         .filter((b) => b.data?.parentId === nodeId)
         .map((b) => b.id)
 
+      const clampedCount = Math.max(1, count)
+
       if (iterationType === 'loop') {
         const currentLoopType = currentBlock.data?.loopType || 'for'
-        const currentCollection = currentBlock.data?.collection || ''
+        const existingLoop = useWorkflowStore.getState().loops[nodeId]
+        const nextForEachItems = existingLoop?.forEachItems ?? currentBlock.data?.collection ?? ''
+        const nextWhileCondition =
+          existingLoop?.whileCondition ?? currentBlock.data?.whileCondition ?? ''
+        const nextDoWhileCondition =
+          existingLoop?.doWhileCondition ?? currentBlock.data?.doWhileCondition ?? ''
 
         const config = {
           id: nodeId,
           nodes: childNodes,
-          iterations: Math.max(1, count),
+          iterations: clampedCount,
           loopType: currentLoopType,
-          forEachItems: currentCollection,
+          forEachItems: nextForEachItems,
+          whileCondition: nextWhileCondition,
+          doWhileCondition: nextDoWhileCondition,
         }
 
         executeQueuedOperation(
           SUBFLOW_OPERATIONS.UPDATE,
           OPERATION_TARGETS.SUBFLOW,
           { id: nodeId, type: 'loop', config },
-          () => useWorkflowStore.getState().updateLoopCount(nodeId, count)
+          () => useWorkflowStore.getState().updateLoopCount(nodeId, clampedCount)
         )
       } else {
         const currentDistribution = currentBlock.data?.collection || ''
@@ -1800,7 +1809,7 @@ export function useCollaborativeWorkflow() {
         const config = {
           id: nodeId,
           nodes: childNodes,
-          count: Math.max(1, count),
+          count: clampedCount,
           distribution: currentDistribution,
           parallelType: currentParallelType,
           batchSize,
@@ -1810,7 +1819,7 @@ export function useCollaborativeWorkflow() {
           SUBFLOW_OPERATIONS.UPDATE,
           OPERATION_TARGETS.SUBFLOW,
           { id: nodeId, type: 'parallel', config },
-          () => useWorkflowStore.getState().updateParallelCount(nodeId, count)
+          () => useWorkflowStore.getState().updateParallelCount(nodeId, clampedCount)
         )
       }
     },

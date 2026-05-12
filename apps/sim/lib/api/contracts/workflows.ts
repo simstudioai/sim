@@ -20,6 +20,7 @@ const workflowBlockDataSchema = z.object({
   whileCondition: z.string().optional(),
   doWhileCondition: z.string().optional(),
   parallelType: z.enum(['collection', 'count']).optional(),
+  batchSize: z.number().optional(),
   type: z.string().optional(),
   canonicalModes: z.record(z.string(), z.enum(['basic', 'advanced'])).optional(),
 })
@@ -90,6 +91,7 @@ const workflowParallelSchema = z.object({
     .optional(),
   count: z.number().optional(),
   parallelType: z.enum(['count', 'collection']).optional(),
+  batchSize: z.number().optional(),
   enabled: z.boolean().optional(),
   locked: z.boolean().optional(),
 })
