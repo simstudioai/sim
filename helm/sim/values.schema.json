@@ -691,6 +691,24 @@
         }
       }
     },
+    "tests": {
+      "type": "object",
+      "description": "Helm test hook configuration (helm test)",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+            "pullSecrets": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "resources": { "type": "object" }
+      }
+    },
     "sharedStorage": {
       "type": "object",
       "properties": {

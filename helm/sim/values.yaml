@@ -1586,3 +1586,21 @@ certManager:
   # This is the issuer that applications should reference for obtaining certificates
   caIssuer:
     name: "sim-ca-issuer"
+# Helm test hook (helm test) connectivity probes.
+# Renders a Pod with helm.sh/hook=test that checks the app and realtime
+# Services are reachable from inside the cluster. Run with: helm test <release>
+tests:
+  enabled: true
+  image:
+    repository: busybox
+    tag: "1.36"
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+  timeoutSeconds: 5
+  resources:
+    limits:
+      cpu: 100m
+      memory: 64Mi
+    requests:
+      cpu: 10m
+      memory: 16Mi

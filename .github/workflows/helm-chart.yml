@@ -70,3 +70,44 @@ jobs:
                   -summary
             echo "::endgroup::"
           done
+
+  apiserver-dryrun:
+    name: API-server dry-run on kind
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          version: v0.24.0
+          node_image: kindest/node:v1.30.4
+          wait: 120s
+
+      - name: Helm dependency build
+        run: helm dependency build helm/sim
+
+      - name: Server-side dry-run for CRD-free ci values
+        # Skips fixtures that reference CRDs (ExternalSecret, ServiceMonitor)
+        # the kind cluster does not have installed. Those are still covered
+        # by kubeconform in the lint-test job.
+        run: |
+          set -euo pipefail
+          kubectl create namespace sim
+          for f in \
+            helm/sim/ci/default-values.yaml \
+            helm/sim/ci/existing-secret-values.yaml \
+            helm/sim/ci/external-db-values.yaml; do
+            echo "::group::dry-run $f"
+            helm template release helm/sim \
+              --namespace sim \
+              -f "$f" \
+              | kubectl apply --namespace sim --dry-run=server -f -
+            echo "::endgroup::"
+          done
