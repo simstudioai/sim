@@ -254,7 +254,6 @@ export function Files() {
     fileIds: string[]
     folderIds: string[]
     name: string
-    isFolder?: boolean
   } | null>(null)
 
   const listRename = useInlineRename({
@@ -884,7 +883,6 @@ export function Files() {
             folders.find((folder) => folder.id === selectedFolderIds[0])?.name ??
             'selected item')
           : `${selectedFileIds.length + selectedFolderIds.length} selected items`,
-      isFolder: selectedFolderIds.length > 0,
     })
     setShowDeleteConfirm(true)
   }, [selectedFileIds, selectedFolderIds, files, folders])
@@ -1123,7 +1121,7 @@ export function Files() {
     setDeleteTarget(
       item.kind === 'file'
         ? { fileIds: [item.file.id], folderIds: [], name: item.file.name }
-        : { fileIds: [], folderIds: [item.folder.id], name: item.folder.name, isFolder: true }
+        : { fileIds: [], folderIds: [item.folder.id], name: item.folder.name }
     )
     setShowDeleteConfirm(true)
     closeContextMenu()
@@ -1648,7 +1646,8 @@ export function Files() {
           open={showDeleteConfirm}
           onOpenChange={setShowDeleteConfirm}
           fileName={deleteTarget?.name}
-          isFolder={deleteTarget?.isFolder}
+          fileCount={deleteTarget?.fileIds.length ?? 0}
+          folderCount={deleteTarget?.folderIds.length ?? 0}
           onDelete={handleDelete}
           isPending={deleteFile.isPending || bulkArchiveItems.isPending}
         />
@@ -1733,7 +1732,8 @@ export function Files() {
         open={showDeleteConfirm}
         onOpenChange={setShowDeleteConfirm}
         fileName={deleteTarget?.name}
-        isFolder={deleteTarget?.isFolder}
+        fileCount={deleteTarget?.fileIds.length ?? 0}
+        folderCount={deleteTarget?.folderIds.length ?? 0}
         onDelete={handleDelete}
         isPending={deleteFile.isPending || bulkArchiveItems.isPending}
       />
@@ -1855,7 +1855,8 @@ interface DeleteConfirmModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   fileName?: string
-  isFolder?: boolean
+  fileCount: number
+  folderCount: number
   onDelete: () => void
   isPending: boolean
 }
@@ -1864,21 +1865,29 @@ const DeleteConfirmModal = memo(function DeleteConfirmModal({
   open,
   onOpenChange,
   fileName,
-  isFolder = false,
+  fileCount,
+  folderCount,
   onDelete,
   isPending,
 }: DeleteConfirmModalProps) {
+  const totalCount = fileCount + folderCount
+  const hasFolders = folderCount > 0
+  const title = totalCount > 1 ? 'Delete Items' : hasFolders ? 'Delete Folder' : 'Delete File'
+  const consequence = hasFolders
+    ? totalCount > 1
+      ? 'This will also delete files and folders inside any selected folders.'
+      : 'This will also delete files and folders inside it.'
+    : 'You can restore it from Recently Deleted in Settings.'
+
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='sm'>
-        <ModalHeader>{isFolder ? 'Delete Folder' : 'Delete File'}</ModalHeader>
+        <ModalHeader>{title}</ModalHeader>
         <ModalBody>
           <p className='text-[var(--text-secondary)]'>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{fileName}</span>?{' '}
-            {isFolder
-              ? 'This will also delete files and folders inside it.'
-              : 'You can restore it from Recently Deleted in Settings.'}
+            {consequence}
           </p>
         </ModalBody>
         <ModalFooter>

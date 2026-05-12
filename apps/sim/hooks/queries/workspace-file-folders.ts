@@ -3,7 +3,6 @@ import { requestJson } from '@/lib/api/client/request'
 import {
   bulkArchiveWorkspaceFileItemsContract,
   createWorkspaceFileFolderContract,
-  deleteWorkspaceFileFolderContract,
   listWorkspaceFileFoldersContract,
   moveWorkspaceFileItemsContract,
   updateWorkspaceFileFolderContract,
@@ -89,20 +88,6 @@ export function useUpdateWorkspaceFileFolder() {
         body: variables.updates,
       })
       return data.folder
-    },
-    onSettled: (_data, _error, variables) => {
-      invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
-    },
-  })
-}
-
-export function useDeleteWorkspaceFileFolder() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (variables: { workspaceId: string; folderId: string }) => {
-      return requestJson(deleteWorkspaceFileFolderContract, {
-        params: { id: variables.workspaceId, folderId: variables.folderId },
-      })
     },
     onSettled: (_data, _error, variables) => {
       invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)

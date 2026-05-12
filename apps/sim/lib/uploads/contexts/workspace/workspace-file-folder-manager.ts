@@ -3,7 +3,7 @@ import { workspaceFileFolder, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, min, type SQL, sql } from 'drizzle-orm'
 
 const logger = createLogger('WorkspaceFileFolders')
 
@@ -50,6 +50,10 @@ interface RawWorkspaceFileFolder {
   updatedAt: Date
 }
 
+interface WorkspaceFileFolderLockTx {
+  execute(query: SQL): Promise<unknown>
+}
+
 export interface WorkspaceFileArchiveResult {
   folders: number
   files: number
@@ -80,6 +84,15 @@ function folderParentCondition(parentId?: string | null) {
 function fileFolderCondition(folderId?: string | null) {
   const normalized = normalizeParentId(folderId)
   return normalized ? eq(workspaceFiles.folderId, normalized) : isNull(workspaceFiles.folderId)
+}
+
+async function acquireWorkspaceFileFolderMutationLock(
+  tx: WorkspaceFileFolderLockTx,
+  workspaceId: string
+) {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`workspace_file_folders:${workspaceId}`}, 0))`
+  )
 }
 
 export function buildWorkspaceFileFolderPathMap(
@@ -300,34 +313,38 @@ export async function createWorkspaceFileFolder(params: {
   parentId?: string | null
   sortOrder?: number
 }): Promise<WorkspaceFileFolderRecord> {
-  const parentId = await assertWorkspaceFileFolderTarget(params.workspaceId, params.parentId)
   const name = normalizeWorkspaceFileItemName(params.name, 'Folder')
 
-  if (await workspaceFileFolderExists(params.workspaceId, name, parentId)) {
-    throw new WorkspaceFileFolderConflictError(name)
-  }
+  const folder = await db.transaction(async (tx) => {
+    await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
 
-  const id = generateId()
-  let folder: RawWorkspaceFileFolder
-  try {
-    const [inserted] = await db
-      .insert(workspaceFileFolder)
-      .values({
-        id,
-        name,
-        userId: params.userId,
-        workspaceId: params.workspaceId,
-        parentId,
-        sortOrder: params.sortOrder ?? (await nextFolderSortOrder(params.workspaceId, parentId)),
-      })
-      .returning()
-    folder = inserted
-  } catch (error) {
-    if (getPostgresErrorCode(error) === '23505') {
+    const parentId = await assertWorkspaceFileFolderTarget(params.workspaceId, params.parentId)
+
+    if (await workspaceFileFolderExists(params.workspaceId, name, parentId)) {
       throw new WorkspaceFileFolderConflictError(name)
     }
-    throw error
-  }
+
+    const id = generateId()
+    try {
+      const [inserted] = await tx
+        .insert(workspaceFileFolder)
+        .values({
+          id,
+          name,
+          userId: params.userId,
+          workspaceId: params.workspaceId,
+          parentId,
+          sortOrder: params.sortOrder ?? (await nextFolderSortOrder(params.workspaceId, parentId)),
+        })
+        .returning()
+      return inserted
+    } catch (error) {
+      if (getPostgresErrorCode(error) === '23505') {
+        throw new WorkspaceFileFolderConflictError(name)
+      }
+      throw error
+    }
+  })
 
   return mapFolderWithPath(params.workspaceId, folder)
 }
@@ -386,6 +403,31 @@ async function getDescendantFolderIds(
   const folders = await listWorkspaceFileFolders(workspaceId, {
     scope: options?.includeDeleted ? 'all' : 'active',
   })
+  const childrenByParent = new Map<string, string[]>()
+
+  for (const folder of folders) {
+    if (!folder.parentId) continue
+    const children = childrenByParent.get(folder.parentId) ?? []
+    children.push(folder.id)
+    childrenByParent.set(folder.parentId, children)
+  }
+
+  const descendants: string[] = []
+  const visit = (id: string) => {
+    for (const childId of childrenByParent.get(id) ?? []) {
+      descendants.push(childId)
+      visit(childId)
+    }
+  }
+  visit(folderId)
+
+  return descendants
+}
+
+function collectDescendantFolderIds(
+  folders: Array<Pick<WorkspaceFileFolderRecord, 'id' | 'parentId'>>,
+  folderId: string
+): string[] {
   const childrenByParent = new Map<string, string[]>()
 
   for (const folder of folders) {
@@ -611,13 +653,33 @@ export async function archiveWorkspaceFileFolderRecursive(
   workspaceId: string,
   folderId: string
 ): Promise<WorkspaceFileArchiveResult> {
-  const folder = await getWorkspaceFileFolder(workspaceId, folderId)
-  if (!folder) throw new Error('Folder not found')
-
   const now = new Date()
-  const folderIds = [folderId, ...(await getDescendantFolderIds(workspaceId, folderId))]
 
   return db.transaction(async (tx) => {
+    await acquireWorkspaceFileFolderMutationLock(tx, workspaceId)
+
+    const [folder] = await tx
+      .select({ id: workspaceFileFolder.id })
+      .from(workspaceFileFolder)
+      .where(
+        and(
+          eq(workspaceFileFolder.id, folderId),
+          eq(workspaceFileFolder.workspaceId, workspaceId),
+          isNull(workspaceFileFolder.deletedAt)
+        )
+      )
+      .limit(1)
+
+    if (!folder) throw new Error('Folder not found')
+
+    const activeFolders = await tx
+      .select({ id: workspaceFileFolder.id, parentId: workspaceFileFolder.parentId })
+      .from(workspaceFileFolder)
+      .where(
+        and(eq(workspaceFileFolder.workspaceId, workspaceId), isNull(workspaceFileFolder.deletedAt))
+      )
+    const folderIds = [folderId, ...collectDescendantFolderIds(activeFolders, folderId)]
+
     const archivedFiles = await tx
       .update(workspaceFiles)
       .set({ deletedAt: now, updatedAt: now })
@@ -662,14 +724,27 @@ export async function bulkArchiveWorkspaceFileItems(params: {
   const now = new Date()
   const explicitFileIds = Array.from(new Set(params.fileIds ?? []))
   const explicitFolderIds = Array.from(new Set(params.folderIds ?? []))
-  const descendantFolderIds = (
-    await Promise.all(
-      explicitFolderIds.map((folderId) => getDescendantFolderIds(params.workspaceId, folderId))
-    )
-  ).flat()
-  const allFolderIds = Array.from(new Set([...explicitFolderIds, ...descendantFolderIds]))
 
   return db.transaction(async (tx) => {
+    await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
+
+    const activeFolders =
+      explicitFolderIds.length > 0
+        ? await tx
+            .select({ id: workspaceFileFolder.id, parentId: workspaceFileFolder.parentId })
+            .from(workspaceFileFolder)
+            .where(
+              and(
+                eq(workspaceFileFolder.workspaceId, params.workspaceId),
+                isNull(workspaceFileFolder.deletedAt)
+              )
+            )
+        : []
+    const descendantFolderIds = explicitFolderIds.flatMap((folderId) =>
+      collectDescendantFolderIds(activeFolders, folderId)
+    )
+    const allFolderIds = Array.from(new Set([...explicitFolderIds, ...descendantFolderIds]))
+
     const archivedExplicitFiles =
       explicitFileIds.length > 0
         ? await tx
