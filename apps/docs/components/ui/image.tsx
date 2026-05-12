@@ -26,7 +26,7 @@ export function Image({
       className={cn(
         'overflow-hidden rounded-xl border border-border object-cover',
         enableLightbox &&
-          'cursor-pointer transition-opacity group-hover:opacity-95 group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2',
+          'cursor-pointer transition-opacity group-hover:opacity-95 group-focus-visible:ring-2 group-focus-visible:ring-inset group-focus-visible:ring-ring',
         className
       )}
       alt={alt}

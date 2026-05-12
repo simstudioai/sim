@@ -48,7 +48,7 @@ export function Video({
       className={cn(
         className,
         enableLightbox &&
-          'cursor-pointer transition-opacity group-hover:opacity-[0.97] group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2'
+          'cursor-pointer transition-opacity group-hover:opacity-[0.97] group-focus-visible:ring-2 group-focus-visible:ring-inset group-focus-visible:ring-ring'
       )}
       src={getAssetUrl(src)}
     />
