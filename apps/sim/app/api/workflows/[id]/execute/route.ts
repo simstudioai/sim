@@ -1247,7 +1247,14 @@ async function handleExecutePost(
           })
 
           await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
-          const compactTerminalLogs = await compactBlockLogs(result.logs, {
+
+          /**
+           * Compact block logs once and reuse across cancelled/timeout/paused/complete
+           * SSE events. Walks all block logs and durably serializes large values to
+           * object storage, so doing it twice would double the latency and storage
+           * load on the happy path.
+           */
+          const compactedBlockLogs = await compactBlockLogs(result.logs, {
             workspaceId,
             workflowId,
             executionId,
@@ -1274,7 +1281,7 @@ async function handleExecutePost(
                   data: {
                     error: timeoutErrorMessage,
                     duration: result.metadata?.duration || 0,
-                    finalBlockLogs: compactTerminalLogs,
+                    finalBlockLogs: compactedBlockLogs,
                   },
                 },
                 'error'
@@ -1291,7 +1298,7 @@ async function handleExecutePost(
                   workflowId,
                   data: {
                     duration: result.metadata?.duration || 0,
-                    finalBlockLogs: compactTerminalLogs,
+                    finalBlockLogs: compactedBlockLogs,
                   },
                 },
                 'cancelled'
@@ -1319,13 +1326,6 @@ async function handleExecutePost(
             preserveUserFileBase64: true,
             preserveRoot: true,
           })
-          const compactFinalBlockLogs = await compactBlockLogs(result.logs, {
-            workspaceId,
-            workflowId,
-            executionId,
-            userId: actorUserId,
-            requireDurable: true,
-          })
 
           if (result.status === 'paused') {
             finalMetaStatus = 'complete'
@@ -1340,7 +1340,7 @@ async function handleExecutePost(
                   duration: result.metadata?.duration || 0,
                   startTime: result.metadata?.startTime || startTime.toISOString(),
                   endTime: result.metadata?.endTime || new Date().toISOString(),
-                  finalBlockLogs: compactFinalBlockLogs,
+                  finalBlockLogs: compactedBlockLogs,
                 },
               },
               'complete'
@@ -1359,7 +1359,7 @@ async function handleExecutePost(
                   duration: result.metadata?.duration || 0,
                   startTime: result.metadata?.startTime || startTime.toISOString(),
                   endTime: result.metadata?.endTime || new Date().toISOString(),
-                  finalBlockLogs: compactFinalBlockLogs,
+                  finalBlockLogs: compactedBlockLogs,
                 },
               },
               'complete'
