@@ -69,25 +69,6 @@ Match the error:
 
 ---
 
-## Realtime pod connects to `http://localhost:3000` even though I set NEXT_PUBLIC_APP_URL
-
-**Cause:** You set `NEXT_PUBLIC_APP_URL` in `app.env` but not `realtime.env`. In chart versions before the fix shipped in 1.0.0, the realtime Deployment would inline the localhost default from `realtime.envDefaults`, masking the Secret value.
-
-**Fix (1.0.0+):** The chart now skips the realtime envDefault when the key is set in **either** `app.env` or `realtime.env`. Upgrade to chart 1.0.0+ if you're on an older build.
-
-**Fix (older chart):** Mirror the value in `realtime.env`:
-
-```yaml
-app:
-  env:
-    NEXT_PUBLIC_APP_URL: "https://sim.example.com"
-realtime:
-  env:
-    NEXT_PUBLIC_APP_URL: "https://sim.example.com"
-```
-
----
-
 ## Image pull errors (`ErrImagePull` / `ImagePullBackOff`)
 
 ```bash
@@ -136,19 +117,11 @@ kubectl describe ingress -n sim
 
 ---
 
-## `helm upgrade` fails with `Forbidden: updates to statefulset spec for fields other than 'replicas', 'ordinals', 'template', 'updateStrategy'...`
-
-**Cause:** You're upgrading from a pre-1.0.0 build. `StatefulSet.spec.serviceName` was renamed to point at a new headless Service. That field is immutable.
-
-**Fix:** See `references/upgrade-pre-1.0.0.md`. Orphan-delete the StatefulSet first (pods + PVCs survive), then re-run `helm upgrade`.
-
----
-
 ## CronJob pods fail with `CreateContainerConfigError: couldn't find key CRON_SECRET in Secret`
 
 **Cause:** `cronjobs.enabled=true` (the default) but `CRON_SECRET` isn't in the app Secret. Two paths:
 
-1. Inline mode: `app.env.CRON_SECRET=""` — the chart will fail at template time in 1.0.0+. If you somehow got past that, regenerate and set it.
+1. Inline mode: `app.env.CRON_SECRET=""` — the chart will fail at template time. If you somehow got past that, regenerate and set it.
 2. Existing-Secret mode: your pre-created Secret doesn't include `CRON_SECRET`. Add it:
    ```bash
    kubectl patch secret sim-app-secrets -n sim --type='json' \

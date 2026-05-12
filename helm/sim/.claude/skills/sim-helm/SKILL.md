@@ -1,6 +1,6 @@
 ---
 name: sim-helm
-description: Install, upgrade, and operate the Sim Helm chart on Kubernetes. Covers install path selection (inline / existingSecret / External Secrets Operator), required secret generation, the values.yaml mental model (env vs envDefaults vs Secret), common failure triage, and the pre-1.0.0 → 1.0.0 StatefulSet upgrade procedure. Invoke when a user asks about deploying Sim to a cluster, authoring a Sim values.yaml, debugging a Sim pod that won't start, upgrading a Sim release, or wiring Sim into a secret manager.
+description: Install, upgrade, and operate the Sim Helm chart on Kubernetes. Covers install path selection (inline / existingSecret / External Secrets Operator), required secret generation, the values.yaml mental model (env vs envDefaults vs Secret), and common failure triage. Invoke when a user asks about deploying Sim to a cluster, authoring a Sim values.yaml, debugging a Sim pod that won't start, upgrading a Sim release, or wiring Sim into a secret manager.
 license: Apache-2.0
 ---
 
@@ -20,7 +20,6 @@ Before recommending anything, ask (or infer from the conversation) all of these.
 
 | Question | Why it matters |
 |---|---|
-| Fresh install or upgrade? | Upgrade-from-pre-1.0.0 has a mandatory StatefulSet orphan-delete step |
 | Cluster: EKS / GKE / AKS / OpenShift / kind / other? | Storage class, ingress class, identity provider differ |
 | Secret strategy: inline `--set`, pre-existing K8s Secret, or External Secrets Operator (ESO)? | The chart has three distinct code paths |
 | Postgres: chart-bundled, or external (RDS / Cloud SQL / Azure DB)? | Different value blocks (`postgresql.*` vs `externalDatabase.*`) |
@@ -40,7 +39,6 @@ Map the user's request to one of these categories and load the matching referenc
 | User needs to generate the required secrets | `references/secrets.md` |
 | User asks "what does this value do" / wants to author values.yaml | `references/values-model.md` |
 | Pod won't start, error message, `CrashLoopBackOff`, image pull error, ingress not routing | `references/troubleshooting.md` |
-| User is upgrading and `helm upgrade` failed with `Forbidden: updates to statefulset spec for fields other than...` | `references/upgrade-pre-1.0.0.md` |
 | User asks about ESO / Vault / AWS Secrets Manager / Azure Key Vault / GCP Secret Manager | `references/install-paths.md` (ESO section) |
 | User asks "is X production-ready" / autoscaling / network policy / security context | Read the README's "Production checklist" section directly — no separate reference |
 

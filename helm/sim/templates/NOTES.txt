@@ -81,48 +81,7 @@ Your release is named {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
      # Upgrade after changing values
      helm upgrade {{ .Release.Name }} ./helm/sim --namespace {{ .Release.Namespace }} -f your-values.yaml
 
-{{- if .Release.IsUpgrade }}
-5. Upgrading from a pre-1.0.0 build?
-
-   The internal Postgres StatefulSet's `spec.serviceName` was renamed to point
-   at a new headless Service. That field is immutable, so `helm upgrade` will
-   fail with: `Forbidden: updates to statefulset spec for fields other than
-   ...`. Orphan-delete the StatefulSet first (preserves pods and PVCs, traffic
-   keeps flowing):
-
-     kubectl --namespace {{ .Release.Namespace }} delete statefulset {{ include "sim.fullname" . }}-postgresql --cascade=orphan
-{{- if .Values.copilot.enabled }}
-     kubectl --namespace {{ .Release.Namespace }} delete statefulset {{ include "sim.fullname" . }}-copilot-postgresql --cascade=orphan
-{{- end }}
-
-   Then re-run `helm upgrade`. See README → "Upgrading from a pre-1.0.0 build"
-   for the full procedure. Skip this step if you're already on 1.0.0+.
-
-6. Also new in 1.0.0: `app.env.INTERNAL_API_SECRET` is now required.
-
-   Older charts treated this as optional. Upgrades will fail at template
-   render with `app.env.INTERNAL_API_SECRET is required for production
-   deployment` if you never set it. Generate one and pass it on upgrade:
-
-     --set app.env.INTERNAL_API_SECRET=$(openssl rand -hex 32)
-
-   Store it durably (values.yaml / existingSecret / ESO) — the app and
-   realtime pods both read it to authenticate inter-service requests.
-
-7. Also new in 1.0.0: `networkPolicy.egress` shape changed.
-
-   Was: a list of custom egress rules.
-   Now: a map with `exceptCidrs` (CIDRs excluded from broad HTTPS egress)
-   and `extraRules` (custom rules appended to the policy).
-
-   If you previously set custom rules under `networkPolicy.egress:`, move
-   them to `networkPolicy.egress.extraRules:` — old-shape values are
-   silently ignored after upgrade.
-
-8. Where to go next:
-{{- else }}
 5. Where to go next:
-{{- end }}
 
    * Production checklist:  helm/sim/README.md (search "Production checklist")
    * Troubleshooting:       helm/sim/README.md (search "Troubleshooting")

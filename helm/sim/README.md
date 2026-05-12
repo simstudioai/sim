@@ -133,25 +133,9 @@ helm install sim ./helm/sim --dry-run --debug \
 
 ## Upgrading
 
-### Upgrading within the 1.x line
-
 ```bash
 helm upgrade sim ./helm/sim --namespace sim --values my-values.yaml
 ```
-
-### Upgrading from a pre-1.0.0 build
-
-If you previously installed this chart from a git checkout before the `1.0.0` tag, the internal Postgres StatefulSets had their `serviceName` renamed to point at new headless Services. `StatefulSet.spec.serviceName` is immutable, so `helm upgrade` will fail with `Forbidden: updates to statefulset spec ...`. Orphan-delete the affected StatefulSet(s) first — pods and PVCs are preserved, traffic continues to flow:
-
-```bash
-kubectl delete statefulset sim-postgresql --namespace sim --cascade=orphan
-# If copilot is enabled, also:
-kubectl delete statefulset sim-copilot-postgresql --namespace sim --cascade=orphan
-
-helm upgrade sim ./helm/sim --namespace sim --values my-values.yaml
-```
-
-Other defaults that changed in `1.0.0`: image tags default to `Chart.AppVersion` (not `latest`), `pullPolicy` defaults to `IfNotPresent` (not `Always`), Ollama mount moved from `/root/.ollama` to `/data` (models must be re-pulled), `networkPolicy.egress` became an object `{exceptCidrs, extraRules}` instead of a list, `automountServiceAccountToken: false` is set on every pod, and every value in `app.env` / `realtime.env` is now written to a chart-managed Secret instead of inlined on the Deployment (chart-computed values `DATABASE_URL`, `SOCKET_SERVER_URL`, `OLLAMA_URL` remain inline). ESO users must map every key via `externalSecrets.remoteRefs.app.<KEY>` — the chart fails template rendering if a key is missing.
 
 ---
 
@@ -423,10 +407,6 @@ kubectl describe ingress --namespace sim
 * Ingress controller not installed → install `ingress-nginx` or similar.
 * `ingress.className` doesn't match your controller → set it to your installed class.
 * DNS not pointed at the ingress's external IP / LoadBalancer.
-
-### `helm upgrade` fails with `Forbidden: updates to statefulset spec for fields other than...`
-
-You're upgrading from a pre-1.0.0 build of the chart. The `StatefulSet.serviceName` rename requires an orphan-delete first — see [Upgrading from a pre-1.0.0 build](#upgrading-from-a-pre-100-build).
 
 ### Get logs from each component
 
