@@ -1,0 +1,18 @@
+app:
+  env:
+    BETTER_AUTH_SECRET: ci-test-better-auth-secret-32chars
+    ENCRYPTION_KEY: ci-test-encryption-key-32-chars-ok
+    INTERNAL_API_SECRET: ci-test-internal-api-secret-32chr
+    CRON_SECRET: ci-test-cron-secret-32-characters
+
+postgresql:
+  enabled: false
+
+externalDatabase:
+  enabled: true
+  host: db.example.com
+  port: 5432
+  database: simstudio
+  username: simstudio
+  password: ci-test-external-db-password
+  sslMode: require
