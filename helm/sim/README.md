@@ -16,6 +16,7 @@ Deploy [Sim](https://sim.ai) — the open-source AI workspace where teams build,
 export BETTER_AUTH_SECRET=$(openssl rand -hex 32)
 export ENCRYPTION_KEY=$(openssl rand -hex 32)
 export INTERNAL_API_SECRET=$(openssl rand -hex 32)
+export CRON_SECRET=$(openssl rand -hex 32)
 export POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')
 
 # Install from this repository
@@ -24,6 +25,7 @@ helm install sim ./helm/sim \
   --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
   --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
   --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+  --set app.env.CRON_SECRET="$CRON_SECRET" \
   --set postgresql.auth.password="$POSTGRES_PASSWORD"
 ```
 
@@ -123,6 +125,7 @@ helm install sim ./helm/sim --dry-run --debug \
   --set app.env.BETTER_AUTH_SECRET=$(openssl rand -hex 16) \
   --set app.env.ENCRYPTION_KEY=$(openssl rand -hex 16) \
   --set app.env.INTERNAL_API_SECRET=$(openssl rand -hex 16) \
+  --set app.env.CRON_SECRET=$(openssl rand -hex 16) \
   --set postgresql.auth.password=$(openssl rand -base64 12 | tr -d '/+=')
 ```
 
