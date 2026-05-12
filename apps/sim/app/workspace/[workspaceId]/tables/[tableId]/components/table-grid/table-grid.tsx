@@ -2272,10 +2272,10 @@ export function TableGrid({
       if (target.isContentEditable) return
       if (target.closest('[role="dialog"]')) return
       if (!containerRef.current) return
-      e.preventDefault()
       const rws = rowsRef.current
       const currentCols = columnsRef.current
       if (rws.length > 0 && currentCols.length > 0) {
+        e.preventDefault()
         suppressFocusScrollRef.current = true
         setEditingCell(null)
         setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
