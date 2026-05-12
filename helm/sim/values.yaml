@@ -101,8 +101,8 @@ app:
     CRON_SECRET: ""         # OPTIONAL - required only if cronjobs.enabled=true, authenticates scheduled job requests
 
     # Optional: API Key Encryption (RECOMMENDED for production)
-    # Generate 64-character hex string using: openssl rand -hex 32 (outputs 64 hex chars = 32 bytes)
-    API_ENCRYPTION_KEY: ""  # OPTIONAL - encrypts API keys at rest, must be exactly 64 hex characters, if not set keys stored in plain text
+    # Generate with: openssl rand -hex 32 (produces the required 64-hex-char / 32-byte value).
+    API_ENCRYPTION_KEY: ""  # OPTIONAL - encrypts API keys at rest; if unset, keys are stored in plain text
     REDIS_URL: ""           # OPTIONAL - Redis connection string for caching/sessions; can also come from app secret or External Secrets
     
     # Email & Communication
@@ -951,7 +951,18 @@ monitoring:
 networkPolicy:
   enabled: false
 
-  # Custom ingress rules
+  # NetworkPolicyPeers allowed to reach the app/realtime pods on the
+  # ingress-controller path. Defaults to `- {}` (any source), which matches the
+  # common case where the ingress controller is the only thing routing to these
+  # ports. To restrict ingress to a specific controller namespace, replace with:
+  #   ingressFrom:
+  #     - namespaceSelector:
+  #         matchLabels:
+  #           kubernetes.io/metadata.name: ingress-nginx
+  ingressFrom:
+    - {}
+
+  # Custom ingress rules appended to the policy
   ingress: []
 
   # Egress configuration
