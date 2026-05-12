@@ -34,7 +34,7 @@ import 'prismjs/components/prism-python'
 import { cn } from '@/lib/core/utils/cn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import { useAutoScroll } from '@/hooks/use-auto-scroll'
+import { useScrollAnchor } from '@/hooks/use-scroll-anchor'
 import { DataTable } from './data-table'
 import { ZoomablePreview } from './zoomable-preview'
 
@@ -866,7 +866,10 @@ const MarkdownPreview = memo(function MarkdownPreview({
   onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
 }) {
   const { push: navigate } = useRouter()
-  const { ref: autoScrollRef } = useAutoScroll(isStreaming && !disableAutoScroll)
+  const { ref: autoScrollRef, spacerRef } = useScrollAnchor(
+    isStreaming && !disableAutoScroll,
+    content
+  )
 
   const contentRef = useRef(content)
   contentRef.current = content
@@ -921,16 +924,13 @@ const MarkdownPreview = memo(function MarkdownPreview({
       >
         {markdownContent}
       </Streamdown>
+      <div ref={spacerRef} aria-hidden />
     </div>
   )
 
   return (
     <NavigateCtx.Provider value={navigate}>
-      {onCheckboxToggle ? (
-        <MarkdownCheckboxCtx.Provider value={ctxValue}>{body}</MarkdownCheckboxCtx.Provider>
-      ) : (
-        body
-      )}
+      <MarkdownCheckboxCtx.Provider value={ctxValue}>{body}</MarkdownCheckboxCtx.Provider>
     </NavigateCtx.Provider>
   )
 })
