@@ -23,8 +23,6 @@
 .vscode/
 # Repo tooling — not part of the chart artifact (anchored to chart root)
 /.claude/
-/CONTRIBUTING.md
-/ci/
 # Examples — published in-repo, not in the packaged chart
 /examples/
 # Unit-test suites (helm-unittest) — distinct from templates/tests/ which IS shipped
