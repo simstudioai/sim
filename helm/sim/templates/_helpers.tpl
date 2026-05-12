@@ -219,6 +219,9 @@ Skip validation when using existing secrets or External Secrets Operator
 {{- if and .Values.app.enabled (eq .Values.app.env.ENCRYPTION_KEY "CHANGE-ME-32-CHAR-ENCRYPTION-KEY-FOR-PROD") }}
 {{- fail "app.env.ENCRYPTION_KEY must not use the default placeholder value. Generate a secure key with: openssl rand -hex 32" }}
 {{- end }}
+{{- if and .Values.app.enabled (not .Values.app.env.INTERNAL_API_SECRET) }}
+{{- fail "app.env.INTERNAL_API_SECRET is required for production deployment (shared auth between sim-app and sim-realtime pods). Generate one with: openssl rand -hex 32" }}
+{{- end }}
 {{- if and .Values.realtime.enabled (eq .Values.realtime.env.BETTER_AUTH_SECRET "CHANGE-ME-32-CHAR-SECRET-FOR-PRODUCTION-USE") }}
 {{- fail "realtime.env.BETTER_AUTH_SECRET must not use the default placeholder value. Generate a secure secret with: openssl rand -hex 32" }}
 {{- end }}
