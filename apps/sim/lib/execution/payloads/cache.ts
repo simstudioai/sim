@@ -17,9 +17,20 @@ interface LargeValueCacheScope {
 
 const inMemoryValues = new Map<
   string,
-  { value: unknown; size: number; expiresAt: number; scope?: LargeValueCacheScope }
+  {
+    value: unknown
+    size: number
+    expiresAt: number
+    scope?: LargeValueCacheScope
+    recoverable: boolean
+  }
 >()
 let inMemoryBytes = 0
+
+export function clearLargeValueCacheForTests(): void {
+  inMemoryValues.clear()
+  inMemoryBytes = 0
+}
 
 function cleanupExpiredValues(now = Date.now()): void {
   for (const [id, entry] of inMemoryValues.entries()) {
@@ -34,29 +45,48 @@ export function cacheLargeValue(
   id: string,
   value: unknown,
   size: number,
-  scope?: LargeValueCacheScope
-): void {
+  scope?: LargeValueCacheScope,
+  options: { recoverable?: boolean } = {}
+): boolean {
   if (size > MAX_IN_MEMORY_BYTES) {
-    return
+    return false
   }
 
   cleanupExpiredValues()
 
+  const existing = inMemoryValues.get(id)
+  if (existing) {
+    inMemoryValues.delete(id)
+    inMemoryBytes -= existing.size
+  }
+
   while (inMemoryBytes + size > MAX_IN_MEMORY_BYTES && inMemoryValues.size > 0) {
-    const oldestId = inMemoryValues.keys().next().value
-    if (!oldestId) break
-    const oldest = inMemoryValues.get(oldestId)
-    inMemoryValues.delete(oldestId)
+    const oldestRecoverableId = Array.from(inMemoryValues.entries()).find(
+      ([, entry]) => entry.recoverable
+    )?.[0]
+    if (!oldestRecoverableId) break
+    const oldest = inMemoryValues.get(oldestRecoverableId)
+    inMemoryValues.delete(oldestRecoverableId)
     inMemoryBytes -= oldest?.size ?? 0
+  }
+
+  if (inMemoryBytes + size > MAX_IN_MEMORY_BYTES) {
+    if (existing) {
+      inMemoryValues.set(id, existing)
+      inMemoryBytes += existing.size
+    }
+    return false
   }
 
   inMemoryValues.set(id, {
     value,
     size,
     scope,
+    recoverable: options.recoverable ?? false,
     expiresAt: Date.now() + FALLBACK_TTL_MS,
   })
   inMemoryBytes += size
+  return true
 }
 
 function scopeMatchesRef(

@@ -106,7 +106,10 @@ export async function storeLargeValue(
   assertDurableLargeValueSize(size)
   const id = `lv_${generateShortId(12)}`
   const key = await persistValue(id, json, context)
-  cacheLargeValue(id, value, size, context)
+  const cached = cacheLargeValue(id, value, size, context, { recoverable: Boolean(key) })
+  if (!key && !cached) {
+    throw new Error('Cannot retain large execution value without durable storage')
+  }
 
   return {
     __simLargeValueRef: true,
@@ -152,10 +155,16 @@ export async function materializeLargeValueRef(
     if (value === undefined) {
       return undefined
     }
-    cacheLargeValue(ref.id, value, ref.size, {
-      ...context,
-      executionId: ref.executionId ?? context.executionId,
-    })
+    cacheLargeValue(
+      ref.id,
+      value,
+      ref.size,
+      {
+        ...context,
+        executionId: ref.executionId ?? context.executionId,
+      },
+      { recoverable: true }
+    )
     return value
   } catch (error) {
     logger.warn('Failed to materialize persisted large execution value', {

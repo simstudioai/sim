@@ -390,7 +390,7 @@ export class ParallelOrchestrator {
 
     this.registerClonedSubflows(ctx, scope.parallelId, clonedSubflows)
     this.registerBranchMappings(ctx, scope.parallelId, allBranchNodes)
-    this.resetBatchExecutionState(scope.parallelId)
+    this.resetBatchExecutionState(allBranchNodes)
 
     scope.currentBatchStart = nextBatchStart
     scope.currentBatchSize = currentBatchSize
@@ -408,9 +408,10 @@ export class ParallelOrchestrator {
     })
   }
 
-  private resetBatchExecutionState(parallelId: string): void {
-    for (const [nodeId, node] of this.dag.nodes.entries()) {
-      if (node.metadata.parallelId !== parallelId || !node.metadata.isParallelBranch) {
+  private resetBatchExecutionState(branchNodeIds: string[]): void {
+    for (const nodeId of branchNodeIds) {
+      const node = this.dag.nodes.get(nodeId)
+      if (!node?.metadata.isParallelBranch) {
         continue
       }
       this.state.unmarkExecuted(nodeId)

@@ -96,7 +96,7 @@ export function isBranchNodeId(nodeId: string): boolean {
 
 const OUTER_BRANCH_PATTERN = /__obranch-(\d+)/
 const OUTER_BRANCH_STRIP_PATTERN = /__obranch-\d+/g
-const CLONE_SEQ_STRIP_PATTERN = /__clone\d+/g
+const CLONE_DIGEST_STRIP_PATTERN = /__clone[0-9a-f]+/gi
 
 /**
  * Extracts the outer branch index from a cloned subflow ID.
@@ -114,7 +114,7 @@ export function extractOuterBranchIndex(clonedId: string): number | undefined {
  */
 export function stripCloneSuffixes(nodeId: string): string {
   return extractBaseBlockId(
-    nodeId.replace(OUTER_BRANCH_STRIP_PATTERN, '').replace(CLONE_SEQ_STRIP_PATTERN, '')
+    nodeId.replace(OUTER_BRANCH_STRIP_PATTERN, '').replace(CLONE_DIGEST_STRIP_PATTERN, '')
   )
 }
 
@@ -130,7 +130,7 @@ export function buildClonedSubflowId(originalId: string, branchIndex: number): s
  * returning the original workflow-level subflow ID.
  */
 export function stripOuterBranchSuffix(id: string): string {
-  return id.replace(OUTER_BRANCH_STRIP_PATTERN, '').replace(CLONE_SEQ_STRIP_PATTERN, '')
+  return id.replace(OUTER_BRANCH_STRIP_PATTERN, '').replace(CLONE_DIGEST_STRIP_PATTERN, '')
 }
 
 /**
@@ -196,82 +196,6 @@ export function normalizeNodeId(nodeId: string): string {
     return extractParallelIdFromSentinel(nodeId) || nodeId
   }
   return nodeId
-}
-
-/**
- * Resolves array input at runtime. Handles arrays, objects, references, and JSON strings.
- * Used by both loop forEach and parallel distribution resolution.
- * Throws an error if resolution fails.
- */
-export function resolveArrayInput(
-  ctx: ExecutionContext,
-  items: any,
-  resolver: VariableResolver | null
-): any[] {
-  if (Array.isArray(items)) {
-    return items
-  }
-
-  if (typeof items === 'object' && items !== null) {
-    return Object.entries(items)
-  }
-
-  if (typeof items === 'string') {
-    if (items.startsWith(REFERENCE.START) && items.endsWith(REFERENCE.END) && resolver) {
-      try {
-        const resolved = resolver.resolveSingleReference(ctx, '', items)
-        if (Array.isArray(resolved)) {
-          return resolved
-        }
-        if (typeof resolved === 'object' && resolved !== null) {
-          return Object.entries(resolved)
-        }
-        if (resolved === null) {
-          return []
-        }
-        throw new Error(`Reference "${items}" did not resolve to an array or object`)
-      } catch (error) {
-        if (error instanceof Error && error.message.startsWith('Reference "')) {
-          throw error
-        }
-        throw new Error(`Failed to resolve reference "${items}": ${toError(error).message}`)
-      }
-    }
-
-    try {
-      const normalized = items.replace(/'/g, '"')
-      const parsed = JSON.parse(normalized)
-      if (Array.isArray(parsed)) {
-        return parsed
-      }
-      if (typeof parsed === 'object' && parsed !== null) {
-        return Object.entries(parsed)
-      }
-      throw new Error(`Parsed value is not an array or object`)
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith('Parsed value')) {
-        throw error
-      }
-      throw new Error(`Failed to parse items as JSON: "${items}"`)
-    }
-  }
-
-  if (resolver) {
-    try {
-      const resolved = (resolver.resolveInputs(ctx, 'subflow_items', { items }) as any).items
-      if (Array.isArray(resolved)) {
-        return resolved
-      }
-      throw new Error(`Resolved items is not an array`)
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith('Resolved items')) {
-        throw error
-      }
-      throw new Error(`Failed to resolve items: ${toError(error).message}`)
-    }
-  }
-
-  return []
 }
 
 /**

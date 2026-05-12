@@ -2,7 +2,11 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { cacheLargeValue, materializeLargeValueRefSync } from '@/lib/execution/payloads/cache'
+import {
+  cacheLargeValue,
+  clearLargeValueCacheForTests,
+  materializeLargeValueRefSync,
+} from '@/lib/execution/payloads/cache'
 import {
   MAX_DURABLE_LARGE_VALUE_BYTES,
   readLargeValueRefFromStorage,
@@ -31,6 +35,7 @@ vi.mock('@/app/api/files/authorization', () => ({
 describe('large execution payload store', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clearLargeValueCacheForTests()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
     mockVerifyFileAccess.mockResolvedValue(true)
   })
@@ -252,6 +257,33 @@ describe('large execution payload store', () => {
         executionId: 'other-execution',
       })
     ).toBeUndefined()
+  })
+
+  it('does not evict unrecoverable in-memory refs for recoverable cache entries', () => {
+    const scope = {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    }
+    const unrecoverableId = 'lv_UNRECOVER001'
+    const unrecoverableRef = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: unrecoverableId,
+      kind: 'object',
+      size: 200 * 1024 * 1024,
+      executionId: scope.executionId,
+    } as const
+
+    expect(cacheLargeValue(unrecoverableId, { retained: true }, unrecoverableRef.size, scope)).toBe(
+      true
+    )
+    expect(
+      cacheLargeValue('lv_RECOVER00001', { recoverable: true }, 70 * 1024 * 1024, scope, {
+        recoverable: true,
+      })
+    ).toBe(false)
+    expect(materializeLargeValueRefSync(unrecoverableRef, scope)).toEqual({ retained: true })
   })
 
   it('rejects durable refs when caller omits workspace and workflow context', async () => {

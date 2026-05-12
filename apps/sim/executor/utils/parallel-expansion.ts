@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { SerializedBlock } from '@/serializer/types'
@@ -288,7 +289,7 @@ export class ParallelExpander {
   /**
    * Generates a unique clone ID for pre-expansion cloning.
    *
-   * Pre-expansion clones use `{originalId}__clone{hash}__obranch-{branchIndex}` instead
+   * Pre-expansion clones use `{originalId}__clone{digest}__obranch-{branchIndex}` instead
    * of the plain `{originalId}__obranch-{branchIndex}` used by runtime expansion.
    * The clone segment prevents naming collisions when the original (branch-0)
    * subflow later expands at runtime and creates `{child}__obranch-{branchIndex}`.
@@ -299,12 +300,9 @@ export class ParallelExpander {
     outerBranchIndex: number,
     parentCloneId: string
   ): string {
-    let hash = 0
     const input = `${parentCloneId}:${originalId}:${outerBranchIndex}`
-    for (let i = 0; i < input.length; i++) {
-      hash = (hash * 31 + input.charCodeAt(i)) >>> 0
-    }
-    return `${originalId}__clone${hash}__obranch-${outerBranchIndex}`
+    const digest = sha256Hex(input).slice(0, 24)
+    return `${originalId}__clone${digest}__obranch-${outerBranchIndex}`
   }
 
   /**

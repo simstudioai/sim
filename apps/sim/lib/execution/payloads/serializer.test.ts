@@ -10,6 +10,12 @@ import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import type { UserFile } from '@/executor/types'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
 
+const TEST_EXECUTION_CONTEXT = {
+  workspaceId: 'workspace-1',
+  workflowId: 'workflow-1',
+  executionId: 'execution-1',
+}
+
 describe('compactExecutionPayload', () => {
   it('keeps small JSON payloads inline', async () => {
     const value = { result: { id: 'event-1', text: 'hello' } }
@@ -53,10 +59,17 @@ describe('compactExecutionPayload', () => {
 
   it('stores oversized arrays as refs and allows nested path navigation in-process', async () => {
     const results = Array.from({ length: 100 }, (_, index) => [{ event: { id: `event-${index}` } }])
-    const compacted = await compactExecutionPayload({ results }, { thresholdBytes: 256 })
+    const compacted = await compactExecutionPayload(
+      { results },
+      { thresholdBytes: 256, ...TEST_EXECUTION_CONTEXT }
+    )
 
     expect(isLargeValueRef(compacted.results)).toBe(true)
-    expect(navigatePath(compacted, ['results', '1', '0', 'event', 'id'])).toBe('event-1')
+    expect(
+      navigatePath(compacted, ['results', '1', '0', 'event', 'id'], {
+        executionContext: TEST_EXECUTION_CONTEXT,
+      })
+    ).toBe('event-1')
   })
 
   it('does not double-spill existing refs', async () => {

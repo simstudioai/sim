@@ -14,6 +14,7 @@ import {
 import { List, type RowComponentProps, useListRef } from 'react-window'
 import { Badge, ChevronDown } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
 import { isLargeValueRef, type LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 
 type ValueType = 'null' | 'undefined' | 'array' | 'string' | 'number' | 'boolean' | 'object'
@@ -89,20 +90,6 @@ function getDisplayValue(value: unknown): unknown {
   return isLargeValueRef(value) ? getLargeValueDisplayValue(value) : value
 }
 
-function isDisplayedUserFileMetadata(value: unknown): value is Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const candidate = value as Record<string, unknown>
-  const url = typeof candidate.url === 'string' ? candidate.url : ''
-  return (
-    typeof candidate.id === 'string' &&
-    typeof candidate.name === 'string' &&
-    url.length > 0 &&
-    typeof candidate.size === 'number' &&
-    typeof candidate.type === 'string' &&
-    (candidate.id.startsWith('file_') || url.includes('/api/files/serve/'))
-  )
-}
-
 function getTypeLabel(value: unknown): ValueType {
   if (value === null) return 'null'
   if (value === undefined) return 'undefined'
@@ -151,7 +138,7 @@ function buildEntries(value: unknown, basePath: string): NodeEntry[] {
     value: v,
     path: `${basePath}.${k}`,
   }))
-  if (isDisplayedUserFileMetadata(displayValue) && !('base64' in displayValue)) {
+  if (isUserFileDisplayMetadata(displayValue) && !('base64' in displayValue)) {
     entries.push({
       key: 'base64',
       value: USER_FILE_BASE64_PLACEHOLDER,

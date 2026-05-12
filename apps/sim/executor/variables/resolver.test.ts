@@ -328,6 +328,86 @@ describe('VariableResolver function block inputs', () => {
     ).rejects.toThrow('This execution value is too large to inline')
   })
 
+  it('keeps JavaScript lazy helpers enabled when import appears in comments or strings', async () => {
+    const { block, ctx } = createResolver('javascript')
+    const state = new ExecutionState()
+    state.setBlockOutput('producer', {
+      result: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_ABCDEFGHIJKL',
+        kind: 'object',
+        size: 12 * 1024 * 1024,
+        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
+        executionId: 'execution-1',
+      },
+    })
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const largeResolver = new VariableResolver(workflow, {}, state)
+    const largeCtx = {
+      ...ctx,
+      blockStates: state.getBlockStates(),
+    } as ExecutionContext
+
+    const result = await largeResolver.resolveInputsForFunctionBlock(
+      largeCtx,
+      'function',
+      {
+        code: "/** @import { Foo } from 'foo' */\nconst text = \"import bar from 'bar'\"\nreturn <Producer.result>",
+      },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      '/** @import { Foo } from \'foo\' */\nconst text = "import bar from \'bar\'"\nreturn (await sim.values.read(globalThis["__blockRef_0"]))'
+    )
+  })
+
+  it('keeps JavaScript lazy helpers enabled for dynamic import expressions', async () => {
+    const { block, ctx } = createResolver('javascript')
+    const state = new ExecutionState()
+    state.setBlockOutput('producer', {
+      result: {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_ABCDEFGHIJKL',
+        kind: 'object',
+        size: 12 * 1024 * 1024,
+        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json',
+        executionId: 'execution-1',
+      },
+    })
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [createBlock('producer', 'Producer', BlockType.API), block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const largeResolver = new VariableResolver(workflow, {}, state)
+    const largeCtx = {
+      ...ctx,
+      blockStates: state.getBlockStates(),
+    } as ExecutionContext
+
+    const result = await largeResolver.resolveInputsForFunctionBlock(
+      largeCtx,
+      'function',
+      { code: "const mod = import('foo')\nreturn <Producer.result>" },
+      block
+    )
+
+    expect(result.resolvedInputs.code).toBe(
+      'const mod = import(\'foo\')\nreturn (await sim.values.read(globalThis["__blockRef_0"]))'
+    )
+  })
+
   it('fails nested large value refs for Function runtimes without lazy helpers', async () => {
     const { block, ctx } = createResolver('python')
     const state = new ExecutionState()

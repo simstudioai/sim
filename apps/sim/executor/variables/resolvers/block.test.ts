@@ -175,6 +175,9 @@ function createTestContext(
 
   return {
     executionContext: {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
       blockStates: contextBlockStates ?? new Map(),
     },
     executionState: state,
@@ -256,7 +259,12 @@ describe('BlockResolver', () => {
           user: { profile: { name: 'Alice' } },
           items: Array.from({ length: 100 }, (_, index) => ({ id: index })),
         },
-        { thresholdBytes: 64 }
+        {
+          thresholdBytes: 64,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }
       )
       const ctx = createTestContext('current', { source: compacted })
 

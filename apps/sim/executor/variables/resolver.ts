@@ -550,7 +550,148 @@ export class VariableResolver {
     if (language !== 'javascript') {
       return false
     }
-    return !/(^|\n)\s*import\s/.test(template) && !/require\s*\(\s*['"`]/.test(template)
+    return !this.hasJavaScriptModuleDependencySyntax(template)
+  }
+
+  private hasJavaScriptModuleDependencySyntax(template: string): boolean {
+    const modes: CodeScanMode[] = [{ type: 'normal' }]
+
+    for (let i = 0; i < template.length; i++) {
+      const char = template[i]
+      const next = template[i + 1]
+      const mode = modes[modes.length - 1]
+
+      if (mode.type === 'line-comment') {
+        if (char === '\n') modes.pop()
+        continue
+      }
+
+      if (mode.type === 'block-comment') {
+        if (char === '*' && next === '/') {
+          modes.pop()
+          i++
+        }
+        continue
+      }
+
+      if (mode.type === 'single' || mode.type === 'double') {
+        const quote = mode.type === 'single' ? "'" : '"'
+        if (char === '\\') {
+          i++
+          continue
+        }
+        if (char === quote || char === '\n') modes.pop()
+        continue
+      }
+
+      if (mode.type === 'template') {
+        if (char === '\\') {
+          i++
+          continue
+        }
+        if (char === '`') {
+          modes.pop()
+          continue
+        }
+        if (char === '$' && next === '{') {
+          modes.push({ type: 'template-expression', depth: 1 })
+          i++
+        }
+        continue
+      }
+
+      const isCodeMode = mode.type === 'normal' || mode.type === 'template-expression'
+      if (!isCodeMode) continue
+
+      if (char === '/' && next === '/') {
+        modes.push({ type: 'line-comment' })
+        i++
+        continue
+      }
+      if (char === '/' && next === '*') {
+        modes.push({ type: 'block-comment' })
+        i++
+        continue
+      }
+      if (char === "'") {
+        modes.push({ type: 'single' })
+        continue
+      }
+      if (char === '"') {
+        modes.push({ type: 'double' })
+        continue
+      }
+      if (char === '`') {
+        modes.push({ type: 'template' })
+        continue
+      }
+
+      if (mode.type === 'template-expression') {
+        if (char === '{') {
+          mode.depth += 1
+          continue
+        }
+        if (char === '}') {
+          mode.depth -= 1
+          if (mode.depth === 0) modes.pop()
+          continue
+        }
+      }
+
+      if (this.startsWithStaticImport(template, i) || this.startsWithRequireCall(template, i)) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  private startsWithStaticImport(template: string, index: number): boolean {
+    if (!this.matchesKeywordAt(template, index, 'import')) {
+      return false
+    }
+    const nextIndex = this.skipWhitespace(template, index + 'import'.length)
+    if (nextIndex === index + 'import'.length) {
+      return false
+    }
+    return template[nextIndex] !== '('
+  }
+
+  private startsWithRequireCall(template: string, index: number): boolean {
+    if (!this.matchesKeywordAt(template, index, 'require')) {
+      return false
+    }
+    const openParenIndex = this.skipWhitespace(template, index + 'require'.length)
+    if (template[openParenIndex] !== '(') {
+      return false
+    }
+    const argumentIndex = this.skipWhitespace(template, openParenIndex + 1)
+    return (
+      template[argumentIndex] === "'" ||
+      template[argumentIndex] === '"' ||
+      template[argumentIndex] === '`'
+    )
+  }
+
+  private matchesKeywordAt(template: string, index: number, keyword: string): boolean {
+    if (!template.startsWith(keyword, index)) {
+      return false
+    }
+    const before = index > 0 ? template[index - 1] : ''
+    const after = template[index + keyword.length] ?? ''
+    return !this.isJavaScriptIdentifierChar(before) && !this.isJavaScriptIdentifierChar(after)
+  }
+
+  private skipWhitespace(template: string, index: number): number {
+    let cursor = index
+    while (cursor < template.length && /\s/.test(template[cursor])) {
+      cursor++
+    }
+    return cursor
+  }
+
+  private isJavaScriptIdentifierChar(char: string): boolean {
+    return /[A-Za-z0-9_$]/.test(char)
   }
 
   private formatContextVariableReference(

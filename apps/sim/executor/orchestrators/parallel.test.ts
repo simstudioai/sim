@@ -6,6 +6,7 @@ import type { DAG } from '@/executor/dag/builder'
 import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { ExecutionContext } from '@/executor/types'
+import { buildBranchNodeId } from '@/executor/utils/subflow-utils'
 
 function createDag(): DAG {
   return {
@@ -172,5 +173,75 @@ describe('ParallelOrchestrator', () => {
     const scope = ctx.parallelExecutions?.get('parallel-1')
     expect(scope?.branchOutputs.get(20)).toEqual([{ output: 'resumed' }])
     expect(scope?.branchOutputs.has(0)).toBe(false)
+  })
+
+  it('resets only incoming batch branch state when scheduling later batches', async () => {
+    const dag = createDag()
+    const incomingBranchId = buildBranchNodeId('task-1', 0)
+    const previousBranchId = buildBranchNodeId('task-1', 1)
+    dag.nodes.set(incomingBranchId, {
+      id: incomingBranchId,
+      block: {
+        id: 'task-1',
+        position: { x: 0, y: 0 },
+        config: { tool: '', params: {} },
+        inputs: {},
+        outputs: {},
+        metadata: { id: 'function', name: 'Task 1' },
+        enabled: true,
+      },
+      incomingEdges: new Set(),
+      outgoingEdges: new Set(),
+      metadata: { parallelId: 'parallel-1', isParallelBranch: true, branchIndex: 0 },
+    })
+    dag.nodes.set(previousBranchId, {
+      id: previousBranchId,
+      block: {
+        id: 'task-1',
+        position: { x: 0, y: 0 },
+        config: { tool: '', params: {} },
+        inputs: {},
+        outputs: {},
+        metadata: { id: 'function', name: 'Task 1' },
+        enabled: true,
+      },
+      incomingEdges: new Set(),
+      outgoingEdges: new Set(),
+      metadata: { parallelId: 'parallel-1', isParallelBranch: true, branchIndex: 1 },
+    })
+    const state = createState()
+    const orchestrator = new ParallelOrchestrator(dag, state, null, {})
+
+    await (
+      orchestrator as unknown as {
+        scheduleNextBatch(
+          ctx: ExecutionContext,
+          scope: NonNullable<ExecutionContext['parallelExecutions']> extends Map<
+            string,
+            infer Scope
+          >
+            ? Scope
+            : never,
+          nextBatchStart: number
+        ): Promise<void>
+      }
+    ).scheduleNextBatch(
+      createContext(),
+      {
+        parallelId: 'parallel-1',
+        totalBranches: 3,
+        batchSize: 1,
+        currentBatchStart: 0,
+        currentBatchSize: 2,
+        accumulatedOutputs: new Map([[1, [{ output: 'previous' }]]]),
+        branchOutputs: new Map(),
+      },
+      2
+    )
+
+    expect(state.deleteBlockState).toHaveBeenCalledWith(incomingBranchId)
+    expect(state.deleteBlockState).not.toHaveBeenCalledWith(previousBranchId)
+    expect(state.unmarkExecuted).toHaveBeenCalledWith(incomingBranchId)
+    expect(state.unmarkExecuted).not.toHaveBeenCalledWith(previousBranchId)
   })
 })

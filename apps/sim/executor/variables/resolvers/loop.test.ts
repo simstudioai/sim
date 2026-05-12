@@ -62,6 +62,9 @@ function createTestContext(
 ): ResolutionContext {
   return {
     executionContext: {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
       loopExecutions: loopExecutions ?? new Map(),
     },
     executionState: {
@@ -414,7 +417,12 @@ describe('LoopResolver', () => {
       const resolver = new LoopResolver(workflow)
       const compacted = await compactExecutionPayload(
         { results: [[{ response: 'a' }], [{ response: 'b', payload: 'x'.repeat(2048) }]] },
-        { thresholdBytes: 256 }
+        {
+          thresholdBytes: 256,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }
       )
       const ctx = createTestContext('block-outside', undefined, new Map(), {
         'loop-1': compacted,

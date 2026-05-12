@@ -310,7 +310,7 @@ describe('Nested parallel expansion + edge resolution', () => {
     // P3 should also be cloned (inside P2__obranch-1) with a __clone prefix
     const p3Clone = p1Result.clonedSubflows.find((c) => c.originalId === p3)!
     expect(p3Clone).toBeDefined()
-    expect(p3Clone.clonedId).toMatch(/^p3__clone\d+__obranch-1$/)
+    expect(p3Clone.clonedId).toMatch(/^p3__clone[0-9a-f]{24}__obranch-1$/)
     expect(stripCloneSuffixes(p3Clone.clonedId)).toBe('p3')
 
     // Step 2: Expand P2 (original, branch 0 of P1) — this creates P3__obranch-1 at runtime
