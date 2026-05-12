@@ -34,6 +34,7 @@ import {
 } from '@/app/api/v1/admin/responses'
 import {
   extractWorkflowMetadata,
+  type VariableType,
   type WorkflowImportRequest,
   type WorkflowVariable,
 } from '@/app/api/v1/admin/types'
@@ -126,14 +127,14 @@ export const POST = withRouteHandler(
         const variablesRecord: Record<string, WorkflowVariable> = {}
         const vars = workflowData.variables as Record<
           string,
-          { id?: string; name: string; type?: string; value: unknown }
+          { id?: string; name: string; type?: VariableType; value: unknown }
         >
         Object.entries(vars).forEach(([key, v]) => {
           const varId = v.id || key
           variablesRecord[varId] = {
             id: varId,
             name: v.name,
-            type: v.type || 'string',
+            type: v.type ?? 'string',
             value: v.value,
           }
         })
@@ -149,7 +150,7 @@ export const POST = withRouteHandler(
           variablesRecord[varId] = {
             id: varId,
             name: v.name,
-            type: v.type || 'string',
+            type: (v.type as VariableType) ?? 'string',
             value: v.value,
           }
         })
