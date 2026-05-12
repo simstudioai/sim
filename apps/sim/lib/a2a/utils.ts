@@ -90,7 +90,6 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
       } else if (init.body instanceof ArrayBuffer) {
         body = new Uint8Array(init.body)
       } else {
-        // URLSearchParams, Blob, ReadableStream, FormData — read as text via Response
         const text = await new Response(init.body as BodyInit).text()
         if (text) body = text
       }

@@ -13,7 +13,7 @@ export interface CredentialAccessResult {
   credentialOwnerUserId?: string
   workspaceId?: string
   resolvedCredentialId?: string
-  credentialType?: string
+  credentialType?: 'oauth' | 'service_account'
 }
 
 /**
