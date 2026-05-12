@@ -1040,7 +1040,7 @@ function SubBlockComponent({
         return (
           <InputMapping
             blockId={blockId}
-            subBlockId={config.id}
+            subBlock={config}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
