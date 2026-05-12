@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import {
-  assertNoLargeValueRefs,
   containsLargeValueRef,
   getLargeValueMaterializationError,
   isLargeValueRef,
@@ -31,6 +30,12 @@ export const FUNCTION_BLOCK_CONTEXT_VARS_KEY = '_runtimeContextVars'
 export const FUNCTION_BLOCK_DISPLAY_CODE_KEY = '_runtimeDisplayCode'
 
 const logger = createLogger('VariableResolver')
+
+function getNestedLargeValueMaterializationError(): Error {
+  return new Error(
+    'This execution value contains nested large values. Reference the nested field directly so it can be lazy-loaded.'
+  )
+}
 
 async function replaceValidReferencesAsync(
   template: string,
@@ -340,20 +345,20 @@ export class VariableResolver {
       displayCursor = index + match.length
 
       try {
-        if (this.blockResolver.canResolve(match)) {
-          const lazyBase64 = await this.resolveLazyFileBase64Reference(
-            match,
-            resolutionContext,
-            language,
-            template,
-            index,
-            contextVarAccumulator
-          )
-          if (lazyBase64) {
-            displayResult += lazyBase64.display
-            return lazyBase64.replacement
-          }
+        const lazyBase64 = await this.resolveLazyFileBase64Reference(
+          match,
+          resolutionContext,
+          language,
+          template,
+          index,
+          contextVarAccumulator
+        )
+        if (lazyBase64) {
+          displayResult += lazyBase64.display
+          return lazyBase64.replacement
+        }
 
+        if (this.blockResolver.canResolve(match)) {
           const resolved = await this.resolveReference(match, resolutionContext)
           if (resolved === undefined) {
             displayResult += match
@@ -378,12 +383,8 @@ export class VariableResolver {
               throw getLargeValueMaterializationError(effectiveValue)
             }
             replacement = lazyReplacement
-          } else if (
-            containsLargeValueRef(effectiveValue) &&
-            !this.canUseJavaScriptRuntimeHelpers(language, template)
-          ) {
-            assertNoLargeValueRefs(effectiveValue)
-            throw new Error('This execution value is too large to inline.')
+          } else if (containsLargeValueRef(effectiveValue)) {
+            throw getNestedLargeValueMaterializationError()
           } else {
             replacement = this.formatContextVariableReference(
               varName,
@@ -431,12 +432,8 @@ export class VariableResolver {
           throw getLargeValueMaterializationError(effectiveValue)
         }
 
-        if (
-          containsLargeValueRef(effectiveValue) &&
-          !this.canUseJavaScriptRuntimeHelpers(language, template)
-        ) {
-          assertNoLargeValueRefs(effectiveValue)
-          throw new Error('This execution value is too large to inline.')
+        if (containsLargeValueRef(effectiveValue)) {
+          throw getNestedLargeValueMaterializationError()
         }
 
         // Non-block reference (loop, parallel, workflow, env): embed as literal

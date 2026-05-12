@@ -7,10 +7,13 @@ import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
 import {
   type ExecutionRedisBudgetReservation,
-  releaseExecutionRedisBytes,
-  reserveExecutionRedisBytes,
+  getExecutionRedisBudgetKeys,
+  getExecutionRedisBudgetLimits,
 } from '@/lib/execution/redis-budget.server'
-import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
+import {
+  ExecutionResourceLimitError,
+  isExecutionResourceLimitError,
+} from '@/lib/execution/resource-errors'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 
 const logger = createLogger('ExecutionEventBuffer')
@@ -27,7 +30,87 @@ const ACTIVE_META_ATTEMPTS = 3
 const FINALIZE_FLUSH_ATTEMPTS = 2
 const FLUSH_EVENTS_SCRIPT = `
 local terminal_status = ARGV[4]
-for i = 5, #ARGV, 2 do
+local batch_bytes = tonumber(ARGV[5])
+local execution_limit = tonumber(ARGV[6])
+local user_limit = tonumber(ARGV[7])
+local budget_ttl_seconds = tonumber(ARGV[8])
+local event_limit = tonumber(ARGV[2])
+local new_count = 0
+local new_bytes = 0
+local new_entries = {}
+for i = 9, #ARGV, 2 do
+  local entry = ARGV[i + 1]
+  if not redis.call('ZSCORE', KEYS[1], entry) then
+    new_count = new_count + 1
+    new_bytes = new_bytes + string.len(entry)
+    table.insert(new_entries, entry)
+  end
+end
+local current_count = redis.call('ZCARD', KEYS[1])
+local prune_count = current_count + new_count - event_limit
+local pruned = {}
+if prune_count < 0 then
+  prune_count = 0
+end
+local existing_prune_count = math.min(prune_count, current_count)
+local new_prune_count = prune_count - existing_prune_count
+if existing_prune_count > 0 then
+  pruned = redis.call('ZRANGE', KEYS[1], 0, existing_prune_count - 1)
+end
+local pruned_bytes = 0
+for _, entry in ipairs(pruned) do
+  pruned_bytes = pruned_bytes + string.len(entry)
+end
+for i = 1, new_prune_count do
+  local entry = new_entries[i]
+  if entry then
+    pruned_bytes = pruned_bytes + string.len(entry)
+  end
+end
+local net_bytes = new_bytes - pruned_bytes
+if net_bytes > 0 then
+  local execution_current = tonumber(redis.call('GET', KEYS[4]) or '0')
+  if execution_limit > 0 and execution_current + net_bytes > execution_limit then
+    return {0, 'execution_redis_bytes', execution_current, pruned_bytes}
+  end
+  local user_current = 0
+  if #KEYS >= 5 then
+    user_current = tonumber(redis.call('GET', KEYS[5]) or '0')
+    if user_limit > 0 and user_current + net_bytes > user_limit then
+      return {0, 'user_redis_bytes', user_current, pruned_bytes}
+    end
+  end
+  redis.call('INCRBY', KEYS[4], net_bytes)
+  redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
+  if #KEYS >= 5 then
+    redis.call('INCRBY', KEYS[5], net_bytes)
+    redis.call('EXPIRE', KEYS[5], budget_ttl_seconds)
+  end
+elseif net_bytes < 0 then
+  local release_bytes = -net_bytes
+  local execution_next = redis.call('DECRBY', KEYS[4], release_bytes)
+  if execution_next <= 0 then
+    redis.call('DEL', KEYS[4])
+  else
+    redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
+  end
+  if #KEYS >= 5 then
+    local user_next = redis.call('DECRBY', KEYS[5], release_bytes)
+    if user_next <= 0 then
+      redis.call('DEL', KEYS[5])
+    else
+      redis.call('EXPIRE', KEYS[5], budget_ttl_seconds)
+    end
+  end
+else
+  if redis.call('EXISTS', KEYS[4]) == 1 then
+    redis.call('EXPIRE', KEYS[4], budget_ttl_seconds)
+  end
+  if #KEYS >= 5 and redis.call('EXISTS', KEYS[5]) == 1 then
+    redis.call('EXPIRE', KEYS[5], budget_ttl_seconds)
+  end
+end
+for i = 9, #ARGV, 2 do
   redis.call('ZADD', KEYS[1], ARGV[i], ARGV[i + 1])
 end
 redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]))
@@ -42,7 +125,34 @@ if oldest[2] then
   redis.call('HSET', KEYS[3], 'earliestEventId', tostring(math.floor(tonumber(oldest[2]))), 'updatedAt', ARGV[3])
   redis.call('EXPIRE', KEYS[3], tonumber(ARGV[1]))
 end
-return oldest[2] or false
+return {1, oldest[2] or false, pruned_bytes}
+`
+const RESET_STREAM_SCRIPT = `
+local entries = redis.call('ZRANGE', KEYS[1], 0, -1)
+local retained_bytes = 0
+for _, entry in ipairs(entries) do
+  retained_bytes = retained_bytes + string.len(entry)
+end
+redis.call('DEL', KEYS[1], KEYS[2])
+redis.call('HSET', KEYS[2], 'replayStartEventId', ARGV[1], 'updatedAt', ARGV[2])
+redis.call('EXPIRE', KEYS[2], tonumber(ARGV[3]))
+if retained_bytes > 0 then
+  local execution_next = redis.call('DECRBY', KEYS[3], retained_bytes)
+  if execution_next <= 0 then
+    redis.call('DEL', KEYS[3])
+  else
+    redis.call('EXPIRE', KEYS[3], tonumber(ARGV[4]))
+  end
+  if #KEYS >= 4 then
+    local user_next = redis.call('DECRBY', KEYS[4], retained_bytes)
+    if user_next <= 0 then
+      redis.call('DEL', KEYS[4])
+    else
+      redis.call('EXPIRE', KEYS[4], tonumber(ARGV[4]))
+    end
+  end
+end
+return retained_bytes
 `
 
 function getEventsKey(executionId: string) {
@@ -73,6 +183,21 @@ function getJsonSize(value: unknown): number | null {
 
 function getExecutionEventEntryJson(entry: ExecutionEventEntry): string {
   return JSON.stringify(entry)
+}
+
+function getFlushScriptResult(value: unknown): {
+  allowed: boolean
+  resource?: string
+  currentBytes?: number
+} {
+  if (Array.isArray(value)) {
+    return {
+      allowed: Number(value[0]) === 1,
+      resource: typeof value[1] === 'string' ? value[1] : undefined,
+      currentBytes: Number(value[2] ?? 0),
+    }
+  }
+  return { allowed: true }
 }
 
 function trimFinalBlockLogsForEventData(data: unknown): unknown {
@@ -350,12 +475,28 @@ export async function resetExecutionStreamBuffer(executionId: string): Promise<b
     const currentSequence = Number(await redis.get(getSeqKey(executionId)).catch(() => 0))
     const replayStartEventId = Number.isFinite(currentSequence) ? currentSequence + 1 : 1
     const metaKey = getMetaKey(executionId)
-    await redis.del(getEventsKey(executionId), metaKey)
-    await redis.hset(metaKey, {
-      replayStartEventId: String(replayStartEventId),
-      updatedAt: new Date().toISOString(),
-    })
-    await redis.expire(metaKey, TTL_SECONDS)
+    const meta = (await redis.hgetall(metaKey).catch(() => ({}))) as Record<string, string>
+    const userId = typeof meta.userId === 'string' ? meta.userId : undefined
+    const budgetReservation: ExecutionRedisBudgetReservation = {
+      executionId,
+      userId,
+      category: 'event_buffer',
+      operation: 'reset_events',
+      bytes: 0,
+      logger,
+    }
+    const budgetKeys = getExecutionRedisBudgetKeys(budgetReservation)
+    await redis.eval(
+      RESET_STREAM_SCRIPT,
+      2 + budgetKeys.length,
+      getEventsKey(executionId),
+      metaKey,
+      ...budgetKeys,
+      String(replayStartEventId),
+      new Date().toISOString(),
+      TTL_SECONDS,
+      getExecutionRedisBudgetLimits().ttlSeconds
+    )
     return true
   } catch (error) {
     logger.warn('Failed to reset execution stream buffer', {
@@ -612,8 +753,6 @@ export function createExecutionEventWriter(
     if (pending.length === 0) return true
     const batch = pending
     pending = []
-    let reservedBudget: ExecutionRedisBudgetReservation | null = null
-    let budgetReserved = false
     try {
       const key = getEventsKey(executionId)
       const zaddArgs: (string | number)[] = []
@@ -623,7 +762,7 @@ export function createExecutionEventWriter(
         batchBytes += Buffer.byteLength(entryJson, 'utf8')
         zaddArgs.push(entry.eventId, entryJson)
       }
-      reservedBudget = {
+      const budgetReservation: ExecutionRedisBudgetReservation = {
         executionId,
         userId: context.userId,
         category: 'event_buffer',
@@ -631,26 +770,51 @@ export function createExecutionEventWriter(
         bytes: batchBytes,
         logger,
       }
-      await reserveExecutionRedisBytes(redis, reservedBudget)
-      budgetReserved = true
-      await redis.eval(
-        FLUSH_EVENTS_SCRIPT,
-        3,
-        key,
-        getSeqKey(executionId),
-        getMetaKey(executionId),
-        TTL_SECONDS,
-        EVENT_LIMIT,
-        new Date().toISOString(),
-        terminalStatus ?? '',
-        ...zaddArgs
+      const limits = getExecutionRedisBudgetLimits()
+      if (batchBytes > limits.maxSingleWriteBytes) {
+        throw new ExecutionResourceLimitError({
+          resource: 'redis_key_bytes',
+          attemptedBytes: batchBytes,
+          limitBytes: limits.maxSingleWriteBytes,
+        })
+      }
+      const budgetKeys = getExecutionRedisBudgetKeys(budgetReservation)
+      const flushResult = getFlushScriptResult(
+        await redis.eval(
+          FLUSH_EVENTS_SCRIPT,
+          3 + budgetKeys.length,
+          key,
+          getSeqKey(executionId),
+          getMetaKey(executionId),
+          ...budgetKeys,
+          TTL_SECONDS,
+          EVENT_LIMIT,
+          new Date().toISOString(),
+          terminalStatus ?? '',
+          batchBytes,
+          limits.maxExecutionBytes,
+          limits.maxUserBytes,
+          limits.ttlSeconds,
+          ...zaddArgs
+        )
       )
+      if (!flushResult.allowed) {
+        throw new ExecutionResourceLimitError({
+          resource:
+            flushResult.resource === 'user_redis_bytes'
+              ? 'user_redis_bytes'
+              : 'execution_redis_bytes',
+          attemptedBytes: batchBytes,
+          currentBytes: flushResult.currentBytes ?? 0,
+          limitBytes:
+            flushResult.resource === 'user_redis_bytes'
+              ? limits.maxUserBytes
+              : limits.maxExecutionBytes,
+        })
+      }
       consecutiveFlushFailures = 0
       return true
     } catch (error) {
-      if (budgetReserved && reservedBudget) {
-        await releaseExecutionRedisBytes(redis, reservedBudget)
-      }
       if (isExecutionResourceLimitError(error)) {
         pending = batch.concat(pending)
         throw error

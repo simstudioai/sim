@@ -68,7 +68,9 @@ export function getExecutionRedisBudgetLimits() {
   }
 }
 
-function getBudgetKeys(reservation: ExecutionRedisBudgetReservation): string[] {
+export function getExecutionRedisBudgetKeys(
+  reservation: ExecutionRedisBudgetReservation
+): string[] {
   const keys = [`${REDIS_BUDGET_PREFIX}execution:${reservation.executionId}`]
   if (reservation.userId) {
     keys.push(`${REDIS_BUDGET_PREFIX}user:${reservation.userId}`)
@@ -91,7 +93,7 @@ export async function reserveExecutionRedisBytes(
     })
   }
 
-  const keys = getBudgetKeys(reservation)
+  const keys = getExecutionRedisBudgetKeys(reservation)
   const result = (await redis.eval(
     RESERVE_REDIS_BYTES_SCRIPT,
     keys.length,
@@ -120,7 +122,7 @@ export async function releaseExecutionRedisBytes(
   if (reservation.bytes <= 0) return
 
   try {
-    const keys = getBudgetKeys(reservation)
+    const keys = getExecutionRedisBudgetKeys(reservation)
     await redis.eval(RELEASE_REDIS_BYTES_SCRIPT, keys.length, ...keys, reservation.bytes)
   } catch (error) {
     const log = reservation.logger ?? logger
