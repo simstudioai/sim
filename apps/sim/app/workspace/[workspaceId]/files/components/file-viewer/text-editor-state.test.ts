@@ -339,21 +339,12 @@ describe('syncTextEditorContentState — streaming finalize shortcuts', () => {
 })
 
 describe('syncTextEditorContentState — inter-session content shrink (replace mode)', () => {
-  // These tests cover the path that causes scroll jumps in the file viewer.
-  // During "session linger" (session 1 complete, session 2 not yet started),
-  // the state machine stays in 'streaming' phase with session 1's full content.
-  // When session 2's first chunk arrives it is often SHORTER than session 1's
-  // final content. The state machine must correctly replace the content rather
-  // than treating it as already-final or dropping it.
-
   it('replaces long linger content with a short first chunk from a new session', () => {
-    // State during linger: streaming with session 1's full long content
     const lingerState = streaming(
       'a very long document with many paragraphs',
       'a very long document with many paragraphs',
       ''
     )
-    // Session 2 first chunk arrives — much shorter than session 1's content
     const next = syncTextEditorContentState(lingerState, {
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
@@ -382,8 +373,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
   })
 
   it('does not finalize early when the new short chunk happens to equal savedContent', () => {
-    // savedContent '' and streamingContent '' — but we are in streaming phase,
-    // not ready, so content should remain in streaming phase
     const lingerState = streaming('long content', 'long content', 'old saved')
     const next = syncTextEditorContentState(lingerState, {
       canReconcileToFetchedContent: false,
@@ -427,8 +416,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
   })
 
   it('synthetic file (canReconcile=false) finalizes with current content when streaming ends', () => {
-    // After the new session finishes streaming, since there is no fetchedContent
-    // to reconcile with (synthetic file has no db key), it must finalize immediately.
     const finalChunk = streaming(
       '# Complete Document\n\nAll done.',
       '# Complete Document\n\nAll done.',

@@ -397,7 +397,6 @@ describe('reduceFilePreviewSessions', () => {
         previewText: 'final',
       }),
     })
-    // activeSessionId is lingering on preview-1 after complete
 
     const reset = reduceFilePreviewSessions(state, { type: 'reset' })
 
@@ -417,7 +416,6 @@ describe('reduceFilePreviewSessions', () => {
   })
 
   it('hydrate merges incoming sessions into existing state without replacing non-stale sessions', () => {
-    // Existing state has preview-1 at version 3
     const existing = reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
       type: 'upsert',
       session: createSession({
@@ -429,7 +427,6 @@ describe('reduceFilePreviewSessions', () => {
       }),
     })
 
-    // Hydrate with preview-1 at older version 2 + a new preview-2
     const hydrated = reduceFilePreviewSessions(existing, {
       type: 'hydrate',
       sessions: [
@@ -450,10 +447,8 @@ describe('reduceFilePreviewSessions', () => {
       ],
     })
 
-    // preview-1 kept at version 3 (not replaced by stale version 2)
     expect(hydrated.sessions['preview-1']?.previewVersion).toBe(3)
     expect(hydrated.sessions['preview-1']?.previewText).toBe('current')
-    // preview-2 added
     expect(hydrated.sessions['preview-2']?.previewText).toBe('new')
   })
 
@@ -553,8 +548,6 @@ describe('reduceFilePreviewSessions', () => {
         previewText: 'background',
       }),
     })
-    // active is now preview-2 (later upsert); preview-1 is no longer active
-    // Complete preview-1 (the non-active session)
     const completed = reduceFilePreviewSessions(state, {
       type: 'complete',
       session: createSession({
