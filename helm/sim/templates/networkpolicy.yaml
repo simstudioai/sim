@@ -26,9 +26,22 @@ spec:
     - protocol: TCP
       port: {{ .Values.app.service.targetPort }}
   {{- end }}
-  # Allow ingress from ingress controller
+  # Allow ingress from cron pods (every cron job curls /api/schedules/execute,
+  # webhook polls, etc. against the app service)
+  {{- if .Values.cronjobs.enabled }}
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.selectorLabels" . | nindent 10 }}
+          simstudio.ai/component-group: cronjob
+    ports:
+    - protocol: TCP
+      port: {{ .Values.app.service.targetPort }}
+  {{- end }}
+  # Allow ingress from ingress controller (configurable peers; defaults to any)
   {{- if .Values.ingress.enabled }}
-  - from: []
+  - from:
+      {{- toYaml (default (list (dict)) .Values.networkPolicy.ingressFrom) | nindent 6 }}
     ports:
     - protocol: TCP
       port: {{ .Values.app.service.targetPort }}
@@ -68,6 +81,20 @@ spec:
     - protocol: TCP
       port: {{ .Values.ollama.service.targetPort }}
   {{- end }}
+  # Allow egress to OpenTelemetry collector (OTLP gRPC + HTTP)
+  {{- if .Values.telemetry.enabled }}
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: {{ include "sim.name" . }}
+          app.kubernetes.io/instance: {{ .Release.Name }}
+          app.kubernetes.io/component: telemetry
+    ports:
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
+  {{- end }}
   # Allow DNS resolution
   - to: []
     ports:
@@ -75,13 +102,19 @@ spec:
       port: 53
     - protocol: TCP
       port: 53
-  # Allow HTTPS egress for external APIs
-  - to: []
+  # Allow HTTPS egress for external APIs (excludes cloud metadata endpoints)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egress.exceptCidrs) }}
+          - {{ . | quote }}
+          {{- end }}
     ports:
     - protocol: TCP
       port: 443
   # Allow custom egress rules
-  {{- with .Values.networkPolicy.egress }}
+  {{- with .Values.networkPolicy.egress.extraRules }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
 
@@ -111,9 +144,10 @@ spec:
     ports:
     - protocol: TCP
       port: {{ .Values.realtime.service.targetPort }}
-  # Allow ingress from ingress controller
+  # Allow ingress from ingress controller (configurable peers; defaults to any)
   {{- if .Values.ingress.enabled }}
-  - from: []
+  - from:
+      {{- toYaml (default (list (dict)) .Values.networkPolicy.ingressFrom) | nindent 6 }}
     ports:
     - protocol: TCP
       port: {{ .Values.realtime.service.targetPort }}
@@ -129,6 +163,20 @@ spec:
     - protocol: TCP
       port: {{ .Values.postgresql.service.targetPort }}
   {{- end }}
+  # Allow egress to OpenTelemetry collector (OTLP gRPC + HTTP)
+  {{- if .Values.telemetry.enabled }}
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: {{ include "sim.name" . }}
+          app.kubernetes.io/instance: {{ .Release.Name }}
+          app.kubernetes.io/component: telemetry
+    ports:
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
+  {{- end }}
   # Allow DNS resolution
   - to: []
     ports:
@@ -136,13 +184,19 @@ spec:
       port: 53
     - protocol: TCP
       port: 53
-  # Allow HTTPS egress for external APIs
-  - to: []
+  # Allow HTTPS egress for external APIs (excludes cloud metadata endpoints)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egress.exceptCidrs) }}
+          - {{ . | quote }}
+          {{- end }}
     ports:
     - protocol: TCP
       port: 443
   # Allow custom egress rules
-  {{- with .Values.networkPolicy.egress }}
+  {{- with .Values.networkPolicy.egress.extraRules }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
 {{- end }}
@@ -237,8 +291,14 @@ spec:
       port: 53
     - protocol: TCP
       port: 53
-  # Allow HTTPS egress for model downloads
-  - to: []
+  # Allow HTTPS egress for model downloads (excludes cloud metadata endpoints)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egress.exceptCidrs) }}
+          - {{ . | quote }}
+          {{- end }}
     ports:
     - protocol: TCP
       port: 443

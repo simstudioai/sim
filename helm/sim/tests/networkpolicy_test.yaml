@@ -1,0 +1,147 @@
+suite: NetworkPolicy — ingressFrom + telemetry egress + egress shape
+templates:
+  - networkpolicy.yaml
+release:
+  name: t
+  namespace: sim
+defaults: &defaults
+  app.env.BETTER_AUTH_SECRET: x
+  app.env.ENCRYPTION_KEY: x
+  app.env.INTERNAL_API_SECRET: x
+  app.env.CRON_SECRET: x
+  postgresql.auth.password: x
+  networkPolicy.enabled: true
+  ingress.enabled: true
+  ingress.app.host: a.test
+  ingress.realtime.host: b.test
+
+tests:
+  - it: does not render when networkPolicy.enabled=false
+    set:
+      <<: *defaults
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments: { count: 0 }
+
+  - it: default ingressFrom is the explicit any-source peer (single empty peer)
+    set:
+      <<: *defaults
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.ingress[2].from
+          value:
+            - {}
+
+  - it: ingressFrom is overridable to a namespace selector
+    set:
+      <<: *defaults
+      networkPolicy.ingressFrom:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.ingress[2].from
+          value:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: ingress-nginx
+
+  - it: app NetworkPolicy includes telemetry egress (ports 4317 + 4318) when telemetry enabled (round-5 fix)
+    set:
+      <<: *defaults
+      telemetry.enabled: true
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: sim
+                    app.kubernetes.io/instance: t
+                    app.kubernetes.io/component: telemetry
+            ports:
+              - protocol: TCP
+                port: 4317
+              - protocol: TCP
+                port: 4318
+
+  - it: realtime NetworkPolicy includes telemetry egress when telemetry enabled
+    set:
+      <<: *defaults
+      telemetry.enabled: true
+    documentIndex: 1
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: sim
+                    app.kubernetes.io/instance: t
+                    app.kubernetes.io/component: telemetry
+            ports:
+              - protocol: TCP
+                port: 4317
+              - protocol: TCP
+                port: 4318
+
+  - it: app NetworkPolicy allows ingress from cron pods when cronjobs.enabled=true
+    set:
+      <<: *defaults
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: sim
+                    app.kubernetes.io/instance: t
+                    simstudio.ai/component-group: cronjob
+            ports:
+              - protocol: TCP
+                port: 3000
+
+  - it: cron→app ingress rule is omitted when cronjobs.enabled=false
+    set:
+      <<: *defaults
+      cronjobs.enabled: false
+    documentIndex: 0
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: sim
+                    app.kubernetes.io/instance: t
+                    simstudio.ai/component-group: cronjob
+            ports:
+              - protocol: TCP
+                port: 3000
+
+  - it: egress.extraRules are appended to both app and realtime NetworkPolicies
+    set:
+      <<: *defaults
+      networkPolicy.egress.extraRules:
+        - to: []
+          ports:
+            - protocol: TCP
+              port: 5432
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to: []
+            ports:
+              - protocol: TCP
+                port: 5432

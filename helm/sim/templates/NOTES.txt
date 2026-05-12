@@ -1,0 +1,89 @@
+{{- /*
+NOTES.txt — printed after every `helm install` or `helm upgrade`.
+Keep this short and action-oriented. Users land here and decide what to do next.
+*/ -}}
+
+Thank you for installing {{ .Chart.Name }} ({{ .Chart.Name }}-{{ .Chart.Version }}, app {{ .Chart.AppVersion }}).
+
+Your release is named {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
+
+1. Watch the rollout finish:
+
+     kubectl --namespace {{ .Release.Namespace }} rollout status deployment/{{ include "sim.fullname" . }}-app
+{{- if .Values.realtime.enabled }}
+     kubectl --namespace {{ .Release.Namespace }} rollout status deployment/{{ include "sim.fullname" . }}-realtime
+{{- end }}
+{{- if .Values.copilot.enabled }}
+     kubectl --namespace {{ .Release.Namespace }} rollout status deployment/{{ include "sim.fullname" . }}-copilot
+{{- end }}
+
+2. Reach the application:
+{{- if and .Values.ingress.enabled .Values.ingress.app.host }}
+
+   Sim is exposed at:
+{{- if .Values.ingress.tls.enabled }}
+     https://{{ .Values.ingress.app.host }}
+{{- else }}
+     http://{{ .Values.ingress.app.host }}
+{{- end }}
+
+   If DNS is not yet wired up, point your hostname at the ingress controller's
+   external IP/LoadBalancer.
+{{- else }}
+
+   Ingress is disabled. Use port-forward to reach the app locally:
+
+     kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "sim.fullname" . }}-app {{ .Values.app.service.port | default 3000 }}:{{ .Values.app.service.port | default 3000 }}
+
+   Then open http://localhost:{{ .Values.app.service.port | default 3000 }}
+
+   To expose Sim on the public internet, enable `ingress.enabled=true` and set
+   `ingress.app.host`. See examples/values-production.yaml.
+{{- end }}
+
+3. Required secrets:
+
+   Sim requires three application secrets and a Postgres password to start.
+   {{- if .Values.externalSecrets.enabled }}
+
+   Using External Secrets Operator. Verify the ExternalSecret has synced:
+     kubectl --namespace {{ .Release.Namespace }} get externalsecret
+     kubectl --namespace {{ .Release.Namespace }} get secret {{ include "sim.fullname" . }}-app-secrets
+   {{- else if .Values.app.secrets.existingSecret.enabled }}
+
+   Using existing Kubernetes Secret: {{ .Values.app.secrets.existingSecret.name }}
+   {{- else if or (eq (default "" .Values.app.env.BETTER_AUTH_SECRET) "") (eq (default "" .Values.app.env.ENCRYPTION_KEY) "") (eq (default "" .Values.app.env.INTERNAL_API_SECRET) "") }}
+
+   WARNING: one or more required secrets is empty. The pods will fail to start
+   until these are set. Generate values with:
+
+     openssl rand -hex 32   # BETTER_AUTH_SECRET, ENCRYPTION_KEY, INTERNAL_API_SECRET, CRON_SECRET
+     openssl rand -hex 32   # API_ENCRYPTION_KEY (must be 64 hex chars)
+
+   Then pass them on `helm upgrade --set app.env.BETTER_AUTH_SECRET=...` or
+   provision an existing Kubernetes Secret and set
+   `app.secrets.existingSecret.enabled=true`.
+   {{- else }}
+
+   Secrets are set inline. For production, prefer pre-existing Kubernetes
+   Secrets or External Secrets Operator — see
+   examples/values-existing-secret.yaml and examples/values-external-secrets.yaml.
+   {{- end }}
+
+4. Useful commands:
+
+     # Tail app logs
+     kubectl --namespace {{ .Release.Namespace }} logs -f deployment/{{ include "sim.fullname" . }}-app
+
+     # Show the rendered values
+     helm get values {{ .Release.Name }} --namespace {{ .Release.Namespace }}
+
+     # Upgrade after changing values
+     helm upgrade {{ .Release.Name }} ./helm/sim --namespace {{ .Release.Namespace }} -f your-values.yaml
+
+5. Where to go next:
+
+   * Production checklist:  helm/sim/README.md (search "Production checklist")
+   * Troubleshooting:       helm/sim/README.md (search "Troubleshooting")
+   * Docs:                  https://docs.sim.ai
+   * Issues:                https://github.com/simstudioai/sim/issues

@@ -1,5 +1,20 @@
-# Whitelabeled deployment example for Sim
-# This configuration shows how to customize branding for Acme Corp
+# values-whitelabeled.yaml
+#
+# When to use: whitelabeled / branded deployment. Replaces the default Sim
+# branding (logo, product name, support URLs) with your own. The example
+# below uses "Acme Corp" placeholders — replace with your brand.
+#
+# Prerequisites: a hosted logo URL and brand assets.
+#
+# Install:
+#   helm install acme ./helm/sim \
+#     --namespace acme --create-namespace \
+#     --values ./helm/sim/examples/values-whitelabeled.yaml \
+#     --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+#     --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+#     --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+#     --set app.env.CRON_SECRET="$CRON_SECRET" \
+#     --set postgresql.auth.password="$POSTGRES_PASSWORD"
 
 # Global configuration
 global:

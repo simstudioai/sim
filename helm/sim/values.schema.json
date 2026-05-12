@@ -117,8 +117,8 @@
             },
             "NEXT_PUBLIC_APP_URL": {
               "type": "string",
-              "format": "uri",
-              "description": "Public application URL"
+              "anyOf": [{ "format": "uri" }, { "const": "" }],
+              "description": "Public application URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
             },
             "INTERNAL_API_BASE_URL": {
               "type": "string",
@@ -134,8 +134,8 @@
             },
             "BETTER_AUTH_URL": {
               "type": "string",
-              "format": "uri",
-              "description": "Authentication service URL"
+              "anyOf": [{ "format": "uri" }, { "const": "" }],
+              "description": "Authentication service URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
             },
             "SOCKET_SERVER_URL": {
               "type": "string",
@@ -301,8 +301,8 @@
             },
             "NEXT_PUBLIC_SUPPORT_EMAIL": {
               "type": "string",
-              "format": "email",
-              "description": "Support email address"
+              "anyOf": [{ "format": "email" }, { "const": "" }],
+              "description": "Support email address (default help@sim.ai via envDefaults; set explicitly here to override in Secret)"
             },
             "NEXT_PUBLIC_DOCUMENTATION_URL": {
               "type": "string",
@@ -385,13 +385,13 @@
             },
             "NEXT_PUBLIC_APP_URL": {
               "type": "string",
-              "format": "uri",
-              "description": "Public application URL"
+              "anyOf": [{ "format": "uri" }, { "const": "" }],
+              "description": "Public application URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
             },
             "BETTER_AUTH_URL": {
               "type": "string",
-              "format": "uri",
-              "description": "Authentication service URL"
+              "anyOf": [{ "format": "uri" }, { "const": "" }],
+              "description": "Authentication service URL (default http://localhost:3000 via envDefaults; set explicitly here to override in Secret)"
             },
             "ALLOWED_ORIGINS": {
               "type": "string",
@@ -689,6 +689,24 @@
           "minimum": 1,
           "description": "Number of telemetry collector replicas"
         }
+      }
+    },
+    "tests": {
+      "type": "object",
+      "description": "Helm test hook configuration (helm test)",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+            "pullSecrets": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "resources": { "type": "object" }
       }
     },
     "sharedStorage": {

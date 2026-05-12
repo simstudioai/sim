@@ -1,5 +1,20 @@
-# Development values for Sim
-# This configuration is suitable for development and testing
+# values-development.yaml
+#
+# When to use: local development on kind / minikube / Docker Desktop, or any
+# throwaway cluster where you don't need HA, TLS, or persistence guarantees.
+# Minimal resource requests, single replica, no ingress.
+#
+# Prerequisites: a working kubectl context.
+#
+# Install:
+#   helm install sim-dev ./helm/sim \
+#     --namespace sim-dev --create-namespace \
+#     --values ./helm/sim/examples/values-development.yaml \
+#     --set app.env.BETTER_AUTH_SECRET=$(openssl rand -hex 32) \
+#     --set app.env.ENCRYPTION_KEY=$(openssl rand -hex 32) \
+#     --set app.env.INTERNAL_API_SECRET=$(openssl rand -hex 32) \
+#     --set app.env.CRON_SECRET=$(openssl rand -hex 32) \
+#     --set postgresql.auth.password=$(openssl rand -base64 24 | tr -d '/+=')
 
 # Global configuration
 global:

@@ -1,0 +1,55 @@
+suite: helm test hook (helm test) connectivity probe
+release:
+  name: t
+  namespace: sim
+defaults: &defaults
+  app.env.BETTER_AUTH_SECRET: x
+  app.env.ENCRYPTION_KEY: x
+  app.env.INTERNAL_API_SECRET: x
+  app.env.CRON_SECRET: x
+  postgresql.auth.password: x
+
+tests:
+  - it: renders the test pod with helm.sh/hook=test by default
+    template: tests/test-connection.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - isKind:
+          of: Pod
+      - equal:
+          path: 'metadata.annotations["helm.sh/hook"]'
+          value: test
+      - equal:
+          path: 'metadata.annotations["helm.sh/hook-delete-policy"]'
+          value: before-hook-creation,hook-succeeded
+      - equal:
+          path: spec.restartPolicy
+          value: Never
+
+  - it: applies restricted PSS context to the test pod
+    template: tests/test-connection.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - equal:
+          path: spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: skips rendering when tests.enabled=false
+    template: tests/test-connection.yaml
+    set:
+      <<: *defaults
+      tests.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
