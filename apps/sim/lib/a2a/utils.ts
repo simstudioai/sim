@@ -68,32 +68,48 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
 
   const resolvedIP = validation.resolvedIP!
 
-  const pinnedFetch = (
+  const pinnedFetch = async (
     input: Parameters<typeof fetch>[0],
     init?: Parameters<typeof fetch>[1]
-  ): Promise<Response> =>
-    secureFetchWithPinnedIP(input.toString(), resolvedIP, {
-      method: init?.method,
-      headers:
-        init?.headers instanceof Headers
-          ? Object.fromEntries(init.headers.entries())
-          : (init?.headers as Record<string, string> | undefined),
-      body:
-        typeof init?.body === 'string' || Buffer.isBuffer(init?.body)
-          ? (init?.body as string | Buffer)
-          : init?.body instanceof Uint8Array
+  ): Promise<Response> => {
+    const url = input instanceof Request ? input.url : input.toString()
+    const method = init?.method ?? (input instanceof Request ? input.method : undefined)
+
+    const rawHeaders = init?.headers ?? (input instanceof Request ? input.headers : undefined)
+    const headers =
+      rawHeaders instanceof Headers
+        ? Object.fromEntries(rawHeaders.entries())
+        : (rawHeaders as Record<string, string> | undefined)
+
+    let body: string | Buffer | Uint8Array | undefined
+    if (init?.body !== undefined && init.body !== null) {
+      body =
+        typeof init.body === 'string' || Buffer.isBuffer(init.body)
+          ? (init.body as string | Buffer)
+          : init.body instanceof Uint8Array
             ? (init.body as Uint8Array)
-            : undefined,
-      signal: init?.signal instanceof AbortSignal ? init.signal : undefined,
-    }).then(async (res) => {
-      const headers = new Headers(res.headers.toRecord())
-      const body = await res.text()
-      return new Response(body, {
-        status: res.status,
-        statusText: res.statusText,
-        headers,
-      })
+            : undefined
+    } else if (input instanceof Request && !input.bodyUsed) {
+      const text = await input.text()
+      if (text) body = text
+    }
+
+    const signal =
+      init?.signal instanceof AbortSignal
+        ? init.signal
+        : input instanceof Request && input.signal instanceof AbortSignal
+          ? input.signal
+          : undefined
+
+    const res = await secureFetchWithPinnedIP(url, resolvedIP, { method, headers, body, signal })
+    const resHeaders = new Headers(res.headers.toRecord())
+    const resBody = await res.text()
+    return new Response(resBody, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: resHeaders,
     })
+  }
 
   const pinnedTransports = [
     new JsonRpcTransportFactory({ fetchImpl: pinnedFetch }),
