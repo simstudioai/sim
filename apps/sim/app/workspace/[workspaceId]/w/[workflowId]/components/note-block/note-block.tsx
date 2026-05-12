@@ -430,7 +430,7 @@ const NOTE_COMPONENTS = {
     <em className='break-words text-[var(--text-tertiary)]'>{children}</em>
   ),
   blockquote: ({ children }: { children?: React.ReactNode }) => (
-    <blockquote className='my-4 break-words border-[var(--border-1)] border-l-4 py-1 pl-4 text-[var(--text-tertiary)] italic'>
+    <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 text-[var(--text-primary)] [&>p]:my-2 first:[&>p]:mt-0 last:[&>p]:mb-0'>
       {children}
     </blockquote>
   ),
