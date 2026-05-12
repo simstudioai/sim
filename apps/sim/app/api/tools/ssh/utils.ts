@@ -197,10 +197,10 @@ export function executeSSHCommand(client: Client, command: string): Promise<SSHC
       stream.on('close', (code: number) => {
         resolve({
           stdout: stdoutTruncated
-            ? `${stdout}\n[output truncated: exceeded 16MB limit]`
+            ? `${stdout.trim()}\n[output truncated: exceeded 16MB limit]`
             : stdout.trim(),
           stderr: stderrTruncated
-            ? `${stderr}\n[stderr truncated: exceeded 16MB limit]`
+            ? `${stderr.trim()}\n[stderr truncated: exceeded 16MB limit]`
             : stderr.trim(),
           exitCode: code ?? -1,
         })

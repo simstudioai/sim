@@ -10,7 +10,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import {
   getServiceAccountToken,
   refreshAccessTokenIfNeeded,
-  resolveOAuthAccountId,
   ServiceAccountTokenError,
 } from '@/app/api/auth/oauth/utils'
 export const dynamic = 'force-dynamic'
@@ -44,20 +43,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       credentialId,
       requireWorkflowIdForInternal: false,
     })
-    if (!authz.ok || !authz.credentialOwnerUserId) {
+    if (!authz.ok || !authz.credentialOwnerUserId || !authz.resolvedCredentialId) {
       return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
-    }
-
-    const resolved = await resolveOAuthAccountId(credentialId)
-    if (!resolved) {
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
     let accessToken: string | null = null
 
-    if (resolved.credentialType === 'service_account' && resolved.credentialId) {
+    if (authz.credentialType === 'service_account') {
       accessToken = await getServiceAccountToken(
-        resolved.credentialId,
+        authz.resolvedCredentialId,
         getScopesForService('gmail'),
         impersonateEmail
       )

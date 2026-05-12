@@ -1,3 +1,4 @@
+import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
 import type { SupabaseGetRowParams, SupabaseGetRowResponse } from '@/tools/supabase/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -50,9 +51,8 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
 
   request: {
     url: (params) => {
-      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(params.table)) {
-        throw new Error('Invalid table name: must contain only letters, digits, and underscores')
-      }
+      const tableValidation = validateDatabaseIdentifier(params.table, 'table')
+      if (!tableValidation.isValid) throw new Error(tableValidation.error)
 
       const selectColumns = params.select?.trim() || '*'
       let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=${encodeURIComponent(selectColumns)}`
