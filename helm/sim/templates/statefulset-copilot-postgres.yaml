@@ -14,6 +14,7 @@ stringData:
   POSTGRES_DB: {{ .Values.copilot.postgresql.auth.database | quote }}
   DATABASE_URL: "postgresql://{{ .Values.copilot.postgresql.auth.username }}:{{ .Values.copilot.postgresql.auth.password }}@{{ include "sim.fullname" . }}-copilot-postgresql:{{ .Values.copilot.postgresql.service.port }}/{{ .Values.copilot.postgresql.auth.database }}"
 ---
+# ClusterIP Service used by client workloads
 apiVersion: v1
 kind: Service
 metadata:
@@ -34,6 +35,28 @@ spec:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/component: copilot-postgresql
 ---
+# Headless Service for the StatefulSet (stable per-pod DNS)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sim.fullname" . }}-copilot-postgresql-headless
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: copilot-postgresql
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - port: {{ .Values.copilot.postgresql.service.port }}
+      targetPort: {{ .Values.copilot.postgresql.service.targetPort }}
+      protocol: TCP
+      name: postgresql
+  selector:
+    app.kubernetes.io/name: {{ include "sim.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: copilot-postgresql
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -43,8 +66,11 @@ metadata:
     {{- include "sim.labels" . | nindent 4 }}
     app.kubernetes.io/component: copilot-postgresql
 spec:
-  serviceName: {{ include "sim.fullname" . }}-copilot-postgresql
+  serviceName: {{ include "sim.fullname" . }}-copilot-postgresql-headless
   replicas: 1
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "sim.name" . }}
@@ -64,17 +90,16 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      automountServiceAccountToken: false
       {{- with .Values.copilot.postgresql.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.copilot.postgresql.podSecurityContext }}
-      securityContext:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      {{- include "sim.podSecurityContext" .Values.copilot.postgresql | nindent 6 }}
       containers:
         - name: postgresql
-          image: {{ include "sim.image" (dict "context" . "image" .Values.copilot.postgresql.image) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.copilot.postgresql.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.copilot.postgresql.image.pullPolicy }}
           ports:
             - name: postgresql
@@ -98,10 +123,7 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.copilot.postgresql.securityContext }}
-          securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+          {{- include "sim.containerSecurityContext" .Values.copilot.postgresql | nindent 10 }}
           {{- if .Values.copilot.postgresql.persistence.enabled }}
           volumeMounts:
             - name: data

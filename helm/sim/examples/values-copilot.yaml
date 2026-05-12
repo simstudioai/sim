@@ -1,3 +1,22 @@
+# values-copilot.yaml
+#
+# When to use: enable the Sim Copilot service (the chat / Mothership backend)
+# alongside the main app. Provisions a dedicated Copilot Deployment, its own
+# Postgres StatefulSet, and a migration Job for the Copilot schema.
+#
+# Prerequisites: same as the base install. Merge this file with your main
+# values file (e.g. values-production.yaml) using multiple --values flags.
+#
+# Install:
+#   helm install sim ./helm/sim \
+#     --namespace sim --create-namespace \
+#     --values ./helm/sim/examples/values-production.yaml \
+#     --values ./helm/sim/examples/values-copilot.yaml \
+#     --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+#     --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+#     --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+#     --set postgresql.auth.password="$POSTGRES_PASSWORD"
+
 # Enable the copilot service
 copilot:
   enabled: true
@@ -6,8 +25,8 @@ copilot:
   server:
     image:
       repository: simstudioai/copilot
-      tag: latest
-      pullPolicy: Always
+      tag: ""  # defaults to Chart.AppVersion; override to pin a specific release
+      pullPolicy: IfNotPresent
     
     replicaCount: 2
     

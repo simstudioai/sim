@@ -8,7 +8,9 @@ metadata:
   labels:
     {{- include "sim.app.labels" . | nindent 4 }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.app.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "sim.app.selectorLabels" . | nindent 6 }}
@@ -29,6 +31,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      automountServiceAccountToken: false
       {{- include "sim.podSecurityContext" .Values.app | nindent 6 }}
       {{- include "sim.nodeSelector" .Values.app | nindent 6 }}
       {{- include "sim.tolerations" .Values | nindent 6 }}
@@ -36,7 +39,7 @@ spec:
       {{- if .Values.migrations.enabled }}
       initContainers:
         - name: migrations
-          image: {{ include "sim.image" (dict "context" . "image" .Values.migrations.image) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.migrations.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.migrations.image.pullPolicy }}
           command: ["/bin/sh", "-c"]
           args:
@@ -53,11 +56,11 @@ spec:
                 name: {{ include "sim.externalDbSecretName" . }}
             {{- end }}
           {{- include "sim.resources" .Values.migrations | nindent 10 }}
-          {{- include "sim.securityContext" .Values.migrations | nindent 10 }}
+          {{- include "sim.containerSecurityContext" .Values.migrations | nindent 10 }}
       {{- end }}
       containers:
         - name: app
-          image: {{ include "sim.image" (dict "context" . "image" .Values.app.image) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.app.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.app.image.pullPolicy }}
           ports:
             - name: http
@@ -70,7 +73,8 @@ spec:
               value: {{ include "sim.socketServerUrl" . | quote }}
             - name: OLLAMA_URL
               value: {{ include "sim.ollamaUrl" . | quote }}
-            {{- range $key, $value := omit .Values.app.env "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" }}
+            {{- $appPart := include "sim.partitionEnv" (omit .Values.app.env "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL") | fromJson }}
+            {{- range $key, $value := $appPart.plain }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
@@ -100,6 +104,10 @@ spec:
             - secretRef:
                 name: {{ include "sim.externalDbSecretName" . }}
             {{- end }}
+          {{- if .Values.app.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.app.startupProbe | nindent 12 }}
+          {{- end }}
           {{- if .Values.app.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.app.livenessProbe | nindent 12 }}
@@ -109,7 +117,7 @@ spec:
             {{- toYaml .Values.app.readinessProbe | nindent 12 }}
           {{- end }}
           {{- include "sim.resources" .Values.app | nindent 10 }}
-          {{- include "sim.securityContext" .Values.app | nindent 10 }}
+          {{- include "sim.containerSecurityContext" .Values.app | nindent 10 }}
           {{- $hasBranding := and .Values.branding.enabled (or .Values.branding.files .Values.branding.binaryFiles) }}
           {{- if or $hasBranding .Values.extraVolumeMounts .Values.app.extraVolumeMounts }}
           volumeMounts:

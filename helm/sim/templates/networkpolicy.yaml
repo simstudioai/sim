@@ -75,13 +75,19 @@ spec:
       port: 53
     - protocol: TCP
       port: 53
-  # Allow HTTPS egress for external APIs
-  - to: []
+  # Allow HTTPS egress for external APIs (excludes cloud metadata endpoints)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egress.exceptCidrs) }}
+          - {{ . | quote }}
+          {{- end }}
     ports:
     - protocol: TCP
       port: 443
   # Allow custom egress rules
-  {{- with .Values.networkPolicy.egress }}
+  {{- with .Values.networkPolicy.egress.extraRules }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
 
@@ -136,13 +142,19 @@ spec:
       port: 53
     - protocol: TCP
       port: 53
-  # Allow HTTPS egress for external APIs
-  - to: []
+  # Allow HTTPS egress for external APIs (excludes cloud metadata endpoints)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egress.exceptCidrs) }}
+          - {{ . | quote }}
+          {{- end }}
     ports:
     - protocol: TCP
       port: 443
   # Allow custom egress rules
-  {{- with .Values.networkPolicy.egress }}
+  {{- with .Values.networkPolicy.egress.extraRules }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
 {{- end }}
@@ -237,8 +249,14 @@ spec:
       port: 53
     - protocol: TCP
       port: 53
-  # Allow HTTPS egress for model downloads
-  - to: []
+  # Allow HTTPS egress for model downloads (excludes cloud metadata endpoints)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egress.exceptCidrs) }}
+          - {{ . | quote }}
+          {{- end }}
     ports:
     - protocol: TCP
       port: 443

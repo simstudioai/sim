@@ -137,24 +137,40 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-Create image name with registry
-Expects context with image object passed as second parameter
-Usage: {{ include "sim.image" (dict "context" . "image" .Values.app.image) }}
+Create image name with optional registry and digest pinning.
+Accepts a context dict with:
+  imageRoot       — the image object (repository, optional tag, optional digest, pullPolicy)
+  global          — .Values.global (for imageRegistry and useRegistryForAllImages)
+  chartAppVersion — .Chart.AppVersion (used as default tag when imageRoot.tag is empty)
+
+Resolution order:
+  1. If imageRoot.digest is set, render "<registry?/>repo@<digest>"
+  2. Else render "<registry?/>repo:<tag>" where tag defaults to chartAppVersion
+Usage: {{ include "sim.image" (dict "imageRoot" .Values.app.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
 */}}
 {{- define "sim.image" -}}
+{{- $imageRoot := .imageRoot -}}
+{{- $global := .global -}}
+{{- $repository := $imageRoot.repository -}}
+{{- $digest := $imageRoot.digest | default "" -}}
+{{- $tag := $imageRoot.tag | default "" | toString -}}
+{{- if and (eq $tag "") (eq $digest "") -}}
+  {{- $tag = .chartAppVersion | default "" | toString -}}
+{{- end -}}
 {{- $registry := "" -}}
-{{- $repository := .image.repository -}}
-{{- $tag := .image.tag | toString -}}
-{{- /* Use global registry for simstudioai images or when explicitly set for all images */ -}}
-{{- if .context.Values.global.imageRegistry -}}
-  {{- if or (hasPrefix "simstudioai/" $repository) .context.Values.global.useRegistryForAllImages -}}
-    {{- $registry = .context.Values.global.imageRegistry -}}
+{{- if and $global $global.imageRegistry -}}
+  {{- if or (hasPrefix "simstudioai/" $repository) $global.useRegistryForAllImages -}}
+    {{- $registry = $global.imageRegistry -}}
   {{- end -}}
 {{- end -}}
+{{- $repoPath := $repository -}}
 {{- if $registry -}}
-{{- printf "%s/%s:%s" $registry $repository $tag }}
+  {{- $repoPath = printf "%s/%s" $registry $repository -}}
+{{- end -}}
+{{- if ne $digest "" -}}
+{{- printf "%s@%s" $repoPath $digest }}
 {{- else -}}
-{{- printf "%s:%s" $repository $tag }}
+{{- printf "%s:%s" $repoPath $tag }}
 {{- end -}}
 {{- end }}
 
@@ -227,6 +243,49 @@ Skip validation when using existing secrets or External Secrets Operator
 {{- fail "externalDatabase.password must only contain alphanumeric characters, hyphens, underscores, or periods to ensure DATABASE_URL compatibility." }}
 {{- end }}
 {{- end }}
+{{- /* ESO coverage validation - any sensitive key set in app.env must be mapped in externalSecrets.remoteRefs.app */ -}}
+{{- include "sim.validateExternalSecretCoverage" . }}
+{{- end }}
+
+{{/*
+Validate that every sensitive key set in app.env / realtime.env is also mapped
+in externalSecrets.remoteRefs.app when ESO is enabled. Sensitive keys are
+filtered out of inline env at render time, so any unmapped key would be
+silently dropped — leaving the container with no value at runtime.
+
+Fail-fast is only safe for ESO because we can introspect remoteRefs at
+template time. For existingSecret we cannot read the user's pre-created
+Secret, so coverage there is documented (values.yaml + README) rather than
+enforced.
+*/}}
+{{- define "sim.validateExternalSecretCoverage" -}}
+{{- if and .Values.externalSecrets .Values.externalSecrets.enabled -}}
+{{- $remoteRefs := default (dict) (default (dict) .Values.externalSecrets.remoteRefs).app -}}
+{{- if .Values.app.enabled -}}
+{{- range $key, $value := default (dict) .Values.app.env -}}
+{{- if include "sim.isSensitiveEnvKey" $key -}}
+{{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") -}}
+{{- $mapped := index $remoteRefs $key -}}
+{{- if not $mapped -}}
+{{- fail (printf "Sensitive key '%s' is set in app.env but externalSecrets.enabled=true and externalSecrets.remoteRefs.app.%s is not configured. Sensitive keys are filtered out of inline env when ESO is enabled, so the container would start with no value. Either map it via externalSecrets.remoteRefs.app.%s='path/in/store' or remove it from app.env." $key $key $key) }}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.realtime.enabled -}}
+{{- range $key, $value := default (dict) .Values.realtime.env -}}
+{{- if include "sim.isSensitiveEnvKey" $key -}}
+{{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") -}}
+{{- $mapped := index $remoteRefs $key -}}
+{{- if not $mapped -}}
+{{- fail (printf "Sensitive key '%s' is set in realtime.env but externalSecrets.enabled=true and externalSecrets.remoteRefs.app.%s is not configured. Either map it via externalSecrets.remoteRefs.app.%s='path/in/store' or remove it from realtime.env." $key $key $key) }}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- end }}
 
 {{/*
@@ -369,23 +428,39 @@ resources:
 {{- end }}
 
 {{/*
-Security context
+Pod-level security context with Pod Security Standards "restricted" defaults.
+User-supplied `.podSecurityContext` values override defaults (user wins).
+Usage: {{ include "sim.podSecurityContext" .Values.app | nindent 6 }}
 */}}
-{{- define "sim.securityContext" -}}
-{{- if .securityContext }}
+{{- define "sim.podSecurityContext" -}}
+{{- $defaults := dict "runAsNonRoot" true "runAsUser" 1001 "runAsGroup" 1001 "fsGroup" 1001 "seccompProfile" (dict "type" "RuntimeDefault") -}}
+{{- $user := default (dict) .podSecurityContext -}}
+{{- $merged := mergeOverwrite (deepCopy $defaults) $user -}}
 securityContext:
-  {{- toYaml .securityContext | nindent 2 }}
-{{- end }}
+  {{- toYaml $merged | nindent 2 }}
 {{- end }}
 
 {{/*
-Pod security context
+Container-level security context with Pod Security Standards "restricted" defaults.
+User-supplied `.securityContext` values override defaults (user wins).
+`readOnlyRootFilesystem` is intentionally NOT defaulted — set it per-workload in values
+when the container can tolerate a read-only root (Next.js writes to `.next/cache`,
+Postgres writes to `/var/lib/postgresql/data`, so they're left writable by default).
+Usage: {{ include "sim.containerSecurityContext" .Values.app | nindent 10 }}
 */}}
-{{- define "sim.podSecurityContext" -}}
-{{- if .podSecurityContext }}
+{{- define "sim.containerSecurityContext" -}}
+{{- $defaults := dict "runAsNonRoot" true "allowPrivilegeEscalation" false "capabilities" (dict "drop" (list "ALL")) "seccompProfile" (dict "type" "RuntimeDefault") -}}
+{{- $user := default (dict) .securityContext -}}
+{{- $merged := mergeOverwrite (deepCopy $defaults) $user -}}
 securityContext:
-  {{- toYaml .podSecurityContext | nindent 2 }}
+  {{- toYaml $merged | nindent 2 }}
 {{- end }}
+
+{{/*
+Backwards-compatible alias for container security context.
+*/}}
+{{- define "sim.securityContext" -}}
+{{- include "sim.containerSecurityContext" . }}
 {{- end }}
 
 {{/*
@@ -447,6 +522,85 @@ Copilot database secret key
 */}}
 {{- define "sim.copilot.databaseSecretKey" -}}
 {{- default "DATABASE_URL" .Values.copilot.database.secretKey -}}
+{{- end }}
+
+{{/*
+Determine whether an environment variable key is sensitive.
+A key is sensitive when its name matches one of the known secret names
+or ends with a sensitive suffix (_KEY, _SECRET, _TOKEN, _PASSWORD).
+NEXT_PUBLIC_* keys are always considered non-sensitive (they ship to the browser).
+Usage: include "sim.isSensitiveEnvKey" "OPENAI_API_KEY"
+Returns the string "true" when sensitive, empty otherwise.
+*/}}
+{{- define "sim.isSensitiveEnvKey" -}}
+{{- $key := . -}}
+{{- $explicit := list
+  "BETTER_AUTH_SECRET"
+  "ENCRYPTION_KEY"
+  "API_ENCRYPTION_KEY"
+  "INTERNAL_API_SECRET"
+  "CRON_SECRET"
+  "ADMIN_API_KEY"
+  "REDIS_URL"
+  "RESEND_API_KEY"
+  "TURNSTILE_SECRET_KEY"
+  "GOOGLE_CLIENT_SECRET"
+  "GITHUB_CLIENT_SECRET"
+  "OPENAI_API_KEY"
+  "OPENAI_API_KEY_1"
+  "OPENAI_API_KEY_2"
+  "OPENAI_API_KEY_3"
+  "ANTHROPIC_API_KEY"
+  "ANTHROPIC_API_KEY_1"
+  "ANTHROPIC_API_KEY_2"
+  "ANTHROPIC_API_KEY_3"
+  "COHERE_API_KEY"
+  "MISTRAL_API_KEY"
+  "FIREWORKS_API_KEY"
+  "ELEVENLABS_API_KEY"
+  "AZURE_OPENAI_API_KEY"
+  "AZURE_ANTHROPIC_API_KEY"
+  "AZURE_ACCOUNT_KEY"
+  "AZURE_CONNECTION_STRING"
+  "AWS_SECRET_ACCESS_KEY"
+  "AWS_ACCESS_KEY_ID"
+  "VERTEX_CREDENTIALS"
+  "VERTEX_SERVICE_ACCOUNT_KEY"
+-}}
+{{- if hasPrefix "NEXT_PUBLIC_" $key -}}
+{{- else if has $key $explicit -}}
+true
+{{- else if hasSuffix "_SECRET" $key -}}
+true
+{{- else if hasSuffix "_TOKEN" $key -}}
+true
+{{- else if hasSuffix "_PASSWORD" $key -}}
+true
+{{- else if hasSuffix "_API_KEY" $key -}}
+true
+{{- else if hasSuffix "_PRIVATE_KEY" $key -}}
+true
+{{- end -}}
+{{- end }}
+
+{{/*
+Partition an env map into sensitive / non-sensitive keys.
+Usage: $part := include "sim.partitionEnv" $envMap | fromJson
+Returns JSON: { "sensitive": {...}, "plain": {...} }
+*/}}
+{{- define "sim.partitionEnv" -}}
+{{- $sensitive := dict -}}
+{{- $plain := dict -}}
+{{- range $k, $v := . -}}
+  {{- if include "sim.isSensitiveEnvKey" $k -}}
+    {{- if and (ne (toString $v) "") (ne (toString $v) "<nil>") -}}
+      {{- $_ := set $sensitive $k $v -}}
+    {{- end -}}
+  {{- else -}}
+    {{- $_ := set $plain $k $v -}}
+  {{- end -}}
+{{- end -}}
+{{- dict "sensitive" $sensitive "plain" $plain | toJson -}}
 {{- end }}
 
 {{/*

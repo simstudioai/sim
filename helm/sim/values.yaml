@@ -20,8 +20,11 @@ app:
   # Image configuration
   image:
     repository: simstudioai/simstudio
-    tag: latest
-    pullPolicy: Always
+    # tag defaults to Chart.AppVersion. Override with a release tag (e.g. "0.6.73") or pin via image.digest.
+    tag: ""
+    # Optional image digest pin: "sha256:..." — when set, overrides tag.
+    digest: ""
+    pullPolicy: IfNotPresent
 
   # Number of replicas
   replicaCount: 1
@@ -319,22 +322,36 @@ app:
     targetPort: 3000
   
   # Health checks
+  # startupProbe shields a slow Next.js cold start (large bundle, 4Gi memory limits) from
+  # liveness restarts. Once it succeeds, liveness + readiness take over. Total cold-start
+  # budget: failureThreshold * periodSeconds = 60 * 5s = 300s (5 minutes).
+  startupProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 60
+
+  # Liveness: lenient — only restart on true deadlock. failureThreshold * periodSeconds = 180s.
   livenessProbe:
     httpGet:
       path: /
       port: 3000
-    initialDelaySeconds: 10
-    periodSeconds: 90
+    initialDelaySeconds: 30
+    periodSeconds: 30
     timeoutSeconds: 5
-    failureThreshold: 3
-  
+    failureThreshold: 6
+
+  # Readiness: fast — shift traffic in/out within ~30s of state change.
   readinessProbe:
     httpGet:
       path: /
       port: 3000
-    initialDelaySeconds: 10
-    periodSeconds: 90
-    timeoutSeconds: 5
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
     failureThreshold: 3
 
   # Additional volumes for app deployment (e.g., branding assets, custom configs)
@@ -349,8 +366,10 @@ realtime:
   # Image configuration
   image:
     repository: simstudioai/realtime
-    tag: latest
-    pullPolicy: Always
+    # tag defaults to Chart.AppVersion. Override with a release tag or pin via image.digest.
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
 
   # Number of replicas
   replicaCount: 1
@@ -401,22 +420,34 @@ realtime:
     targetPort: 3002
   
   # Health checks
+  # Startup probe absorbs cold-start time. Total budget: 30 * 5s = 150s.
+  startupProbe:
+    httpGet:
+      path: /health
+      port: 3002
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+
+  # Liveness: lenient. failureThreshold * periodSeconds = 180s.
   livenessProbe:
     httpGet:
       path: /health
       port: 3002
-    initialDelaySeconds: 10
-    periodSeconds: 90
+    initialDelaySeconds: 30
+    periodSeconds: 30
     timeoutSeconds: 5
-    failureThreshold: 3
-  
+    failureThreshold: 6
+
+  # Readiness: fast.
   readinessProbe:
     httpGet:
       path: /health
       port: 3002
-    initialDelaySeconds: 10
-    periodSeconds: 90
-    timeoutSeconds: 5
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
     failureThreshold: 3
 
   # Additional volumes for realtime deployment
@@ -431,8 +462,10 @@ migrations:
   # Image configuration
   image:
     repository: simstudioai/migrations
-    tag: latest
-    pullPolicy: Always
+    # tag defaults to Chart.AppVersion. Override with a release tag or pin via image.digest.
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
   
   # Resource limits and requests
   resources:
@@ -486,13 +519,21 @@ postgresql:
       cpu: "500m"
   
   # Pod security context
+  # PostgreSQL image's `postgres` user is uid/gid 999.
   podSecurityContext:
-    fsGroup: 999
-  
-  # Container security context
-  securityContext:
+    runAsNonRoot: true
     runAsUser: 999
-  
+    runAsGroup: 999
+    fsGroup: 999
+
+  # Container security context
+  # readOnlyRootFilesystem is intentionally false — Postgres writes to /var/lib/postgresql/data
+  # (mounted from PVC) and needs to manage its own data directory.
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    runAsGroup: 999
+
   # Persistence configuration
   persistence:
     enabled: true
@@ -500,7 +541,7 @@ postgresql:
     size: 10Gi
     accessModes:
       - ReadWriteOnce
-  
+
   # SSL/TLS configuration (enable for production deployments with certificates)
   # Requires cert-manager to be installed in the cluster
   tls:
@@ -583,8 +624,12 @@ ollama:
   # Image configuration
   image:
     repository: ollama/ollama
-    tag: latest
-    pullPolicy: Always
+    # Pinned to a stable release rather than "latest" to keep deployments reproducible.
+    # 0.23.2 is the latest stable Ollama as of May 2026
+    # (https://github.com/ollama/ollama/releases/tag/v0.23.2).
+    tag: "0.23.2"
+    digest: ""
+    pullPolicy: IfNotPresent
 
   # Number of replicas
   replicaCount: 1
@@ -620,12 +665,34 @@ ollama:
       memory: "4Gi"
       cpu: "1000m"
   
+  # Pod security context
+  # The upstream ollama/ollama image is built to run as root and writes models to
+  # /root/.ollama by default. To meet Pod Security Standards "restricted", we run
+  # as a non-root user (1001) and rely on fsGroup to make the mounted PVC writable.
+  # Override OLLAMA_MODELS env (or remount /root/.ollama) if your image expects root.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+
+  # Container security context
+  # readOnlyRootFilesystem is intentionally false — Ollama writes model blobs to its data dir.
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+
   # Environment variables
   env:
     NVIDIA_DRIVER_CAPABILITIES: "all"
     OLLAMA_LOAD_TIMEOUT: "-1"
     OLLAMA_KEEP_ALIVE: "-1"
     OLLAMA_DEBUG: "1"
+    # The default OLLAMA model dir is /root/.ollama, which a non-root user can't write.
+    # Point it at a path under the writable PVC mount instead.
+    HOME: "/tmp"
+    OLLAMA_MODELS: "/data/models"
   
   # Persistence configuration
   persistence:
@@ -683,6 +750,18 @@ ingress:
 
   annotations:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Production recommendations (uncomment & adjust to your environment):
+    #
+    # Automatic TLS via cert-manager. Issuer name varies per cluster
+    # (e.g. letsencrypt-prod, letsencrypt-staging, internal-ca).
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    #
+    # Allow larger uploads (knowledge base / file ingestion).
+    # nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    #
+    # Long timeouts for streaming SSE / LLM responses.
+    # nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    # nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
 
   # Main application (use / as catch-all)
   app:
@@ -749,7 +828,10 @@ serviceAccount:
   # The name of the service account to use
   name: ""
 
-# Horizontal Pod Autoscaler
+# Horizontal Pod Autoscaler for app and realtime deployments.
+# When enabled, the chart omits spec.replicas from the Deployment so the HPA
+# owns replica count. Requires metrics-server (or a custom metrics adapter
+# if you use customMetrics) installed in the cluster.
 autoscaling:
   enabled: false
   minReplicas: 1
@@ -779,22 +861,33 @@ autoscaling:
   behavior: {}
 
 # Pod disruption budget
-# Note: PDBs only protect against voluntary disruptions (node drains, autoscaler)
-# They do NOT affect rolling updates - use deployment.strategy.rollingUpdate for that
+# Note: PDBs only protect against voluntary disruptions (node drains, autoscaler).
+# They do NOT affect rolling updates — use deployment.strategy.rollingUpdate for that.
+#
+# Tri-state activation:
+#   enabled: true   → force PDB on (any replicaCount)
+#   enabled: false  → force PDB off (explicit opt-out, even at replicaCount > 1)
+#   enabled: null   → auto-enable when replicaCount > 1 (recommended default)
 podDisruptionBudget:
-  enabled: false
-  # Use either minAvailable or maxUnavailable (not both)
-  # Recommendation: Use maxUnavailable as it scales better with HPA
-  # - minAvailable: minimum pods that must remain available (e.g., 1, "50%")
+  enabled: null
+  # Use either minAvailable or maxUnavailable (not both).
+  # Percentages scale with HPA / replicaCount; absolute numbers do not.
+  # Default `maxUnavailable: "25%"` allows rolling updates while keeping
+  # 75% of pods serving — matches the K8s docs guidance for stateless HA
+  # frontends (https://kubernetes.io/docs/tasks/run-application/configure-pdb/).
+  # - minAvailable: minimum pods that must remain available (e.g., 1, "90%")
   # - maxUnavailable: maximum pods that can be unavailable (e.g., 1, "25%")
   minAvailable: null
-  maxUnavailable: 1
+  maxUnavailable: "25%"
   # unhealthyPodEvictionPolicy: allows eviction of unhealthy pods during node drains
   # Options: IfHealthyBudget (default) | AlwaysAllow (recommended for production)
   # Set to null to use K8s default (IfHealthyBudget)
   unhealthyPodEvictionPolicy: null
 
-# Monitoring configuration
+# Prometheus monitoring integration.
+# Creates a ServiceMonitor CR scraped by the Prometheus Operator. Requires
+# the kube-prometheus-stack (or prometheus-operator) CRDs to be installed
+# in the cluster — otherwise the manifest is rejected by the API server.
 monitoring:
   # ServiceMonitor for Prometheus
   serviceMonitor:
@@ -816,15 +909,29 @@ monitoring:
     # Relabeling configurations
     relabelings: []
 
-# Network policies
+# NetworkPolicy for east-west and egress isolation.
+# When enabled, the chart creates policies that allow Sim components to talk
+# to each other and to required external services (DNS, HTTPS) while blocking
+# everything else. The egress block additionally blacklists cloud metadata
+# endpoints (169.254.169.254/32, 169.254.170.2/32) by default — extend
+# egress.exceptCidrs with your cluster's API server CIDR for tighter isolation.
+# Your CNI must support NetworkPolicy (Calico, Cilium, GKE Dataplane V2, etc.).
 networkPolicy:
   enabled: false
-  
+
   # Custom ingress rules
   ingress: []
-  
-  # Custom egress rules  
-  egress: []
+
+  # Egress configuration
+  egress:
+    # CIDRs excluded from broad HTTPS (443) egress.
+    # Defaults block AWS/GCP/Azure IMDS (169.254.169.254/32) and ECS task metadata
+    # (169.254.170.2/32). Add your cluster's API server CIDR for stronger isolation.
+    exceptCidrs:
+      - "169.254.169.254/32"
+      - "169.254.170.2/32"
+    # Custom egress rules appended to the policy
+    extraRules: []
 
 # Shared storage for enterprise workflows requiring data sharing between pods
 sharedStorage:
@@ -1118,9 +1225,11 @@ copilot:
     # Image configuration
     image:
       repository: simstudioai/copilot
-      tag: latest
-      pullPolicy: Always
-    
+      # tag defaults to Chart.AppVersion. Override with a release tag or pin via image.digest.
+      tag: ""
+      digest: ""
+      pullPolicy: IfNotPresent
+
     # Number of replicas
     replicaCount: 1
     
@@ -1184,23 +1293,33 @@ copilot:
       targetPort: 8080
     
     # Health checks
+    # Startup probe absorbs cold-start time. Total budget: 30 * 5s = 150s.
+    startupProbe:
+      httpGet:
+        path: /healthz
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 30
+
     readinessProbe:
       httpGet:
         path: /healthz
         port: 8080
       initialDelaySeconds: 5
       periodSeconds: 10
-      timeoutSeconds: 5
+      timeoutSeconds: 3
       failureThreshold: 3
-    
+
     livenessProbe:
       httpGet:
         path: /healthz
         port: 8080
-      initialDelaySeconds: 15
+      initialDelaySeconds: 30
       periodSeconds: 30
       timeoutSeconds: 5
-      failureThreshold: 3
+      failureThreshold: 6
 
     # Pod Disruption Budget for high availability
     podDisruptionBudget:
@@ -1239,13 +1358,20 @@ copilot:
         cpu: "250m"
     
     # Pod security context
+    # PostgreSQL image's `postgres` user is uid/gid 999.
     podSecurityContext:
-      fsGroup: 999
-    
-    # Container security context
-    securityContext:
+      runAsNonRoot: true
       runAsUser: 999
-    
+      runAsGroup: 999
+      fsGroup: 999
+
+    # Container security context
+    # readOnlyRootFilesystem is intentionally false — Postgres writes to /var/lib/postgresql/data.
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 999
+      runAsGroup: 999
+
     # Persistence configuration
     persistence:
       enabled: true
@@ -1253,13 +1379,13 @@ copilot:
       size: 10Gi
       accessModes:
         - ReadWriteOnce
-    
+
     # Service configuration
     service:
       type: ClusterIP
       port: 5432
       targetPort: 5432
-    
+
     # Health checks
     livenessProbe:
       exec:
@@ -1291,9 +1417,11 @@ copilot:
     # Image configuration (same as server)
     image:
       repository: simstudioai/copilot
-      tag: latest
-      pullPolicy: Always
-    
+      # tag defaults to Chart.AppVersion. Override with a release tag or pin via image.digest.
+      tag: ""
+      digest: ""
+      pullPolicy: IfNotPresent
+
     # Resource limits and requests
     resources:
       limits:

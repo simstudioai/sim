@@ -8,7 +8,9 @@ metadata:
   labels:
     {{- include "sim.realtime.labels" . | nindent 4 }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.realtime.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "sim.realtime.selectorLabels" . | nindent 6 }}
@@ -29,13 +31,14 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      automountServiceAccountToken: false
       {{- include "sim.podSecurityContext" .Values.realtime | nindent 6 }}
       {{- include "sim.nodeSelector" .Values.realtime | nindent 6 }}
       {{- include "sim.tolerations" .Values | nindent 6 }}
       {{- include "sim.affinity" .Values | nindent 6 }}
       containers:
         - name: realtime
-          image: {{ include "sim.image" (dict "context" . "image" .Values.realtime.image) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.realtime.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.realtime.image.pullPolicy }}
           ports:
             - name: http
@@ -44,11 +47,9 @@ spec:
           env:
             - name: DATABASE_URL
               value: {{ include "sim.databaseUrl" . | quote }}
-            {{- if .Values.app.env.REDIS_URL }}
-            - name: REDIS_URL
-              value: {{ .Values.app.env.REDIS_URL | quote }}
-            {{- end }}
-            {{- range $key, $value := .Values.realtime.env }}
+            {{- /* REDIS_URL is shipped via the app secret (envFrom) — never inline. */}}
+            {{- $rtPart := include "sim.partitionEnv" (.Values.realtime.env | default dict) | fromJson }}
+            {{- range $key, $value := $rtPart.plain }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
@@ -78,6 +79,10 @@ spec:
             - secretRef:
                 name: {{ include "sim.externalDbSecretName" . }}
             {{- end }}
+          {{- if .Values.realtime.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.realtime.startupProbe | nindent 12 }}
+          {{- end }}
           {{- if .Values.realtime.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.realtime.livenessProbe | nindent 12 }}
@@ -87,7 +92,7 @@ spec:
             {{- toYaml .Values.realtime.readinessProbe | nindent 12 }}
           {{- end }}
           {{- include "sim.resources" .Values.realtime | nindent 10 }}
-          {{- include "sim.securityContext" .Values.realtime | nindent 10 }}
+          {{- include "sim.containerSecurityContext" .Values.realtime | nindent 10 }}
           {{- if or .Values.extraVolumeMounts .Values.realtime.extraVolumeMounts }}
           volumeMounts:
             {{- with .Values.extraVolumeMounts }}
