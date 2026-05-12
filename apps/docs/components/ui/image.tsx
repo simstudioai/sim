@@ -25,7 +25,7 @@ export function Image({
     <NextImage
       className={cn(
         'overflow-hidden rounded-xl border border-border object-cover',
-        enableLightbox && 'transition-opacity group-hover:opacity-95',
+        enableLightbox && 'cursor-pointer transition-opacity group-hover:opacity-95',
         className
       )}
       alt={alt}
@@ -41,7 +41,7 @@ export function Image({
           type='button'
           onClick={openLightbox}
           aria-label={`Open ${alt} in media viewer`}
-          className='group block w-full cursor-pointer rounded-xl p-0 text-left'
+          className='group contents'
         >
           {image}
         </button>
