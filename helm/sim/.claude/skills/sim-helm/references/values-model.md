@@ -44,11 +44,9 @@ The Sim chart splits configuration across **four** layers. Understanding which l
 
 ## Why this layering exists
 
-**Single source of truth per concern.** Secrets live in a Secret. Operational defaults live where users can override them. Chart-computed values live where the chart can authoritatively compute them.
+**ESO compatibility.** When `externalSecrets.enabled=true`, the chart-managed Secret is **not rendered** — ESO renders one instead. Anything in Layer 1 must be mapped via `remoteRefs.app.<KEY>` or it's silently missing. Layers 2–4 are unaffected by ESO.
 
-**ESO compatibility.** When `externalSecrets.enabled=true`, the chart-managed Secret is **not rendered** — ESO renders one instead. Anything in Layer 1 must be mapped via `remoteRefs.app.<KEY>` or it's silently missing. Layers 2–4 are unaffected by ESO. Putting operational tunables in `envDefaults` instead of `env` means ESO users don't have to map dozens of tunables — just the real secrets.
-
-**Backwards compatibility.** Layer 2 was added in chart 1.0.0 (formerly all defaults lived in `app.env`). The override-skip logic in the Deployment template means existing users who set values in `app.env` continue to work — those values win over `envDefaults`.
+**Override precedence.** Values set in `app.env` (Layer 1 overrides) win over `envDefaults` (Layer 2) — so users who already had operational tunables in `app.env` continue to work.
 
 ## Where keys live — the canonical list
 
