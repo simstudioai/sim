@@ -93,7 +93,7 @@ export async function createA2AClient(agentUrl: string, apiKey?: string): Promis
         const text = await new Response(init.body as BodyInit).text()
         if (text) body = text
       }
-    } else if (input instanceof Request && !input.bodyUsed) {
+    } else if (init?.body === undefined && input instanceof Request && !input.bodyUsed) {
       const text = await input.text()
       if (text) body = text
     }

@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { wealthboxOAuthItemsContract } from '@/lib/api/contracts/selectors/wealthbox'
 import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validatePathSegment } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -31,6 +32,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const { credentialId, type } = parsed.data.query
     const query = parsed.data.query.query ?? ''
+
+    const credentialIdValidation = validatePathSegment(credentialId, {
+      paramName: 'credentialId',
+      maxLength: 100,
+      allowHyphens: true,
+      allowUnderscores: true,
+      allowDots: false,
+    })
+    if (!credentialIdValidation.isValid) {
+      logger.warn(`[${requestId}] Invalid credentialId format: ${credentialId}`)
+      return NextResponse.json({ error: credentialIdValidation.error }, { status: 400 })
+    }
 
     const authz = await authorizeCredentialUse(request, {
       credentialId,
