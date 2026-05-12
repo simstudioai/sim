@@ -125,7 +125,7 @@ export const PUT = withRouteHandler(
         .onConflictDoUpdate({
           target: [workspaceEnvironment.workspaceId],
           set: {
-            variables: sql`${workspaceEnvironment.variables} || excluded.variables`,
+            variables: sql`${workspaceEnvironment.variables} || EXCLUDED.variables`,
             updatedAt: new Date(),
           },
         })

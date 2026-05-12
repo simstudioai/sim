@@ -202,7 +202,7 @@ export function executeSSHCommand(client: Client, command: string): Promise<SSHC
           stderr: stderrTruncated
             ? `${stderr}\n[stderr truncated: exceeded 16MB limit]`
             : stderr.trim(),
-          exitCode: code ?? 0,
+          exitCode: code ?? -1,
         })
       })
 

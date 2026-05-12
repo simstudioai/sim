@@ -68,9 +68,11 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
 
   request: {
     url: (params) => {
-      // Construct the URL for the Supabase REST API
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(params.table)) {
+        throw new Error('Invalid table name: must contain only letters, digits, and underscores')
+      }
       const selectColumns = params.select?.trim() || '*'
-      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=${encodeURIComponent(selectColumns)}`
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=${encodeURIComponent(selectColumns)}`
 
       // Add filters if provided - using PostgREST syntax
       if (params.filter?.trim()) {

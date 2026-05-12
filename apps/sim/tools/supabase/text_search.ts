@@ -74,11 +74,13 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
 
   request: {
     url: (params) => {
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(params.table)) {
+        throw new Error('Invalid table name: must contain only letters, digits, and underscores')
+      }
       const searchType = params.searchType || 'websearch'
       const language = params.language || 'english'
 
-      // Build the text search filter
-      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=*`
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=*`
 
       // Map search types to PostgREST operators
       // plfts = plainto_tsquery (natural language), phfts = phraseto_tsquery, wfts = websearch_to_tsquery

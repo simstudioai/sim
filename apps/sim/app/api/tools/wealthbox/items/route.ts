@@ -45,7 +45,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: credentialIdValidation.error }, { status: 400 })
     }
 
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId,
       requireWorkflowIdForInternal: false,
     })

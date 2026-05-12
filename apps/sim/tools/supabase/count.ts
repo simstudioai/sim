@@ -50,9 +50,11 @@ export const countTool: ToolConfig<SupabaseCountParams, SupabaseCountResponse> =
 
   request: {
     url: (params) => {
-      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=*`
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(params.table)) {
+        throw new Error('Invalid table name: must contain only letters, digits, and underscores')
+      }
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=*`
 
-      // Add filters if provided
       if (params.filter?.trim()) {
         url += `&${params.filter.trim()}`
       }

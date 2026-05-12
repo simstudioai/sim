@@ -43,7 +43,12 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
   },
 
   request: {
-    url: (params) => `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=*`,
+    url: (params) => {
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(params.table)) {
+        throw new Error('Invalid table name: must contain only letters, digits, and underscores')
+      }
+      return `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=*`
+    },
     method: 'POST',
     headers: (params) => {
       const headers: Record<string, string> = {

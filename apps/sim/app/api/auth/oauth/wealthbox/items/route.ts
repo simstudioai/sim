@@ -32,7 +32,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const { credentialId, type } = parsed.data.query
     const query = parsed.data.query.query ?? ''
 
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId,
       requireWorkflowIdForInternal: false,
     })

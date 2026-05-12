@@ -199,7 +199,7 @@ export const DELETE = withRouteHandler(
 
       await db
         .update(form)
-        .set({ archivedAt: new Date(), updatedAt: new Date() })
+        .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
         .where(eq(form.id, id))
 
       logger.info(`Form ${id} soft deleted`)
