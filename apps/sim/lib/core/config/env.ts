@@ -157,6 +157,9 @@ export const env = createEnv({
     LOG_LEVEL:                             z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).optional(), // Minimum log level to display (defaults to ERROR in production, DEBUG in development)
     PROFOUND_API_KEY:                      z.string().min(1).optional(),           // Profound analytics API key
     PROFOUND_ENDPOINT:                     z.string().url().optional(),            // Profound analytics endpoint
+    GRAFANA_OTLP_ENDPOINT:                 z.string().url().optional(),            // Grafana Cloud OTLP HTTP gateway base URL (e.g., https://otlp-gateway-prod-us-east-0.grafana.net/otlp). Trigger.dev exporters append /v1/traces, /v1/logs, /v1/metrics.
+    GRAFANA_INSTANCE_ID:                   z.string().min(1).optional(),           // Grafana Cloud instance ID (Basic auth username for OTLP)
+    GRAFANA_API_TOKEN:                     z.string().min(1).optional(),           // Grafana Cloud API token (Basic auth password for OTLP)
 
     // External Services
     BROWSERBASE_API_KEY:                   z.string().min(1).optional(),           // Browserbase API key for browser automation
