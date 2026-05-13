@@ -217,6 +217,37 @@ async function mapFolderWithPath(
   return mapFolder(folder, new Map([[folder.id, path]]))
 }
 
+export async function getWorkspaceFileFolderPath(
+  workspaceId: string,
+  folderId: string,
+  options?: { includeDeleted?: boolean }
+): Promise<string | null> {
+  const folder = await getRawWorkspaceFileFolder(workspaceId, folderId, options)
+  return folder ? buildWorkspaceFileFolderPath(workspaceId, folder, options) : null
+}
+
+export async function findWorkspaceFileFolderIdByPath(
+  workspaceId: string,
+  pathSegments: string[]
+): Promise<string | null> {
+  let parentId: string | null = null
+
+  for (const rawSegment of pathSegments) {
+    let name: string
+    try {
+      name = normalizeWorkspaceFileItemName(rawSegment, 'Folder')
+    } catch {
+      return null
+    }
+
+    const folder = await findRawWorkspaceFileFolderByName(workspaceId, name, parentId)
+    if (!folder) return null
+    parentId = folder.id
+  }
+
+  return parentId
+}
+
 export async function listWorkspaceFileFolders(
   workspaceId: string,
   options?: { scope?: WorkspaceFileFolderScope }

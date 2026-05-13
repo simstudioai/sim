@@ -414,6 +414,14 @@ export function Files() {
           owner: ownerCell(file.uploadedBy, members),
           updated: timeCell(file.updatedAt),
         },
+        sortValues: {
+          name: file.name,
+          size: file.size,
+          type: formatFileType(file.type, file.name),
+          created: new Date(file.uploadedAt).getTime(),
+          updated: new Date(file.updatedAt).getTime(),
+          owner: members?.find((m) => m.userId === file.uploadedBy)?.name ?? '',
+        },
       }
       return row
     })

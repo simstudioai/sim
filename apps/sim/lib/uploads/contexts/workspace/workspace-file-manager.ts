@@ -33,6 +33,8 @@ import {
   assertWorkspaceFileFolderTarget,
   buildWorkspaceFileFolderPathMap,
   fileNameExistsInWorkspaceFolder,
+  findWorkspaceFileFolderIdByPath,
+  getWorkspaceFileFolderPath,
   listWorkspaceFileFolders,
   normalizeWorkspaceFileItemName,
 } from './workspace-file-folder-manager'
@@ -565,6 +567,24 @@ function mapWorkspaceFileRecord(
   }
 }
 
+async function mapSingleWorkspaceFileRecord(
+  file: typeof workspaceFiles.$inferSelect,
+  workspaceId: string
+): Promise<WorkspaceFileRecord> {
+  if (!file.folderId) {
+    return mapWorkspaceFileRecord(file, workspaceId, new Map())
+  }
+
+  const folderPath = await getWorkspaceFileFolderPath(workspaceId, file.folderId, {
+    includeDeleted: true,
+  })
+  return mapWorkspaceFileRecord(
+    file,
+    workspaceId,
+    folderPath ? new Map([[file.folderId, folderPath]]) : new Map()
+  )
+}
+
 /**
  * Look up a single active workspace file by its original name.
  * Returns the record if found, or null if no matching file exists.
@@ -592,9 +612,7 @@ export async function getWorkspaceFileByName(
 
   if (files.length === 0) return null
 
-  const folders = await listWorkspaceFileFolders(workspaceId, { scope: 'all' })
-  const folderPaths = buildWorkspaceFileFolderPathMap(folders)
-  return mapWorkspaceFileRecord(files[0], workspaceId, folderPaths)
+  return mapSingleWorkspaceFileRecord(files[0], workspaceId)
 }
 
 /**
@@ -728,6 +746,24 @@ export function findWorkspaceFileRecord(
   return files.find((file) => normalizeVfsSegment(file.name) === segmentKey) ?? null
 }
 
+async function getWorkspaceFileByExactReference(
+  workspaceId: string,
+  fileReference: string
+): Promise<WorkspaceFileRecord | null> {
+  const segments = fileReference
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+
+  if (segments.length === 0) return null
+  if (segments.length === 1) {
+    return getWorkspaceFileByName(workspaceId, segments[0], { folderId: null })
+  }
+
+  const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments.slice(0, -1))
+  return folderId ? getWorkspaceFileByName(workspaceId, segments.at(-1) ?? '', { folderId }) : null
+}
+
 /**
  * Resolve a workspace file record from either its id or a VFS/name reference.
  */
@@ -735,6 +771,18 @@ export async function resolveWorkspaceFileReference(
   workspaceId: string,
   fileReference: string
 ): Promise<WorkspaceFileRecord | null> {
+  const normalizedReference = normalizeWorkspaceFileReference(fileReference)
+  if (normalizedReference.startsWith('wf_')) {
+    const file = await getWorkspaceFile(workspaceId, normalizedReference)
+    if (file) return file
+  }
+
+  const exactReferenceFile = await getWorkspaceFileByExactReference(
+    workspaceId,
+    normalizedReference
+  )
+  if (exactReferenceFile) return exactReferenceFile
+
   const files = await listWorkspaceFiles(workspaceId)
   return findWorkspaceFileRecord(files, fileReference)
 }
@@ -770,9 +818,7 @@ export async function getWorkspaceFile(
 
     if (files.length === 0) return null
 
-    const folders = await listWorkspaceFileFolders(workspaceId, { scope: 'all' })
-    const folderPaths = buildWorkspaceFileFolderPathMap(folders)
-    return mapWorkspaceFileRecord(files[0], workspaceId, folderPaths)
+    return mapSingleWorkspaceFileRecord(files[0], workspaceId)
   } catch (error) {
     logger.error(`Failed to get workspace file ${fileId}:`, error)
     return null

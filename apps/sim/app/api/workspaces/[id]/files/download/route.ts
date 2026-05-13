@@ -10,9 +10,12 @@ import {
   listWorkspaceFileFolders,
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace'
+import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkspaceFilesDownloadAPI')
+const MAX_ZIP_DOWNLOAD_FILES = 100
+const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
 
 function safeZipPath(path: string): string {
   return path
@@ -74,6 +77,25 @@ export const GET = withRouteHandler(
 
       if (filesToZip.length === 0) {
         return NextResponse.json({ error: 'No files selected for download' }, { status: 400 })
+      }
+
+      if (filesToZip.length > MAX_ZIP_DOWNLOAD_FILES) {
+        return NextResponse.json(
+          {
+            error: `Too many files selected for download. Select ${MAX_ZIP_DOWNLOAD_FILES} or fewer files.`,
+          },
+          { status: 413 }
+        )
+      }
+
+      const totalBytes = filesToZip.reduce((sum, file) => sum + file.size, 0)
+      if (totalBytes > MAX_ZIP_DOWNLOAD_BYTES) {
+        return NextResponse.json(
+          {
+            error: `Selected files total ${formatFileSize(totalBytes)}, which exceeds the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit.`,
+          },
+          { status: 413 }
+        )
       }
 
       const zip = new JSZip()
