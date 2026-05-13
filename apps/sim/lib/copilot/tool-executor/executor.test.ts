@@ -113,6 +113,31 @@ describe('copilot tool executor fallback', () => {
     )
   })
 
+  it('defaults copilot function_execute timeout to 10 seconds when invalid', async () => {
+    isKnownTool.mockReturnValue(false)
+    isSimExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
+
+    await executeTool(
+      'function_execute',
+      { code: 'return 1', timeout: 0 },
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'ws-1',
+        copilotToolExecution: true,
+      }
+    )
+
+    expect(executeAppTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({
+        timeout: 10_000,
+      }),
+      false
+    )
+  })
+
   it('does not let copilot function_execute timeout exceed the default execution limit', async () => {
     isKnownTool.mockReturnValue(false)
     isSimExecuted.mockReturnValue(false)

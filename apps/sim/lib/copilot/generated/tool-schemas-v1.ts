@@ -2799,7 +2799,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             rowIds: {
               type: 'array',
-              description: 'Array of row IDs to delete (for batch_delete_rows)',
+              description:
+                'Array of row IDs. Used by batch_delete_rows (rows to delete) and run_column (optional row scope — when omitted, runs across the whole table; when provided, only these rows are candidates and the server eligibility predicate still applies).',
               items: {
                 type: 'string',
               },

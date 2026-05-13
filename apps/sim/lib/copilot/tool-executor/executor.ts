@@ -106,16 +106,18 @@ function buildAppToolParams(
   const result = { ...params }
 
   if (toolId === FUNCTION_EXECUTE_TOOL_ID && context.copilotToolExecution) {
-    const timeoutSeconds =
+    const rawTimeoutSeconds =
       result.timeout === undefined || result.timeout === null
         ? DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS
         : Number(result.timeout)
-    if (Number.isFinite(timeoutSeconds) && timeoutSeconds > 0) {
-      result.timeout = Math.min(
-        Math.ceil(timeoutSeconds * MILLISECONDS_PER_SECOND),
-        DEFAULT_EXECUTION_TIMEOUT_MS
-      )
-    }
+    const timeoutSeconds =
+      Number.isFinite(rawTimeoutSeconds) && rawTimeoutSeconds > 0
+        ? rawTimeoutSeconds
+        : DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS
+    result.timeout = Math.min(
+      Math.ceil(timeoutSeconds * MILLISECONDS_PER_SECOND),
+      DEFAULT_EXECUTION_TIMEOUT_MS
+    )
   }
 
   if (result.credentialId && !result.credential && !result.oauthCredential) {
