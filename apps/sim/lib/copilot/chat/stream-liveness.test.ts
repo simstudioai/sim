@@ -127,7 +127,7 @@ describe('reconcileChatStreamMarkers', () => {
     })
   })
 
-  it('detects a live lock before the persisted marker has been written', async () => {
+  it('treats a null persisted marker as inactive even when Redis still holds a lock (post-completion teardown window)', async () => {
     mockGetChatStreamLockOwners.mockResolvedValueOnce({
       status: 'verified',
       ownersByChatId: new Map([['chat-starting', 'stream-starting']]),
@@ -135,18 +135,16 @@ describe('reconcileChatStreamMarkers', () => {
 
     const markers = await reconcileChatStreamMarkers([{ chatId: 'chat-starting', streamId: null }])
 
-    expect(mockGetChatStreamLockOwners).toHaveBeenCalledWith(['chat-starting'])
     expect(markers.get('chat-starting')).toEqual({
       chatId: 'chat-starting',
-      streamId: 'stream-starting',
-      status: 'active',
+      streamId: null,
+      status: 'inactive',
     })
   })
 
-  it('queries locks even when no persisted markers exist', async () => {
+  it('does not query locks when no chats have persisted stream markers', async () => {
     const markers = await reconcileChatStreamMarkers([{ chatId: 'chat-idle', streamId: null }])
 
-    expect(mockGetChatStreamLockOwners).toHaveBeenCalledWith(['chat-idle'])
     expect(markers.get('chat-idle')).toEqual({
       chatId: 'chat-idle',
       streamId: null,

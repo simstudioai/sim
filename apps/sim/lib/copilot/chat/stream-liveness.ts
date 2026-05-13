@@ -38,27 +38,33 @@ export async function reconcileChatStreamMarkers(
   const results = new Map<string, ReconciledChatStreamMarker>()
 
   for (const candidate of candidates) {
+    if (candidate.streamId === null) {
+      results.set(candidate.chatId, {
+        chatId: candidate.chatId,
+        streamId: null,
+        status: 'inactive',
+      })
+      continue
+    }
     results.set(candidate.chatId, {
       chatId: candidate.chatId,
       streamId: candidate.streamId,
-      status: candidate.streamId ? 'unknown' : 'inactive',
+      status: 'unknown',
     })
   }
 
-  if (candidates.length === 0) {
+  const candidatesWithMarkers = candidates.filter((candidate) => candidate.streamId !== null)
+  if (candidatesWithMarkers.length === 0) {
     return results
   }
 
   const { status, ownersByChatId } = await getChatStreamLockOwners(
-    candidates.map((candidate) => candidate.chatId)
+    candidatesWithMarkers.map((candidate) => candidate.chatId)
   )
 
-  for (const candidate of candidates) {
+  for (const candidate of candidatesWithMarkers) {
     const owner = ownersByChatId.get(candidate.chatId)
-    if (
-      owner &&
-      (status === 'verified' || owner === candidate.streamId || candidate.streamId === null)
-    ) {
+    if (owner && (status === 'verified' || owner === candidate.streamId)) {
       results.set(candidate.chatId, {
         chatId: candidate.chatId,
         streamId: owner,
@@ -67,7 +73,7 @@ export async function reconcileChatStreamMarkers(
       continue
     }
 
-    if (status === 'verified' && candidate.streamId !== null) {
+    if (status === 'verified') {
       results.set(candidate.chatId, {
         chatId: candidate.chatId,
         streamId: null,
@@ -79,7 +85,7 @@ export async function reconcileChatStreamMarkers(
     results.set(candidate.chatId, {
       chatId: candidate.chatId,
       streamId: candidate.streamId,
-      status: candidate.streamId ? 'unknown' : 'inactive',
+      status: 'unknown',
     })
   }
 
