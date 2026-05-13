@@ -4,7 +4,7 @@
 
 export type JsonSchema = unknown
 
-interface ToolRuntimeSchemaEntry {
+export interface ToolRuntimeSchemaEntry {
   parameters?: JsonSchema
   resultSchema?: JsonSchema
 }
@@ -862,6 +862,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           description:
             'Table ID to overwrite with the code\'s return value. Code MUST return an array of objects where keys match column names. All existing rows are replaced. Example: "tbl_abc123"',
+        },
+        timeout: {
+          type: 'number',
+          description:
+            'Optional maximum execution time in seconds. If omitted, Copilot sends 10 seconds by default. Override when needed; capped at the default execution limit.',
         },
       },
       required: ['code'],
@@ -2794,8 +2799,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             rowIds: {
               type: 'array',
-              description:
-                'Array of row IDs. Used by batch_delete_rows (rows to delete) and run_column (optional row scope — when omitted, runs across the whole table; when provided, only these rows are candidates and the server eligibility predicate still applies).',
+              description: 'Array of row IDs to delete (for batch_delete_rows)',
               items: {
                 type: 'string',
               },
