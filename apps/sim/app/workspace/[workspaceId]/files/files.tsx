@@ -253,6 +253,7 @@ export function Files() {
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const contextMenuItemRef = useRef<FileResourceItem | null>(null)
+  const lastSelectedIndexRef = useRef<number>(-1)
   const draggedRowIdsRef = useRef<string[]>([])
   const dragGhostRef = useRef<HTMLElement | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -498,15 +499,29 @@ export function Files() {
     () => ({
       selectedIds: selectedRowIds,
       isAllSelected,
-      onSelectRow: (rowId: string, checked: boolean) => {
-        setSelectedRowIds((prev) => {
-          const next = new Set(prev)
-          if (checked) next.add(rowId)
-          else next.delete(rowId)
-          return next
-        })
+      onSelectRow: (rowId: string, checked: boolean, shiftKey?: boolean) => {
+        const currentIndex = visibleRowIds.indexOf(rowId)
+        if (shiftKey && lastSelectedIndexRef.current !== -1 && currentIndex !== -1) {
+          const start = Math.min(lastSelectedIndexRef.current, currentIndex)
+          const end = Math.max(lastSelectedIndexRef.current, currentIndex)
+          setSelectedRowIds((prev) => {
+            const next = new Set(prev)
+            for (let i = start; i <= end; i++) next.add(visibleRowIds[i])
+            return next
+          })
+        } else {
+          setSelectedRowIds((prev) => {
+            const next = new Set(prev)
+            if (checked) next.add(rowId)
+            else next.delete(rowId)
+            return next
+          })
+          if (checked) lastSelectedIndexRef.current = currentIndex
+          else lastSelectedIndexRef.current = -1
+        }
       },
       onSelectAll: (checked: boolean) => {
+        lastSelectedIndexRef.current = -1
         setSelectedRowIds((prev) => {
           const next = new Set(prev)
           for (const rowId of visibleRowIds) {
@@ -1785,6 +1800,7 @@ export function Files() {
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
         canEdit={canEdit}
+        selectedCount={selectedRowIds.size}
       />
 
       <DeleteConfirmModal

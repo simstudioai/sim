@@ -22,6 +22,7 @@ interface FileRowContextMenuProps {
   onRename: () => void
   onDelete: () => void
   canEdit: boolean
+  selectedCount: number
 }
 
 export const FileRowContextMenu = memo(function FileRowContextMenu({
@@ -33,7 +34,10 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
   onRename,
   onDelete,
   canEdit,
+  selectedCount,
 }: FileRowContextMenuProps) {
+  const isMultiSelect = selectedCount > 1
+
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -56,26 +60,30 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        <DropdownMenuItem onSelect={onOpen}>
-          <Eye />
-          Open
-        </DropdownMenuItem>
+        {!isMultiSelect && (
+          <DropdownMenuItem onSelect={onOpen}>
+            <Eye />
+            Open
+          </DropdownMenuItem>
+        )}
         {onDownload && (
           <DropdownMenuItem onSelect={onDownload}>
             <Download />
-            Download
+            {isMultiSelect ? `Download ${selectedCount} items` : 'Download'}
           </DropdownMenuItem>
         )}
         {canEdit && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onRename}>
-              <Pencil />
-              Rename
-            </DropdownMenuItem>
+            {!isMultiSelect && (
+              <DropdownMenuItem onSelect={onRename}>
+                <Pencil />
+                Rename
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={onDelete}>
               <Trash2 />
-              Delete
+              {isMultiSelect ? `Delete ${selectedCount} items` : 'Delete'}
             </DropdownMenuItem>
           </>
         )}

@@ -39,7 +39,7 @@ export interface ResourceRow {
 
 export interface SelectableConfig {
   selectedIds: Set<string>
-  onSelectRow: (id: string, checked: boolean) => void
+  onSelectRow: (id: string, checked: boolean, shiftKey?: boolean) => void
   onSelectAll: (checked: boolean) => void
   isAllSelected: boolean
   disabled?: boolean
@@ -510,9 +510,17 @@ const DataRow = memo(function DataRow({
     [onRowContextMenu, row.id]
   )
 
+  const shiftKeyRef = useRef(false)
+
+  const handleSelectRowClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    shiftKeyRef.current = e.shiftKey
+  }, [])
+
   const handleSelectRow = useCallback(
     (checked: boolean | 'indeterminate') => {
-      selectable?.onSelectRow(row.id, checked as boolean)
+      selectable?.onSelectRow(row.id, checked as boolean, shiftKeyRef.current)
+      shiftKeyRef.current = false
     },
     [selectable, row.id]
   )
@@ -585,7 +593,7 @@ const DataRow = memo(function DataRow({
             onCheckedChange={handleSelectRow}
             disabled={selectable.disabled}
             aria-label='Select row'
-            onClick={stopPropagation}
+            onClick={handleSelectRowClick}
           />
         </td>
       )}
