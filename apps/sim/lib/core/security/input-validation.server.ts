@@ -392,6 +392,7 @@ export async function secureFetchWithPinnedIP(
               maxResponseBytes > 0 &&
               totalBytes > maxResponseBytes
             ) {
+              cleanupAbort()
               controller.error(
                 new Error(`Response exceeded maximum size of ${maxResponseBytes} bytes`)
               )
