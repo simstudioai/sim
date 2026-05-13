@@ -512,7 +512,6 @@ export function reconcileFinalBlockLogs(
       reconcileChildTraceSpans(
         updateConsole,
         workflowId,
-        log.blockId,
         childWorkflowInstanceId,
         executionId,
         log.childTraceSpans
@@ -521,24 +520,34 @@ export function reconcileFinalBlockLogs(
   }
 }
 
+/**
+ * Reconciles trace spans for blocks inside a child workflow.
+ *
+ * Inner-block console entries are created from SSE `block:started` events whose
+ * `childWorkflowBlockId` field carries the parent's per-invocation instanceId
+ * (see `execute/route.ts` where the server emits `childWorkflowContext.parentBlockId`).
+ * The matcher must therefore key on that instanceId — using the parent workflow
+ * block's static nodeId would never match and the rescue silently no-ops, leaving
+ * inner blocks stuck `isRunning: true` until `finishRunningEntries` sweeps them
+ * with a wall-clock duration.
+ */
 function reconcileChildTraceSpans(
   updateConsole: UpdateConsoleFn,
   workflowId: string,
-  childWorkflowBlockId: string,
   childWorkflowInstanceId: string,
   executionId: string,
   spans: TraceSpan[]
 ): void {
   for (const span of spans) {
     const matchingEntry = span.blockId
-      ? findConsoleEntryForSpan(workflowId, executionId, childWorkflowBlockId, span)
+      ? findConsoleEntryForSpan(workflowId, executionId, childWorkflowInstanceId, span)
       : undefined
     if (span.blockId) {
       const errorMessage = normalizeSpanError(span.output?.error)
       updateConsole(
         span.blockId,
         {
-          ...spanConsoleIdentity(span, childWorkflowBlockId),
+          ...spanConsoleIdentity(span, childWorkflowInstanceId),
           replaceOutput: (span.output ?? {}) as Record<string, unknown>,
           success: span.status !== 'error',
           ...(errorMessage !== undefined ? { error: errorMessage } : {}),
@@ -555,7 +564,6 @@ function reconcileChildTraceSpans(
       reconcileChildTraceSpans(
         updateConsole,
         workflowId,
-        matchingEntry?.blockId ?? childWorkflowBlockId,
         matchingEntry?.childWorkflowInstanceId ?? childWorkflowInstanceId,
         executionId,
         span.children
@@ -564,7 +572,7 @@ function reconcileChildTraceSpans(
   }
 }
 
-function spanConsoleIdentity(span: TraceSpan, childWorkflowBlockId: string): ConsoleUpdate {
+function spanConsoleIdentity(span: TraceSpan, childWorkflowInstanceId: string): ConsoleUpdate {
   const iterationContainerId = span.loopId ?? span.parallelId
   const iterationType = span.loopId ? 'loop' : span.parallelId ? 'parallel' : undefined
   return {
@@ -573,18 +581,18 @@ function spanConsoleIdentity(span: TraceSpan, childWorkflowBlockId: string): Con
     ...(iterationType !== undefined && { iterationType }),
     ...(iterationContainerId !== undefined && { iterationContainerId }),
     ...(span.parentIterations !== undefined && { parentIterations: span.parentIterations }),
-    childWorkflowBlockId,
+    childWorkflowBlockId: childWorkflowInstanceId,
   }
 }
 
 function findConsoleEntryForSpan(
   workflowId: string,
   executionId: string,
-  childWorkflowBlockId: string,
+  childWorkflowInstanceId: string,
   span: TraceSpan
 ): ConsoleEntry | undefined {
   if (!span.blockId) return undefined
-  const identity = spanConsoleIdentity(span, childWorkflowBlockId)
+  const identity = spanConsoleIdentity(span, childWorkflowInstanceId)
   return useTerminalConsoleStore
     .getState()
     .getWorkflowEntries(workflowId)
