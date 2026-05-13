@@ -256,6 +256,7 @@ export const mothershipExecuteResponseSchema = z
   .object({
     content: z.string().optional(),
     model: z.literal('mothership'),
+    conversationId: z.string(),
     tokens: z
       .object({
         prompt: z.number().optional(),

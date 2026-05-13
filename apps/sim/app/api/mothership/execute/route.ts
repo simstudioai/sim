@@ -171,6 +171,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({
         content: result.content,
         model: 'mothership',
+        conversationId: effectiveChatId,
         tokens: result.usage
           ? {
               prompt: result.usage.prompt,

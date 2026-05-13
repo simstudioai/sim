@@ -84,7 +84,7 @@ describe('MothershipBlockHandler', () => {
       metadata: { id: BlockType.MOTHERSHIP, name: 'Mothership' },
       position: { x: 0, y: 0 },
       config: { tool: BlockType.MOTHERSHIP, params: {} },
-      inputs: { prompt: 'string' },
+      inputs: { prompt: 'string', conversationId: 'string' },
       outputs: {},
       enabled: true,
     } as SerializedBlock
@@ -122,6 +122,7 @@ describe('MothershipBlockHandler', () => {
         JSON.stringify({
           content: 'done',
           model: 'mothership',
+          conversationId: 'chat-uuid',
           tokens: { total: 5 },
           toolCalls: [],
         }),
@@ -137,6 +138,7 @@ describe('MothershipBlockHandler', () => {
     expect(result).toEqual({
       content: 'done',
       model: 'mothership',
+      conversationId: 'chat-uuid',
       tokens: { total: 5 },
       toolCalls: { list: [], count: 0 },
       cost: undefined,
@@ -159,6 +161,55 @@ describe('MothershipBlockHandler', () => {
       workflowId: 'workflow-1',
       executionId: 'execution-1',
     })
+  })
+
+  it('uses a provided conversation ID as the mothership chat ID', async () => {
+    mockGenerateId.mockReturnValueOnce('message-uuid')
+    mockGenerateId.mockReturnValueOnce('request-uuid')
+
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          content: 'continued',
+          model: 'mothership',
+          conversationId: 'existing-chat-id',
+          tokens: {},
+          toolCalls: [],
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
+    )
+
+    const result = await handler.execute(context, block, {
+      prompt: 'Continue this thread',
+      conversationId: ' existing-chat-id ',
+    })
+
+    expect(result).toEqual({
+      content: 'continued',
+      model: 'mothership',
+      conversationId: 'existing-chat-id',
+      tokens: {},
+      toolCalls: { list: [], count: 0 },
+      cost: undefined,
+    })
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(options.body))
+    expect(body).toEqual({
+      messages: [{ role: 'user', content: 'Continue this thread' }],
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      chatId: 'existing-chat-id',
+      messageId: 'message-uuid',
+      requestId: 'request-uuid',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
+    expect(mockGenerateId).toHaveBeenCalledTimes(2)
   })
 
   it('propagates local aborts to the mothership request', async () => {
