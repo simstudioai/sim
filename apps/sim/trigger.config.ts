@@ -5,6 +5,7 @@ import { resourceFromAttributes } from '@opentelemetry/resources'
 import { additionalFiles, additionalPackages } from '@trigger.dev/build/extensions/core'
 import { defineConfig } from '@trigger.dev/sdk'
 import { env } from './lib/core/config/env'
+import { parseOtlpHeaders } from './lib/monitoring/otlp'
 
 const grafanaEndpoint = env.GRAFANA_OTLP_ENDPOINT
 const grafanaHeaders = env.GRAFANA_OTLP_HEADERS
@@ -18,24 +19,6 @@ if (grafanaConfigured && !grafanaFullyConfigured) {
   throw new Error(
     'Grafana OTLP telemetry is partially configured. Set GRAFANA_OTLP_ENDPOINT, GRAFANA_OTLP_HEADERS, and GRAFANA_DEPLOYMENT_ENVIRONMENT together, or leave all three unset.'
   )
-}
-
-/**
- * Parse OTLP headers per the OTEL spec format `key1=value1,key2=value2`.
- * Values are URL-decoded; keys/values are trimmed; empty entries are skipped.
- * @see https://opentelemetry.io/docs/specs/otel/protocol/exporter/
- */
-function parseOtlpHeaders(raw: string): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const pair of raw.split(',')) {
-    const eq = pair.indexOf('=')
-    if (eq === -1) continue
-    const key = pair.slice(0, eq).trim()
-    const value = pair.slice(eq + 1).trim()
-    if (!key) continue
-    out[key] = decodeURIComponent(value)
-  }
-  return out
 }
 
 const grafanaTelemetry = grafanaFullyConfigured
