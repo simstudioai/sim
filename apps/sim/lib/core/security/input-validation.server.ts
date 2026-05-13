@@ -401,10 +401,17 @@ export async function secureFetchWithPinnedIP(
             }
             controller.enqueue(new Uint8Array(chunk))
           })
-          nodeRes.on('end', () => controller.close())
-          nodeRes.on('error', (err) => controller.error(err))
+          nodeRes.on('end', () => {
+            cleanupAbort()
+            controller.close()
+          })
+          nodeRes.on('error', (err) => {
+            cleanupAbort()
+            controller.error(err)
+          })
         },
         cancel() {
+          cleanupAbort()
           nodeRes.destroy()
         },
       })
@@ -449,7 +456,6 @@ export async function secureFetchWithPinnedIP(
       }
     }
     const settledResolve: typeof resolve = (value) => {
-      cleanupAbort()
       resolve(value)
     }
     const settledReject: typeof reject = (reason) => {
