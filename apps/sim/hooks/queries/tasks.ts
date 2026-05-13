@@ -614,7 +614,13 @@ export function useCreateTask(workspaceId?: string) {
         isUnread: false,
         isPinned: false,
       }
-      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [newTask, ...existing])
+      const pinnedCount = existing.findIndex((task) => !task.isPinned)
+      const insertAt = pinnedCount === -1 ? existing.length : pinnedCount
+      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [
+        ...existing.slice(0, insertAt),
+        newTask,
+        ...existing.slice(insertAt),
+      ])
     },
     onSettled: () => {
       if (!workspaceId) return
@@ -653,9 +659,12 @@ export function useForkTask(workspaceId?: string) {
           isUnread: false,
           isPinned: false,
         }
+        const pinnedCount = existing.findIndex((task) => !task.isPinned)
+        const insertAt = pinnedCount === -1 ? existing.length : pinnedCount
         queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [
+          ...existing.slice(0, insertAt),
           optimisticTask,
-          ...existing,
+          ...existing.slice(insertAt),
         ])
       }
     },
