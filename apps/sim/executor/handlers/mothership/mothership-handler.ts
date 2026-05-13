@@ -3,11 +3,16 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { readUserFileContent } from '@/lib/execution/payloads/materialization.server'
-import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
+import {
+  createFileContentFromBase64,
+  type MessageContent,
+  processSingleFileToUserFile,
+  type RawFileInput,
+} from '@/lib/uploads/utils/file-utils'
 import type { BlockOutput } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import { BlockType } from '@/executor/constants'
-import type { BlockHandler, ExecutionContext, UserFile } from '@/executor/types'
+import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -17,35 +22,6 @@ const MAX_MOTHERSHIP_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
 type MothershipFileAttachment = MessageContent & {
   filename?: string
-}
-
-function toUserFile(file: object): UserFile {
-  const candidate = file as Record<string, unknown>
-  const key = typeof candidate.key === 'string' ? candidate.key : ''
-  const name = typeof candidate.name === 'string' ? candidate.name : ''
-  const url =
-    typeof candidate.url === 'string'
-      ? candidate.url
-      : typeof candidate.path === 'string'
-        ? candidate.path
-        : key
-  const size = typeof candidate.size === 'number' ? candidate.size : Number(candidate.size)
-  const type = typeof candidate.type === 'string' ? candidate.type : ''
-  const id = typeof candidate.id === 'string' ? candidate.id : key
-
-  if (!id || !key || !name || !url || !Number.isFinite(size) || !type) {
-    throw new Error('Mothership attachment must include file name, key, url/path, size, and type.')
-  }
-
-  return {
-    id,
-    key,
-    name,
-    url,
-    size,
-    type,
-    ...(typeof candidate.context === 'string' ? { context: candidate.context } : {}),
-  }
 }
 
 async function buildMothershipFileAttachments(
@@ -64,7 +40,7 @@ async function buildMothershipFileAttachments(
 
   const attachments: MothershipFileAttachment[] = []
   for (const file of files) {
-    const userFile = toUserFile(file)
+    const userFile = processSingleFileToUserFile(file as RawFileInput, requestId, logger)
     const base64 = await readUserFileContent(userFile, {
       encoding: 'base64',
       userId: ctx.userId,
@@ -79,7 +55,7 @@ async function buildMothershipFileAttachments(
       maxSourceBytes: MAX_MOTHERSHIP_ATTACHMENT_BYTES,
     })
 
-    const content = createFileContent(Buffer.from(base64, 'base64'), userFile.type)
+    const content = createFileContentFromBase64(base64, userFile.type)
     if (!content) {
       throw new Error(`File type is not supported for Mothership attachments: ${userFile.name}`)
     }

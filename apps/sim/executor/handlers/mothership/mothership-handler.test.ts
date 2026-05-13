@@ -247,7 +247,6 @@ describe('MothershipBlockHandler', () => {
       files: [
         {
           name: 'notes.txt',
-          path: '/api/files/serve/workspace/workspace-1/notes.txt',
           key: 'workspace/workspace-1/notes.txt',
           size: 16,
           type: 'text/plain',
@@ -261,14 +260,14 @@ describe('MothershipBlockHandler', () => {
       conversationId: 'chat-uuid',
     })
     expect(mockReadUserFileContent).toHaveBeenCalledWith(
-      {
-        id: 'workspace/workspace-1/notes.txt',
+      expect.objectContaining({
+        id: expect.stringMatching(/^file-/),
         key: 'workspace/workspace-1/notes.txt',
         name: 'notes.txt',
-        url: '/api/files/serve/workspace/workspace-1/notes.txt',
+        url: '',
         size: 16,
         type: 'text/plain',
-      },
+      }),
       expect.objectContaining({
         encoding: 'base64',
         userId: 'user-1',
