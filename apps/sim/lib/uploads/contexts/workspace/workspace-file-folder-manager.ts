@@ -446,8 +446,11 @@ function collectDescendantFolderIds(
   }
 
   const descendants: string[] = []
+  const seen = new Set([folderId])
   const visit = (id: string) => {
     for (const childId of childrenByParent.get(id) ?? []) {
+      if (seen.has(childId)) continue
+      seen.add(childId)
       descendants.push(childId)
       visit(childId)
     }

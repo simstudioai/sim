@@ -6,6 +6,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  buildWorkspaceFileFolderPathMap,
   fetchWorkspaceFileBuffer,
   listWorkspaceFileFolders,
   listWorkspaceFiles,
@@ -65,9 +66,10 @@ export const GET = withRouteHandler(
 
     try {
       const [files, folders] = await Promise.all([
-        listWorkspaceFiles(workspaceId),
+        listWorkspaceFiles(workspaceId, { hydrateFolderPaths: false }),
         listWorkspaceFileFolders(workspaceId),
       ])
+      const folderPaths = buildWorkspaceFileFolderPathMap(folders)
       const selectedFolderIds = collectDescendantFolderIds(folderIds, folders)
       const requestedFileIds = new Set(fileIds)
       const filesToZip = files.filter(
@@ -102,8 +104,9 @@ export const GET = withRouteHandler(
       const usedPaths = new Set<string>()
       for (const file of filesToZip) {
         const buffer = await fetchWorkspaceFileBuffer(file)
+        const folderPath = file.folderId ? folderPaths.get(file.folderId) : null
         const basePath =
-          safeZipPath(file.folderPath ? `${file.folderPath}/${file.name}` : file.name) ||
+          safeZipPath(folderPath ? `${folderPath}/${file.name}` : file.name) ||
           safeZipPath(file.name) ||
           file.id
         let zipPath = basePath

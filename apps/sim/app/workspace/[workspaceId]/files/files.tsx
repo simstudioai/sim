@@ -534,14 +534,18 @@ export function Files() {
     }
 
     const result = new Map<string, Set<string>>()
-    const collect = (folderId: string): Set<string> => {
+    const collect = (folderId: string, seen = new Set<string>()): Set<string> => {
       const cached = result.get(folderId)
       if (cached) return cached
+      if (seen.has(folderId)) return new Set<string>()
 
+      const nextSeen = new Set(seen)
+      nextSeen.add(folderId)
       const descendants = new Set<string>()
       for (const childId of childrenByParent.get(folderId) ?? []) {
+        if (nextSeen.has(childId)) continue
         descendants.add(childId)
-        for (const nestedId of collect(childId)) {
+        for (const nestedId of collect(childId, nextSeen)) {
           descendants.add(nestedId)
         }
       }

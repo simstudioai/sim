@@ -29,6 +29,7 @@ import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
+import type { WorkspaceFileFolderRecord } from './workspace-file-folder-manager'
 import {
   assertWorkspaceFileFolderTarget,
   buildWorkspaceFileFolderPathMap,
@@ -67,6 +68,12 @@ export interface WorkspaceFileRecord {
   updatedAt: Date
   /** Pass-through to `downloadFile` when not default `workspace` (e.g. chat mothership uploads). */
   storageContext?: 'workspace' | 'mothership'
+}
+
+interface ListWorkspaceFilesOptions {
+  scope?: WorkspaceFileScope
+  folders?: WorkspaceFileFolderRecord[]
+  hydrateFolderPaths?: boolean
 }
 
 /**
@@ -620,10 +627,10 @@ export async function getWorkspaceFileByName(
  */
 export async function listWorkspaceFiles(
   workspaceId: string,
-  options?: { scope?: WorkspaceFileScope }
+  options?: ListWorkspaceFilesOptions
 ): Promise<WorkspaceFileRecord[]> {
   try {
-    const { scope = 'active' } = options ?? {}
+    const { scope = 'active', hydrateFolderPaths = true } = options ?? {}
     const files = await db
       .select()
       .from(workspaceFiles)
@@ -647,8 +654,11 @@ export async function listWorkspaceFiles(
       )
       .orderBy(workspaceFiles.uploadedAt)
 
-    const folders = await listWorkspaceFileFolders(workspaceId, { scope: 'all' })
-    const folderPaths = buildWorkspaceFileFolderPathMap(folders)
+    const needsFolderPaths = hydrateFolderPaths && files.some((file) => file.folderId)
+    const folders = needsFolderPaths
+      ? (options?.folders ?? (await listWorkspaceFileFolders(workspaceId, { scope: 'all' })))
+      : []
+    const folderPaths = needsFolderPaths ? buildWorkspaceFileFolderPathMap(folders) : new Map()
 
     return files.map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
   } catch (error) {
