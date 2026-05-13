@@ -26,14 +26,12 @@ import {
   BookOpen,
   Calendar,
   Database,
-  File,
   HelpCircle,
   PanelLeft,
   Plus,
   Search,
   Settings,
   Sim,
-  SquareArrowUpRight,
   Table,
   Wordmark,
 } from '@/components/emcn/icons'
@@ -51,12 +49,10 @@ import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/provide
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
-  CollapsedFileFolderItems,
   CollapsedFolderItems,
   CollapsedSidebarMenu,
   CollapsedTaskFlyoutItem,
   CollapsedWorkflowFlyoutItem,
-  FileList,
   HelpModal,
   NavItemContextMenu,
   SearchModal,
@@ -99,7 +95,6 @@ import {
 } from '@/hooks/queries/tasks'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import type { Workspace } from '@/hooks/queries/workspace'
-import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -796,48 +791,7 @@ export const Sidebar = memo(function Sidebar() {
 
   const { data: fetchedTables = [] } = useTablesList(workspaceId)
   const { data: fetchedFiles = [] } = useWorkspaceFiles(workspaceId)
-  const { data: fetchedFileFolders = [] } = useWorkspaceFileFolders(workspaceId)
   const { data: fetchedKnowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
-
-  const fileIdFromRoute = useMemo(() => {
-    if (!pathname) return undefined
-    const match = pathname.match(/\/files\/([^/]+)$/)
-    return match ? match[1] : undefined
-  }, [pathname])
-
-  const fileFolderTree = useMemo(() => {
-    function buildTree(parentId: string | null): Array<{
-      id: string
-      name: string
-      parentId: string | null
-      sortOrder: number
-      createdAt?: Date
-      children: ReturnType<typeof buildTree>
-      files: typeof fetchedFiles
-    }> {
-      return fetchedFileFolders
-        .filter((f) => (f.parentId ?? null) === parentId)
-        .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
-        .map((folder) => ({
-          ...folder,
-          children: buildTree(folder.id),
-          files: fetchedFiles
-            .filter((file) => (file.folderId ?? null) === folder.id)
-            .sort((a, b) => a.name.localeCompare(b.name)),
-        }))
-    }
-    return buildTree(null)
-  }, [fetchedFileFolders, fetchedFiles])
-
-  const rootFiles = useMemo(
-    () =>
-      fetchedFiles
-        .filter((f) => (f.folderId ?? null) === null)
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [fetchedFiles]
-  )
-
-  const filesHover = useHoverMenu()
 
   const searchModalTables = useMemo(
     () =>
@@ -1163,11 +1117,6 @@ export const Sidebar = memo(function Sidebar() {
         style={WORKFLOW_ICON_STYLE}
       />
     ),
-    []
-  )
-
-  const filesCollapsedIcon = useMemo(
-    () => <File className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />,
     []
   )
 
@@ -1756,59 +1705,6 @@ export const Sidebar = memo(function Sidebar() {
                         </div>
                       )}
                     </div>
-
-                    {!permissionConfig.hideFilesTab && (
-                      <div className='files-section relative mt-3.5 flex flex-col'>
-                        <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
-                          <div className='font-base text-[var(--text-icon)] text-small'>Files</div>
-                          {!isCollapsed && (
-                            <SidebarTooltip label='Open Files' enabled={!isCollapsed}>
-                              <Link
-                                href={`/workspace/${workspaceId}/files`}
-                                className='flex size-[18px] items-center justify-center rounded-sm hover-hover:bg-[var(--surface-hover)]'
-                              >
-                                <SquareArrowUpRight className='size-[14px] text-[var(--text-icon)]' />
-                              </Link>
-                            </SidebarTooltip>
-                          )}
-                        </div>
-                        {isCollapsed ? (
-                          <CollapsedSidebarMenu
-                            icon={filesCollapsedIcon}
-                            hover={filesHover}
-                            ariaLabel='Files'
-                            className='mt-1.5'
-                          >
-                            {fileFolderTree.length === 0 && rootFiles.length === 0 ? (
-                              <DropdownMenuItem disabled>No files yet</DropdownMenuItem>
-                            ) : (
-                              <CollapsedFileFolderItems
-                                nodes={fileFolderTree}
-                                rootFiles={rootFiles}
-                                workspaceId={workspaceId}
-                                currentFileId={fileIdFromRoute}
-                              />
-                            )}
-                          </CollapsedSidebarMenu>
-                        ) : (
-                          <div className='mt-1.5 px-2'>
-                            {fetchedFiles.length === 0 && fetchedFileFolders.length === 0 ? (
-                              <div className='px-2 py-1 text-[12px] text-[var(--text-icon)]'>
-                                No files yet
-                              </div>
-                            ) : (
-                              <FileList
-                                workspaceId={workspaceId}
-                                currentFileId={fileIdFromRoute}
-                                pathname={pathname}
-                                folders={fetchedFileFolders}
-                                files={fetchedFiles}
-                              />
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
 
