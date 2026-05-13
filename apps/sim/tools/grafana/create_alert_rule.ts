@@ -185,7 +185,7 @@ export const createAlertRuleTool: ToolConfig<
         try {
           body.annotations = JSON.parse(params.annotations)
         } catch {
-          body.annotations = {}
+          throw new Error('Invalid JSON for annotations parameter')
         }
       }
 
@@ -193,7 +193,7 @@ export const createAlertRuleTool: ToolConfig<
         try {
           body.labels = JSON.parse(params.labels)
         } catch {
-          body.labels = {}
+          throw new Error('Invalid JSON for labels parameter')
         }
       }
 

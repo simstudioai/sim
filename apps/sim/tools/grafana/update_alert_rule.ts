@@ -219,7 +219,11 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       try {
         updatedRule.data = JSON.parse(params.data)
       } catch {
-        // Keep existing data if parse fails
+        return {
+          success: false,
+          output: {},
+          error: 'Invalid JSON for data parameter',
+        }
       }
     }
 
@@ -230,7 +234,11 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
           ...JSON.parse(params.annotations),
         }
       } catch {
-        // Keep existing annotations if parse fails
+        return {
+          success: false,
+          output: {},
+          error: 'Invalid JSON for annotations parameter',
+        }
       }
     }
 
@@ -241,7 +249,11 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
           ...JSON.parse(params.labels),
         }
       } catch {
-        // Keep existing labels if parse fails
+        return {
+          success: false,
+          output: {},
+          error: 'Invalid JSON for labels parameter',
+        }
       }
     }
 
