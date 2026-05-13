@@ -7,13 +7,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetAccessibleCopilotChat,
-  mockGetActiveChatStreamIds,
+  mockReconcileChatStreamMarkers,
   mockReadEvents,
   mockReadFilePreviewSessions,
   mockGetLatestRunForStream,
 } = vi.hoisted(() => ({
   mockGetAccessibleCopilotChat: vi.fn(),
-  mockGetActiveChatStreamIds: vi.fn(),
+  mockReconcileChatStreamMarkers: vi.fn(),
   mockReadEvents: vi.fn(),
   mockReadFilePreviewSessions: vi.fn(),
   mockGetLatestRunForStream: vi.fn(),
@@ -50,8 +50,8 @@ vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
 }))
 
-vi.mock('@/lib/copilot/request/session/abort', () => ({
-  getActiveChatStreamIds: mockGetActiveChatStreamIds,
+vi.mock('@/lib/copilot/chat/stream-liveness', () => ({
+  reconcileChatStreamMarkers: mockReconcileChatStreamMarkers,
 }))
 
 vi.mock('@/lib/copilot/request/session/buffer', () => ({
@@ -105,7 +105,19 @@ describe('GET /api/mothership/chats/[chatId]', () => {
       userId: 'user-1',
       isAuthenticated: true,
     })
-    mockGetActiveChatStreamIds.mockResolvedValue(new Set<string>())
+    mockReconcileChatStreamMarkers.mockImplementation(
+      async (candidates: Array<{ chatId: string; streamId: string | null }>) =>
+        new Map(
+          candidates.map((candidate) => [
+            candidate.chatId,
+            {
+              chatId: candidate.chatId,
+              streamId: candidate.streamId,
+              status: candidate.streamId ? 'active' : 'inactive',
+            },
+          ])
+        )
+    )
     mockReadEvents.mockResolvedValue([])
     mockReadFilePreviewSessions.mockResolvedValue([])
     mockGetLatestRunForStream.mockResolvedValue(null)
@@ -122,13 +134,18 @@ describe('GET /api/mothership/chats/[chatId]', () => {
       createdAt: new Date('2026-05-11T12:00:00Z'),
       updatedAt: new Date('2026-05-11T12:00:00Z'),
     })
-    mockGetActiveChatStreamIds.mockResolvedValueOnce(new Set<string>())
+    mockReconcileChatStreamMarkers.mockResolvedValueOnce(
+      new Map([['chat-stuck', { chatId: 'chat-stuck', streamId: null, status: 'inactive' }]])
+    )
 
     const response = await GET(createRequest('chat-stuck'), makeContext('chat-stuck'))
     expect(response.status).toBe(200)
     const body = await response.json()
 
-    expect(mockGetActiveChatStreamIds).toHaveBeenCalledWith(['chat-stuck'])
+    expect(mockReconcileChatStreamMarkers).toHaveBeenCalledWith(
+      [{ chatId: 'chat-stuck', streamId: 'stream-orphaned' }],
+      { repairVerifiedStaleMarkers: true }
+    )
     expect(body.success).toBe(true)
     expect(body.chat.conversationId).toBeNull()
     expect(body.chat.streamSnapshot).toBeUndefined()
@@ -146,7 +163,6 @@ describe('GET /api/mothership/chats/[chatId]', () => {
       createdAt: new Date('2026-05-11T12:00:00Z'),
       updatedAt: new Date('2026-05-11T12:00:00Z'),
     })
-    mockGetActiveChatStreamIds.mockResolvedValueOnce(new Set(['chat-live']))
     mockGetLatestRunForStream.mockResolvedValueOnce({ status: 'active' })
 
     const response = await GET(createRequest('chat-live'), makeContext('chat-live'))
@@ -159,7 +175,32 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     expect(body.chat.streamSnapshot.status).toBe('active')
   })
 
-  it('skips the reconciliation lookup when conversationId is already null', async () => {
+  it('uses the Redis lock owner when it differs from a stale conversationId', async () => {
+    mockGetAccessibleCopilotChat.mockResolvedValueOnce({
+      id: 'chat-mismatch',
+      type: 'mothership',
+      title: 'Mismatch',
+      messages: [],
+      resources: [],
+      conversationId: 'stream-stale',
+      createdAt: new Date('2026-05-11T12:00:00Z'),
+      updatedAt: new Date('2026-05-11T12:00:00Z'),
+    })
+    mockReconcileChatStreamMarkers.mockResolvedValueOnce(
+      new Map([
+        ['chat-mismatch', { chatId: 'chat-mismatch', streamId: 'stream-live', status: 'active' }],
+      ])
+    )
+
+    const response = await GET(createRequest('chat-mismatch'), makeContext('chat-mismatch'))
+    expect(response.status).toBe(200)
+    const body = await response.json()
+
+    expect(body.chat.conversationId).toBe('stream-live')
+    expect(mockReadEvents).toHaveBeenCalledWith('stream-live', '0')
+  })
+
+  it('returns null when conversationId is already null', async () => {
     mockGetAccessibleCopilotChat.mockResolvedValueOnce({
       id: 'chat-idle',
       type: 'mothership',
@@ -174,7 +215,10 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     const response = await GET(createRequest('chat-idle'), makeContext('chat-idle'))
     expect(response.status).toBe(200)
 
-    expect(mockGetActiveChatStreamIds).not.toHaveBeenCalled()
+    expect(mockReconcileChatStreamMarkers).toHaveBeenCalledWith(
+      [{ chatId: 'chat-idle', streamId: null }],
+      { repairVerifiedStaleMarkers: true }
+    )
     const body = await response.json()
     expect(body.chat.conversationId).toBeNull()
   })
@@ -184,7 +228,7 @@ describe('GET /api/mothership/chats/[chatId]', () => {
 
     const response = await GET(createRequest('chat-missing'), makeContext('chat-missing'))
     expect(response.status).toBe(404)
-    expect(mockGetActiveChatStreamIds).not.toHaveBeenCalled()
+    expect(mockReconcileChatStreamMarkers).not.toHaveBeenCalled()
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -196,6 +240,6 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     const response = await GET(createRequest('chat-x'), makeContext('chat-x'))
     expect(response.status).toBe(401)
     expect(mockGetAccessibleCopilotChat).not.toHaveBeenCalled()
-    expect(mockGetActiveChatStreamIds).not.toHaveBeenCalled()
+    expect(mockReconcileChatStreamMarkers).not.toHaveBeenCalled()
   })
 })

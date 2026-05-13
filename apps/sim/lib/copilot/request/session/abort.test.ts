@@ -22,7 +22,12 @@ vi.mock('@/lib/copilot/request/otel', () => ({
     fn({ setAttribute: vi.fn() }),
 }))
 
-import { getActiveChatStreamIds, startAbortPoller } from '@/lib/copilot/request/session/abort'
+import {
+  acquirePendingChatStream,
+  getChatStreamLockOwners,
+  releasePendingChatStream,
+  startAbortPoller,
+} from '@/lib/copilot/request/session/abort'
 
 describe('startAbortPoller heartbeat', () => {
   beforeEach(() => {
@@ -160,54 +165,92 @@ describe('startAbortPoller heartbeat', () => {
   })
 })
 
-describe('getActiveChatStreamIds', () => {
+describe('getChatStreamLockOwners', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
   })
 
-  it('returns an empty set when no chat ids are provided', async () => {
-    const active = await getActiveChatStreamIds([])
-    expect(active.size).toBe(0)
+  it('returns a verified empty owner map when no chat ids are provided', async () => {
+    const result = await getChatStreamLockOwners([])
+    expect(result.status).toBe('verified')
+    expect(result.ownersByChatId.size).toBe(0)
   })
 
-  it('reports a chat as active when redis returns a lock owner', async () => {
+  it('returns Redis lock owners keyed by chat id', async () => {
     const mget = vi.fn().mockResolvedValue(['stream-1', null, 'stream-3'])
     redisConfigMockFns.mockGetRedisClient.mockReturnValue({ mget } as never)
 
-    const active = await getActiveChatStreamIds(['chat-1', 'chat-2', 'chat-3'])
+    const result = await getChatStreamLockOwners(['chat-1', 'chat-2', 'chat-3'])
 
     expect(mget).toHaveBeenCalledWith([
       'copilot:chat-stream-lock:chat-1',
       'copilot:chat-stream-lock:chat-2',
       'copilot:chat-stream-lock:chat-3',
     ])
-    expect(active).toEqual(new Set(['chat-1', 'chat-3']))
+    expect(result.status).toBe('verified')
+    expect(result.ownersByChatId).toEqual(
+      new Map([
+        ['chat-1', 'stream-1'],
+        ['chat-3', 'stream-3'],
+      ])
+    )
   })
 
-  it('reports no chats as active when every lock has expired in redis', async () => {
+  it('returns a verified empty map when every lock has expired in Redis', async () => {
     const mget = vi.fn().mockResolvedValue([null, null])
     redisConfigMockFns.mockGetRedisClient.mockReturnValue({ mget } as never)
 
-    const active = await getActiveChatStreamIds(['chat-stuck-1', 'chat-stuck-2'])
+    const result = await getChatStreamLockOwners(['chat-stuck-1', 'chat-stuck-2'])
 
-    expect(active.size).toBe(0)
+    expect(result.status).toBe('verified')
+    expect(result.ownersByChatId.size).toBe(0)
   })
 
-  it('returns an empty set when redis is unavailable', async () => {
+  it('trusts verified Redis null over a process-local pending stream', async () => {
+    const mget = vi.fn().mockResolvedValue([null])
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue({ mget } as never)
+    await acquirePendingChatStream('chat-local', 'stream-local')
+
+    try {
+      const result = await getChatStreamLockOwners(['chat-local'])
+
+      expect(result.status).toBe('verified')
+      expect(result.ownersByChatId.size).toBe(0)
+    } finally {
+      await releasePendingChatStream('chat-local', 'stream-local')
+    }
+  })
+
+  it('returns unknown status when Redis is unavailable', async () => {
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
 
-    const active = await getActiveChatStreamIds(['chat-1', 'chat-2'])
+    const result = await getChatStreamLockOwners(['chat-1', 'chat-2'])
 
-    expect(active.size).toBe(0)
+    expect(result.status).toBe('unknown')
+    expect(result.ownersByChatId.size).toBe(0)
   })
 
-  it('falls back to an empty set without throwing when mget rejects', async () => {
+  it('preserves local pending stream owners when Redis is unavailable', async () => {
+    await acquirePendingChatStream('chat-local', 'stream-local')
+
+    try {
+      const result = await getChatStreamLockOwners(['chat-local', 'chat-remote'])
+
+      expect(result.status).toBe('unknown')
+      expect(result.ownersByChatId).toEqual(new Map([['chat-local', 'stream-local']]))
+    } finally {
+      await releasePendingChatStream('chat-local', 'stream-local')
+    }
+  })
+
+  it('returns unknown status without throwing when mget rejects', async () => {
     const mget = vi.fn().mockRejectedValue(new Error('redis down'))
     redisConfigMockFns.mockGetRedisClient.mockReturnValue({ mget } as never)
 
-    const active = await getActiveChatStreamIds(['chat-1', 'chat-2'])
+    const result = await getChatStreamLockOwners(['chat-1', 'chat-2'])
 
-    expect(active.size).toBe(0)
+    expect(result.status).toBe('unknown')
+    expect(result.ownersByChatId.size).toBe(0)
   })
 })

@@ -1,9 +1,11 @@
+export type { ChatStreamLockOwnersResult } from './abort'
 export {
   AbortReason,
   type AbortReasonValue,
   abortActiveStream,
   acquirePendingChatStream,
   cleanupAbortMarker,
+  getChatStreamLockOwners,
   getPendingChatStreamId,
   isExplicitStopReason,
   registerActiveStream,

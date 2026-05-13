@@ -8,12 +8,12 @@ import {
   listMothershipChatsContract,
 } from '@/lib/api/contracts/mothership-tasks'
 import { parseRequest } from '@/lib/api/server'
+import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
-import { getActiveChatStreamIds } from '@/lib/copilot/request/session/abort'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -56,17 +56,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
       .orderBy(desc(copilotChats.updatedAt))
 
-    // Reconcile the persisted stream marker against the canonical Redis
-    // lock. `conversation_id` is set when a stream starts and cleared on
-    // the finalize/stop paths — but if those never run (pod crash, OOM,
-    // throw before callback), the column is orphaned and the task renders
-    // yellow forever. The Redis lock self-heals via its 60s TTL, so a
-    // missing lock means the stream is no longer running.
-    const candidateIds = chats.filter((c) => c.activeStreamId !== null).map((c) => c.id)
-    const activeIds = await getActiveChatStreamIds(candidateIds)
-    const reconciled = chats.map((c) =>
-      c.activeStreamId !== null && !activeIds.has(c.id) ? { ...c, activeStreamId: null } : c
+    const streamMarkers = await reconcileChatStreamMarkers(
+      chats.map((c) => ({ chatId: c.id, streamId: c.activeStreamId })),
+      { repairVerifiedStaleMarkers: true }
     )
+    const reconciled = chats.map((c) => {
+      const activeStreamId = streamMarkers.get(c.id)?.streamId ?? null
+      return activeStreamId === c.activeStreamId ? c : { ...c, activeStreamId }
+    })
 
     return NextResponse.json({ success: true, data: reconciled })
   } catch (error) {

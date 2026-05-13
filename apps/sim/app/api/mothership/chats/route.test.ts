@@ -5,13 +5,13 @@ import { copilotHttpMock, copilotHttpMockFns, permissionsMock } from '@sim/testi
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockFrom, mockWhere, mockOrderBy, mockGetActiveChatStreamIds } = vi.hoisted(
+const { mockSelect, mockFrom, mockWhere, mockOrderBy, mockReconcileChatStreamMarkers } = vi.hoisted(
   () => ({
     mockSelect: vi.fn(),
     mockFrom: vi.fn(),
     mockWhere: vi.fn(),
     mockOrderBy: vi.fn(),
-    mockGetActiveChatStreamIds: vi.fn(),
+    mockReconcileChatStreamMarkers: vi.fn(),
   })
 )
 
@@ -43,8 +43,8 @@ vi.mock('drizzle-orm', () => ({
 vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/copilot/request/session/abort', () => ({
-  getActiveChatStreamIds: mockGetActiveChatStreamIds,
+vi.mock('@/lib/copilot/chat/stream-liveness', () => ({
+  reconcileChatStreamMarkers: mockReconcileChatStreamMarkers,
 }))
 
 vi.mock('@/lib/copilot/tasks', () => ({
@@ -77,7 +77,19 @@ describe('GET /api/mothership/chats', () => {
     mockFrom.mockReturnValue({ where: mockWhere })
     mockSelect.mockReturnValue({ from: mockFrom })
 
-    mockGetActiveChatStreamIds.mockResolvedValue(new Set<string>())
+    mockReconcileChatStreamMarkers.mockImplementation(
+      async (candidates: Array<{ chatId: string; streamId: string | null }>) =>
+        new Map(
+          candidates.map((candidate) => [
+            candidate.chatId,
+            {
+              chatId: candidate.chatId,
+              streamId: candidate.streamId,
+              status: candidate.streamId ? 'active' : 'inactive',
+            },
+          ])
+        )
+    )
   })
 
   it('clears activeStreamId on chats whose redis lock has expired (stuck-yellow bug)', async () => {
@@ -105,13 +117,26 @@ describe('GET /api/mothership/chats', () => {
         lastSeenAt: null,
       },
     ])
-    mockGetActiveChatStreamIds.mockResolvedValueOnce(new Set(['chat-live']))
+    mockReconcileChatStreamMarkers.mockResolvedValueOnce(
+      new Map([
+        ['chat-stuck', { chatId: 'chat-stuck', streamId: null, status: 'inactive' }],
+        ['chat-live', { chatId: 'chat-live', streamId: 'stream-live', status: 'active' }],
+        ['chat-idle', { chatId: 'chat-idle', streamId: null, status: 'inactive' }],
+      ])
+    )
 
     const response = await GET(createRequest('ws-1'))
     expect(response.status).toBe(200)
     const body = await response.json()
 
-    expect(mockGetActiveChatStreamIds).toHaveBeenCalledWith(['chat-stuck', 'chat-live'])
+    expect(mockReconcileChatStreamMarkers).toHaveBeenCalledWith(
+      [
+        { chatId: 'chat-stuck', streamId: 'stream-orphaned' },
+        { chatId: 'chat-live', streamId: 'stream-live' },
+        { chatId: 'chat-idle', streamId: null },
+      ],
+      { repairVerifiedStaleMarkers: true }
+    )
     expect(body.success).toBe(true)
     expect(body.data).toEqual([
       expect.objectContaining({ id: 'chat-stuck', activeStreamId: null }),
@@ -120,7 +145,7 @@ describe('GET /api/mothership/chats', () => {
     ])
   })
 
-  it('issues no Redis MGET when no chat has a stream marker set (empty candidateIds)', async () => {
+  it('preserves chats when no chat has a stream marker set', async () => {
     const now = new Date('2026-05-11T12:00:00Z')
     mockOrderBy.mockResolvedValueOnce([
       { id: 'chat-1', title: null, updatedAt: now, activeStreamId: null, lastSeenAt: null },
@@ -130,11 +155,18 @@ describe('GET /api/mothership/chats', () => {
     const response = await GET(createRequest('ws-1'))
     expect(response.status).toBe(200)
 
-    expect(mockGetActiveChatStreamIds).toHaveBeenCalledWith([])
+    expect(mockReconcileChatStreamMarkers).toHaveBeenCalledWith(
+      [
+        { chatId: 'chat-1', streamId: null },
+        { chatId: 'chat-2', streamId: null },
+      ],
+      { repairVerifiedStaleMarkers: true }
+    )
     const body = await response.json()
-    expect(
-      body.data.every((c: { activeStreamId: string | null }) => c.activeStreamId === null)
-    ).toBe(true)
+    expect(body.data).toEqual([
+      expect.objectContaining({ id: 'chat-1', activeStreamId: null }),
+      expect.objectContaining({ id: 'chat-2', activeStreamId: null }),
+    ])
   })
 
   it('leaves activeStreamId untouched when redis confirms every lock is live', async () => {
@@ -143,7 +175,6 @@ describe('GET /api/mothership/chats', () => {
       { id: 'chat-a', title: null, updatedAt: now, activeStreamId: 'stream-a', lastSeenAt: null },
       { id: 'chat-b', title: null, updatedAt: now, activeStreamId: 'stream-b', lastSeenAt: null },
     ])
-    mockGetActiveChatStreamIds.mockResolvedValueOnce(new Set(['chat-a', 'chat-b']))
 
     const response = await GET(createRequest('ws-1'))
     const body = await response.json()
@@ -151,6 +182,32 @@ describe('GET /api/mothership/chats', () => {
     expect(body.data).toEqual([
       expect.objectContaining({ id: 'chat-a', activeStreamId: 'stream-a' }),
       expect.objectContaining({ id: 'chat-b', activeStreamId: 'stream-b' }),
+    ])
+  })
+
+  it('uses Redis lock owner when it differs from a stale activeStreamId', async () => {
+    const now = new Date('2026-05-11T12:00:00Z')
+    mockOrderBy.mockResolvedValueOnce([
+      {
+        id: 'chat-mismatch',
+        title: null,
+        updatedAt: now,
+        activeStreamId: 'stream-stale',
+        lastSeenAt: null,
+      },
+    ])
+    mockReconcileChatStreamMarkers.mockResolvedValueOnce(
+      new Map([
+        ['chat-mismatch', { chatId: 'chat-mismatch', streamId: 'stream-live', status: 'active' }],
+      ])
+    )
+
+    const response = await GET(createRequest('ws-1'))
+    expect(response.status).toBe(200)
+    const body = await response.json()
+
+    expect(body.data).toEqual([
+      expect.objectContaining({ id: 'chat-mismatch', activeStreamId: 'stream-live' }),
     ])
   })
 
@@ -163,6 +220,6 @@ describe('GET /api/mothership/chats', () => {
     const response = await GET(createRequest('ws-1'))
     expect(response.status).toBe(401)
     expect(mockSelect).not.toHaveBeenCalled()
-    expect(mockGetActiveChatStreamIds).not.toHaveBeenCalled()
+    expect(mockReconcileChatStreamMarkers).not.toHaveBeenCalled()
   })
 })
