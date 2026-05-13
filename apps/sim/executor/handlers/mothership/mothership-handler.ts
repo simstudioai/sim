@@ -2,14 +2,93 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
+import { readUserFileContent } from '@/lib/execution/payloads/materialization.server'
+import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
 import type { BlockOutput } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import { BlockType } from '@/executor/constants'
-import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import type { BlockHandler, ExecutionContext, UserFile } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('MothershipBlockHandler')
 const CANCELLATION_CHECK_INTERVAL_MS = 500
+const MAX_MOTHERSHIP_ATTACHMENT_BYTES = 10 * 1024 * 1024
+
+type MothershipFileAttachment = MessageContent & {
+  filename?: string
+}
+
+function toUserFile(file: object): UserFile {
+  const candidate = file as Record<string, unknown>
+  const key = typeof candidate.key === 'string' ? candidate.key : ''
+  const name = typeof candidate.name === 'string' ? candidate.name : ''
+  const url =
+    typeof candidate.url === 'string'
+      ? candidate.url
+      : typeof candidate.path === 'string'
+        ? candidate.path
+        : key
+  const size = typeof candidate.size === 'number' ? candidate.size : Number(candidate.size)
+  const type = typeof candidate.type === 'string' ? candidate.type : ''
+  const id = typeof candidate.id === 'string' ? candidate.id : key
+
+  if (!id || !key || !name || !url || !Number.isFinite(size) || !type) {
+    throw new Error('Mothership attachment must include file name, key, url/path, size, and type.')
+  }
+
+  return {
+    id,
+    key,
+    name,
+    url,
+    size,
+    type,
+    ...(typeof candidate.context === 'string' ? { context: candidate.context } : {}),
+  }
+}
+
+async function buildMothershipFileAttachments(
+  filesInput: unknown,
+  ctx: ExecutionContext,
+  requestId: string
+): Promise<MothershipFileAttachment[] | undefined> {
+  const files = normalizeFileInput(filesInput)
+  if (!files || files.length === 0) {
+    return undefined
+  }
+
+  if (!ctx.userId) {
+    throw new Error('Mothership file attachments require an authenticated user.')
+  }
+
+  const attachments: MothershipFileAttachment[] = []
+  for (const file of files) {
+    const userFile = toUserFile(file)
+    const base64 = await readUserFileContent(userFile, {
+      encoding: 'base64',
+      userId: ctx.userId,
+      workspaceId: ctx.workspaceId,
+      workflowId: ctx.workflowId,
+      executionId: ctx.executionId,
+      largeValueExecutionIds: ctx.largeValueExecutionIds,
+      allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
+      requestId,
+      logger,
+      maxBytes: MAX_MOTHERSHIP_ATTACHMENT_BYTES,
+      maxSourceBytes: MAX_MOTHERSHIP_ATTACHMENT_BYTES,
+    })
+
+    const content = createFileContent(Buffer.from(base64, 'base64'), userFile.type)
+    if (!content) {
+      throw new Error(`File type is not supported for Mothership attachments: ${userFile.name}`)
+    }
+
+    attachments.push({ ...content, filename: userFile.name })
+  }
+
+  return attachments
+}
 
 /**
  * Handler for Mothership blocks that proxy requests to the Mothership AI agent.
@@ -38,6 +117,7 @@ export class MothershipBlockHandler implements BlockHandler {
     const chatId = providedConversationId || generateId()
     const messageId = generateId()
     const requestId = generateId()
+    const fileAttachments = await buildMothershipFileAttachments(inputs.files, ctx, requestId)
 
     const url = buildAPIUrl('/api/mothership/execute')
     const headers = await buildAuthHeaders(ctx.userId)
@@ -49,6 +129,7 @@ export class MothershipBlockHandler implements BlockHandler {
       chatId,
       messageId,
       requestId,
+      ...(fileAttachments && { fileAttachments }),
       ...(ctx.workflowId ? { workflowId: ctx.workflowId } : {}),
       ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
     }
@@ -60,6 +141,7 @@ export class MothershipBlockHandler implements BlockHandler {
       workflowId: ctx.workflowId,
       executionId: ctx.executionId,
       chatId,
+      fileAttachmentCount: fileAttachments?.length ?? 0,
     })
 
     const abortController = new AbortController()

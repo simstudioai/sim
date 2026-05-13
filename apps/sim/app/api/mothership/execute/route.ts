@@ -51,6 +51,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       chatId,
       messageId: providedMessageId,
       requestId: providedRequestId,
+      fileAttachments,
       workflowId,
       executionId,
     } = validation.data.body
@@ -89,6 +90,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       messageId,
       isHosted: true,
       workspaceContext: workspaceContextWithMothershipTools,
+      ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(mothershipToolRuntime.tools.length > 0
         ? { mothershipTools: mothershipToolRuntime.tools }
