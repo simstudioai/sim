@@ -17,10 +17,14 @@ export const updateMothershipChatBodySchema = z
   .object({
     title: z.string().trim().min(1).max(200).optional(),
     isUnread: z.boolean().optional(),
+    pinned: z.boolean().optional(),
   })
-  .refine((data) => data.title !== undefined || data.isUnread !== undefined, {
-    message: 'At least one field must be provided',
-  })
+  .refine(
+    (data) => data.title !== undefined || data.isUnread !== undefined || data.pinned !== undefined,
+    {
+      message: 'At least one field must be provided',
+    }
+  )
 
 export const createMothershipChatBodySchema = z.object({
   workspaceId: z.string().min(1),
@@ -188,6 +192,7 @@ export const mothershipTaskSchema = z.object({
   updatedAt: dateStringSchema,
   activeStreamId: z.string().nullable(),
   lastSeenAt: dateStringSchema.nullable(),
+  pinned: z.boolean(),
 })
 
 export const listMothershipChatsContract = defineRouteContract({
