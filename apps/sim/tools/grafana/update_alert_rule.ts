@@ -80,7 +80,7 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'State on execution error (Alerting, OK)',
+      description: 'State on execution error (Error, Alerting, OK)',
     },
     annotations: {
       type: 'string',
@@ -195,7 +195,11 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       try {
         updatedRule.notification_settings = JSON.parse(params.notificationSettings)
       } catch {
-        // keep existing notification_settings if parse fails
+        return {
+          success: false,
+          output: {},
+          error: 'Invalid JSON for notificationSettings parameter',
+        }
       }
     }
 
@@ -203,7 +207,11 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       try {
         updatedRule.record = JSON.parse(params.record)
       } catch {
-        // keep existing record if parse fails
+        return {
+          success: false,
+          output: {},
+          error: 'Invalid JSON for record parameter',
+        }
       }
     }
 

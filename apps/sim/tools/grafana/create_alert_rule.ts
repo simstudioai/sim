@@ -163,12 +163,12 @@ export const createAlertRuleTool: ToolConfig<
       }
 
       const body: Record<string, unknown> = {
-        orgID: params.organizationId ? Number(params.organizationId) : 1,
         title: params.title,
         folderUID: params.folderUid,
         ruleGroup: params.ruleGroup,
         data: dataArray,
       }
+      if (params.organizationId) body.orgID = Number(params.organizationId)
 
       if (params.condition) body.condition = params.condition
       if (params.uid) body.uid = params.uid
@@ -201,7 +201,7 @@ export const createAlertRuleTool: ToolConfig<
         try {
           body.notification_settings = JSON.parse(params.notificationSettings)
         } catch {
-          // skip invalid notification settings JSON
+          throw new Error('Invalid JSON for notificationSettings parameter')
         }
       }
 
@@ -209,7 +209,7 @@ export const createAlertRuleTool: ToolConfig<
         try {
           body.record = JSON.parse(params.record)
         } catch {
-          // skip invalid record JSON
+          throw new Error('Invalid JSON for record parameter')
         }
       }
 
