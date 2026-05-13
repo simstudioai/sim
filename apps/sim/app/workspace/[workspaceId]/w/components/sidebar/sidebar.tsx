@@ -797,6 +797,10 @@ export const Sidebar = memo(function Sidebar() {
         : [],
     [fetchedTasks, workspaceId]
   )
+  const tasksRef = useRef(tasks)
+  useEffect(() => {
+    tasksRef.current = tasks
+  }, [tasks])
 
   const { data: fetchedTables = [] } = useTablesList(workspaceId)
   const { data: fetchedFiles = [] } = useWorkspaceFiles(workspaceId)
@@ -941,10 +945,10 @@ export const Sidebar = memo(function Sidebar() {
     const { taskIds: ids } = contextMenuSelectionRef.current
     if (ids.length !== 1) return
     const taskId = ids[0]
-    const task = tasks.find((t) => t.id === taskId)
+    const task = tasksRef.current.find((t) => t.id === taskId)
     if (!task) return
     setTaskPinnedMutation.mutate({ chatId: taskId, pinned: !task.isPinned })
-  }, [tasks])
+  }, [])
 
   const handleStartTaskRename = useCallback(() => {
     const { taskIds: ids } = contextMenuSelectionRef.current
@@ -1013,12 +1017,6 @@ export const Sidebar = memo(function Sidebar() {
       )
     })
   }, [workflowId, workflowsLoading])
-
-  useEffect(() => {
-    if (!isOnWorkflowPage && !isCollapsed) {
-      setSidebarWidth(SIDEBAR_WIDTH.MIN)
-    }
-  }, [isOnWorkflowPage, isCollapsed, setSidebarWidth])
 
   const handleCreateWorkflow = useCallback(async () => {
     const workflowId = await createWorkflow()
@@ -1820,21 +1818,19 @@ export const Sidebar = memo(function Sidebar() {
           </div>
         </aside>
 
-        {(isCollapsed || isOnWorkflowPage) && (
-          <div
-            className={cn(
-              'absolute top-0 right-0 bottom-0 z-20 w-[8px] translate-x-1/2',
-              isCollapsed ? 'cursor-e-resize' : 'cursor-ew-resize'
-            )}
-            onMouseDown={isCollapsed ? undefined : handleMouseDown}
-            onClick={isCollapsed ? toggleCollapsed : undefined}
-            onKeyDown={handleEdgeKeyDown}
-            role={isCollapsed ? 'button' : 'separator'}
-            tabIndex={0}
-            aria-orientation={isCollapsed ? undefined : 'vertical'}
-            aria-label={isCollapsed ? 'Expand sidebar' : 'Resize sidebar'}
-          />
-        )}
+        <div
+          className={cn(
+            'absolute top-0 right-0 bottom-0 z-20 w-[8px] translate-x-1/2',
+            isCollapsed ? 'cursor-e-resize' : 'cursor-ew-resize'
+          )}
+          onMouseDown={isCollapsed ? undefined : handleMouseDown}
+          onClick={isCollapsed ? toggleCollapsed : undefined}
+          onKeyDown={handleEdgeKeyDown}
+          role={isCollapsed ? 'button' : 'separator'}
+          tabIndex={0}
+          aria-orientation={isCollapsed ? undefined : 'vertical'}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Resize sidebar'}
+        />
       </div>
 
       <SearchModal

@@ -249,7 +249,6 @@ interface ContextMenuProps {
   showMarkAsUnread?: boolean
   showPin?: boolean
   isPinned?: boolean
-  disablePin?: boolean
   showRename?: boolean
   showCreate?: boolean
   showCreateFolder?: boolean
@@ -307,7 +306,6 @@ export function ContextMenu({
   showMarkAsUnread = false,
   showPin = false,
   isPinned = false,
-  disablePin = false,
   showRename = true,
   showCreate = false,
   showCreateFolder = false,
@@ -461,7 +459,6 @@ export function ContextMenu({
         )}
         {showPin && onTogglePin && (
           <DropdownMenuItem
-            disabled={disablePin}
             onSelect={() => {
               onTogglePin()
               onClose()
