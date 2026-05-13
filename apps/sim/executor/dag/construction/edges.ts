@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import {
+  CONTROL_BACK_EDGE_HANDLES,
   EDGE,
   isConditionBlockType,
   isRouterBlockType,
@@ -366,6 +367,8 @@ export class EdgeConstructor {
           this.addEdge(dag, sourceId, sentinelEndId, handle)
         }
       }
+
+      this.addEdge(dag, sentinelEndId, sentinelStartId, EDGE.PARALLEL_CONTINUE, undefined, true)
     }
   }
 
@@ -566,9 +569,7 @@ export class EdgeConstructor {
 
       let hasOutgoingToLoop = false
       for (const [, edge] of node.outgoingEdges) {
-        const isBackEdge =
-          edge.sourceHandle === EDGE.LOOP_CONTINUE || edge.sourceHandle === EDGE.LOOP_CONTINUE_ALT
-        if (isBackEdge) continue
+        if (this.isControlBackEdge(edge.sourceHandle)) continue
 
         if (effectiveNodeSet.has(edge.target)) {
           hasOutgoingToLoop = true
@@ -620,10 +621,7 @@ export class EdgeConstructor {
       if (endNode) {
         let hasOutgoingToParallel = false
         for (const [, edge] of endNode.outgoingEdges) {
-          // Skip loop back-edges — they don't count as forward edges within the parallel
-          const isBackEdge =
-            edge.sourceHandle === EDGE.LOOP_CONTINUE || edge.sourceHandle === EDGE.LOOP_CONTINUE_ALT
-          if (isBackEdge) continue
+          if (this.isControlBackEdge(edge.sourceHandle)) continue
 
           const originalTargetId = normalizeNodeId(edge.target)
           if (nodesSet.has(originalTargetId)) {
@@ -667,6 +665,10 @@ export class EdgeConstructor {
     return { startNode: templateNode, endNode: templateNode }
   }
 
+  private isControlBackEdge(sourceHandle?: string): boolean {
+    return sourceHandle !== undefined && CONTROL_BACK_EDGE_HANDLES.has(sourceHandle)
+  }
+
   private getParallelId(blockId: string, dag: DAG): string | null {
     for (const [parallelId, parallelConfig] of dag.parallelConfigs) {
       if (parallelConfig.nodes.includes(blockId)) {
@@ -682,7 +684,7 @@ export class EdgeConstructor {
     targetId: string,
     sourceHandle?: string,
     targetHandle?: string,
-    isLoopBackEdge = false
+    isControlBackEdge = false
   ): void {
     const sourceNode = dag.nodes.get(sourceId)
     const targetNode = dag.nodes.get(targetId)
@@ -698,10 +700,10 @@ export class EdgeConstructor {
       target: targetId,
       sourceHandle,
       targetHandle,
-      isActive: isLoopBackEdge ? false : undefined,
+      isActive: isControlBackEdge ? false : undefined,
     })
 
-    if (!isLoopBackEdge) {
+    if (!isControlBackEdge) {
       targetNode.incomingEdges.add(sourceId)
     }
   }

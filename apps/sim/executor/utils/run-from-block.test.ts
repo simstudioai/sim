@@ -287,7 +287,14 @@ describe('validateRunFromBlock', () => {
   })
 
   it('rejects blocks inside loops', () => {
-    const dag = createDAG([createNode('A', [], { isLoopNode: true, loopId: 'loop-1' })])
+    const dag = createDAG([
+      createNode('A', [], {
+        isLoopNode: true,
+        loopId: 'loop-1',
+        subflowId: 'loop-1',
+        subflowType: 'loop',
+      }),
+    ])
     const executedBlocks = new Set(['A'])
 
     const result = validateRunFromBlock('A', dag, executedBlocks)
@@ -299,7 +306,12 @@ describe('validateRunFromBlock', () => {
 
   it('rejects blocks inside parallels', () => {
     const dag = createDAG([
-      createNode('A', [], { isParallelBranch: true, parallelId: 'parallel-1' }),
+      createNode('A', [], {
+        isParallelBranch: true,
+        parallelId: 'parallel-1',
+        subflowId: 'parallel-1',
+        subflowType: 'parallel',
+      }),
     ])
     const executedBlocks = new Set(['A'])
 

@@ -13,7 +13,7 @@ const MAX_PARENT_DEPTH = DEFAULTS.MAX_NESTING_DEPTH
  */
 export type IterationNodeMetadata = Pick<
   NodeMetadata,
-  'loopId' | 'parallelId' | 'branchIndex' | 'branchTotal' | 'isLoopNode'
+  'subflowType' | 'subflowId' | 'branchIndex' | 'branchTotal' | 'isLoopNode'
 >
 
 /**
@@ -28,27 +28,27 @@ export function getIterationContext(
   if (!metadata) return undefined
 
   if (metadata.branchIndex !== undefined && metadata.branchTotal !== undefined) {
-    const parentIterations = metadata.parallelId
-      ? buildUnifiedParentIterations(ctx, metadata.parallelId)
-      : []
+    const parallelId = metadata.subflowType === 'parallel' ? metadata.subflowId : undefined
+    const parentIterations = parallelId ? buildUnifiedParentIterations(ctx, parallelId) : []
     return {
       iterationCurrent: metadata.branchIndex,
       iterationTotal: metadata.branchTotal,
       iterationType: 'parallel',
-      iterationContainerId: metadata.parallelId,
+      iterationContainerId: parallelId,
       ...(parentIterations.length > 0 && { parentIterations }),
     }
   }
 
-  if (metadata.isLoopNode && metadata.loopId) {
-    const loopScope = ctx.loopExecutions?.get(metadata.loopId)
+  const loopId = metadata.subflowType === 'loop' ? metadata.subflowId : undefined
+  if (metadata.isLoopNode && loopId) {
+    const loopScope = ctx.loopExecutions?.get(loopId)
     if (loopScope && loopScope.iteration !== undefined) {
-      const parentIterations = buildUnifiedParentIterations(ctx, metadata.loopId)
+      const parentIterations = buildUnifiedParentIterations(ctx, loopId)
       return {
         iterationCurrent: loopScope.iteration,
         iterationTotal: loopScope.maxIterations,
         iterationType: 'loop',
-        iterationContainerId: metadata.loopId,
+        iterationContainerId: loopId,
         ...(parentIterations.length > 0 && { parentIterations }),
       }
     }

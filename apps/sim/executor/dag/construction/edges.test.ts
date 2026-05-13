@@ -925,6 +925,16 @@ describe('EdgeConstructor', () => {
         expect(edgesToRegular.length).toBe(1)
         expect(edgesToRegular[0].sourceHandle).toBe('parallel_exit')
 
+        const edgesToParallelStart = Array.from(parallelEndNode.outgoingEdges.values()).filter(
+          (e) => e.target === parallelSentinelStart
+        )
+        expect(edgesToParallelStart.length).toBe(1)
+        expect(edgesToParallelStart[0].sourceHandle).toBe('parallel_continue')
+        expect(edgesToParallelStart[0].isActive).toBe(false)
+
+        const parallelStartNode = dag.nodes.get(parallelSentinelStart)!
+        expect(parallelStartNode.incomingEdges.has(parallelSentinelEnd)).toBe(false)
+
         const regularBlockNode = dag.nodes.get(regularBlockId)!
         expect(regularBlockNode.incomingEdges.has(parallelSentinelEnd)).toBe(true)
       })
@@ -1356,31 +1366,37 @@ describe('EdgeConstructor', () => {
       // Set up sentinel metadata
       dag.nodes.get(outerSentinelStart)!.metadata = {
         isSentinel: true,
-        isParallelSentinel: true,
         sentinelType: 'start',
         parallelId: outerParallelId,
+        subflowId: outerParallelId,
+        subflowType: 'parallel',
       }
       dag.nodes.get(outerSentinelEnd)!.metadata = {
         isSentinel: true,
-        isParallelSentinel: true,
         sentinelType: 'end',
         parallelId: outerParallelId,
+        subflowId: outerParallelId,
+        subflowType: 'parallel',
       }
       dag.nodes.get(innerSentinelStart)!.metadata = {
         isSentinel: true,
-        isParallelSentinel: true,
         sentinelType: 'start',
         parallelId: innerParallelId,
+        subflowId: innerParallelId,
+        subflowType: 'parallel',
       }
       dag.nodes.get(innerSentinelEnd)!.metadata = {
         isSentinel: true,
-        isParallelSentinel: true,
         sentinelType: 'end',
         parallelId: innerParallelId,
+        subflowId: innerParallelId,
+        subflowType: 'parallel',
       }
       dag.nodes.get(funcTemplate)!.metadata = {
         isParallelBranch: true,
         parallelId: innerParallelId,
+        subflowId: innerParallelId,
+        subflowType: 'parallel',
         branchIndex: 0,
         branchTotal: 1,
         originalBlockId: functionId,
@@ -1479,27 +1495,35 @@ describe('EdgeConstructor', () => {
         isSentinel: true,
         sentinelType: 'start',
         loopId,
+        subflowId: loopId,
+        subflowType: 'loop',
       }
       dag.nodes.get(loopSentinelEnd)!.metadata = {
         isSentinel: true,
         sentinelType: 'end',
         loopId,
+        subflowId: loopId,
+        subflowType: 'loop',
       }
       dag.nodes.get(parallelSentinelStart)!.metadata = {
         isSentinel: true,
-        isParallelSentinel: true,
         sentinelType: 'start',
         parallelId: innerParallelId,
+        subflowId: innerParallelId,
+        subflowType: 'parallel',
       }
       dag.nodes.get(parallelSentinelEnd)!.metadata = {
         isSentinel: true,
-        isParallelSentinel: true,
         sentinelType: 'end',
         parallelId: innerParallelId,
+        subflowId: innerParallelId,
+        subflowType: 'parallel',
       }
       dag.nodes.get(funcTemplate)!.metadata = {
         isParallelBranch: true,
         parallelId: innerParallelId,
+        subflowId: innerParallelId,
+        subflowType: 'parallel',
         branchIndex: 0,
         branchTotal: 1,
         originalBlockId: functionId,
@@ -1592,25 +1616,31 @@ describe('EdgeConstructor', () => {
 
       dag.nodes.get(outerSentinelStart)!.metadata = {
         isSentinel: true,
-        isParallelSentinel: true,
         sentinelType: 'start',
         parallelId: outerParallelId,
+        subflowId: outerParallelId,
+        subflowType: 'parallel',
       }
       dag.nodes.get(outerSentinelEnd)!.metadata = {
         isSentinel: true,
-        isParallelSentinel: true,
         sentinelType: 'end',
         parallelId: outerParallelId,
+        subflowId: outerParallelId,
+        subflowType: 'parallel',
       }
       dag.nodes.get(innerSentinelStart)!.metadata = {
         isSentinel: true,
         sentinelType: 'start',
         loopId: innerLoopId,
+        subflowId: innerLoopId,
+        subflowType: 'loop',
       }
       dag.nodes.get(innerSentinelEnd)!.metadata = {
         isSentinel: true,
         sentinelType: 'end',
         loopId: innerLoopId,
+        subflowId: innerLoopId,
+        subflowType: 'loop',
       }
 
       const innerLoop: SerializedLoop = {

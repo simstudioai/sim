@@ -5,7 +5,13 @@ import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/executio
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
-import { buildLoopIndexCondition, DEFAULTS, EDGE, PARALLEL } from '@/executor/constants'
+import {
+  buildLoopIndexCondition,
+  CONTROL_BACK_EDGE_HANDLES,
+  DEFAULTS,
+  EDGE,
+  PARALLEL,
+} from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
@@ -555,11 +561,10 @@ export class LoopOrchestrator {
 
         for (const [, edge] of potentialSourceNode.outgoingEdges) {
           if (edge.target === nodeId) {
-            const isBackwardEdge =
-              edge.sourceHandle === EDGE.LOOP_CONTINUE ||
-              edge.sourceHandle === EDGE.LOOP_CONTINUE_ALT
-
-            if (!isBackwardEdge) {
+            if (
+              edge.sourceHandle === undefined ||
+              !CONTROL_BACK_EDGE_HANDLES.has(edge.sourceHandle)
+            ) {
               nodeToRestore.incomingEdges.add(potentialSourceId)
             }
           }

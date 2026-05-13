@@ -43,6 +43,12 @@ function createState(): BlockStateWriter {
   }
 }
 
+function createEdgeManager() {
+  return {
+    clearDeactivatedEdgesForNodes: vi.fn(),
+  }
+}
+
 function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
   return {
     workflowId: 'workflow-1',
@@ -184,6 +190,98 @@ describe('ParallelOrchestrator', () => {
     expect(scope?.branchOutputs.has(0)).toBe(false)
   })
 
+  it('clamps batch size and caps current batch to total branch count', async () => {
+    const dag = createDag()
+    const parallelConfig = dag.parallelConfigs.get('parallel-1')!
+    parallelConfig.parallelType = 'count'
+    parallelConfig.count = 9
+    parallelConfig.batchSize = 0
+
+    const orchestrator = new ParallelOrchestrator(dag, createState(), null, {})
+    const zeroBatchScope = await orchestrator.initializeParallelScope(createContext(), 'parallel-1')
+
+    expect(zeroBatchScope.batchSize).toBe(1)
+    expect(zeroBatchScope.currentBatchSize).toBe(1)
+
+    parallelConfig.batchSize = 50
+    const oversizedBatchScope = await orchestrator.initializeParallelScope(
+      createContext(),
+      'parallel-1'
+    )
+
+    expect(oversizedBatchScope.currentBatchSize).toBe(9)
+  })
+
+  it('advances batch state at sentinel end and prepares the next batch at sentinel start', async () => {
+    const dag = createDag()
+    const templateBranchId = buildBranchNodeId('task-1', 0)
+    const secondBranchId = buildBranchNodeId('task-1', 1)
+    dag.nodes.set(templateBranchId, {
+      id: templateBranchId,
+      block: {
+        id: 'task-1',
+        position: { x: 0, y: 0 },
+        config: { tool: '', params: {} },
+        inputs: {},
+        outputs: {},
+        metadata: { id: 'function', name: 'Task 1' },
+        enabled: true,
+      },
+      incomingEdges: new Set(),
+      outgoingEdges: new Map(),
+      metadata: {
+        parallelId: 'parallel-1',
+        subflowId: 'parallel-1',
+        subflowType: 'parallel',
+        isParallelBranch: true,
+        branchIndex: 0,
+      },
+    })
+    const state = createState()
+    const edgeManager = createEdgeManager()
+    const orchestrator = new ParallelOrchestrator(dag, state, null, {}, edgeManager)
+    const scope = {
+      parallelId: 'parallel-1',
+      totalBranches: 4,
+      batchSize: 2,
+      currentBatchStart: 0,
+      currentBatchSize: 2,
+      accumulatedOutputs: new Map<number, any[]>(),
+      branchOutputs: new Map<number, any[]>([
+        [0, [{ output: 'branch-0' }]],
+        [1, [{ output: 'branch-1' }]],
+      ]),
+    }
+    const ctx = createContext({
+      parallelExecutions: new Map([['parallel-1', scope]]),
+    })
+
+    const result = await orchestrator.aggregateParallelResults(ctx, 'parallel-1')
+
+    expect(result.allBranchesComplete).toBe(false)
+    expect(scope.currentBatchStart).toBe(2)
+    expect(scope.currentBatchSize).toBe(2)
+    expect(ctx.parallelBlockMapping?.size ?? 0).toBe(0)
+
+    orchestrator.prepareCurrentBatch(ctx, 'parallel-1')
+
+    expect(ctx.parallelBlockMapping?.get(templateBranchId)).toMatchObject({
+      originalBlockId: 'task-1',
+      parallelId: 'parallel-1',
+      iterationIndex: 2,
+    })
+    expect(ctx.parallelBlockMapping?.get(secondBranchId)).toMatchObject({
+      originalBlockId: 'task-1',
+      parallelId: 'parallel-1',
+      iterationIndex: 3,
+    })
+    expect(state.deleteBlockState).toHaveBeenCalledWith(templateBranchId)
+    expect(state.deleteBlockState).toHaveBeenCalledWith(secondBranchId)
+    expect(edgeManager.clearDeactivatedEdgesForNodes).toHaveBeenCalledWith(
+      new Set([templateBranchId, secondBranchId])
+    )
+  })
+
   it('resets only incoming batch branch state when scheduling later batches', async () => {
     const dag = createDag()
     const incomingBranchId = buildBranchNodeId('task-1', 0)
@@ -201,7 +299,13 @@ describe('ParallelOrchestrator', () => {
       },
       incomingEdges: new Set(),
       outgoingEdges: new Set(),
-      metadata: { parallelId: 'parallel-1', isParallelBranch: true, branchIndex: 0 },
+      metadata: {
+        parallelId: 'parallel-1',
+        subflowId: 'parallel-1',
+        subflowType: 'parallel',
+        isParallelBranch: true,
+        branchIndex: 0,
+      },
     })
     dag.nodes.set(previousBranchId, {
       id: previousBranchId,
@@ -216,36 +320,35 @@ describe('ParallelOrchestrator', () => {
       },
       incomingEdges: new Set(),
       outgoingEdges: new Set(),
-      metadata: { parallelId: 'parallel-1', isParallelBranch: true, branchIndex: 1 },
+      metadata: {
+        parallelId: 'parallel-1',
+        subflowId: 'parallel-1',
+        subflowType: 'parallel',
+        isParallelBranch: true,
+        branchIndex: 1,
+      },
     })
     const state = createState()
     const orchestrator = new ParallelOrchestrator(dag, state, null, {})
 
-    await (
-      orchestrator as unknown as {
-        scheduleNextBatch(
-          ctx: ExecutionContext,
-          scope: NonNullable<ExecutionContext['parallelExecutions']> extends Map<
-            string,
-            infer Scope
-          >
-            ? Scope
-            : never,
-          nextBatchStart: number
-        ): Promise<void>
-      }
-    ).scheduleNextBatch(
-      createContext(),
-      {
-        parallelId: 'parallel-1',
-        totalBranches: 3,
-        batchSize: 1,
-        currentBatchStart: 0,
-        currentBatchSize: 2,
-        accumulatedOutputs: new Map([[1, [{ output: 'previous' }]]]),
-        branchOutputs: new Map(),
-      },
-      2
+    orchestrator.prepareCurrentBatch(
+      createContext({
+        parallelExecutions: new Map([
+          [
+            'parallel-1',
+            {
+              parallelId: 'parallel-1',
+              totalBranches: 3,
+              batchSize: 1,
+              currentBatchStart: 2,
+              currentBatchSize: 1,
+              accumulatedOutputs: new Map([[1, [{ output: 'previous' }]]]),
+              branchOutputs: new Map(),
+            },
+          ],
+        ]),
+      }),
+      'parallel-1'
     )
 
     expect(state.deleteBlockState).toHaveBeenCalledWith(incomingBranchId)
@@ -270,7 +373,13 @@ describe('ParallelOrchestrator', () => {
       },
       incomingEdges: new Set(),
       outgoingEdges: new Set(),
-      metadata: { parallelId: 'parallel-1', isParallelBranch: true, branchIndex: 0 },
+      metadata: {
+        parallelId: 'parallel-1',
+        subflowId: 'parallel-1',
+        subflowType: 'parallel',
+        isParallelBranch: true,
+        branchIndex: 0,
+      },
     })
     const orchestrator = new ParallelOrchestrator(dag, createState(), null, {})
     const previousOutputs = [{ output: 'previous' }]

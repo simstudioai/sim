@@ -105,6 +105,8 @@ export class NodeConstructor {
       metadata: {
         isParallelBranch: true,
         parallelId,
+        subflowId: parallelId,
+        subflowType: 'parallel',
         branchIndex: 0,
         branchTotal: 1,
         isPauseResponse: block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP,
@@ -130,6 +132,7 @@ export class NodeConstructor {
       metadata: {
         isLoopNode,
         loopId,
+        ...(loopId && { subflowId: loopId, subflowType: 'loop' as const }),
         isPauseResponse: isPauseBlock,
         originalBlockId: block.id,
       },

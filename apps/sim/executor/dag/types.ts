@@ -5,9 +5,10 @@ export interface DAGEdge {
   isActive?: boolean
 }
 
+export type SentinelSubflowType = 'loop' | 'parallel'
+
 export interface NodeMetadata {
   isParallelBranch?: boolean
-  isParallelSentinel?: boolean
   parallelId?: string
   branchIndex?: number
   branchTotal?: number
@@ -16,6 +17,8 @@ export interface NodeMetadata {
   loopId?: string
   isSentinel?: boolean
   sentinelType?: 'start' | 'end'
+  subflowType?: SentinelSubflowType
+  subflowId?: string
   isPauseResponse?: boolean
   isResumeTrigger?: boolean
   originalBlockId?: string

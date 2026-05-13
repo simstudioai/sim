@@ -97,7 +97,14 @@ export interface IterationContext {
 export interface WorkflowNodeMetadata
   extends Pick<
     NodeMetadata,
-    'loopId' | 'parallelId' | 'branchIndex' | 'branchTotal' | 'originalBlockId' | 'isLoopNode'
+    | 'loopId'
+    | 'parallelId'
+    | 'subflowType'
+    | 'subflowId'
+    | 'branchIndex'
+    | 'branchTotal'
+    | 'originalBlockId'
+    | 'isLoopNode'
   > {
   nodeId: string
   executionOrder?: number

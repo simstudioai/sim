@@ -479,8 +479,8 @@ export class ParallelExpander {
     }
 
     const metadataOverride = parentIsParallel
-      ? { parallelId: parentClonedId }
-      : { loopId: parentClonedId }
+      ? { parallelId: parentClonedId, subflowId: parentClonedId, subflowType: 'parallel' as const }
+      : { loopId: parentClonedId, subflowId: parentClonedId, subflowType: 'loop' as const }
 
     dag.nodes.set(clonedNodeId, {
       id: clonedNodeId,
@@ -515,6 +515,7 @@ export class ParallelExpander {
     }
 
     sentinelStart.outgoingEdges.clear()
+    sentinelEnd.incomingEdges.clear()
     for (const entryNodeId of entryNodes) {
       const entryNode = dag.nodes.get(entryNodeId)
       if (!entryNode) continue

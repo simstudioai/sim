@@ -463,13 +463,6 @@ export class ExecutionEngine {
     })
 
     this.addMultipleToQueue(readyNodes)
-
-    if (this.context.pendingDynamicNodes && this.context.pendingDynamicNodes.length > 0) {
-      const dynamicNodes = this.context.pendingDynamicNodes
-      this.context.pendingDynamicNodes = []
-      this.execLogger.info('Adding dynamically expanded parallel nodes', { dynamicNodes })
-      this.addMultipleToQueue(dynamicNodes)
-    }
   }
 
   private buildPausedResult(startTime: number): ExecutionResult {

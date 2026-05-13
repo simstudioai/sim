@@ -353,6 +353,8 @@ export interface ExecutionContext {
       branchOutputs: Map<number, any[]>
       parallelType?: 'count' | 'collection'
       items?: any[]
+      validationError?: string
+      isEmpty?: boolean
     }
   >
 
@@ -411,9 +413,6 @@ export interface ExecutionContext {
    * This is triggered when the SSE client disconnects.
    */
   abortSignal?: AbortSignal
-
-  // Dynamically added nodes that need to be scheduled (e.g., from parallel expansion)
-  pendingDynamicNodes?: string[]
 
   /**
    * When true, UserFile objects in block outputs will be hydrated with base64 content

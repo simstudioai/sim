@@ -66,12 +66,13 @@ export class NodeExecutionOrchestrator {
       }
     }
 
-    const loopId = node.metadata.loopId
+    const loopId = node.metadata.subflowType === 'loop' ? node.metadata.subflowId : undefined
     if (loopId && !this.loopOrchestrator.getLoopScope(ctx, loopId)) {
       await this.loopOrchestrator.initializeLoopScope(ctx, loopId)
     }
 
-    const parallelId = node.metadata.parallelId
+    const parallelId =
+      node.metadata.subflowType === 'parallel' ? node.metadata.subflowId : undefined
     if (parallelId && !this.parallelOrchestrator.getParallelScope(ctx, parallelId)) {
       await this.parallelOrchestrator.initializeParallelScope(ctx, parallelId)
     }
@@ -100,37 +101,37 @@ export class NodeExecutionOrchestrator {
     node: DAGNode
   ): Promise<NormalizedBlockOutput> {
     const sentinelType = node.metadata.sentinelType
-    const loopId = node.metadata.loopId
-    const parallelId = node.metadata.parallelId
-    const isParallelSentinel = node.metadata.isParallelSentinel
+    const subflowType = node.metadata.subflowType
+    const subflowId = node.metadata.subflowId
 
-    if (isParallelSentinel) {
-      return await this.handleParallelSentinel(ctx, node, sentinelType, parallelId)
+    if (!subflowType || !subflowId) {
+      logger.warn('Sentinel missing subflow metadata', { nodeId: node.id, sentinelType })
+      return {}
+    }
+
+    if (subflowType === 'parallel') {
+      return await this.handleParallelSentinel(ctx, node, sentinelType, subflowId)
     }
 
     switch (sentinelType) {
       case 'start': {
-        if (loopId) {
-          const shouldExecute = await this.loopOrchestrator.evaluateInitialCondition(ctx, loopId)
-          if (!shouldExecute) {
-            logger.info('Loop initial condition false, skipping loop body', { loopId })
-            return {
-              sentinelStart: true,
-              shouldExit: true,
-              selectedRoute: EDGE.LOOP_EXIT,
-            }
+        const shouldExecute = await this.loopOrchestrator.evaluateInitialCondition(ctx, subflowId)
+        if (!shouldExecute) {
+          logger.info('Loop initial condition false, skipping loop body', { loopId: subflowId })
+          return {
+            sentinelStart: true,
+            shouldExit: true,
+            selectedRoute: EDGE.LOOP_EXIT,
           }
         }
         return { sentinelStart: true }
       }
 
       case 'end': {
-        if (!loopId) {
-          logger.warn('Sentinel end called without loopId')
-          return { shouldExit: true, selectedRoute: EDGE.LOOP_EXIT }
-        }
-
-        const continuationResult = await this.loopOrchestrator.evaluateLoopContinuation(ctx, loopId)
+        const continuationResult = await this.loopOrchestrator.evaluateLoopContinuation(
+          ctx,
+          subflowId
+        )
 
         if (continuationResult.shouldContinue) {
           return {
@@ -161,13 +162,8 @@ export class NodeExecutionOrchestrator {
     ctx: ExecutionContext,
     node: DAGNode,
     sentinelType: string | undefined,
-    parallelId: string | undefined
+    parallelId: string
   ): Promise<NormalizedBlockOutput> {
-    if (!parallelId) {
-      logger.warn('Parallel sentinel called without parallelId')
-      return {}
-    }
-
     if (sentinelType === 'start') {
       if (!this.parallelOrchestrator.getParallelScope(ctx, parallelId)) {
         const parallelConfig = this.dag.parallelConfigs.get(parallelId)
@@ -186,6 +182,7 @@ export class NodeExecutionOrchestrator {
         }
       }
 
+      this.parallelOrchestrator.prepareCurrentBatch(ctx, parallelId)
       return { sentinelStart: true }
     }
 
@@ -222,11 +219,12 @@ export class NodeExecutionOrchestrator {
       return
     }
 
-    const loopId = node.metadata.loopId
+    const loopId = node.metadata.subflowType === 'loop' ? node.metadata.subflowId : undefined
     const isParallelBranch = node.metadata.isParallelBranch
     const isSentinel = node.metadata.isSentinel
     if (isSentinel) {
       this.handleRegularNodeCompletion(ctx, node, output)
+      this.handleParentParallelSubflowCompletion(ctx, node, output)
     } else if (loopId) {
       this.handleLoopNodeCompletion(ctx, node, output, loopId)
     } else if (isParallelBranch) {
@@ -265,6 +263,37 @@ export class NodeExecutionOrchestrator {
     this.state.setBlockOutput(node.id, output)
   }
 
+  private handleParentParallelSubflowCompletion(
+    ctx: ExecutionContext,
+    node: DAGNode,
+    output: NormalizedBlockOutput
+  ): void {
+    if (node.metadata.sentinelType !== 'end' || !node.metadata.subflowId) {
+      return
+    }
+
+    if (
+      output.selectedRoute === EDGE.LOOP_CONTINUE ||
+      output.selectedRoute === EDGE.LOOP_CONTINUE_ALT ||
+      output.selectedRoute === EDGE.PARALLEL_CONTINUE
+    ) {
+      return
+    }
+
+    const parentEntry = ctx.subflowParentMap?.get(node.metadata.subflowId)
+    if (parentEntry?.parentType !== 'parallel') {
+      return
+    }
+
+    this.parallelOrchestrator.handleParallelBranchCompletion(
+      ctx,
+      parentEntry.parentId,
+      node.id,
+      output,
+      parentEntry.branchIndex ?? 0
+    )
+  }
+
   private handleRegularNodeCompletion(
     ctx: ExecutionContext,
     node: DAGNode,
@@ -274,26 +303,38 @@ export class NodeExecutionOrchestrator {
 
     if (
       node.metadata.isSentinel &&
+      node.metadata.subflowType === 'loop' &&
       node.metadata.sentinelType === 'end' &&
       output.selectedRoute === 'loop_continue'
     ) {
-      const loopId = node.metadata.loopId
-      if (loopId) {
-        this.loopOrchestrator.clearLoopExecutionState(loopId, ctx)
-        this.loopOrchestrator.restoreLoopEdges(loopId)
+      const loopId = node.metadata.subflowId
+      if (!loopId) {
+        logger.warn('Loop sentinel missing subflow metadata', { nodeId: node.id })
+        return
       }
+      this.loopOrchestrator.clearLoopExecutionState(loopId, ctx)
+      this.loopOrchestrator.restoreLoopEdges(loopId)
     }
 
     if (
-      node.metadata.isParallelSentinel &&
+      node.metadata.subflowType === 'parallel' &&
       node.metadata.sentinelType === 'end' &&
       output.selectedRoute === EDGE.PARALLEL_CONTINUE
     ) {
-      this.state.deleteBlockState(node.id)
+      const parallelId = node.metadata.subflowId
+      if (!parallelId) {
+        logger.warn('Parallel sentinel missing subflow metadata', { nodeId: node.id })
+        return
+      }
+      this.parallelOrchestrator.prepareForBatchContinuation(parallelId)
     }
   }
 
   private findParallelIdForNode(nodeId: string): string | undefined {
+    const node = this.dag.nodes.get(nodeId)
+    if (node?.metadata.subflowType === 'parallel') {
+      return node.metadata.subflowId
+    }
     const baseId = extractBaseBlockId(nodeId)
     return this.parallelOrchestrator.findParallelIdForNode(baseId)
   }

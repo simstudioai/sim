@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { EDGE } from '@/executor/constants'
+import { CONTROL_BACK_EDGE_HANDLES, EDGE, SUBFLOW_CONTROL_EDGE_HANDLES } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { DAGEdge } from '@/executor/dag/types'
 import type { NormalizedBlockOutput } from '@/executor/types'
@@ -27,7 +27,7 @@ export class EdgeManager {
       }
 
       if (!this.shouldActivateEdge(edge, output)) {
-        if (!this.isLoopEdge(edge.sourceHandle)) {
+        if (!this.isSubflowControlEdge(edge.sourceHandle)) {
           edgesToDeactivate.push({ target: edge.target, handle: edge.sourceHandle })
         }
         continue
@@ -170,37 +170,31 @@ export class EdgeManager {
     const sentinel = this.dag.nodes.get(sentinelId)
     if (!sentinel?.metadata.isSentinel) return false
 
-    const sourceLoopId = sourceNode.metadata.loopId
-    const sourceParallelId = sourceNode.metadata.parallelId
-    const sentinelLoopId = sentinel.metadata.loopId
-    const sentinelParallelId = sentinel.metadata.parallelId
+    const sourceSubflowType = sourceNode.metadata.subflowType
+    const sentinelSubflowType = sentinel.metadata.subflowType
+    const sourceSubflowId = sourceNode.metadata.subflowId
+    const sentinelSubflowId = sentinel.metadata.subflowId
 
-    if (sourceLoopId && sentinelLoopId && sourceLoopId === sentinelLoopId) return true
-    if (sourceParallelId && sentinelParallelId && sourceParallelId === sentinelParallelId)
+    if (
+      sourceSubflowType &&
+      sentinelSubflowType &&
+      sourceSubflowType === sentinelSubflowType &&
+      sourceSubflowId &&
+      sentinelSubflowId &&
+      sourceSubflowId === sentinelSubflowId
+    ) {
       return true
+    }
 
     return false
   }
 
-  private isLoopEdge(handle?: string): boolean {
-    return (
-      handle === EDGE.LOOP_CONTINUE ||
-      handle === EDGE.LOOP_CONTINUE_ALT ||
-      handle === EDGE.LOOP_EXIT
-    )
-  }
-
-  private isControlEdge(handle?: string): boolean {
-    return (
-      handle === EDGE.LOOP_CONTINUE ||
-      handle === EDGE.LOOP_CONTINUE_ALT ||
-      handle === EDGE.LOOP_EXIT ||
-      handle === EDGE.PARALLEL_EXIT
-    )
+  private isSubflowControlEdge(handle?: string): boolean {
+    return handle !== undefined && SUBFLOW_CONTROL_EDGE_HANDLES.has(handle)
   }
 
   private isBackwardsEdge(sourceHandle?: string): boolean {
-    return sourceHandle === EDGE.LOOP_CONTINUE || sourceHandle === EDGE.LOOP_CONTINUE_ALT
+    return sourceHandle !== undefined && CONTROL_BACK_EDGE_HANDLES.has(sourceHandle)
   }
 
   private isTerminalControlNode(nodeId: string): boolean {
@@ -208,7 +202,7 @@ export class EdgeManager {
     if (!node || node.outgoingEdges.size === 0) return false
 
     for (const [, edge] of node.outgoingEdges) {
-      if (!this.isControlEdge(edge.sourceHandle)) {
+      if (!this.isSubflowControlEdge(edge.sourceHandle)) {
         return false
       }
     }
@@ -231,7 +225,7 @@ export class EdgeManager {
     }
 
     if (output.selectedRoute === EDGE.PARALLEL_CONTINUE) {
-      return false
+      return handle === EDGE.PARALLEL_CONTINUE
     }
 
     if (!handle) {

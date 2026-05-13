@@ -10,6 +10,7 @@ import {
   buildBranchNodeId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
+  buildSentinelStartId,
   stripCloneSuffixes,
 } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -105,6 +106,11 @@ describe('Nested parallel expansion + edge resolution', () => {
     const clonedInnerEndId = buildParallelSentinelEndId(clonedInnerParallelId)
 
     expect(outerStartTargets).toContain(clonedInnerStartId) // branch 1
+    expect(dag.nodes.get(clonedInnerStartId)?.metadata).toMatchObject({
+      parallelId: clonedInnerParallelId,
+      subflowId: clonedInnerParallelId,
+      subflowType: 'parallel',
+    })
 
     // Verify cloned parallel config was registered
     expect(dag.parallelConfigs.has(clonedInnerParallelId)).toBe(true)
@@ -264,6 +270,109 @@ describe('Nested parallel expansion + edge resolution', () => {
       `${innerParallelId}__obranch-2`,
       `${innerParallelId}__obranch-3`,
     ])
+  })
+
+  it('clears stale sentinel-end incoming edges when a later batch is smaller', () => {
+    const parallelId = 'parallel-1'
+    const functionId = 'func-1'
+
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        createBlock('start', BlockType.STARTER),
+        createBlock(parallelId, BlockType.PARALLEL),
+        createBlock(functionId, BlockType.FUNCTION),
+      ],
+      connections: [
+        { source: 'start', target: parallelId },
+        { source: parallelId, target: functionId, sourceHandle: 'parallel-start-source' },
+      ],
+      loops: {},
+      parallels: {
+        [parallelId]: {
+          id: parallelId,
+          nodes: [functionId],
+          count: 4,
+          parallelType: 'count',
+        },
+      },
+    }
+
+    const builder = new DAGBuilder()
+    const dag = builder.build(workflow)
+    const expander = new ParallelExpander()
+    const sentinelEnd = dag.nodes.get(buildParallelSentinelEndId(parallelId))!
+
+    expander.expandParallel(dag, parallelId, 3, undefined, {
+      branchIndexOffset: 0,
+      totalBranches: 4,
+    })
+    expect(sentinelEnd.incomingEdges).toEqual(
+      new Set([
+        buildBranchNodeId(functionId, 0),
+        buildBranchNodeId(functionId, 1),
+        buildBranchNodeId(functionId, 2),
+      ])
+    )
+
+    expander.expandParallel(dag, parallelId, 1, undefined, {
+      branchIndexOffset: 3,
+      totalBranches: 4,
+    })
+    expect(sentinelEnd.incomingEdges).toEqual(new Set([buildBranchNodeId(functionId, 0)]))
+  })
+
+  it('updates unified subflow metadata on cloned nested loop sentinels', () => {
+    const parallelId = 'parallel-1'
+    const loopId = 'loop-1'
+    const functionId = 'func-1'
+
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        createBlock('start', BlockType.STARTER),
+        createBlock(parallelId, BlockType.PARALLEL),
+        createBlock(loopId, BlockType.LOOP),
+        createBlock(functionId, BlockType.FUNCTION),
+      ],
+      connections: [
+        { source: 'start', target: parallelId },
+        { source: parallelId, target: loopId, sourceHandle: 'parallel-start-source' },
+        { source: loopId, target: functionId, sourceHandle: 'loop-start-source' },
+      ],
+      loops: {
+        [loopId]: {
+          id: loopId,
+          nodes: [functionId],
+          iterations: 1,
+          loopType: 'for',
+        },
+      },
+      parallels: {
+        [parallelId]: {
+          id: parallelId,
+          nodes: [loopId],
+          count: 2,
+          parallelType: 'count',
+        },
+      },
+    }
+
+    const builder = new DAGBuilder()
+    const dag = builder.build(workflow)
+    const expander = new ParallelExpander()
+
+    const result = expander.expandParallel(dag, parallelId, 2)
+    const clonedLoopId = result.clonedSubflows.find(
+      (clone) => clone.originalId === loopId
+    )?.clonedId
+
+    expect(clonedLoopId).toBe(`${loopId}__obranch-1`)
+    expect(dag.nodes.get(buildSentinelStartId(clonedLoopId!))?.metadata).toMatchObject({
+      loopId: clonedLoopId,
+      subflowId: clonedLoopId,
+      subflowType: 'loop',
+    })
   })
 
   it('3-level nesting: pre-expansion clone IDs do not collide with runtime expansion', () => {

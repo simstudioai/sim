@@ -181,14 +181,14 @@ export function validateRunFromBlock(
     if (node.metadata.isLoopNode) {
       return {
         valid: false,
-        error: `Cannot run from block inside loop: ${node.metadata.loopId}`,
+        error: `Cannot run from block inside loop: ${node.metadata.subflowId}`,
       }
     }
 
     if (node.metadata.isParallelBranch) {
       return {
         valid: false,
-        error: `Cannot run from block inside parallel: ${node.metadata.parallelId}`,
+        error: `Cannot run from block inside parallel: ${node.metadata.subflowId}`,
       }
     }
 

@@ -50,7 +50,8 @@ describe('getIterationContext', () => {
     const metadata: IterationNodeMetadata = {
       branchIndex: 1,
       branchTotal: 3,
-      parallelId: 'p1',
+      subflowId: 'p1',
+      subflowType: 'parallel',
     }
     const result = getIterationContext(ctx, metadata)
     expect(result).toEqual({
@@ -77,7 +78,8 @@ describe('getIterationContext', () => {
     })
     const metadata: IterationNodeMetadata = {
       isLoopNode: true,
-      loopId: 'l1',
+      subflowId: 'l1',
+      subflowType: 'loop',
     }
     const result = getIterationContext(ctx, metadata)
     expect(result).toEqual({
@@ -367,7 +369,8 @@ describe('buildUnifiedParentIterations', () => {
 
     const metadata: IterationNodeMetadata = {
       isLoopNode: true,
-      loopId: 'loop-1__obranch-2',
+      subflowId: 'loop-1__obranch-2',
+      subflowType: 'loop',
     }
     const result = getIterationContext(ctx, metadata)
     expect(result).toEqual({
@@ -415,7 +418,8 @@ describe('buildUnifiedParentIterations', () => {
     const metadata: IterationNodeMetadata = {
       branchIndex: 1,
       branchTotal: 3,
-      parallelId: 'parallel-1',
+      subflowId: 'parallel-1',
+      subflowType: 'parallel',
     }
     const result = getIterationContext(ctx, metadata)
     expect(result).toEqual({

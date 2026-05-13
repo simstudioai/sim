@@ -269,7 +269,8 @@ export class DAGExecutor {
       dag,
       state,
       resolver,
-      this.contextExtensions
+      this.contextExtensions,
+      edgeManager
     )
     const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,

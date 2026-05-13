@@ -275,8 +275,10 @@ export class BlockExecutor {
     const metadata = node?.metadata ?? {}
     return {
       nodeId: node.id,
-      loopId: metadata.loopId,
-      parallelId: metadata.parallelId,
+      loopId: metadata.subflowType === 'loop' ? metadata.subflowId : undefined,
+      parallelId: metadata.subflowType === 'parallel' ? metadata.subflowId : undefined,
+      subflowId: metadata.subflowId,
+      subflowType: metadata.subflowType,
       branchIndex: metadata.branchIndex,
       branchTotal: metadata.branchTotal,
       originalBlockId: metadata.originalBlockId,
@@ -409,12 +411,20 @@ export class BlockExecutor {
     let iterationIndex: number | undefined
 
     if (node?.metadata) {
-      if (node.metadata.branchIndex !== undefined && node.metadata.parallelId) {
+      if (
+        node.metadata.branchIndex !== undefined &&
+        node.metadata.subflowType === 'parallel' &&
+        node.metadata.subflowId
+      ) {
         blockName = `${blockName} (iteration ${node.metadata.branchIndex})`
         iterationIndex = node.metadata.branchIndex
-        parallelId = node.metadata.parallelId
-      } else if (node.metadata.isLoopNode && node.metadata.loopId) {
-        loopId = node.metadata.loopId
+        parallelId = node.metadata.subflowId
+      } else if (
+        node.metadata.isLoopNode &&
+        node.metadata.subflowType === 'loop' &&
+        node.metadata.subflowId
+      ) {
+        loopId = node.metadata.subflowId
         const loopScope = ctx.loopExecutions?.get(loopId)
         if (loopScope && loopScope.iteration !== undefined) {
           blockName = `${blockName} (iteration ${loopScope.iteration})`
