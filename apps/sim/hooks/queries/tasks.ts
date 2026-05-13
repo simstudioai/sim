@@ -57,8 +57,6 @@ export const taskKeys = {
   detail: (chatId: string | undefined) => [...taskKeys.details(), chatId ?? ''] as const,
 }
 
-type ChatHistorySource = 'copilot' | 'mothership'
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
@@ -150,30 +148,28 @@ function parseStrictStreamSnapshot(
   return snapshot
 }
 
-function parseChatHistory(value: unknown, source: ChatHistorySource): TaskChatHistory {
-  const responseContext = `Invalid ${source} chat response`
+function parseChatHistory(value: unknown): TaskChatHistory {
+  const responseContext = 'Invalid chat response'
   const chatContext = `${responseContext}: chat`
 
   assertValid(isRecord(value), `${responseContext}: body must be an object`)
   assertValid(isRecord(value.chat), `${chatContext} must be an object`)
 
   const chat = value.chat
-  const activeStreamField = source === 'mothership' ? 'conversationId' : 'activeStreamId'
-  const activeStreamId = chat[activeStreamField]
 
   assertValid(typeof chat.id === 'string', `${chatContext}.id must be a string`)
   assertValid(isNullableString(chat.title), `${chatContext}.title must be a string or null`)
   assertValid(Array.isArray(chat.messages), `${chatContext}.messages must be an array`)
   assertValid(
-    isNullableString(activeStreamId),
-    `${chatContext}.${activeStreamField} must be a string or null`
+    isNullableString(chat.activeStreamId),
+    `${chatContext}.activeStreamId must be a string or null`
   )
 
   return {
     id: chat.id,
     title: chat.title,
     messages: normalizeMessages(chat.messages),
-    activeStreamId,
+    activeStreamId: chat.activeStreamId,
     resources: parseResources(chat.resources, `${chatContext}.resources`),
     streamSnapshot: parseStrictStreamSnapshot(chat.streamSnapshot, `${chatContext}.streamSnapshot`),
   }
@@ -233,7 +229,7 @@ export async function fetchChatHistory(
       params: { chatId },
       signal,
     })
-    return parseChatHistory(data, 'mothership')
+    return parseChatHistory(data)
   } catch (error) {
     if (!isApiClientError(error)) throw error
     // Fall through to the legacy copilot-shape alias on any HTTP error (typically 404
@@ -251,7 +247,7 @@ export async function fetchChatHistory(
     throw new Error('Failed to load chat')
   }
 
-  return parseChatHistory(await copilotRes.json(), 'copilot')
+  return parseChatHistory(await copilotRes.json())
 }
 
 /**

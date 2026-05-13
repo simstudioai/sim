@@ -14,6 +14,7 @@ import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { buildEffectiveChatTranscript } from '@/lib/copilot/chat/effective-transcript'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
+import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -52,23 +53,29 @@ export const GET = withRouteHandler(
         status: string
       } | null = null
 
-      if (chat.conversationId) {
+      const reconciledMarkers = await reconcileChatStreamMarkers(
+        [{ chatId: chat.id, streamId: chat.conversationId }],
+        { repairVerifiedStaleMarkers: true }
+      )
+      const liveStreamId = reconciledMarkers.get(chat.id)?.streamId ?? null
+
+      if (liveStreamId) {
         try {
           const [events, previewSessions] = await Promise.all([
-            readEvents(chat.conversationId, '0'),
-            readFilePreviewSessions(chat.conversationId).catch((error) => {
+            readEvents(liveStreamId, '0'),
+            readFilePreviewSessions(liveStreamId).catch((error) => {
               logger.warn('Failed to read preview sessions for mothership chat', {
                 chatId,
-                conversationId: chat.conversationId,
+                streamId: liveStreamId,
                 error: toError(error).message,
               })
               return []
             }),
           ])
-          const run = await getLatestRunForStream(chat.conversationId, userId).catch((error) => {
+          const run = await getLatestRunForStream(liveStreamId, userId).catch((error) => {
             logger.warn('Failed to fetch latest run for mothership chat snapshot', {
               chatId,
-              conversationId: chat.conversationId,
+              streamId: liveStreamId,
               error: toError(error).message,
             })
             return null
@@ -87,7 +94,7 @@ export const GET = withRouteHandler(
         } catch (error) {
           logger.warn('Failed to read stream snapshot for mothership chat', {
             chatId,
-            conversationId: chat.conversationId,
+            streamId: liveStreamId,
             error: toError(error).message,
           })
         }
@@ -100,7 +107,7 @@ export const GET = withRouteHandler(
         : []
       const effectiveMessages = buildEffectiveChatTranscript({
         messages: normalizedMessages,
-        activeStreamId: chat.conversationId || null,
+        activeStreamId: liveStreamId,
         ...(streamSnapshot ? { streamSnapshot } : {}),
       })
 
@@ -110,7 +117,7 @@ export const GET = withRouteHandler(
           id: chat.id,
           title: chat.title,
           messages: effectiveMessages,
-          conversationId: chat.conversationId || null,
+          activeStreamId: liveStreamId,
           resources: Array.isArray(chat.resources) ? chat.resources : [],
           createdAt: chat.createdAt,
           updatedAt: chat.updatedAt,

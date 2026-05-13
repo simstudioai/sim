@@ -283,7 +283,7 @@ export const getMothershipChatResponseSchema = z.object({
       id: z.string(),
       title: z.string().nullable(),
       messages: z.array(z.unknown()),
-      conversationId: z.string().nullable(),
+      activeStreamId: z.string().nullable(),
       resources: z.array(z.unknown()),
       createdAt: z.union([z.string(), z.date()]).nullable().optional(),
       updatedAt: z.union([z.string(), z.date()]).nullable().optional(),

@@ -100,7 +100,7 @@ describe('tasks query boundary parsing', () => {
           id: 'chat-1',
           title: 'Task history',
           messages: [],
-          conversationId: 'stream-1',
+          activeStreamId: 'stream-1',
           resources: [{ type: 'file', id: 'file-1', title: 'Spec.md' }],
           streamSnapshot: {
             events: [],
@@ -144,7 +144,7 @@ describe('tasks query boundary parsing', () => {
       )
 
     await expect(fetchChatHistory('chat-1')).rejects.toThrow(
-      'Invalid copilot chat response: chat.resources[0].type is invalid'
+      'Invalid chat response: chat.resources[0].type is invalid'
     )
   })
 
