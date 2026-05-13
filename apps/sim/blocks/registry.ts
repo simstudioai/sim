@@ -217,6 +217,7 @@ import { VariablesBlock } from '@/blocks/blocks/variables'
 import { VercelBlock } from '@/blocks/blocks/vercel'
 import { VideoGeneratorBlock, VideoGeneratorV2Block } from '@/blocks/blocks/video_generator'
 import { VisionBlock, VisionV2Block } from '@/blocks/blocks/vision'
+import { VoyageAIBlock } from '@/blocks/blocks/voyageai'
 import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock } from '@/blocks/blocks/wealthbox'
 import { WebflowBlock } from '@/blocks/blocks/webflow'
@@ -477,6 +478,7 @@ export const registry: Record<string, BlockConfig> = {
   video_generator_v2: VideoGeneratorV2Block,
   vision: VisionBlock,
   vision_v2: VisionV2Block,
+  voyageai: VoyageAIBlock,
   wait: WaitBlock,
   wealthbox: WealthboxBlock,
   webflow: WebflowBlock,
