@@ -509,6 +509,7 @@ export function Files() {
             for (let i = start; i <= end; i++) next.add(visibleRowIds[i])
             return next
           })
+          lastSelectedIndexRef.current = currentIndex
         } else {
           setSelectedRowIds((prev) => {
             const next = new Set(prev)
@@ -1194,6 +1195,26 @@ export function Files() {
     closeContextMenu()
   }, [selectedRowIds, handleBulkDelete, closeContextMenu])
 
+  const handleContextMenuMove = useCallback(
+    async (optionValue: string) => {
+      const targetFolderId = optionValue === '__root__' ? null : optionValue
+      try {
+        await moveItems.mutateAsync({
+          workspaceId,
+          fileIds: selectedFileIds,
+          folderIds: selectedFolderIds,
+          targetFolderId,
+        })
+        setSelectedRowIds(new Set())
+        closeContextMenu()
+      } catch (error) {
+        logger.error('Failed to move items:', error)
+        toast.error(toError(error).message)
+      }
+    },
+    [moveItems.mutateAsync, workspaceId, selectedFileIds, selectedFolderIds, closeContextMenu]
+  )
+
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
       const target = e.target as HTMLElement
@@ -1799,6 +1820,8 @@ export function Files() {
         onDownload={handleContextMenuDownload}
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
+        onMove={handleContextMenuMove}
+        moveOptions={moveFolderOptions}
         canEdit={canEdit}
         selectedCount={selectedRowIds.size}
       />

@@ -1,17 +1,27 @@
 'use client'
 
 import { memo } from 'react'
+import { FolderInput } from 'lucide-react'
 import {
   Download,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Eye,
   Pencil,
   Trash2,
 } from '@/components/emcn'
+import { Folder } from '@/components/emcn/icons'
+
+interface MoveOption {
+  value: string
+  label: string
+}
 
 interface FileRowContextMenuProps {
   isOpen: boolean
@@ -21,6 +31,8 @@ interface FileRowContextMenuProps {
   onDownload?: () => void
   onRename: () => void
   onDelete: () => void
+  onMove?: (optionValue: string) => void
+  moveOptions?: MoveOption[]
   canEdit: boolean
   selectedCount: number
 }
@@ -33,6 +45,8 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
   onDownload,
   onRename,
   onDelete,
+  onMove,
+  moveOptions,
   canEdit,
   selectedCount,
 }: FileRowContextMenuProps) {
@@ -80,6 +94,22 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
                 <Pencil />
                 Rename
               </DropdownMenuItem>
+            )}
+            {onMove && moveOptions && moveOptions.length > 0 && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <FolderInput />
+                  {isMultiSelect ? `Move ${selectedCount} items` : 'Move to'}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {moveOptions.map((option) => (
+                    <DropdownMenuItem key={option.value} onSelect={() => onMove(option.value)}>
+                      <Folder />
+                      {option.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
             )}
             <DropdownMenuItem onSelect={onDelete}>
               <Trash2 />
