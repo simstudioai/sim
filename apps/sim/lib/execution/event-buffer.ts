@@ -293,15 +293,48 @@ async function compactEventForBuffer(
     return event
   }
 
-  const compactedData = await compactExecutionPayload(event.data, {
+  const baseOptions = {
     ...context,
     executionId: context.executionId ?? event.executionId,
     requireDurable: context.requireDurablePayloads,
-    preserveUserFileBase64: context.preserveUserFileBase64,
     preserveRoot: true,
+  }
+
+  let compactedData = await compactExecutionPayload(event.data, {
+    ...baseOptions,
+    preserveUserFileBase64: context.preserveUserFileBase64,
   })
-  const eventData = trimFinalBlockLogsForEventData(compactedData)
-  const eventDataSize = getJsonSize(eventData)
+  let eventData = trimFinalBlockLogsForEventData(compactedData)
+  let eventDataSize = getJsonSize(eventData)
+
+  // SSE/replay events are size-bounded by LARGE_VALUE_THRESHOLD_BYTES. When a
+  // payload that preserved UserFile base64 (e.g., for chat/streaming) exceeds
+  // the cap, recompact the already-compacted result with base64 stripped so
+  // consumers can lazily re-hydrate via sim.files.readBase64. Recompacting the
+  // *compacted* value (not the raw event.data) lets existing LargeValueRefs
+  // pass through unchanged and avoids minting fresh storage objects for the
+  // same large fields.
+  if (
+    context.preserveUserFileBase64 &&
+    eventDataSize !== null &&
+    eventDataSize > LARGE_VALUE_THRESHOLD_BYTES
+  ) {
+    const oversizedBytes = eventDataSize
+    compactedData = await compactExecutionPayload(compactedData, {
+      ...baseOptions,
+      preserveUserFileBase64: false,
+    })
+    eventData = trimFinalBlockLogsForEventData(compactedData)
+    eventDataSize = getJsonSize(eventData)
+    logger.warn('Stripped inline UserFile base64 from execution event to fit size limit', {
+      executionId: baseOptions.executionId,
+      eventType: 'type' in event ? event.type : undefined,
+      thresholdBytes: LARGE_VALUE_THRESHOLD_BYTES,
+      originalBytes: oversizedBytes,
+      strippedBytes: eventDataSize,
+    })
+  }
+
   if (eventDataSize !== null && eventDataSize > LARGE_VALUE_THRESHOLD_BYTES) {
     throw new Error(
       `Execution event data remains too large after compaction (${eventDataSize} bytes)`
