@@ -543,16 +543,6 @@ function reconcileChildTraceSpans(
       ? findConsoleEntryForSpan(workflowId, executionId, childWorkflowInstanceId, span)
       : undefined
     if (span.blockId) {
-      if (!matchingEntry) {
-        logger.warn('reconcileChildTraceSpans found no matching console entry for span', {
-          workflowId,
-          executionId,
-          spanBlockId: span.blockId,
-          childWorkflowInstanceId,
-          spanExecutionOrder: span.executionOrder,
-          spanIterationIndex: span.iterationIndex,
-        })
-      }
       const errorMessage = normalizeSpanError(span.output?.error)
       updateConsole(
         span.blockId,
