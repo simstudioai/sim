@@ -69,9 +69,9 @@ interface GrafanaDashboard {
   schemaVersion: number
   version: number
   refresh: string
-  panels: any[]
-  templating: any
-  annotations: any
+  panels: Record<string, unknown>[]
+  templating: Record<string, unknown>
+  annotations: Record<string, unknown>
   time: {
     from: string
     to: string
@@ -88,26 +88,26 @@ export interface GrafanaGetDashboardResponse extends ToolResponse {
 export interface GrafanaListDashboardsParams extends GrafanaBaseParams {
   query?: string
   tag?: string
-  folderIds?: string
+  folderUIDs?: string
+  dashboardUIDs?: string
   starred?: boolean
   limit?: number
+  page?: number
 }
 
 interface GrafanaDashboardSearchResult {
-  id: number
-  uid: string
-  title: string
-  uri: string
-  url: string
-  slug: string
-  type: string
+  id: number | null
+  uid: string | null
+  title: string | null
+  uri: string | null
+  url: string | null
+  type: string | null
   tags: string[]
   isStarred: boolean
-  folderId: number
-  folderUid: string
-  folderTitle: string
-  folderUrl: string
-  sortMeta: number
+  folderId: number | null
+  folderUid: string | null
+  folderTitle: string | null
+  folderUrl: string | null
 }
 
 export interface GrafanaListDashboardsResponse extends ToolResponse {
@@ -177,23 +177,26 @@ export interface GrafanaDeleteDashboardResponse extends ToolResponse {
 export interface GrafanaListAlertRulesParams extends GrafanaBaseParams {}
 
 interface GrafanaAlertRule {
-  uid: string
-  title: string
-  condition: string
-  data: any[]
-  updated: string
-  noDataState: string
-  execErrState: string
-  for: string
+  id: number | null
+  uid: string | null
+  title: string | null
+  condition: string | null
+  data: unknown[]
+  updated: string | null
+  noDataState: string | null
+  execErrState: string | null
+  for: string | null
+  keepFiringFor: string | null
+  missingSeriesEvalsToResolve: number | null
   annotations: Record<string, string>
   labels: Record<string, string>
   isPaused: boolean
-  folderUID: string
-  ruleGroup: string
-  orgId: number
-  namespace_uid: string
-  namespace_id: number
+  folderUID: string | null
+  ruleGroup: string | null
+  orgID: number | null
   provenance: string
+  notification_settings: Record<string, unknown> | null
+  record: Record<string, unknown> | null
 }
 
 export interface GrafanaListAlertRulesResponse extends ToolResponse {
@@ -214,13 +217,20 @@ export interface GrafanaCreateAlertRuleParams extends GrafanaBaseParams {
   title: string
   folderUid: string
   ruleGroup: string
-  condition: string
+  condition?: string
   data: string // JSON string of data array
   forDuration?: string
   noDataState?: string
   execErrState?: string
   annotations?: string // JSON string
   labels?: string // JSON string
+  uid?: string
+  isPaused?: boolean
+  keepFiringFor?: string
+  missingSeriesEvalsToResolve?: number
+  notificationSettings?: string // JSON string
+  record?: string // JSON string
+  disableProvenance?: boolean
 }
 
 export interface GrafanaCreateAlertRuleResponse extends ToolResponse {
@@ -239,6 +249,12 @@ export interface GrafanaUpdateAlertRuleParams extends GrafanaBaseParams {
   execErrState?: string
   annotations?: string // JSON string
   labels?: string // JSON string
+  isPaused?: boolean
+  keepFiringFor?: string
+  missingSeriesEvalsToResolve?: number
+  notificationSettings?: string // JSON string
+  record?: string // JSON string
+  disableProvenance?: boolean
 }
 
 interface GrafanaUpdateAlertRuleResponse extends ToolResponse {
@@ -266,19 +282,21 @@ export interface GrafanaCreateAnnotationParams extends GrafanaBaseParams {
 }
 
 interface GrafanaAnnotation {
-  id: number
-  dashboardId: number
-  dashboardUID: string
-  created: number
-  updated: number
-  time: number
-  timeEnd: number
-  text: string
+  id: number | null
+  alertId: number | null
+  dashboardId: number | null
+  dashboardUID: string | null
+  panelId: number | null
+  userId: number | null
+  userName: string | null
+  newState: string | null
+  prevState: string | null
+  time: number | null
+  timeEnd: number | null
+  text: string | null
+  metric: string | null
   tags: string[]
-  login: string
-  email: string
-  avatarUrl: string
-  data: any
+  data: Record<string, unknown>
 }
 
 export interface GrafanaCreateAnnotationResponse extends ToolResponse {
@@ -291,8 +309,11 @@ export interface GrafanaCreateAnnotationResponse extends ToolResponse {
 export interface GrafanaListAnnotationsParams extends GrafanaBaseParams {
   from?: number
   to?: number
+  dashboardId?: number
   dashboardUid?: string
   panelId?: number
+  alertId?: number
+  userId?: number
   tags?: string // comma-separated
   type?: string
   limit?: number
@@ -306,7 +327,7 @@ export interface GrafanaListAnnotationsResponse extends ToolResponse {
 
 export interface GrafanaUpdateAnnotationParams extends GrafanaBaseParams {
   annotationId: number
-  text: string
+  text?: string
   tags?: string // comma-separated
   time?: number
   timeEnd?: number
@@ -338,15 +359,18 @@ interface GrafanaDataSource {
   orgId: number
   name: string
   type: string
-  typeName: string
   typeLogoUrl: string
   access: string
   url: string
   user: string
   database: string
   basicAuth: boolean
+  basicAuthUser?: string
+  withCredentials?: boolean
   isDefault: boolean
-  jsonData: any
+  jsonData: Record<string, unknown>
+  secureJsonFields?: Record<string, boolean>
+  version?: number
   readOnly: boolean
 }
 
@@ -368,22 +392,31 @@ export interface GrafanaGetDataSourceResponse extends ToolResponse {
 export interface GrafanaListFoldersParams extends GrafanaBaseParams {
   limit?: number
   page?: number
+  parentUid?: string
+}
+
+interface GrafanaFolderParent {
+  uid: string
+  title: string
+  url: string
 }
 
 interface GrafanaFolder {
   id: number
   uid: string
   title: string
-  hasAcl: boolean
-  canSave: boolean
-  canEdit: boolean
-  canAdmin: boolean
-  canDelete: boolean
-  createdBy: string
-  created: string
-  updatedBy: string
-  updated: string
-  version: number
+  url?: string
+  hasAcl?: boolean
+  canSave?: boolean
+  canEdit?: boolean
+  canAdmin?: boolean
+  createdBy?: string
+  created?: string
+  updatedBy?: string
+  updated?: string
+  version?: number
+  parentUid?: string | null
+  parents?: GrafanaFolderParent[]
 }
 
 export interface GrafanaListFoldersResponse extends ToolResponse {
@@ -395,6 +428,7 @@ export interface GrafanaListFoldersResponse extends ToolResponse {
 export interface GrafanaCreateFolderParams extends GrafanaBaseParams {
   title: string
   uid?: string
+  parentUid?: string
 }
 
 export interface GrafanaCreateFolderResponse extends ToolResponse {
@@ -402,13 +436,15 @@ export interface GrafanaCreateFolderResponse extends ToolResponse {
 }
 
 // Contact Points types
-export interface GrafanaListContactPointsParams extends GrafanaBaseParams {}
+export interface GrafanaListContactPointsParams extends GrafanaBaseParams {
+  name?: string
+}
 
 interface GrafanaContactPoint {
   uid: string
   name: string
   type: string
-  settings: Record<string, any>
+  settings: Record<string, unknown>
   disableResolveMessage: boolean
   provenance: string
 }

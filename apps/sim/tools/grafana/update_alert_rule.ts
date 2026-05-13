@@ -1,4 +1,5 @@
 import type { GrafanaUpdateAlertRuleParams } from '@/tools/grafana/types'
+import { alertRuleOutputFields, mapAlertRule } from '@/tools/grafana/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 // Using ToolResponse for intermediate state since this tool fetches existing data first
@@ -93,6 +94,42 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       visibility: 'user-or-llm',
       description: 'JSON object of labels',
     },
+    isPaused: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Whether the rule is paused',
+    },
+    keepFiringFor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Duration to keep firing after the condition stops (e.g., 5m)',
+    },
+    missingSeriesEvalsToResolve: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Number of missing series evaluations before resolving',
+    },
+    notificationSettings: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'JSON object of per-rule notification settings (overrides)',
+    },
+    record: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON object configuring this as a recording rule',
+    },
+    disableProvenance: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Set X-Disable-Provenance header so the rule remains editable in the Grafana UI',
+    },
   },
 
   request: {
@@ -136,7 +173,7 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
     }
 
     // Build the updated rule by merging existing data with new params
-    const updatedRule: Record<string, any> = {
+    const updatedRule: Record<string, unknown> = {
       ...existingRule,
     }
 
@@ -148,6 +185,27 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
     if (params.forDuration) updatedRule.for = params.forDuration
     if (params.noDataState) updatedRule.noDataState = params.noDataState
     if (params.execErrState) updatedRule.execErrState = params.execErrState
+    if (params.isPaused !== undefined) updatedRule.isPaused = params.isPaused
+    if (params.keepFiringFor) updatedRule.keepFiringFor = params.keepFiringFor
+    if (params.missingSeriesEvalsToResolve !== undefined) {
+      updatedRule.missing_series_evals_to_resolve = params.missingSeriesEvalsToResolve
+    }
+
+    if (params.notificationSettings) {
+      try {
+        updatedRule.notification_settings = JSON.parse(params.notificationSettings)
+      } catch {
+        // keep existing notification_settings if parse fails
+      }
+    }
+
+    if (params.record) {
+      try {
+        updatedRule.record = JSON.parse(params.record)
+      } catch {
+        // keep existing record if parse fails
+      }
+    }
 
     if (params.data) {
       try {
@@ -187,6 +245,9 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
     if (params.organizationId) {
       headers['X-Grafana-Org-Id'] = params.organizationId
     }
+    if (params.disableProvenance) {
+      headers['X-Disable-Provenance'] = 'true'
+    }
 
     const updateResponse = await fetch(
       `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`,
@@ -207,47 +268,8 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
     }
 
     const data = await updateResponse.json()
-
-    return {
-      success: true,
-      output: {
-        uid: data.uid,
-        title: data.title,
-        condition: data.condition,
-        data: data.data,
-        updated: data.updated,
-        noDataState: data.noDataState,
-        execErrState: data.execErrState,
-        for: data.for,
-        annotations: data.annotations || {},
-        labels: data.labels || {},
-        isPaused: data.isPaused || false,
-        folderUID: data.folderUID,
-        ruleGroup: data.ruleGroup,
-        orgId: data.orgId,
-        namespace_uid: data.namespace_uid,
-        namespace_id: data.namespace_id,
-        provenance: data.provenance || '',
-      },
-    }
+    return { success: true, output: mapAlertRule(data) }
   },
 
-  outputs: {
-    uid: {
-      type: 'string',
-      description: 'The UID of the updated alert rule',
-    },
-    title: {
-      type: 'string',
-      description: 'Alert rule title',
-    },
-    folderUID: {
-      type: 'string',
-      description: 'Parent folder UID',
-    },
-    ruleGroup: {
-      type: 'string',
-      description: 'Rule group name',
-    },
-  },
+  outputs: alertRuleOutputFields,
 }

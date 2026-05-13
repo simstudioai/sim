@@ -2,6 +2,7 @@ import type {
   GrafanaCreateAlertRuleParams,
   GrafanaCreateAlertRuleResponse,
 } from '@/tools/grafana/types'
+import { alertRuleOutputFields, mapAlertRule } from '@/tools/grafana/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createAlertRuleTool: ToolConfig<
@@ -52,9 +53,10 @@ export const createAlertRuleTool: ToolConfig<
     },
     condition: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The refId of the query or expression to use as the alert condition',
+      description:
+        'The refId of the query or expression to use as the alert condition (required for alerting rules; omit for recording rules)',
     },
     data: {
       type: 'string',
@@ -78,7 +80,7 @@ export const createAlertRuleTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'State on execution error (Alerting, OK)',
+      description: 'State on execution error (Error, Alerting, OK)',
     },
     annotations: {
       type: 'string',
@@ -91,6 +93,48 @@ export const createAlertRuleTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'JSON object of labels',
+    },
+    uid: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional custom UID for the alert rule',
+    },
+    isPaused: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Whether the rule is paused on creation',
+    },
+    keepFiringFor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Duration to keep firing after the condition stops (e.g., 5m)',
+    },
+    missingSeriesEvalsToResolve: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Number of missing series evaluations before resolving',
+    },
+    notificationSettings: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'JSON object of per-rule notification settings (overrides)',
+    },
+    record: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON object configuring this as a recording rule (omit for alerting rules)',
+    },
+    disableProvenance: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Set X-Disable-Provenance header so the rule remains editable in the Grafana UI',
     },
   },
 
@@ -105,25 +149,36 @@ export const createAlertRuleTool: ToolConfig<
       if (params.organizationId) {
         headers['X-Grafana-Org-Id'] = params.organizationId
       }
+      if (params.disableProvenance) {
+        headers['X-Disable-Provenance'] = 'true'
+      }
       return headers
     },
     body: (params) => {
-      let dataArray: any[] = []
+      let dataArray: unknown[] = []
       try {
         dataArray = JSON.parse(params.data)
       } catch {
         throw new Error('Invalid JSON for data parameter')
       }
 
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
+        orgID: params.organizationId ? Number(params.organizationId) : 1,
         title: params.title,
         folderUID: params.folderUid,
         ruleGroup: params.ruleGroup,
-        condition: params.condition,
         data: dataArray,
-        for: params.forDuration || '5m',
-        noDataState: params.noDataState || 'NoData',
-        execErrState: params.execErrState || 'Alerting',
+      }
+
+      if (params.condition) body.condition = params.condition
+      if (params.uid) body.uid = params.uid
+      if (params.forDuration) body.for = params.forDuration
+      if (params.noDataState) body.noDataState = params.noDataState
+      if (params.execErrState) body.execErrState = params.execErrState
+      if (params.isPaused !== undefined) body.isPaused = params.isPaused
+      if (params.keepFiringFor) body.keepFiringFor = params.keepFiringFor
+      if (params.missingSeriesEvalsToResolve !== undefined) {
+        body.missing_series_evals_to_resolve = params.missingSeriesEvalsToResolve
       }
 
       if (params.annotations) {
@@ -142,53 +197,30 @@ export const createAlertRuleTool: ToolConfig<
         }
       }
 
+      if (params.notificationSettings) {
+        try {
+          body.notification_settings = JSON.parse(params.notificationSettings)
+        } catch {
+          // skip invalid notification settings JSON
+        }
+      }
+
+      if (params.record) {
+        try {
+          body.record = JSON.parse(params.record)
+        } catch {
+          // skip invalid record JSON
+        }
+      }
+
       return body
     },
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
-    return {
-      success: true,
-      output: {
-        uid: data.uid,
-        title: data.title,
-        condition: data.condition,
-        data: data.data,
-        updated: data.updated,
-        noDataState: data.noDataState,
-        execErrState: data.execErrState,
-        for: data.for,
-        annotations: data.annotations || {},
-        labels: data.labels || {},
-        isPaused: data.isPaused || false,
-        folderUID: data.folderUID,
-        ruleGroup: data.ruleGroup,
-        orgId: data.orgId,
-        namespace_uid: data.namespace_uid,
-        namespace_id: data.namespace_id,
-        provenance: data.provenance || '',
-      },
-    }
+    return { success: true, output: mapAlertRule(data) }
   },
 
-  outputs: {
-    uid: {
-      type: 'string',
-      description: 'The UID of the created alert rule',
-    },
-    title: {
-      type: 'string',
-      description: 'Alert rule title',
-    },
-    folderUID: {
-      type: 'string',
-      description: 'Parent folder UID',
-    },
-    ruleGroup: {
-      type: 'string',
-      description: 'Rule group name',
-    },
-  },
+  outputs: alertRuleOutputFields,
 }

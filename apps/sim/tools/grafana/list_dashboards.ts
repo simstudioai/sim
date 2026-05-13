@@ -44,11 +44,17 @@ export const listDashboardsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Filter by tag (comma-separated for multiple tags)',
     },
-    folderIds: {
+    folderUIDs: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by folder IDs (comma-separated, e.g., 1,2,3)',
+      description: 'Filter by folder UIDs (comma-separated, e.g., abc123,def456)',
+    },
+    dashboardUIDs: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by dashboard UIDs (comma-separated, e.g., abc123,def456)',
     },
     starred: {
       type: 'boolean',
@@ -60,7 +66,13 @@ export const listDashboardsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'Maximum number of dashboards to return',
+      description: 'Maximum number of dashboards to return (default 1000)',
+    },
+    page: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Page number for pagination (1-based)',
     },
   },
 
@@ -74,11 +86,17 @@ export const listDashboardsTool: ToolConfig<
       if (params.tag) {
         params.tag.split(',').forEach((t) => searchParams.append('tag', t.trim()))
       }
-      if (params.folderIds) {
-        params.folderIds.split(',').forEach((id) => searchParams.append('folderIds', id.trim()))
+      if (params.folderUIDs) {
+        params.folderUIDs.split(',').forEach((uid) => searchParams.append('folderUIDs', uid.trim()))
+      }
+      if (params.dashboardUIDs) {
+        params.dashboardUIDs
+          .split(',')
+          .forEach((uid) => searchParams.append('dashboardUIDs', uid.trim()))
       }
       if (params.starred) searchParams.set('starred', 'true')
       if (params.limit) searchParams.set('limit', String(params.limit))
+      if (params.page) searchParams.set('page', String(params.page))
 
       return `${baseUrl}/api/search?${searchParams.toString()}`
     },
@@ -102,21 +120,19 @@ export const listDashboardsTool: ToolConfig<
       success: true,
       output: {
         dashboards: Array.isArray(data)
-          ? data.map((d: any) => ({
-              id: d.id,
-              uid: d.uid,
-              title: d.title,
-              uri: d.uri,
-              url: d.url,
-              slug: d.slug,
-              type: d.type,
-              tags: d.tags || [],
-              isStarred: d.isStarred || false,
-              folderId: d.folderId,
-              folderUid: d.folderUid,
-              folderTitle: d.folderTitle,
-              folderUrl: d.folderUrl,
-              sortMeta: d.sortMeta,
+          ? data.map((d: Record<string, unknown>) => ({
+              id: (d.id as number) ?? null,
+              uid: (d.uid as string) ?? null,
+              title: (d.title as string) ?? null,
+              uri: (d.uri as string) ?? null,
+              url: (d.url as string) ?? null,
+              type: (d.type as string) ?? null,
+              tags: (d.tags as string[]) ?? [],
+              isStarred: (d.isStarred as boolean) ?? false,
+              folderId: (d.folderId as number) ?? null,
+              folderUid: (d.folderUid as string) ?? null,
+              folderTitle: (d.folderTitle as string) ?? null,
+              folderUrl: (d.folderUrl as string) ?? null,
             }))
           : [],
       },
