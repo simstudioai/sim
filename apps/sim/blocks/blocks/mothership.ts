@@ -74,7 +74,7 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
       description: 'Mothership chat ID to continue; generated when omitted',
     },
     files: {
-      type: 'file[]',
+      type: 'file',
       description: 'Files to send to Mothership as attachments',
     },
   },
