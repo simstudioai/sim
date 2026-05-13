@@ -45,6 +45,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         updatedAt: copilotChats.updatedAt,
         activeStreamId: copilotChats.conversationId,
         lastSeenAt: copilotChats.lastSeenAt,
+        pinned: copilotChats.pinned,
       })
       .from(copilotChats)
       .where(
@@ -54,7 +55,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           eq(copilotChats.type, 'mothership')
         )
       )
-      .orderBy(desc(copilotChats.updatedAt))
+      .orderBy(desc(copilotChats.pinned), desc(copilotChats.updatedAt))
 
     const streamMarkers = await reconcileChatStreamMarkers(
       chats.map((c) => ({ chatId: c.id, streamId: c.activeStreamId })),

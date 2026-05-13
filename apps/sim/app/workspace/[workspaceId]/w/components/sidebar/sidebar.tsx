@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Compass, MoreHorizontal } from 'lucide-react'
+import { Compass, MoreHorizontal, Pin } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
@@ -91,6 +91,7 @@ import {
   useMarkTaskRead,
   useMarkTaskUnread,
   useRenameTask,
+  useSetTaskPinned,
   useTasks,
 } from '@/hooks/queries/tasks'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
@@ -144,6 +145,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   isSelected,
   isActive,
   isUnread,
+  isPinned,
   isMenuOpen,
   showCollapsedTooltips,
   onMultiSelectClick,
@@ -156,6 +158,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   isSelected: boolean
   isActive: boolean
   isUnread: boolean
+  isPinned: boolean
   isMenuOpen: boolean
   showCollapsedTooltips: boolean
   onMultiSelectClick: (taskId: string, shiftKey: boolean) => void
@@ -218,6 +221,9 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           )}
           {!isActive && isUnread && !isCurrentRoute && !isMenuOpen && (
             <span className='absolute size-[7px] rounded-full bg-[var(--brand-accent)] group-hover:hidden' />
+          )}
+          {!isActive && !isUnread && isPinned && !isCurrentRoute && !isMenuOpen && (
+            <Pin className='absolute size-[12px] text-[var(--text-icon)] group-hover:hidden' />
           )}
           <button
             type='button'
@@ -581,6 +587,7 @@ export const Sidebar = memo(function Sidebar() {
   const deleteTasksMutation = useDeleteTasks(workspaceId)
   const markTaskReadMutation = useMarkTaskRead(workspaceId)
   const markTaskUnreadMutation = useMarkTaskUnread(workspaceId)
+  const setTaskPinnedMutation = useSetTaskPinned(workspaceId)
   const renameTaskMutation = useRenameTask(workspaceId)
   const tasksHover = useHoverMenu()
   const workflowsHover = useHoverMenu()
@@ -929,6 +936,15 @@ export const Sidebar = memo(function Sidebar() {
     if (ids.length !== 1) return
     markTaskUnreadMutation.mutate(ids[0])
   }, [])
+
+  const handleToggleTaskPin = useCallback(() => {
+    const { taskIds: ids } = contextMenuSelectionRef.current
+    if (ids.length !== 1) return
+    const taskId = ids[0]
+    const task = tasks.find((t) => t.id === taskId)
+    if (!task) return
+    setTaskPinnedMutation.mutate({ chatId: taskId, pinned: !task.isPinned })
+  }, [tasks])
 
   const handleStartTaskRename = useCallback(() => {
     const { taskIds: ids } = contextMenuSelectionRef.current
@@ -1521,6 +1537,7 @@ export const Sidebar = memo(function Sidebar() {
                                     isSelected={isSelected}
                                     isActive={!!task.isActive}
                                     isUnread={!!task.isUnread}
+                                    isPinned={!!task.isPinned}
                                     isMenuOpen={menuOpenTaskId === task.id}
                                     showCollapsedTooltips={showCollapsedTooltips}
                                     onMultiSelectClick={handleTaskClick}
@@ -1771,6 +1788,7 @@ export const Sidebar = memo(function Sidebar() {
                   onOpenInNewTab={handleTaskOpenInNewTab}
                   onMarkAsRead={handleMarkTaskAsRead}
                   onMarkAsUnread={handleMarkTaskAsUnread}
+                  onTogglePin={handleToggleTaskPin}
                   onRename={handleStartTaskRename}
                   onDelete={handleDeleteTask}
                   showOpenInNewTab={!isMultiTaskContextMenu}
@@ -1780,6 +1798,8 @@ export const Sidebar = memo(function Sidebar() {
                     !!activeTaskContextMenuItem &&
                     !activeTaskContextMenuItem.isUnread
                   }
+                  showPin={!isMultiTaskContextMenu && !!activeTaskContextMenuItem}
+                  isPinned={!!activeTaskContextMenuItem?.isPinned}
                   showRename={!isMultiTaskContextMenu}
                   showDuplicate={false}
                   showColorChange={false}

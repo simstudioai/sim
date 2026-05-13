@@ -142,7 +142,7 @@ export const PATCH = withRouteHandler(
       const parsed = await parseRequest(updateMothershipChatContract, request, context)
       if (!parsed.success) return parsed.response
       const { chatId } = parsed.data.params
-      const { title, isUnread } = parsed.data.body
+      const { title, isUnread, pinned } = parsed.data.body
 
       const updates: Record<string, unknown> = {}
 
@@ -156,6 +156,9 @@ export const PATCH = withRouteHandler(
       }
       if (isUnread !== undefined) {
         updates.lastSeenAt = isUnread ? null : sql`GREATEST(${copilotChats.updatedAt}, NOW())`
+      }
+      if (pinned !== undefined) {
+        updates.pinned = pinned
       }
 
       const [updatedChat] = await db
@@ -197,6 +200,16 @@ export const PATCH = withRouteHandler(
           captureServerEvent(
             userId,
             'task_marked_unread',
+            { workspace_id: updatedChat.workspaceId },
+            {
+              groups: { workspace: updatedChat.workspaceId },
+            }
+          )
+        }
+        if (pinned !== undefined) {
+          captureServerEvent(
+            userId,
+            pinned ? 'task_pinned' : 'task_unpinned',
             { workspace_id: updatedChat.workspaceId },
             {
               groups: { workspace: updatedChat.workspaceId },
