@@ -1,3 +1,4 @@
+import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
 import type { SupabaseCountParams, SupabaseCountResponse } from '@/tools/supabase/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -50,9 +51,10 @@ export const countTool: ToolConfig<SupabaseCountParams, SupabaseCountResponse> =
 
   request: {
     url: (params) => {
-      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=*`
+      const tableValidation = validateDatabaseIdentifier(params.table, 'table')
+      if (!tableValidation.isValid) throw new Error(tableValidation.error)
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=*`
 
-      // Add filters if provided
       if (params.filter?.trim()) {
         url += `&${params.filter.trim()}`
       }

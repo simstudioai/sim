@@ -7,6 +7,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import {
   createSftpConnection,
   getSftp,
@@ -95,6 +96,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         for (const file of userFiles) {
           try {
+            const denied = await assertToolFileAccess(
+              file.key,
+              authResult.userId,
+              requestId,
+              logger
+            )
+            if (denied) return denied
             logger.info(
               `[${requestId}] Downloading file for upload: ${file.name} (${file.size} bytes)`
             )

@@ -9,6 +9,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
 import type { SharepointSkippedFile, SharepointUploadError } from '@/tools/sharepoint/types'
 
@@ -82,6 +83,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const errors: SharepointUploadError[] = []
 
     for (const userFile of userFiles) {
+      const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+      if (denied) return denied
       logger.info(`[${requestId}] Uploading file: ${userFile.name}`)
 
       const buffer = await downloadFileFromStorage(userFile, requestId, logger)
