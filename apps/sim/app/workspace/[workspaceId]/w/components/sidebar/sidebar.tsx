@@ -26,6 +26,7 @@ import {
   BookOpen,
   Calendar,
   Database,
+  File,
   HelpCircle,
   PanelLeft,
   Plus,
@@ -724,6 +725,13 @@ export const Sidebar = memo(function Sidebar() {
           hidden: permissionConfig.hideTablesTab,
         },
         {
+          id: 'files',
+          label: 'Files',
+          icon: File,
+          href: `/workspace/${workspaceId}/files`,
+          hidden: permissionConfig.hideFilesTab,
+        },
+        {
           id: 'knowledge-base',
           label: 'Knowledge Base',
           icon: Database,
@@ -743,7 +751,12 @@ export const Sidebar = memo(function Sidebar() {
           href: `/workspace/${workspaceId}/logs`,
         },
       ].filter((item) => !item.hidden),
-    [workspaceId, permissionConfig.hideKnowledgeBaseTab, permissionConfig.hideTablesTab]
+    [
+      workspaceId,
+      permissionConfig.hideFilesTab,
+      permissionConfig.hideKnowledgeBaseTab,
+      permissionConfig.hideTablesTab,
+    ]
   )
 
   const footerItems = useMemo(
