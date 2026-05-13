@@ -16,8 +16,10 @@ export type { WorkspaceFileFolderApi }
 export const workspaceFileFolderKeys = {
   all: ['workspaceFileFolders'] as const,
   lists: () => [...workspaceFileFolderKeys.all, 'list'] as const,
+  workspaceLists: (workspaceId: string) =>
+    [...workspaceFileFolderKeys.lists(), workspaceId] as const,
   list: (workspaceId: string, scope: WorkspaceFileFolderScope = 'active') =>
-    [...workspaceFileFolderKeys.lists(), workspaceId, scope] as const,
+    [...workspaceFileFolderKeys.workspaceLists(workspaceId), scope] as const,
 }
 
 async function fetchWorkspaceFileFolders(
@@ -37,10 +39,9 @@ function invalidateWorkspaceFileBrowsers(
   queryClient: ReturnType<typeof useQueryClient>,
   workspaceId: string
 ) {
-  queryClient.invalidateQueries({ queryKey: workspaceFileFolderKeys.lists() })
-  queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+  queryClient.invalidateQueries({ queryKey: workspaceFileFolderKeys.workspaceLists(workspaceId) })
+  queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
   queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
-  queryClient.invalidateQueries({ queryKey: workspaceFileFolderKeys.list(workspaceId) })
 }
 
 export function useWorkspaceFileFolders(
@@ -88,6 +89,29 @@ export function useUpdateWorkspaceFileFolder() {
         body: variables.updates,
       })
       return data.folder
+    },
+    onMutate: async ({ workspaceId, folderId, updates }) => {
+      await queryClient.cancelQueries({
+        queryKey: workspaceFileFolderKeys.workspaceLists(workspaceId),
+      })
+      const previous = queryClient.getQueryData<WorkspaceFileFolderApi[]>(
+        workspaceFileFolderKeys.list(workspaceId, 'active')
+      )
+      if (previous) {
+        queryClient.setQueryData<WorkspaceFileFolderApi[]>(
+          workspaceFileFolderKeys.list(workspaceId, 'active'),
+          previous.map((f) => (f.id === folderId ? { ...f, ...updates } : f))
+        )
+      }
+      return { previous }
+    },
+    onError: (_err, variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          workspaceFileFolderKeys.list(variables.workspaceId, 'active'),
+          context.previous
+        )
+      }
     },
     onSettled: (_data, _error, variables) => {
       invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)

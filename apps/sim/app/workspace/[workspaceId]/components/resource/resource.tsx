@@ -47,6 +47,8 @@ export interface SelectableConfig {
 
 export interface RowDragDropConfig {
   activeDropTargetId?: string | null
+  draggedRowIds?: Set<string>
+  isAnyDragActive?: boolean
   isRowDraggable?: (rowId: string) => boolean
   isRowDropTarget?: (rowId: string) => boolean
   onDragStart?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
@@ -490,6 +492,8 @@ const DataRow = memo(function DataRow({
   const isDraggable = rowDragDrop?.isRowDraggable?.(row.id) ?? false
   const isDropTarget = rowDragDrop?.isRowDropTarget?.(row.id) ?? false
   const isActiveDropTarget = rowDragDrop?.activeDropTargetId === row.id
+  const isDragging = rowDragDrop?.draggedRowIds?.has(row.id) ?? false
+  const isAnyDragActive = rowDragDrop?.isAnyDragActive ?? false
 
   const handleClick = useCallback(() => {
     onRowClick?.(row.id)
@@ -553,12 +557,14 @@ const DataRow = memo(function DataRow({
       data-resource-row
       data-row-id={row.id}
       className={cn(
-        'transition-colors hover-hover:bg-[var(--surface-3)]',
+        'transition-colors',
+        !isAnyDragActive && 'hover-hover:bg-[var(--surface-3)]',
         onRowClick && 'cursor-pointer',
         isDraggable && 'cursor-grab active:cursor-grabbing',
         isDropTarget && 'data-[drop-target=true]:outline-offset-[-1px]',
         (selectedRowId === row.id || isSelected) && 'bg-[var(--surface-3)]',
-        isActiveDropTarget && 'bg-[var(--surface-4)] outline outline-1 outline-[var(--accent)]'
+        isActiveDropTarget && 'bg-[var(--surface-4)] outline outline-1 outline-[var(--accent)]',
+        (isDragging || (isAnyDragActive && isSelected && !isActiveDropTarget)) && 'opacity-50'
       )}
       data-drop-target={isDropTarget || undefined}
       draggable={isDraggable}
@@ -629,22 +635,22 @@ interface ResourceColGroupProps {
   hasCheckbox?: boolean
 }
 
+const CHECKBOX_WEIGHT = 0.4
+
 const ResourceColGroup = memo(function ResourceColGroup({
   columns,
   hasCheckbox,
 }: ResourceColGroupProps) {
+  const weights = columns.map(
+    (col, colIdx) => (colIdx === 0 ? 2.5 : 1.0) * (col.widthMultiplier ?? 1)
+  )
+  const total = (hasCheckbox ? CHECKBOX_WEIGHT : 0) + weights.reduce((s, w) => s + w, 0)
+
   return (
     <colgroup>
-      {hasCheckbox && <col className='w-[52px]' />}
+      {hasCheckbox && <col style={{ width: `${(CHECKBOX_WEIGHT / total) * 100}%` }} />}
       {columns.map((col, colIdx) => (
-        <col
-          key={col.id}
-          style={
-            colIdx === 0
-              ? { width: 400 * (col.widthMultiplier ?? 1) }
-              : { width: 160 * (col.widthMultiplier ?? 1) }
-          }
-        />
+        <col key={col.id} style={{ width: `${(weights[colIdx] / total) * 100}%` }} />
       ))}
     </colgroup>
   )

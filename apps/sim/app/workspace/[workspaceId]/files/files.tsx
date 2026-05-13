@@ -58,7 +58,7 @@ import {
   ResourceHeader,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
-import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar/action-bar'
+import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -212,6 +212,8 @@ export function Files() {
   const justCreatedFileIdRef = useRef<string | null>(null)
   const filesRef = useRef(files)
   filesRef.current = files
+  const foldersRef = useRef(folders)
+  foldersRef.current = folders
 
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({
@@ -236,6 +238,7 @@ export function Files() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(() => new Set())
   const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null)
+  const [draggedRowIds, setDraggedRowIds] = useState<Set<string>>(() => new Set())
   const [showMoveModal, setShowMoveModal] = useState(false)
   const [moveTargetFolderId, setMoveTargetFolderId] = useState<string | null>(null)
   const [previewMode, setPreviewMode] = useState<PreviewMode>(() => {
@@ -251,6 +254,7 @@ export function Files() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const contextMenuItemRef = useRef<FileResourceItem | null>(null)
   const draggedRowIdsRef = useRef<string[]>([])
+  const dragGhostRef = useRef<HTMLElement | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{
     fileIds: string[]
     folderIds: string[]
@@ -647,6 +651,8 @@ export function Files() {
   const rowDragDropConfig = useMemo<RowDragDropConfig>(
     () => ({
       activeDropTargetId,
+      draggedRowIds,
+      isAnyDragActive: draggedRowIds.size > 0,
       isRowDraggable: (rowId) => canEdit && listRename.editingId !== rowId,
       isRowDropTarget: (rowId) => canEdit && parseRowId(rowId).kind === 'folder',
       onDragStart: (e: DragEvent<HTMLTableRowElement>, rowId) => {
@@ -660,6 +666,7 @@ export function Files() {
           : [rowId]
 
         draggedRowIdsRef.current = sourceRowIds
+        setDraggedRowIds(new Set(sourceRowIds))
         if (!selectedRowIds.has(rowId)) {
           setSelectedRowIds(new Set([rowId]))
         }
@@ -670,6 +677,26 @@ export function Files() {
           JSON.stringify(sourceRowIds)
         )
         e.dataTransfer.setData('text/plain', sourceRowIds.join(','))
+
+        const count = sourceRowIds.length
+        const firstParsed = parseRowId(sourceRowIds[0])
+        const firstName =
+          firstParsed.kind === 'file'
+            ? filesRef.current.find((f) => f.id === firstParsed.id)?.name
+            : foldersRef.current.find((f) => f.id === firstParsed.id)?.name
+        const ghostLabel =
+          count > 1 ? `${firstName ?? 'Items'} +${count - 1} more` : (firstName ?? 'Item')
+        const ghost = document.createElement('div')
+        ghost.style.cssText =
+          'position:fixed;top:-500px;left:0;display:inline-flex;align-items:center;padding:4px 10px;background:var(--surface-active);border:1px solid rgba(255,255,255,0.08);border-radius:8px;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:var(--text-body);white-space:nowrap;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,0.4);z-index:9999'
+        const text = document.createElement('span')
+        text.style.cssText = 'max-width:200px;overflow:hidden;text-overflow:ellipsis'
+        text.textContent = ghostLabel
+        ghost.appendChild(text)
+        document.body.appendChild(ghost)
+        void ghost.offsetHeight
+        e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+        dragGhostRef.current = ghost
       },
       onDragOver: (e: DragEvent<HTMLTableRowElement>, rowId) => {
         const sourceRowIds = draggedRowIdsRef.current
@@ -745,14 +772,20 @@ export function Files() {
           })
       },
       onDragEnd: () => {
+        if (dragGhostRef.current) {
+          dragGhostRef.current.remove()
+          dragGhostRef.current = null
+        }
         dragCounterRef.current = 0
         draggedRowIdsRef.current = []
+        setDraggedRowIds(new Set())
         setIsDraggingOver(false)
         setActiveDropTargetId(null)
       },
     }),
     [
       activeDropTargetId,
+      draggedRowIds,
       canEdit,
       listRename.editingId,
       selectedRowIds,
