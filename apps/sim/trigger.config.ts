@@ -1,6 +1,7 @@
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http'
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
+import { resourceFromAttributes } from '@opentelemetry/resources'
 import { additionalFiles, additionalPackages } from '@trigger.dev/build/extensions/core'
 import { defineConfig } from '@trigger.dev/sdk'
 import { env } from './lib/core/config/env'
@@ -23,10 +24,15 @@ const grafanaTelemetry = grafanaFullyConfigured
       const headers = {
         Authorization: `Basic ${Buffer.from(`${grafanaInstanceId}:${grafanaToken}`).toString('base64')}`,
       }
+      const deploymentEnvironment = env.SIM_DEPLOYMENT_ENVIRONMENT
+      const resource = deploymentEnvironment
+        ? resourceFromAttributes({ 'deployment.environment.name': deploymentEnvironment })
+        : undefined
       return {
         exporters: [new OTLPTraceExporter({ url: `${baseUrl}/v1/traces`, headers })],
         logExporters: [new OTLPLogExporter({ url: `${baseUrl}/v1/logs`, headers })],
         metricExporters: [new OTLPMetricExporter({ url: `${baseUrl}/v1/metrics`, headers })],
+        ...(resource ? { resource } : {}),
       }
     })()
   : undefined
