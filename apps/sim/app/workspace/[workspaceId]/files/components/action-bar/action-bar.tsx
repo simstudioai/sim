@@ -3,6 +3,7 @@
 import { domAnimation, LazyMotion, m } from 'framer-motion'
 import { Button, Download, Tooltip, Trash2 } from '@/components/emcn'
 import { Folder } from '@/components/emcn/icons'
+import { cn } from '@/lib/core/utils/cn'
 
 interface FilesActionBarProps {
   selectedCount: number
@@ -10,6 +11,7 @@ interface FilesActionBarProps {
   onMove?: () => void
   onDelete?: () => void
   isLoading?: boolean
+  className?: string
 }
 
 export function FilesActionBar({
@@ -18,6 +20,7 @@ export function FilesActionBar({
   onMove,
   onDelete,
   isLoading = false,
+  className,
 }: FilesActionBarProps) {
   if (selectedCount === 0) return null
 
@@ -28,7 +31,7 @@ export function FilesActionBar({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 10 }}
         transition={{ duration: 0.2 }}
-        className='-translate-x-1/2 fixed bottom-6 left-1/2 z-50 transform'
+        className={cn('-translate-x-1/2 fixed bottom-6 left-1/2 z-50 transform', className)}
       >
         <div className='flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
           <span className='px-1 text-[var(--text-secondary)] text-small'>

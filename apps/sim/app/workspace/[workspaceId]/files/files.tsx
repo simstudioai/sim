@@ -1,7 +1,8 @@
 'use client'
 
-import { type DragEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Button,
@@ -9,11 +10,6 @@ import {
   Combobox,
   type ComboboxOption,
   Download,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
   Eye,
   Loader,
   Modal,
@@ -22,7 +18,7 @@ import {
   ModalFooter,
   ModalHeader,
   Pencil,
-  Trash,
+  Trash2,
   toast,
   Upload,
 } from '@/components/emcn'
@@ -63,6 +59,8 @@ import {
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
 import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar/action-bar'
+import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
+import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   FileViewer,
@@ -743,7 +741,7 @@ export function Files() {
           })
           .catch((error) => {
             logger.error('Failed to move items via drag and drop:', error)
-            toast.error(error instanceof Error ? error.message : 'Failed to move selected items')
+            toast.error(toError(error).message)
           })
       },
       onDragEnd: () => {
@@ -761,7 +759,7 @@ export function Files() {
       visibleRowIds,
       isInvalidDropTarget,
       uploadFiles,
-      moveItems,
+      moveItems.mutateAsync,
       workspaceId,
     ]
   )
@@ -850,7 +848,7 @@ export function Files() {
     } catch (err) {
       logger.error('Failed to delete file:', err)
     }
-  }, [workspaceId, router, currentFolderId, bulkArchiveItems, deleteFile])
+  }, [workspaceId, router, currentFolderId, bulkArchiveItems.mutateAsync, deleteFile.mutateAsync])
 
   const isDirtyRef = useRef(isDirty)
   isDirtyRef.current = isDirty
@@ -922,13 +920,13 @@ export function Files() {
     window.location.href = `/api/workspaces/${workspaceId}/files/download?${query.toString()}`
   }, [selectedFileIds, selectedFolderIds, files, handleDownload, workspaceId])
 
-  const handleOpenMoveModal = useCallback(() => {
+  const handleOpenMoveModal = () => {
     if (selectedFileIds.length === 0 && selectedFolderIds.length === 0) return
     setMoveTargetFolderId(currentFolderId)
     setShowMoveModal(true)
-  }, [selectedFileIds, selectedFolderIds, currentFolderId])
+  }
 
-  const handleMoveSelected = useCallback(async () => {
+  const handleMoveSelected = async () => {
     try {
       await moveItems.mutateAsync({
         workspaceId,
@@ -940,9 +938,9 @@ export function Files() {
       setShowMoveModal(false)
     } catch (error) {
       logger.error('Failed to move selected items:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to move selected items')
+      toast.error(toError(error).message)
     }
-  }, [workspaceId, selectedFileIds, selectedFolderIds, moveTargetFolderId, moveItems])
+  }
 
   const fileDetailBreadcrumbs = useMemo(
     () =>
@@ -961,30 +959,26 @@ export function Files() {
                   }
                 : undefined,
               dropdownItems: [
-                {
-                  label: 'Rename',
-                  icon: Pencil,
-                  onClick: handleStartHeaderRename,
-                },
-                {
-                  label: 'Download',
-                  icon: Download,
-                  onClick: handleDownloadSelected,
-                },
-                {
-                  label: 'Delete',
-                  icon: Trash,
-                  onClick: handleDeleteSelected,
-                },
+                { label: 'Download', icon: Download, onClick: handleDownloadSelected },
+                ...(canEdit
+                  ? [
+                      { label: 'Rename', icon: Pencil, onClick: handleStartHeaderRename },
+                      { label: 'Delete', icon: Trash2, onClick: handleDeleteSelected },
+                    ]
+                  : []),
               ],
             },
           ]
         : [],
     [
       selectedFile,
+      canEdit,
       handleBackAttempt,
       headerRename.editingId,
       headerRename.editValue,
+      headerRename.setEditValue,
+      headerRename.submitRename,
+      headerRename.cancelRename,
       handleStartHeaderRename,
       handleDownloadSelected,
       handleDeleteSelected,
@@ -1046,7 +1040,7 @@ export function Files() {
   }, [workspaceId, router, currentFolderId])
 
   const handleCreateFolder = useCallback(async () => {
-    if (!workspaceId || createFolder.isPending) return
+    if (!workspaceId) return
     const existingNames = new Set(
       folders
         .filter((folder) => (folder.parentId ?? null) === currentFolderId)
@@ -1068,9 +1062,9 @@ export function Files() {
       listRename.startRename(folderRowId(folder.id), folder.name)
     } catch (error) {
       logger.error('Failed to create folder:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to create folder')
+      toast.error(toError(error).message)
     }
-  }, [workspaceId, createFolder, folders, currentFolderId, listRename.startRename])
+  }, [workspaceId, createFolder.mutateAsync, folders, currentFolderId, listRename.startRename])
 
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
@@ -1290,14 +1284,19 @@ export function Files() {
         icon: Download,
         onClick: handleDownloadSelected,
       },
-      {
-        label: 'Delete',
-        icon: Trash,
-        onClick: handleDeleteSelected,
-      },
+      ...(canEdit
+        ? [
+            {
+              label: 'Delete',
+              icon: Trash2,
+              onClick: handleDeleteSelected,
+            },
+          ]
+        : []),
     ]
   }, [
     selectedFile,
+    canEdit,
     saveStatus,
     previewMode,
     isDirty,
@@ -1376,11 +1375,14 @@ export function Files() {
     [uploadButtonLabel, handleUploadClick, handleCreateFolder, createFolder.isPending, canEdit]
   )
 
-  const handleNavigateToFiles = () => {
+  const handleNavigateToFiles = useCallback(() => {
     router.push(`/workspace/${workspaceId}/files`)
-  }
+  }, [router, workspaceId])
 
-  const loadingBreadcrumbs = [{ label: 'Files', onClick: handleNavigateToFiles }, { label: '...' }]
+  const loadingBreadcrumbs = useMemo(
+    () => [{ label: 'Files', onClick: handleNavigateToFiles }, { label: '...' }],
+    [handleNavigateToFiles]
+  )
 
   const listBreadcrumbs = useMemo(() => {
     const breadcrumbs = [{ label: 'Files', onClick: handleNavigateToFiles }]
@@ -1400,7 +1402,7 @@ export function Files() {
       parentId = folder.id
     }
     return breadcrumbs
-  }, [currentFolderPath, folders, router, workspaceId])
+  }, [currentFolderPath, folders, handleNavigateToFiles, router, workspaceId])
 
   const memberOptions: ComboboxOption[] = useMemo(
     () =>
@@ -1564,13 +1566,12 @@ export function Files() {
         {hasActiveFilters && (
           <Button
             variant='ghost'
-            size='sm'
             onClick={() => {
               setTypeFilter([])
               setSizeFilter([])
               setUploadedByFilter([])
             }}
-            className='h-[32px] w-full text-[var(--text-secondary)] text-caption hover-hover:bg-[var(--surface-active)]'
+            className='h-[32px] w-full text-caption hover-hover:bg-[var(--surface-active)]'
           >
             Clear all filters
           </Button>
@@ -1785,7 +1786,7 @@ export function Files() {
             <Button variant='default' onClick={() => setShowMoveModal(false)}>
               Cancel
             </Button>
-            <Button onClick={handleMoveSelected} disabled={moveItems.isPending}>
+            <Button variant='primary' onClick={handleMoveSelected} disabled={moveItems.isPending}>
               {moveItems.isPending ? 'Moving...' : 'Move'}
             </Button>
           </ModalFooter>
@@ -1804,126 +1805,3 @@ export function Files() {
     </div>
   )
 }
-
-interface FileRowContextMenuProps {
-  isOpen: boolean
-  position: { x: number; y: number }
-  onClose: () => void
-  onOpen: () => void
-  onDownload?: () => void
-  onRename: () => void
-  onDelete: () => void
-  canEdit: boolean
-}
-
-const FileRowContextMenu = memo(function FileRowContextMenu({
-  isOpen,
-  position,
-  onClose,
-  onOpen,
-  onDownload,
-  onRename,
-  onDelete,
-  canEdit,
-}: FileRowContextMenuProps) {
-  return (
-    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
-      <DropdownMenuTrigger asChild>
-        <div
-          style={{
-            position: 'fixed',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
-          tabIndex={-1}
-          aria-hidden
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align='start'
-        side='bottom'
-        sideOffset={4}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        <DropdownMenuItem onSelect={onOpen}>
-          <Eye />
-          Open
-        </DropdownMenuItem>
-        {onDownload && (
-          <DropdownMenuItem onSelect={onDownload}>
-            <Download />
-            Download
-          </DropdownMenuItem>
-        )}
-        {canEdit && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onRename}>
-              <Pencil />
-              Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onDelete}>
-              <Trash />
-              Delete
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-})
-
-interface DeleteConfirmModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  fileName?: string
-  fileCount: number
-  folderCount: number
-  onDelete: () => void
-  isPending: boolean
-}
-
-const DeleteConfirmModal = memo(function DeleteConfirmModal({
-  open,
-  onOpenChange,
-  fileName,
-  fileCount,
-  folderCount,
-  onDelete,
-  isPending,
-}: DeleteConfirmModalProps) {
-  const totalCount = fileCount + folderCount
-  const hasFolders = folderCount > 0
-  const title = totalCount > 1 ? 'Delete Items' : hasFolders ? 'Delete Folder' : 'Delete File'
-  const consequence = hasFolders
-    ? totalCount > 1
-      ? 'This will also delete files and folders inside any selected folders.'
-      : 'This will also delete files and folders inside it.'
-    : 'You can restore it from Recently Deleted in Settings.'
-
-  return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size='sm'>
-        <ModalHeader>{title}</ModalHeader>
-        <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{fileName}</span>?{' '}
-            {consequence}
-          </p>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' onClick={() => onOpenChange(false)} disabled={isPending}>
-            Cancel
-          </Button>
-          <Button variant='destructive' onClick={onDelete} disabled={isPending}>
-            {isPending ? 'Deleting...' : 'Delete'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
-  )
-})
