@@ -1,5 +1,5 @@
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http'
-import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-proto'
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { additionalFiles, additionalPackages } from '@trigger.dev/build/extensions/core'
 import { defineConfig } from '@trigger.dev/sdk'
