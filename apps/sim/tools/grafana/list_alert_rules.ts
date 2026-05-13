@@ -1,7 +1,9 @@
-import type {
-  GrafanaListAlertRulesParams,
-  GrafanaListAlertRulesResponse,
+import {
+  ALERT_RULE_OUTPUT_FIELDS,
+  type GrafanaListAlertRulesParams,
+  type GrafanaListAlertRulesResponse,
 } from '@/tools/grafana/types'
+import { mapAlertRule } from '@/tools/grafana/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listAlertRulesTool: ToolConfig<
@@ -56,25 +58,7 @@ export const listAlertRulesTool: ToolConfig<
       success: true,
       output: {
         rules: Array.isArray(data)
-          ? data.map((rule: any) => ({
-              uid: rule.uid,
-              title: rule.title,
-              condition: rule.condition,
-              data: rule.data,
-              updated: rule.updated,
-              noDataState: rule.noDataState,
-              execErrState: rule.execErrState,
-              for: rule.for,
-              annotations: rule.annotations || {},
-              labels: rule.labels || {},
-              isPaused: rule.isPaused || false,
-              folderUID: rule.folderUID,
-              ruleGroup: rule.ruleGroup,
-              orgId: rule.orgId,
-              namespace_uid: rule.namespace_uid,
-              namespace_id: rule.namespace_id,
-              provenance: rule.provenance || '',
-            }))
+          ? data.map((rule: Record<string, unknown>) => mapAlertRule(rule))
           : [],
       },
     }
@@ -86,15 +70,7 @@ export const listAlertRulesTool: ToolConfig<
       description: 'List of alert rules',
       items: {
         type: 'object',
-        properties: {
-          uid: { type: 'string', description: 'Alert rule UID' },
-          title: { type: 'string', description: 'Alert rule title' },
-          condition: { type: 'string', description: 'Alert condition' },
-          folderUID: { type: 'string', description: 'Parent folder UID' },
-          ruleGroup: { type: 'string', description: 'Rule group name' },
-          noDataState: { type: 'string', description: 'State when no data is returned' },
-          execErrState: { type: 'string', description: 'State on execution error' },
-        },
+        properties: ALERT_RULE_OUTPUT_FIELDS,
       },
     },
   },
