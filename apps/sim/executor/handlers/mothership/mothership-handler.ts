@@ -33,7 +33,9 @@ export class MothershipBlockHandler implements BlockHandler {
       throw new Error('Prompt input is required')
     }
     const messages = [{ role: 'user' as const, content: prompt }]
-    const chatId = generateId()
+    const providedConversationId =
+      typeof inputs.conversationId === 'string' ? inputs.conversationId.trim() : ''
+    const chatId = providedConversationId || generateId()
     const messageId = generateId()
     const requestId = generateId()
 
@@ -57,6 +59,7 @@ export class MothershipBlockHandler implements BlockHandler {
       requestId,
       workflowId: ctx.workflowId,
       executionId: ctx.executionId,
+      chatId,
     })
 
     const abortController = new AbortController()
@@ -135,6 +138,7 @@ export class MothershipBlockHandler implements BlockHandler {
     return {
       content: result.content || '',
       model: result.model || 'mothership',
+      conversationId: result.conversationId || chatId,
       tokens: result.tokens || {},
       toolCalls,
       cost: result.cost || undefined,
