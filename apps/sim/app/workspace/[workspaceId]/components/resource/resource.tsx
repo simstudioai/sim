@@ -94,8 +94,6 @@ interface ResourceProps {
 const EMPTY_CELL_PLACEHOLDER = '-  -  -'
 const SKELETON_ROW_COUNT = 5
 
-const stopPropagation = (e: React.MouseEvent) => e.stopPropagation()
-
 /**
  * Shared page shell for resource list pages (tables, files, knowledge, schedules, logs).
  * Renders the header, toolbar with search, and a data table from column/row definitions.

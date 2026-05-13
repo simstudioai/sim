@@ -538,6 +538,7 @@ export function Files() {
   )
 
   useEffect(() => {
+    lastSelectedIndexRef.current = -1
     setSelectedRowIds((prev) => {
       const visible = new Set(visibleRowIds)
       const next = new Set(Array.from(prev).filter((id) => visible.has(id)))
@@ -1128,11 +1129,12 @@ export function Files() {
           ? { kind: 'folder', id: parsed.id, folder: item as WorkspaceFileFolderApi }
           : { kind: 'file', id: parsed.id, file: item as WorkspaceFileRecord }
       if (!selectedRowIds.has(rowId)) {
+        lastSelectedIndexRef.current = visibleRowIds.indexOf(rowId)
         setSelectedRowIds(new Set([rowId]))
       }
       openContextMenu(e)
     },
-    [folders, openContextMenu, selectedRowIds]
+    [folders, openContextMenu, selectedRowIds, visibleRowIds]
   )
 
   const handleContextMenuOpen = useCallback(() => {
@@ -1212,7 +1214,7 @@ export function Files() {
         toast.error(toError(error).message)
       }
     },
-    [moveItems.mutateAsync, workspaceId, selectedFileIds, selectedFolderIds, closeContextMenu]
+    [workspaceId, selectedFileIds, selectedFolderIds, closeContextMenu]
   )
 
   const handleContentContextMenu = useCallback(
