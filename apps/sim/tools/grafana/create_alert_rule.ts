@@ -2,7 +2,8 @@ import type {
   GrafanaCreateAlertRuleParams,
   GrafanaCreateAlertRuleResponse,
 } from '@/tools/grafana/types'
-import { alertRuleOutputFields, mapAlertRule } from '@/tools/grafana/utils'
+import { ALERT_RULE_OUTPUT_FIELDS } from '@/tools/grafana/types'
+import { mapAlertRule } from '@/tools/grafana/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createAlertRuleTool: ToolConfig<
@@ -222,5 +223,5 @@ export const createAlertRuleTool: ToolConfig<
     return { success: true, output: mapAlertRule(data) }
   },
 
-  outputs: alertRuleOutputFields,
+  outputs: ALERT_RULE_OUTPUT_FIELDS,
 }

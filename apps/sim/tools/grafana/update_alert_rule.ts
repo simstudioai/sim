@@ -1,5 +1,5 @@
-import type { GrafanaUpdateAlertRuleParams } from '@/tools/grafana/types'
-import { alertRuleOutputFields, mapAlertRule } from '@/tools/grafana/utils'
+import { ALERT_RULE_OUTPUT_FIELDS, type GrafanaUpdateAlertRuleParams } from '@/tools/grafana/types'
+import { mapAlertRule } from '@/tools/grafana/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 // Using ToolResponse for intermediate state since this tool fetches existing data first
@@ -291,5 +291,5 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
     return { success: true, output: mapAlertRule(data) }
   },
 
-  outputs: alertRuleOutputFields,
+  outputs: ALERT_RULE_OUTPUT_FIELDS,
 }

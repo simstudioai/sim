@@ -1,8 +1,9 @@
-import type {
-  GrafanaListAlertRulesParams,
-  GrafanaListAlertRulesResponse,
+import {
+  ALERT_RULE_OUTPUT_FIELDS,
+  type GrafanaListAlertRulesParams,
+  type GrafanaListAlertRulesResponse,
 } from '@/tools/grafana/types'
-import { alertRuleOutputFields, mapAlertRule } from '@/tools/grafana/utils'
+import { mapAlertRule } from '@/tools/grafana/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listAlertRulesTool: ToolConfig<
@@ -69,7 +70,7 @@ export const listAlertRulesTool: ToolConfig<
       description: 'List of alert rules',
       items: {
         type: 'object',
-        properties: alertRuleOutputFields,
+        properties: ALERT_RULE_OUTPUT_FIELDS,
       },
     },
   },

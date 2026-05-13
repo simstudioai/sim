@@ -1,5 +1,47 @@
 // Common types for Grafana API tools
-import type { ToolResponse } from '@/tools/types'
+import type { OutputProperty, ToolResponse } from '@/tools/types'
+
+/**
+ * Canonical output schema fields shared across alert rule tools.
+ */
+export const ALERT_RULE_OUTPUT_FIELDS: Record<string, OutputProperty> = {
+  id: { type: 'number', description: 'Alert rule numeric ID', optional: true },
+  uid: { type: 'string', description: 'Alert rule UID' },
+  title: { type: 'string', description: 'Alert rule title' },
+  condition: { type: 'string', description: 'RefId of the query used as the alert condition' },
+  data: { type: 'json', description: 'Alert rule query/expression data array' },
+  updated: { type: 'string', description: 'Last update timestamp', optional: true },
+  noDataState: { type: 'string', description: 'State when no data is returned' },
+  execErrState: { type: 'string', description: 'State on execution error' },
+  for: { type: 'string', description: 'Duration the condition must hold before firing' },
+  keepFiringFor: {
+    type: 'string',
+    description: 'Duration to keep firing after condition stops',
+    optional: true,
+  },
+  missingSeriesEvalsToResolve: {
+    type: 'number',
+    description: 'Number of missing series evaluations before resolving',
+    optional: true,
+  },
+  annotations: { type: 'json', description: 'Alert annotations' },
+  labels: { type: 'json', description: 'Alert labels' },
+  isPaused: { type: 'boolean', description: 'Whether the rule is paused' },
+  folderUID: { type: 'string', description: 'Parent folder UID' },
+  ruleGroup: { type: 'string', description: 'Rule group name' },
+  orgID: { type: 'number', description: 'Organization ID' },
+  provenance: { type: 'string', description: 'Provisioning source (empty if API-managed)' },
+  notification_settings: {
+    type: 'json',
+    description: 'Per-rule notification settings (overrides)',
+    optional: true,
+  },
+  record: {
+    type: 'json',
+    description: 'Recording rule configuration (recording rules only)',
+    optional: true,
+  },
+}
 
 // Common parameters for all Grafana tools
 interface GrafanaBaseParams {

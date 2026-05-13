@@ -190,6 +190,26 @@ List all alert rules in the Grafana instance
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `rules` | array | List of alert rules |
+|   ↳ `id` | number | Alert rule numeric ID |
+|   ↳ `uid` | string | Alert rule UID |
+|   ↳ `title` | string | Alert rule title |
+|   ↳ `condition` | string | RefId of the query used as the alert condition |
+|   ↳ `data` | json | Alert rule query/expression data array |
+|   ↳ `updated` | string | Last update timestamp |
+|   ↳ `noDataState` | string | State when no data is returned |
+|   ↳ `execErrState` | string | State on execution error |
+|   ↳ `for` | string | Duration the condition must hold before firing |
+|   ↳ `keepFiringFor` | string | Duration to keep firing after condition stops |
+|   ↳ `missingSeriesEvalsToResolve` | number | Number of missing series evaluations before resolving |
+|   ↳ `annotations` | json | Alert annotations |
+|   ↳ `labels` | json | Alert labels |
+|   ↳ `isPaused` | boolean | Whether the rule is paused |
+|   ↳ `folderUID` | string | Parent folder UID |
+|   ↳ `ruleGroup` | string | Rule group name |
+|   ↳ `orgID` | number | Organization ID |
+|   ↳ `provenance` | string | Provisioning source \(empty if API-managed\) |
+|   ↳ `notification_settings` | json | Per-rule notification settings \(overrides\) |
+|   ↳ `record` | json | Recording rule configuration \(recording rules only\) |
 
 ### `grafana_get_alert_rule`
 
@@ -208,35 +228,26 @@ Get a specific alert rule by its UID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `version` | string | Grafana version |
-| `database` | string | Database health status |
-| `status` | string | Health status |
-| `dashboard` | json | Dashboard JSON |
-| `meta` | json | Dashboard metadata |
-| `dashboards` | json | List of dashboards |
-| `uid` | string | Created/updated UID |
-| `url` | string | Dashboard URL |
-| `rules` | json | Alert rules list |
-| `contactPoints` | json | Contact points list |
-| `condition` | string | Alert condition refId |
+| `id` | number | Alert rule numeric ID |
+| `uid` | string | Alert rule UID |
+| `title` | string | Alert rule title |
+| `condition` | string | RefId of the query used as the alert condition |
+| `data` | json | Alert rule query/expression data array |
+| `updated` | string | Last update timestamp |
+| `noDataState` | string | State when no data is returned |
+| `execErrState` | string | State on execution error |
 | `for` | string | Duration the condition must hold before firing |
-| `keepFiringFor` | string | Duration to keep firing after the condition stops |
-| `missingSeriesEvalsToResolve` | number | Missing series evaluations before resolving |
-| `isPaused` | boolean | Whether the alert rule is paused |
+| `keepFiringFor` | string | Duration to keep firing after condition stops |
+| `missingSeriesEvalsToResolve` | number | Number of missing series evaluations before resolving |
+| `annotations` | json | Alert annotations |
+| `labels` | json | Alert labels |
+| `isPaused` | boolean | Whether the rule is paused |
 | `folderUID` | string | Parent folder UID |
 | `ruleGroup` | string | Rule group name |
 | `orgID` | number | Organization ID |
-| `provenance` | string | Provisioning source |
-| `noDataState` | string | State on no data |
-| `execErrState` | string | State on execution error |
-| `notification_settings` | json | Per-rule notification settings |
-| `record` | json | Recording rule configuration |
-| `updated` | string | Last update timestamp |
-| `annotations` | json | Annotations list |
-| `id` | number | Annotation ID |
-| `dataSources` | json | Data sources list |
-| `folders` | json | Folders list |
-| `message` | string | Status message |
+| `provenance` | string | Provisioning source \(empty if API-managed\) |
+| `notification_settings` | json | Per-rule notification settings \(overrides\) |
+| `record` | json | Recording rule configuration \(recording rules only\) |
 
 ### `grafana_create_alert_rule`
 
@@ -271,35 +282,26 @@ Create a new alert rule
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `version` | string | Grafana version |
-| `database` | string | Database health status |
-| `status` | string | Health status |
-| `dashboard` | json | Dashboard JSON |
-| `meta` | json | Dashboard metadata |
-| `dashboards` | json | List of dashboards |
-| `uid` | string | Created/updated UID |
-| `url` | string | Dashboard URL |
-| `rules` | json | Alert rules list |
-| `contactPoints` | json | Contact points list |
-| `condition` | string | Alert condition refId |
+| `id` | number | Alert rule numeric ID |
+| `uid` | string | Alert rule UID |
+| `title` | string | Alert rule title |
+| `condition` | string | RefId of the query used as the alert condition |
+| `data` | json | Alert rule query/expression data array |
+| `updated` | string | Last update timestamp |
+| `noDataState` | string | State when no data is returned |
+| `execErrState` | string | State on execution error |
 | `for` | string | Duration the condition must hold before firing |
-| `keepFiringFor` | string | Duration to keep firing after the condition stops |
-| `missingSeriesEvalsToResolve` | number | Missing series evaluations before resolving |
-| `isPaused` | boolean | Whether the alert rule is paused |
+| `keepFiringFor` | string | Duration to keep firing after condition stops |
+| `missingSeriesEvalsToResolve` | number | Number of missing series evaluations before resolving |
+| `annotations` | json | Alert annotations |
+| `labels` | json | Alert labels |
+| `isPaused` | boolean | Whether the rule is paused |
 | `folderUID` | string | Parent folder UID |
 | `ruleGroup` | string | Rule group name |
 | `orgID` | number | Organization ID |
-| `provenance` | string | Provisioning source |
-| `noDataState` | string | State on no data |
-| `execErrState` | string | State on execution error |
-| `notification_settings` | json | Per-rule notification settings |
-| `record` | json | Recording rule configuration |
-| `updated` | string | Last update timestamp |
-| `annotations` | json | Annotations list |
-| `id` | number | Annotation ID |
-| `dataSources` | json | Data sources list |
-| `folders` | json | Folders list |
-| `message` | string | Status message |
+| `provenance` | string | Provisioning source \(empty if API-managed\) |
+| `notification_settings` | json | Per-rule notification settings \(overrides\) |
+| `record` | json | Recording rule configuration \(recording rules only\) |
 
 ### `grafana_update_alert_rule`
 
@@ -320,7 +322,7 @@ Update an existing alert rule. Fetches the current rule and merges your changes.
 | `data` | string | No | New JSON array of query/expression data objects |
 | `forDuration` | string | No | Duration to wait before firing \(e.g., 5m, 1h\) |
 | `noDataState` | string | No | State when no data is returned \(NoData, Alerting, OK\) |
-| `execErrState` | string | No | State on execution error \(Alerting, OK\) |
+| `execErrState` | string | No | State on execution error \(Error, Alerting, OK\) |
 | `annotations` | string | No | JSON object of annotations |
 | `labels` | string | No | JSON object of labels |
 | `isPaused` | boolean | No | Whether the rule is paused |
@@ -334,35 +336,26 @@ Update an existing alert rule. Fetches the current rule and merges your changes.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `version` | string | Grafana version |
-| `database` | string | Database health status |
-| `status` | string | Health status |
-| `dashboard` | json | Dashboard JSON |
-| `meta` | json | Dashboard metadata |
-| `dashboards` | json | List of dashboards |
-| `uid` | string | Created/updated UID |
-| `url` | string | Dashboard URL |
-| `rules` | json | Alert rules list |
-| `contactPoints` | json | Contact points list |
-| `condition` | string | Alert condition refId |
+| `id` | number | Alert rule numeric ID |
+| `uid` | string | Alert rule UID |
+| `title` | string | Alert rule title |
+| `condition` | string | RefId of the query used as the alert condition |
+| `data` | json | Alert rule query/expression data array |
+| `updated` | string | Last update timestamp |
+| `noDataState` | string | State when no data is returned |
+| `execErrState` | string | State on execution error |
 | `for` | string | Duration the condition must hold before firing |
-| `keepFiringFor` | string | Duration to keep firing after the condition stops |
-| `missingSeriesEvalsToResolve` | number | Missing series evaluations before resolving |
-| `isPaused` | boolean | Whether the alert rule is paused |
+| `keepFiringFor` | string | Duration to keep firing after condition stops |
+| `missingSeriesEvalsToResolve` | number | Number of missing series evaluations before resolving |
+| `annotations` | json | Alert annotations |
+| `labels` | json | Alert labels |
+| `isPaused` | boolean | Whether the rule is paused |
 | `folderUID` | string | Parent folder UID |
 | `ruleGroup` | string | Rule group name |
 | `orgID` | number | Organization ID |
-| `provenance` | string | Provisioning source |
-| `noDataState` | string | State on no data |
-| `execErrState` | string | State on execution error |
-| `notification_settings` | json | Per-rule notification settings |
-| `record` | json | Recording rule configuration |
-| `updated` | string | Last update timestamp |
-| `annotations` | json | Annotations list |
-| `id` | number | Annotation ID |
-| `dataSources` | json | Data sources list |
-| `folders` | json | Folders list |
-| `message` | string | Status message |
+| `provenance` | string | Provisioning source \(empty if API-managed\) |
+| `notification_settings` | json | Per-rule notification settings \(overrides\) |
+| `record` | json | Recording rule configuration \(recording rules only\) |
 
 ### `grafana_delete_alert_rule`
 
