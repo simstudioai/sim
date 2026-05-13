@@ -21,6 +21,7 @@ import { Folder } from '@/components/emcn/icons'
 interface MoveOption {
   value: string
   label: string
+  depth?: number
 }
 
 interface FileRowContextMenuProps {
@@ -103,7 +104,13 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   {moveOptions.map((option) => (
-                    <DropdownMenuItem key={option.value} onSelect={() => onMove(option.value)}>
+                    <DropdownMenuItem
+                      key={option.value}
+                      onSelect={() => onMove(option.value)}
+                      style={
+                        option.depth ? { paddingLeft: `${option.depth * 12 + 8}px` } : undefined
+                      }
+                    >
                       <Folder />
                       {option.label}
                     </DropdownMenuItem>

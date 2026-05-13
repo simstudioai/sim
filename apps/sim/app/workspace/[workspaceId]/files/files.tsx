@@ -1514,6 +1514,46 @@ export function Files() {
     [folders, selectedFolderIds, descendantFolderIdsByFolderId]
   )
 
+  const contextMenuMoveOptions = useMemo(() => {
+    const depthById = new Map<string, number>()
+    const getDepth = (id: string): number => {
+      if (depthById.has(id)) return depthById.get(id)!
+      const f = folders.find((folder) => folder.id === id)
+      const d = f?.parentId ? getDepth(f.parentId) + 1 : 0
+      depthById.set(id, d)
+      return d
+    }
+    for (const f of folders) getDepth(f.id)
+
+    const treeOrdered: WorkspaceFileFolderApi[] = []
+    const addChildren = (parentId: string | null) => {
+      const children = folders
+        .filter((f) => f.parentId === parentId)
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      for (const child of children) {
+        treeOrdered.push(child)
+        addChildren(child.id)
+      }
+    }
+    addChildren(null)
+
+    const filtered = treeOrdered.filter((folder) => {
+      if (selectedFolderIds.includes(folder.id)) return false
+      return selectedFolderIds.every(
+        (selectedFolderId) => !descendantFolderIdsByFolderId.get(selectedFolderId)?.has(folder.id)
+      )
+    })
+
+    return [
+      { value: '__root__', label: 'Files', depth: 0 },
+      ...filtered.map((folder) => ({
+        value: folder.id,
+        label: folder.name,
+        depth: depthById.get(folder.id) ?? 0,
+      })),
+    ]
+  }, [folders, selectedFolderIds, descendantFolderIdsByFolderId])
+
   const sortConfig: SortConfig = useMemo(
     () => ({
       options: [
@@ -1821,7 +1861,7 @@ export function Files() {
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
         onMove={handleContextMenuMove}
-        moveOptions={moveFolderOptions}
+        moveOptions={contextMenuMoveOptions}
         canEdit={canEdit}
         selectedCount={selectedRowIds.size}
       />
