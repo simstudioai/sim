@@ -123,7 +123,7 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     mockGetLatestRunForStream.mockResolvedValue(null)
   })
 
-  it('clears conversationId when the redis lock has expired (stuck-yellow bug)', async () => {
+  it('clears activeStreamId when the redis lock has expired (stuck-yellow bug)', async () => {
     mockGetAccessibleCopilotChat.mockResolvedValueOnce({
       id: 'chat-stuck',
       type: 'mothership',
@@ -147,12 +147,12 @@ describe('GET /api/mothership/chats/[chatId]', () => {
       { repairVerifiedStaleMarkers: true }
     )
     expect(body.success).toBe(true)
-    expect(body.chat.conversationId).toBeNull()
+    expect(body.chat.activeStreamId).toBeNull()
     expect(body.chat.streamSnapshot).toBeUndefined()
     expect(mockReadEvents).not.toHaveBeenCalled()
   })
 
-  it('returns the live conversationId when redis confirms the lock', async () => {
+  it('returns the live activeStreamId when redis confirms the lock', async () => {
     mockGetAccessibleCopilotChat.mockResolvedValueOnce({
       id: 'chat-live',
       type: 'mothership',
@@ -169,13 +169,13 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     expect(response.status).toBe(200)
     const body = await response.json()
 
-    expect(body.chat.conversationId).toBe('stream-live')
+    expect(body.chat.activeStreamId).toBe('stream-live')
     expect(mockReadEvents).toHaveBeenCalledWith('stream-live', '0')
     expect(body.chat.streamSnapshot).toBeDefined()
     expect(body.chat.streamSnapshot.status).toBe('active')
   })
 
-  it('uses the Redis lock owner when it differs from a stale conversationId', async () => {
+  it('uses the Redis lock owner when it differs from a stale persisted streamId', async () => {
     mockGetAccessibleCopilotChat.mockResolvedValueOnce({
       id: 'chat-mismatch',
       type: 'mothership',
@@ -196,11 +196,11 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     expect(response.status).toBe(200)
     const body = await response.json()
 
-    expect(body.chat.conversationId).toBe('stream-live')
+    expect(body.chat.activeStreamId).toBe('stream-live')
     expect(mockReadEvents).toHaveBeenCalledWith('stream-live', '0')
   })
 
-  it('returns null when conversationId is already null', async () => {
+  it('returns null when the persisted stream marker is already null', async () => {
     mockGetAccessibleCopilotChat.mockResolvedValueOnce({
       id: 'chat-idle',
       type: 'mothership',
@@ -220,7 +220,7 @@ describe('GET /api/mothership/chats/[chatId]', () => {
       { repairVerifiedStaleMarkers: true }
     )
     const body = await response.json()
-    expect(body.chat.conversationId).toBeNull()
+    expect(body.chat.activeStreamId).toBeNull()
   })
 
   it('returns 404 when the chat does not exist', async () => {

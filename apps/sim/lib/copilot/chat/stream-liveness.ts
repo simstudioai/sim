@@ -100,10 +100,14 @@ async function repairVerifiedStaleMarkers(
   candidates: ChatStreamMarkerCandidate[],
   results: Map<string, ReconciledChatStreamMarker>
 ): Promise<void> {
-  const staleCandidates = candidates.filter((candidate) => {
-    const result = results.get(candidate.chatId)
-    return candidate.streamId !== null && result?.status === 'inactive' && result.streamId === null
-  })
+  const staleCandidates = candidates.filter(
+    (candidate): candidate is { chatId: string; streamId: string } => {
+      const result = results.get(candidate.chatId)
+      return (
+        candidate.streamId !== null && result?.status === 'inactive' && result.streamId === null
+      )
+    }
+  )
 
   if (staleCandidates.length === 0) return
 

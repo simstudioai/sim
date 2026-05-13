@@ -57,25 +57,25 @@ export const GET = withRouteHandler(
         [{ chatId: chat.id, streamId: chat.conversationId }],
         { repairVerifiedStaleMarkers: true }
       )
-      const liveConversationId = reconciledMarkers.get(chat.id)?.streamId ?? null
+      const liveStreamId = reconciledMarkers.get(chat.id)?.streamId ?? null
 
-      if (liveConversationId) {
+      if (liveStreamId) {
         try {
           const [events, previewSessions] = await Promise.all([
-            readEvents(liveConversationId, '0'),
-            readFilePreviewSessions(liveConversationId).catch((error) => {
+            readEvents(liveStreamId, '0'),
+            readFilePreviewSessions(liveStreamId).catch((error) => {
               logger.warn('Failed to read preview sessions for mothership chat', {
                 chatId,
-                conversationId: liveConversationId,
+                streamId: liveStreamId,
                 error: toError(error).message,
               })
               return []
             }),
           ])
-          const run = await getLatestRunForStream(liveConversationId, userId).catch((error) => {
+          const run = await getLatestRunForStream(liveStreamId, userId).catch((error) => {
             logger.warn('Failed to fetch latest run for mothership chat snapshot', {
               chatId,
-              conversationId: liveConversationId,
+              streamId: liveStreamId,
               error: toError(error).message,
             })
             return null
@@ -94,7 +94,7 @@ export const GET = withRouteHandler(
         } catch (error) {
           logger.warn('Failed to read stream snapshot for mothership chat', {
             chatId,
-            conversationId: liveConversationId,
+            streamId: liveStreamId,
             error: toError(error).message,
           })
         }
@@ -107,7 +107,7 @@ export const GET = withRouteHandler(
         : []
       const effectiveMessages = buildEffectiveChatTranscript({
         messages: normalizedMessages,
-        activeStreamId: liveConversationId || null,
+        activeStreamId: liveStreamId,
         ...(streamSnapshot ? { streamSnapshot } : {}),
       })
 
@@ -117,7 +117,7 @@ export const GET = withRouteHandler(
           id: chat.id,
           title: chat.title,
           messages: effectiveMessages,
-          conversationId: liveConversationId || null,
+          activeStreamId: liveStreamId,
           resources: Array.isArray(chat.resources) ? chat.resources : [],
           createdAt: chat.createdAt,
           updatedAt: chat.updatedAt,
