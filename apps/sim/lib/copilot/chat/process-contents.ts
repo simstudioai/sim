@@ -737,6 +737,9 @@ export async function resolveActiveResourceContext(
       case 'folder': {
         return await resolveFolderResource(resourceId, workspaceId)
       }
+      case 'filefolder': {
+        return await resolveFileFolderResource(resourceId, workspaceId)
+      }
       default:
         return null
     }
@@ -775,6 +778,40 @@ async function resolveFileResource(
       size: record.size,
       uploadedAt: record.uploadedAt,
     }),
+  }
+}
+
+async function resolveFileFolderResource(
+  folderId: string,
+  workspaceId: string
+): Promise<AgentContext | null> {
+  try {
+    const { workspaceFileFolder, workspaceFile } = await import('@sim/db/schema')
+    const [folder] = await db
+      .select({ id: workspaceFileFolder.id, name: workspaceFileFolder.name })
+      .from(workspaceFileFolder)
+      .where(
+        and(
+          eq(workspaceFileFolder.id, folderId),
+          eq(workspaceFileFolder.workspaceId, workspaceId),
+          isNull(workspaceFileFolder.deletedAt)
+        )
+      )
+      .limit(1)
+    if (!folder) return null
+
+    const files = await db
+      .select({ id: workspaceFile.id, name: workspaceFile.name, type: workspaceFile.type })
+      .from(workspaceFile)
+      .where(and(eq(workspaceFile.folderId, folderId), eq(workspaceFile.workspaceId, workspaceId)))
+
+    const fileList = files.map((f) => `- ${f.name}${f.type ? ` (${f.type})` : ''}`).join('\n')
+    const content = `File Folder: ${folder.name} (id: ${folder.id})\nFiles:\n${fileList || '(empty)'}`
+
+    return { type: 'active_resource', tag: '@active_resource', content }
+  } catch (error) {
+    logger.error('Failed to resolve file folder resource', { folderId, error })
+    return null
   }
 }
 

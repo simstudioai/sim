@@ -14,7 +14,9 @@ import {
 import { Plus } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
+  buildFileFolderTree,
   buildWorkflowFolderTree,
+  FileFolderTreeItems,
   type useAvailableResources,
   WorkflowFolderTreeItems,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -73,6 +75,12 @@ export const PlusMenuDropdown = React.memo(
       const workflowGroup = availableResources.find((g) => g.type === 'workflow')
       const folderGroup = availableResources.find((g) => g.type === 'folder')
       return buildWorkflowFolderTree(workflowGroup?.items ?? [], folderGroup?.items ?? [])
+    }, [availableResources])
+
+    const fileFolderTree = useMemo(() => {
+      const fileGroup = availableResources.find((g) => g.type === 'file')
+      const fileFolderGroup = availableResources.find((g) => g.type === 'filefolder')
+      return buildFileFolderTree(fileGroup?.items ?? [], fileFolderGroup?.items ?? [])
     }, [availableResources])
 
     const filteredItems = useMemo(() => {
@@ -293,8 +301,28 @@ export const PlusMenuDropdown = React.memo(
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                 )}
+                {fileFolderTree.length > 0 && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      {(() => {
+                        const Icon = getResourceConfig('file').icon
+                        return <Icon className='size-[14px]' />
+                      })()}
+                      <span>Files</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
+                      <FileFolderTreeItems nodes={fileFolderTree} onSelect={handleSelect} />
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
                 {availableResources
-                  .filter(({ type }) => type !== 'workflow' && type !== 'folder')
+                  .filter(
+                    ({ type }) =>
+                      type !== 'workflow' &&
+                      type !== 'folder' &&
+                      type !== 'file' &&
+                      type !== 'filefolder'
+                  )
                   .map(({ type, items }) => {
                     if (items.length === 0) return null
                     const config = getResourceConfig(type)
