@@ -176,9 +176,9 @@ export const createAlertRuleTool: ToolConfig<
       if (params.noDataState) body.noDataState = params.noDataState
       if (params.execErrState) body.execErrState = params.execErrState
       if (params.isPaused !== undefined) body.isPaused = params.isPaused
-      if (params.keepFiringFor) body.keepFiringFor = params.keepFiringFor
+      if (params.keepFiringFor) body.keep_firing_for = params.keepFiringFor
       if (params.missingSeriesEvalsToResolve !== undefined) {
-        body.missing_series_evals_to_resolve = params.missingSeriesEvalsToResolve
+        body.missingSeriesEvalsToResolve = params.missingSeriesEvalsToResolve
       }
 
       if (params.annotations) {

@@ -15,10 +15,10 @@ export function mapAlertRule(rule: Record<string, unknown>) {
     noDataState: (rule.noDataState as string) ?? null,
     execErrState: (rule.execErrState as string) ?? null,
     for: (rule.for as string) ?? null,
-    keepFiringFor: (rule.keepFiringFor as string) ?? (rule.keep_firing_for as string) ?? null,
+    keepFiringFor: (rule.keep_firing_for as string) ?? (rule.keepFiringFor as string) ?? null,
     missingSeriesEvalsToResolve:
-      (rule.missing_series_evals_to_resolve as number) ??
       (rule.missingSeriesEvalsToResolve as number) ??
+      (rule.missing_series_evals_to_resolve as number) ??
       null,
     annotations: (rule.annotations as Record<string, string>) ?? {},
     labels: (rule.labels as Record<string, string>) ?? {},

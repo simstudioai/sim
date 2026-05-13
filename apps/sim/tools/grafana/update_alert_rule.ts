@@ -186,9 +186,9 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
     if (params.noDataState) updatedRule.noDataState = params.noDataState
     if (params.execErrState) updatedRule.execErrState = params.execErrState
     if (params.isPaused !== undefined) updatedRule.isPaused = params.isPaused
-    if (params.keepFiringFor) updatedRule.keepFiringFor = params.keepFiringFor
+    if (params.keepFiringFor) updatedRule.keep_firing_for = params.keepFiringFor
     if (params.missingSeriesEvalsToResolve !== undefined) {
-      updatedRule.missing_series_evals_to_resolve = params.missingSeriesEvalsToResolve
+      updatedRule.missingSeriesEvalsToResolve = params.missingSeriesEvalsToResolve
     }
 
     if (params.notificationSettings) {
