@@ -293,15 +293,38 @@ async function compactEventForBuffer(
     return event
   }
 
-  const compactedData = await compactExecutionPayload(event.data, {
+  const baseOptions = {
     ...context,
     executionId: context.executionId ?? event.executionId,
     requireDurable: context.requireDurablePayloads,
-    preserveUserFileBase64: context.preserveUserFileBase64,
     preserveRoot: true,
+  }
+
+  let compactedData = await compactExecutionPayload(event.data, {
+    ...baseOptions,
+    preserveUserFileBase64: context.preserveUserFileBase64,
   })
-  const eventData = trimFinalBlockLogsForEventData(compactedData)
-  const eventDataSize = getJsonSize(eventData)
+  let eventData = trimFinalBlockLogsForEventData(compactedData)
+  let eventDataSize = getJsonSize(eventData)
+
+  // SSE/replay events are size-bounded by LARGE_VALUE_THRESHOLD_BYTES. When a
+  // payload that preserved UserFile base64 (e.g., for chat/streaming) exceeds
+  // the cap, drop the inline base64 so consumers can lazily re-hydrate via
+  // sim.files.readBase64. This preserves the file metadata and keeps the
+  // event flowing instead of stalling the stream.
+  if (
+    context.preserveUserFileBase64 &&
+    eventDataSize !== null &&
+    eventDataSize > LARGE_VALUE_THRESHOLD_BYTES
+  ) {
+    compactedData = await compactExecutionPayload(event.data, {
+      ...baseOptions,
+      preserveUserFileBase64: false,
+    })
+    eventData = trimFinalBlockLogsForEventData(compactedData)
+    eventDataSize = getJsonSize(eventData)
+  }
+
   if (eventDataSize !== null && eventDataSize > LARGE_VALUE_THRESHOLD_BYTES) {
     throw new Error(
       `Execution event data remains too large after compaction (${eventDataSize} bytes)`
