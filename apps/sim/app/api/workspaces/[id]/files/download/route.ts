@@ -102,10 +102,11 @@ export const GET = withRouteHandler(
       const usedPaths = new Set<string>()
       for (const file of filesToZip) {
         const buffer = await fetchWorkspaceFileBuffer(file)
-        const basePath = safeZipPath(
-          file.folderPath ? `${file.folderPath}/${file.name}` : file.name
-        )
-        let zipPath = basePath || file.name
+        const basePath =
+          safeZipPath(file.folderPath ? `${file.folderPath}/${file.name}` : file.name) ||
+          safeZipPath(file.name) ||
+          file.id
+        let zipPath = basePath
         let suffix = 2
         while (usedPaths.has(zipPath)) {
           const dotIndex = basePath.lastIndexOf('.')

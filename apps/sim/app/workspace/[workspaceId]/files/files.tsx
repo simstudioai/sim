@@ -435,8 +435,6 @@ export function Files() {
       if (row.id !== listRename.editingId) return row
       const parsed = parseRowId(row.id)
       const file = parsed.kind === 'file' ? filteredFiles.find((f) => f.id === parsed.id) : null
-      const folder =
-        parsed.kind === 'folder' ? visibleFolders.find((item) => item.id === parsed.id) : null
       const Icon = file ? getDocumentIcon(file.type || '', file.name) : Folder
       return {
         ...row,
@@ -469,7 +467,6 @@ export function Files() {
     listRename.submitRename,
     listRename.cancelRename,
     filteredFiles,
-    visibleFolders,
   ])
 
   const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
@@ -817,11 +814,15 @@ export function Files() {
           fileIds: target.fileIds,
           folderIds: target.folderIds,
         })
-      } else {
+      } else if (target.fileIds.length === 1) {
         await deleteFile.mutateAsync({
           workspaceId,
           fileId: target.fileIds[0],
         })
+      } else {
+        setShowDeleteConfirm(false)
+        setDeleteTarget(null)
+        return
       }
       setShowDeleteConfirm(false)
       setDeleteTarget(null)
