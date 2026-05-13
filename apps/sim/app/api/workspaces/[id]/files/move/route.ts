@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -5,6 +6,7 @@ import { moveWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-fi
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   moveWorkspaceFileItems,
   WorkspaceFileFolderConflictError,
@@ -38,6 +40,36 @@ export const POST = withRouteHandler(
         folderIds,
         targetFolderId,
       })
+      captureServerEvent(
+        session.user.id,
+        'file_moved',
+        { workspace_id: workspaceId, file_count: fileIds.length, folder_count: folderIds.length },
+        { groups: { workspace: workspaceId } }
+      )
+      if (fileIds.length > 0) {
+        recordAudit({
+          workspaceId,
+          actorId: session.user.id,
+          actorName: session.user.name,
+          actorEmail: session.user.email,
+          action: AuditAction.FILE_MOVED,
+          resourceType: AuditResourceType.FILE,
+          description: `Moved ${fileIds.length} file${fileIds.length === 1 ? '' : 's'}${targetFolderId ? ' to folder' : ' to root'}`,
+          metadata: { fileIds, targetFolderId },
+        })
+      }
+      if (folderIds.length > 0) {
+        recordAudit({
+          workspaceId,
+          actorId: session.user.id,
+          actorName: session.user.name,
+          actorEmail: session.user.email,
+          action: AuditAction.FOLDER_MOVED,
+          resourceType: AuditResourceType.FOLDER,
+          description: `Moved ${folderIds.length} folder${folderIds.length === 1 ? '' : 's'}${targetFolderId ? ' to folder' : ' to root'}`,
+          metadata: { folderIds, targetFolderId },
+        })
+      }
       return NextResponse.json({
         success: true,
         movedItems: { files: moved.movedFiles, folders: moved.movedFolders },

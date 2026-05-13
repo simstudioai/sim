@@ -1,10 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   bulkArchiveWorkspaceFileItemsContract,
   createWorkspaceFileFolderContract,
   listWorkspaceFileFoldersContract,
   moveWorkspaceFileItemsContract,
+  restoreWorkspaceFileFolderContract,
   updateWorkspaceFileFolderContract,
   type WorkspaceFileFolderApi,
 } from '@/lib/api/contracts/workspace-file-folders'
@@ -53,6 +54,7 @@ export function useWorkspaceFileFolders(
     queryFn: ({ signal }) => fetchWorkspaceFileFolders(workspaceId, scope, signal),
     enabled: Boolean(workspaceId),
     staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -156,6 +158,19 @@ export function useBulkArchiveWorkspaceFileItems() {
         body: { fileIds: variables.fileIds, folderIds: variables.folderIds },
       })
     },
+    onSettled: (_data, _error, variables) => {
+      invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
+    },
+  })
+}
+
+export function useRestoreWorkspaceFileFolder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (variables: { workspaceId: string; folderId: string }) =>
+      requestJson(restoreWorkspaceFileFolderContract, {
+        params: { id: variables.workspaceId, folderId: variables.folderId },
+      }),
     onSettled: (_data, _error, variables) => {
       invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
     },

@@ -21,11 +21,22 @@ import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
 import { useRestoreWorkflow, useWorkflows } from '@/hooks/queries/workflows'
+import {
+  useRestoreWorkspaceFileFolder,
+  useWorkspaceFileFolders,
+} from '@/hooks/queries/workspace-file-folders'
 import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
-type ResourceType = 'all' | 'workflow' | 'table' | 'knowledge' | 'file' | 'folder'
+type ResourceType =
+  | 'all'
+  | 'workflow'
+  | 'table'
+  | 'knowledge'
+  | 'file'
+  | 'folder'
+  | 'workspace_folder'
 
 function getResourceHref(
   workspaceId: string,
@@ -44,6 +55,8 @@ function getResourceHref(
       return `${base}/files/${id}`
     case 'folder':
       return `${base}/w`
+    case 'workspace_folder':
+      return `${base}/files?folderId=${id}`
   }
 }
 
@@ -86,6 +99,7 @@ const TABS: { id: ResourceType; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'workflow', label: 'Workflows' },
   { id: 'folder', label: 'Folders' },
+  { id: 'workspace_folder', label: 'File Folders' },
   { id: 'table', label: 'Tables' },
   { id: 'knowledge', label: 'Knowledge Bases' },
   { id: 'file', label: 'Files' },
@@ -94,6 +108,7 @@ const TABS: { id: ResourceType; label: string }[] = [
 const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {
   workflow: 'Workflow',
   folder: 'Folder',
+  workspace_folder: 'File Folder',
   table: 'Table',
   knowledge: 'Knowledge Base',
   file: 'File',
@@ -114,7 +129,7 @@ function ResourceIcon({ resource }: { resource: DeletedResource }) {
     )
   }
 
-  if (resource.type === 'folder') {
+  if (resource.type === 'folder' || resource.type === 'workspace_folder') {
     const color = resource.color ?? '#6B7280'
     return <Folder className={ICON_CLASS} style={{ color }} />
   }
@@ -144,26 +159,30 @@ export function RecentlyDeleted() {
   const tablesQuery = useTablesList(workspaceId, 'archived')
   const knowledgeQuery = useKnowledgeBasesQuery(workspaceId, { scope: 'archived' })
   const filesQuery = useWorkspaceFiles(workspaceId, 'archived')
+  const workspaceFoldersQuery = useWorkspaceFileFolders(workspaceId, 'archived')
 
   const restoreWorkflow = useRestoreWorkflow()
   const restoreFolder = useRestoreFolder()
   const restoreTable = useRestoreTable()
   const restoreKnowledgeBase = useRestoreKnowledgeBase()
   const restoreWorkspaceFile = useRestoreWorkspaceFile()
+  const restoreWorkspaceFileFolder = useRestoreWorkspaceFileFolder()
 
   const isLoading =
     workflowsQuery.isLoading ||
     foldersQuery.isLoading ||
     tablesQuery.isLoading ||
     knowledgeQuery.isLoading ||
-    filesQuery.isLoading
+    filesQuery.isLoading ||
+    workspaceFoldersQuery.isLoading
 
   const error =
     workflowsQuery.error ||
     foldersQuery.error ||
     tablesQuery.error ||
     knowledgeQuery.error ||
-    filesQuery.error
+    filesQuery.error ||
+    workspaceFoldersQuery.error
 
   const resources = useMemo<DeletedResource[]>(() => {
     const items: DeletedResource[] = []
@@ -220,6 +239,16 @@ export function RecentlyDeleted() {
       })
     }
 
+    for (const wf of workspaceFoldersQuery.data ?? []) {
+      items.push({
+        id: wf.id,
+        name: wf.name,
+        type: 'workspace_folder',
+        deletedAt: wf.deletedAt ? new Date(wf.deletedAt) : new Date(wf.updatedAt),
+        workspaceId: wf.workspaceId,
+      })
+    }
+
     const itemIds = new Set(items.map((i) => i.id))
     for (const [id, resource] of restoredItems) {
       if (!itemIds.has(id)) {
@@ -234,6 +263,7 @@ export function RecentlyDeleted() {
     tablesQuery.data,
     knowledgeQuery.data,
     filesQuery.data,
+    workspaceFoldersQuery.data,
     workspaceId,
     restoredItems,
   ])
@@ -320,6 +350,12 @@ export function RecentlyDeleted() {
       case 'file':
         restoreWorkspaceFile.mutate(
           { workspaceId: resource.workspaceId, fileId: resource.id },
+          { onSettled, onSuccess }
+        )
+        break
+      case 'workspace_folder':
+        restoreWorkspaceFileFolder.mutate(
+          { workspaceId: resource.workspaceId, folderId: resource.id },
           { onSettled, onSuccess }
         )
         break

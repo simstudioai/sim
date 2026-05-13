@@ -9,6 +9,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   deleteWorkspaceFile,
   FileConflictError,
@@ -55,6 +56,12 @@ export const PATCH = withRouteHandler(
 
       logger.info(`[${requestId}] Renamed workspace file: ${fileId} to "${updatedFile.name}"`)
 
+      captureServerEvent(
+        session.user.id,
+        'file_renamed',
+        { workspace_id: workspaceId },
+        { groups: { workspace: workspaceId } }
+      )
       recordAudit({
         workspaceId,
         actorId: session.user.id,
@@ -124,6 +131,12 @@ export const DELETE = withRouteHandler(
 
       logger.info(`[${requestId}] Archived workspace file: ${fileId}`)
 
+      captureServerEvent(
+        session.user.id,
+        'file_deleted',
+        { workspace_id: workspaceId },
+        { groups: { workspace: workspaceId } }
+      )
       recordAudit({
         workspaceId,
         actorId: session.user.id,

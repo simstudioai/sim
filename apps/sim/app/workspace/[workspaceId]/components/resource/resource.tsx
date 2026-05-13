@@ -73,6 +73,7 @@ interface ResourceProps {
   defaultSort?: string
   sort?: SortConfig
   headerActions?: HeaderAction[]
+  leadingActions?: ReactNode
   columns: ResourceColumn[]
   rows: ResourceRow[]
   selectedRowId?: string | null
@@ -107,6 +108,7 @@ export const Resource = memo(function Resource({
   defaultSort,
   sort: sortOverride,
   headerActions,
+  leadingActions,
   columns,
   rows,
   selectedRowId,
@@ -135,6 +137,7 @@ export const Resource = memo(function Resource({
         breadcrumbs={breadcrumbs}
         create={create}
         actions={headerActions}
+        leadingActions={leadingActions}
       />
       <ResourceOptionsBar
         search={search}
@@ -493,9 +496,17 @@ const DataRow = memo(function DataRow({
   const isDragging = rowDragDrop?.draggedRowIds?.has(row.id) ?? false
   const isAnyDragActive = rowDragDrop?.isAnyDragActive ?? false
 
-  const handleClick = useCallback(() => {
-    onRowClick?.(row.id)
-  }, [onRowClick, row.id])
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLTableRowElement>) => {
+      if (e.shiftKey && selectable && !selectable.disabled) {
+        e.preventDefault()
+        selectable.onSelectRow(row.id, true, true)
+        return
+      }
+      onRowClick?.(row.id)
+    },
+    [onRowClick, row.id, selectable]
+  )
 
   const handleMouseEnter = useCallback(() => {
     onRowHover?.(row.id)
@@ -574,7 +585,7 @@ const DataRow = memo(function DataRow({
       )}
       data-drop-target={isDropTarget || undefined}
       draggable={isDraggable}
-      onClick={onRowClick ? handleClick : undefined}
+      onClick={onRowClick || selectable ? handleClick : undefined}
       onMouseEnter={handleMouseEnter}
       onContextMenu={onRowContextMenu ? handleContextMenu : undefined}
       onDragStart={isDraggable ? handleDragStart : undefined}

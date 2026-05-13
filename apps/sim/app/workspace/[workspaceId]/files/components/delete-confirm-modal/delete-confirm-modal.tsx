@@ -1,7 +1,15 @@
 'use client'
 
 import { memo } from 'react'
-import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
+import {
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn'
 
 interface DeleteConfirmModalProps {
   open: boolean
@@ -29,18 +37,20 @@ export const DeleteConfirmModal = memo(function DeleteConfirmModal({
     ? totalCount > 1
       ? 'This will also delete files and folders inside any selected folders.'
       : 'This will also delete files and folders inside it.'
-    : 'You can restore it from Recently Deleted in Settings.'
+    : totalCount > 1
+      ? 'You can restore them from Recently Deleted in Settings.'
+      : 'You can restore it from Recently Deleted in Settings.'
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='sm'>
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
+          <ModalDescription className='text-[var(--text-secondary)]'>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{fileName}</span>?{' '}
             {consequence}
-          </p>
+          </ModalDescription>
         </ModalBody>
         <ModalFooter>
           <Button variant='default' onClick={() => onOpenChange(false)} disabled={isPending}>

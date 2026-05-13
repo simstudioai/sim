@@ -177,3 +177,15 @@ export const downloadWorkspaceFileItemsContract = defineRouteContract({
     mode: 'binary',
   },
 })
+
+export const restoreWorkspaceFileFolderContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/files/folders/[folderId]/restore',
+  params: workspaceFileFolderParamsSchema,
+  response: {
+    mode: 'json',
+    schema: workspaceFileFoldersSuccessSchema.extend({
+      folder: workspaceFileFolderSchema,
+    }),
+  },
+})

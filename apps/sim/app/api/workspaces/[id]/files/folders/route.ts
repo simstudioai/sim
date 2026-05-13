@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -7,6 +8,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   createWorkspaceFileFolder,
   listWorkspaceFileFolders,
@@ -65,6 +67,23 @@ export const POST = withRouteHandler(
         userId: session.user.id,
         name,
         parentId,
+      })
+      captureServerEvent(
+        session.user.id,
+        'folder_created',
+        { workspace_id: workspaceId },
+        { groups: { workspace: workspaceId } }
+      )
+      recordAudit({
+        workspaceId,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.FOLDER_CREATED,
+        resourceType: AuditResourceType.FOLDER,
+        resourceId: folder.id,
+        resourceName: folder.name,
+        description: `Created folder "${folder.name}"`,
       })
       return NextResponse.json({ success: true, folder })
     } catch (error) {

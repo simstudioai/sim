@@ -15,6 +15,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Pencil,
@@ -43,6 +44,7 @@ import {
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
 import type {
+  BreadcrumbItem,
   FilterTag,
   HeaderAction,
   ResourceColumn,
@@ -82,6 +84,7 @@ import {
 import {
   useDeleteWorkspaceFile,
   useRenameWorkspaceFile,
+  useStorageInfo,
   useUploadWorkspaceFile,
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
@@ -190,6 +193,7 @@ export function Files() {
   const updateFolder = useUpdateWorkspaceFileFolder()
   const moveItems = useMoveWorkspaceFileItems()
   const bulkArchiveItems = useBulkArchiveWorkspaceFileItems()
+  const { data: storageInfo } = useStorageInfo()
 
   const {
     isOpen: isContextMenuOpen,
@@ -276,6 +280,12 @@ export function Files() {
   const headerRename = useInlineRename({
     onSave: (fileId, name) => {
       renameFile.mutate({ workspaceId, fileId, name })
+    },
+  })
+
+  const breadcrumbRename = useInlineRename({
+    onSave: (folderId, name) => {
+      updateFolder.mutate({ workspaceId, folderId, updates: { name } })
     },
   })
 
@@ -662,7 +672,7 @@ export function Files() {
         setUploadProgress({ completed: 0, total: 0, currentPercent: 0 })
       }
     },
-    [workspaceId, canEdit, currentFolderId, uploadFile.mutateAsync]
+    [workspaceId, canEdit, currentFolderId]
   )
 
   const rowDragDropConfig = useMemo<RowDragDropConfig>(
@@ -809,7 +819,6 @@ export function Files() {
       visibleRowIds,
       isInvalidDropTarget,
       uploadFiles,
-      moveItems.mutateAsync,
       workspaceId,
     ]
   )
@@ -898,7 +907,7 @@ export function Files() {
     } catch (err) {
       logger.error('Failed to delete file:', err)
     }
-  }, [workspaceId, router, currentFolderId, bulkArchiveItems.mutateAsync, deleteFile.mutateAsync])
+  }, [workspaceId, router, currentFolderId])
 
   const isDirtyRef = useRef(isDirty)
   isDirtyRef.current = isDirty
@@ -1114,7 +1123,7 @@ export function Files() {
       logger.error('Failed to create folder:', error)
       toast.error(toError(error).message)
     }
-  }, [workspaceId, createFolder.mutateAsync, folders, currentFolderId, listRename.startRename])
+  }, [workspaceId, folders, currentFolderId, listRename.startRename])
 
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
@@ -1288,6 +1297,47 @@ export function Files() {
     }
   }, [handleSave])
 
+  const selectedRowIdsRef = useRef(selectedRowIds)
+  selectedRowIdsRef.current = selectedRowIds
+  const visibleRowIdsRef = useRef(visibleRowIds)
+  visibleRowIdsRef.current = visibleRowIds
+  const listRenameActiveRef = useRef(listRename.editingId)
+  listRenameActiveRef.current = listRename.editingId
+
+  useEffect(() => {
+    const handleListKeyDown = (e: KeyboardEvent) => {
+      if (fileIdFromRouteRef.current) return
+      const active = document.activeElement
+      if (
+        active &&
+        (active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          (active as HTMLElement).isContentEditable)
+      )
+        return
+      if (listRenameActiveRef.current) return
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedRowIdsRef.current.size > 0) {
+        e.preventDefault()
+        handleBulkDelete()
+        return
+      }
+
+      if (e.key === 'Escape' && selectedRowIdsRef.current.size > 0) {
+        e.preventDefault()
+        setSelectedRowIds(new Set())
+        return
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a' && visibleRowIdsRef.current.length > 0) {
+        e.preventDefault()
+        setSelectedRowIds(new Set(visibleRowIdsRef.current))
+      }
+    }
+    window.addEventListener('keydown', handleListKeyDown)
+    return () => window.removeEventListener('keydown', handleListKeyDown)
+  }, [handleBulkDelete])
+
   const handleCyclePreviewMode = useCallback(() => {
     setPreviewMode((prev) => {
       if (prev === 'editor') return 'split'
@@ -1455,25 +1505,64 @@ export function Files() {
     [handleNavigateToFiles]
   )
 
+  const breadcrumbRenameRef = useRef(breadcrumbRename)
+  breadcrumbRenameRef.current = breadcrumbRename
+
   const listBreadcrumbs = useMemo(() => {
-    const breadcrumbs = [{ label: 'Files', onClick: handleNavigateToFiles }]
+    const breadcrumbs: BreadcrumbItem[] = [{ label: 'Files', onClick: handleNavigateToFiles }]
     if (!currentFolderPath) return breadcrumbs
 
     const segments = currentFolderPath.split('/')
     let parentId: string | null = null
-    for (const segment of segments) {
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i]
       const folder = folders.find(
         (item) => item.name === segment && (item.parentId ?? null) === parentId
       )
       if (!folder) continue
+      const isCurrentFolder = folder.id === currentFolderId
       breadcrumbs.push({
         label: folder.name,
-        onClick: () => router.push(`/workspace/${workspaceId}/files?folderId=${folder.id}`),
+        onClick: isCurrentFolder
+          ? undefined
+          : () => router.push(`/workspace/${workspaceId}/files?folderId=${folder.id}`),
+        editing:
+          isCurrentFolder && breadcrumbRenameRef.current.editingId === folder.id
+            ? {
+                isEditing: true,
+                value: breadcrumbRenameRef.current.editValue,
+                onChange: breadcrumbRenameRef.current.setEditValue,
+                onSubmit: breadcrumbRenameRef.current.submitRename,
+                onCancel: breadcrumbRenameRef.current.cancelRename,
+              }
+            : undefined,
+        dropdownItems:
+          isCurrentFolder && canEdit
+            ? [
+                {
+                  label: 'Rename',
+                  onClick: () => breadcrumbRenameRef.current.startRename(folder.id, folder.name),
+                },
+              ]
+            : undefined,
       })
       parentId = folder.id
     }
     return breadcrumbs
-  }, [currentFolderPath, folders, handleNavigateToFiles, router, workspaceId])
+  }, [
+    currentFolderPath,
+    currentFolderId,
+    folders,
+    handleNavigateToFiles,
+    router,
+    workspaceId,
+    canEdit,
+    breadcrumbRename.editingId,
+    breadcrumbRename.editValue,
+    breadcrumbRename.setEditValue,
+    breadcrumbRename.submitRename,
+    breadcrumbRename.cancelRename,
+  ])
 
   const memberOptions: ComboboxOption[] = useMemo(
     () =>
@@ -1575,6 +1664,20 @@ export function Files() {
 
   const hasActiveFilters =
     typeFilter.length > 0 || sizeFilter.length > 0 || uploadedByFilter.length > 0
+
+  const emptyMessage = debouncedSearchTerm
+    ? `No files match "${debouncedSearchTerm}"`
+    : hasActiveFilters
+      ? 'No files match the active filters'
+      : currentFolderId
+        ? 'This folder is empty'
+        : 'No files yet'
+
+  const storageIndicator = storageInfo ? (
+    <span className='text-[var(--text-tertiary)] text-caption'>
+      {formatFileSize(storageInfo.usedBytes)} / {formatFileSize(storageInfo.limitBytes)}
+    </span>
+  ) : null
 
   const filterContent = useMemo(() => {
     const typeDisplayLabel =
@@ -1763,9 +1866,9 @@ export function Files() {
             <ModalContent size='sm'>
               <ModalHeader>Unsaved Changes</ModalHeader>
               <ModalBody>
-                <p className='text-[var(--text-secondary)]'>
+                <ModalDescription className='text-[var(--text-secondary)]'>
                   You have unsaved changes. Are you sure you want to discard them?
-                </p>
+                </ModalDescription>
               </ModalBody>
               <ModalFooter>
                 <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>
@@ -1810,6 +1913,7 @@ export function Files() {
         filter={filterContent}
         filterTags={filterTags}
         headerActions={headerActionsConfig}
+        leadingActions={storageIndicator}
         columns={COLUMNS}
         rows={rows}
         selectable={selectableConfig}
@@ -1818,6 +1922,7 @@ export function Files() {
         onRowContextMenu={handleRowContextMenu}
         isLoading={isLoading || foldersLoading}
         onContextMenu={handleContentContextMenu}
+        emptyMessage={emptyMessage}
         overlay={
           <>
             <FilesActionBar
@@ -1883,10 +1988,10 @@ export function Files() {
           <ModalHeader>Move Items</ModalHeader>
           <ModalBody>
             <div className='flex flex-col gap-2'>
-              <span className='text-[var(--text-secondary)] text-small'>
+              <ModalDescription className='text-[var(--text-secondary)] text-small'>
                 Choose the folder to move {selectedRowIds.size} selected item
                 {selectedRowIds.size === 1 ? '' : 's'} into.
-              </span>
+              </ModalDescription>
               <Combobox
                 options={moveFolderOptions}
                 value={moveTargetFolderId ?? '__root__'}

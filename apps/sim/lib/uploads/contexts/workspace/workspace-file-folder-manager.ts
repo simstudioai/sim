@@ -841,6 +841,42 @@ export async function archiveWorkspaceFileFolderRecursive(
   })
 }
 
+export async function restoreWorkspaceFileFolder(
+  workspaceId: string,
+  folderId: string
+): Promise<WorkspaceFileFolderRecord> {
+  const raw = await db
+    .select()
+    .from(workspaceFileFolder)
+    .where(
+      and(eq(workspaceFileFolder.id, folderId), eq(workspaceFileFolder.workspaceId, workspaceId))
+    )
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+
+  if (!raw) throw new Error('Folder not found')
+  if (!raw.deletedAt) throw new Error('Folder is not archived')
+
+  const [restored] = await db
+    .update(workspaceFileFolder)
+    .set({ deletedAt: null, updatedAt: new Date() })
+    .where(
+      and(eq(workspaceFileFolder.id, folderId), eq(workspaceFileFolder.workspaceId, workspaceId))
+    )
+    .returning()
+
+  logger.info('Restored workspace file folder', { workspaceId, folderId })
+
+  const allFolders = await db
+    .select()
+    .from(workspaceFileFolder)
+    .where(
+      and(eq(workspaceFileFolder.workspaceId, workspaceId), isNull(workspaceFileFolder.deletedAt))
+    )
+  const paths = buildWorkspaceFileFolderPathMap(allFolders)
+  return mapFolder(restored, paths)
+}
+
 export async function bulkArchiveWorkspaceFileItems(params: {
   workspaceId: string
   fileIds?: string[]

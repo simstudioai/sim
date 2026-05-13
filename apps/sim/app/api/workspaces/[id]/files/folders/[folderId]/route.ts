@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -8,6 +9,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   archiveWorkspaceFileFolderRecursive,
   updateWorkspaceFileFolder,
@@ -42,6 +44,23 @@ export const PATCH = withRouteHandler(
         workspaceId,
         folderId,
         ...parsed.data.body,
+      })
+      captureServerEvent(
+        session.user.id,
+        'folder_renamed',
+        { workspace_id: workspaceId },
+        { groups: { workspace: workspaceId } }
+      )
+      recordAudit({
+        workspaceId,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.FOLDER_UPDATED,
+        resourceType: AuditResourceType.FOLDER,
+        resourceId: folderId,
+        resourceName: folder.name,
+        description: `Updated folder "${folder.name}"`,
       })
       return NextResponse.json({ success: true, folder })
     } catch (error) {
@@ -86,6 +105,22 @@ export const DELETE = withRouteHandler(
 
     try {
       const deletedItems = await archiveWorkspaceFileFolderRecursive(workspaceId, folderId)
+      captureServerEvent(
+        session.user.id,
+        'folder_deleted',
+        { workspace_id: workspaceId },
+        { groups: { workspace: workspaceId } }
+      )
+      recordAudit({
+        workspaceId,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.FOLDER_DELETED,
+        resourceType: AuditResourceType.FOLDER,
+        resourceId: folderId,
+        description: `Deleted folder`,
+      })
       return NextResponse.json({ success: true, deletedItems })
     } catch (error) {
       logger.error('Failed to delete workspace file folder:', error)
