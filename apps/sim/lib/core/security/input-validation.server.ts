@@ -362,7 +362,6 @@ export async function secureFetchWithPinnedIP(
         return
       }
 
-      // Parse headers immediately — they're available before any body data arrives
       const headersRecord: Record<string, string> = {}
       let setCookieArray: string[] = []
       for (const [key, value] of Object.entries(res.headers)) {
