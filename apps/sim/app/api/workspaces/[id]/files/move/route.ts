@@ -40,12 +40,22 @@ export const POST = withRouteHandler(
         folderIds,
         targetFolderId,
       })
-      captureServerEvent(
-        session.user.id,
-        'file_moved',
-        { workspace_id: workspaceId, file_count: fileIds.length, folder_count: folderIds.length },
-        { groups: { workspace: workspaceId } }
-      )
+      if (fileIds.length > 0) {
+        captureServerEvent(
+          session.user.id,
+          'file_moved',
+          { workspace_id: workspaceId, file_count: fileIds.length, folder_count: folderIds.length },
+          { groups: { workspace: workspaceId } }
+        )
+      }
+      if (folderIds.length > 0) {
+        captureServerEvent(
+          session.user.id,
+          'folder_moved',
+          { workspace_id: workspaceId, file_count: fileIds.length, folder_count: folderIds.length },
+          { groups: { workspace: workspaceId } }
+        )
+      }
       if (fileIds.length > 0) {
         recordAudit({
           workspaceId,

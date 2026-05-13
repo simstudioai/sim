@@ -43,7 +43,7 @@ export const POST = withRouteHandler(
         actorId: session.user.id,
         actorName: session.user.name,
         actorEmail: session.user.email,
-        action: AuditAction.FOLDER_UPDATED,
+        action: AuditAction.FOLDER_RESTORED,
         resourceType: AuditResourceType.FOLDER,
         resourceId: folderId,
         resourceName: folder.name,
