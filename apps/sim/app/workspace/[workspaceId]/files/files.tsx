@@ -1052,12 +1052,17 @@ export function Files() {
       counter++
     }
 
-    const folder = await createFolder.mutateAsync({
-      workspaceId,
-      name,
-      parentId: currentFolderId,
-    })
-    listRename.startRename(folderRowId(folder.id), folder.name)
+    try {
+      const folder = await createFolder.mutateAsync({
+        workspaceId,
+        name,
+        parentId: currentFolderId,
+      })
+      listRename.startRename(folderRowId(folder.id), folder.name)
+    } catch (error) {
+      logger.error('Failed to create folder:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to create folder')
+    }
   }, [workspaceId, createFolder, folders, currentFolderId, listRename.startRename])
 
   const handleRowContextMenu = useCallback(
