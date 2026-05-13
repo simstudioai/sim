@@ -8,6 +8,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -83,6 +84,9 @@ export function RequestIntegrationModal() {
 
           {status === 'success' ? (
             <ModalBody>
+              <ModalDescription className='sr-only'>
+                Integration request submitted successfully
+              </ModalDescription>
               <div className='flex flex-col items-center gap-3 py-6 text-center'>
                 <div className='flex size-10 items-center justify-center rounded-full bg-[#33C482]/10'>
                   <svg
@@ -106,6 +110,10 @@ export function RequestIntegrationModal() {
           ) : (
             <form onSubmit={handleSubmit} className='flex min-h-0 flex-1 flex-col'>
               <ModalBody>
+                <ModalDescription className='sr-only'>
+                  Submit a request for a new integration by entering the integration name and your
+                  email
+                </ModalDescription>
                 <div className='space-y-3'>
                   <div className='flex flex-col gap-1'>
                     <Label htmlFor='integration-name'>Integration name</Label>

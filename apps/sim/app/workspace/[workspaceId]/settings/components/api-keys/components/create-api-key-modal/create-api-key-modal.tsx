@@ -10,6 +10,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   SecretReveal,
@@ -112,11 +113,11 @@ export function CreateApiKeyModal({
         <ModalContent size='md'>
           <ModalHeader>Create new Sim key</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               {keyType === 'workspace'
                 ? "This key will have access to all workflows in this workspace. Make sure to copy it after creation as you won't be able to see it again."
                 : "This key will have access to your personal workflows. Make sure to copy it after creation as you won't be able to see it again."}
-            </p>
+            </ModalDescription>
 
             <div className='mt-4 flex flex-col gap-4.5'>
               {canManageWorkspaceKeys && (
@@ -209,12 +210,12 @@ export function CreateApiKeyModal({
         <ModalContent size='sm'>
           <ModalHeader>Your Sim key has been created</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               This is the only time you will see your Sim key.{' '}
               <span className='font-semibold text-[var(--text-primary)]'>
                 Copy it now and store it securely.
               </span>
-            </p>
+            </ModalDescription>
 
             {newKey && <SecretReveal value={newKey.key} className='mt-2.5' />}
           </ModalBody>

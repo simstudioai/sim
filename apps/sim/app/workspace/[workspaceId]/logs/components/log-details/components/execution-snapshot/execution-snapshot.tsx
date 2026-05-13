@@ -14,6 +14,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalHeader,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -216,7 +217,12 @@ export function ExecutionSnapshot({
           <ModalContent size='full' className='flex h-[90vh] flex-col'>
             <ModalHeader>Workflow State</ModalHeader>
 
-            <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>{renderContent()}</ModalBody>
+            <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
+              <ModalDescription className='sr-only'>
+                View the workflow state snapshot for this execution
+              </ModalDescription>
+              {renderContent()}
+            </ModalBody>
           </ModalContent>
         </Modal>
         {canvasContextMenu}

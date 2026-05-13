@@ -12,6 +12,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -80,6 +81,10 @@ export function CreateWorkflowMcpServerModal({
       <ModalContent>
         <ModalHeader>Add New MCP Server</ModalHeader>
         <ModalBody>
+          <ModalDescription className='sr-only'>
+            Configure a new MCP server by providing a name, description, and optional workflow
+            access.
+          </ModalDescription>
           <div className='flex flex-col gap-3'>
             <FormField label='Server Name'>
               <EmcnInput

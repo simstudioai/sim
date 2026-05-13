@@ -41,6 +41,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
@@ -859,7 +860,9 @@ export default function PlaygroundPage() {
                   <ModalContent size={size}>
                     <ModalHeader>Modal {size.toUpperCase()}</ModalHeader>
                     <ModalBody>
-                      <p className='text-[var(--text-secondary)]'>This is a {size} sized modal.</p>
+                      <ModalDescription className='text-[var(--text-secondary)]'>
+                        This is a {size} sized modal.
+                      </ModalDescription>
                     </ModalBody>
                     <ModalFooter>
                       <Button variant='ghost'>Cancel</Button>
@@ -882,6 +885,9 @@ export default function PlaygroundPage() {
                       <ModalTabsTrigger value='tab2'>Advanced</ModalTabsTrigger>
                     </ModalTabsList>
                     <ModalBody>
+                      <ModalDescription className='sr-only'>
+                        Modal settings with general and advanced tabs
+                      </ModalDescription>
                       <ModalTabsContent value='tab1'>
                         <p className='text-[var(--text-secondary)]'>General settings content</p>
                       </ModalTabsContent>

@@ -8,6 +8,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalHeader,
   ModalTrigger,
 } from '@/components/emcn'
@@ -133,9 +134,9 @@ export function GroupedCheckboxList({
       >
         <ModalHeader>Select PII Types to Detect</ModalHeader>
         <ModalBody>
-          <p className='mb-3 text-[var(--text-muted)] text-sm'>
+          <ModalDescription className='mb-3 text-[var(--text-muted)] text-sm'>
             Choose which types of personally identifiable information to detect and block.
-          </p>
+          </ModalDescription>
 
           {/* Header with Select All and Clear */}
           <div className='flex items-center justify-between border-b pb-3'>

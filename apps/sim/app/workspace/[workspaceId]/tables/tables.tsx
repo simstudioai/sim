@@ -10,6 +10,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   toast,
@@ -550,14 +551,14 @@ export function Tables() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Table</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
               <span className='text-[var(--text-error)]'>
                 All {activeTable?.rowCount} rows will be removed.
               </span>{' '}
               You can restore it from Recently Deleted in Settings.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

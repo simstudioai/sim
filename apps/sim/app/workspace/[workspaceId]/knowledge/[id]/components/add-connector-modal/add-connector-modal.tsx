@@ -16,6 +16,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Tooltip,
@@ -225,6 +226,11 @@ export function AddConnectorModal({
             )}
             {step === 'select-type' ? 'Connect Source' : `Configure ${connectorConfig?.name}`}
           </ModalHeader>
+          <ModalDescription className='sr-only'>
+            {step === 'select-type'
+              ? 'Select a data source to connect to this knowledge base'
+              : `Configure the ${connectorConfig?.name} connector settings`}
+          </ModalDescription>
 
           <ModalBody>
             {step === 'select-type' ? (

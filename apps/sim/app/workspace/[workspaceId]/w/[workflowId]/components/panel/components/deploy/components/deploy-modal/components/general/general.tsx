@@ -11,6 +11,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Skeleton,
@@ -290,7 +291,7 @@ export function GeneralDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Load Deployment</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to load{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {versionToLoadInfo?.name || `v${versionToLoad?.version}`}
@@ -299,7 +300,7 @@ export function GeneralDeploy({
               <span className='text-[var(--text-error)]'>
                 This will replace your current workflow with the deployed version.
               </span>
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowLoadDialog(false)}>
@@ -316,7 +317,7 @@ export function GeneralDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Promote to live</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to promote{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {versionToPromoteInfo?.name || `v${versionToPromote?.version}`}
@@ -325,7 +326,7 @@ export function GeneralDeploy({
               <span className='text-[var(--text-primary)]'>
                 This version will become the active deployment and serve all API requests.
               </span>
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowPromoteDialog(false)}>
@@ -347,6 +348,9 @@ export function GeneralDeploy({
                 : 'Live Workflow'}
             </ModalHeader>
             <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
+              <ModalDescription className='sr-only'>
+                Visual preview of the selected workflow version.
+              </ModalDescription>
               <Preview workflowState={workflowToShow} autoSelectLeftmost />
             </ModalBody>
           </ModalContent>

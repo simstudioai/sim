@@ -12,6 +12,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -220,6 +221,10 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
             <span>Edit API Info</span>
           </ModalHeader>
           <ModalBody className='space-y-3'>
+            <ModalDescription className='sr-only'>
+              Edit the API description, access mode, and input parameters for this workflow
+              endpoint.
+            </ModalDescription>
             <div>
               <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
                 Description
@@ -311,9 +316,9 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
             <span>Unsaved Changes</span>
           </ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)] text-sm'>
+            <ModalDescription className='text-[var(--text-secondary)] text-sm'>
               You have unsaved changes. Are you sure you want to discard them?
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>

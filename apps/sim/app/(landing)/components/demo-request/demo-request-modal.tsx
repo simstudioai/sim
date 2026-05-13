@@ -8,6 +8,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTrigger,
@@ -152,6 +153,9 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
             }
           >
             <ModalBody>
+              <ModalDescription className='sr-only'>
+                Fill out this form to request a demo and talk to the sales team
+              </ModalDescription>
               <div className='space-y-3'>
                 <div className='grid gap-3 sm:grid-cols-2'>
                   <LandingField htmlFor='firstName' label='First name' error={errors.firstName}>

@@ -18,6 +18,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -373,6 +374,9 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     <Modal open={open} onOpenChange={handleClose}>
       <ModalContent size='lg'>
         <ModalHeader>Create Knowledge Base</ModalHeader>
+        <ModalDescription className='sr-only'>
+          Set up a new knowledge base with documents and chunking options
+        </ModalDescription>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody>

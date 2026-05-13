@@ -12,6 +12,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Skeleton,
@@ -1147,9 +1148,9 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
       <ModalContent size='sm'>
         <ModalHeader>Get For Team</ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
+          <ModalDescription className='text-[var(--text-secondary)]'>
             Choose a plan and number of seats for your team. Credits are pooled across all members.
-          </p>
+          </ModalDescription>
 
           {/* Plan toggle */}
           <div className='mt-4 flex flex-col gap-1'>
@@ -1360,7 +1361,7 @@ function ManagePlanModal({
           Manage {currentTier.name} Plan{isTeamPlan ? ' (Team)' : ''}
         </ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
+          <ModalDescription className='text-[var(--text-secondary)]'>
             You're on the{' '}
             <span className='font-medium text-[var(--text-primary)]'>{currentTier.name}</span> plan
             {isTeamPlan ? ' for your team' : ''}, billed{' '}
@@ -1368,7 +1369,7 @@ function ManagePlanModal({
               ? `$${currentPlanDollars}/mo${perUnit}`
               : `$${actualAnnualTotal}/yr${perUnit} ($${actualDiscountedMonthly}/mo${perUnit})`}
             .
-          </p>
+          </ModalDescription>
 
           {isLegacyPlan && (
             <Badge variant='amber' size='lg' dot className='mt-2'>

@@ -13,6 +13,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
@@ -1203,6 +1204,9 @@ export const NotificationSettings = memo(function NotificationSettings({
         <ModalContent size='lg'>
           <ModalHeader>Notifications</ModalHeader>
 
+          <ModalDescription className='sr-only'>
+            Manage webhook, email, and Slack notification subscriptions for this workflow
+          </ModalDescription>
           <ModalTabs
             value={activeTab}
             onValueChange={(value: string) => {
@@ -1300,12 +1304,12 @@ export const NotificationSettings = memo(function NotificationSettings({
         <ModalContent size='sm'>
           <ModalHeader>Delete Notification</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               <span className='text-[var(--text-error)]'>
                 This will permanently remove the notification and stop all deliveries.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

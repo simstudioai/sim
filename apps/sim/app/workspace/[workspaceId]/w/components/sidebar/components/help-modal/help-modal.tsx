@@ -16,6 +16,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -308,6 +309,9 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody>
+            <ModalDescription className='sr-only'>
+              Submit a help or support request
+            </ModalDescription>
             <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
               <div className='space-y-3'>
                 <div className='flex flex-col gap-2'>

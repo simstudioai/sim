@@ -23,6 +23,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Skeleton,
@@ -241,10 +242,10 @@ export function ConnectorsSection({
         <ModalContent size='sm'>
           <ModalHeader>Remove Connector</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)] text-sm'>
+            <ModalDescription className='text-[var(--text-secondary)] text-sm'>
               This will disconnect the source and stop future syncs. Documents already synced will
               remain in the knowledge base unless you choose to delete them.
-            </p>
+            </ModalDescription>
             <div className='mt-3 flex items-center gap-2'>
               <Checkbox
                 id='delete-docs'

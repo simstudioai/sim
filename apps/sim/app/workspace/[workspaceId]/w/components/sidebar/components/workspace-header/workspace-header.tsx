@@ -16,6 +16,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Plus,
@@ -799,12 +800,12 @@ function WorkspaceHeaderImpl({
         <ModalContent size='sm'>
           <ModalHeader>Leave Workspace</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to leave{' '}
               <span className='font-base text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
               will lose access to all workflows and data in this workspace. This action cannot be
               undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

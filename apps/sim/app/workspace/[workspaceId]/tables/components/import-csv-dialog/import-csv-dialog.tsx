@@ -12,6 +12,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Table,
@@ -343,6 +344,9 @@ export function ImportCsvDialog({
       <ModalContent size='lg'>
         <ModalHeader>Import CSV into {table.name}</ModalHeader>
         <ModalBody>
+          <ModalDescription className='sr-only'>
+            Upload and map a CSV file to import rows into the table
+          </ModalDescription>
           {!parsed ? (
             <div className='flex flex-col gap-2'>
               <Label>Import CSV</Label>

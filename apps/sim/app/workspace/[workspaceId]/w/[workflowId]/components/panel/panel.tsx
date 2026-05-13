@@ -21,6 +21,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   MoreHorizontal,
@@ -943,7 +944,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         <ModalContent size='sm'>
           <ModalHeader>Delete Workflow</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {currentWorkflow?.name ?? 'this workflow'}
@@ -953,7 +954,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 All associated blocks, executions, and configuration will be removed.
               </span>{' '}
               You can restore it from Recently Deleted in Settings.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

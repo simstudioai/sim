@@ -12,6 +12,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -310,6 +311,9 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
       <ModalContent size='lg'>
         <ModalHeader>{isEditing ? 'Edit scheduled task' : 'Create new scheduled task'}</ModalHeader>
         <ModalBody>
+          <ModalDescription className='sr-only'>
+            {isEditing ? 'Edit the scheduled task settings' : 'Configure a new scheduled task'}
+          </ModalDescription>
           <div className='flex flex-col gap-4.5'>
             <div className='flex flex-col gap-2'>
               <p className='font-medium text-[var(--text-secondary)] text-sm'>Title</p>
