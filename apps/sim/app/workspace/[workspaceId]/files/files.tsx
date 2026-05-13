@@ -486,16 +486,14 @@ export function Files() {
 
   const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
 
-  const [prevVisibleRowIds, setPrevVisibleRowIds] = useState<string[]>([])
-  if (prevVisibleRowIds !== visibleRowIds) {
-    setPrevVisibleRowIds(visibleRowIds)
+  useEffect(() => {
     lastSelectedIndexRef.current = -1
     const visible = new Set(visibleRowIds)
     setSelectedRowIds((prev) => {
       const next = new Set(Array.from(prev).filter((id) => visible.has(id)))
       return next.size === prev.size ? prev : next
     })
-  }
+  }, [visibleRowIds])
 
   const isAllSelected =
     visibleRowIds.length > 0 && visibleRowIds.every((id) => selectedRowIds.has(id))
