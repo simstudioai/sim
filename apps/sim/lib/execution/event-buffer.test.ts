@@ -8,6 +8,7 @@ import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 const { mockGetRedisClient, mockRedis, persistedEntries } = vi.hoisted(() => {
   const persistedEntries: ExecutionEventEntry[] = []
   const mockRedis = {
+    get: vi.fn(),
     incrby: vi.fn(),
     hset: vi.fn(),
     expire: vi.fn(),
@@ -30,6 +31,7 @@ import {
   flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
   readExecutionEventsState,
+  resetExecutionStreamBuffer,
 } from '@/lib/execution/event-buffer'
 
 function makeEvent(blockId: string): ExecutionEvent {
@@ -47,36 +49,53 @@ function makeEvent(blockId: string): ExecutionEvent {
   }
 }
 
+function parseFlushEvalArgs(args: unknown[]): {
+  terminalStatus: string
+  zaddArgs: (string | number)[]
+} {
+  const keyCount = Number(args[0])
+  return {
+    terminalStatus: String(args[keyCount + 4] ?? ''),
+    zaddArgs: args.slice(keyCount + 9) as (string | number)[],
+  }
+}
+
+function isFlushScript(script: string): boolean {
+  return script.includes("redis.call('ZADD'") && script.includes('new_count')
+}
+
+function isResetScript(script: string): boolean {
+  return script.includes('retained_bytes') && script.includes('replayStartEventId')
+}
+
 describe('execution event buffer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     persistedEntries.length = 0
     mockGetRedisClient.mockReturnValue(mockRedis)
+    mockRedis.get.mockResolvedValue(null)
     mockRedis.hgetall.mockResolvedValue({})
     mockRedis.zrangebyscore.mockResolvedValue([])
     mockRedis.zremrangebyrank.mockResolvedValue(0)
-    mockRedis.eval.mockImplementation(
-      async (
-        _script: string,
-        _keyCount: number,
-        _eventsKey: string,
-        _seqKey: string,
-        _metaKey: string,
-        _ttl: number,
-        _eventLimit: number,
-        _updatedAt: string,
-        terminalStatus: string,
-        ...args: (string | number)[]
-      ) => {
-        for (let i = 0; i < args.length; i += 2) {
-          persistedEntries.push(JSON.parse(args[i + 1] as string) as ExecutionEventEntry)
+    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+      if (isFlushScript(script)) {
+        const { terminalStatus, zaddArgs } = parseFlushEvalArgs(args)
+        for (let i = 0; i < zaddArgs.length; i += 2) {
+          persistedEntries.push(JSON.parse(zaddArgs[i + 1] as string) as ExecutionEventEntry)
         }
         if (terminalStatus) {
           await mockRedis.hset('meta', { status: terminalStatus })
         }
-        return persistedEntries[0]?.eventId ?? false
+        return [1, persistedEntries[0]?.eventId ?? false, 0]
       }
-    )
+      if (isResetScript(script)) {
+        return 0
+      }
+      if (script.includes('DECRBY')) {
+        return 1
+      }
+      return [1, 'ok', 0, 0]
+    })
     mockRedis.pipeline.mockImplementation(() => ({
       zadd: vi.fn((_key: string, ...args: (string | number)[]) => {
         for (let i = 0; i < args.length; i += 2) {
@@ -152,15 +171,15 @@ describe('execution event buffer', () => {
       () => Promise.resolve(),
     ]
 
-    mockRedis.eval.mockImplementation(async (_script: string, ...args: unknown[]) => {
+    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
       const batchEntries: ExecutionEventEntry[] = []
-      const zaddArgs = args.slice(8) as (string | number)[]
+      const { zaddArgs } = parseFlushEvalArgs(args)
       for (let i = 0; i < zaddArgs.length; i += 2) {
         batchEntries.push(JSON.parse(zaddArgs[i + 1] as string) as ExecutionEventEntry)
       }
       await (execCalls.shift() ?? (() => Promise.resolve()))()
       persistedEntries.push(...batchEntries)
-      return persistedEntries[0]?.eventId ?? false
+      return [1, persistedEntries[0]?.eventId ?? false, 0]
     })
     mockRedis.pipeline.mockImplementation(() => {
       const batchEntries: ExecutionEventEntry[] = []
@@ -237,8 +256,8 @@ describe('execution event buffer', () => {
   it('flushes replay events after a recovered final replay flush without terminal meta', async () => {
     mockRedis.incrby.mockResolvedValue(100)
     let flushAttempt = 0
-    mockRedis.eval.mockImplementation(async (_script: string, ...args: unknown[]) => {
-      const zaddArgs = args.slice(8) as (string | number)[]
+    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+      const { zaddArgs } = parseFlushEvalArgs(args)
       if (flushAttempt > 0) {
         for (let i = 0; i < zaddArgs.length; i += 2) {
           persistedEntries.push(JSON.parse(zaddArgs[i + 1] as string) as ExecutionEventEntry)
@@ -247,7 +266,7 @@ describe('execution event buffer', () => {
       if (flushAttempt++ === 0) {
         throw new Error('first flush failed')
       }
-      return persistedEntries[0]?.eventId ?? false
+      return [1, persistedEntries[0]?.eventId ?? false, 0]
     })
     mockRedis.pipeline.mockImplementation(() => ({
       zadd: vi.fn((_key: string, ...args: (string | number)[]) => {
@@ -285,6 +304,99 @@ describe('execution event buffer', () => {
 
     expect(persistedEntries.map((entry) => entry.eventId)).toEqual([1])
     expect(mockRedis.hset).toHaveBeenCalledWith('meta', { status: 'complete' })
+  })
+
+  it('budgets only net event bytes after pruning during flush', async () => {
+    mockRedis.incrby.mockResolvedValue(100)
+    let netBudgetBytes = 0
+    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+      const keyCount = Number(args[0])
+      netBudgetBytes = Number(args[keyCount + 5])
+      const { zaddArgs } = parseFlushEvalArgs(args)
+      for (let i = 0; i < zaddArgs.length; i += 2) {
+        persistedEntries.push(JSON.parse(zaddArgs[i + 1] as string) as ExecutionEventEntry)
+      }
+      return [1, persistedEntries[0]?.eventId ?? false, 123]
+    })
+
+    const writer = createExecutionEventWriter('exec-1')
+    await writer.writeTerminal(makeEvent('terminal'), 'complete')
+
+    expect(netBudgetBytes).toBeGreaterThan(0)
+  })
+
+  it('releases retained event budget when resetting the stream buffer', async () => {
+    mockRedis.get.mockResolvedValueOnce(41)
+    mockRedis.hgetall.mockResolvedValueOnce({ userId: 'user-1' })
+    let releasedBytes = 0
+    mockRedis.eval.mockImplementationOnce(async (script: string, ...args: unknown[]) => {
+      expect(script).toContain('retained_bytes')
+      expect(args.slice(0, 5)).toEqual([
+        4,
+        'execution:stream:exec-1:events',
+        'execution:stream:exec-1:meta',
+        'execution:redis-budget:execution:exec-1',
+        'execution:redis-budget:user:user-1',
+      ])
+      releasedBytes = 256
+      return releasedBytes
+    })
+
+    await expect(resetExecutionStreamBuffer('exec-1')).resolves.toBe(true)
+
+    expect(releasedBytes).toBe(256)
+  })
+
+  it('surfaces execution memory limit errors when the Redis budget is exceeded', async () => {
+    mockRedis.incrby.mockResolvedValue(100)
+    mockRedis.eval.mockImplementation(async (script: string) => {
+      if (isFlushScript(script)) {
+        return [0, 'execution_redis_bytes', 64 * 1024 * 1024]
+      }
+      return [1, 'ok', 0, 0]
+    })
+
+    const writer = createExecutionEventWriter('exec-1')
+
+    await expect(writer.writeTerminal(makeEvent('terminal'), 'complete')).rejects.toThrow(
+      'Execution memory limit exceeded'
+    )
+    expect(persistedEntries).toEqual([])
+  })
+
+  it('preserves requested UserFile base64 when buffering terminal events', async () => {
+    mockRedis.incrby.mockResolvedValue(100)
+    const base64 = Buffer.from('hello').toString('base64')
+    const writer = createExecutionEventWriter('exec-1', { preserveUserFileBase64: true })
+
+    await writer.writeTerminal(
+      {
+        type: 'execution:completed',
+        timestamp: new Date().toISOString(),
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        data: {
+          success: true,
+          duration: 1,
+          output: {
+            file: {
+              id: 'file-1',
+              name: 'small.txt',
+              size: 5,
+              type: 'text/plain',
+              context: 'execution',
+              base64,
+            },
+          },
+        },
+      },
+      'complete'
+    )
+
+    const eventData = persistedEntries[0].event.data as {
+      output: { file: { base64?: string } }
+    }
+    expect(eventData.output.file.base64).toBe(base64)
   })
 
   it('retries active meta initialization before giving up', async () => {

@@ -96,7 +96,7 @@ export function isBranchNodeId(nodeId: string): boolean {
 
 const OUTER_BRANCH_PATTERN = /__obranch-(\d+)/
 const OUTER_BRANCH_STRIP_PATTERN = /__obranch-\d+/g
-const CLONE_SEQ_STRIP_PATTERN = /__clone\d+/g
+const CLONE_DIGEST_STRIP_PATTERN = /__clone[0-9a-f]+/gi
 
 /**
  * Extracts the outer branch index from a cloned subflow ID.
@@ -114,7 +114,7 @@ export function extractOuterBranchIndex(clonedId: string): number | undefined {
  */
 export function stripCloneSuffixes(nodeId: string): string {
   return extractBaseBlockId(
-    nodeId.replace(OUTER_BRANCH_STRIP_PATTERN, '').replace(CLONE_SEQ_STRIP_PATTERN, '')
+    nodeId.replace(OUTER_BRANCH_STRIP_PATTERN, '').replace(CLONE_DIGEST_STRIP_PATTERN, '')
   )
 }
 
@@ -130,7 +130,7 @@ export function buildClonedSubflowId(originalId: string, branchIndex: number): s
  * returning the original workflow-level subflow ID.
  */
 export function stripOuterBranchSuffix(id: string): string {
-  return id.replace(OUTER_BRANCH_STRIP_PATTERN, '').replace(CLONE_SEQ_STRIP_PATTERN, '')
+  return id.replace(OUTER_BRANCH_STRIP_PATTERN, '').replace(CLONE_DIGEST_STRIP_PATTERN, '')
 }
 
 /**
@@ -154,9 +154,29 @@ export function findEffectiveContainerId(
   // and cloned variants coexist in the map; the clone is the correct scope.
   const match = currentNodeId.match(OUTER_BRANCH_PATTERN)
   if (match) {
-    const candidateId = buildClonedSubflowId(originalId, Number.parseInt(match[1], 10))
+    const branchIndex = Number.parseInt(match[1], 10)
+    const cloneSuffix = `__obranch-${branchIndex}`
+    if (currentNodeId.includes('__clone')) {
+      for (const scopeId of executionMap.keys()) {
+        if (
+          scopeId.includes('__clone') &&
+          scopeId.endsWith(cloneSuffix) &&
+          stripOuterBranchSuffix(scopeId) === originalId
+        ) {
+          return scopeId
+        }
+      }
+    }
+
+    const candidateId = buildClonedSubflowId(originalId, branchIndex)
     if (executionMap.has(candidateId)) {
       return candidateId
+    }
+
+    for (const scopeId of executionMap.keys()) {
+      if (scopeId.endsWith(cloneSuffix) && stripOuterBranchSuffix(scopeId) === originalId) {
+        return scopeId
+      }
     }
   }
 
@@ -179,26 +199,14 @@ export function normalizeNodeId(nodeId: string): string {
 }
 
 /**
- * Validates that a count doesn't exceed a maximum limit.
- * Returns an error message if validation fails, undefined otherwise.
+ * Async variant used by execution paths that may need durable large-value or
+ * explicit UserFile.base64 materialization while resolving collection inputs.
  */
-export function validateMaxCount(count: number, max: number, itemType: string): string | undefined {
-  if (count > max) {
-    return `${itemType} (${count}) exceeds maximum allowed (${max}). Execution blocked.`
-  }
-  return undefined
-}
-
-/**
- * Resolves array input at runtime. Handles arrays, objects, references, and JSON strings.
- * Used by both loop forEach and parallel distribution resolution.
- * Throws an error if resolution fails.
- */
-export function resolveArrayInput(
+export async function resolveArrayInputAsync(
   ctx: ExecutionContext,
   items: any,
   resolver: VariableResolver | null
-): any[] {
+): Promise<any[]> {
   if (Array.isArray(items)) {
     return items
   }
@@ -210,7 +218,7 @@ export function resolveArrayInput(
   if (typeof items === 'string') {
     if (items.startsWith(REFERENCE.START) && items.endsWith(REFERENCE.END) && resolver) {
       try {
-        const resolved = resolver.resolveSingleReference(ctx, '', items)
+        const resolved = await resolver.resolveSingleReference(ctx, '', items)
         if (Array.isArray(resolved)) {
           return resolved
         }
@@ -249,7 +257,7 @@ export function resolveArrayInput(
 
   if (resolver) {
     try {
-      const resolved = resolver.resolveInputs(ctx, 'subflow_items', { items }).items
+      const resolved = (await resolver.resolveInputs(ctx, 'subflow_items', { items })).items
       if (Array.isArray(resolved)) {
         return resolved
       }
@@ -408,7 +416,7 @@ export async function emitSubflowSuccessEvents(
   ctx: ExecutionContext,
   blockId: string,
   blockType: 'loop' | 'parallel',
-  output: { results: any[] },
+  output: { results: unknown },
   contextExtensions: ContextExtensions | null
 ): Promise<void> {
   const now = new Date().toISOString()

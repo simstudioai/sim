@@ -6,6 +6,7 @@ import {
   traverseObjectPath,
 } from '@/lib/core/utils/response-format'
 import { encodeSSE } from '@/lib/core/utils/sse'
+import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import {
@@ -45,6 +46,11 @@ export interface StreamingResponseOptions {
   requestId: string
   streamConfig: StreamingConfig
   executionId?: string
+  largeValueExecutionIds?: string[]
+  allowLargeValueWorkflowScope?: boolean
+  workspaceId?: string
+  workflowId?: string
+  userId?: string
   executeFn: StreamingExecutorFn
 }
 
@@ -78,8 +84,18 @@ async function buildMinimalResult(
   completedBlockIds: Set<string>,
   requestId: string,
   includeFileBase64: boolean,
-  base64MaxBytes: number | undefined
+  base64MaxBytes: number | undefined,
+  executionId?: string,
+  context: Pick<StreamingResponseOptions, 'workspaceId' | 'workflowId' | 'userId'> = {}
 ): Promise<{ success: boolean; error?: string; output: Record<string, unknown> }> {
+  const durableContext = {
+    workspaceId: context.workspaceId,
+    workflowId: context.workflowId,
+    executionId,
+    userId: context.userId,
+    requireDurable: Boolean(context.workspaceId && context.workflowId && executionId),
+  }
+
   const minimalResult = {
     success: result.success,
     error: result.error,
@@ -88,12 +104,20 @@ async function buildMinimalResult(
 
   if (result.status === 'paused') {
     minimalResult.output = result.output || {}
-    return minimalResult
+    return compactExecutionPayload(minimalResult, {
+      ...durableContext,
+      preserveUserFileBase64: includeFileBase64,
+      preserveRoot: true,
+    })
   }
 
   if (!selectedOutputs?.length) {
     minimalResult.output = result.output || {}
-    return minimalResult
+    return compactExecutionPayload(minimalResult, {
+      ...durableContext,
+      preserveUserFileBase64: includeFileBase64,
+      preserveRoot: true,
+    })
   }
 
   if (!result.output || !result.logs) {
@@ -138,7 +162,11 @@ async function buildMinimalResult(
     ;(minimalResult.output[blockId] as Record<string, unknown>)[path] = value
   }
 
-  return minimalResult
+  return compactExecutionPayload(minimalResult, {
+    ...durableContext,
+    preserveUserFileBase64: includeFileBase64,
+    preserveRoot: true,
+  })
 }
 
 function updateLogsWithStreamedContent(
@@ -191,6 +219,13 @@ export async function createStreamingResponse(
   options: StreamingResponseOptions
 ): Promise<ReadableStream> {
   const { requestId, streamConfig, executionId, executeFn } = options
+  const durableContext = {
+    workspaceId: options.workspaceId,
+    workflowId: options.workflowId,
+    executionId,
+    userId: options.userId,
+    requireDurable: Boolean(options.workspaceId && options.workflowId && executionId),
+  }
   const timeoutController = createTimeoutAbortController(streamConfig.timeoutMs)
 
   return new ReadableStream({
@@ -281,14 +316,23 @@ export async function createStreamingResponse(
             const hydratedOutput = includeFileBase64
               ? await hydrateUserFilesWithBase64(outputValue, {
                   requestId,
+                  workspaceId: options.workspaceId,
+                  workflowId: options.workflowId,
                   executionId,
+                  largeValueExecutionIds: options.largeValueExecutionIds,
+                  allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
+                  userId: options.userId,
                   maxBytes: base64MaxBytes,
                 })
               : outputValue
+            const compactHydratedOutput = await compactExecutionPayload(hydratedOutput, {
+              ...durableContext,
+              preserveUserFileBase64: includeFileBase64,
+            })
             const formattedOutput =
-              typeof hydratedOutput === 'string'
-                ? hydratedOutput
-                : JSON.stringify(hydratedOutput, null, 2)
+              typeof compactHydratedOutput === 'string'
+                ? compactHydratedOutput
+                : JSON.stringify(compactHydratedOutput, null, 2)
             sendChunk(blockId, formattedOutput)
           }
         }
@@ -336,7 +380,13 @@ export async function createStreamingResponse(
             state.completedBlockIds,
             requestId,
             streamConfig.includeFileBase64 ?? true,
-            streamConfig.base64MaxBytes
+            streamConfig.base64MaxBytes,
+            executionId,
+            {
+              workspaceId: options.workspaceId,
+              workflowId: options.workflowId,
+              userId: options.userId,
+            }
           )
 
           controller.enqueue(

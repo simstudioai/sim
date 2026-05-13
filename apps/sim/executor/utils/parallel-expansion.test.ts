@@ -207,6 +207,65 @@ describe('Nested parallel expansion + edge resolution', () => {
     expect(readyAfterClonedInnerEnd).toContain(outerEndId)
   })
 
+  it('uses global branch indexes for nested subflow clones in later batches', () => {
+    const outerParallelId = 'outer-parallel'
+    const innerParallelId = 'inner-parallel'
+    const functionId = 'func-1'
+
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        createBlock('start', BlockType.STARTER),
+        createBlock(outerParallelId, BlockType.PARALLEL),
+        createBlock(innerParallelId, BlockType.PARALLEL),
+        createBlock(functionId, BlockType.FUNCTION),
+      ],
+      connections: [
+        { source: 'start', target: outerParallelId },
+        {
+          source: outerParallelId,
+          target: innerParallelId,
+          sourceHandle: 'parallel-start-source',
+        },
+        {
+          source: innerParallelId,
+          target: functionId,
+          sourceHandle: 'parallel-start-source',
+        },
+      ],
+      loops: {},
+      parallels: {
+        [innerParallelId]: {
+          id: innerParallelId,
+          nodes: [functionId],
+          count: 1,
+          parallelType: 'count',
+        },
+        [outerParallelId]: {
+          id: outerParallelId,
+          nodes: [innerParallelId],
+          count: 4,
+          parallelType: 'count',
+        },
+      },
+    }
+
+    const builder = new DAGBuilder()
+    const dag = builder.build(workflow)
+    const expander = new ParallelExpander()
+    const result = expander.expandParallel(dag, outerParallelId, 2, undefined, {
+      branchIndexOffset: 2,
+      totalBranches: 4,
+    })
+
+    expect(result.entryNodes).not.toContain(buildParallelSentinelStartId(innerParallelId))
+    expect(result.clonedSubflows.map((clone) => clone.outerBranchIndex)).toEqual([2, 3])
+    expect(result.clonedSubflows.map((clone) => clone.clonedId)).toEqual([
+      `${innerParallelId}__obranch-2`,
+      `${innerParallelId}__obranch-3`,
+    ])
+  })
+
   it('3-level nesting: pre-expansion clone IDs do not collide with runtime expansion', () => {
     const p1 = 'p1'
     const p2 = 'p2'
@@ -251,7 +310,7 @@ describe('Nested parallel expansion + edge resolution', () => {
     // P3 should also be cloned (inside P2__obranch-1) with a __clone prefix
     const p3Clone = p1Result.clonedSubflows.find((c) => c.originalId === p3)!
     expect(p3Clone).toBeDefined()
-    expect(p3Clone.clonedId).toMatch(/^p3__clone\d+__obranch-1$/)
+    expect(p3Clone.clonedId).toMatch(/^p3__clone[0-9a-f]{24}__obranch-1$/)
     expect(stripCloneSuffixes(p3Clone.clonedId)).toBe('p3')
 
     // Step 2: Expand P2 (original, branch 0 of P1) — this creates P3__obranch-1 at runtime

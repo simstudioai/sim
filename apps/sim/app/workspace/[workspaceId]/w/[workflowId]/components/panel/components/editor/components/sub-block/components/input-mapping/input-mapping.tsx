@@ -6,10 +6,11 @@ import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowState } from '@/hooks/queries/workflows'
 
 /**
@@ -35,7 +36,7 @@ interface InputMappingFieldProps {
  */
 interface InputMappingProps {
   blockId: string
-  subBlockId: string
+  subBlock: SubBlockConfig
   isPreview?: boolean
   previewValue?: Record<string, unknown>
   disabled?: boolean
@@ -50,17 +51,20 @@ interface InputMappingProps {
  */
 export function InputMapping({
   blockId,
-  subBlockId,
+  subBlock,
   isPreview = false,
   previewValue,
   disabled = false,
   previewContextValues,
 }: InputMappingProps) {
+  const subBlockId = subBlock.id
   const [mapping, setMapping] = useSubBlockValue(blockId, subBlockId)
-  const [storeWorkflowId] = useSubBlockValue(blockId, 'workflowId')
-  const selectedWorkflowId = previewContextValues
-    ? resolvePreviewContextValue(previewContextValues.workflowId)
-    : storeWorkflowId
+  const { dependencyValues } = useDependsOnGate(blockId, subBlock, {
+    disabled,
+    isPreview,
+    previewContextValues,
+  })
+  const selectedWorkflowId = dependencyValues.workflowId
 
   const inputController = useSubBlockInput({
     blockId,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { InvalidFieldError } from '@/executor/utils/block-reference'
 import { ParallelResolver } from './parallel'
 import type { ResolutionContext } from './reference'
@@ -76,11 +77,16 @@ function createParallelScope(items: any[]) {
 function createTestContext(
   currentNodeId: string,
   parallelExecutions?: Map<string, any>,
-  blockOutputs?: Record<string, any>
+  blockOutputs?: Record<string, any>,
+  parallelBlockMapping?: Map<string, any>
 ): ResolutionContext {
   return {
     executionContext: {
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      executionId: 'execution-1',
       parallelExecutions: parallelExecutions ?? new Map(),
+      parallelBlockMapping,
     },
     executionState: {
       getBlockOutput: (id: string) => blockOutputs?.[id],
@@ -156,6 +162,34 @@ describe('ParallelResolver', () => {
       expect(resolver.resolve('<parallel.index>', createTestContext('block-1₍0₎'))).toBe(0)
       expect(resolver.resolve('<parallel.index>', createTestContext('block-1₍1₎'))).toBe(1)
       expect(resolver.resolve('<parallel.index>', createTestContext('block-1₍2₎'))).toBe(2)
+    })
+
+    it.concurrent('uses runtime branch mapping for batched local branch node IDs', () => {
+      const workflow = createTestWorkflow({
+        'parallel-1': { nodes: ['block-1'], distribution: ['a', 'b', 'c', 'd'] },
+      })
+      const resolver = new ParallelResolver(workflow)
+      const parallelScope = createParallelScope(['a', 'b', 'c', 'd'])
+      const parallelExecutions = new Map([['parallel-1', parallelScope]])
+      const parallelBlockMapping = new Map([
+        [
+          'block-1₍0₎',
+          {
+            originalBlockId: 'block-1',
+            parallelId: 'parallel-1',
+            iterationIndex: 2,
+          },
+        ],
+      ])
+      const ctx = createTestContext(
+        'block-1₍0₎',
+        parallelExecutions,
+        undefined,
+        parallelBlockMapping
+      )
+
+      expect(resolver.resolve('<parallel.index>', ctx)).toBe(2)
+      expect(resolver.resolve('<parallel.currentItem>', ctx)).toBe('c')
     })
 
     it.concurrent('should return undefined when branch index cannot be extracted', () => {
@@ -313,6 +347,9 @@ describe('ParallelResolver', () => {
       const ctx = createTestContext('block-1₍0₎')
 
       expect(() => resolver.resolve('<parallel.unknownProperty>', ctx)).toThrow(InvalidFieldError)
+      expect(() => resolver.resolve('<parallel.unknownProperty>', ctx)).toThrow(
+        'Available fields: index'
+      )
     })
 
     it.concurrent('should return undefined when block is not in any parallel', () => {
@@ -428,6 +465,31 @@ describe('ParallelResolver', () => {
 
       expect(resolver.resolve('<parallel1.result.0>', ctx)).toEqual([{ response: 'a' }])
       expect(resolver.resolve('<parallel1.result.1.0.response>', ctx)).toBe('b')
+      expect(resolver.resolve('<parallel1.results[1][0].response>', ctx)).toBe('b')
+    })
+
+    it('should resolve nested paths inside compacted result references', async () => {
+      const workflow = createTestWorkflow(
+        { 'parallel-1': { nodes: ['block-1'], distribution: ['a', 'b'] } },
+        [{ id: 'parallel-1', name: 'Parallel 1' }]
+      )
+      const resolver = new ParallelResolver(workflow)
+      const compacted = await compactExecutionPayload(
+        { results: [[{ response: 'a' }], [{ response: 'b', payload: 'x'.repeat(2048) }]] },
+        {
+          thresholdBytes: 256,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }
+      )
+      const ctx = createTestContext('block-outside', new Map(), {
+        'parallel-1': compacted,
+      })
+
+      expect(resolver.resolve('<parallel1.result.1.0.response>', ctx)).toBe('b')
+      expect(resolver.resolve('<parallel1.results[1][0].response>', ctx)).toBe('b')
+      expect(() => resolver.resolve('<parallel1.results>', ctx)).toThrow('too large to inline')
     })
 
     it.concurrent('should resolve result with empty currentNodeId', () => {
@@ -489,6 +551,29 @@ describe('ParallelResolver', () => {
       const ctx = createTestContext('block-1₍0₎')
 
       expect(() => resolver.resolve('<parallel1.unknownProp>', ctx)).toThrow(InvalidFieldError)
+      expect(() => resolver.resolve('<parallel1.unknownProp>', ctx)).toThrow(
+        'Available fields: index, currentItem, items'
+      )
+    })
+
+    it.concurrent('should list only results for contextual fields outside a named parallel', () => {
+      const workflow = createTestWorkflow(
+        {
+          'parallel-1': {
+            nodes: ['block-1'],
+            distribution: ['a'],
+            parallelType: 'collection',
+          },
+        },
+        [{ id: 'parallel-1', name: 'Parallel 1' }]
+      )
+      const resolver = new ParallelResolver(workflow)
+      const ctx = createTestContext('block-outside', new Map())
+
+      expect(() => resolver.resolve('<parallel1.index>', ctx)).toThrow(InvalidFieldError)
+      expect(() => resolver.resolve('<parallel1.index>', ctx)).toThrow('Available fields: results')
+      expect(() => resolver.resolve('<parallel1.cooked>', ctx)).toThrow(InvalidFieldError)
+      expect(() => resolver.resolve('<parallel1.cooked>', ctx)).toThrow('Available fields: results')
     })
 
     it.concurrent('should not resolve named ref when no matching block exists', () => {

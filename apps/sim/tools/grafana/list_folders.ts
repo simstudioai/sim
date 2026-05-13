@@ -38,6 +38,12 @@ export const listFoldersTool: ToolConfig<GrafanaListFoldersParams, GrafanaListFo
       visibility: 'user-only',
       description: 'Page number for pagination',
     },
+    parentUid: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'List children of this folder UID (requires nested folders enabled)',
+    },
   },
 
   request: {
@@ -47,6 +53,7 @@ export const listFoldersTool: ToolConfig<GrafanaListFoldersParams, GrafanaListFo
 
       if (params.limit) searchParams.set('limit', String(params.limit))
       if (params.page) searchParams.set('page', String(params.page))
+      if (params.parentUid) searchParams.set('parentUid', params.parentUid.trim())
 
       const queryString = searchParams.toString()
       return `${baseUrl}/api/folders${queryString ? `?${queryString}` : ''}`
@@ -71,20 +78,22 @@ export const listFoldersTool: ToolConfig<GrafanaListFoldersParams, GrafanaListFo
       success: true,
       output: {
         folders: Array.isArray(data)
-          ? data.map((f: any) => ({
-              id: f.id,
-              uid: f.uid,
-              title: f.title,
-              hasAcl: f.hasAcl || false,
-              canSave: f.canSave || false,
-              canEdit: f.canEdit || false,
-              canAdmin: f.canAdmin || false,
-              canDelete: f.canDelete || false,
-              createdBy: f.createdBy || '',
-              created: f.created || '',
-              updatedBy: f.updatedBy || '',
-              updated: f.updated || '',
-              version: f.version || 0,
+          ? data.map((f: Record<string, unknown>) => ({
+              id: (f.id as number) ?? null,
+              uid: (f.uid as string) ?? null,
+              title: (f.title as string) ?? null,
+              url: (f.url as string) ?? null,
+              parentUid: (f.parentUid as string) ?? null,
+              parents: (f.parents as { uid: string; title: string; url: string }[]) ?? [],
+              hasAcl: (f.hasAcl as boolean) ?? null,
+              canSave: (f.canSave as boolean) ?? null,
+              canEdit: (f.canEdit as boolean) ?? null,
+              canAdmin: (f.canAdmin as boolean) ?? null,
+              createdBy: (f.createdBy as string) ?? null,
+              created: (f.created as string) ?? null,
+              updatedBy: (f.updatedBy as string) ?? null,
+              updated: (f.updated as string) ?? null,
+              version: (f.version as number) ?? null,
             }))
           : [],
       },
@@ -101,19 +110,58 @@ export const listFoldersTool: ToolConfig<GrafanaListFoldersParams, GrafanaListFo
           id: { type: 'number', description: 'Folder ID' },
           uid: { type: 'string', description: 'Folder UID' },
           title: { type: 'string', description: 'Folder title' },
-          hasAcl: { type: 'boolean', description: 'Whether the folder has custom ACL permissions' },
-          canSave: { type: 'boolean', description: 'Whether the current user can save the folder' },
-          canEdit: { type: 'boolean', description: 'Whether the current user can edit the folder' },
-          canAdmin: { type: 'boolean', description: 'Whether the current user has admin rights' },
-          canDelete: {
-            type: 'boolean',
-            description: 'Whether the current user can delete the folder',
+          url: { type: 'string', description: 'Folder URL path', optional: true },
+          parentUid: {
+            type: 'string',
+            description: 'Parent folder UID (nested folders only)',
+            optional: true,
           },
-          createdBy: { type: 'string', description: 'Username of who created the folder' },
-          created: { type: 'string', description: 'Timestamp when the folder was created' },
-          updatedBy: { type: 'string', description: 'Username of who last updated the folder' },
-          updated: { type: 'string', description: 'Timestamp when the folder was last updated' },
-          version: { type: 'number', description: 'Version number of the folder' },
+          parents: {
+            type: 'array',
+            description: 'Ancestor folder hierarchy (nested folders only)',
+            optional: true,
+          },
+          hasAcl: {
+            type: 'boolean',
+            description: 'Whether the folder has custom ACL permissions',
+            optional: true,
+          },
+          canSave: {
+            type: 'boolean',
+            description: 'Whether the current user can save the folder',
+            optional: true,
+          },
+          canEdit: {
+            type: 'boolean',
+            description: 'Whether the current user can edit the folder',
+            optional: true,
+          },
+          canAdmin: {
+            type: 'boolean',
+            description: 'Whether the current user has admin rights',
+            optional: true,
+          },
+          createdBy: {
+            type: 'string',
+            description: 'Username of who created the folder',
+            optional: true,
+          },
+          created: {
+            type: 'string',
+            description: 'Timestamp when the folder was created',
+            optional: true,
+          },
+          updatedBy: {
+            type: 'string',
+            description: 'Username of who last updated the folder',
+            optional: true,
+          },
+          updated: {
+            type: 'string',
+            description: 'Timestamp when the folder was last updated',
+            optional: true,
+          },
+          version: { type: 'number', description: 'Folder version number', optional: true },
         },
       },
     },

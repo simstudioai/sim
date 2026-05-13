@@ -40,9 +40,9 @@ export const updateAnnotationTool: ToolConfig<
     },
     text: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'New text content for the annotation',
+      description: 'New text content for the annotation (PATCH supports partial updates)',
     },
     tags: {
       type: 'string',
@@ -78,23 +78,17 @@ export const updateAnnotationTool: ToolConfig<
       return headers
     },
     body: (params) => {
-      const body: Record<string, any> = {
-        text: params.text,
-      }
+      const body: Record<string, unknown> = {}
+
+      if (params.text !== undefined) body.text = params.text
+      if (params.time) body.time = params.time
+      if (params.timeEnd) body.timeEnd = params.timeEnd
 
       if (params.tags) {
         body.tags = params.tags
           .split(',')
           .map((t) => t.trim())
           .filter((t) => t)
-      }
-
-      if (params.time) {
-        body.time = params.time
-      }
-
-      if (params.timeEnd) {
-        body.timeEnd = params.timeEnd
       }
 
       return body

@@ -13,6 +13,7 @@ export interface CredentialAccessResult {
   credentialOwnerUserId?: string
   workspaceId?: string
   resolvedCredentialId?: string
+  credentialType?: 'oauth' | 'service_account'
 }
 
 /**
@@ -114,6 +115,7 @@ export async function authorizeCredentialUse(
         credentialOwnerUserId: actingUserId,
         workspaceId: platformCredential.workspaceId,
         resolvedCredentialId: platformCredential.id,
+        credentialType: 'service_account',
       }
     }
 
@@ -182,6 +184,7 @@ export async function authorizeCredentialUse(
       credentialOwnerUserId: accountRow.userId,
       workspaceId: platformCredential.workspaceId,
       resolvedCredentialId: platformCredential.accountId,
+      credentialType: 'oauth',
     }
   }
 
@@ -252,6 +255,7 @@ export async function authorizeCredentialUse(
       credentialOwnerUserId: accountRow.userId,
       workspaceId: workflowContext.workspaceId,
       resolvedCredentialId: workspaceCredential.accountId,
+      credentialType: 'oauth',
     }
   }
 
@@ -279,5 +283,6 @@ export async function authorizeCredentialUse(
     requesterUserId: auth.userId,
     credentialOwnerUserId: legacyAccount.userId,
     resolvedCredentialId: credentialId,
+    credentialType: 'oauth',
   }
 }

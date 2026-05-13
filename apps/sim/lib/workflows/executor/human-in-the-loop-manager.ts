@@ -13,6 +13,7 @@ import {
   resetExecutionStreamBuffer,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
+import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -25,6 +26,7 @@ import type {
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type {
+  BlockLog,
   ExecutionResult,
   PauseKind,
   PausePoint,
@@ -980,7 +982,12 @@ export class PauseResumeManager {
       throw new Error(RUN_BUFFER_UNAVAILABLE_ERROR)
     }
 
-    const eventWriter = createExecutionEventWriter(resumeExecutionId)
+    const eventWriter = createExecutionEventWriter(resumeExecutionId, {
+      workspaceId: metadata.workspaceId,
+      workflowId,
+      userId: metadata.userId,
+      preserveUserFileBase64: true,
+    })
     const metaInitialized = await initializeExecutionStreamMeta(resumeExecutionId, {
       userId: metadata.userId,
       workflowId,
@@ -1197,6 +1204,23 @@ export class PauseResumeManager {
         }
       }
 
+      const compactResultLogs = await compactBlockLogs(result.logs, {
+        workspaceId: baseSnapshot.metadata.workspaceId,
+        workflowId,
+        executionId: resumeExecutionId,
+        userId: metadata.userId,
+        requireDurable: true,
+      })
+      const compactResultOutput = await compactExecutionPayload(result.output, {
+        workspaceId: baseSnapshot.metadata.workspaceId,
+        workflowId,
+        executionId: resumeExecutionId,
+        userId: metadata.userId,
+        preserveUserFileBase64: true,
+        preserveRoot: true,
+        requireDurable: true,
+      })
+
       if (
         result.status === 'cancelled' &&
         timeoutController?.isTimedOut() &&
@@ -1219,7 +1243,7 @@ export class PauseResumeManager {
             data: {
               error: timeoutErrorMessage,
               duration: result.metadata?.duration || 0,
-              finalBlockLogs: result.logs,
+              finalBlockLogs: compactResultLogs,
             },
           },
           'error'
@@ -1234,7 +1258,7 @@ export class PauseResumeManager {
             workflowId,
             data: {
               duration: result.metadata?.duration || 0,
-              finalBlockLogs: result.logs,
+              finalBlockLogs: compactResultLogs,
             },
           },
           'cancelled'
@@ -1248,11 +1272,11 @@ export class PauseResumeManager {
             executionId: resumeExecutionId,
             workflowId,
             data: {
-              output: result.output,
+              output: compactResultOutput,
               duration: result.metadata?.duration || 0,
               startTime: result.metadata?.startTime || new Date().toISOString(),
               endTime: result.metadata?.endTime || new Date().toISOString(),
-              finalBlockLogs: result.logs,
+              finalBlockLogs: compactResultLogs,
             },
           },
           'complete'
@@ -1267,11 +1291,11 @@ export class PauseResumeManager {
             workflowId,
             data: {
               success: result.success,
-              output: result.output,
+              output: compactResultOutput,
               duration: result.metadata?.duration || 0,
               startTime: result.metadata?.startTime || new Date().toISOString(),
               endTime: result.metadata?.endTime || new Date().toISOString(),
-              finalBlockLogs: result.logs,
+              finalBlockLogs: compactResultLogs,
             },
           },
           'complete'
@@ -1280,6 +1304,23 @@ export class PauseResumeManager {
     } catch (execError) {
       executionError = execError
       const execErrorResult = hasExecutionResult(execError) ? execError.executionResult : undefined
+      let compactErrorLogs: BlockLog[] | undefined
+      try {
+        compactErrorLogs = execErrorResult?.logs
+          ? await compactBlockLogs(execErrorResult.logs, {
+              workspaceId: baseSnapshot.metadata.workspaceId,
+              workflowId,
+              executionId: resumeExecutionId,
+              userId: metadata.userId,
+              requireDurable: true,
+            })
+          : undefined
+      } catch (compactionError) {
+        logger.warn('Failed to compact resume error logs, omitting oversized error details', {
+          resumeExecutionId,
+          error: toError(compactionError).message,
+        })
+      }
       finalMetaStatus = 'error'
       await writeBufferedEvent(
         {
@@ -1290,7 +1331,7 @@ export class PauseResumeManager {
           data: {
             error: toError(execError).message,
             duration: 0,
-            finalBlockLogs: execErrorResult?.logs,
+            finalBlockLogs: compactErrorLogs,
           },
         },
         'error'

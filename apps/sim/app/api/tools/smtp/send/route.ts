@@ -10,6 +10,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
@@ -119,28 +120,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
-        const attachmentBuffers = await Promise.all(
-          attachments.map(async (file) => {
-            try {
-              logger.info(
-                `[${requestId}] Downloading attachment: ${file.name} (${file.size} bytes)`
-              )
-
-              const buffer = await downloadFileFromStorage(file, requestId, logger)
-
-              return {
-                filename: file.name,
-                content: buffer,
-                contentType: file.type || 'application/octet-stream',
-              }
-            } catch (error) {
-              logger.error(`[${requestId}] Failed to download attachment ${file.name}:`, error)
-              throw new Error(
-                `Failed to download attachment "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`
-              )
-            }
-          })
-        )
+        const attachmentBuffers: { filename: string; content: Buffer; contentType: string }[] = []
+        for (const file of attachments) {
+          const denied = await assertToolFileAccess(file.key, authResult.userId, requestId, logger)
+          if (denied) return denied
+          try {
+            logger.info(`[${requestId}] Downloading attachment: ${file.name} (${file.size} bytes)`)
+            const buffer = await downloadFileFromStorage(file, requestId, logger)
+            attachmentBuffers.push({
+              filename: file.name,
+              content: buffer,
+              contentType: file.type || 'application/octet-stream',
+            })
+          } catch (error) {
+            logger.error(`[${requestId}] Failed to download attachment ${file.name}:`, error)
+            throw new Error(
+              `Failed to download attachment "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`
+            )
+          }
+        }
 
         logger.info(`[${requestId}] Processed ${attachmentBuffers.length} attachment(s)`)
         mailOptions.attachments = attachmentBuffers

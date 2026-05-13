@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import type { LoopScope } from '@/executor/execution/state'
 import { InvalidFieldError } from '@/executor/utils/block-reference'
 import { LoopResolver } from './loop'
@@ -61,6 +62,9 @@ function createTestContext(
 ): ResolutionContext {
   return {
     executionContext: {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
       loopExecutions: loopExecutions ?? new Map(),
     },
     executionState: {
@@ -232,6 +236,9 @@ describe('LoopResolver', () => {
       const ctx = createTestContext('block-1', loopScope)
 
       expect(() => resolver.resolve('<loop.unknownProperty>', ctx)).toThrow(InvalidFieldError)
+      expect(() => resolver.resolve('<loop.unknownProperty>', ctx)).toThrow(
+        'Available fields: index'
+      )
     })
 
     it.concurrent('should handle iteration index 0 correctly', () => {
@@ -361,7 +368,7 @@ describe('LoopResolver', () => {
       expect(resolver.resolve('<loop.index>', ctx)).toBe(4)
     })
 
-    it.concurrent('should return undefined for index when block is outside the loop', () => {
+    it.concurrent('should throw for contextual fields when block is outside the loop', () => {
       const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
         { id: 'loop-1', name: 'Loop 1' },
       ])
@@ -370,7 +377,8 @@ describe('LoopResolver', () => {
       const loopExecutions = new Map([['loop-1', loopScope]])
       const ctx = createTestContext('block-outside', undefined, loopExecutions)
 
-      expect(resolver.resolve('<loop1.index>', ctx)).toBeUndefined()
+      expect(() => resolver.resolve('<loop1.index>', ctx)).toThrow(InvalidFieldError)
+      expect(() => resolver.resolve('<loop1.index>', ctx)).toThrow('Available fields: results')
     })
 
     it.concurrent('should resolve result from anywhere after loop completes', () => {
@@ -399,6 +407,30 @@ describe('LoopResolver', () => {
 
       expect(resolver.resolve('<loop1.result.0>', ctx)).toEqual([{ response: 'a' }])
       expect(resolver.resolve('<loop1.result.1.0.response>', ctx)).toBe('b')
+      expect(resolver.resolve('<loop1.results[1][0].response>', ctx)).toBe('b')
+    })
+
+    it('should resolve nested paths inside compacted result references', async () => {
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
+      const resolver = new LoopResolver(workflow)
+      const compacted = await compactExecutionPayload(
+        { results: [[{ response: 'a' }], [{ response: 'b', payload: 'x'.repeat(2048) }]] },
+        {
+          thresholdBytes: 256,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }
+      )
+      const ctx = createTestContext('block-outside', undefined, new Map(), {
+        'loop-1': compacted,
+      })
+
+      expect(resolver.resolve('<loop1.result.1.0.response>', ctx)).toBe('b')
+      expect(resolver.resolve('<loop1.results[1][0].response>', ctx)).toBe('b')
+      expect(() => resolver.resolve('<loop1.results>', ctx)).toThrow('too large to inline')
     })
 
     it.concurrent('should resolve forEach properties via named reference', () => {
@@ -427,6 +459,20 @@ describe('LoopResolver', () => {
       const ctx = createTestContext('block-1', undefined, loopExecutions)
 
       expect(() => resolver.resolve('<loop1.unknownProp>', ctx)).toThrow(InvalidFieldError)
+      expect(() => resolver.resolve('<loop1.unknownProp>', ctx)).toThrow('Available fields: index')
+    })
+
+    it.concurrent('should list only results for unknown fields outside a named loop', () => {
+      const workflow = createTestWorkflow({ 'loop-1': { nodes: ['block-1'] } }, [
+        { id: 'loop-1', name: 'Loop 1' },
+      ])
+      const resolver = new LoopResolver(workflow)
+      const loopScope = createLoopScope({ iteration: 0 })
+      const loopExecutions = new Map([['loop-1', loopScope]])
+      const ctx = createTestContext('block-outside', undefined, loopExecutions)
+
+      expect(() => resolver.resolve('<loop1.cooked>', ctx)).toThrow(InvalidFieldError)
+      expect(() => resolver.resolve('<loop1.cooked>', ctx)).toThrow('Available fields: results')
     })
 
     it.concurrent('should not resolve named ref when no matching block exists', () => {

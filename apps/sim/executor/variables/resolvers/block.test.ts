@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { ExecutionState } from '@/executor/execution/state'
 import { BlockResolver } from './block'
 import { RESOLVED_EMPTY, type ResolutionContext } from './reference'
@@ -174,6 +175,9 @@ function createTestContext(
 
   return {
     executionContext: {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
       blockStates: contextBlockStates ?? new Map(),
     },
     executionState: state,
@@ -245,6 +249,45 @@ describe('BlockResolver', () => {
 
       expect(resolver.resolve('<source.user.profile.name>', ctx)).toBe('Alice')
       expect(resolver.resolve('<source.user.profile.email>', ctx)).toBe('alice@test.com')
+    })
+
+    it('should resolve nested scalar paths inside compacted block references', async () => {
+      const workflow = createTestWorkflow([{ id: 'source' }])
+      const resolver = new BlockResolver(workflow)
+      const compacted = await compactExecutionPayload(
+        {
+          user: { profile: { name: 'Alice' } },
+          items: Array.from({ length: 100 }, (_, index) => ({ id: index })),
+        },
+        {
+          thresholdBytes: 64,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }
+      )
+      const ctx = createTestContext('current', { source: compacted })
+
+      expect(resolver.resolve('<source.user.profile.name>', ctx)).toBe('Alice')
+      expect(resolver.resolve('<source.items[1].id>', ctx)).toBe(1)
+      expect(() => resolver.resolve('<source>', ctx)).toThrow('too large to inline')
+    })
+
+    it('should reject full container references that contain compacted children', async () => {
+      const workflow = createTestWorkflow([{ id: 'source' }])
+      const resolver = new BlockResolver(workflow)
+      const compacted = await compactExecutionPayload(
+        {
+          metadata: { id: 'event-1' },
+          attachment: { body: 'x'.repeat(2048) },
+        },
+        { thresholdBytes: 256, preserveRoot: true }
+      )
+      const ctx = createTestContext('current', { source: compacted })
+
+      expect(resolver.resolve('<source.metadata.id>', ctx)).toBe('event-1')
+      expect(() => resolver.resolve('<source>', ctx)).toThrow('too large to inline')
+      expect(() => resolver.resolve('<source.attachment>', ctx)).toThrow('too large to inline')
     })
 
     it.concurrent('should resolve array index in path', () => {

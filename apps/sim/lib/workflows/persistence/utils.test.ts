@@ -179,6 +179,7 @@ const mockBlocksFromDb = [
       name: 'Parallel Container',
       position: { x: 600, y: 50 },
       height: 250,
+      count: 3,
       data: { width: 500, height: 300, parallelType: 'count', count: 3 },
     }),
     mockWorkflowId
@@ -225,7 +226,10 @@ const mockSubflowsFromDb = [
     config: {
       id: 'parallel-1',
       nodes: ['block-3'],
+      count: 5,
       distribution: ['item1', 'item2'],
+      parallelType: 'count',
+      batchSize: 1,
     },
   },
 ]
@@ -260,7 +264,8 @@ const mockWorkflowState = createWorkflowState({
       name: 'Parallel Container',
       position: { x: 600, y: 50 },
       height: 250,
-      data: { width: 500, height: 300, parallelType: 'count', count: 3 },
+      count: 3,
+      data: { width: 500, height: 300, parallelType: 'count', count: 3, batchSize: 1 },
     }),
     'block-3': createApiBlock({
       id: 'block-3',
@@ -292,6 +297,8 @@ const mockWorkflowState = createWorkflowState({
       id: 'parallel-1',
       nodes: ['block-3'],
       distribution: ['item1', 'item2'],
+      parallelType: 'count',
+      batchSize: 1,
     },
   },
 })
@@ -418,8 +425,16 @@ describe('Database Helpers', () => {
         count: 5,
         distribution: ['item1', 'item2'],
         parallelType: 'count',
+        batchSize: 1,
         enabled: true,
       })
+      expect(result?.blocks['parallel-1'].data).toEqual(
+        expect.objectContaining({
+          count: 5,
+          parallelType: 'count',
+          batchSize: 1,
+        })
+      )
     })
 
     it('should return null when no blocks are found', async () => {
@@ -709,6 +724,20 @@ describe('Database Helpers', () => {
         workflowId: mockWorkflowId,
         type: 'loop',
       })
+      expect(capturedSubflowInserts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'parallel-1',
+            workflowId: mockWorkflowId,
+            type: 'parallel',
+            config: expect.objectContaining({
+              count: 3,
+              parallelType: 'count',
+              batchSize: 1,
+            }),
+          }),
+        ])
+      )
     })
 
     it('should regenerate missing loop and parallel definitions from block data', async () => {
@@ -748,7 +777,11 @@ describe('Database Helpers', () => {
       expect(capturedSubflowInserts).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ id: 'loop-1', type: 'loop' }),
-          expect.objectContaining({ id: 'parallel-1', type: 'parallel' }),
+          expect.objectContaining({
+            id: 'parallel-1',
+            type: 'parallel',
+            config: expect.objectContaining({ batchSize: 1 }),
+          }),
         ])
       )
     })

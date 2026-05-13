@@ -1,3 +1,4 @@
+import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
 import type { SupabaseUpdateParams, SupabaseUpdateResponse } from '@/tools/supabase/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -50,12 +51,17 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
 
   request: {
     url: (params) => {
-      // Construct the URL for the Supabase REST API with select to return updated data
-      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=*`
+      const tableValidation = validateDatabaseIdentifier(params.table, 'table')
+      if (!tableValidation.isValid) throw new Error(tableValidation.error)
 
-      // Add filters (required for update) - using PostgREST syntax
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=*`
+
       if (params.filter?.trim()) {
         url += `&${params.filter.trim()}`
+      } else {
+        throw new Error(
+          'Filter is required for update operations to prevent accidental update of all rows'
+        )
       }
 
       return url

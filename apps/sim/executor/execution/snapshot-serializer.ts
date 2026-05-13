@@ -35,16 +35,19 @@ function serializeParallelExecutions(
   if (!parallelExecutions) return undefined
   const result: Record<string, any> = {}
   for (const [parallelId, scope] of parallelExecutions.entries()) {
-    let branchOutputs: any
-    if (scope.branchOutputs instanceof Map) {
-      branchOutputs = Object.fromEntries(scope.branchOutputs)
-    } else {
-      branchOutputs = scope.branchOutputs ?? {}
-    }
+    const branchOutputs =
+      scope.branchOutputs instanceof Map
+        ? Object.fromEntries(scope.branchOutputs)
+        : (scope.branchOutputs ?? {})
+    const accumulatedOutputs =
+      scope.accumulatedOutputs instanceof Map
+        ? Object.fromEntries(scope.accumulatedOutputs)
+        : (scope.accumulatedOutputs ?? {})
 
     result[parallelId] = {
       ...scope,
       branchOutputs,
+      accumulatedOutputs,
     }
   }
   return result

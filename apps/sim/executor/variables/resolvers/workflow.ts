@@ -57,7 +57,7 @@ export class WorkflowResolver implements Resolver {
 
         // If there are additional path parts, navigate deeper
         if (pathParts.length > 0) {
-          return navigatePath(value, pathParts)
+          return navigatePath(value, pathParts, { executionContext: context.executionContext })
         }
 
         return value

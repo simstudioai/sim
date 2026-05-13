@@ -197,9 +197,12 @@ export const DELETE = withRouteHandler(
         return createErrorResponse('Form not found or access denied', 404)
       }
 
-      await db.delete(form).where(eq(form.id, id))
+      await db
+        .update(form)
+        .set({ archivedAt: new Date(), isActive: false, updatedAt: new Date() })
+        .where(eq(form.id, id))
 
-      logger.info(`Form ${id} deleted (soft delete)`)
+      logger.info(`Form ${id} soft deleted`)
 
       recordAudit({
         workspaceId: formWorkspaceId ?? null,

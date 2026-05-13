@@ -8,6 +8,7 @@ import {
   listMothershipChatsContract,
 } from '@/lib/api/contracts/mothership-tasks'
 import { parseRequest } from '@/lib/api/server'
+import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -55,7 +56,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       )
       .orderBy(desc(copilotChats.updatedAt))
 
-    return NextResponse.json({ success: true, data: chats })
+    const streamMarkers = await reconcileChatStreamMarkers(
+      chats.map((c) => ({ chatId: c.id, streamId: c.activeStreamId })),
+      { repairVerifiedStaleMarkers: true }
+    )
+    const reconciled = chats.map((c) => {
+      const activeStreamId = streamMarkers.get(c.id)?.streamId ?? null
+      return activeStreamId === c.activeStreamId ? c : { ...c, activeStreamId }
+    })
+
+    return NextResponse.json({ success: true, data: reconciled })
   } catch (error) {
     logger.error('Error fetching mothership chats:', error)
     return createInternalServerErrorResponse('Failed to fetch chats')

@@ -39,6 +39,12 @@ export const createFolderTool: ToolConfig<GrafanaCreateFolderParams, GrafanaCrea
         visibility: 'user-or-llm',
         description: 'Optional UID for the folder (auto-generated if not provided)',
       },
+      parentUid: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Parent folder UID for nested folders (requires nested folders enabled)',
+      },
     },
 
     request: {
@@ -55,13 +61,12 @@ export const createFolderTool: ToolConfig<GrafanaCreateFolderParams, GrafanaCrea
         return headers
       },
       body: (params) => {
-        const body: Record<string, any> = {
+        const body: Record<string, unknown> = {
           title: params.title,
         }
 
-        if (params.uid) {
-          body.uid = params.uid
-        }
+        if (params.uid) body.uid = params.uid
+        if (params.parentUid) body.parentUid = params.parentUid
 
         return body
       },
@@ -73,80 +78,80 @@ export const createFolderTool: ToolConfig<GrafanaCreateFolderParams, GrafanaCrea
       return {
         success: true,
         output: {
-          id: data.id,
-          uid: data.uid,
-          title: data.title,
-          url: data.url,
-          hasAcl: data.hasAcl || false,
-          canSave: data.canSave || false,
-          canEdit: data.canEdit || false,
-          canAdmin: data.canAdmin || false,
-          canDelete: data.canDelete || false,
-          createdBy: data.createdBy || '',
-          created: data.created || '',
-          updatedBy: data.updatedBy || '',
-          updated: data.updated || '',
-          version: data.version || 0,
+          id: (data.id as number) ?? null,
+          uid: (data.uid as string) ?? null,
+          title: (data.title as string) ?? null,
+          url: (data.url as string) ?? null,
+          parentUid: (data.parentUid as string) ?? null,
+          parents: (data.parents as { uid: string; title: string; url: string }[]) ?? [],
+          hasAcl: (data.hasAcl as boolean) ?? null,
+          canSave: (data.canSave as boolean) ?? null,
+          canEdit: (data.canEdit as boolean) ?? null,
+          canAdmin: (data.canAdmin as boolean) ?? null,
+          createdBy: (data.createdBy as string) ?? null,
+          created: (data.created as string) ?? null,
+          updatedBy: (data.updatedBy as string) ?? null,
+          updated: (data.updated as string) ?? null,
+          version: (data.version as number) ?? null,
         },
       }
     },
 
     outputs: {
-      id: {
-        type: 'number',
-        description: 'The numeric ID of the created folder',
-      },
-      uid: {
+      id: { type: 'number', description: 'The numeric ID of the created folder' },
+      uid: { type: 'string', description: 'The UID of the created folder' },
+      title: { type: 'string', description: 'The title of the created folder' },
+      url: { type: 'string', description: 'The URL path to the folder', optional: true },
+      parentUid: {
         type: 'string',
-        description: 'The UID of the created folder',
+        description: 'Parent folder UID (nested folders only)',
+        optional: true,
       },
-      title: {
-        type: 'string',
-        description: 'The title of the created folder',
-      },
-      url: {
-        type: 'string',
-        description: 'The URL path to the folder',
+      parents: {
+        type: 'array',
+        description: 'Ancestor folder hierarchy (nested folders only)',
+        optional: true,
       },
       hasAcl: {
         type: 'boolean',
         description: 'Whether the folder has custom ACL permissions',
+        optional: true,
       },
       canSave: {
         type: 'boolean',
         description: 'Whether the current user can save the folder',
+        optional: true,
       },
       canEdit: {
         type: 'boolean',
         description: 'Whether the current user can edit the folder',
+        optional: true,
       },
       canAdmin: {
         type: 'boolean',
         description: 'Whether the current user has admin rights on the folder',
-      },
-      canDelete: {
-        type: 'boolean',
-        description: 'Whether the current user can delete the folder',
+        optional: true,
       },
       createdBy: {
         type: 'string',
         description: 'Username of who created the folder',
+        optional: true,
       },
       created: {
         type: 'string',
         description: 'Timestamp when the folder was created',
+        optional: true,
       },
       updatedBy: {
         type: 'string',
         description: 'Username of who last updated the folder',
+        optional: true,
       },
       updated: {
         type: 'string',
         description: 'Timestamp when the folder was last updated',
+        optional: true,
       },
-      version: {
-        type: 'number',
-        description: 'Version number of the folder',
-      },
+      version: { type: 'number', description: 'Version number of the folder', optional: true },
     },
   }

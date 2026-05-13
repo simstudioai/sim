@@ -3499,11 +3499,11 @@ export function useChat(
   processSSEStreamRef.current = processSSEStream
 
   const getActiveStreamIdForChat = useCallback(
-    async (chatId: string, signal?: AbortSignal): Promise<string | null> => {
+    async (
+      chatId: string,
+      signal?: AbortSignal
+    ): Promise<{ loaded: boolean; streamId: string | null }> => {
       const cached = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
-      if (cached?.activeStreamId) {
-        return cached.activeStreamId
-      }
 
       try {
         const fetchSignal = combineAbortSignals(
@@ -3511,15 +3511,15 @@ export function useChat(
           createTimeoutSignal(CHAT_HISTORY_RECOVERY_TIMEOUT_MS)
         )
         const history = await fetchChatHistory(chatId, fetchSignal)
-        if (signal?.aborted || fetchSignal?.aborted) return null
+        if (signal?.aborted || fetchSignal?.aborted) return { loaded: false, streamId: null }
         queryClient.setQueryData(taskKeys.detail(chatId), history)
-        return history.activeStreamId ?? null
+        return { loaded: true, streamId: history.activeStreamId ?? null }
       } catch (error) {
         logger.warn('Failed to load chat history while recovering stream', {
           chatId,
           error: toError(error).message,
         })
-        return null
+        return { loaded: false, streamId: cached?.activeStreamId ?? null }
       }
     },
     [queryClient]
@@ -4032,12 +4032,12 @@ export function useChat(
           !recoveryController.signal.aborted
 
         const cached = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
-        let streamId =
+        const fallbackStreamId =
           streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? cached?.activeStreamId
-        if (!streamId) {
-          streamId =
-            (await getActiveStreamIdForChat(chatId, recoveryController.signal)) ?? undefined
-        }
+        const loadedStream = await getActiveStreamIdForChat(chatId, recoveryController.signal)
+        const streamId = loadedStream.loaded
+          ? (loadedStream.streamId ?? undefined)
+          : fallbackStreamId
         if (
           !isSameRecoverySubject() ||
           streamGenRef.current !== observedGeneration ||

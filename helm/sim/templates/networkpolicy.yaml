@@ -107,14 +107,14 @@ spec:
     - ipBlock:
         cidr: 0.0.0.0/0
         except:
-          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egress.exceptCidrs) }}
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egressExceptCidrs) }}
           - {{ . | quote }}
           {{- end }}
     ports:
     - protocol: TCP
       port: 443
   # Allow custom egress rules
-  {{- with .Values.networkPolicy.egress.extraRules }}
+  {{- with .Values.networkPolicy.egress }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
 
@@ -189,14 +189,14 @@ spec:
     - ipBlock:
         cidr: 0.0.0.0/0
         except:
-          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egress.exceptCidrs) }}
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egressExceptCidrs) }}
           - {{ . | quote }}
           {{- end }}
     ports:
     - protocol: TCP
       port: 443
   # Allow custom egress rules
-  {{- with .Values.networkPolicy.egress.extraRules }}
+  {{- with .Values.networkPolicy.egress }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
 {{- end }}
@@ -296,11 +296,96 @@ spec:
     - ipBlock:
         cidr: 0.0.0.0/0
         except:
-          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egress.exceptCidrs) }}
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egressExceptCidrs) }}
           - {{ . | quote }}
           {{- end }}
     ports:
     - protocol: TCP
       port: 443
 {{- end }}
+
+{{- if .Values.telemetry.enabled }}
+---
+# Network Policy for OpenTelemetry Collector
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sim.fullname" . }}-otel-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sim.labels" . | nindent 4 }}
+    app.kubernetes.io/component: telemetry
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "sim.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: telemetry
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # OTLP from app
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.app.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
+  # OTLP from realtime
+  {{- if .Values.realtime.enabled }}
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.realtime.selectorLabels" . | nindent 10 }}
+    ports:
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
+  {{- end }}
+  # OTLP from copilot
+  {{- if .Values.copilot.enabled }}
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- include "sim.selectorLabels" . | nindent 10 }}
+          app.kubernetes.io/component: copilot
+    ports:
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
+  {{- end }}
+  egress:
+  # DNS
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # HTTPS for forwarding to external observability backends (Datadog, Honeycomb, etc.)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+          {{- range (default (list "169.254.169.254/32" "169.254.170.2/32") .Values.networkPolicy.egressExceptCidrs) }}
+          - {{ . | quote }}
+          {{- end }}
+    ports:
+    - protocol: TCP
+      port: 443
+{{- end }}
+
+{{- /*
+  Copilot + copilot-postgresql intentionally do NOT ship dedicated NetworkPolicies.
+  Copilot requires REDIS_URL (external Redis on a non-443 port), and the chart
+  cannot know the user's Redis host/port at render time — a default egress rule
+  would silently block Redis on most installs. Users running networkPolicy.enabled=true
+  with copilot enabled should add their own NPs (or extend networkPolicy.egress
+  with the appropriate egress rules).
+*/}}
 {{- end }}

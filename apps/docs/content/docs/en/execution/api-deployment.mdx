@@ -215,6 +215,25 @@ while (true) {
   </Tab>
 </Tabs>
 
+#### Oversized outputs
+
+Workflow execution responses are capped by platform request and response limits. When an internal output, log field, streamed field, or async status payload contains a value that is too large to inline, Sim may replace that nested value with a versioned reference:
+
+```json
+{
+  "__simLargeValueRef": true,
+  "version": 1,
+  "id": "lv_abc123DEF456",
+  "kind": "array",
+  "size": 12582912,
+  "key": "execution/workspace-id/workflow-id/exec_xyz/large-value-lv_abc123DEF456.json",
+  "executionId": "exec_xyz",
+  "preview": { "length": 25000 }
+}
+```
+
+The `version` field is part of the external API contract. Treat the reference as an opaque placeholder for a value that could not be safely embedded in the response. `id`, `key`, and `executionId` are not fetch URLs; `key` points to execution-scoped server storage. Use `selectedOutputs` to request a smaller nested field, reduce the data passed between blocks, or return the data from a Response block when your workflow intentionally owns the HTTP response body. File outputs are metadata-first; request `.base64` only when you need inline file content. JavaScript Function blocks can explicitly read large files or value refs with the `sim.files` and `sim.values` helpers under memory caps.
+
 ### Asynchronous
 
 For long-running workflows, async mode returns a job ID immediately so you don't need to hold the connection open. Add the `X-Execution-Mode: async` header to your request. The API returns HTTP 202 with a job ID and status URL. Poll the status URL until the job completes.

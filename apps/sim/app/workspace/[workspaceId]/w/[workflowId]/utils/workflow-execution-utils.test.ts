@@ -427,7 +427,7 @@ describe('workflow-execution-utils', () => {
         executionId: 'exec-1',
         executionOrder: 3,
         isRunning: true,
-        childWorkflowBlockId: 'workflow-1',
+        childWorkflowBlockId: 'child-inst-1',
         childWorkflowName: 'Workflow 1',
       })
       terminalConsoleMockFns.mockAddConsole({
@@ -489,7 +489,7 @@ describe('workflow-execution-utils', () => {
           success: true,
           isRunning: false,
           isCanceled: false,
-          childWorkflowBlockId: 'workflow-1',
+          childWorkflowBlockId: 'child-inst-1',
         }),
         'exec-1',
       ])
@@ -501,7 +501,7 @@ describe('workflow-execution-utils', () => {
           error: 'Request failed',
           isRunning: false,
           isCanceled: false,
-          childWorkflowBlockId: 'workflow-1',
+          childWorkflowBlockId: 'child-inst-1',
         }),
         'exec-1',
       ])
@@ -529,7 +529,7 @@ describe('workflow-execution-utils', () => {
         iterationCurrent: 0,
         iterationType: 'loop',
         iterationContainerId: 'loop-1',
-        childWorkflowBlockId: 'workflow-1',
+        childWorkflowBlockId: 'child-inst-1',
       })
       terminalConsoleMockFns.mockAddConsole({
         workflowId: 'wf-1',
@@ -542,7 +542,7 @@ describe('workflow-execution-utils', () => {
         iterationCurrent: 1,
         iterationType: 'loop',
         iterationContainerId: 'loop-1',
-        childWorkflowBlockId: 'workflow-1',
+        childWorkflowBlockId: 'child-inst-1',
       })
 
       const startedAt = new Date().toISOString()
@@ -632,7 +632,7 @@ describe('workflow-execution-utils', () => {
         executionId: 'exec-1',
         executionOrder: 3,
         isRunning: false,
-        childWorkflowBlockId: 'workflow-1',
+        childWorkflowBlockId: 'child-inst-1',
         childWorkflowInstanceId: 'nested-inst-1',
       })
       terminalConsoleMockFns.mockAddConsole({
@@ -643,7 +643,7 @@ describe('workflow-execution-utils', () => {
         executionId: 'exec-1',
         executionOrder: 1,
         isRunning: true,
-        childWorkflowBlockId: 'nested-workflow',
+        childWorkflowBlockId: 'nested-inst-1',
       })
 
       const startedAt = new Date().toISOString()
@@ -688,13 +688,394 @@ describe('workflow-execution-utils', () => {
       expect(updateConsole.mock.calls[1]).toEqual([
         'nested-api',
         expect.objectContaining({
-          childWorkflowBlockId: 'nested-workflow',
+          childWorkflowBlockId: 'nested-inst-1',
           success: true,
           isRunning: false,
           isCanceled: false,
         }),
         'exec-1',
       ])
+    })
+
+    it('rescues a child-workflow block whose block:completed SSE event was dropped', () => {
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'workflow-1',
+        blockName: 'Workflow 1',
+        blockType: 'workflow',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        success: true,
+        isRunning: false,
+        childWorkflowInstanceId: 'child-inst-1',
+      })
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'set-projects',
+        blockName: 'setProjects',
+        blockType: 'variables',
+        executionId: 'exec-1',
+        executionOrder: 5,
+        isRunning: true,
+        childWorkflowBlockId: 'child-inst-1',
+        childWorkflowName: 'Workflow 1',
+      })
+
+      const startedAt = new Date().toISOString()
+      const endedAt = new Date(Date.now() + 27).toISOString()
+      const updateConsole = vi.fn()
+      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [
+        makeLog({
+          blockId: 'workflow-1',
+          blockType: 'workflow',
+          executionOrder: 1,
+          childTraceSpans: [
+            {
+              id: 'set-projects-span',
+              name: 'setProjects',
+              type: 'variables',
+              blockId: 'set-projects',
+              executionOrder: 5,
+              status: 'success',
+              duration: 27,
+              startTime: startedAt,
+              endTime: endedAt,
+              output: { value: [{ id: 'p1' }, { id: 'p2' }] },
+            },
+          ],
+        }),
+      ])
+
+      expect(updateConsole).toHaveBeenCalledTimes(1)
+      expect(updateConsole.mock.calls[0]).toEqual([
+        'set-projects',
+        expect.objectContaining({
+          executionOrder: 5,
+          childWorkflowBlockId: 'child-inst-1',
+          replaceOutput: { value: [{ id: 'p1' }, { id: 'p2' }] },
+          success: true,
+          isRunning: false,
+          isCanceled: false,
+          durationMs: 27,
+          startedAt,
+          endedAt,
+        }),
+        'exec-1',
+      ])
+    })
+
+    it('matches per-invocation when the same child workflow nodeId runs twice', () => {
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'workflow-1',
+        blockName: 'Workflow 1',
+        blockType: 'workflow',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        success: true,
+        childWorkflowInstanceId: 'inst-A',
+      })
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'workflow-1',
+        blockName: 'Workflow 1',
+        blockType: 'workflow',
+        executionId: 'exec-1',
+        executionOrder: 2,
+        success: true,
+        childWorkflowInstanceId: 'inst-B',
+      })
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'fn-inner',
+        blockName: 'Inner',
+        blockType: 'function',
+        executionId: 'exec-1',
+        executionOrder: 3,
+        isRunning: true,
+        childWorkflowBlockId: 'inst-A',
+      })
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'fn-inner',
+        blockName: 'Inner',
+        blockType: 'function',
+        executionId: 'exec-1',
+        executionOrder: 4,
+        isRunning: true,
+        childWorkflowBlockId: 'inst-B',
+      })
+
+      const startedAt = new Date().toISOString()
+      const endedAt = new Date(Date.now() + 10).toISOString()
+      const updateConsole = vi.fn()
+      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [
+        makeLog({
+          blockId: 'workflow-1',
+          blockType: 'workflow',
+          executionOrder: 1,
+          childTraceSpans: [
+            {
+              id: 'a',
+              name: 'Inner',
+              type: 'function',
+              blockId: 'fn-inner',
+              executionOrder: 3,
+              status: 'success',
+              duration: 5,
+              startTime: startedAt,
+              endTime: endedAt,
+              output: { result: 'A' },
+            },
+          ],
+        }),
+        makeLog({
+          blockId: 'workflow-1',
+          blockType: 'workflow',
+          executionOrder: 2,
+          childTraceSpans: [
+            {
+              id: 'b',
+              name: 'Inner',
+              type: 'function',
+              blockId: 'fn-inner',
+              executionOrder: 4,
+              status: 'success',
+              duration: 5,
+              startTime: startedAt,
+              endTime: endedAt,
+              output: { result: 'B' },
+            },
+          ],
+        }),
+      ])
+
+      expect(updateConsole).toHaveBeenCalledTimes(2)
+      expect(updateConsole.mock.calls[0][1]).toMatchObject({
+        executionOrder: 3,
+        childWorkflowBlockId: 'inst-A',
+        replaceOutput: { result: 'A' },
+      })
+      expect(updateConsole.mock.calls[1][1]).toMatchObject({
+        executionOrder: 4,
+        childWorkflowBlockId: 'inst-B',
+        replaceOutput: { result: 'B' },
+      })
+    })
+
+    it('reconciles parallel-iteration spans inside a child workflow', () => {
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'workflow-1',
+        blockType: 'workflow',
+        blockName: 'Workflow 1',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        success: true,
+        childWorkflowInstanceId: 'inst-1',
+      })
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'fn-leaf',
+        blockType: 'function',
+        blockName: 'Leaf',
+        executionId: 'exec-1',
+        executionOrder: 2,
+        isRunning: true,
+        iterationCurrent: 0,
+        iterationType: 'parallel',
+        iterationContainerId: 'par-1',
+        childWorkflowBlockId: 'inst-1',
+      })
+
+      const startedAt = new Date().toISOString()
+      const endedAt = new Date(Date.now() + 8).toISOString()
+      const updateConsole = vi.fn()
+      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [
+        makeLog({
+          blockId: 'workflow-1',
+          blockType: 'workflow',
+          executionOrder: 1,
+          childTraceSpans: [
+            {
+              id: 'leaf-span',
+              name: 'Leaf',
+              type: 'function',
+              blockId: 'fn-leaf',
+              executionOrder: 2,
+              parallelId: 'par-1',
+              iterationIndex: 0,
+              status: 'success',
+              duration: 8,
+              startTime: startedAt,
+              endTime: endedAt,
+              output: { ok: true },
+            },
+          ],
+        }),
+      ])
+
+      expect(updateConsole).toHaveBeenCalledTimes(1)
+      expect(updateConsole.mock.calls[0][1]).toMatchObject({
+        executionOrder: 2,
+        iterationCurrent: 0,
+        iterationType: 'parallel',
+        iterationContainerId: 'par-1',
+        childWorkflowBlockId: 'inst-1',
+        success: true,
+      })
+    })
+
+    it('rescues only the iteration whose terminal SSE event was dropped', () => {
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'workflow-1',
+        blockType: 'workflow',
+        blockName: 'Workflow 1',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        success: true,
+        childWorkflowInstanceId: 'inst-1',
+      })
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'fn-leaf',
+        blockType: 'function',
+        blockName: 'Leaf',
+        executionId: 'exec-1',
+        executionOrder: 2,
+        isRunning: false,
+        success: true,
+        iterationCurrent: 0,
+        iterationType: 'loop',
+        iterationContainerId: 'loop-1',
+        childWorkflowBlockId: 'inst-1',
+      })
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'fn-leaf',
+        blockType: 'function',
+        blockName: 'Leaf',
+        executionId: 'exec-1',
+        executionOrder: 3,
+        isRunning: true,
+        iterationCurrent: 1,
+        iterationType: 'loop',
+        iterationContainerId: 'loop-1',
+        childWorkflowBlockId: 'inst-1',
+      })
+
+      const startedAt = new Date().toISOString()
+      const endedAt = new Date(Date.now() + 12).toISOString()
+      const updateConsole = vi.fn()
+      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [
+        makeLog({
+          blockId: 'workflow-1',
+          blockType: 'workflow',
+          executionOrder: 1,
+          childTraceSpans: [
+            {
+              id: 'leaf-0',
+              name: 'Leaf',
+              type: 'function',
+              blockId: 'fn-leaf',
+              executionOrder: 2,
+              loopId: 'loop-1',
+              iterationIndex: 0,
+              status: 'success',
+              duration: 5,
+              startTime: startedAt,
+              endTime: endedAt,
+              output: { i: 0 },
+            },
+            {
+              id: 'leaf-1',
+              name: 'Leaf',
+              type: 'function',
+              blockId: 'fn-leaf',
+              executionOrder: 3,
+              loopId: 'loop-1',
+              iterationIndex: 1,
+              status: 'success',
+              duration: 12,
+              startTime: startedAt,
+              endTime: endedAt,
+              output: { i: 1 },
+            },
+          ],
+        }),
+      ])
+
+      // updateConsole is called for both spans (idempotent re-application), but
+      // production matchesEntryForUpdate filters by the identity so only the
+      // still-running iteration is actually mutated. We assert the args carry
+      // distinct iteration identities so the store can target the right row.
+      expect(updateConsole.mock.calls[0][1]).toMatchObject({
+        executionOrder: 2,
+        iterationCurrent: 0,
+      })
+      expect(updateConsole.mock.calls[1][1]).toMatchObject({
+        executionOrder: 3,
+        iterationCurrent: 1,
+        replaceOutput: { i: 1 },
+      })
+    })
+
+    it('propagates span error state when the block:error SSE was lost', () => {
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'workflow-1',
+        blockType: 'workflow',
+        blockName: 'Workflow 1',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        success: true,
+        childWorkflowInstanceId: 'inst-1',
+      })
+      terminalConsoleMockFns.mockAddConsole({
+        workflowId: 'wf-1',
+        blockId: 'http-1',
+        blockType: 'api',
+        blockName: 'API',
+        executionId: 'exec-1',
+        executionOrder: 2,
+        isRunning: true,
+        childWorkflowBlockId: 'inst-1',
+      })
+
+      const startedAt = new Date().toISOString()
+      const endedAt = new Date(Date.now() + 30).toISOString()
+      const updateConsole = vi.fn()
+      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [
+        makeLog({
+          blockId: 'workflow-1',
+          blockType: 'workflow',
+          executionOrder: 1,
+          childTraceSpans: [
+            {
+              id: 'http-span',
+              name: 'API',
+              type: 'api',
+              blockId: 'http-1',
+              executionOrder: 2,
+              status: 'error',
+              duration: 30,
+              startTime: startedAt,
+              endTime: endedAt,
+              output: { error: 'Connection refused' },
+            },
+          ],
+        }),
+      ])
+
+      expect(updateConsole).toHaveBeenCalledTimes(1)
+      expect(updateConsole.mock.calls[0][1]).toMatchObject({
+        success: false,
+        error: 'Connection refused',
+        childWorkflowBlockId: 'inst-1',
+        isRunning: false,
+        isCanceled: false,
+      })
     })
 
     it('is a no-op when finalBlockLogs is empty or executionId is missing', () => {

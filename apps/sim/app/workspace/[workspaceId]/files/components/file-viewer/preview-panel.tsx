@@ -263,7 +263,7 @@ function CalloutBlock({ type, children }: { type: string; children?: React.React
   const config = CALLOUT_CONFIG[type]
   if (!config) {
     return (
-      <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 text-[var(--text-primary)] italic [&>p]:my-2 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0'>
+      <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 text-[var(--text-primary)] italic [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>p]:my-2'>
         {children}
       </blockquote>
     )
@@ -605,7 +605,7 @@ const STATIC_MARKDOWN_COMPONENTS = {
       return <CalloutBlock type={calloutType}>{children}</CalloutBlock>
     }
     return (
-      <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 text-[var(--text-primary)] italic [&>p]:my-2 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0'>
+      <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 text-[var(--text-primary)] italic [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>p]:my-2'>
         {children}
       </blockquote>
     )

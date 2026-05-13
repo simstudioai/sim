@@ -34,6 +34,7 @@ import {
 } from '@/app/api/v1/admin/responses'
 import {
   extractWorkflowMetadata,
+  type VariableType,
   type WorkflowImportRequest,
   type WorkflowVariable,
 } from '@/app/api/v1/admin/types'
@@ -118,14 +119,38 @@ export const POST = withRouteHandler(
         return internalErrorResponse(`Failed to save workflow state: ${saveResult.error}`)
       }
 
-      if (workflowData.variables && Array.isArray(workflowData.variables)) {
+      if (
+        workflowData.variables &&
+        typeof workflowData.variables === 'object' &&
+        !Array.isArray(workflowData.variables)
+      ) {
+        const variablesRecord: Record<string, WorkflowVariable> = {}
+        const vars = workflowData.variables as Record<
+          string,
+          { id?: string; name: string; type?: VariableType; value: unknown }
+        >
+        Object.entries(vars).forEach(([key, v]) => {
+          const varId = v.id || key
+          variablesRecord[varId] = {
+            id: varId,
+            name: v.name,
+            type: v.type ?? 'string',
+            value: v.value,
+          }
+        })
+
+        await db
+          .update(workflow)
+          .set({ variables: variablesRecord, updatedAt: new Date() })
+          .where(eq(workflow.id, workflowId))
+      } else if (workflowData.variables && Array.isArray(workflowData.variables)) {
         const variablesRecord: Record<string, WorkflowVariable> = {}
         workflowData.variables.forEach((v) => {
           const varId = v.id || generateId()
           variablesRecord[varId] = {
             id: varId,
             name: v.name,
-            type: v.type || 'string',
+            type: (v.type as VariableType) ?? 'string',
             value: v.value,
           }
         })

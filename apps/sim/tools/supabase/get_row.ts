@@ -1,3 +1,4 @@
+import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
 import type { SupabaseGetRowParams, SupabaseGetRowResponse } from '@/tools/supabase/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -50,16 +51,16 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
 
   request: {
     url: (params) => {
-      // Construct the URL for the Supabase REST API
-      const selectColumns = params.select?.trim() || '*'
-      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=${encodeURIComponent(selectColumns)}`
+      const tableValidation = validateDatabaseIdentifier(params.table, 'table')
+      if (!tableValidation.isValid) throw new Error(tableValidation.error)
 
-      // Add filters (required for get_row) - using PostgREST syntax
+      const selectColumns = params.select?.trim() || '*'
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=${encodeURIComponent(selectColumns)}`
+
       if (params.filter?.trim()) {
         url += `&${params.filter.trim()}`
       }
 
-      // Limit to 1 row since we want a single row
       url += `&limit=1`
 
       return url

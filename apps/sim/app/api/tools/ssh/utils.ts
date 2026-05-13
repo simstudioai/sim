@@ -174,6 +174,8 @@ export async function createSSHConnection(config: SSHConnectionConfig): Promise<
   })
 }
 
+const MAX_OUTPUT_BYTES = 16 * 1024 * 1024
+
 /**
  * Execute a command on the SSH connection
  */
@@ -187,21 +189,45 @@ export function executeSSHCommand(client: Client, command: string): Promise<SSHC
 
       let stdout = ''
       let stderr = ''
+      let stdoutBytes = 0
+      let stderrBytes = 0
+      let stdoutTruncated = false
+      let stderrTruncated = false
 
       stream.on('close', (code: number) => {
         resolve({
-          stdout: stdout.trim(),
-          stderr: stderr.trim(),
-          exitCode: code ?? 0,
+          stdout: stdoutTruncated
+            ? `${stdout.trim()}\n[output truncated: exceeded 16MB limit]`
+            : stdout.trim(),
+          stderr: stderrTruncated
+            ? `${stderr.trim()}\n[stderr truncated: exceeded 16MB limit]`
+            : stderr.trim(),
+          exitCode: code ?? -1,
         })
       })
 
       stream.on('data', (data: Buffer) => {
-        stdout += data.toString()
+        const remaining = MAX_OUTPUT_BYTES - stdoutBytes
+        if (remaining <= 0) {
+          stdoutTruncated = true
+          return
+        }
+        const chunk = data.subarray(0, remaining)
+        stdout += chunk.toString()
+        stdoutBytes += chunk.length
+        if (data.length > remaining) stdoutTruncated = true
       })
 
       stream.stderr.on('data', (data: Buffer) => {
-        stderr += data.toString()
+        const remaining = MAX_OUTPUT_BYTES - stderrBytes
+        if (remaining <= 0) {
+          stderrTruncated = true
+          return
+        }
+        const chunk = data.subarray(0, remaining)
+        stderr += chunk.toString()
+        stderrBytes += chunk.length
+        if (data.length > remaining) stderrTruncated = true
       })
     })
   })

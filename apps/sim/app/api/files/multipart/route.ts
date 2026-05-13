@@ -136,7 +136,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const config = getStorageConfig(storageContext)
 
         let customKey: string | undefined
-        if (context === 'workspace') {
+        if (context === 'workspace' || context === 'mothership') {
           const { MAX_WORKSPACE_FILE_SIZE } = await import('@/lib/uploads/shared/types')
           if (typeof fileSize === 'number' && fileSize > MAX_WORKSPACE_FILE_SIZE) {
             return NextResponse.json(
@@ -158,11 +158,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               { status: 413 }
             )
           }
-        } else if (context === 'mothership') {
-          const { generateWorkspaceFileKey } = await import(
-            '@/lib/uploads/contexts/workspace/workspace-file-manager'
-          )
-          customKey = generateWorkspaceFileKey(workspaceId, fileName)
         } else if (context === 'execution') {
           const workflowId = (data as { workflowId?: unknown }).workflowId
           const executionId = (data as { executionId?: unknown }).executionId

@@ -227,6 +227,9 @@ export const POST = withRouteHandler(
             workflowTriggerType: 'api',
           },
           executionId,
+          workspaceId,
+          workflowId: deployment.workflowId,
+          userId: workspaceOwnerId,
           executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
             executeWorkflow(
               workflowForExecution,
