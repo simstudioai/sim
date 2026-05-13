@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { moveWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { parseRequest } from '@/lib/api/server'
@@ -101,10 +101,7 @@ export const POST = withRouteHandler(
           { status: 409 }
         )
       }
-      return NextResponse.json(
-        { success: false, error: error instanceof Error ? error.message : 'Failed to move items' },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: toError(error).message }, { status: 400 })
     }
   }
 )

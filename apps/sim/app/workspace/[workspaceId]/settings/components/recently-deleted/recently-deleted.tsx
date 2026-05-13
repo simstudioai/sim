@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
-import { Folder, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
@@ -13,6 +13,7 @@ import {
   SModalTabsList,
   SModalTabsTrigger,
 } from '@/components/emcn'
+import { Folder } from '@/components/emcn/icons'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'

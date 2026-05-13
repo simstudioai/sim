@@ -1,14 +1,27 @@
 'use client'
 
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
-import { Button, Download, Tooltip, Trash2 } from '@/components/emcn'
+import {
+  Button,
+  Download,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Tooltip,
+  Trash2,
+} from '@/components/emcn'
 import { Folder } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
+import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
+import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
 
 interface FilesActionBarProps {
   selectedCount: number
   onDownload?: () => void
-  onMove?: () => void
+  onMove?: (optionValue: string) => void
+  moveOptions?: MoveOptionNode[]
   onDelete?: () => void
   isLoading?: boolean
   className?: string
@@ -18,6 +31,7 @@ export function FilesActionBar({
   selectedCount,
   onDownload,
   onMove,
+  moveOptions,
   onDelete,
   isLoading = false,
   className,
@@ -56,20 +70,35 @@ export function FilesActionBar({
                     <Tooltip.Content side='top'>Download</Tooltip.Content>
                   </Tooltip.Root>
                 )}
-                {onMove && (
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        variant='ghost'
-                        onClick={onMove}
-                        disabled={isLoading}
-                        className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                      >
-                        <Folder className='size-[12px]' />
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>Move</Tooltip.Content>
-                  </Tooltip.Root>
+                {onMove && moveOptions && (
+                  <DropdownMenu>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            disabled={isLoading}
+                            className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+                          >
+                            <Folder className='size-[12px]' />
+                          </Button>
+                        </DropdownMenuTrigger>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side='top'>Move</Tooltip.Content>
+                    </Tooltip.Root>
+                    <DropdownMenuContent
+                      side='top'
+                      align='center'
+                      className='max-h-[240px] overflow-y-auto'
+                    >
+                      <DropdownMenuItem onSelect={() => onMove(moveOptions[0].value)}>
+                        <Folder />
+                        {moveOptions[0].label}
+                      </DropdownMenuItem>
+                      {moveOptions.length > 1 && <DropdownMenuSeparator />}
+                      {moveOptions.slice(1).map((option) => renderMoveOption(option, onMove))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
                 {onDelete && (
                   <Tooltip.Root>

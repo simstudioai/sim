@@ -1,7 +1,6 @@
 'use client'
 
 import { memo } from 'react'
-import { FolderInput } from 'lucide-react'
 import {
   Download,
   DropdownMenu,
@@ -16,13 +15,9 @@ import {
   Pencil,
   Trash2,
 } from '@/components/emcn'
-import { Folder } from '@/components/emcn/icons'
-
-interface MoveOption {
-  value: string
-  label: string
-  depth?: number
-}
+import { Folder, FolderInput } from '@/components/emcn/icons'
+import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
+import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
 
 interface FileRowContextMenuProps {
   isOpen: boolean
@@ -33,7 +28,7 @@ interface FileRowContextMenuProps {
   onRename: () => void
   onDelete: () => void
   onMove?: (optionValue: string) => void
-  moveOptions?: MoveOption[]
+  moveOptions?: MoveOptionNode[]
   canEdit: boolean
   selectedCount: number
 }
@@ -103,18 +98,12 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
                   {isMultiSelect ? `Move ${selectedCount} items` : 'Move to'}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
-                  {moveOptions.map((option) => (
-                    <DropdownMenuItem
-                      key={option.value}
-                      onSelect={() => onMove(option.value)}
-                      style={
-                        option.depth ? { paddingLeft: `${option.depth * 12 + 8}px` } : undefined
-                      }
-                    >
-                      <Folder />
-                      {option.label}
-                    </DropdownMenuItem>
-                  ))}
+                  <DropdownMenuItem onSelect={() => onMove(moveOptions[0].value)}>
+                    <Folder />
+                    {moveOptions[0].label}
+                  </DropdownMenuItem>
+                  {moveOptions.length > 1 && <DropdownMenuSeparator />}
+                  {moveOptions.slice(1).map((option) => renderMoveOption(option, onMove))}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )}

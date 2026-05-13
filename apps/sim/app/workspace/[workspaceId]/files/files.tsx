@@ -70,6 +70,7 @@ import {
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
+import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
@@ -243,8 +244,6 @@ export function Files() {
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(() => new Set())
   const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null)
   const [draggedRowIds, setDraggedRowIds] = useState<Set<string>>(() => new Set())
-  const [showMoveModal, setShowMoveModal] = useState(false)
-  const [moveTargetFolderId, setMoveTargetFolderId] = useState<string | null>(null)
   const [previewMode, setPreviewMode] = useState<PreviewMode>(() => {
     if (isNewFile) return 'editor'
     if (fileIdFromRoute) {
@@ -486,6 +485,18 @@ export function Files() {
   ])
 
   const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
+
+  const [prevVisibleRowIds, setPrevVisibleRowIds] = useState<string[]>([])
+  if (prevVisibleRowIds !== visibleRowIds) {
+    setPrevVisibleRowIds(visibleRowIds)
+    lastSelectedIndexRef.current = -1
+    const visible = new Set(visibleRowIds)
+    setSelectedRowIds((prev) => {
+      const next = new Set(Array.from(prev).filter((id) => visible.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }
+
   const isAllSelected =
     visibleRowIds.length > 0 && visibleRowIds.every((id) => selectedRowIds.has(id))
   const selectedFileIds = useMemo(
@@ -546,15 +557,6 @@ export function Files() {
     }),
     [selectedRowIds, isAllSelected, visibleRowIds]
   )
-
-  useEffect(() => {
-    lastSelectedIndexRef.current = -1
-    setSelectedRowIds((prev) => {
-      const visible = new Set(visibleRowIds)
-      const next = new Set(Array.from(prev).filter((id) => visible.has(id)))
-      return next.size === prev.size ? prev : next
-    })
-  }, [visibleRowIds])
 
   const descendantFolderIdsByFolderId = useMemo(() => {
     const childrenByParent = new Map<string, string[]>()
@@ -715,7 +717,7 @@ export function Files() {
           count > 1 ? `${firstName ?? 'Items'} +${count - 1} more` : (firstName ?? 'Item')
         const ghost = document.createElement('div')
         ghost.style.cssText =
-          'position:fixed;top:-500px;left:0;display:inline-flex;align-items:center;padding:4px 10px;background:var(--surface-active);border:1px solid rgba(255,255,255,0.08);border-radius:8px;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:var(--text-body);white-space:nowrap;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,0.4);z-index:9999'
+          'position:fixed;top:-500px;left:0;display:inline-flex;align-items:center;padding:4px 10px;background:var(--surface-active);border:1px solid var(--border);border-radius:8px;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:var(--text-body);white-space:nowrap;pointer-events:none;box-shadow:var(--shadow-medium);z-index:var(--z-toast)'
         const text = document.createElement('span')
         text.style.cssText = 'max-width:200px;overflow:hidden;text-overflow:ellipsis'
         text.textContent = ghostLabel
@@ -978,28 +980,6 @@ export function Files() {
     if (query.size === 0) return
     window.location.href = `/api/workspaces/${workspaceId}/files/download?${query.toString()}`
   }, [selectedFileIds, selectedFolderIds, files, handleDownload, workspaceId])
-
-  const handleOpenMoveModal = () => {
-    if (selectedFileIds.length === 0 && selectedFolderIds.length === 0) return
-    setMoveTargetFolderId(currentFolderId)
-    setShowMoveModal(true)
-  }
-
-  const handleMoveSelected = async () => {
-    try {
-      await moveItems.mutateAsync({
-        workspaceId,
-        fileIds: selectedFileIds,
-        folderIds: selectedFolderIds,
-        targetFolderId: moveTargetFolderId,
-      })
-      setSelectedRowIds(new Set())
-      setShowMoveModal(false)
-    } catch (error) {
-      logger.error('Failed to move selected items:', error)
-      toast.error(toError(error).message)
-    }
-  }
 
   const fileDetailBreadcrumbs = useMemo(
     () =>
@@ -1303,6 +1283,8 @@ export function Files() {
   visibleRowIdsRef.current = visibleRowIds
   const listRenameActiveRef = useRef(listRename.editingId)
   listRenameActiveRef.current = listRename.editingId
+  const handleBulkDeleteRef = useRef(handleBulkDelete)
+  handleBulkDeleteRef.current = handleBulkDelete
 
   useEffect(() => {
     const handleListKeyDown = (e: KeyboardEvent) => {
@@ -1319,7 +1301,7 @@ export function Files() {
 
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedRowIdsRef.current.size > 0) {
         e.preventDefault()
-        handleBulkDelete()
+        handleBulkDeleteRef.current()
         return
       }
 
@@ -1336,7 +1318,7 @@ export function Files() {
     }
     window.addEventListener('keydown', handleListKeyDown)
     return () => window.removeEventListener('keydown', handleListKeyDown)
-  }, [handleBulkDelete])
+  }, [])
 
   const handleCyclePreviewMode = useCallback(() => {
     setPreviewMode((prev) => {
@@ -1585,64 +1567,20 @@ export function Files() {
     [members]
   )
 
-  const moveFolderOptions: ComboboxOption[] = useMemo(
-    () => [
-      { value: '__root__', label: 'Files' },
-      ...folders
-        .filter((folder) => {
-          if (selectedFolderIds.includes(folder.id)) return false
+  const contextMenuMoveOptions = useMemo((): MoveOptionNode[] => {
+    const buildSubtree = (parentId: string | null): MoveOptionNode[] =>
+      folders
+        .filter((f) => {
+          if ((f.parentId ?? null) !== parentId) return false
+          if (selectedFolderIds.includes(f.id)) return false
           return selectedFolderIds.every(
-            (selectedFolderId) =>
-              !descendantFolderIdsByFolderId.get(selectedFolderId)?.has(folder.id)
+            (sid) => !descendantFolderIdsByFolderId.get(sid)?.has(f.id)
           )
         })
-        .map((folder) => ({
-          value: folder.id,
-          label: folder.path,
-          icon: Folder,
-        })),
-    ],
-    [folders, selectedFolderIds, descendantFolderIdsByFolderId]
-  )
-
-  const contextMenuMoveOptions = useMemo(() => {
-    const depthById = new Map<string, number>()
-    const getDepth = (id: string): number => {
-      if (depthById.has(id)) return depthById.get(id)!
-      const f = folders.find((folder) => folder.id === id)
-      const d = f?.parentId ? getDepth(f.parentId) + 1 : 0
-      depthById.set(id, d)
-      return d
-    }
-    for (const f of folders) getDepth(f.id)
-
-    const treeOrdered: WorkspaceFileFolderApi[] = []
-    const addChildren = (parentId: string | null) => {
-      const children = folders
-        .filter((f) => f.parentId === parentId)
         .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
-      for (const child of children) {
-        treeOrdered.push(child)
-        addChildren(child.id)
-      }
-    }
-    addChildren(null)
+        .map((f) => ({ value: f.id, label: f.name, children: buildSubtree(f.id) }))
 
-    const filtered = treeOrdered.filter((folder) => {
-      if (selectedFolderIds.includes(folder.id)) return false
-      return selectedFolderIds.every(
-        (selectedFolderId) => !descendantFolderIdsByFolderId.get(selectedFolderId)?.has(folder.id)
-      )
-    })
-
-    return [
-      { value: '__root__', label: 'Files', depth: 0 },
-      ...filtered.map((folder) => ({
-        value: folder.id,
-        label: folder.name,
-        depth: depthById.get(folder.id) ?? 0,
-      })),
-    ]
+    return [{ value: '__root__', label: 'Files', children: [] }, ...buildSubtree(null)]
   }, [folders, selectedFolderIds, descendantFolderIdsByFolderId])
 
   const sortConfig: SortConfig = useMemo(
@@ -1928,7 +1866,8 @@ export function Files() {
             <FilesActionBar
               selectedCount={selectedRowIds.size}
               onDownload={handleBulkDownload}
-              onMove={canEdit ? handleOpenMoveModal : undefined}
+              onMove={canEdit ? handleContextMenuMove : undefined}
+              moveOptions={canEdit ? contextMenuMoveOptions : undefined}
               onDelete={canEdit ? handleBulkDelete : undefined}
               isLoading={bulkArchiveItems.isPending || moveItems.isPending}
             />
@@ -1982,35 +1921,6 @@ export function Files() {
         onDelete={handleDelete}
         isPending={deleteFile.isPending || bulkArchiveItems.isPending}
       />
-
-      <Modal open={showMoveModal} onOpenChange={setShowMoveModal}>
-        <ModalContent size='sm'>
-          <ModalHeader>Move Items</ModalHeader>
-          <ModalBody>
-            <div className='flex flex-col gap-2'>
-              <ModalDescription className='text-[var(--text-secondary)] text-small'>
-                Choose the folder to move {selectedRowIds.size} selected item
-                {selectedRowIds.size === 1 ? '' : 's'} into.
-              </ModalDescription>
-              <Combobox
-                options={moveFolderOptions}
-                value={moveTargetFolderId ?? '__root__'}
-                onChange={(value) => setMoveTargetFolderId(value === '__root__' ? null : value)}
-                placeholder='Select destination'
-                filterOptions
-              />
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setShowMoveModal(false)}>
-              Cancel
-            </Button>
-            <Button variant='primary' onClick={handleMoveSelected} disabled={moveItems.isPending}>
-              {moveItems.isPending ? 'Moving...' : 'Move'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
 
       <input
         ref={fileInputRef}

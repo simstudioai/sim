@@ -14,11 +14,109 @@ import {
 } from '@/components/emcn'
 import { Pencil, SquareArrowUpRight } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import type { WorkspaceFileFolderApi } from '@/hooks/queries/workspace-file-folders'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+
+interface FileFolderFlyoutNode extends WorkspaceFileFolderApi {
+  children: FileFolderFlyoutNode[]
+  files: WorkspaceFileRecord[]
+}
+
+export function CollapsedFileFolderItems({
+  nodes,
+  rootFiles,
+  workspaceId,
+  currentFileId,
+}: {
+  nodes: FileFolderFlyoutNode[]
+  rootFiles?: WorkspaceFileRecord[]
+  workspaceId: string
+  currentFileId?: string
+}) {
+  return (
+    <>
+      {nodes.map((folder) => {
+        const hasChildren = folder.children.length > 0 || folder.files.length > 0
+
+        if (!hasChildren) {
+          return (
+            <DropdownMenuItem key={folder.id} disabled>
+              <Folder className='size-[14px]' />
+              <span className='truncate'>{folder.name}</span>
+            </DropdownMenuItem>
+          )
+        }
+
+        return (
+          <DropdownMenuSub key={folder.id}>
+            <DropdownMenuSubTrigger className='focus:bg-[var(--surface-hover)] data-[state=open]:bg-[var(--surface-hover)]'>
+              <Folder className='size-[14px]' />
+              <span className='truncate'>{folder.name}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <CollapsedFileFolderItems
+                nodes={folder.children}
+                workspaceId={workspaceId}
+                currentFileId={currentFileId}
+              />
+              {folder.files.map((file) => (
+                <DropdownMenuItem key={file.id} asChild>
+                  <Link
+                    href={`/workspace/${workspaceId}/files/${file.id}`}
+                    className={cn(currentFileId === file.id && 'bg-[var(--surface-active)]')}
+                  >
+                    <svg
+                      className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='currentColor'
+                      strokeWidth='2'
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      aria-hidden='true'
+                    >
+                      <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
+                      <path d='M14 2v4a2 2 0 0 0 2 2h4' />
+                    </svg>
+                    <span className='truncate'>{file.name}</span>
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )
+      })}
+      {rootFiles?.map((file) => (
+        <DropdownMenuItem key={file.id} asChild>
+          <Link
+            href={`/workspace/${workspaceId}/files/${file.id}`}
+            className={cn(currentFileId === file.id && 'bg-[var(--surface-active)]')}
+          >
+            <svg
+              className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              aria-hidden='true'
+            >
+              <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
+              <path d='M14 2v4a2 2 0 0 0 2 2h4' />
+            </svg>
+            <span className='truncate'>{file.name}</span>
+          </Link>
+        </DropdownMenuItem>
+      ))}
+    </>
+  )
+}
 
 interface CollapsedSidebarMenuProps {
   icon: React.ReactNode
