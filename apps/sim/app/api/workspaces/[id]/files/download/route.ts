@@ -29,6 +29,17 @@ function safeZipPath(path: string): string {
     .join('/')
 }
 
+function withZipPathSuffix(path: string, suffix: number): string {
+  const slashIndex = path.lastIndexOf('/')
+  const directory = slashIndex >= 0 ? `${path.slice(0, slashIndex + 1)}` : ''
+  const filename = slashIndex >= 0 ? path.slice(slashIndex + 1) : path
+  const dotIndex = filename.lastIndexOf('.')
+
+  return dotIndex > 0
+    ? `${directory}${filename.slice(0, dotIndex)} (${suffix})${filename.slice(dotIndex)}`
+    : `${directory}${filename} (${suffix})`
+}
+
 function collectDescendantFolderIds(
   selectedFolderIds: string[],
   folders: Array<{ id: string; parentId: string | null }>
@@ -112,11 +123,7 @@ export const GET = withRouteHandler(
         let zipPath = basePath
         let suffix = 2
         while (usedPaths.has(zipPath)) {
-          const dotIndex = basePath.lastIndexOf('.')
-          zipPath =
-            dotIndex > 0
-              ? `${basePath.slice(0, dotIndex)} (${suffix})${basePath.slice(dotIndex)}`
-              : `${basePath} (${suffix})`
+          zipPath = withZipPathSuffix(basePath, suffix)
           suffix++
         }
         usedPaths.add(zipPath)

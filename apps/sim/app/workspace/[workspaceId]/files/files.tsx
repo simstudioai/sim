@@ -141,6 +141,9 @@ const parseRowId = (rowId: string): { kind: 'file' | 'folder'; id: string } => {
   return { kind: 'file', id: rowId }
 }
 
+const hasExternalFiles = (dataTransfer: DataTransfer): boolean =>
+  dataTransfer.types.includes('Files')
+
 function formatFileType(mimeType: string | null, filename: string): string {
   if (mimeType && MIME_TYPE_LABELS[mimeType]) {
     return MIME_TYPE_LABELS[mimeType]
@@ -672,12 +675,12 @@ export function Files() {
       },
       onDragOver: (e: DragEvent<HTMLTableRowElement>, rowId) => {
         const sourceRowIds = draggedRowIdsRef.current
-        const hasExternalFiles = e.dataTransfer.types.includes('Files')
-        if (!hasExternalFiles && isInvalidDropTarget(rowId, sourceRowIds)) return
+        const isExternalFileDrag = hasExternalFiles(e.dataTransfer)
+        if (!isExternalFileDrag && isInvalidDropTarget(rowId, sourceRowIds)) return
 
         e.preventDefault()
         e.stopPropagation()
-        e.dataTransfer.dropEffect = hasExternalFiles ? 'copy' : 'move'
+        e.dataTransfer.dropEffect = isExternalFileDrag ? 'copy' : 'move'
         setActiveDropTargetId(rowId)
       },
       onDragLeave: (e: DragEvent<HTMLTableRowElement>, rowId) => {
@@ -771,22 +774,26 @@ export function Files() {
   }
 
   const handleDragEnter = (e: React.DragEvent) => {
+    if (!hasExternalFiles(e.dataTransfer)) return
     e.preventDefault()
     dragCounterRef.current++
-    if (e.dataTransfer.types.includes('Files')) setIsDraggingOver(true)
+    setIsDraggingOver(true)
   }
 
-  const handleDragLeave = () => {
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!hasExternalFiles(e.dataTransfer)) return
     dragCounterRef.current--
     if (dragCounterRef.current === 0) setIsDraggingOver(false)
   }
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (!hasExternalFiles(e.dataTransfer)) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
   }
 
   const handleDrop = async (e: React.DragEvent) => {
+    if (!hasExternalFiles(e.dataTransfer)) return
     e.preventDefault()
     dragCounterRef.current = 0
     setIsDraggingOver(false)
