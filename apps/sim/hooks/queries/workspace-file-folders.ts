@@ -1,4 +1,6 @@
+import { toError } from '@sim/utils/errors'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import {
   bulkArchiveWorkspaceFileItemsContract,
@@ -139,6 +141,15 @@ export function useMoveWorkspaceFileItems() {
         },
       })
     },
+    onSuccess: (_data, variables) => {
+      const total = variables.fileIds.length + variables.folderIds.length
+      toast.success(
+        `Moved ${total} item${total === 1 ? '' : 's'} ${variables.targetFolderId ? 'to folder' : 'to Files'}`
+      )
+    },
+    onError: (error) => {
+      toast.error(toError(error).message)
+    },
     onSettled: (_data, _error, variables) => {
       invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
     },
@@ -158,6 +169,13 @@ export function useBulkArchiveWorkspaceFileItems() {
         body: { fileIds: variables.fileIds, folderIds: variables.folderIds },
       })
     },
+    onSuccess: (_data, variables) => {
+      const total = variables.fileIds.length + variables.folderIds.length
+      toast.success(`Moved ${total} item${total === 1 ? '' : 's'} to trash`)
+    },
+    onError: (error) => {
+      toast.error(toError(error).message)
+    },
     onSettled: (_data, _error, variables) => {
       invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
     },
@@ -171,6 +189,9 @@ export function useRestoreWorkspaceFileFolder() {
       requestJson(restoreWorkspaceFileFolderContract, {
         params: { id: variables.workspaceId, folderId: variables.folderId },
       }),
+    onSuccess: () => {
+      toast.success('Folder restored')
+    },
     onSettled: (_data, _error, variables) => {
       invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
     },

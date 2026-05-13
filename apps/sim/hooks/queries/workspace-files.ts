@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
@@ -484,6 +485,10 @@ export function useDeleteWorkspaceFile() {
         )
       }
       logger.error('Failed to delete file')
+      toast.error(toError(_err).message)
+    },
+    onSuccess: () => {
+      toast.success('File moved to trash')
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
@@ -505,6 +510,9 @@ export function useRestoreWorkspaceFile() {
       requestJson(restoreWorkspaceFileContract, {
         params: { id: workspaceId, fileId },
       }),
+    onSuccess: () => {
+      toast.success('File restored')
+    },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
