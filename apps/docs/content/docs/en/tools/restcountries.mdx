@@ -1,0 +1,112 @@
+---
+title: REST Countries
+description: Look up country reference data
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="restcountries"
+  color="#E8F2FF"
+/>
+
+## Usage Instructions
+
+Look up country information using the REST Countries API. Search by name, code, region, currency, or language. Does not require OAuth or an API key.
+
+
+
+## Tools
+
+### `restcountries_search_by_name`
+
+Search for countries by common or official country name using the REST Countries API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Country name to search for, such as "Canada" or "Republic of Korea" |
+| `fullText` | boolean | No | Require an exact full-name match when true |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `countries` | json | Countries matching the name search |
+| `count` | number | Number of countries returned |
+| `firstCountry` | json | First matching country, or null when there are no matches |
+
+### `restcountries_get_by_code`
+
+Get country information by ISO 3166-1 alpha-2, alpha-3, numeric, or IOC country code.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `code` | string | Yes | Country code, such as "US", "USA", "840", or "CAN" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `countries` | json | Array containing the country matching the provided code |
+| `count` | number | Number of countries returned |
+| `firstCountry` | json | The matching country, or null when there is no match |
+
+### `restcountries_list_by_region`
+
+List countries in a world region using the REST Countries API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | Region name, such as "Africa", "Americas", "Asia", "Europe", or "Oceania" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `countries` | json | Countries in the requested region |
+| `count` | number | Number of countries returned |
+| `firstCountry` | json | First country in the returned list, or null when there are no matches |
+
+### `restcountries_list_by_currency`
+
+List countries by currency code or currency name using the REST Countries API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `currency` | string | Yes | Currency code or name, such as "USD", "EUR", or "dollar" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `countries` | json | Countries using the requested currency |
+| `count` | number | Number of countries returned |
+| `firstCountry` | json | First country in the returned list, or null when there are no matches |
+
+### `restcountries_list_by_language`
+
+List countries by official language code or language name using REST Countries.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `language` | string | Yes | Language code or name, such as "en", "Spanish", or "French" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `countries` | json | Countries using the requested language |
+| `count` | number | Number of countries returned |
+| `firstCountry` | json | First country in the returned list, or null when there are no matches |
+
+

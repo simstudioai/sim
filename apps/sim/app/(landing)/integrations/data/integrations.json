@@ -4046,6 +4046,10 @@
         "description": "Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)"
       },
       {
+        "name": "Get",
+        "description": "Get a workspace file object from a selected file or canonical workspace file ID."
+      },
+      {
         "name": "Write",
         "description": "Create a new workspace file. If a file with the same name already exists, a numeric suffix is added (e.g., "
       },
@@ -4054,7 +4058,7 @@
         "description": "Append content to an existing workspace file. The file must already exist. Content is added to the end of the file."
       }
     ],
-    "operationCount": 3,
+    "operationCount": 4,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
@@ -10766,6 +10770,45 @@
     "category": "tools",
     "integrationTypes": ["email", "communication"],
     "tags": ["email-marketing", "messaging"]
+  },
+  {
+    "type": "restcountries",
+    "slug": "rest-countries",
+    "name": "REST Countries",
+    "description": "Look up country reference data",
+    "longDescription": "Look up country information using the REST Countries API. Search by name, code, region, currency, or language. Does not require OAuth or an API key.",
+    "bgColor": "#E8F2FF",
+    "iconName": "RestCountriesIcon",
+    "docsUrl": "https://docs.sim.ai/tools/restcountries",
+    "operations": [
+      {
+        "name": "Search by Name",
+        "description": "Search for countries by common or official country name using the REST Countries API."
+      },
+      {
+        "name": "Get by Code",
+        "description": "Get country information by ISO 3166-1 alpha-2, alpha-3, numeric, or IOC country code."
+      },
+      {
+        "name": "List by Region",
+        "description": "List countries in a world region using the REST Countries API."
+      },
+      {
+        "name": "List by Currency",
+        "description": "List countries by currency code or currency name using the REST Countries API."
+      },
+      {
+        "name": "List by Language",
+        "description": "List countries by official language code or language name using REST Countries."
+      }
+    ],
+    "operationCount": 5,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["analytics", "documents", "search"],
+    "tags": ["data-analytics", "knowledge-base"]
   },
   {
     "type": "revenuecat",

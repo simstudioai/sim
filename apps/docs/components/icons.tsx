@@ -6849,3 +6849,17 @@ export function HexIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function RestCountriesIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <circle cx='12' cy='12' r='9' fill='#000' />
+      <path
+        d='M3.75 7.25h16.5M3.75 16.75h16.5M2.5 12h19M12 3.5c2.15 2.22 3.25 5.08 3.25 8.5S14.15 18.28 12 20.5C9.85 18.28 8.75 15.42 8.75 12S9.85 5.72 12 3.5Z'
+        stroke='white'
+        strokeWidth='1.4'
+        strokeLinecap='round'
+      />
+    </svg>
+  )
+}

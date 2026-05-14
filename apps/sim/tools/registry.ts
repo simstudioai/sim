@@ -2112,6 +2112,13 @@ import {
   resendUpdateContactTool,
 } from '@/tools/resend'
 import {
+  restCountriesGetByCodeTool,
+  restCountriesListByCurrencyTool,
+  restCountriesListByLanguageTool,
+  restCountriesListByRegionTool,
+  restCountriesSearchByNameTool,
+} from '@/tools/restcountries'
+import {
   revenuecatCreatePurchaseTool,
   revenuecatDeferGoogleSubscriptionTool,
   revenuecatDeleteCustomerTool,
@@ -4233,6 +4240,11 @@ export const tools: Record<string, ToolConfig> = {
   redis_llen: redisLLenTool,
   redis_hdel: redisHDelTool,
   redis_persist: redisPersistTool,
+  restcountries_search_by_name: restCountriesSearchByNameTool,
+  restcountries_get_by_code: restCountriesGetByCodeTool,
+  restcountries_list_by_region: restCountriesListByRegionTool,
+  restcountries_list_by_currency: restCountriesListByCurrencyTool,
+  restcountries_list_by_language: restCountriesListByLanguageTool,
   revenuecat_get_customer: revenuecatGetCustomerTool,
   revenuecat_delete_customer: revenuecatDeleteCustomerTool,
   revenuecat_create_purchase: revenuecatCreatePurchaseTool,

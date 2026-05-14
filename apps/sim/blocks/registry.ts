@@ -165,6 +165,7 @@ import { RedisBlock } from '@/blocks/blocks/redis'
 import { ReductoBlock, ReductoV2Block } from '@/blocks/blocks/reducto'
 import { ResendBlock } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
+import { RestCountriesBlock } from '@/blocks/blocks/restcountries'
 import { RevenueCatBlock } from '@/blocks/blocks/revenuecat'
 import { RipplingBlock } from '@/blocks/blocks/rippling'
 import { RootlyBlock } from '@/blocks/blocks/rootly'
@@ -419,6 +420,7 @@ export const registry: Record<string, BlockConfig> = {
   reducto_v2: ReductoV2Block,
   resend: ResendBlock,
   response: ResponseBlock,
+  restcountries: RestCountriesBlock,
   revenuecat: RevenueCatBlock,
   rippling: RipplingBlock,
   rootly: RootlyBlock,

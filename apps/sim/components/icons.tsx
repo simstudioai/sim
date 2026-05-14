@@ -6872,3 +6872,24 @@ export function SnowflakeIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function RestCountriesIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <circle cx='12' cy='12' r='9' fill='#2F80ED' />
+      <path
+        d='M3.5 12h17M12 3.5c2.15 2.22 3.25 5.08 3.25 8.5S14.15 18.28 12 20.5C9.85 18.28 8.75 15.42 8.75 12S9.85 5.72 12 3.5Z'
+        stroke='white'
+        strokeWidth='1.4'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path
+        d='M5.25 7.25h13.5M5.25 16.75h13.5'
+        stroke='white'
+        strokeWidth='1.4'
+        strokeLinecap='round'
+      />
+    </svg>
+  )
+}
