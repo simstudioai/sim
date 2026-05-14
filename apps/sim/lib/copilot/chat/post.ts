@@ -101,6 +101,7 @@ const ChatContextSchema = z.object({
     'table',
     'file',
     'folder',
+    'filefolder',
   ]),
   label: z.string(),
   chatId: z.string().optional(),
@@ -113,6 +114,7 @@ const ChatContextSchema = z.object({
   tableId: z.string().optional(),
   fileId: z.string().optional(),
   folderId: z.string().optional(),
+  fileFolderId: z.string().optional(),
 })
 
 const ChatMessageSchema = z.object({

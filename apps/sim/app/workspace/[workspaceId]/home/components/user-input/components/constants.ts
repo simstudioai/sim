@@ -90,6 +90,7 @@ const RESOURCE_TO_CONTEXT: Record<
   table: (r) => ({ kind: 'table', tableId: r.id, label: r.title }),
   file: (r) => ({ kind: 'file', fileId: r.id, label: r.title }),
   folder: (r) => ({ kind: 'folder', folderId: r.id, label: r.title }),
+  filefolder: (r) => ({ kind: 'filefolder', fileFolderId: r.id, label: r.title }),
   task: (r) => ({ kind: 'past_chat', chatId: r.id, label: r.title }),
   log: (r) => ({ kind: 'logs', executionId: r.id, label: r.title }),
   generic: (r) => ({ kind: 'docs', label: r.title }),

@@ -131,6 +131,15 @@ export async function processContextsServer(
         if (!result) return null
         return { type: 'folder', tag: ctx.label ? `@${ctx.label}` : '@', content: result.content }
       }
+      if (ctx.kind === 'filefolder' && ctx.fileFolderId && currentWorkspaceId) {
+        const result = await resolveFileFolderResource(ctx.fileFolderId, currentWorkspaceId)
+        if (!result) return null
+        return {
+          type: 'filefolder',
+          tag: ctx.label ? `@${ctx.label}` : '@',
+          content: result.content,
+        }
+      }
       if (ctx.kind === 'docs') {
         try {
           const { searchDocumentationServerTool } = await import(
