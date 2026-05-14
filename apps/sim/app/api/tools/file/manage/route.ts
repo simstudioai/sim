@@ -8,6 +8,7 @@ import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   fetchWorkspaceFileBuffer,
+  getWorkspaceFile,
   getWorkspaceFileByName,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
@@ -40,6 +41,38 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   try {
     switch (body.operation) {
+      case 'get': {
+        const { fileId, fileInput } = body
+
+        if (fileInput && typeof fileInput === 'object' && !Array.isArray(fileInput)) {
+          return NextResponse.json({ success: true, data: { file: fileInput } })
+        }
+
+        if (!fileId) {
+          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+
+        const file = await getWorkspaceFile(workspaceId, fileId)
+        if (!file) {
+          return NextResponse.json({ success: false, error: `File not found: "${fileId}"` }, { status: 404 })
+        }
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            file: {
+              id: file.id,
+              name: file.name,
+              url: ensureAbsoluteUrl(file.path),
+              size: file.size,
+              type: file.type,
+              key: file.key,
+              context: 'workspace',
+            },
+          },
+        })
+      }
+
       case 'write': {
         const { fileName, content, contentType } = body
         const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(fileName))
