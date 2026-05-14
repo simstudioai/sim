@@ -153,9 +153,11 @@ async function completeSlackFileUpload(
     body: JSON.stringify({
       files: uploadedFileIds.map((id) => ({ id })),
       channel_id: channel,
-      initial_comment: text,
+      // Per Slack docs for files.completeUploadExternal: if `initial_comment`
+      // is provided, `blocks` is silently ignored. So when blocks are present
+      // we omit initial_comment and let blocks render instead.
+      ...(blocks && blocks.length > 0 ? { blocks } : { initial_comment: text }),
       ...(threadTs && { thread_ts: threadTs }),
-      ...(blocks && blocks.length > 0 && { blocks }),
     }),
   })
 
