@@ -54,11 +54,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const selectedFileId =
           fileId ||
           (fileInput && typeof fileInput === 'object' && !Array.isArray(fileInput)
-            ? typeof fileInput.id === 'string'
-              ? fileInput.id
-              : typeof fileInput.fileId === 'string'
-                ? fileInput.fileId
-                : ''
+            ? (() => {
+                const obj = fileInput as Record<string, unknown>
+                return typeof obj.id === 'string'
+                  ? obj.id
+                  : typeof obj.fileId === 'string'
+                    ? obj.fileId
+                    : ''
+              })()
             : '')
 
         if (!selectedFileId) {
