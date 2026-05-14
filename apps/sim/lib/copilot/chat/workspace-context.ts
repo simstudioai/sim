@@ -57,7 +57,7 @@ export interface WorkspaceMdData {
     connectorTypes?: string[]
   }>
   tables: Array<{ id: string; name: string; description?: string | null; rowCount: number }>
-  files: Array<{ id: string; name: string; type: string; size: number }>
+  files: Array<{ id: string; name: string; type: string; size: number; folderPath?: string | null }>
   oauthIntegrations: Array<{ providerId: string }>
   envVariables: string[]
   tasks?: Array<{ id: string; title: string; updatedAt: Date }>
@@ -189,9 +189,28 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   }
 
   if (data.files.length > 0) {
-    const lines = data.files.map(
-      (f) => `- **${f.name}** (${f.id}) — ${f.type}, ${formatSize(f.size)}`
-    )
+    const rootFiles: typeof data.files = []
+    const folderFiles = new Map<string, typeof data.files>()
+    for (const f of data.files) {
+      if (f.folderPath) {
+        const existing = folderFiles.get(f.folderPath) ?? []
+        existing.push(f)
+        folderFiles.set(f.folderPath, existing)
+      } else {
+        rootFiles.push(f)
+      }
+    }
+    const lines: string[] = []
+    for (const f of rootFiles) {
+      lines.push(`- **${f.name}** (${f.id}) — ${f.type}, ${formatSize(f.size)}`)
+    }
+    const sortedFolders = [...folderFiles.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    for (const [folder, folderFileList] of sortedFolders) {
+      lines.push(`- 📁 **${folder}/**`)
+      for (const f of folderFileList) {
+        lines.push(`  - **${f.name}** (${f.id}) — ${f.type}, ${formatSize(f.size)}`)
+      }
+    }
     sections.push(`## Files (${data.files.length})\n${lines.join('\n')}`)
   } else {
     sections.push('## Files (0)\n(none)')
@@ -426,7 +445,13 @@ export async function generateWorkspaceContext(
         connectorTypes: connectorTypesByKb.get(kb.id),
       })),
       tables: tables.map((t, i) => ({ ...t, rowCount: rowCounts[i] ?? 0 })),
-      files: files.map((f) => ({ id: f.id, name: f.name, type: f.type, size: f.size })),
+      files: files.map((f) => ({
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        size: f.size,
+        folderPath: f.folderPath ?? null,
+      })),
       oauthIntegrations: credentials.map((c) => ({ providerId: c.providerId })),
       envVariables: [],
       customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
