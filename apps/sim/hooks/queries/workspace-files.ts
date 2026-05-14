@@ -513,6 +513,9 @@ export function useRestoreWorkspaceFile() {
     onSuccess: () => {
       toast.success('File restored')
     },
+    onError: (err) => {
+      toast.error(toError(err).message)
+    },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),

@@ -109,13 +109,14 @@ export function useUpdateWorkspaceFileFolder() {
       }
       return { previous }
     },
-    onError: (_err, variables, context) => {
+    onError: (err, variables, context) => {
       if (context?.previous) {
         queryClient.setQueryData(
           workspaceFileFolderKeys.list(variables.workspaceId, 'active'),
           context.previous
         )
       }
+      toast.error(toError(err).message)
     },
     onSettled: (_data, _error, variables) => {
       invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
@@ -191,6 +192,9 @@ export function useRestoreWorkspaceFileFolder() {
       }),
     onSuccess: () => {
       toast.success('Folder restored')
+    },
+    onError: (err) => {
+      toast.error(toError(err).message)
     },
     onSettled: (_data, _error, variables) => {
       invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)

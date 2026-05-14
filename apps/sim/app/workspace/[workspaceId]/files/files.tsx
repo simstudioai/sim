@@ -486,14 +486,16 @@ export function Files() {
 
   const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
 
-  useEffect(() => {
+  const prevVisibleRowIdsRef = useRef(visibleRowIds)
+  if (prevVisibleRowIdsRef.current !== visibleRowIds) {
+    prevVisibleRowIdsRef.current = visibleRowIds
     lastSelectedIndexRef.current = -1
     const visible = new Set(visibleRowIds)
     setSelectedRowIds((prev) => {
       const next = new Set(Array.from(prev).filter((id) => visible.has(id)))
       return next.size === prev.size ? prev : next
     })
-  }, [visibleRowIds])
+  }
 
   const isAllSelected =
     visibleRowIds.length > 0 && visibleRowIds.every((id) => selectedRowIds.has(id))
@@ -1870,10 +1872,12 @@ export function Files() {
               isLoading={bulkArchiveItems.isPending || moveItems.isPending}
             />
             {isDraggingOver ? (
-              <div className='pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 border border-[var(--accent)] border-dashed bg-[var(--surface-4)] transition-colors'>
-                <Upload className='size-5 text-[var(--accent)]' />
+              <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--surface-4)] transition-colors'>
+                <Upload className='size-5 text-[var(--brand-secondary)]' />
                 <div className='flex flex-col gap-0.5 text-center'>
-                  <p className='font-medium text-[14px] text-[var(--accent)]'>Drop to upload</p>
+                  <p className='font-medium text-[14px] text-[var(--brand-secondary)]'>
+                    Drop to upload
+                  </p>
                   <p className='text-[11px] text-[var(--text-tertiary)]'>
                     Release files here to add them to this workspace
                   </p>
