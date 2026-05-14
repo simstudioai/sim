@@ -1161,22 +1161,23 @@ export class WorkspaceVFS {
           messages: sql<unknown[]>`COALESCE((
             SELECT jsonb_agg(
               jsonb_build_object(
-                'role', m->>'role',
-                'content', m->'content',
+                'role', m.value->>'role',
+                'content', m.value->'content',
                 'contentBlocks', COALESCE((
-                  SELECT jsonb_agg(jsonb_build_object('type', 'text', 'content', b->'content'))
+                  SELECT jsonb_agg(jsonb_build_object('type', 'text', 'content', b.value->'content') ORDER BY b.ord)
                   FROM jsonb_array_elements(
-                    CASE WHEN jsonb_typeof(m->'contentBlocks') = 'array'
-                         THEN m->'contentBlocks'
+                    CASE WHEN jsonb_typeof(m.value->'contentBlocks') = 'array'
+                         THEN m.value->'contentBlocks'
                          ELSE '[]'::jsonb
                     END
-                  ) AS b
-                  WHERE b->>'type' = 'text'
+                  ) WITH ORDINALITY AS b(value, ord)
+                  WHERE b.value->>'type' = 'text'
                 ), '[]'::jsonb)
               )
+              ORDER BY m.ord
             )
-            FROM jsonb_array_elements(${copilotChats.messages}) AS m
-            WHERE m->>'role' IN ('user', 'assistant')
+            FROM jsonb_array_elements(${copilotChats.messages}) WITH ORDINALITY AS m(value, ord)
+            WHERE m.value->>'role' IN ('user', 'assistant')
           ), '[]'::jsonb)`,
           createdAt: copilotChats.createdAt,
           updatedAt: copilotChats.updatedAt,
