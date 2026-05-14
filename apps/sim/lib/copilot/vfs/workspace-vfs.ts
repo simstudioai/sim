@@ -1162,9 +1162,9 @@ export class WorkspaceVFS {
             SELECT jsonb_agg(
               jsonb_build_object(
                 'role', m->>'role',
-                'content', m->>'content',
+                'content', m->'content',
                 'contentBlocks', COALESCE((
-                  SELECT jsonb_agg(jsonb_build_object('type', 'text', 'content', b->>'content'))
+                  SELECT jsonb_agg(jsonb_build_object('type', 'text', 'content', b->'content'))
                   FROM jsonb_array_elements(COALESCE(m->'contentBlocks', '[]'::jsonb)) AS b
                   WHERE b->>'type' = 'text'
                 ), '[]'::jsonb)
