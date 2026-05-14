@@ -17,6 +17,7 @@ import {
   downloadFileFromStorage,
   resolveInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { TranscriptSegment } from '@/tools/stt/types'
 
 const logger = createLogger('SttProxyAPI')
@@ -31,7 +32,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -79,6 +80,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const file = Array.isArray(body.audioFile) ? body.audioFile[0] : body.audioFile
       logger.info(`[${requestId}] Processing uploaded file: ${file.name}`)
 
+      const deniedAudio = await assertToolFileAccess(file.key, userId, requestId, logger)
+      if (deniedAudio) return deniedAudio
       audioBuffer = await downloadFileFromStorage(file, requestId, logger)
       audioFileName = file.name
       // file.type may be missing if the file came from a block that doesn't preserve it
@@ -97,6 +100,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         : body.audioFileReference
       logger.info(`[${requestId}] Processing referenced file: ${file.name}`)
 
+      const deniedRef = await assertToolFileAccess(file.key, userId, requestId, logger)
+      if (deniedRef) return deniedRef
       audioBuffer = await downloadFileFromStorage(file, requestId, logger)
       audioFileName = file.name
 

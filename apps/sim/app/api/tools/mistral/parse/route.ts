@@ -14,6 +14,7 @@ import {
   downloadFileFromStorage,
   resolveInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
@@ -120,6 +121,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
       let base64 = userFile.base64
       if (!base64) {
+        const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
+        if (denied) return denied
         const buffer = await downloadFileFromStorage(userFile, requestId, logger)
         base64 = buffer.toString('base64')
       }

@@ -33,6 +33,7 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from '@/components/emcn/components/popover/popover'
+import { TimePicker } from '@/components/emcn/components/time-picker/time-picker'
 import { cn } from '@/lib/core/utils/cn'
 
 /**
@@ -96,22 +97,26 @@ interface DatePickerSingleProps extends DatePickerBaseProps {
   onCancel?: never
   /** Not used in single mode */
   onClear?: never
+  /** Not used in single mode */
+  showTime?: never
 }
 
 /** Props for range date mode */
 interface DatePickerRangeProps extends DatePickerBaseProps {
   /** Selection mode */
   mode: 'range'
-  /** Start date for range mode (YYYY-MM-DD string or Date) */
+  /** Start date for range mode (YYYY-MM-DD or YYYY-MM-DDTHH:mm string or Date) */
   startDate?: string | Date
-  /** End date for range mode (YYYY-MM-DD string or Date) */
+  /** End date for range mode (YYYY-MM-DD or YYYY-MM-DDTHH:mm string or Date) */
   endDate?: string | Date
-  /** Callback when date range is applied */
+  /** Callback when date range is applied — returns YYYY-MM-DD or YYYY-MM-DDTHH:mm depending on showTime */
   onRangeChange?: (startDate: string, endDate: string) => void
   /** Callback when range selection is cancelled */
   onCancel?: () => void
   /** Callback when range is cleared */
   onClear?: () => void
+  /** Whether to show time inputs for precise range selection */
+  showTime?: boolean
   /** Not used in range mode */
   value?: never
   /** Not used in range mode */
@@ -503,6 +508,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
     onRangeChange: _onRangeChange,
     onCancel: _onCancel,
     onClear: _onClear,
+    showTime = false,
     ...htmlProps
   } = rest as any
 
@@ -530,6 +536,8 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
   const [rangeEnd, setRangeEnd] = React.useState<Date | null>(initialEnd)
   const [hoverDate, setHoverDate] = React.useState<Date | null>(null)
   const [selectingEnd, setSelectingEnd] = React.useState(false)
+  const [startTime, setStartTime] = React.useState('00:00')
+  const [endTime, setEndTime] = React.useState('23:59')
 
   const [viewMonth, setViewMonth] = React.useState(() => {
     const d = selectedDate || initialStart || new Date()
@@ -548,6 +556,12 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
       setRangeStart(initialStart)
       setRangeEnd(initialEnd)
       setSelectingEnd(false)
+      if (showTime) {
+        const sd = isRangeMode ? props.startDate : undefined
+        const ed = isRangeMode ? props.endDate : undefined
+        setStartTime(typeof sd === 'string' && sd.includes('T') ? sd.slice(11, 16) : '00:00')
+        setEndTime(typeof ed === 'string' && ed.includes('T') ? ed.slice(11, 16) : '23:59')
+      }
       if (initialStart) {
         setViewMonth(initialStart.getMonth())
         setViewYear(initialStart.getFullYear())
@@ -557,7 +571,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
         setViewYear(now.getFullYear())
       }
     }
-  }, [open, isRangeMode, initialStart, initialEnd])
+  }, [open, isRangeMode, initialStart, initialEnd, showTime, props.startDate, props.endDate])
 
   const singleValueKey = !isRangeMode && selectedDate ? selectedDate.getTime() : undefined
   const [prevSingleValueKey, setPrevSingleValueKey] = React.useState(singleValueKey)
@@ -661,13 +675,32 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
     if (isRangeMode && props.onRangeChange && rangeStart) {
       const start = rangeEnd && rangeEnd < rangeStart ? rangeEnd : rangeStart
       const end = rangeEnd && rangeEnd < rangeStart ? rangeStart : rangeEnd || rangeStart
+      const startStr = formatDateAsString(start.getFullYear(), start.getMonth(), start.getDate())
+      const endStr = formatDateAsString(end.getFullYear(), end.getMonth(), end.getDate())
+
+      let effectiveStartTime = startTime
+      let effectiveEndTime = endTime
+      if (showTime && startStr === endStr && startTime > endTime) {
+        effectiveStartTime = endTime
+        effectiveEndTime = startTime
+      }
+
       props.onRangeChange(
-        formatDateAsString(start.getFullYear(), start.getMonth(), start.getDate()),
-        formatDateAsString(end.getFullYear(), end.getMonth(), end.getDate())
+        showTime ? `${startStr}T${effectiveStartTime}` : startStr,
+        showTime ? `${endStr}T${effectiveEndTime}:59` : endStr
       )
       setOpen(false)
     }
-  }, [isRangeMode, props.onRangeChange, rangeStart, rangeEnd, setOpen])
+  }, [
+    isRangeMode,
+    props.onRangeChange,
+    rangeStart,
+    rangeEnd,
+    showTime,
+    startTime,
+    endTime,
+    setOpen,
+  ])
 
   /**
    * Cancels range selection.
@@ -753,6 +786,21 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
           showNavigation='right'
         />
       </div>
+
+      {/* Time inputs */}
+      {showTime && (
+        <div className='flex border-[var(--border-1)] border-t'>
+          <div className='flex flex-1 items-center justify-between gap-2 px-3 py-2'>
+            <span className='shrink-0 text-[12px] text-[var(--text-muted)]'>Start</span>
+            <TimePicker size='sm' value={startTime} onChange={setStartTime} />
+          </div>
+          <div className='w-[1px] bg-[var(--border-1)]' />
+          <div className='flex flex-1 items-center justify-between gap-2 px-3 py-2'>
+            <span className='shrink-0 text-[12px] text-[var(--text-muted)]'>End</span>
+            <TimePicker size='sm' value={endTime} onChange={setEndTime} />
+          </div>
+        </div>
+      )}
 
       {/* Actions */}
       <div className='flex items-center justify-between border-[var(--border-1)] border-t px-3 py-2'>

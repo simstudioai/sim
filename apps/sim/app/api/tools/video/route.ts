@@ -8,6 +8,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('VideoProxyAPI')
@@ -21,7 +22,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -99,6 +100,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let height: number | undefined
     let jobId: string | undefined
     let actualDuration: number | undefined
+
+    if (body.visualReference) {
+      const denied = await assertToolFileAccess(
+        body.visualReference.key,
+        authResult.userId,
+        requestId,
+        logger
+      )
+      if (denied) return denied
+    }
 
     try {
       if (provider === 'runway') {
