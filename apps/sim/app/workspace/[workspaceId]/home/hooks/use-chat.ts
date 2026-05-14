@@ -2116,15 +2116,38 @@ export function useChat(
 
   const reorderResources = useCallback((newOrder: MothershipResource[]) => {
     setResources(newOrder)
-    const pendingKeys = pendingPersistResourceKeysRef.current
-    if (pendingKeys.size > 0) {
-      reorderNeededAfterFlushRef.current = true
-    }
     const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
     if (!persistChatId) return
-    const persistableResources = newOrder.filter(
-      (r) => r.id !== 'streaming-file' && !pendingKeys.has(`${r.type}:${r.id}`)
-    )
+    const pendingKeys = pendingPersistResourceKeysRef.current
+    const inFlightAdds = inFlightResourceAddsRef.current
+    const hasUnsyncedAdds = newOrder.some((r) => {
+      const key = `${r.type}:${r.id}`
+      return pendingKeys.has(key) || inFlightAdds.has(key)
+    })
+    if (hasUnsyncedAdds) {
+      reorderNeededAfterFlushRef.current = true
+      if (pendingKeys.size === 0 && inFlightAdds.size > 0) {
+        Promise.allSettled(Array.from(inFlightAdds.values())).then(() => {
+          if (!reorderNeededAfterFlushRef.current) return
+          reorderNeededAfterFlushRef.current = false
+          const chatId = chatIdRef.current ?? selectedChatIdRef.current
+          if (!chatId) return
+          const order = resourcesRef.current.filter(
+            (r) =>
+              r.id !== 'streaming-file' &&
+              !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
+          )
+          if (order.length === 0) return
+          requestJson(reorderMothershipChatResourcesContract, {
+            body: { chatId, resources: order },
+          }).catch((err) => {
+            logger.warn('Failed to sync resource order after in-flight ADDs', err)
+          })
+        })
+      }
+      return
+    }
+    const persistableResources = newOrder.filter((r) => r.id !== 'streaming-file')
     if (persistableResources.length === 0) return
     requestJson(reorderMothershipChatResourcesContract, {
       body: { chatId: persistChatId, resources: persistableResources },
