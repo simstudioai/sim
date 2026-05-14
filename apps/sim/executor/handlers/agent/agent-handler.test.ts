@@ -5,11 +5,19 @@ import { BlockType, isMcpTool } from '@/executor/constants'
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
 import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
-import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
+import {
+  getProviderFromModel,
+  supportsFileAttachments,
+  transformBlockTool,
+} from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
 
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+
+const { mockReadUserFileContent } = vi.hoisted(() => ({
+  mockReadUserFileContent: vi.fn(),
+}))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isHosted: false,
@@ -26,6 +34,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
 
 vi.mock('@/providers/utils', () => ({
   getProviderFromModel: vi.fn().mockReturnValue('mock-provider'),
+  supportsFileAttachments: vi.fn().mockReturnValue(false),
   transformBlockTool: vi.fn(),
   getBaseModelProviders: vi.fn().mockReturnValue({ openai: {}, anthropic: {} }),
   getApiKey: vi.fn().mockReturnValue('mock-api-key'),
@@ -43,6 +52,10 @@ vi.mock('@/providers/utils', () => ({
       },
     },
   }),
+}))
+
+vi.mock('@/lib/execution/payloads/materialization.server', () => ({
+  readUserFileContent: mockReadUserFileContent,
 }))
 
 vi.mock('@/blocks', () => ({
@@ -113,6 +126,7 @@ setupGlobalFetchMock()
 const mockGetAllBlocks = getAllBlocks as Mock
 const mockExecuteTool = executeTool as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
+const mockSupportsFileAttachments = supportsFileAttachments as Mock
 const mockTransformBlockTool = transformBlockTool as Mock
 const mockFetch = global.fetch as unknown as Mock
 const mockExecuteProviderRequest = executeProviderRequest as Mock
@@ -164,6 +178,8 @@ describe('AgentBlockHandler', () => {
       } as SerializedWorkflow,
     }
     mockGetProviderFromModel.mockReturnValue('mock-provider')
+    mockSupportsFileAttachments.mockReturnValue(false)
+    mockReadUserFileContent.mockResolvedValue('ZmlsZQ==')
 
     mockExecuteProviderRequest.mockResolvedValue({
       content: 'Mocked response content',
@@ -1119,6 +1135,113 @@ describe('AgentBlockHandler', () => {
       // Then user message from messages array
       expect(requestBody.messages[6].role).toBe('user')
       expect(requestBody.messages[6].content).toBe('Continue our conversation.')
+    })
+
+    it('should pass files messages as provider file attachments when the model supports files', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        messages: [
+          { role: 'user' as const, content: 'Summarize the attached file.' },
+          {
+            role: 'files' as const,
+            files: [
+              {
+                name: 'brief.pdf',
+                path: '/api/files/serve/test-workspace/brief.pdf',
+                key: 'workspace/test-workspace/brief.pdf',
+                size: 128,
+                type: 'application/pdf',
+              },
+            ],
+          },
+        ],
+        apiKey: 'test-api-key',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+      mockSupportsFileAttachments.mockReturnValue(true)
+      mockReadUserFileContent.mockResolvedValue('cGRm')
+
+      await handler.execute(
+        {
+          ...mockContext,
+          userId: 'test-user',
+          workspaceId: 'test-workspace',
+          executionId: 'test-execution',
+        },
+        mockBlock,
+        inputs
+      )
+
+      const requestBody = mockExecuteProviderRequest.mock.calls[0][1]
+
+      expect(requestBody.messages).toEqual([
+        { role: 'user', content: 'Summarize the attached file.' },
+      ])
+      expect(requestBody.fileAttachments).toEqual([
+        {
+          name: 'brief.pdf',
+          type: 'application/pdf',
+          base64: 'cGRm',
+        },
+      ])
+      expect(mockReadUserFileContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'brief.pdf',
+          key: 'workspace/test-workspace/brief.pdf',
+          type: 'application/pdf',
+        }),
+        expect.objectContaining({
+          userId: 'test-user',
+          workspaceId: 'test-workspace',
+          executionId: 'test-execution',
+          encoding: 'base64',
+        })
+      )
+    })
+
+    it('should ignore files messages when the selected model does not support files', async () => {
+      const inputs = {
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'user' as const, content: 'Summarize the attached file.' },
+          {
+            role: 'files' as const,
+            files: [
+              {
+                name: 'brief.pdf',
+                path: '/api/files/serve/test-workspace/brief.pdf',
+                key: 'workspace/test-workspace/brief.pdf',
+                size: 128,
+                type: 'application/pdf',
+              },
+            ],
+          },
+        ],
+        apiKey: 'test-api-key',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('deepseek')
+      mockSupportsFileAttachments.mockReturnValue(false)
+
+      await handler.execute(
+        {
+          ...mockContext,
+          userId: 'test-user',
+          workspaceId: 'test-workspace',
+          executionId: 'test-execution',
+        },
+        mockBlock,
+        inputs
+      )
+
+      const requestBody = mockExecuteProviderRequest.mock.calls[0][1]
+
+      expect(requestBody.messages).toEqual([
+        { role: 'user', content: 'Summarize the attached file.' },
+      ])
+      expect(requestBody.fileAttachments).toBeUndefined()
+      expect(mockReadUserFileContent).not.toHaveBeenCalled()
     })
 
     it('should preserve multiple system messages when no explicit systemPrompt is provided', async () => {
