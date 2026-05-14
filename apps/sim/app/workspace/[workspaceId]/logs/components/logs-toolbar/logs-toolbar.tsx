@@ -21,7 +21,11 @@ import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { captureEvent } from '@/lib/posthog/client'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
-import { type LogStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
+import {
+  formatDateShort,
+  type LogStatus,
+  STATUS_CONFIG,
+} from '@/app/workspace/[workspaceId]/logs/utils'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -42,34 +46,6 @@ const TIME_RANGE_OPTIONS: ComboboxOption[] = [
   { value: 'Past 30 days', label: 'Past 30 days' },
   { value: 'Custom range', label: 'Custom range' },
 ] as const
-
-/**
- * Formats a date string (YYYY-MM-DD or YYYY-MM-DDTHH:mm) for display.
- */
-function formatDateShort(dateStr: string): string {
-  const hasTime = dateStr.includes('T')
-  const [datePart, timePart] = dateStr.split('T')
-  const [year, month, day] = datePart.split('-').map(Number)
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ]
-  const dateLabel = `${months[month - 1]} ${day}`
-  if (hasTime && timePart) {
-    return `${dateLabel} ${timePart.slice(0, 5)}`
-  }
-  return dateLabel
-}
 
 type ViewMode = 'logs' | 'dashboard'
 

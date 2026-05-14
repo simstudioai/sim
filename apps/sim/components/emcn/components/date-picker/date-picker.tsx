@@ -677,9 +677,17 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
       const end = rangeEnd && rangeEnd < rangeStart ? rangeStart : rangeEnd || rangeStart
       const startStr = formatDateAsString(start.getFullYear(), start.getMonth(), start.getDate())
       const endStr = formatDateAsString(end.getFullYear(), end.getMonth(), end.getDate())
+
+      let effectiveStartTime = startTime
+      let effectiveEndTime = endTime
+      if (showTime && startStr === endStr && startTime > endTime) {
+        effectiveStartTime = endTime
+        effectiveEndTime = startTime
+      }
+
       props.onRangeChange(
-        showTime ? `${startStr}T${startTime}` : startStr,
-        showTime ? `${endStr}T${endTime}` : endStr
+        showTime ? `${startStr}T${effectiveStartTime}` : startStr,
+        showTime ? `${endStr}T${effectiveEndTime}:59` : endStr
       )
       setOpen(false)
     }

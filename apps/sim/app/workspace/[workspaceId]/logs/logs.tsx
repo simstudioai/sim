@@ -91,6 +91,7 @@ import {
   DELETED_WORKFLOW_LABEL,
   extractRetryInput,
   formatDate,
+  formatDateShort,
   getDisplayStatus,
   type LogStatus,
   parseDuration,
@@ -203,31 +204,6 @@ function getTriggerIcon(
 
 function SpinningRefreshCw(props: React.SVGProps<SVGSVGElement>) {
   return <RefreshCw {...props} animate />
-}
-
-function formatDateShort(dateStr: string): string {
-  const hasTime = dateStr.includes('T')
-  const [datePart, timePart] = dateStr.split('T')
-  const [year, month, day] = datePart.split('-').map(Number)
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ]
-  const dateLabel = `${months[month - 1]} ${day}`
-  if (hasTime && timePart) {
-    return `${dateLabel} ${timePart.slice(0, 5)}`
-  }
-  return dateLabel
 }
 
 /**
