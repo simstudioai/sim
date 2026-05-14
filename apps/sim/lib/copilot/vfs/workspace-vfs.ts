@@ -901,9 +901,10 @@ export class WorkspaceVFS {
 
       return files.map((f) => ({
         id: f.id,
-        name: f.folderPath ? `${f.folderPath}/${f.name}` : f.name,
+        name: f.name,
         type: f.type,
         size: f.size,
+        folderPath: f.folderPath ?? null,
       }))
     } catch (err) {
       logger.warn('Failed to materialize files', {
