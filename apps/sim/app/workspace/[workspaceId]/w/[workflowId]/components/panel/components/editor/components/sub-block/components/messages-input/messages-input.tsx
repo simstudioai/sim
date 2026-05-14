@@ -20,6 +20,10 @@ import {
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
+import {
+  CLAUDE_SUPPORTED_IMAGE_MIME_TYPES,
+  MIME_TYPE_MAPPING,
+} from '@/lib/uploads/utils/file-utils'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import {
   FileUpload,
@@ -38,7 +42,13 @@ import { getProviderFromModel, supportsFileAttachments } from '@/providers/model
 const MIN_TEXTAREA_HEIGHT_PX = 80
 const MAX_TEXTAREA_HEIGHT_PX = 320
 
-const ANTHROPIC_SUPPORTED_IMAGE_TYPES = new Set([
+const ANTHROPIC_SUPPORTED_DOCUMENT_TYPES = new Set(
+  Object.entries(MIME_TYPE_MAPPING)
+    .filter(([, contentType]) => contentType === 'document')
+    .map(([mimeType]) => mimeType)
+)
+
+const OPENAI_SUPPORTED_IMAGE_TYPES = new Set([
   'image/jpeg',
   'image/jpg',
   'image/png',
@@ -46,22 +56,29 @@ const ANTHROPIC_SUPPORTED_IMAGE_TYPES = new Set([
   'image/webp',
 ])
 
-const ANTHROPIC_SUPPORTED_DOCUMENT_TYPES = new Set([
-  'application/pdf',
-  'text/plain',
-  'text/csv',
-  'application/json',
-  'application/xml',
-  'text/xml',
-  'text/html',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+const OPENAI_SUPPORTED_FILE_TYPES = new Set([
+  'text/x-c',
+  'text/x-c++',
+  'text/x-csharp',
+  'text/css',
   'application/msword',
-  'application/vnd.ms-excel',
-  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/x-golang',
+  'text/html',
+  'text/x-java',
+  'text/javascript',
+  'application/json',
   'text/markdown',
-  'application/rtf',
+  'application/pdf',
+  'text/x-php',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/x-python',
+  'text/x-script.python',
+  'text/x-ruby',
+  'application/x-sh',
+  'text/x-tex',
+  'application/typescript',
+  'text/plain',
 ])
 
 /** Pattern to match complete message objects in JSON */
@@ -97,8 +114,16 @@ function hasAnthropicUnsupportedFiles(value: FileUploadValue | null | undefined)
     const type = file.type.toLowerCase()
     if (type === 'image/svg+xml') return false
     return (
-      !ANTHROPIC_SUPPORTED_IMAGE_TYPES.has(type) && !ANTHROPIC_SUPPORTED_DOCUMENT_TYPES.has(type)
+      !CLAUDE_SUPPORTED_IMAGE_MIME_TYPES.has(type) && !ANTHROPIC_SUPPORTED_DOCUMENT_TYPES.has(type)
     )
+  })
+}
+
+function hasOpenAIUnsupportedFiles(value: FileUploadValue | null | undefined): boolean {
+  const files = Array.isArray(value) ? value : value ? [value] : []
+  return files.some((file) => {
+    const type = file.type.toLowerCase()
+    return !OPENAI_SUPPORTED_IMAGE_TYPES.has(type) && !OPENAI_SUPPORTED_FILE_TYPES.has(type)
   })
 }
 
@@ -648,8 +673,10 @@ export function MessagesInput({
             const showUnsupportedFilesWarning =
               isFilesMessage &&
               fileAttachmentsSupported &&
-              (selectedProvider === 'anthropic' || selectedProvider === 'azure-anthropic') &&
-              hasAnthropicUnsupportedFiles(message.files)
+              (((selectedProvider === 'anthropic' || selectedProvider === 'azure-anthropic') &&
+                hasAnthropicUnsupportedFiles(message.files)) ||
+                ((selectedProvider === 'openai' || selectedProvider === 'azure-openai') &&
+                  hasOpenAIUnsupportedFiles(message.files)))
             const fieldState = subBlockInput.fieldHelpers.getFieldState(fieldId)
             const fieldHandlers = subBlockInput.fieldHelpers.createFieldHandlers(
               fieldId,

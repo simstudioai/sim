@@ -18,16 +18,15 @@ export interface ResponsesToolCall {
   arguments: string
 }
 
+type ResponsesInputContentPart =
+  | { type: 'input_text'; text: string }
+  | { type: 'input_image'; image_url: string; detail: 'auto' }
+  | { type: 'input_file'; file_data: string; filename?: string }
+
 export type ResponsesInputItem =
   | {
       role: 'system' | 'user' | 'assistant'
-      content:
-        | string
-        | Array<
-            | { type: 'input_text'; text: string }
-            | { type: 'input_image'; image_url: string; detail: 'auto' }
-            | { type: 'input_file'; file_data: string; filename?: string }
-          >
+      content: string | ResponsesInputContentPart[]
     }
   | {
       type: 'function_call'
@@ -48,28 +47,72 @@ export interface ResponsesToolDefinition {
   parameters?: Record<string, unknown>
 }
 
+const OPENAI_SUPPORTED_FILE_MIME_TYPES = new Set([
+  'text/x-c',
+  'text/x-c++',
+  'text/x-csharp',
+  'text/css',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/x-golang',
+  'text/html',
+  'text/x-java',
+  'text/javascript',
+  'application/json',
+  'text/markdown',
+  'application/pdf',
+  'text/x-php',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/x-python',
+  'text/x-script.python',
+  'text/x-ruby',
+  'application/x-sh',
+  'text/x-tex',
+  'application/typescript',
+  'text/plain',
+])
+
+const OPENAI_SUPPORTED_IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+])
+
 function toDataUrl(file: ProviderFileAttachment): string {
   return `data:${file.type};base64,${file.base64}`
 }
 
-function buildResponsesFileParts(fileAttachments?: ProviderFileAttachment[]) {
+function buildResponsesFileParts(
+  fileAttachments?: ProviderFileAttachment[]
+): ResponsesInputContentPart[] {
   if (!fileAttachments?.length) return []
 
-  return fileAttachments.map((file) => {
+  return fileAttachments.flatMap<ResponsesInputContentPart>((file) => {
+    const type = file.type.toLowerCase()
     const dataUrl = toDataUrl(file)
-    if (file.type.toLowerCase().startsWith('image/')) {
-      return {
-        type: 'input_image' as const,
-        image_url: dataUrl,
-        detail: 'auto' as const,
-      }
+    if (OPENAI_SUPPORTED_IMAGE_MIME_TYPES.has(type)) {
+      return [
+        {
+          type: 'input_image' as const,
+          image_url: dataUrl,
+          detail: 'auto' as const,
+        },
+      ]
     }
 
-    return {
-      type: 'input_file' as const,
-      file_data: dataUrl,
-      filename: file.name,
+    if (!OPENAI_SUPPORTED_FILE_MIME_TYPES.has(type)) {
+      return []
     }
+
+    return [
+      {
+        type: 'input_file' as const,
+        file_data: dataUrl,
+        filename: file.name,
+      },
+    ]
   })
 }
 

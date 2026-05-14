@@ -1,3 +1,5 @@
+import type { FileUploadValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/file-upload/file-upload'
+
 export interface SkillInput {
   skillId: string
   name?: string
@@ -73,7 +75,7 @@ export interface TextMessage {
 
 export interface FilesMessage {
   role: 'files'
-  files?: unknown
+  files?: FileUploadValue | null
 }
 
 export type Message = TextMessage | FilesMessage
