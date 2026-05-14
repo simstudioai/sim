@@ -14,6 +14,7 @@ import {
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +41,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
+    await assertActiveWorkspaceAccess(workspaceId, userId)
+
     switch (body.operation) {
       case 'get': {
         const { fileId, fileInput } = body
