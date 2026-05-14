@@ -1165,7 +1165,12 @@ export class WorkspaceVFS {
                 'content', m->'content',
                 'contentBlocks', COALESCE((
                   SELECT jsonb_agg(jsonb_build_object('type', 'text', 'content', b->'content'))
-                  FROM jsonb_array_elements(COALESCE(m->'contentBlocks', '[]'::jsonb)) AS b
+                  FROM jsonb_array_elements(
+                    CASE WHEN jsonb_typeof(m->'contentBlocks') = 'array'
+                         THEN m->'contentBlocks'
+                         ELSE '[]'::jsonb
+                    END
+                  ) AS b
                   WHERE b->>'type' = 'text'
                 ), '[]'::jsonb)
               )
