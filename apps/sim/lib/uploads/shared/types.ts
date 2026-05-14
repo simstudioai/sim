@@ -32,6 +32,7 @@ export const QUOTA_EXEMPT_STORAGE_CONTEXTS = new Set<StorageContext>([
   'profile-pictures',
   'workspace-logos',
   'og-images',
+  'logs',
 ])
 
 export interface FileInfo {
