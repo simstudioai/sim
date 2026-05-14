@@ -78,7 +78,7 @@ export class NodeExecutionOrchestrator {
 
     if (node.metadata.isSentinel) {
       const output = await this.handleSentinel(ctx, node)
-      const isFinalOutput = node.outgoingEdges.size === 0
+      const isFinalOutput = this.isFinalSentinelOutput(node, output)
       return {
         nodeId,
         output,
@@ -93,6 +93,21 @@ export class NodeExecutionOrchestrator {
       output,
       isFinalOutput,
     }
+  }
+
+  private isFinalSentinelOutput(node: DAGNode, output: NormalizedBlockOutput): boolean {
+    const selectedRoute = output.selectedRoute
+    if (selectedRoute === EDGE.LOOP_CONTINUE || selectedRoute === EDGE.PARALLEL_CONTINUE) {
+      return false
+    }
+
+    if (selectedRoute === EDGE.LOOP_EXIT || selectedRoute === EDGE.PARALLEL_EXIT) {
+      return !Array.from(node.outgoingEdges.values()).some(
+        (edge) => edge.sourceHandle === selectedRoute
+      )
+    }
+
+    return node.outgoingEdges.size === 0
   }
 
   private async handleSentinel(

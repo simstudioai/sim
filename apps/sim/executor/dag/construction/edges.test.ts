@@ -220,6 +220,36 @@ describe('EdgeConstructor', () => {
       })
       expect(dag.nodes.get(sourceEndId)!.incomingEdges).not.toContain(sourceStartId)
     })
+
+    it('wires terminal top-level loop start exit through its own sentinel end', () => {
+      const loopId = 'loop-1'
+      const taskId = 'task-1'
+      const loopStartId = `loop-${loopId}-sentinel-start`
+      const loopEndId = `loop-${loopId}-sentinel-end`
+      const dag = createMockDAG([loopStartId, loopEndId, taskId])
+      dag.loopConfigs.set(loopId, { id: loopId, nodes: [taskId], iterations: 1 })
+      const workflow = createMockWorkflow(
+        [createMockBlock(loopId, 'loop'), createMockBlock(taskId)],
+        []
+      )
+
+      edgeConstructor.execute(
+        workflow,
+        dag,
+        new Set(),
+        new Set([taskId]),
+        new Set([taskId]),
+        new Map()
+      )
+
+      const loopStartTargets = Array.from(dag.nodes.get(loopStartId)!.outgoingEdges.values())
+      expect(loopStartTargets).toContainEqual({
+        target: loopEndId,
+        sourceHandle: 'loop_exit',
+        targetHandle: undefined,
+      })
+      expect(dag.nodes.get(loopEndId)!.incomingEdges).not.toContain(loopStartId)
+    })
   })
 
   describe('Condition block edge wiring', () => {
@@ -530,8 +560,9 @@ describe('EdgeConstructor', () => {
 
       // Sentinel start should have edge to node in loop (it's a start node - no incoming from loop)
       const sentinelStartNode = dag.nodes.get(sentinelStartId)!
-      expect(sentinelStartNode.outgoingEdges.size).toBe(1)
-      const startEdge = Array.from(sentinelStartNode.outgoingEdges.values())[0]
+      const startEdge = Array.from(sentinelStartNode.outgoingEdges.values()).find(
+        (edge) => edge.target === nodeInLoopId
+      )
       expect(startEdge.target).toBe(nodeInLoopId)
 
       // Node in loop should have edge to sentinel end (it's a terminal node - no outgoing to loop)
@@ -589,7 +620,10 @@ describe('EdgeConstructor', () => {
 
       // Sentinel start should have edges to both nodes (both are start nodes)
       const sentinelStartNode = dag.nodes.get(sentinelStartId)!
-      expect(sentinelStartNode.outgoingEdges.size).toBe(2)
+      const bodyStartEdges = Array.from(sentinelStartNode.outgoingEdges.values()).filter(
+        (edge) => edge.target === node1Id || edge.target === node2Id
+      )
+      expect(bodyStartEdges).toHaveLength(2)
 
       // Both nodes should have edges to sentinel end (both are terminal nodes)
       const node1 = dag.nodes.get(node1Id)!
@@ -791,7 +825,7 @@ describe('EdgeConstructor', () => {
 
         const loop1StartNode = dag.nodes.get(loop1SentinelStart)!
         const earlyExitEdges = Array.from(loop1StartNode.outgoingEdges.values()).filter(
-          (e) => e.target === loop2SentinelStart && e.sourceHandle === 'loop_exit'
+          (e) => e.target === loop1SentinelEnd && e.sourceHandle === 'loop_exit'
         )
         expect(earlyExitEdges.length).toBeGreaterThan(0)
       })
@@ -953,7 +987,7 @@ describe('EdgeConstructor', () => {
 
         const loopStartNode = dag.nodes.get(loopSentinelStart)!
         const earlyExitEdges = Array.from(loopStartNode.outgoingEdges.values()).filter(
-          (e) => e.target === parallelSentinelStart && e.sourceHandle === 'loop_exit'
+          (e) => e.target === loopSentinelEnd && e.sourceHandle === 'loop_exit'
         )
         expect(earlyExitEdges.length).toBeGreaterThan(0)
       })

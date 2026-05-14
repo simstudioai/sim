@@ -139,7 +139,12 @@ export class LoopOrchestrator {
         }
         let items: any[]
         try {
-          items = await resolveArrayInputAsync(ctx, loopConfig.forEachItems, this.resolver)
+          items = await resolveArrayInputAsync(
+            ctx,
+            loopConfig.forEachItems,
+            this.resolver,
+            buildSentinelStartId(loopId)
+          )
         } catch (error) {
           const errorMessage = `ForEach loop resolution failed: ${toError(error).message}`
           logger.error(errorMessage, { loopId, forEachItems: loopConfig.forEachItems })

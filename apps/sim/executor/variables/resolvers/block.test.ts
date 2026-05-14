@@ -141,7 +141,8 @@ function createTestWorkflow(
     name?: string
     type?: string
     outputs?: Record<string, any>
-  }> = []
+  }> = [],
+  subflows: { loops?: Record<string, any>; parallels?: Record<string, any> } = {}
 ) {
   return {
     version: '1.0',
@@ -155,8 +156,8 @@ function createTestWorkflow(
       enabled: true,
     })),
     connections: [],
-    loops: {},
-    parallels: {},
+    loops: subflows.loops ?? {},
+    parallels: subflows.parallels ?? {},
   }
 }
 
@@ -252,7 +253,9 @@ describe('BlockResolver', () => {
     })
 
     it('does not fall back to unscoped block state inside cloned subflow branches', () => {
-      const workflow = createTestWorkflow([{ id: 'source' }])
+      const workflow = createTestWorkflow([{ id: 'source' }], {
+        parallels: { 'parallel-1': { id: 'parallel-1', nodes: ['source'] } },
+      })
       const resolver = new BlockResolver(workflow)
       const ctx = createTestContext(
         'consumer__clone-inner__obranch-1₍0₎',
@@ -261,6 +264,18 @@ describe('BlockResolver', () => {
       )
 
       expect(resolver.resolve('<source.result>', ctx)).toBe(RESOLVED_EMPTY)
+    })
+
+    it('allows cloned subflows to resolve top-level upstream block state', () => {
+      const workflow = createTestWorkflow([{ id: 'source' }])
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext(
+        'consumer__clone-inner__obranch-1₍0₎',
+        {},
+        new Map([['source', { output: { result: 'global' } }]])
+      )
+
+      expect(resolver.resolve('<source.result>', ctx)).toBe('global')
     })
 
     it('should resolve nested scalar paths inside compacted block references', async () => {

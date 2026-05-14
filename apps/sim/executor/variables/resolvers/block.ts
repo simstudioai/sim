@@ -26,6 +26,7 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 export class BlockResolver implements Resolver {
   private nameToBlockId: Map<string, string>
   private blockById: Map<string, SerializedBlock>
+  private blockIdsInSubflows: Set<string>
 
   constructor(
     private workflow: SerializedWorkflow,
@@ -33,10 +34,21 @@ export class BlockResolver implements Resolver {
   ) {
     this.nameToBlockId = new Map()
     this.blockById = new Map()
+    this.blockIdsInSubflows = new Set()
     for (const block of workflow.blocks) {
       this.blockById.set(block.id, block)
       if (block.metadata?.name) {
         this.nameToBlockId.set(normalizeName(block.metadata.name), block.id)
+      }
+    }
+    for (const loop of Object.values(workflow.loops ?? {})) {
+      for (const blockId of loop.nodes ?? []) {
+        this.blockIdsInSubflows.add(blockId)
+      }
+    }
+    for (const parallel of Object.values(workflow.parallels ?? {})) {
+      for (const blockId of parallel.nodes ?? []) {
+        this.blockIdsInSubflows.add(blockId)
       }
     }
   }
@@ -287,7 +299,10 @@ export class BlockResolver implements Resolver {
     if (stateOutput !== undefined) {
       return stateOutput
     }
-    if (extractOuterBranchIndex(context.currentNodeId) !== undefined) {
+    if (
+      extractOuterBranchIndex(context.currentNodeId) !== undefined &&
+      this.blockIdsInSubflows.has(blockId)
+    ) {
       return undefined
     }
     const contextState = context.executionContext.blockStates?.get(blockId)

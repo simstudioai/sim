@@ -141,6 +141,10 @@ export class EdgeManager {
     this.nodesWithActivatedEdge = new Set(activatedNodeIds ?? [])
   }
 
+  markNodeWithActivatedEdge(nodeId: string): void {
+    this.nodesWithActivatedEdge.add(nodeId)
+  }
+
   /**
    * Clear deactivated edges for a set of nodes (used when restoring loop state for next iteration).
    *

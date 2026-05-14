@@ -205,7 +205,8 @@ export function normalizeNodeId(nodeId: string): string {
 export async function resolveArrayInputAsync(
   ctx: ExecutionContext,
   items: any,
-  resolver: VariableResolver | null
+  resolver: VariableResolver | null,
+  currentNodeId = ''
 ): Promise<any[]> {
   if (Array.isArray(items)) {
     return items
@@ -218,7 +219,7 @@ export async function resolveArrayInputAsync(
   if (typeof items === 'string') {
     if (items.startsWith(REFERENCE.START) && items.endsWith(REFERENCE.END) && resolver) {
       try {
-        const resolved = await resolver.resolveSingleReference(ctx, '', items)
+        const resolved = await resolver.resolveSingleReference(ctx, currentNodeId, items)
         if (Array.isArray(resolved)) {
           return resolved
         }
@@ -257,7 +258,7 @@ export async function resolveArrayInputAsync(
 
   if (resolver) {
     try {
-      const resolved = (await resolver.resolveInputs(ctx, 'subflow_items', { items })).items
+      const resolved = (await resolver.resolveInputs(ctx, currentNodeId, { items })).items
       if (Array.isArray(resolved)) {
         return resolved
       }
@@ -339,76 +340,9 @@ export async function addSubflowErrorLog(
 }
 
 /**
- * Emits block log + SSE events for a loop/parallel that was skipped due to an
- * empty collection or false initial condition. This ensures the container block
- * appears in terminal logs, execution snapshots, and edge highlighting.
- */
-export async function emitEmptySubflowEvents(
-  ctx: ExecutionContext,
-  blockId: string,
-  blockType: 'loop' | 'parallel',
-  contextExtensions: ContextExtensions | null
-): Promise<void> {
-  const now = new Date().toISOString()
-  const executionOrder = getNextExecutionOrder(ctx)
-  const output = { results: [] }
-  const block = ctx.workflow?.blocks.find((b) => b.id === blockId)
-  const blockName = block?.metadata?.name ?? blockType
-  const iterationContext = buildContainerIterationContext(ctx, blockId)
-
-  ctx.blockLogs.push({
-    blockId,
-    blockName,
-    blockType,
-    startedAt: now,
-    endedAt: now,
-    durationMs: DEFAULTS.EXECUTION_TIME,
-    success: true,
-    output,
-    executionOrder,
-  })
-
-  if (contextExtensions?.onBlockStart) {
-    try {
-      await contextExtensions.onBlockStart(blockId, blockName, blockType, executionOrder)
-    } catch (error) {
-      logger.warn('Empty subflow start callback failed', {
-        blockId,
-        blockType,
-        error: toError(error).message,
-      })
-    }
-  }
-
-  if (contextExtensions?.onBlockComplete) {
-    try {
-      await contextExtensions.onBlockComplete(
-        blockId,
-        blockName,
-        blockType,
-        {
-          output,
-          executionTime: DEFAULTS.EXECUTION_TIME,
-          startedAt: now,
-          executionOrder,
-          endedAt: now,
-        },
-        iterationContext
-      )
-    } catch (error) {
-      logger.warn('Empty subflow completion callback failed', {
-        blockId,
-        blockType,
-        error: toError(error).message,
-      })
-    }
-  }
-}
-
-/**
  * Emits the BlockLog + onBlockComplete callback for a loop/parallel container that
- * finished successfully with at least one iteration. Without this, successful container
- * runs produce no top-level BlockLog, which forces the trace-span builder to fall back
+ * finished successfully. Without this, successful container runs produce no top-level BlockLog,
+ * which forces the trace-span builder to fall back
  * to generic counter-based names ("Loop 1", "Parallel 1") instead of the user-configured
  * block name.
  */

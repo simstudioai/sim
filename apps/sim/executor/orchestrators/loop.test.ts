@@ -81,4 +81,47 @@ describe('LoopOrchestrator', () => {
     expect(parallelStart.incomingEdges.has(loopStartId)).toBe(true)
     expect(parallelStart.incomingEdges.has(parallelEndId)).toBe(false)
   })
+
+  it('resolves forEach collections with the loop start sentinel scope', async () => {
+    const loopId = 'loop-1'
+    const dag: DAG = {
+      nodes: new Map(),
+      loopConfigs: new Map([
+        [
+          loopId,
+          {
+            id: loopId,
+            nodes: ['task-1'],
+            loopType: 'forEach',
+            forEachItems: '<Producer.items>',
+          },
+        ],
+      ]),
+      parallelConfigs: new Map(),
+    }
+    const resolver = {
+      resolveSingleReference: vi.fn().mockResolvedValue(['item-1']),
+    }
+    const orchestrator = new LoopOrchestrator(dag, createState(), resolver as any, {}, {
+      clearDeactivatedEdgesForNodes: vi.fn(),
+    } as unknown as EdgeManager)
+    const ctx = {
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      executionId: 'execution-1',
+      userId: 'user-1',
+      loopExecutions: new Map(),
+      blockLogs: [],
+      metadata: {},
+    }
+
+    const scope = await orchestrator.initializeLoopScope(ctx as any, loopId)
+
+    expect(resolver.resolveSingleReference).toHaveBeenCalledWith(
+      expect.any(Object),
+      'loop-loop-1-sentinel-start',
+      '<Producer.items>'
+    )
+    expect(scope.maxIterations).toBe(1)
+  })
 })

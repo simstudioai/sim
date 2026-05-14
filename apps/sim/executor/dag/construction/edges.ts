@@ -236,16 +236,15 @@ export class EdgeConstructor {
         continue
       }
 
-      let loopSentinelStartId: string | undefined
-
       if (sourceIsLoopBlock) {
         const sentinelEndId = buildSentinelEndId(originalSource)
-        loopSentinelStartId = buildSentinelStartId(originalSource)
+        const loopSentinelStartId = buildSentinelStartId(originalSource)
         if (!dag.nodes.has(sentinelEndId) || !dag.nodes.has(loopSentinelStartId)) {
           continue
         }
         source = sentinelEndId
         sourceHandle = EDGE.LOOP_EXIT
+        this.addSubflowStartExitBypass(dag, originalSource)
       }
 
       if (targetIsLoopBlock) {
@@ -286,11 +285,6 @@ export class EdgeConstructor {
         continue
       }
 
-      const sourceLoopNodes = dag.loopConfigs.get(originalSource)?.nodes
-      if (loopSentinelStartId && !sourceLoopNodes?.includes(originalTarget)) {
-        this.addEdge(dag, loopSentinelStartId, target, EDGE.LOOP_EXIT, targetHandle)
-      }
-
       if (!this.isEdgeReachable(source, target, reachableBlocks, dag)) {
         continue
       }
@@ -325,6 +319,8 @@ export class EdgeConstructor {
       if (!dag.nodes.has(sentinelStartId) || !dag.nodes.has(sentinelEndId)) {
         continue
       }
+
+      this.addSubflowStartExitBypass(dag, loopId)
 
       const { startNodes, terminalNodes } = this.findLoopBoundaryNodes(nodes, dag)
 
@@ -366,6 +362,8 @@ export class EdgeConstructor {
       if (!dag.nodes.has(sentinelStartId) || !dag.nodes.has(sentinelEndId)) {
         continue
       }
+
+      this.addSubflowStartExitBypass(dag, parallelId)
 
       const { entryNodes, terminalNodes } = this.findParallelBoundaryNodes(nodes, dag)
 

@@ -47,6 +47,66 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
+function isPausedOutputForContext(
+  output: unknown,
+  stateBlockKey: string,
+  pauseBlockId: string,
+  contextId: string
+): boolean {
+  if (!isRecord(output)) return false
+  const metadata = output._pauseMetadata
+  if (isRecord(metadata)) {
+    return (
+      metadata.contextId === contextId ||
+      metadata.blockId === stateBlockKey ||
+      metadata.blockId === pauseBlockId
+    )
+  }
+  return false
+}
+
+function updateResumeOutputInAggregationBuffers(
+  state: SerializableExecutionState,
+  stateBlockKey: string,
+  pauseBlockId: string,
+  contextId: string,
+  mergedOutput: Record<string, any>
+): void {
+  for (const scope of Object.values(state.loopExecutions ?? {})) {
+    if (!isRecord(scope) || !isRecord(scope.currentIterationOutputs)) continue
+
+    const outputs = scope.currentIterationOutputs
+    if (
+      outputs[stateBlockKey] !== undefined ||
+      outputs[pauseBlockId] !== undefined ||
+      outputs[contextId] !== undefined
+    ) {
+      delete outputs[pauseBlockId]
+      delete outputs[contextId]
+      outputs[stateBlockKey] = mergedOutput
+    }
+  }
+
+  for (const scope of Object.values(state.parallelExecutions ?? {})) {
+    if (!isRecord(scope) || !isRecord(scope.branchOutputs)) continue
+
+    for (const [branchIndex, branchOutputs] of Object.entries(scope.branchOutputs)) {
+      if (!Array.isArray(branchOutputs)) continue
+
+      const outputIndex = branchOutputs.findIndex((output) =>
+        isPausedOutputForContext(output, stateBlockKey, pauseBlockId, contextId)
+      )
+      if (outputIndex !== -1) {
+        scope.branchOutputs[branchIndex] = [
+          ...branchOutputs.slice(0, outputIndex),
+          mergedOutput,
+          ...branchOutputs.slice(outputIndex + 1),
+        ]
+      }
+    }
+  }
+}
+
 function isResumablePausedStatus(status: string): boolean {
   return RESUMABLE_PAUSED_STATUSES.includes(status as (typeof RESUMABLE_PAUSED_STATUSES)[number])
 }
@@ -771,6 +831,13 @@ export class PauseResumeManager {
       }
 
       stateCopy.blockStates[stateBlockKey] = pauseBlockState
+      updateResumeOutputInAggregationBuffers(
+        stateCopy,
+        stateBlockKey,
+        pauseBlockId,
+        contextId,
+        mergedOutput
+      )
 
       // Update the block log entry with the merged output so logs show the submission data
       if (Array.isArray(stateCopy.blockLogs)) {

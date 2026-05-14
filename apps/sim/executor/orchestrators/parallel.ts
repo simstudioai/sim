@@ -244,7 +244,12 @@ export class ParallelOrchestrator {
         'Parallel collection distribution is empty. Provide an array or a reference that resolves to a collection.'
       )
     }
-    return resolveArrayInputAsync(ctx, config.distribution, this.resolver)
+    return resolveArrayInputAsync(
+      ctx,
+      config.distribution,
+      this.resolver,
+      buildParallelSentinelStartId(config.id)
+    )
   }
 
   private resolveBatchSize(batchSize: unknown): number {

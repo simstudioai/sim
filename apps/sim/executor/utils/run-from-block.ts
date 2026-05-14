@@ -162,6 +162,7 @@ export function validateRunFromBlock(
   const isLoopContainer = dag.loopConfigs.has(blockId)
   const isParallelContainer = dag.parallelConfigs.has(blockId)
   const isContainer = isLoopContainer || isParallelContainer
+  let validationNode = node
 
   if (!node && !isContainer) {
     return { valid: false, error: `Block not found in workflow: ${blockId}` }
@@ -175,6 +176,7 @@ export function validateRunFromBlock(
         error: `Container sentinel not found for: ${blockId}`,
       }
     }
+    validationNode = dag.nodes.get(sentinelStartId)
   }
 
   if (node) {
@@ -195,9 +197,11 @@ export function validateRunFromBlock(
     if (node.metadata.isSentinel) {
       return { valid: false, error: 'Cannot run from sentinel node' }
     }
+  }
 
+  if (validationNode) {
     // Check immediate upstream dependencies were executed
-    for (const sourceId of node.incomingEdges) {
+    for (const sourceId of validationNode.incomingEdges) {
       const sourceNode = dag.nodes.get(sourceId)
       // Skip sentinel nodes - they're internal and not in executedBlocks
       if (sourceNode?.metadata.isSentinel) continue

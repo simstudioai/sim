@@ -1,7 +1,7 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
-import { BlockType } from '@/executor/constants'
+import { BlockType, EDGE } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import { serializePauseSnapshot } from '@/executor/execution/snapshot-serializer'
@@ -303,6 +303,9 @@ export class ExecutionEngine {
         if (targetNode) {
           const hadEdge = targetNode.incomingEdges.has(edge.source)
           targetNode.incomingEdges.delete(edge.source)
+          if (hadEdge) {
+            this.edgeManager.markNodeWithActivatedEdge(targetNode.id)
+          }
 
           if (this.edgeManager.isNodeReady(targetNode)) {
             this.execLogger.info('Node became ready after edge removal', { nodeId: targetNode.id })
@@ -412,6 +415,8 @@ export class ExecutionEngine {
     }
 
     if (output._pauseMetadata) {
+      await this.nodeOrchestrator.handleNodeCompletion(this.context, nodeId, output)
+
       const pauseMetadata = output._pauseMetadata
       this.pausedBlocks.set(pauseMetadata.contextId, pauseMetadata)
       this.context.metadata.status = 'paused'
@@ -439,8 +444,9 @@ export class ExecutionEngine {
     if (this.context.stopAfterBlockId === nodeId) {
       // For loop/parallel sentinels, only stop if the subflow has fully exited (all iterations done)
       // shouldContinue: true means more iterations, shouldExit: true means loop is done
-      const shouldContinueLoop = output.shouldContinue === true
-      if (!shouldContinueLoop) {
+      const shouldContinue =
+        output.shouldContinue === true || output.selectedRoute === EDGE.PARALLEL_CONTINUE
+      if (!shouldContinue) {
         this.execLogger.info('Stopping execution after target block', { nodeId })
         this.stoppedEarlyFlag = true
         return

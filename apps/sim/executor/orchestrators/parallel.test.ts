@@ -93,14 +93,8 @@ describe('ParallelOrchestrator', () => {
     mockCompactSubflowResults.mockImplementation(async (results: unknown) => results)
   })
 
-  it('awaits empty-subflow lifecycle callbacks before returning the empty scope', async () => {
-    let releaseStart: (() => void) | undefined
-    const onBlockStart = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          releaseStart = resolve
-        })
-    )
+  it('defers empty-subflow lifecycle callbacks to the sentinel end path', async () => {
+    const onBlockStart = vi.fn()
     const onBlockComplete = vi.fn()
     const contextExtensions: ContextExtensions = {
       onBlockStart,
@@ -114,19 +108,14 @@ describe('ParallelOrchestrator', () => {
     )
     const ctx = createContext()
 
-    const initializePromise = orchestrator.initializeParallelScope(ctx, 'parallel-1')
-    await vi.waitFor(() => expect(onBlockStart).toHaveBeenCalledTimes(1))
+    const scope = await orchestrator.initializeParallelScope(ctx, 'parallel-1')
 
+    expect(onBlockStart).not.toHaveBeenCalled()
     expect(onBlockComplete).not.toHaveBeenCalled()
-
-    releaseStart?.()
-    const scope = await initializePromise
-
-    expect(onBlockComplete).toHaveBeenCalledTimes(1)
     expect(scope.isEmpty).toBe(true)
   })
 
-  it('swallows helper callback failures on empty parallel paths', async () => {
+  it('returns an empty scope without emitting start-side lifecycle callbacks', async () => {
     const contextExtensions: ContextExtensions = {
       onBlockStart: vi.fn().mockRejectedValue(new Error('start failed')),
       onBlockComplete: vi.fn().mockRejectedValue(new Error('complete failed')),
@@ -144,6 +133,34 @@ describe('ParallelOrchestrator', () => {
       parallelId: 'parallel-1',
       isEmpty: true,
     })
+    expect(contextExtensions.onBlockStart).not.toHaveBeenCalled()
+    expect(contextExtensions.onBlockComplete).not.toHaveBeenCalled()
+  })
+
+  it('resolves collection distributions with the parallel start sentinel scope', async () => {
+    const dag = createDag()
+    const parallelConfig = dag.parallelConfigs.get('parallel-1')!
+    parallelConfig.distribution = '<Producer.items>'
+    const resolver = {
+      resolveSingleReference: vi.fn().mockResolvedValue(['item-1', 'item-2']),
+    }
+    const orchestrator = new ParallelOrchestrator(
+      dag,
+      createState(),
+      resolver as any,
+      {},
+      undefined,
+      createEdgeManager() as any
+    )
+
+    const scope = await orchestrator.initializeParallelScope(createContext(), 'parallel-1')
+
+    expect(resolver.resolveSingleReference).toHaveBeenCalledWith(
+      expect.any(Object),
+      'parallel-parallel-1-sentinel-start',
+      '<Producer.items>'
+    )
+    expect(scope.totalBranches).toBe(2)
   })
 
   it('records resumed later-batch outputs under restored global branch indexes', () => {
