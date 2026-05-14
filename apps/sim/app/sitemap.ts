@@ -50,9 +50,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${baseUrl}/contact`,
     },
     {
-      url: `${baseUrl}/templates`,
-    },
-    {
       url: `${baseUrl}/terms`,
       lastModified: new Date('2024-10-14'),
     },
