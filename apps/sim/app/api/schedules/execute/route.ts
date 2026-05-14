@@ -329,14 +329,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     let totalSchedules = 0
     let totalJobs = 0
     let iterations = 0
+    let schedulesExhausted = false
+    let jobsExhausted = false
 
     while (Date.now() - tickStart < MAX_TICK_DURATION_MS) {
+      if (schedulesExhausted && jobsExhausted) break
       const queuedAt = new Date()
 
       const [dueSchedules, dueJobs] = await Promise.all([
-        claimWorkflowSchedules(queuedAt, WORKFLOW_CHUNK_SIZE),
-        claimJobSchedules(queuedAt, JOB_CHUNK_SIZE),
+        schedulesExhausted ? [] : claimWorkflowSchedules(queuedAt, WORKFLOW_CHUNK_SIZE),
+        jobsExhausted ? [] : claimJobSchedules(queuedAt, JOB_CHUNK_SIZE),
       ])
+
+      if (dueSchedules.length < WORKFLOW_CHUNK_SIZE) schedulesExhausted = true
+      if (dueJobs.length < JOB_CHUNK_SIZE) jobsExhausted = true
 
       if (dueSchedules.length === 0 && dueJobs.length === 0) break
 
@@ -352,10 +358,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         workflowUtils = await import('@/lib/workflows/utils')
       }
 
+      const loadedWorkflowUtils = workflowUtils
+      const schedulePromises =
+        loadedWorkflowUtils && dueSchedules.length > 0
+          ? dueSchedules.map((schedule) =>
+              processScheduleItem(schedule, queuedAt, requestId, jobQueue, loadedWorkflowUtils)
+            )
+          : []
+
       await Promise.allSettled([
-        ...dueSchedules.map((schedule) =>
-          processScheduleItem(schedule, queuedAt, requestId, jobQueue, workflowUtils!)
-        ),
+        ...schedulePromises,
         ...dueJobs.map((job) => processJobItem(job, queuedAt, requestId)),
       ])
     }
