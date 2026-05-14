@@ -17,10 +17,14 @@ export const updateMothershipChatBodySchema = z
   .object({
     title: z.string().trim().min(1).max(200).optional(),
     isUnread: z.boolean().optional(),
+    pinned: z.boolean().optional(),
   })
-  .refine((data) => data.title !== undefined || data.isUnread !== undefined, {
-    message: 'At least one field must be provided',
-  })
+  .refine(
+    (data) => data.title !== undefined || data.isUnread !== undefined || data.pinned !== undefined,
+    {
+      message: 'At least one field must be provided',
+    }
+  )
 
 export const createMothershipChatBodySchema = z.object({
   workspaceId: z.string().min(1),
@@ -49,6 +53,20 @@ const mothershipExecuteMessageSchema = z.object({
   content: z.string(),
 })
 
+const mothershipExecuteFileAttachmentSchema = z
+  .object({
+    type: z.enum(['text', 'image', 'document', 'audio', 'video']),
+    source: z
+      .object({
+        type: z.literal('base64'),
+        media_type: z.string().min(1),
+        data: z.string().min(1),
+      })
+      .optional(),
+    filename: z.string().optional(),
+  })
+  .passthrough()
+
 export const mothershipExecuteBodySchema = z.object({
   messages: z.array(mothershipExecuteMessageSchema).min(1, 'At least one message is required'),
   responseFormat: z.any().optional(),
@@ -57,6 +75,7 @@ export const mothershipExecuteBodySchema = z.object({
   chatId: z.string().optional(),
   messageId: z.string().optional(),
   requestId: z.string().optional(),
+  fileAttachments: z.array(mothershipExecuteFileAttachmentSchema).optional(),
   workflowId: z.string().optional(),
   executionId: z.string().optional(),
 })
@@ -188,6 +207,7 @@ export const mothershipTaskSchema = z.object({
   updatedAt: dateStringSchema,
   activeStreamId: z.string().nullable(),
   lastSeenAt: dateStringSchema.nullable(),
+  pinned: z.boolean(),
 })
 
 export const listMothershipChatsContract = defineRouteContract({
