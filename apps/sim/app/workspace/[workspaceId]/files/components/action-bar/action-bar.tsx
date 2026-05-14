@@ -9,10 +9,10 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Folder,
   Tooltip,
   Trash2,
 } from '@/components/emcn'
-import { Folder } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'

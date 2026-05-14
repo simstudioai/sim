@@ -11,6 +11,9 @@ import {
   type ComboboxOption,
   Download,
   Eye,
+  File as FilesIcon,
+  Folder,
+  FolderPlus,
   Loader,
   Modal,
   ModalBody,
@@ -23,7 +26,6 @@ import {
   toast,
   Upload,
 } from '@/components/emcn'
-import { File as FilesIcon, Folder, FolderPlus } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -474,15 +476,7 @@ export function Files() {
         },
       }
     })
-  }, [
-    baseRows,
-    listRename.editingId,
-    listRename.editValue,
-    listRename.setEditValue,
-    listRename.submitRename,
-    listRename.cancelRename,
-    filteredFiles,
-  ])
+  }, [baseRows, listRename.editingId, listRename.editValue, filteredFiles])
 
   const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
 
@@ -1015,9 +1009,6 @@ export function Files() {
       handleBackAttempt,
       headerRename.editingId,
       headerRename.editValue,
-      headerRename.setEditValue,
-      headerRename.submitRename,
-      headerRename.cancelRename,
       handleStartHeaderRename,
       handleDownloadSelected,
       handleDeleteSelected,
@@ -1541,9 +1532,6 @@ export function Files() {
     canEdit,
     breadcrumbRename.editingId,
     breadcrumbRename.editValue,
-    breadcrumbRename.setEditValue,
-    breadcrumbRename.submitRename,
-    breadcrumbRename.cancelRename,
   ])
 
   const memberOptions: ComboboxOption[] = useMemo(

@@ -534,40 +534,25 @@ const DataRow = memo(function DataRow({
     [selectable, row.id]
   )
 
-  const handleDragStart = useCallback(
-    (e: DragEvent<HTMLTableRowElement>) => {
-      rowDragDrop?.onDragStart?.(e, row.id)
-    },
-    [rowDragDrop, row.id]
-  )
+  const handleDragStart = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDragStart?.(e, row.id)
+  }
 
-  const handleDragOver = useCallback(
-    (e: DragEvent<HTMLTableRowElement>) => {
-      rowDragDrop?.onDragOver?.(e, row.id)
-    },
-    [rowDragDrop, row.id]
-  )
+  const handleDragOver = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDragOver?.(e, row.id)
+  }
 
-  const handleDragLeave = useCallback(
-    (e: DragEvent<HTMLTableRowElement>) => {
-      rowDragDrop?.onDragLeave?.(e, row.id)
-    },
-    [rowDragDrop, row.id]
-  )
+  const handleDragLeave = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDragLeave?.(e, row.id)
+  }
 
-  const handleDrop = useCallback(
-    (e: DragEvent<HTMLTableRowElement>) => {
-      rowDragDrop?.onDrop?.(e, row.id)
-    },
-    [rowDragDrop, row.id]
-  )
+  const handleDrop = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDrop?.(e, row.id)
+  }
 
-  const handleDragEnd = useCallback(
-    (e: DragEvent<HTMLTableRowElement>) => {
-      rowDragDrop?.onDragEnd?.(e, row.id)
-    },
-    [rowDragDrop, row.id]
-  )
+  const handleDragEnd = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDragEnd?.(e, row.id)
+  }
 
   return (
     <tr

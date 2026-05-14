@@ -12,10 +12,11 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Eye,
+  Folder,
+  FolderInput,
   Pencil,
   Trash2,
 } from '@/components/emcn'
-import { Folder, FolderInput } from '@/components/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
 
