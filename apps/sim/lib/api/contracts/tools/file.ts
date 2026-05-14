@@ -22,9 +22,21 @@ export const fileManageAppendBodySchema = z.object({
   content: z.string({ error: 'content is required for append operation' }),
 })
 
-export const fileManageBodySchema = z.discriminatedUnion('operation', [
+export const fileManageGetBodySchema = z
+  .object({
+    operation: z.literal('get'),
+    workspaceId: z.string().min(1).optional(),
+    fileId: z.string().min(1).optional(),
+    fileInput: z.any().optional(),
+  })
+  .refine((data) => data.fileId !== undefined || data.fileInput !== undefined, {
+    message: 'Either fileId or fileInput is required for get operation',
+  })
+
+export const fileManageBodySchema = z.union([
   fileManageWriteBodySchema,
   fileManageAppendBodySchema,
+  fileManageGetBodySchema,
 ])
 
 export const fileManageContract = defineRouteContract({
