@@ -766,99 +766,99 @@ export async function createDocumentRecords(
   knowledgeBaseId: string,
   requestId: string
 ): Promise<DocumentData[]> {
-  return await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+  // No tx wrapper: the bulk `db.insert(...).values([...])` is a single statement
+  // and atomic by Postgres. The KB FK constraint fails loud if the KB is
+  // concurrently deleted, so an explicit FOR UPDATE lock is unnecessary and
+  // doubles per-call pool checkouts.
+  const kb = await db
+    .select({ id: knowledgeBase.id })
+    .from(knowledgeBase)
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .limit(1)
 
-    const kb = await tx
-      .select({ id: knowledgeBase.id })
-      .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-      .limit(1)
+  if (kb.length === 0) {
+    throw new Error('Knowledge base not found')
+  }
 
-    if (kb.length === 0) {
-      throw new Error('Knowledge base not found')
-    }
+  const now = new Date()
+  const documentRecords = []
+  const returnData: DocumentData[] = []
 
-    const now = new Date()
-    const documentRecords = []
-    const returnData: DocumentData[] = []
+  for (const docData of documents) {
+    const documentId = generateId()
 
-    for (const docData of documents) {
-      const documentId = generateId()
+    let processedTags: Partial<ProcessedDocumentTags> = {}
 
-      let processedTags: Partial<ProcessedDocumentTags> = {}
-
-      if (docData.documentTagsData) {
-        try {
-          const tagData = JSON.parse(docData.documentTagsData)
-          if (Array.isArray(tagData)) {
-            processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
-          }
-        } catch (error) {
-          if (error instanceof SyntaxError) {
-            logger.warn(`[${requestId}] Failed to parse documentTagsData for bulk document:`, error)
-          } else {
-            throw error
-          }
+    if (docData.documentTagsData) {
+      try {
+        const tagData = JSON.parse(docData.documentTagsData)
+        if (Array.isArray(tagData)) {
+          processedTags = await processDocumentTags(knowledgeBaseId, tagData, requestId)
+        }
+      } catch (error) {
+        if (error instanceof SyntaxError) {
+          logger.warn(`[${requestId}] Failed to parse documentTagsData for bulk document:`, error)
+        } else {
+          throw error
         }
       }
-
-      const newDocument = {
-        id: documentId,
-        knowledgeBaseId,
-        filename: docData.filename,
-        fileUrl: docData.fileUrl,
-        fileSize: docData.fileSize,
-        mimeType: docData.mimeType,
-        chunkCount: 0,
-        tokenCount: 0,
-        characterCount: 0,
-        processingStatus: 'pending' as const,
-        enabled: true,
-        uploadedAt: now,
-        tag1: processedTags.tag1 ?? docData.tag1 ?? null,
-        tag2: processedTags.tag2 ?? docData.tag2 ?? null,
-        tag3: processedTags.tag3 ?? docData.tag3 ?? null,
-        tag4: processedTags.tag4 ?? docData.tag4 ?? null,
-        tag5: processedTags.tag5 ?? docData.tag5 ?? null,
-        tag6: processedTags.tag6 ?? docData.tag6 ?? null,
-        tag7: processedTags.tag7 ?? docData.tag7 ?? null,
-        number1: processedTags.number1 ?? null,
-        number2: processedTags.number2 ?? null,
-        number3: processedTags.number3 ?? null,
-        number4: processedTags.number4 ?? null,
-        number5: processedTags.number5 ?? null,
-        date1: processedTags.date1 ?? null,
-        date2: processedTags.date2 ?? null,
-        boolean1: processedTags.boolean1 ?? null,
-        boolean2: processedTags.boolean2 ?? null,
-        boolean3: processedTags.boolean3 ?? null,
-      }
-
-      documentRecords.push(newDocument)
-      returnData.push({
-        documentId,
-        filename: docData.filename,
-        fileUrl: docData.fileUrl,
-        fileSize: docData.fileSize,
-        mimeType: docData.mimeType,
-      })
     }
 
-    if (documentRecords.length > 0) {
-      await tx.insert(document).values(documentRecords)
-      logger.info(
-        `[${requestId}] Bulk created ${documentRecords.length} document records in knowledge base ${knowledgeBaseId}`
-      )
-
-      await tx
-        .update(knowledgeBase)
-        .set({ updatedAt: now })
-        .where(eq(knowledgeBase.id, knowledgeBaseId))
+    const newDocument = {
+      id: documentId,
+      knowledgeBaseId,
+      filename: docData.filename,
+      fileUrl: docData.fileUrl,
+      fileSize: docData.fileSize,
+      mimeType: docData.mimeType,
+      chunkCount: 0,
+      tokenCount: 0,
+      characterCount: 0,
+      processingStatus: 'pending' as const,
+      enabled: true,
+      uploadedAt: now,
+      tag1: processedTags.tag1 ?? docData.tag1 ?? null,
+      tag2: processedTags.tag2 ?? docData.tag2 ?? null,
+      tag3: processedTags.tag3 ?? docData.tag3 ?? null,
+      tag4: processedTags.tag4 ?? docData.tag4 ?? null,
+      tag5: processedTags.tag5 ?? docData.tag5 ?? null,
+      tag6: processedTags.tag6 ?? docData.tag6 ?? null,
+      tag7: processedTags.tag7 ?? docData.tag7 ?? null,
+      number1: processedTags.number1 ?? null,
+      number2: processedTags.number2 ?? null,
+      number3: processedTags.number3 ?? null,
+      number4: processedTags.number4 ?? null,
+      number5: processedTags.number5 ?? null,
+      date1: processedTags.date1 ?? null,
+      date2: processedTags.date2 ?? null,
+      boolean1: processedTags.boolean1 ?? null,
+      boolean2: processedTags.boolean2 ?? null,
+      boolean3: processedTags.boolean3 ?? null,
     }
 
-    return returnData
-  })
+    documentRecords.push(newDocument)
+    returnData.push({
+      documentId,
+      filename: docData.filename,
+      fileUrl: docData.fileUrl,
+      fileSize: docData.fileSize,
+      mimeType: docData.mimeType,
+    })
+  }
+
+  if (documentRecords.length > 0) {
+    await db.insert(document).values(documentRecords)
+    logger.info(
+      `[${requestId}] Bulk created ${documentRecords.length} document records in knowledge base ${knowledgeBaseId}`
+    )
+
+    await db
+      .update(knowledgeBase)
+      .set({ updatedAt: now })
+      .where(eq(knowledgeBase.id, knowledgeBaseId))
+  }
+
+  return returnData
 }
 
 export interface TagFilterCondition {
@@ -1312,26 +1312,23 @@ export async function createSingleDocument(
     ...processedTags,
   }
 
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+  // No tx wrapper: single insert is atomic; KB FK fails loud on concurrent delete.
+  const kb = await db
+    .select({ id: knowledgeBase.id })
+    .from(knowledgeBase)
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .limit(1)
 
-    const kb = await tx
-      .select({ id: knowledgeBase.id })
-      .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-      .limit(1)
+  if (kb.length === 0) {
+    throw new Error('Knowledge base not found')
+  }
 
-    if (kb.length === 0) {
-      throw new Error('Knowledge base not found')
-    }
+  await db.insert(document).values(newDocument)
 
-    await tx.insert(document).values(newDocument)
-
-    await tx
-      .update(knowledgeBase)
-      .set({ updatedAt: now })
-      .where(eq(knowledgeBase.id, knowledgeBaseId))
-  })
+  await db
+    .update(knowledgeBase)
+    .set({ updatedAt: now })
+    .where(eq(knowledgeBase.id, knowledgeBaseId))
   logger.info(`[${requestId}] Document created: ${documentId} in knowledge base ${knowledgeBaseId}`)
 
   return newDocument as {
