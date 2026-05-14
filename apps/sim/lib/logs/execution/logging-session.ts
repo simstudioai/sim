@@ -671,7 +671,12 @@ export class LoggingSession {
       const currentLog = await db
         .select({ status: workflowExecutionLogs.status })
         .from(workflowExecutionLogs)
-        .where(eq(workflowExecutionLogs.executionId, this.executionId))
+        .where(
+          and(
+            eq(workflowExecutionLogs.workflowId, this.workflowId),
+            eq(workflowExecutionLogs.executionId, this.executionId)
+          )
+        )
         .limit(1)
         .then((rows) => rows[0])
 
@@ -770,7 +775,12 @@ export class LoggingSession {
       const currentLog = await db
         .select({ status: workflowExecutionLogs.status })
         .from(workflowExecutionLogs)
-        .where(eq(workflowExecutionLogs.executionId, this.executionId))
+        .where(
+          and(
+            eq(workflowExecutionLogs.workflowId, this.workflowId),
+            eq(workflowExecutionLogs.executionId, this.executionId)
+          )
+        )
         .limit(1)
         .then((rows) => rows[0])
 
