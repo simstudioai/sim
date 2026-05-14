@@ -7,7 +7,10 @@ import { splitWorkspaceFilePath } from '@/lib/copilot/tools/server/files/workspa
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import {
+  ensureWorkspaceFileFolderPath,
+  moveWorkspaceFileItems,
+} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
@@ -124,6 +127,28 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             size: fileBuffer.length,
             url: ensureAbsoluteUrl(result.url),
           },
+        })
+      }
+
+      case 'move': {
+        const { fileId, targetFolder } = body
+        const pathSegments = targetFolder.trim()
+          ? targetFolder
+              .trim()
+              .split('/')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : []
+        const targetFolderId = await ensureWorkspaceFileFolderPath({
+          workspaceId,
+          userId,
+          pathSegments,
+        })
+        await moveWorkspaceFileItems({ workspaceId, fileIds: [fileId], targetFolderId })
+        logger.info('File moved', { fileId, targetFolder: targetFolder || '(root)' })
+        return NextResponse.json({
+          success: true,
+          data: { fileId, targetFolder: targetFolder || '(root)' },
         })
       }
 
