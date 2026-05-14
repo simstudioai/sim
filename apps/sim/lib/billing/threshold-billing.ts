@@ -601,7 +601,7 @@ function buildOrganizationUsageSnapshot(
       )
       .join('|'),
     pooledCurrentPeriodCost,
-    departedMemberUsage: toNumber(toDecimal(sortedRows[0]?.departedMemberUsage)),
+    departedMemberUsage: toNumber(toDecimal(owner.departedMemberUsage)),
   }
 }
 
@@ -612,8 +612,6 @@ function organizationUsageSnapshotMatches(
   return (
     expected.ownerId === actual.ownerId &&
     expected.memberSignature === actual.memberSignature &&
-    Math.abs(expected.pooledCurrentPeriodCost - actual.pooledCurrentPeriodCost) <=
-      USAGE_TOTAL_EPSILON &&
     Math.abs(expected.departedMemberUsage - actual.departedMemberUsage) <= USAGE_TOTAL_EPSILON
   )
 }
