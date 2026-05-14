@@ -111,7 +111,11 @@ export function getEndDateFromTimeRange(timeRange: TimeRange, endDate?: string):
 
   if (endDate) {
     const date = new Date(endDate)
-    if (!endDate.includes('T')) date.setHours(23, 59, 59, 999)
+    if (!endDate.includes('T')) {
+      date.setHours(23, 59, 59, 999)
+    } else {
+      date.setMilliseconds(999)
+    }
     return date
   }
 
