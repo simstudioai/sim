@@ -178,64 +178,57 @@ const ResourceTabItem = memo(function ResourceTabItem({
       {showGapBefore && (
         <div className='-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-10 h-[16px] w-[2px] rounded-full bg-[var(--text-subtle)]' />
       )}
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            draggable
-            data-resource-tab-id={resource.id}
-            onDragStart={(e) => onDragStart(e, idx)}
-            onDragOver={(e) => onDragOver(e, idx)}
-            onDragLeave={onDragLeave}
-            onDragEnd={onDragEnd}
-            onMouseDown={(e) => {
-              if (e.button === 1) {
-                e.preventDefault()
-                if (chatId) onRemove(e, resource)
-              }
+      <Button
+        variant='subtle'
+        draggable
+        data-resource-tab-id={resource.id}
+        onDragStart={(e) => onDragStart(e, idx)}
+        onDragOver={(e) => onDragOver(e, idx)}
+        onDragLeave={onDragLeave}
+        onDragEnd={onDragEnd}
+        onMouseDown={(e) => {
+          if (e.button === 1) {
+            e.preventDefault()
+            if (chatId) onRemove(e, resource)
+          }
+        }}
+        onClick={(e) => onTabClick(e, idx)}
+        onMouseEnter={() => setHoveredTabId(resource.id)}
+        onMouseLeave={() => setHoveredTabId(null)}
+        className={cn(
+          'group relative shrink-0 bg-transparent px-2 py-[3px] pr-[22px] text-caption transition-colors duration-150',
+          isActive && 'bg-[var(--surface-4)]',
+          isSelected && !isActive && 'bg-[var(--surface-3)]',
+          isDragging && 'opacity-30'
+        )}
+      >
+        {config.renderTabIcon(resource, 'mr-1.5 h-[14px] w-[14px]')}
+        {displayName}
+        {(isHovered || isActive) && chatId && (
+          <span
+            role='button'
+            tabIndex={-1}
+            onClick={(e) => onRemove(e, resource)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onRemove(e, resource)
             }}
-            onClick={(e) => onTabClick(e, idx)}
-            onMouseEnter={() => setHoveredTabId(resource.id)}
-            onMouseLeave={() => setHoveredTabId(null)}
-            className={cn(
-              'group relative shrink-0 bg-transparent px-2 py-1 pr-[22px] text-caption transition-opacity duration-150',
-              isActive && 'bg-[var(--surface-4)]',
-              isSelected && !isActive && 'bg-[var(--surface-3)]',
-              isDragging && 'opacity-30'
-            )}
+            className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-sm p-[1px] hover-hover:bg-[var(--surface-5)]'
+            aria-label={`Close ${displayName}`}
           >
-            {config.renderTabIcon(resource, 'mr-1.5 h-[14px] w-[14px]')}
-            {displayName}
-            {(isHovered || isActive) && chatId && (
-              <span
-                role='button'
-                tabIndex={-1}
-                onClick={(e) => onRemove(e, resource)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') onRemove(e, resource)
-                }}
-                className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-sm p-[1px] hover-hover:bg-[var(--surface-5)]'
-                aria-label={`Close ${displayName}`}
-              >
-                <svg
-                  className='size-[10px] text-[var(--text-icon)]'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                >
-                  <path d='M18 6 6 18M6 6l12 12' />
-                </svg>
-              </span>
-            )}
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>{displayName}</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
+            <svg
+              className='size-[10px] text-[var(--text-icon)]'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2.5'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            >
+              <path d='M18 6 6 18M6 6l12 12' />
+            </svg>
+          </span>
+        )}
+      </Button>
       {showGapAfter && (
         <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 z-10 h-[16px] w-[2px] translate-x-1/2 rounded-full bg-[var(--text-subtle)]' />
       )}
