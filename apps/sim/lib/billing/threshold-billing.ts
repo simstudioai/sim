@@ -23,6 +23,7 @@ const logger = createLogger('ThresholdBilling')
 
 const OVERAGE_THRESHOLD = envNumber(env.OVERAGE_THRESHOLD_DOLLARS, DEFAULT_OVERAGE_THRESHOLD)
 const USER_STATS_LOCK_TIMEOUT_MS = 5_000
+const USAGE_TOTAL_EPSILON = 0.000001
 
 export async function checkAndBillOverageThreshold(userId: string): Promise<void> {
   try {
@@ -247,23 +248,30 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
       return
     }
 
-    const members = await db
-      .select({ userId: member.userId, role: member.role })
+    const memberUsageRows = await db
+      .select({
+        userId: member.userId,
+        role: member.role,
+        currentPeriodCost: userStats.currentPeriodCost,
+        departedMemberUsage: organization.departedMemberUsage,
+      })
       .from(member)
+      .leftJoin(userStats, eq(member.userId, userStats.userId))
+      .innerJoin(organization, eq(organization.id, member.organizationId))
       .where(eq(member.organizationId, organizationId))
 
     logger.debug('Found organization members', {
       organizationId,
-      memberCount: members.length,
-      members: members.map((m) => ({ userId: m.userId, role: m.role })),
+      memberCount: memberUsageRows.length,
+      members: memberUsageRows.map((m) => ({ userId: m.userId, role: m.role })),
     })
 
-    if (members.length === 0) {
+    if (memberUsageRows.length === 0) {
       logger.warn('No members found for organization', { organizationId })
       return
     }
 
-    const owner = members.find((m) => m.role === 'owner')
+    const owner = memberUsageRows.find((m) => m.role === 'owner')
     if (!owner) {
       logger.error(
         'Organization has no owner when running threshold billing — data integrity issue, skipping',
@@ -277,16 +285,72 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
       ownerId: owner.userId,
     })
 
+    const memberIds = memberUsageRows.map((m) => m.userId)
+    let pooledCurrentPeriodCost = 0
+    for (const stats of memberUsageRows) {
+      pooledCurrentPeriodCost += toNumber(toDecimal(stats.currentPeriodCost))
+    }
+
+    const departedMemberUsage = toNumber(toDecimal(memberUsageRows[0].departedMemberUsage))
+
+    const {
+      totalOverage: currentOverage,
+      baseSubscriptionAmount: basePrice,
+      effectiveUsage: effectiveTeamUsage,
+    } = await computeOrgOverageAmount({
+      plan: orgSubscription.plan,
+      seats: orgSubscription.seats ?? null,
+      periodStart: orgSubscription.periodStart ?? null,
+      periodEnd: orgSubscription.periodEnd ?? null,
+      organizationId,
+      pooledCurrentPeriodCost,
+      departedMemberUsage,
+      memberIds,
+    })
+
+    if (currentOverage < threshold) {
+      logger.debug('Organization threshold billing check below threshold before locking', {
+        organizationId,
+        totalTeamUsage: pooledCurrentPeriodCost + departedMemberUsage,
+        effectiveTeamUsage,
+        basePrice,
+        currentOverage,
+        threshold,
+      })
+      return
+    }
+
+    // Validate Stripe identifiers BEFORE mutating credits/trackers.
+    const stripeSubscriptionId = orgSubscription.stripeSubscriptionId
+    if (!stripeSubscriptionId) {
+      logger.error('No Stripe subscription ID for organization', { organizationId })
+      return
+    }
+
+    const customerId = orgSubscription.stripeCustomerId
+    if (!customerId) {
+      logger.error('No Stripe customer ID for organization', { organizationId })
+      return
+    }
+
+    const periodEnd = orgSubscription.periodEnd
+      ? Math.floor(orgSubscription.periodEnd.getTime() / 1000)
+      : Math.floor(Date.now() / 1000)
+    const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
+    const totalOverageCents = Math.round(currentOverage * 100)
+
     await db.transaction(async (tx) => {
       await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${USER_STATS_LOCK_TIMEOUT_MS}ms'`))
 
-      // Lock both owner stats and organization rows
-      const ownerStatsLock = await tx
-        .select()
+      const lockedMemberStats = await tx
+        .select({
+          userId: userStats.userId,
+          currentPeriodCost: userStats.currentPeriodCost,
+          billedOverageThisPeriod: userStats.billedOverageThisPeriod,
+        })
         .from(userStats)
-        .where(eq(userStats.userId, owner.userId))
+        .where(inArray(userStats.userId, memberIds))
         .for('update')
-        .limit(1)
 
       const orgLock = await tx
         .select()
@@ -295,7 +359,8 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
         .for('update')
         .limit(1)
 
-      if (ownerStatsLock.length === 0) {
+      const ownerStatsLock = lockedMemberStats.find((stats) => stats.userId === owner.userId)
+      if (!ownerStatsLock) {
         logger.error('Owner stats not found', { organizationId, ownerId: owner.userId })
         return
       }
@@ -305,42 +370,27 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
         return
       }
 
-      let pooledCurrentPeriodCost = toNumber(toDecimal(ownerStatsLock[0].currentPeriodCost))
-      const totalBilledOverage = toNumber(toDecimal(ownerStatsLock[0].billedOverageThisPeriod))
-      const orgCreditBalance = toNumber(toDecimal(orgLock[0].creditBalance))
-
-      const nonOwnerIds = members.filter((m) => m.userId !== owner.userId).map((m) => m.userId)
-
-      if (nonOwnerIds.length > 0) {
-        const memberStatsRows = await tx
-          .select({
-            userId: userStats.userId,
-            currentPeriodCost: userStats.currentPeriodCost,
-          })
-          .from(userStats)
-          .where(inArray(userStats.userId, nonOwnerIds))
-
-        for (const stats of memberStatsRows) {
-          pooledCurrentPeriodCost += toNumber(toDecimal(stats.currentPeriodCost))
-        }
+      let lockedPooledCurrentPeriodCost = 0
+      for (const stats of lockedMemberStats) {
+        lockedPooledCurrentPeriodCost += toNumber(toDecimal(stats.currentPeriodCost))
+      }
+      const lockedDepartedMemberUsage = toNumber(toDecimal(orgLock[0].departedMemberUsage))
+      if (
+        Math.abs(lockedPooledCurrentPeriodCost - pooledCurrentPeriodCost) > USAGE_TOTAL_EPSILON ||
+        Math.abs(lockedDepartedMemberUsage - departedMemberUsage) > USAGE_TOTAL_EPSILON
+      ) {
+        logger.debug('Organization usage changed during threshold billing check; retry later', {
+          organizationId,
+          pooledCurrentPeriodCost,
+          lockedPooledCurrentPeriodCost,
+          departedMemberUsage,
+          lockedDepartedMemberUsage,
+        })
+        return
       }
 
-      const departedMemberUsage = toNumber(toDecimal(orgLock[0].departedMemberUsage))
-
-      const {
-        totalOverage: currentOverage,
-        baseSubscriptionAmount: basePrice,
-        effectiveUsage: effectiveTeamUsage,
-      } = await computeOrgOverageAmount({
-        plan: orgSubscription.plan,
-        seats: orgSubscription.seats ?? null,
-        periodStart: orgSubscription.periodStart ?? null,
-        periodEnd: orgSubscription.periodEnd ?? null,
-        organizationId,
-        pooledCurrentPeriodCost,
-        departedMemberUsage,
-        memberIds: members.map((m) => m.userId),
-      })
+      const totalBilledOverage = toNumber(toDecimal(ownerStatsLock.billedOverageThisPeriod))
+      const orgCreditBalance = toNumber(toDecimal(orgLock[0].creditBalance))
 
       const unbilledOverage = Math.max(0, currentOverage - totalBilledOverage)
 
@@ -356,19 +406,6 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
       })
 
       if (unbilledOverage < threshold) {
-        return
-      }
-
-      // Validate Stripe identifiers BEFORE mutating credits/trackers.
-      const stripeSubscriptionId = orgSubscription.stripeSubscriptionId
-      if (!stripeSubscriptionId) {
-        logger.error('No Stripe subscription ID for organization', { organizationId })
-        return
-      }
-
-      const customerId = orgSubscription.stripeCustomerId
-      if (!customerId) {
-        logger.error('No Stripe customer ID for organization', { organizationId })
         return
       }
 
@@ -410,12 +447,7 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
         return
       }
 
-      const periodEnd = orgSubscription.periodEnd
-        ? Math.floor(orgSubscription.periodEnd.getTime() / 1000)
-        : Math.floor(Date.now() / 1000)
-      const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
       const amountCents = Math.round(amountToBill * 100)
-      const totalOverageCents = Math.round(currentOverage * 100)
 
       // Bump billed tracker and enqueue Stripe invoice atomically.
       // See user-path above for the full retry-invariant reasoning.

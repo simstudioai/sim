@@ -130,23 +130,39 @@ const userSubscription = {
   status: 'active',
 }
 
-function buildCustomerSelectChain(customerId = 'cus_1') {
+function buildSelectChain<T>(rows: T[]) {
+  const chain = {
+    from: vi.fn(() => chain),
+    leftJoin: vi.fn(() => chain),
+    innerJoin: vi.fn(() => chain),
+    where: vi.fn(() => result),
+  }
+  const result = {
+    limit: vi.fn(async () => rows),
+    then: (resolve: (value: T[]) => unknown, reject?: (reason: unknown) => unknown) =>
+      Promise.resolve(rows).then(resolve, reject),
+  }
+
   return {
-    from: vi.fn(() => ({
-      where: vi.fn(() => ({
-        limit: vi.fn(async () => [{ stripeCustomerId: customerId }]),
-      })),
-    })),
+    from: chain.from,
   }
 }
 
+function buildCustomerSelectChain(customerId = 'cus_1') {
+  return buildSelectChain([{ stripeCustomerId: customerId }])
+}
+
 function buildStatsSelectChain() {
+  const result = {
+    limit: mockTxStatsLimit,
+    then: (resolve: (value: unknown[]) => unknown, reject?: (reason: unknown) => unknown) =>
+      Promise.resolve(mockTxStatsLimit()).then(resolve, reject),
+  }
+
   return {
     from: vi.fn(() => ({
       where: vi.fn(() => ({
-        for: vi.fn(() => ({
-          limit: mockTxStatsLimit,
-        })),
+        for: vi.fn(() => result),
       })),
     })),
   }
@@ -222,5 +238,96 @@ describe('checkAndBillOverageThreshold', () => {
     expect(mockTxExecute).toHaveBeenCalledTimes(1)
     expect(mockTxUpdate).not.toHaveBeenCalled()
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+  })
+
+  it('computes organization overage before opening the locked transaction', async () => {
+    mockIsOrgScopedSubscription.mockReturnValue(true)
+    mockIsOrganizationBillingBlocked.mockResolvedValue(false)
+    mockGetOrganizationSubscriptionUsable.mockResolvedValue({
+      plan: 'team',
+      seats: 2,
+      periodStart: new Date('2026-05-01T00:00:00.000Z'),
+      periodEnd: new Date('2026-06-01T00:00:00.000Z'),
+      stripeSubscriptionId: 'sub_team_1',
+      stripeCustomerId: 'cus_team_1',
+    })
+    mockDbSelect.mockImplementationOnce(() =>
+      buildSelectChain([
+        {
+          userId: 'owner-1',
+          role: 'owner',
+          currentPeriodCost: '350',
+          departedMemberUsage: '25',
+        },
+      ])
+    )
+    mockComputeOrgOverageAmount.mockResolvedValue({
+      totalOverage: 250,
+      baseSubscriptionAmount: 100,
+      effectiveUsage: 350,
+    })
+    mockTxStatsLimit
+      .mockResolvedValueOnce([
+        { userId: 'owner-1', currentPeriodCost: '350', billedOverageThisPeriod: '0' },
+      ])
+      .mockResolvedValueOnce([{ creditBalance: '0', departedMemberUsage: '25' }])
+
+    await checkAndBillOverageThreshold('user-1')
+
+    expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith({
+      plan: 'team',
+      seats: 2,
+      periodStart: new Date('2026-05-01T00:00:00.000Z'),
+      periodEnd: new Date('2026-06-01T00:00:00.000Z'),
+      organizationId: userSubscription.referenceId,
+      pooledCurrentPeriodCost: 350,
+      departedMemberUsage: 25,
+      memberIds: ['owner-1'],
+    })
+    expect(mockDbTransaction).toHaveBeenCalled()
+    expect(mockComputeOrgOverageAmount.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDbTransaction.mock.invocationCallOrder[0]
+    )
+    expect(mockTxExecute).toHaveBeenCalledTimes(1)
+    expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips stale organization overage when locked usage inputs changed', async () => {
+    mockIsOrgScopedSubscription.mockReturnValue(true)
+    mockIsOrganizationBillingBlocked.mockResolvedValue(false)
+    mockGetOrganizationSubscriptionUsable.mockResolvedValue({
+      plan: 'team',
+      seats: 2,
+      periodStart: new Date('2026-05-01T00:00:00.000Z'),
+      periodEnd: new Date('2026-06-01T00:00:00.000Z'),
+      stripeSubscriptionId: 'sub_team_1',
+      stripeCustomerId: 'cus_team_1',
+    })
+    mockDbSelect.mockImplementationOnce(() =>
+      buildSelectChain([
+        {
+          userId: 'owner-1',
+          role: 'owner',
+          currentPeriodCost: '350',
+          departedMemberUsage: '25',
+        },
+      ])
+    )
+    mockComputeOrgOverageAmount.mockResolvedValue({
+      totalOverage: 250,
+      baseSubscriptionAmount: 100,
+      effectiveUsage: 350,
+    })
+    mockTxStatsLimit
+      .mockResolvedValueOnce([
+        { userId: 'owner-1', currentPeriodCost: '350', billedOverageThisPeriod: '0' },
+      ])
+      .mockResolvedValueOnce([{ creditBalance: '0', departedMemberUsage: '75' }])
+
+    await checkAndBillOverageThreshold('user-1')
+
+    expect(mockDbTransaction).toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+    expect(mockTxUpdate).not.toHaveBeenCalled()
   })
 })
