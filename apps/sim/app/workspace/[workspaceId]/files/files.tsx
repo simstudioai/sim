@@ -243,10 +243,6 @@ export function Files() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(() => new Set())
   const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null)
-  const activeDropTargetIdRef = useRef(activeDropTargetId)
-  useEffect(() => {
-    activeDropTargetIdRef.current = activeDropTargetId
-  }, [activeDropTargetId])
   const [draggedRowIds, setDraggedRowIds] = useState<Set<string>>(() => new Set())
   const [previewMode, setPreviewMode] = useState<PreviewMode>(() => {
     if (isNewFile) return 'editor'
@@ -683,7 +679,7 @@ export function Files() {
 
   const rowDragDropConfig = useMemo<RowDragDropConfig>(
     () => ({
-      activeDropTargetId: activeDropTargetIdRef.current,
+      activeDropTargetId,
       draggedRowIds,
       isAnyDragActive: draggedRowIds.size > 0,
       isRowDraggable: (rowId) => canEdit && listRename.editingId !== rowId,
@@ -817,6 +813,7 @@ export function Files() {
       },
     }),
     [
+      activeDropTargetId,
       draggedRowIds,
       canEdit,
       listRename.editingId,

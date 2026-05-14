@@ -914,9 +914,27 @@ export async function restoreWorkspaceFileFolder(
   if (!raw) throw new Error('Folder not found')
   if (!raw.deletedAt) throw new Error('Folder is not archived')
 
+  // If the parent folder is still archived, restore to root so the folder
+  // doesn't become an orphan (hidden under an archived parent).
+  let resolvedParentId = raw.parentId
+  if (resolvedParentId) {
+    const parent = await db
+      .select({ deletedAt: workspaceFileFolder.deletedAt })
+      .from(workspaceFileFolder)
+      .where(
+        and(
+          eq(workspaceFileFolder.id, resolvedParentId),
+          eq(workspaceFileFolder.workspaceId, workspaceId)
+        )
+      )
+      .limit(1)
+      .then((rows) => rows[0] ?? null)
+    if (!parent || parent.deletedAt) resolvedParentId = null
+  }
+
   const [restored] = await db
     .update(workspaceFileFolder)
-    .set({ deletedAt: null, updatedAt: new Date() })
+    .set({ deletedAt: null, parentId: resolvedParentId, updatedAt: new Date() })
     .where(
       and(eq(workspaceFileFolder.id, folderId), eq(workspaceFileFolder.workspaceId, workspaceId))
     )

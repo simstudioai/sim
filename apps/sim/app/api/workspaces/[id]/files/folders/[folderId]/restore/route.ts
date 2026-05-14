@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { restoreWorkspaceFileFolderContract } from '@/lib/api/contracts/workspace-file-folders'
 import { parseRequest } from '@/lib/api/server'
@@ -55,13 +55,13 @@ export const POST = withRouteHandler(
       return NextResponse.json({ success: true, folder })
     } catch (error) {
       logger.error('Failed to restore workspace file folder:', error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: toError(error).message,
-        },
-        { status: 400 }
-      )
+      if (getPostgresErrorCode(error) === '23505') {
+        return NextResponse.json(
+          { success: false, error: 'A folder with this name already exists in this location' },
+          { status: 409 }
+        )
+      }
+      return NextResponse.json({ success: false, error: toError(error).message }, { status: 400 })
     }
   }
 )
