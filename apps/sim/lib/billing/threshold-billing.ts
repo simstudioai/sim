@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { member, organization, subscription, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
-import { DEFAULT_OVERAGE_THRESHOLD } from '@/lib/billing/constants'
+import { BILLING_LOCK_TIMEOUT_MS, DEFAULT_OVERAGE_THRESHOLD } from '@/lib/billing/constants'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { calculateSubscriptionOverage, computeOrgOverageAmount } from '@/lib/billing/core/billing'
 import {
@@ -22,7 +22,6 @@ import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 const logger = createLogger('ThresholdBilling')
 
 const OVERAGE_THRESHOLD = envNumber(env.OVERAGE_THRESHOLD_DOLLARS, DEFAULT_OVERAGE_THRESHOLD)
-const USER_STATS_LOCK_TIMEOUT_MS = 5_000
 const USAGE_TOTAL_EPSILON = 0.000001
 
 interface PersonalUsageSnapshot {
@@ -119,7 +118,7 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
     const totalOverageCents = Math.round(currentOverage * 100)
 
     await db.transaction(async (tx) => {
-      await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${USER_STATS_LOCK_TIMEOUT_MS}ms'`))
+      await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
       const statsRecords = await tx
         .select()
@@ -363,7 +362,7 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
     const totalOverageCents = Math.round(currentOverage * 100)
 
     await db.transaction(async (tx) => {
-      await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${USER_STATS_LOCK_TIMEOUT_MS}ms'`))
+      await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
       const lockedOwnerRows = await tx
         .select({ userId: member.userId })

@@ -11,6 +11,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
+import { BILLING_LOCK_TIMEOUT_MS } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { addCredits, getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
@@ -389,6 +390,8 @@ export async function getBilledOverageForSubscription(sub: {
 export async function resetUsageForSubscription(sub: { plan: string | null; referenceId: string }) {
   if (await isSubscriptionOrgScoped(sub)) {
     await db.transaction(async (tx) => {
+      await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
+
       const ownerRows = await tx
         .select({ userId: member.userId })
         .from(member)
@@ -907,6 +910,8 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
         // then lock the tracker row so `billedOverageThisPeriod` is serialized
         // against threshold billing, resets, owner transfers, and retries.
         const phase1 = await db.transaction(async (tx) => {
+          await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
+
           let trackerUserId = entityId
           if (entityType === 'organization') {
             const ownerRows = await tx
