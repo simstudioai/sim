@@ -40,7 +40,6 @@ import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('OrganizationMembership')
-type BillingTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 export type BillingBlockReason = 'payment_failed' | 'dispute'
 
@@ -146,10 +145,7 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
   return db.transaction((tx) => restoreUserProSubscriptionTx(tx, userId))
 }
 
-async function restoreUserProSubscriptionTx(
-  tx: BillingTransaction,
-  userId: string
-): Promise<RestoreProResult> {
+async function restoreUserProSubscriptionTx(tx: DbOrTx, userId: string): Promise<RestoreProResult> {
   const result: RestoreProResult = {
     restored: false,
     usageRestored: false,
@@ -618,7 +614,7 @@ interface PaidOrgJoinBillingActions {
  * and the user's storage is already transferred (zeroed).
  */
 async function applyPaidOrgJoinBillingTx(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  tx: DbOrTx,
   userId: string,
   organizationId: string
 ): Promise<PaidOrgJoinBillingActions> {
@@ -781,7 +777,7 @@ export async function updateOrganizationMemberRoleWithBilling(params: {
 }
 
 async function applyOrganizationMemberRoleBillingTransitionTx(
-  tx: BillingTransaction,
+  tx: DbOrTx,
   params: {
     userId: string
     organizationId: string
@@ -842,7 +838,7 @@ async function applyOrganizationMemberRoleBillingTransitionTx(
 }
 
 async function attributeLegacyUsageForRoleOwnershipTransition(params: {
-  executor: BillingTransaction
+  executor: DbOrTx
   userId: string
   organizationId: string
   entityType: 'user' | 'organization'
@@ -882,10 +878,7 @@ async function unblockUserIfNoPersonalPaymentIssue(userId: string): Promise<void
   await db.transaction((tx) => unblockUserIfNoPersonalPaymentIssueTx(tx, userId))
 }
 
-async function unblockUserIfNoPersonalPaymentIssueTx(
-  tx: BillingTransaction,
-  userId: string
-): Promise<void> {
+async function unblockUserIfNoPersonalPaymentIssueTx(tx: DbOrTx, userId: string): Promise<void> {
   const [pastDueSubscription] = await tx
     .select({ id: subscriptionTable.id })
     .from(subscriptionTable)
