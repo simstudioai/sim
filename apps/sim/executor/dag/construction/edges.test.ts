@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
+import { buildBranchNodeId } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedLoop, SerializedWorkflow } from '@/serializer/types'
 import { EdgeConstructor } from './edges'
 
@@ -130,6 +131,94 @@ describe('EdgeConstructor', () => {
       const edgeIds = Array.from(sourceNode.outgoingEdges.keys())
 
       expect(edgeIds).toContain(`${sourceId}→${targetId}`)
+    })
+  })
+
+  describe('nested subflow skip-at-start bypasses', () => {
+    it('wires a nested loop start exit to the next sibling inside a parallel branch', () => {
+      const parallelId = 'parallel-1'
+      const loopId = 'loop-1'
+      const afterId = 'after'
+      const loopStartId = `loop-${loopId}-sentinel-start`
+      const loopEndId = `loop-${loopId}-sentinel-end`
+      const afterTemplateId = buildBranchNodeId(afterId, 0)
+      const dag = createMockDAG([loopStartId, loopEndId, afterTemplateId])
+      dag.nodes.get(loopStartId)!.metadata = {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: loopId,
+        subflowType: 'loop',
+      }
+      dag.nodes.get(loopEndId)!.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        subflowId: loopId,
+        subflowType: 'loop',
+      }
+      dag.nodes.get(afterTemplateId)!.metadata = {
+        isParallelBranch: true,
+        subflowId: parallelId,
+        subflowType: 'parallel',
+        branchIndex: 0,
+      }
+      dag.loopConfigs.set(loopId, { id: loopId, nodes: [], iterations: 1 })
+      dag.parallelConfigs.set(parallelId, {
+        id: parallelId,
+        nodes: [loopId, afterId],
+        count: 1,
+      })
+
+      const workflow = createMockWorkflow(
+        [createMockBlock(loopId, 'loop'), createMockBlock(afterId)],
+        [{ source: loopId, target: afterId }]
+      )
+
+      edgeConstructor.execute(
+        workflow,
+        dag,
+        new Set([loopId, afterId]),
+        new Set(),
+        new Set([loopId, afterId]),
+        new Map()
+      )
+
+      const loopStartTargets = Array.from(dag.nodes.get(loopStartId)!.outgoingEdges.values())
+      expect(loopStartTargets).toContainEqual({
+        target: loopEndId,
+        sourceHandle: 'loop_exit',
+        targetHandle: undefined,
+      })
+      expect(dag.nodes.get(loopEndId)!.incomingEdges).not.toContain(loopStartId)
+    })
+
+    it('wires a parallel start exit bypass to a downstream parallel sentinel start', () => {
+      const sourceParallelId = 'parallel-a'
+      const targetParallelId = 'parallel-b'
+      const sourceStartId = `parallel-${sourceParallelId}-sentinel-start`
+      const sourceEndId = `parallel-${sourceParallelId}-sentinel-end`
+      const targetStartId = `parallel-${targetParallelId}-sentinel-start`
+      const targetEndId = `parallel-${targetParallelId}-sentinel-end`
+      const dag = createMockDAG([sourceStartId, sourceEndId, targetStartId, targetEndId])
+      dag.parallelConfigs.set(sourceParallelId, { id: sourceParallelId, nodes: [], count: 1 })
+      dag.parallelConfigs.set(targetParallelId, { id: targetParallelId, nodes: [], count: 1 })
+
+      const workflow = createMockWorkflow(
+        [
+          createMockBlock(sourceParallelId, 'parallel'),
+          createMockBlock(targetParallelId, 'parallel'),
+        ],
+        [{ source: sourceParallelId, target: targetParallelId }]
+      )
+
+      edgeConstructor.execute(workflow, dag, new Set(), new Set(), new Set(), new Map())
+
+      const sourceStartTargets = Array.from(dag.nodes.get(sourceStartId)!.outgoingEdges.values())
+      expect(sourceStartTargets).toContainEqual({
+        target: sourceEndId,
+        sourceHandle: 'parallel_exit',
+        targetHandle: undefined,
+      })
+      expect(dag.nodes.get(sourceEndId)!.incomingEdges).not.toContain(sourceStartId)
     })
   })
 
@@ -930,7 +1019,6 @@ describe('EdgeConstructor', () => {
         )
         expect(edgesToParallelStart.length).toBe(1)
         expect(edgesToParallelStart[0].sourceHandle).toBe('parallel_continue')
-        expect(edgesToParallelStart[0].isActive).toBe(false)
 
         const parallelStartNode = dag.nodes.get(parallelSentinelStart)!
         expect(parallelStartNode.incomingEdges.has(parallelSentinelEnd)).toBe(false)
@@ -1367,34 +1455,29 @@ describe('EdgeConstructor', () => {
       dag.nodes.get(outerSentinelStart)!.metadata = {
         isSentinel: true,
         sentinelType: 'start',
-        parallelId: outerParallelId,
         subflowId: outerParallelId,
         subflowType: 'parallel',
       }
       dag.nodes.get(outerSentinelEnd)!.metadata = {
         isSentinel: true,
         sentinelType: 'end',
-        parallelId: outerParallelId,
         subflowId: outerParallelId,
         subflowType: 'parallel',
       }
       dag.nodes.get(innerSentinelStart)!.metadata = {
         isSentinel: true,
         sentinelType: 'start',
-        parallelId: innerParallelId,
         subflowId: innerParallelId,
         subflowType: 'parallel',
       }
       dag.nodes.get(innerSentinelEnd)!.metadata = {
         isSentinel: true,
         sentinelType: 'end',
-        parallelId: innerParallelId,
         subflowId: innerParallelId,
         subflowType: 'parallel',
       }
       dag.nodes.get(funcTemplate)!.metadata = {
         isParallelBranch: true,
-        parallelId: innerParallelId,
         subflowId: innerParallelId,
         subflowType: 'parallel',
         branchIndex: 0,
@@ -1494,34 +1577,29 @@ describe('EdgeConstructor', () => {
       dag.nodes.get(loopSentinelStart)!.metadata = {
         isSentinel: true,
         sentinelType: 'start',
-        loopId,
         subflowId: loopId,
         subflowType: 'loop',
       }
       dag.nodes.get(loopSentinelEnd)!.metadata = {
         isSentinel: true,
         sentinelType: 'end',
-        loopId,
         subflowId: loopId,
         subflowType: 'loop',
       }
       dag.nodes.get(parallelSentinelStart)!.metadata = {
         isSentinel: true,
         sentinelType: 'start',
-        parallelId: innerParallelId,
         subflowId: innerParallelId,
         subflowType: 'parallel',
       }
       dag.nodes.get(parallelSentinelEnd)!.metadata = {
         isSentinel: true,
         sentinelType: 'end',
-        parallelId: innerParallelId,
         subflowId: innerParallelId,
         subflowType: 'parallel',
       }
       dag.nodes.get(funcTemplate)!.metadata = {
         isParallelBranch: true,
-        parallelId: innerParallelId,
         subflowId: innerParallelId,
         subflowType: 'parallel',
         branchIndex: 0,
@@ -1617,28 +1695,24 @@ describe('EdgeConstructor', () => {
       dag.nodes.get(outerSentinelStart)!.metadata = {
         isSentinel: true,
         sentinelType: 'start',
-        parallelId: outerParallelId,
         subflowId: outerParallelId,
         subflowType: 'parallel',
       }
       dag.nodes.get(outerSentinelEnd)!.metadata = {
         isSentinel: true,
         sentinelType: 'end',
-        parallelId: outerParallelId,
         subflowId: outerParallelId,
         subflowType: 'parallel',
       }
       dag.nodes.get(innerSentinelStart)!.metadata = {
         isSentinel: true,
         sentinelType: 'start',
-        loopId: innerLoopId,
         subflowId: innerLoopId,
         subflowType: 'loop',
       }
       dag.nodes.get(innerSentinelEnd)!.metadata = {
         isSentinel: true,
         sentinelType: 'end',
-        loopId: innerLoopId,
         subflowId: innerLoopId,
         subflowType: 'loop',
       }

@@ -1,8 +1,20 @@
 import type { BlockStateController } from '@/executor/execution/types'
 import type { BlockState, NormalizedBlockOutput } from '@/executor/types'
+import { extractOuterBranchIndex, stripCloneSuffixes } from '@/executor/utils/subflow-utils'
+
+const BRANCH_SUFFIX_PATTERN = /₍\d+₎/u
+const LOOP_SUFFIX_PATTERN = /_loop\d+/
 
 function normalizeLookupId(id: string): string {
   return id.replace(/₍\d+₎/gu, '').replace(/_loop\d+/g, '')
+}
+
+function extractBranchSuffix(id: string): string {
+  return id.match(BRANCH_SUFFIX_PATTERN)?.[0] ?? ''
+}
+
+function extractLoopSuffix(id: string): string {
+  return id.match(LOOP_SUFFIX_PATTERN)?.[0] ?? ''
 }
 export interface LoopScope {
   iteration: number
@@ -51,29 +63,74 @@ export class ExecutionState implements BlockStateController {
   }
 
   getBlockOutput(blockId: string, currentNodeId?: string): NormalizedBlockOutput | undefined {
-    const direct = this.blockStates.get(blockId)?.output
-    if (direct !== undefined) {
-      return direct
-    }
-
     const normalizedId = normalizeLookupId(blockId)
     if (normalizedId !== blockId) {
       return undefined
     }
 
     if (currentNodeId) {
-      const currentSuffix = currentNodeId.replace(normalizedId, '').match(/₍\d+₎/g)?.[0] ?? ''
-      const loopSuffix = currentNodeId.match(/_loop\d+/)?.[0] ?? ''
-      const withSuffix = `${blockId}${currentSuffix}${loopSuffix}`
-      const suffixedOutput = this.blockStates.get(withSuffix)?.output
-      if (suffixedOutput !== undefined) {
-        return suffixedOutput
+      const scopedOutput = this.getScopedBlockOutput(blockId, currentNodeId)
+      if (scopedOutput !== undefined) {
+        return scopedOutput
+      }
+
+      if (extractOuterBranchIndex(currentNodeId) !== undefined) {
+        return undefined
+      }
+    }
+
+    const direct = this.blockStates.get(blockId)?.output
+    if (direct !== undefined) {
+      return direct
+    }
+
+    if (currentNodeId && extractBranchSuffix(currentNodeId) === '') {
+      const branchZeroOutput = this.blockStates.get(
+        `${blockId}₍0₎${extractLoopSuffix(currentNodeId)}`
+      )?.output
+      if (branchZeroOutput !== undefined) {
+        return branchZeroOutput
       }
     }
 
     for (const [storedId, state] of this.blockStates.entries()) {
       if (normalizeLookupId(storedId) === blockId) {
         return state.output
+      }
+    }
+
+    return undefined
+  }
+
+  private getScopedBlockOutput(
+    blockId: string,
+    currentNodeId: string
+  ): NormalizedBlockOutput | undefined {
+    const currentBranchSuffix = extractBranchSuffix(currentNodeId)
+    const loopSuffix = extractLoopSuffix(currentNodeId)
+
+    const currentOuterBranchIndex = extractOuterBranchIndex(currentNodeId)
+    if (currentOuterBranchIndex !== undefined) {
+      for (const [storedId, state] of this.blockStates.entries()) {
+        if (stripCloneSuffixes(storedId) !== blockId) continue
+        if (extractOuterBranchIndex(storedId) !== currentOuterBranchIndex) continue
+        if (extractBranchSuffix(storedId) !== currentBranchSuffix) continue
+        if (extractLoopSuffix(storedId) !== loopSuffix) continue
+
+        return state.output
+      }
+
+      const siblingBranchOutput = this.blockStates.get(
+        `${blockId}₍${currentOuterBranchIndex}₎`
+      )?.output
+      if (siblingBranchOutput !== undefined) {
+        return siblingBranchOutput
+      }
+    } else {
+      const withSuffix = `${blockId}${currentBranchSuffix}${loopSuffix}`
+      const suffixedOutput = this.blockStates.get(withSuffix)?.output
+      if (suffixedOutput !== undefined) {
+        return suffixedOutput
       }
     }
 

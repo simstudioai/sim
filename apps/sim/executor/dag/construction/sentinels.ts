@@ -12,9 +12,6 @@ interface SubflowSentinelNodeConfig {
 }
 
 export function createSubflowSentinelNode(config: SubflowSentinelNodeConfig): DAGNode {
-  const legacyId =
-    config.subflowType === 'loop' ? { loopId: config.subflowId } : { parallelId: config.subflowId }
-
   return {
     id: config.id,
     block: {
@@ -23,9 +20,6 @@ export function createSubflowSentinelNode(config: SubflowSentinelNodeConfig): DA
       metadata: {
         id: config.blockType,
         name: config.name,
-        subflowId: config.subflowId,
-        subflowType: config.subflowType,
-        ...legacyId,
       },
       config: { params: {} },
     } as any,
@@ -36,7 +30,6 @@ export function createSubflowSentinelNode(config: SubflowSentinelNodeConfig): DA
       sentinelType: config.sentinelType,
       subflowId: config.subflowId,
       subflowType: config.subflowType,
-      ...legacyId,
     },
   }
 }

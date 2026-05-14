@@ -223,6 +223,19 @@ export class EdgeConstructor {
       const sourceIsParallelBlock = parallelBlockIds.has(source)
       const targetIsParallelBlock = parallelBlockIds.has(target)
 
+      if (this.edgeStaysWithinSameParallel(originalSource, originalTarget, dag)) {
+        const sourceId = this.resolveSubflowToSentinelEnd(originalSource, dag)
+        const targetId = this.resolveSubflowToSentinelStart(originalTarget, dag)
+        const resolvedSourceHandle = this.resolveParallelChildSourceHandle(
+          originalSource,
+          dag,
+          sourceHandle
+        )
+        this.addEdge(dag, sourceId, targetId, resolvedSourceHandle, targetHandle)
+        this.addSubflowStartExitBypass(dag, originalSource)
+        continue
+      }
+
       let loopSentinelStartId: string | undefined
 
       if (sourceIsLoopBlock) {
@@ -263,6 +276,10 @@ export class EdgeConstructor {
           continue
         }
         target = sentinelStartId
+      }
+
+      if (sourceIsParallelBlock) {
+        this.addSubflowStartExitBypass(dag, originalSource)
       }
 
       if (this.edgeCrossesLoopBoundary(originalSource, originalTarget, blocksInLoops, dag)) {
@@ -327,6 +344,7 @@ export class EdgeConstructor {
             ? EDGE.PARALLEL_EXIT
             : EDGE.LOOP_EXIT
           this.addEdge(dag, resolvedId, sentinelEndId, handle)
+          this.addSubflowStartExitBypass(dag, terminalNodeId)
         } else {
           this.addEdge(dag, resolvedId, sentinelEndId)
         }
@@ -361,10 +379,11 @@ export class EdgeConstructor {
       for (const terminalNodeId of terminalNodes) {
         const sourceId = this.resolveSubflowToSentinelEnd(terminalNodeId, dag)
         if (dag.nodes.has(sourceId)) {
-          // Use the sourceHandle that matches the nested subflow's exit route.
-          // A nested loop sentinel-end outputs "loop_exit", not "parallel_exit".
-          const handle = dag.loopConfigs.has(terminalNodeId) ? EDGE.LOOP_EXIT : EDGE.PARALLEL_EXIT
+          const handle = this.resolveSubflowExitHandle(terminalNodeId, dag)
           this.addEdge(dag, sourceId, sentinelEndId, handle)
+          if (handle) {
+            this.addSubflowStartExitBypass(dag, terminalNodeId)
+          }
         }
       }
 
@@ -678,13 +697,63 @@ export class EdgeConstructor {
     return null
   }
 
+  private edgeStaysWithinSameParallel(source: string, target: string, dag: DAG): boolean {
+    const sourceParallelId = this.getParallelId(source, dag)
+    const targetParallelId = this.getParallelId(target, dag)
+    return !!sourceParallelId && sourceParallelId === targetParallelId
+  }
+
+  private resolveParallelChildSourceHandle(
+    source: string,
+    dag: DAG,
+    sourceHandle?: string
+  ): string | undefined {
+    if (dag.parallelConfigs.has(source)) {
+      return EDGE.PARALLEL_EXIT
+    }
+    if (dag.loopConfigs.has(source)) {
+      return EDGE.LOOP_EXIT
+    }
+    return sourceHandle
+  }
+
+  private resolveSubflowExitHandle(nodeId: string, dag: DAG): string | undefined {
+    if (dag.parallelConfigs.has(nodeId)) {
+      return EDGE.PARALLEL_EXIT
+    }
+    if (dag.loopConfigs.has(nodeId)) {
+      return EDGE.LOOP_EXIT
+    }
+    return undefined
+  }
+
+  private addSubflowStartExitBypass(dag: DAG, subflowId: string): void {
+    if (dag.parallelConfigs.has(subflowId)) {
+      const sourceId = buildParallelSentinelStartId(subflowId)
+      const targetId = buildParallelSentinelEndId(subflowId)
+      if (dag.nodes.has(sourceId) && dag.nodes.has(targetId)) {
+        this.addEdge(dag, sourceId, targetId, EDGE.PARALLEL_EXIT, undefined, true, false)
+      }
+      return
+    }
+
+    if (dag.loopConfigs.has(subflowId)) {
+      const sourceId = buildSentinelStartId(subflowId)
+      const targetId = buildSentinelEndId(subflowId)
+      if (dag.nodes.has(sourceId) && dag.nodes.has(targetId)) {
+        this.addEdge(dag, sourceId, targetId, EDGE.LOOP_EXIT, undefined, true, false)
+      }
+    }
+  }
+
   private addEdge(
     dag: DAG,
     sourceId: string,
     targetId: string,
     sourceHandle?: string,
     targetHandle?: string,
-    isControlBackEdge = false
+    isControlBackEdge = false,
+    registerIncoming = true
   ): void {
     const sourceNode = dag.nodes.get(sourceId)
     const targetNode = dag.nodes.get(targetId)
@@ -700,10 +769,9 @@ export class EdgeConstructor {
       target: targetId,
       sourceHandle,
       targetHandle,
-      isActive: isControlBackEdge ? false : undefined,
     })
 
-    if (!isControlBackEdge) {
+    if (!isControlBackEdge && registerIncoming) {
       targetNode.incomingEdges.add(sourceId)
     }
   }

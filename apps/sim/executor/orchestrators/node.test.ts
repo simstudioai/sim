@@ -75,7 +75,8 @@ function createSentinelNode(id: string, sentinelType: 'start' | 'end'): DAGNode 
 function createOrchestrator(
   dag: DAG,
   state: BlockStateController,
-  parallelOrchestrator: Partial<ParallelOrchestrator>
+  parallelOrchestrator: Partial<ParallelOrchestrator>,
+  loopOrchestratorOverrides: Partial<LoopOrchestrator> = {}
 ): NodeExecutionOrchestrator {
   const blockExecutor = { execute: vi.fn() } as unknown as BlockExecutor
   const loopOrchestrator = {
@@ -85,6 +86,8 @@ function createOrchestrator(
     evaluateLoopContinuation: vi.fn(),
     clearLoopExecutionState: vi.fn(),
     restoreLoopEdges: vi.fn(),
+    storeLoopNodeOutput: vi.fn(),
+    ...loopOrchestratorOverrides,
   } as unknown as LoopOrchestrator
 
   return new NodeExecutionOrchestrator(
@@ -182,6 +185,44 @@ describe('NodeExecutionOrchestrator parallel sentinel batching', () => {
       endNode.id,
       { results: ['loop-result'], selectedRoute: EDGE.LOOP_EXIT },
       3
+    )
+  })
+
+  it('records completed nested subflow sentinels as parent loop iteration output', async () => {
+    const endNode = {
+      ...createSentinelNode('parallel-nested-parallel-sentinel-end', 'end'),
+      metadata: {
+        isSentinel: true,
+        sentinelType: 'end' as const,
+        subflowId: 'nested-parallel',
+        subflowType: 'parallel' as const,
+      },
+    }
+    const dag: DAG = {
+      nodes: new Map([[endNode.id, endNode]]),
+      loopConfigs: new Map(),
+      parallelConfigs: new Map(),
+    }
+    const state = createState()
+    const loopOrchestrator = {
+      storeLoopNodeOutput: vi.fn(),
+    }
+    const orchestrator = createOrchestrator(dag, state, {}, loopOrchestrator)
+    const ctx = createContext()
+    ctx.subflowParentMap = new Map([
+      ['nested-parallel', { parentId: 'parent-loop', parentType: 'loop' }],
+    ])
+
+    await orchestrator.handleNodeCompletion(ctx, endNode.id, {
+      results: ['parallel-result'],
+      selectedRoute: EDGE.PARALLEL_EXIT,
+    })
+
+    expect(loopOrchestrator.storeLoopNodeOutput).toHaveBeenCalledWith(
+      ctx,
+      'parent-loop',
+      'nested-parallel',
+      { results: ['parallel-result'], selectedRoute: EDGE.PARALLEL_EXIT }
     )
   })
 })

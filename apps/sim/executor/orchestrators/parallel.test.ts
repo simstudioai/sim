@@ -230,7 +230,6 @@ describe('ParallelOrchestrator', () => {
       incomingEdges: new Set(),
       outgoingEdges: new Map(),
       metadata: {
-        parallelId: 'parallel-1',
         subflowId: 'parallel-1',
         subflowType: 'parallel',
         isParallelBranch: true,
@@ -300,7 +299,6 @@ describe('ParallelOrchestrator', () => {
       incomingEdges: new Set(),
       outgoingEdges: new Set(),
       metadata: {
-        parallelId: 'parallel-1',
         subflowId: 'parallel-1',
         subflowType: 'parallel',
         isParallelBranch: true,
@@ -321,7 +319,6 @@ describe('ParallelOrchestrator', () => {
       incomingEdges: new Set(),
       outgoingEdges: new Set(),
       metadata: {
-        parallelId: 'parallel-1',
         subflowId: 'parallel-1',
         subflowType: 'parallel',
         isParallelBranch: true,
@@ -357,6 +354,57 @@ describe('ParallelOrchestrator', () => {
     expect(state.unmarkExecuted).not.toHaveBeenCalledWith(previousBranchId)
   })
 
+  it('marks expanded branch nodes dirty when running from a dirty parallel container', () => {
+    const dag = createDag()
+    const templateBranchId = buildBranchNodeId('task-1', 0)
+    const secondBranchId = buildBranchNodeId('task-1', 1)
+    dag.nodes.set(templateBranchId, {
+      id: templateBranchId,
+      block: {
+        id: 'task-1',
+        position: { x: 0, y: 0 },
+        config: { tool: '', params: {} },
+        inputs: {},
+        outputs: {},
+        metadata: { id: 'function', name: 'Task 1' },
+        enabled: true,
+      },
+      incomingEdges: new Set(),
+      outgoingEdges: new Map(),
+      metadata: {
+        subflowId: 'parallel-1',
+        subflowType: 'parallel',
+        isParallelBranch: true,
+        branchIndex: 0,
+      },
+    })
+    const dirtySet = new Set(['parallel-1'])
+    const orchestrator = new ParallelOrchestrator(dag, createState(), null, {})
+
+    orchestrator.prepareCurrentBatch(
+      createContext({
+        runFromBlockContext: { startBlockId: 'parallel-1', dirtySet },
+        parallelExecutions: new Map([
+          [
+            'parallel-1',
+            {
+              parallelId: 'parallel-1',
+              totalBranches: 2,
+              batchSize: 2,
+              currentBatchStart: 0,
+              currentBatchSize: 2,
+              branchOutputs: new Map(),
+            },
+          ],
+        ]),
+      }),
+      'parallel-1'
+    )
+
+    expect(dirtySet.has(templateBranchId)).toBe(true)
+    expect(dirtySet.has(secondBranchId)).toBe(true)
+  })
+
   it('compacts accumulated outputs before scheduling later batches', async () => {
     const dag = createDag()
     const templateBranchId = buildBranchNodeId('task-1', 0)
@@ -374,7 +422,6 @@ describe('ParallelOrchestrator', () => {
       incomingEdges: new Set(),
       outgoingEdges: new Set(),
       metadata: {
-        parallelId: 'parallel-1',
         subflowId: 'parallel-1',
         subflowType: 'parallel',
         isParallelBranch: true,

@@ -1,10 +1,7 @@
-import { createLogger } from '@sim/logger'
 import { BlockType, LOOP } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import { createSubflowSentinelNode } from '@/executor/dag/construction/sentinels'
 import { buildSentinelEndId, buildSentinelStartId } from '@/executor/utils/subflow-utils'
-
-const logger = createLogger('LoopConstructor')
 
 export class LoopConstructor {
   execute(dag: DAG, reachableBlocks: Set<string>): void {

@@ -13,6 +13,7 @@ import {
   resolveBlockReferenceAsync,
 } from '@/executor/utils/block-reference'
 import { formatLiteralForCode } from '@/executor/utils/code-formatting'
+import { extractOuterBranchIndex } from '@/executor/utils/subflow-utils'
 import {
   type AsyncPathNavigator,
   navigatePath,
@@ -285,6 +286,9 @@ export class BlockResolver implements Resolver {
     const stateOutput = context.executionState.getBlockOutput(blockId, context.currentNodeId)
     if (stateOutput !== undefined) {
       return stateOutput
+    }
+    if (extractOuterBranchIndex(context.currentNodeId) !== undefined) {
+      return undefined
     }
     const contextState = context.executionContext.blockStates?.get(blockId)
     if (contextState?.output) {

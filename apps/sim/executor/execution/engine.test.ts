@@ -367,13 +367,23 @@ describe('ExecutionEngine', () => {
       const abortController = new AbortController()
 
       const loopStartNode = createMockNode('loop-start', 'loop_sentinel')
-      loopStartNode.metadata = { isSentinel: true, sentinelType: 'start', loopId: 'loop1' }
+      loopStartNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: 'loop1',
+        subflowType: 'loop',
+      }
 
       const loopBodyNode = createMockNode('loop-body', 'function')
-      loopBodyNode.metadata = { isLoopNode: true, loopId: 'loop1' }
+      loopBodyNode.metadata = { isLoopNode: true, subflowId: 'loop1', subflowType: 'loop' }
 
       const loopEndNode = createMockNode('loop-end', 'loop_sentinel')
-      loopEndNode.metadata = { isSentinel: true, sentinelType: 'end', loopId: 'loop1' }
+      loopEndNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        subflowId: 'loop1',
+        subflowType: 'loop',
+      }
 
       loopStartNode.outgoingEdges.set('edge1', { target: 'loop-body' })
       loopBodyNode.outgoingEdges.set('edge2', { target: 'loop-end' })
@@ -847,13 +857,23 @@ describe('ExecutionEngine', () => {
 
     it('should stop loop iteration when error occurs in loop body', async () => {
       const loopStartNode = createMockNode('loop-start', 'loop_sentinel')
-      loopStartNode.metadata = { isSentinel: true, sentinelType: 'start', loopId: 'loop1' }
+      loopStartNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: 'loop1',
+        subflowType: 'loop',
+      }
 
       const loopBodyNode = createMockNode('loop-body', 'function')
-      loopBodyNode.metadata = { isLoopNode: true, loopId: 'loop1' }
+      loopBodyNode.metadata = { isLoopNode: true, subflowId: 'loop1', subflowType: 'loop' }
 
       const loopEndNode = createMockNode('loop-end', 'loop_sentinel')
-      loopEndNode.metadata = { isSentinel: true, sentinelType: 'end', loopId: 'loop1' }
+      loopEndNode.metadata = {
+        isSentinel: true,
+        sentinelType: 'end',
+        subflowId: 'loop1',
+        subflowType: 'loop',
+      }
 
       const afterLoopNode = createMockNode('after-loop', 'function')
 

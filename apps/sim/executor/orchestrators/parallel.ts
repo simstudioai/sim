@@ -11,9 +11,11 @@ import type { ParallelConfigWithNodes } from '@/executor/types/parallel'
 import { type ClonedSubflowInfo, ParallelExpander } from '@/executor/utils/parallel-expansion'
 import {
   addSubflowErrorLog,
+  buildBranchNodeId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
-  emitEmptySubflowEvents,
+  buildSentinelEndId,
+  buildSentinelStartId,
   emitSubflowSuccessEvents,
   extractBaseBlockId,
   extractBranchIndex,
@@ -101,10 +103,6 @@ export class ParallelOrchestrator {
       }
       ctx.parallelExecutions.set(parallelId, scope)
 
-      this.state.setBlockOutput(parallelId, { results: [] })
-
-      await emitEmptySubflowEvents(ctx, parallelId, 'parallel', this.contextExtensions)
-
       logger.info('Parallel scope initialized with empty distribution, skipping body', {
         parallelId,
         branchCount: 0,
@@ -157,14 +155,20 @@ export class ParallelOrchestrator {
     }
 
     const batchItems = scope.items?.slice(currentBatchStart, currentBatchStart + currentBatchSize)
-    const { clonedSubflows, allBranchNodes } = this.expander.expandParallel(
-      this.dag,
-      parallelId,
-      currentBatchSize,
-      batchItems,
-      { branchIndexOffset: currentBatchStart, totalBranches: scope.totalBranches }
-    )
+    const { clonedSubflows, allBranchNodes, entryNodes, terminalNodes } =
+      this.expander.expandParallel(this.dag, parallelId, currentBatchSize, batchItems, {
+        branchIndexOffset: currentBatchStart,
+        totalBranches: scope.totalBranches,
+      })
 
+    this.markRunFromBlockBatchDirty(
+      ctx,
+      parallelId,
+      allBranchNodes,
+      entryNodes,
+      terminalNodes,
+      clonedSubflows
+    )
     this.registerClonedSubflows(ctx, parallelId, clonedSubflows)
     this.registerBranchMappings(ctx, parallelId, allBranchNodes)
     this.resetBatchExecutionState(allBranchNodes)
@@ -295,6 +299,78 @@ export class ParallelOrchestrator {
           parentType: 'parallel',
           branchIndex: clone.outerBranchIndex,
         })
+      }
+    }
+  }
+
+  private markRunFromBlockBatchDirty(
+    ctx: ExecutionContext,
+    parallelId: string,
+    allBranchNodes: string[],
+    entryNodes: string[],
+    terminalNodes: string[],
+    clonedSubflows: ClonedSubflowInfo[]
+  ): void {
+    const dirtySet = ctx.runFromBlockContext?.dirtySet
+    if (!dirtySet) return
+
+    const parallelStartId = buildParallelSentinelStartId(parallelId)
+    const parallelEndId = buildParallelSentinelEndId(parallelId)
+    if (
+      !dirtySet.has(parallelId) &&
+      !dirtySet.has(parallelStartId) &&
+      !dirtySet.has(parallelEndId)
+    ) {
+      return
+    }
+
+    for (const nodeId of allBranchNodes) dirtySet.add(nodeId)
+    for (const nodeId of entryNodes) dirtySet.add(nodeId)
+    for (const nodeId of terminalNodes) dirtySet.add(nodeId)
+
+    const config = this.dag.parallelConfigs.get(parallelId)
+    for (const nodeId of config?.nodes ?? []) {
+      if (this.dag.parallelConfigs.has(nodeId) || this.dag.loopConfigs.has(nodeId)) {
+        this.collectSubflowNodeIds(nodeId, dirtySet)
+      }
+    }
+
+    for (const clone of clonedSubflows) {
+      dirtySet.add(clone.clonedId)
+      this.collectSubflowNodeIds(clone.clonedId, dirtySet)
+    }
+  }
+
+  private collectSubflowNodeIds(
+    subflowId: string,
+    nodeIds: Set<string>,
+    visited = new Set<string>()
+  ): void {
+    if (visited.has(subflowId)) return
+    visited.add(subflowId)
+
+    if (this.dag.parallelConfigs.has(subflowId)) {
+      nodeIds.add(buildParallelSentinelStartId(subflowId))
+      nodeIds.add(buildParallelSentinelEndId(subflowId))
+      for (const childId of this.dag.parallelConfigs.get(subflowId)?.nodes ?? []) {
+        if (this.dag.parallelConfigs.has(childId) || this.dag.loopConfigs.has(childId)) {
+          this.collectSubflowNodeIds(childId, nodeIds, visited)
+        } else {
+          nodeIds.add(buildBranchNodeId(childId, 0))
+        }
+      }
+      return
+    }
+
+    if (this.dag.loopConfigs.has(subflowId)) {
+      nodeIds.add(buildSentinelStartId(subflowId))
+      nodeIds.add(buildSentinelEndId(subflowId))
+      for (const childId of this.dag.loopConfigs.get(subflowId)?.nodes ?? []) {
+        if (this.dag.parallelConfigs.has(childId) || this.dag.loopConfigs.has(childId)) {
+          this.collectSubflowNodeIds(childId, nodeIds, visited)
+        } else {
+          nodeIds.add(childId)
+        }
       }
     }
   }

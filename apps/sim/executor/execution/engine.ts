@@ -471,7 +471,7 @@ export class ExecutionEngine {
     this.context.metadata.duration = endTime - startTime
     this.context.metadata.status = 'paused'
 
-    const snapshotSeed = serializePauseSnapshot(this.context, [], this.dag)
+    const snapshotSeed = serializePauseSnapshot(this.context, [], this.dag, this.edgeManager)
     const pausePoints: PausePoint[] = Array.from(this.pausedBlocks.values()).map((pause) => ({
       contextId: pause.contextId,
       blockId: pause.blockId,
@@ -503,7 +503,8 @@ export class ExecutionEngine {
   }): SerializableExecutionState | undefined {
     try {
       const serializedSnapshot =
-        snapshotSeed?.snapshot ?? serializePauseSnapshot(this.context, [], this.dag).snapshot
+        snapshotSeed?.snapshot ??
+        serializePauseSnapshot(this.context, [], this.dag, this.edgeManager).snapshot
       const parsedSnapshot = JSON.parse(serializedSnapshot) as {
         state?: SerializableExecutionState
       }

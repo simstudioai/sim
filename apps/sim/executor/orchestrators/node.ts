@@ -7,7 +7,6 @@ import type { BlockStateController } from '@/executor/execution/types'
 import type { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import type { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
-import { extractBaseBlockId } from '@/executor/utils/subflow-utils'
 
 const logger = createLogger('NodeExecutionOrchestrator')
 
@@ -224,14 +223,16 @@ export class NodeExecutionOrchestrator {
     const isSentinel = node.metadata.isSentinel
     if (isSentinel) {
       this.handleRegularNodeCompletion(ctx, node, output)
-      this.handleParentParallelSubflowCompletion(ctx, node, output)
+      this.handleParentSubflowCompletion(ctx, node, output)
     } else if (loopId) {
       this.handleLoopNodeCompletion(ctx, node, output, loopId)
     } else if (isParallelBranch) {
-      const parallelId = this.findParallelIdForNode(node.id)
+      const parallelId =
+        node.metadata.subflowType === 'parallel' ? node.metadata.subflowId : undefined
       if (parallelId) {
         await this.handleParallelNodeCompletion(ctx, node, output, parallelId)
       } else {
+        logger.warn('Parallel branch missing subflow metadata', { nodeId: node.id })
         this.handleRegularNodeCompletion(ctx, node, output)
       }
     } else {
@@ -263,7 +264,7 @@ export class NodeExecutionOrchestrator {
     this.state.setBlockOutput(node.id, output)
   }
 
-  private handleParentParallelSubflowCompletion(
+  private handleParentSubflowCompletion(
     ctx: ExecutionContext,
     node: DAGNode,
     output: NormalizedBlockOutput
@@ -280,18 +281,28 @@ export class NodeExecutionOrchestrator {
       return
     }
 
-    const parentEntry = ctx.subflowParentMap?.get(node.metadata.subflowId)
-    if (parentEntry?.parentType !== 'parallel') {
+    const subflowId = node.metadata.subflowId
+    const parentEntry = ctx.subflowParentMap?.get(subflowId)
+    if (!parentEntry) {
       return
     }
 
-    this.parallelOrchestrator.handleParallelBranchCompletion(
-      ctx,
-      parentEntry.parentId,
-      node.id,
-      output,
-      parentEntry.branchIndex ?? 0
-    )
+    if (parentEntry.parentType === 'parallel') {
+      if (parentEntry.branchIndex === undefined) {
+        return
+      }
+
+      this.parallelOrchestrator.handleParallelBranchCompletion(
+        ctx,
+        parentEntry.parentId,
+        node.id,
+        output,
+        parentEntry.branchIndex
+      )
+      return
+    }
+
+    this.loopOrchestrator.storeLoopNodeOutput(ctx, parentEntry.parentId, subflowId, output)
   }
 
   private handleRegularNodeCompletion(
@@ -328,14 +339,5 @@ export class NodeExecutionOrchestrator {
       }
       this.parallelOrchestrator.prepareForBatchContinuation(parallelId)
     }
-  }
-
-  private findParallelIdForNode(nodeId: string): string | undefined {
-    const node = this.dag.nodes.get(nodeId)
-    if (node?.metadata.subflowType === 'parallel') {
-      return node.metadata.subflowId
-    }
-    const baseId = extractBaseBlockId(nodeId)
-    return this.parallelOrchestrator.findParallelIdForNode(baseId)
   }
 }

@@ -59,6 +59,8 @@ export interface SerializableExecutionState {
   remainingEdges?: Edge[]
   resumeTerminalNoop?: boolean
   dagIncomingEdges?: Record<string, string[]>
+  deactivatedEdges?: string[]
+  nodesWithActivatedEdge?: string[]
   completedPauseContexts?: string[]
 }
 
@@ -97,16 +99,11 @@ export interface IterationContext {
 export interface WorkflowNodeMetadata
   extends Pick<
     NodeMetadata,
-    | 'loopId'
-    | 'parallelId'
-    | 'subflowType'
-    | 'subflowId'
-    | 'branchIndex'
-    | 'branchTotal'
-    | 'originalBlockId'
-    | 'isLoopNode'
+    'subflowType' | 'subflowId' | 'branchIndex' | 'branchTotal' | 'originalBlockId' | 'isLoopNode'
   > {
   nodeId: string
+  loopId?: string
+  parallelId?: string
   executionOrder?: number
 }
 

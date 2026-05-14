@@ -126,6 +126,21 @@ export class EdgeManager {
     this.nodesWithActivatedEdge.clear()
   }
 
+  getDeactivatedEdges(): string[] {
+    return Array.from(this.deactivatedEdges)
+  }
+
+  getNodesWithActivatedEdge(): string[] {
+    return Array.from(this.nodesWithActivatedEdge)
+  }
+
+  restoreDeactivatedEdges(edgeKeys?: string[], activatedNodeIds?: string[]): void {
+    this.deactivatedEdges = new Set(
+      (edgeKeys ?? []).map((edgeKey) => this.normalizeSerializedEdgeKey(edgeKey))
+    )
+    this.nodesWithActivatedEdge = new Set(activatedNodeIds ?? [])
+  }
+
   /**
    * Clear deactivated edges for a set of nodes (used when restoring loop state for next iteration).
    *
@@ -134,15 +149,17 @@ export class EdgeManager {
    * remain deactivated — otherwise `countActiveIncomingEdges` would count a source that will never
    * fire again, stalling the loop on its next iteration.
    *
-   * Edge-key format is `${sourceId}-${targetId}-${handle}`, so `startsWith("${nodeId}-")` uniquely
-   * matches "node is source". An `includes("-${nodeId}-")` check would also match "node is target"
-   * and is unsafe for the reset semantics.
+   * Deactivated edge keys encode the source separately so node IDs with shared prefixes
+   * cannot clear each other's deactivated edges.
    */
   clearDeactivatedEdgesForNodes(nodeIds: Set<string>): void {
     const edgesToRemove: string[] = []
     for (const edgeKey of this.deactivatedEdges) {
+      const sourceId = this.parseEdgeKey(edgeKey)?.sourceId
+      if (!sourceId) continue
+
       for (const nodeId of nodeIds) {
-        if (edgeKey.startsWith(`${nodeId}-`)) {
+        if (sourceId === nodeId) {
           edgesToRemove.push(edgeKey)
           break
         }
@@ -226,6 +243,10 @@ export class EdgeManager {
 
     if (output.selectedRoute === EDGE.PARALLEL_CONTINUE) {
       return handle === EDGE.PARALLEL_CONTINUE
+    }
+
+    if (this.isSubflowControlEdge(handle)) {
+      return false
     }
 
     if (!handle) {
@@ -344,6 +365,44 @@ export class EdgeManager {
   }
 
   private createEdgeKey(sourceId: string, targetId: string, sourceHandle?: string): string {
-    return `${sourceId}-${targetId}-${sourceHandle ?? EDGE.DEFAULT}`
+    return JSON.stringify([sourceId, targetId, sourceHandle ?? EDGE.DEFAULT])
+  }
+
+  private parseEdgeKey(
+    edgeKey: string
+  ): { sourceId: string; targetId: string; handle: string } | null {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(edgeKey)
+    } catch {
+      return null
+    }
+    if (
+      Array.isArray(parsed) &&
+      parsed.length === 3 &&
+      typeof parsed[0] === 'string' &&
+      typeof parsed[1] === 'string' &&
+      typeof parsed[2] === 'string'
+    ) {
+      return { sourceId: parsed[0], targetId: parsed[1], handle: parsed[2] }
+    }
+    return null
+  }
+
+  private normalizeSerializedEdgeKey(edgeKey: string): string {
+    if (this.parseEdgeKey(edgeKey)) {
+      return edgeKey
+    }
+
+    for (const [sourceId, sourceNode] of this.dag.nodes) {
+      for (const [, edge] of sourceNode.outgoingEdges) {
+        const legacyKey = `${sourceId}-${edge.target}-${edge.sourceHandle ?? EDGE.DEFAULT}`
+        if (legacyKey === edgeKey) {
+          return this.createEdgeKey(sourceId, edge.target, edge.sourceHandle)
+        }
+      }
+    }
+
+    return edgeKey
   }
 }

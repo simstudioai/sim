@@ -104,7 +104,6 @@ export class NodeConstructor {
       outgoingEdges: new Map(),
       metadata: {
         isParallelBranch: true,
-        parallelId,
         subflowId: parallelId,
         subflowType: 'parallel',
         branchIndex: 0,
@@ -131,7 +130,6 @@ export class NodeConstructor {
       outgoingEdges: new Map(),
       metadata: {
         isLoopNode,
-        loopId,
         ...(loopId && { subflowId: loopId, subflowType: 'loop' as const }),
         isPauseResponse: isPauseBlock,
         originalBlockId: block.id,
@@ -140,12 +138,21 @@ export class NodeConstructor {
   }
 
   private findLoopIdForBlock(blockId: string, dag: DAG): string | undefined {
+    const candidates: string[] = []
     for (const [loopId, loopConfig] of dag.loopConfigs) {
       if (loopConfig.nodes.includes(blockId)) {
-        return loopId
+        candidates.push(loopId)
       }
     }
-    return undefined
+    if (candidates.length <= 1) return candidates[0]
+
+    return candidates.find((candidateId) =>
+      candidates.every((otherId) => {
+        if (otherId === candidateId) return true
+        const candidateConfig = dag.loopConfigs.get(candidateId)
+        return !candidateConfig?.nodes.includes(otherId)
+      })
+    )
   }
 
   private findParallelForBlock(blockId: string, dag: DAG): string | null {

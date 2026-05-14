@@ -290,7 +290,6 @@ describe('validateRunFromBlock', () => {
     const dag = createDAG([
       createNode('A', [], {
         isLoopNode: true,
-        loopId: 'loop-1',
         subflowId: 'loop-1',
         subflowType: 'loop',
       }),
@@ -308,7 +307,6 @@ describe('validateRunFromBlock', () => {
     const dag = createDAG([
       createNode('A', [], {
         isParallelBranch: true,
-        parallelId: 'parallel-1',
         subflowId: 'parallel-1',
         subflowType: 'parallel',
       }),
@@ -1011,28 +1009,33 @@ describe('run from subflow (loop) scenarios', () => {
       createNode(outerStartId, [{ target: innerStartId }], {
         isSentinel: true,
         sentinelType: 'start',
-        loopId: outerLoopId,
+        subflowId: outerLoopId,
+        subflowType: 'loop',
       }),
       createNode(innerStartId, [{ target: 'B' }], {
         isSentinel: true,
         sentinelType: 'start',
-        loopId: innerLoopId,
+        subflowId: innerLoopId,
+        subflowType: 'loop',
         isLoopNode: true,
       }),
       createNode('B', [{ target: innerEndId }], {
         isLoopNode: true,
-        loopId: innerLoopId,
+        subflowId: innerLoopId,
+        subflowType: 'loop',
       }),
       createNode(innerEndId, [{ target: outerEndId }], {
         isSentinel: true,
         sentinelType: 'end',
-        loopId: innerLoopId,
+        subflowId: innerLoopId,
+        subflowType: 'loop',
         isLoopNode: true,
       }),
       createNode(outerEndId, [{ target: 'C' }], {
         isSentinel: true,
         sentinelType: 'end',
-        loopId: outerLoopId,
+        subflowId: outerLoopId,
+        subflowType: 'loop',
       }),
       createNode('C'),
     ])

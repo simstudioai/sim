@@ -107,7 +107,6 @@ describe('Nested parallel expansion + edge resolution', () => {
 
     expect(outerStartTargets).toContain(clonedInnerStartId) // branch 1
     expect(dag.nodes.get(clonedInnerStartId)?.metadata).toMatchObject({
-      parallelId: clonedInnerParallelId,
       subflowId: clonedInnerParallelId,
       subflowType: 'parallel',
     })
@@ -211,6 +210,78 @@ describe('Nested parallel expansion + edge resolution', () => {
     )
     // Now both branches done → outer-sentinel-end becomes ready
     expect(readyAfterClonedInnerEnd).toContain(outerEndId)
+  })
+
+  it('preserves regular-to-nested subflow dependencies across expanded branches', () => {
+    const outerParallelId = 'outer-parallel'
+    const innerParallelId = 'inner-parallel'
+    const prepareId = 'prepare'
+    const finishId = 'finish'
+    const innerTaskId = 'inner-task'
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        createBlock('start', BlockType.STARTER),
+        createBlock(outerParallelId, BlockType.PARALLEL),
+        createBlock(prepareId, BlockType.FUNCTION),
+        createBlock(innerParallelId, BlockType.PARALLEL),
+        createBlock(innerTaskId, BlockType.FUNCTION),
+        createBlock(finishId, BlockType.FUNCTION),
+      ],
+      connections: [
+        { source: 'start', target: outerParallelId },
+        { source: outerParallelId, target: prepareId, sourceHandle: 'parallel-start-source' },
+        { source: prepareId, target: innerParallelId },
+        { source: innerParallelId, target: finishId },
+        { source: innerParallelId, target: innerTaskId, sourceHandle: 'parallel-start-source' },
+      ],
+      loops: {},
+      parallels: {
+        [innerParallelId]: {
+          id: innerParallelId,
+          nodes: [innerTaskId],
+          count: 1,
+          parallelType: 'count',
+        },
+        [outerParallelId]: {
+          id: outerParallelId,
+          nodes: [prepareId, innerParallelId, finishId],
+          count: 2,
+          parallelType: 'count',
+        },
+      },
+    }
+
+    const dag = new DAGBuilder().build(workflow)
+    const expander = new ParallelExpander()
+    const result = expander.expandParallel(dag, outerParallelId, 2)
+
+    const clonedInnerId = result.clonedSubflows[0].clonedId
+    const prepareBranchOne = dag.nodes.get(buildBranchNodeId(prepareId, 1))!
+    const clonedInnerStart = buildParallelSentinelStartId(clonedInnerId)
+    const clonedInnerEnd = buildParallelSentinelEndId(clonedInnerId)
+    const finishBranchOne = buildBranchNodeId(finishId, 1)
+
+    expect(
+      Array.from(prepareBranchOne.outgoingEdges.values()).map((edge) => edge.target)
+    ).toContain(clonedInnerStart)
+    expect(
+      Array.from(dag.nodes.get(clonedInnerEnd)!.outgoingEdges.values()).map((edge) => edge.target)
+    ).toContain(finishBranchOne)
+    expect(
+      Array.from(dag.nodes.get(clonedInnerEnd)!.outgoingEdges.values()).map((edge) => edge.target)
+    ).not.toContain(buildBranchNodeId(finishId, 0))
+
+    const outerStartTargets = Array.from(
+      dag.nodes.get(buildParallelSentinelStartId(outerParallelId))!.outgoingEdges.values()
+    ).map((edge) => edge.target)
+    expect(outerStartTargets).toEqual([buildBranchNodeId(prepareId, 0), prepareBranchOne.id])
+
+    const outerEndIncoming = dag.nodes.get(
+      buildParallelSentinelEndId(outerParallelId)
+    )!.incomingEdges
+    expect(outerEndIncoming.has(buildBranchNodeId(finishId, 0))).toBe(true)
+    expect(outerEndIncoming.has(finishBranchOne)).toBe(true)
   })
 
   it('uses global branch indexes for nested subflow clones in later batches', () => {
@@ -369,7 +440,6 @@ describe('Nested parallel expansion + edge resolution', () => {
 
     expect(clonedLoopId).toBe(`${loopId}__obranch-1`)
     expect(dag.nodes.get(buildSentinelStartId(clonedLoopId!))?.metadata).toMatchObject({
-      loopId: clonedLoopId,
       subflowId: clonedLoopId,
       subflowType: 'loop',
     })
@@ -421,6 +491,11 @@ describe('Nested parallel expansion + edge resolution', () => {
     expect(p3Clone).toBeDefined()
     expect(p3Clone.clonedId).toMatch(/^p3__clone[0-9a-f]{24}__obranch-1$/)
     expect(stripCloneSuffixes(p3Clone.clonedId)).toBe('p3')
+    expect(
+      Array.from(
+        dag.nodes.get(buildParallelSentinelEndId(p3Clone.clonedId))!.outgoingEdges.values()
+      ).map((edge) => edge.target)
+    ).toContain(buildParallelSentinelEndId(p2Clone.clonedId))
 
     // Step 2: Expand P2 (original, branch 0 of P1) — this creates P3__obranch-1 at runtime
     const p2Result = expander.expandParallel(dag, p2, 2)

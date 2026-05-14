@@ -25,7 +25,6 @@ import {
   buildParallelSentinelStartId,
   buildSentinelEndId,
   buildSentinelStartId,
-  emitEmptySubflowEvents,
   emitSubflowSuccessEvents,
   extractBaseBlockId,
   resolveArrayInputAsync,
@@ -596,8 +595,6 @@ export class LoopOrchestrator {
     if (scope.loopType === 'forEach') {
       if (!scope.items || scope.items.length === 0) {
         logger.info('ForEach loop has empty collection, skipping loop body', { loopId })
-        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
         return false
       }
       return true
@@ -606,8 +603,6 @@ export class LoopOrchestrator {
     if (scope.loopType === 'for') {
       if (scope.maxIterations === 0) {
         logger.info('For loop has 0 iterations, skipping loop body', { loopId })
-        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
         return false
       }
       return true
@@ -620,8 +615,6 @@ export class LoopOrchestrator {
     if (scope.loopType === 'while') {
       if (!scope.condition) {
         logger.warn('No condition defined for while loop', { loopId })
-        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
         return false
       }
 
@@ -633,8 +626,7 @@ export class LoopOrchestrator {
       })
 
       if (!result) {
-        this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
+        logger.info('While loop initial condition is false, skipping loop body', { loopId })
       }
 
       return result

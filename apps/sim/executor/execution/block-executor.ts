@@ -46,6 +46,7 @@ import {
 } from '@/executor/utils/iteration-context'
 import { isJSONString } from '@/executor/utils/json'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
+import { buildBranchNodeId } from '@/executor/utils/subflow-utils'
 import {
   FUNCTION_BLOCK_CONTEXT_VARS_KEY,
   FUNCTION_BLOCK_DISPLAY_CODE_KEY,
@@ -231,7 +232,7 @@ export class BlockExecutor {
       }
 
       const { childTraceSpans: _traces, ...outputForState } = normalizedOutput
-      this.state.setBlockOutput(node.id, outputForState as NormalizedBlockOutput, duration)
+      this.setNodeOutput(node, outputForState as NormalizedBlockOutput, duration)
 
       if (!isSentinel && blockLog) {
         const childWorkflowInstanceId =
@@ -286,6 +287,19 @@ export class BlockExecutor {
     }
   }
 
+  private setNodeOutput(node: DAGNode, output: NormalizedBlockOutput, duration = 0): void {
+    this.state.setBlockOutput(node.id, output, duration)
+
+    const originalBlockId = node.metadata.originalBlockId
+    const branchIndex = node.metadata.branchIndex
+    if (node.metadata.isParallelBranch && originalBlockId && branchIndex !== undefined) {
+      const globalBranchNodeId = buildBranchNodeId(originalBlockId, branchIndex)
+      if (globalBranchNodeId !== node.id) {
+        this.state.setBlockOutput(globalBranchNodeId, output, duration)
+      }
+    }
+  }
+
   private findHandler(block: SerializedBlock): BlockHandler | undefined {
     return this.blockHandlers.find((h) => h.canHandle(block))
   }
@@ -321,7 +335,7 @@ export class BlockExecutor {
       }
     }
 
-    this.state.setBlockOutput(node.id, errorOutput, duration)
+    this.setNodeOutput(node, errorOutput, duration)
 
     if (blockLog) {
       blockLog.endedAt = endedAt

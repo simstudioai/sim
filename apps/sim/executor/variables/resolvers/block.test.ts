@@ -251,6 +251,18 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<source.user.profile.email>', ctx)).toBe('alice@test.com')
     })
 
+    it('does not fall back to unscoped block state inside cloned subflow branches', () => {
+      const workflow = createTestWorkflow([{ id: 'source' }])
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext(
+        'consumer__clone-inner__obranch-1₍0₎',
+        {},
+        new Map([['source', { output: { result: 'branch-0' } }]])
+      )
+
+      expect(resolver.resolve('<source.result>', ctx)).toBe(RESOLVED_EMPTY)
+    })
+
     it('should resolve nested scalar paths inside compacted block references', async () => {
       const workflow = createTestWorkflow([{ id: 'source' }])
       const resolver = new BlockResolver(workflow)
