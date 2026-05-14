@@ -85,6 +85,7 @@ export const tableKeys = {
   rowsRoot: (tableId: string) => [...tableKeys.detail(tableId), 'rows'] as const,
   infiniteRows: (tableId: string, paramsKey: string) =>
     [...tableKeys.rowsRoot(tableId), 'infinite', paramsKey] as const,
+  rowWrites: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'write'] as const,
 }
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
@@ -543,14 +544,15 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
   const queryClient = useQueryClient()
 
   return useMutation({
+    mutationKey: tableKeys.rowWrites(tableId),
     mutationFn: async ({ rowId, data }: UpdateTableRowParams) => {
       return requestJson(updateTableRowContract, {
         params: { tableId, rowId },
         body: { workspaceId, data: data as RowData },
       })
     },
-    onMutate: ({ rowId, data }) => {
-      void queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    onMutate: async ({ rowId, data }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 
       const previousQueries = queryClient.getQueriesData<InfiniteData<TableRowsResponse, number>>({
         queryKey: tableKeys.rowsRoot(tableId),
@@ -573,17 +575,30 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
 
       return { previousQueries }
     },
+    onSuccess: (response, { rowId }) => {
+      const serverRow = response.data.row
+      patchCachedRows(queryClient, tableId, (row) => {
+        if (row.id !== rowId) return row
+        return {
+          ...row,
+          data: serverRow.data,
+          position: serverRow.position,
+          createdAt: serverRow.createdAt,
+          updatedAt: serverRow.updatedAt,
+        }
+      })
+    },
     onError: (error, _vars, context) => {
       if (context?.previousQueries) {
         for (const [queryKey, data] of context.previousQueries) {
           queryClient.setQueryData(queryKey, data)
         }
       }
+      if (queryClient.isMutating({ mutationKey: tableKeys.rowWrites(tableId) }) === 1) {
+        invalidateRowData(queryClient, tableId)
+      }
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
-    },
-    onSettled: () => {
-      invalidateRowData(queryClient, tableId)
     },
   })
 }
@@ -599,6 +614,7 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
   const queryClient = useQueryClient()
 
   return useMutation({
+    mutationKey: tableKeys.rowWrites(tableId),
     mutationFn: async ({ updates }: BatchUpdateTableRowsParams) => {
       return requestJson(batchUpdateTableRowsContract, {
         params: { tableId },
@@ -608,8 +624,8 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
         },
       })
     },
-    onMutate: ({ updates }) => {
-      void queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    onMutate: async ({ updates }) => {
+      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
 
       const previousQueries = queryClient.getQueriesData<InfiniteData<TableRowsResponse, number>>({
         queryKey: tableKeys.rowsRoot(tableId),
@@ -644,7 +660,9 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {
-      invalidateRowData(queryClient, tableId)
+      if (queryClient.isMutating({ mutationKey: tableKeys.rowWrites(tableId) }) === 1) {
+        invalidateRowData(queryClient, tableId)
+      }
     },
   })
 }
