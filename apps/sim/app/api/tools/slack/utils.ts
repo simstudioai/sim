@@ -2,7 +2,7 @@ import type { Logger } from '@sim/logger'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
-import { verifyFileAccess } from '@/app/api/files/authorization'
+import { FileAccessDeniedError, verifyFileAccess } from '@/app/api/files/authorization'
 import type { ToolFileData } from '@/tools/types'
 
 /**
@@ -86,7 +86,7 @@ async function uploadFilesToSlack(
 
     const hasAccess = await verifyFileAccess(userFile.key, ownerUserId)
     if (!hasAccess) {
-      throw new Error('File not found')
+      throw new FileAccessDeniedError()
     }
 
     const buffer = await downloadFileFromStorage(userFile, requestId, logger)

@@ -6,6 +6,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { FileAccessDeniedError } from '@/app/api/files/authorization'
 import { uploadFilesForTeamsMessage } from '@/tools/microsoft_teams/server-utils'
 import type { GraphApiErrorResponse, GraphChatMessage } from '@/tools/microsoft_teams/types'
 import { resolveMentionsForChat, type TeamsMention } from '@/tools/microsoft_teams/utils'
@@ -159,6 +160,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
+    if (error instanceof FileAccessDeniedError) {
+      return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+    }
     logger.error(`[${requestId}] Error sending Teams chat message:`, error)
     return NextResponse.json(
       {

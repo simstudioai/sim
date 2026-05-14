@@ -5,7 +5,8 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { sendSlackMessage } from '../utils'
+import { FileAccessDeniedError } from '@/app/api/files/authorization'
+import { sendSlackMessage } from '@/app/api/tools/slack/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,6 +68,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ success: true, output: result.output })
   } catch (error) {
+    if (error instanceof FileAccessDeniedError) {
+      return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+    }
     logger.error(`[${requestId}] Error sending Slack message:`, error)
     return NextResponse.json(
       {

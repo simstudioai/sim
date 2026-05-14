@@ -14,6 +14,14 @@ import { isUuid } from '@/executor/constants'
 
 const logger = createLogger('FileAuthorization')
 
+/** Thrown by utility functions when file access is denied, so route handlers can return 404. */
+export class FileAccessDeniedError extends Error {
+  constructor() {
+    super('File not found')
+    this.name = 'FileAccessDeniedError'
+  }
+}
+
 interface AuthorizationResult {
   granted: boolean
   reason: string

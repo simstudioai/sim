@@ -7,7 +7,7 @@ import type { Logger } from '@sim/logger'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
-import { verifyFileAccess } from '@/app/api/files/authorization'
+import { FileAccessDeniedError, verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 import type { GraphApiErrorResponse, GraphDriveItem } from '@/tools/microsoft_teams/types'
 
@@ -76,7 +76,7 @@ export async function uploadFilesForTeamsMessage(params: {
 
     const hasAccess = await verifyFileAccess(file.key, userId)
     if (!hasAccess) {
-      throw new Error('File not found')
+      throw new FileAccessDeniedError()
     }
 
     // Download file from storage
