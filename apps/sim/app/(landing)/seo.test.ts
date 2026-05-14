@@ -26,7 +26,19 @@ const SEO_SCAN_DIRS = [
 
 const SEO_SCAN_INDIVIDUAL_FILES = [
   path.resolve(APP_DIR, 'page.tsx'),
+  path.resolve(APP_DIR, 'robots.ts'),
+  path.resolve(APP_DIR, 'sitemap.ts'),
   path.resolve(SIM_ROOT, 'ee', 'whitelabeling', 'metadata.ts'),
+]
+
+/**
+ * Files whose entire URL output is SEO-facing (robots.txt, sitemap.xml).
+ * Unlike metadata exports, these don't use `metadataBase`, so the existing
+ * `getBaseUrl()`-in-metadata check would miss a regression here.
+ */
+const SEO_DEFAULT_EXPORT_FILES = [
+  path.resolve(APP_DIR, 'robots.ts'),
+  path.resolve(APP_DIR, 'sitemap.ts'),
 ]
 
 function collectFiles(dir: string, exts: string[]): string[] {
@@ -94,6 +106,21 @@ describe('SEO canonical URLs', () => {
     expect(
       violations,
       `Found hardcoded https://sim.ai (without www):\n${violations.join('\n')}`
+    ).toHaveLength(0)
+  })
+
+  it('robots.ts and sitemap.ts do not import getBaseUrl', () => {
+    const violations: string[] = []
+    for (const file of SEO_DEFAULT_EXPORT_FILES) {
+      if (!fs.existsSync(file)) continue
+      const content = fs.readFileSync(file, 'utf-8')
+      if (content.includes('getBaseUrl')) {
+        violations.push(path.relative(SIM_ROOT, file))
+      }
+    }
+    expect(
+      violations,
+      `robots.ts/sitemap.ts must use SITE_URL, not getBaseUrl():\n${violations.join('\n')}`
     ).toHaveLength(0)
   })
 
