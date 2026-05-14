@@ -43,8 +43,6 @@ export const POST = withRouteHandler(
           return createErrorResponse('executionId is required when logging results', 400)
         }
 
-        // Verify that if executionId already exists in the DB it belongs to this workflow,
-        // preventing a cross-tenant log write by a caller who owns a different workflow.
         const [existingLog] = await db
           .select({ workflowId: workflowExecutionLogs.workflowId })
           .from(workflowExecutionLogs)

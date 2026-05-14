@@ -135,7 +135,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         const config = getStorageConfig(storageContext)
 
-        // Apply storage quota to all user-driven upload contexts (not system/metadata contexts)
         if (
           !QUOTA_EXEMPT_STORAGE_CONTEXTS.has(context as StorageContext) &&
           typeof fileSize === 'number'
