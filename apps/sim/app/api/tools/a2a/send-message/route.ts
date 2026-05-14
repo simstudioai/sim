@@ -7,7 +7,7 @@ import { createA2AClient, extractTextContent, isTerminalState } from '@/lib/a2a/
 import { a2aSendMessageContract } from '@/lib/api/contracts/tools/a2a'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { enforceUserRateLimit } from '@/lib/core/rate-limiter'
+import { enforceUserOrIpRateLimit } from '@/lib/core/rate-limiter'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -33,7 +33,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const rateLimited = await enforceUserRateLimit('a2a-send-message', authResult.userId!)
+    const rateLimited = await enforceUserOrIpRateLimit(
+      'a2a-send-message',
+      authResult.userId,
+      request
+    )
     if (rateLimited) return rateLimited
 
     logger.info(

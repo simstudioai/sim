@@ -4,7 +4,7 @@ import { createA2AClient } from '@/lib/a2a/utils'
 import { a2aDeletePushNotificationContract } from '@/lib/api/contracts/tools/a2a'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { enforceUserRateLimit } from '@/lib/core/rate-limiter'
+import { enforceUserOrIpRateLimit } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -31,9 +31,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const rateLimited = await enforceUserRateLimit(
+    const rateLimited = await enforceUserOrIpRateLimit(
       'a2a-delete-push-notification',
-      authResult.userId!
+      authResult.userId,
+      request
     )
     if (rateLimited) return rateLimited
 

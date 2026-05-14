@@ -31,7 +31,7 @@ function passThroughClientIp() {
   )
 }
 
-import { enforceIpRateLimit, enforceUserRateLimit } from './route-helpers'
+import { enforceIpRateLimit, enforceUserOrIpRateLimit, enforceUserRateLimit } from './route-helpers'
 
 const consume = mockAdapter.consumeTokens as Mock
 
@@ -155,6 +155,38 @@ describe('route-helpers rate limiting', () => {
 
       expect(result?.status).toBe(429)
       expect(result?.headers.get('Retry-After')).toBe('60')
+    })
+  })
+
+  describe('enforceUserOrIpRateLimit', () => {
+    beforeEach(() => {
+      passThroughClientIp()
+    })
+
+    it('keys per-user when userId is present', async () => {
+      consume.mockResolvedValueOnce({
+        allowed: true,
+        tokensRemaining: 59,
+        resetAt: new Date(),
+      })
+      const request = createMockRequest('POST', undefined, { 'x-forwarded-for': '203.0.113.7' })
+
+      await enforceUserOrIpRateLimit('a2a-test', 'user-1', request)
+
+      expect(consume).toHaveBeenCalledWith('route:a2a-test:user:user-1', 1, expect.any(Object))
+    })
+
+    it('falls back to per-IP when userId is undefined', async () => {
+      consume.mockResolvedValueOnce({
+        allowed: true,
+        tokensRemaining: 59,
+        resetAt: new Date(),
+      })
+      const request = createMockRequest('POST', undefined, { 'x-forwarded-for': '203.0.113.7' })
+
+      await enforceUserOrIpRateLimit('a2a-test', undefined, request)
+
+      expect(consume).toHaveBeenCalledWith('route:a2a-test:ip:203.0.113.7', 1, expect.any(Object))
     })
   })
 })

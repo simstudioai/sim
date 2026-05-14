@@ -25,7 +25,6 @@ function buildRateLimitResponse(resetAt: Date): NextResponse {
   const retryAfterSec = Math.max(1, Math.ceil((resetAt.getTime() - Date.now()) / 1000))
   return NextResponse.json(
     {
-      success: false,
       error: 'Rate limit exceeded',
       retryAfter: resetAt.getTime(),
     },
@@ -71,4 +70,20 @@ export async function enforceIpRateLimit(
   if (allowed) return null
   logger.warn('IP rate limit exceeded', { bucket: bucketName, ip })
   return buildRateLimitResponse(resetAt)
+}
+
+/**
+ * Apply a per-user limit when a userId is present, else fall back to per-IP.
+ * Use for routes whose auth path may legitimately resolve without a userId
+ * (e.g. internal JWT calls with `requireWorkflowId: false`) so missing-userId
+ * traffic is still throttled per-IP rather than sharing one global bucket.
+ */
+export async function enforceUserOrIpRateLimit(
+  bucketName: string,
+  userId: string | undefined,
+  request: NextRequest,
+  config: TokenBucketConfig = DEFAULT_USER_ROUTE_LIMIT
+): Promise<NextResponse | null> {
+  if (userId) return enforceUserRateLimit(bucketName, userId, config)
+  return enforceIpRateLimit(bucketName, request, config)
 }
