@@ -137,6 +137,9 @@ const MIME_TYPE_LABELS: Record<string, string> = {
   'text/markdown': 'Markdown',
 }
 
+const EMPTY_WORKSPACE_FILES: WorkspaceFileRecord[] = []
+const EMPTY_WORKSPACE_FILE_FOLDERS: WorkspaceFileFolderApi[] = []
+
 const fileRowId = (id: string) => `file:${id}`
 const folderRowId = (id: string) => `folder:${id}`
 const parseRowId = (rowId: string): { kind: 'file' | 'folder'; id: string } => {
@@ -186,8 +189,9 @@ export function Files() {
     }
   }, [permissionConfig.hideFilesTab, router, workspaceId])
 
-  const { data: files = [], isLoading, error } = useWorkspaceFiles(workspaceId)
-  const { data: folders = [], isLoading: foldersLoading } = useWorkspaceFileFolders(workspaceId)
+  const { data: files = EMPTY_WORKSPACE_FILES, isLoading, error } = useWorkspaceFiles(workspaceId)
+  const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS, isLoading: foldersLoading } =
+    useWorkspaceFileFolders(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const uploadFile = useUploadWorkspaceFile()
   const deleteFile = useDeleteWorkspaceFile()
@@ -493,15 +497,17 @@ export function Files() {
   const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
 
   const prevVisibleRowIdsRef = useRef(visibleRowIds)
-  if (prevVisibleRowIdsRef.current !== visibleRowIds) {
+  useEffect(() => {
+    if (prevVisibleRowIdsRef.current === visibleRowIds) return
     prevVisibleRowIdsRef.current = visibleRowIds
     lastSelectedIndexRef.current = -1
     const visible = new Set(visibleRowIds)
     setSelectedRowIds((prev) => {
+      if (prev.size === 0) return prev
       const next = new Set(Array.from(prev).filter((id) => visible.has(id)))
       return next.size === prev.size ? prev : next
     })
-  }
+  }, [visibleRowIds])
 
   const isAllSelected =
     visibleRowIds.length > 0 && visibleRowIds.every((id) => selectedRowIds.has(id))
@@ -813,7 +819,6 @@ export function Files() {
           })
           .catch((error) => {
             logger.error('Failed to move items via drag and drop:', error)
-            toast.error(toError(error).message)
           })
       },
       onDragEnd: () => {
@@ -931,23 +936,26 @@ export function Files() {
   isDirtyRef.current = isDirty
   const saveStatusRef = useRef(saveStatus)
   saveStatusRef.current = saveStatus
+  const pendingFileNavigationUrlRef = useRef<string | null>(null)
 
   const handleSave = useCallback(async () => {
     if (!saveRef.current || !isDirtyRef.current || saveStatusRef.current === 'saving') return
     await saveRef.current()
   }, [])
 
-  const handleBackAttempt = useCallback(() => {
-    const backUrl = currentFolderId
-      ? `/workspace/${workspaceId}/files?folderId=${currentFolderId}`
-      : `/workspace/${workspaceId}/files`
-    if (isDirtyRef.current) {
-      setShowUnsavedChangesAlert(true)
-    } else {
+  const handleNavigateFromFileDetail = useCallback(
+    (url: string) => {
+      if (isDirtyRef.current) {
+        pendingFileNavigationUrlRef.current = url
+        setShowUnsavedChangesAlert(true)
+        return
+      }
+
       setPreviewMode('editor')
-      router.push(backUrl)
-    }
-  }, [router, workspaceId, currentFolderId])
+      router.push(url)
+    },
+    [router]
+  )
 
   const handleStartHeaderRename = useCallback(() => {
     const file = selectedFileRef.current
@@ -997,45 +1005,66 @@ export function Files() {
     window.location.href = `/api/workspaces/${workspaceId}/files/download?${query.toString()}`
   }, [selectedFileIds, selectedFolderIds, files, handleDownload, workspaceId])
 
-  const fileDetailBreadcrumbs = useMemo(
-    () =>
-      selectedFile
-        ? [
-            { label: 'Files', onClick: handleBackAttempt },
-            {
-              label: selectedFile.name,
-              editing: headerRename.editingId
-                ? {
-                    isEditing: true,
-                    value: headerRename.editValue,
-                    onChange: headerRename.setEditValue,
-                    onSubmit: headerRename.submitRename,
-                    onCancel: headerRename.cancelRename,
-                  }
-                : undefined,
-              dropdownItems: [
-                { label: 'Download', icon: Download, onClick: handleDownloadSelected },
-                ...(canEdit
-                  ? [
-                      { label: 'Rename', icon: Pencil, onClick: handleStartHeaderRename },
-                      { label: 'Delete', icon: Trash2, onClick: handleDeleteSelected },
-                    ]
-                  : []),
-              ],
-            },
-          ]
-        : [],
-    [
-      selectedFile,
-      canEdit,
-      handleBackAttempt,
-      headerRename.editingId,
-      headerRename.editValue,
-      handleStartHeaderRename,
-      handleDownloadSelected,
-      handleDeleteSelected,
+  const fileDetailBreadcrumbs = useMemo(() => {
+    if (!selectedFile) return []
+
+    const folderBreadcrumbs: BreadcrumbItem[] = []
+    const visitedFolderIds = new Set<string>()
+    let folderId = selectedFile.folderId
+
+    while (folderId && !visitedFolderIds.has(folderId)) {
+      visitedFolderIds.add(folderId)
+      const folder = folderById.get(folderId)
+      if (!folder) break
+
+      folderBreadcrumbs.unshift({
+        label: folder.name,
+        onClick: () =>
+          handleNavigateFromFileDetail(`/workspace/${workspaceId}/files?folderId=${folder.id}`),
+      })
+      folderId = folder.parentId
+    }
+
+    return [
+      {
+        label: 'Files',
+        onClick: () => handleNavigateFromFileDetail(`/workspace/${workspaceId}/files`),
+      },
+      ...folderBreadcrumbs,
+      {
+        label: selectedFile.name,
+        editing: headerRename.editingId
+          ? {
+              isEditing: true,
+              value: headerRename.editValue,
+              onChange: headerRename.setEditValue,
+              onSubmit: headerRename.submitRename,
+              onCancel: headerRename.cancelRename,
+            }
+          : undefined,
+        dropdownItems: [
+          { label: 'Download', icon: Download, onClick: handleDownloadSelected },
+          ...(canEdit
+            ? [
+                { label: 'Rename', icon: Pencil, onClick: handleStartHeaderRename },
+                { label: 'Delete', icon: Trash2, onClick: handleDeleteSelected },
+              ]
+            : []),
+        ],
+      },
     ]
-  )
+  }, [
+    selectedFile,
+    folderById,
+    handleNavigateFromFileDetail,
+    workspaceId,
+    canEdit,
+    headerRename.editingId,
+    headerRename.editValue,
+    handleStartHeaderRename,
+    handleDownloadSelected,
+    handleDeleteSelected,
+  ])
 
   const handleDiscardChanges = () => {
     setShowUnsavedChangesAlert(false)
@@ -1043,11 +1072,13 @@ export function Files() {
     setSaveStatus('idle')
     setPreviewMode('editor')
     const folderId = selectedFileRef.current?.folderId
-    router.push(
-      folderId
+    const targetUrl =
+      pendingFileNavigationUrlRef.current ??
+      (folderId
         ? `/workspace/${workspaceId}/files?folderId=${folderId}`
-        : `/workspace/${workspaceId}/files`
-    )
+        : `/workspace/${workspaceId}/files`)
+    pendingFileNavigationUrlRef.current = null
+    router.push(targetUrl)
   }
 
   const creatingFileRef = useRef(creatingFile)
@@ -1213,7 +1244,6 @@ export function Files() {
         closeContextMenu()
       } catch (error) {
         logger.error('Failed to move items:', error)
-        toast.error(toError(error).message)
       }
     },
     [workspaceId, selectedFileIds, selectedFolderIds, closeContextMenu]
@@ -1240,7 +1270,8 @@ export function Files() {
   }, [canEdit, uploading, closeListContextMenu])
 
   const prevFileIdRef = useRef(fileIdFromRoute)
-  if (fileIdFromRoute !== prevFileIdRef.current) {
+  useEffect(() => {
+    if (fileIdFromRoute === prevFileIdRef.current) return
     prevFileIdRef.current = fileIdFromRoute
     const isJustCreated =
       isNewFile || (fileIdFromRoute != null && justCreatedFileIdRef.current === fileIdFromRoute)
@@ -1255,10 +1286,8 @@ export function Files() {
             : null
           return file && isPreviewable(file) ? 'preview' : 'editor'
         })()
-    if (nextMode !== previewMode) {
-      setPreviewMode(nextMode)
-    }
-  }
+    setPreviewMode((current) => (nextMode === current ? current : nextMode))
+  }, [fileIdFromRoute, isNewFile])
 
   useEffect(() => {
     if (isNewFile && fileIdFromRoute) {
