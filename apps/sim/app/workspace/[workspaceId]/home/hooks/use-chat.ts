@@ -1544,6 +1544,8 @@ export function useChat(
   const resourcesRef = useRef(resources)
   resourcesRef.current = resources
   const pendingPersistResourceKeysRef = useRef<Set<string>>(new Set())
+  const inFlightResourceAddsRef = useRef<Map<string, Promise<unknown>>>(new Map())
+  const reorderNeededAfterFlushRef = useRef(false)
 
   // Derive the effective active resource ID — auto-selects the last resource when the stored ID is
   // absent or no longer in the list, avoiding a separate Effect-based state correction loop.
@@ -1971,6 +1973,8 @@ export function useChat(
     setResources([])
     setActiveResourceId(null)
     pendingPersistResourceKeysRef.current.clear()
+    inFlightResourceAddsRef.current.clear()
+    reorderNeededAfterFlushRef.current = false
     resetEphemeralPreviewState()
     setMessageQueue([])
     clearQueueDispatchState()
@@ -1983,20 +1987,42 @@ export function useChat(
     setTransportIdle,
   ])
 
-  const flushPendingResources = useCallback((chatId: string) => {
+  const flushPendingResources = useCallback(async (chatId: string) => {
     const pendingKeys = pendingPersistResourceKeysRef.current
     if (pendingKeys.size === 0) return
+    const flushPromises: Array<Promise<unknown>> = []
     for (const resource of resourcesRef.current) {
+      if (resource.id === 'streaming-file') continue
       const key = `${resource.type}:${resource.id}`
       if (!pendingKeys.has(key)) continue
       pendingKeys.delete(key)
-      requestJson(addMothershipChatResourceContract, { body: { chatId, resource } }).catch(
-        (err) => {
+      const promise = requestJson(addMothershipChatResourceContract, {
+        body: { chatId, resource },
+      })
+        .catch((err) => {
           pendingPersistResourceKeysRef.current.add(key)
           logger.warn('Failed to flush pending resource; will retry on next hydration', err)
-        }
-      )
+        })
+        .finally(() => {
+          inFlightResourceAddsRef.current.delete(key)
+        })
+      inFlightResourceAddsRef.current.set(key, promise)
+      flushPromises.push(promise)
     }
+    if (flushPromises.length === 0) return
+    await Promise.allSettled(flushPromises)
+    if (!reorderNeededAfterFlushRef.current) return
+    reorderNeededAfterFlushRef.current = false
+    const localOrder = resourcesRef.current.filter(
+      (r) =>
+        r.id !== 'streaming-file' && !pendingPersistResourceKeysRef.current.has(`${r.type}:${r.id}`)
+    )
+    if (localOrder.length === 0) return
+    requestJson(reorderMothershipChatResourcesContract, {
+      body: { chatId, resources: localOrder },
+    }).catch((err) => {
+      logger.warn('Failed to sync resource order after flush', err)
+    })
   }, [])
 
   const adoptResolvedChatId = useCallback(
@@ -2046,12 +2072,17 @@ export function useChat(
     const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
     const key = `${resource.type}:${resource.id}`
     if (persistChatId) {
-      requestJson(addMothershipChatResourceContract, {
+      const promise = requestJson(addMothershipChatResourceContract, {
         body: { chatId: persistChatId, resource },
-      }).catch((err) => {
-        pendingPersistResourceKeysRef.current.add(key)
-        logger.warn('Failed to persist resource; will retry on next hydration', err)
       })
+        .catch((err) => {
+          pendingPersistResourceKeysRef.current.add(key)
+          logger.warn('Failed to persist resource; will retry on next hydration', err)
+        })
+        .finally(() => {
+          inFlightResourceAddsRef.current.delete(key)
+        })
+      inFlightResourceAddsRef.current.set(key, promise)
     } else {
       pendingPersistResourceKeysRef.current.add(key)
     }
@@ -2064,23 +2095,33 @@ export function useChat(
 
     const key = `${resourceType}:${resourceId}`
     const wasPending = pendingPersistResourceKeysRef.current.delete(key)
-    if (wasPending) return
+    const inFlightAdd = inFlightResourceAddsRef.current.get(key)
+    if (wasPending && !inFlightAdd) return
 
     const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
-    if (persistChatId) {
+    if (!persistChatId) return
+    const fireDelete = () => {
       requestJson(removeMothershipChatResourceContract, {
         body: { chatId: persistChatId, resourceType, resourceId },
       }).catch((err) => {
         logger.warn('Failed to persist resource removal', err)
       })
     }
+    if (inFlightAdd) {
+      inFlightAdd.finally(fireDelete)
+    } else {
+      fireDelete()
+    }
   }, [])
 
   const reorderResources = useCallback((newOrder: MothershipResource[]) => {
     setResources(newOrder)
+    const pendingKeys = pendingPersistResourceKeysRef.current
+    if (pendingKeys.size > 0) {
+      reorderNeededAfterFlushRef.current = true
+    }
     const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
     if (!persistChatId) return
-    const pendingKeys = pendingPersistResourceKeysRef.current
     const persistableResources = newOrder.filter(
       (r) => r.id !== 'streaming-file' && !pendingKeys.has(`${r.type}:${r.id}`)
     )
@@ -2220,6 +2261,8 @@ export function useChat(
     setResources([])
     setActiveResourceId(null)
     pendingPersistResourceKeysRef.current.clear()
+    inFlightResourceAddsRef.current.clear()
+    reorderNeededAfterFlushRef.current = false
     resetEphemeralPreviewState()
     setMessageQueue([])
     clearQueueDispatchState()
