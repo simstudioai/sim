@@ -58,8 +58,10 @@ import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
 import {
   handleInvoiceFinalized,
+  handleInvoiceMarkedUncollectible,
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
+  handleInvoiceVoided,
 } from '@/lib/billing/webhooks/invoices'
 import {
   handleOrganizationPlanDowngrade,
@@ -3163,9 +3165,16 @@ export const auth = betterAuth({
                   await handleOrganizationPlanDowngrade(
                     {
                       id: resolvedSubscription.id,
+                      previousPlan: subscription.plan ?? null,
                       plan: effectivePlanForTeamFeatures ?? null,
                       referenceId: resolvedSubscription.referenceId,
                       status: resolvedSubscription.status ?? null,
+                      periodStart: resolvedSubscription.periodStart ?? null,
+                      periodEnd: resolvedSubscription.periodEnd ?? null,
+                      usageCutoff: new Date(event.created * 1000),
+                      seats: resolvedSubscription.seats ?? null,
+                      stripeCustomerId: resolvedSubscription.stripeCustomerId ?? null,
+                      stripeSubscriptionId: resolvedSubscription.stripeSubscriptionId ?? null,
                     },
                     event.id
                   )
@@ -3221,6 +3230,14 @@ export const auth = betterAuth({
                   }
                   case 'invoice.finalized': {
                     await handleInvoiceFinalized(event)
+                    break
+                  }
+                  case 'invoice.voided': {
+                    await handleInvoiceVoided(event)
+                    break
+                  }
+                  case 'invoice.marked_uncollectible': {
+                    await handleInvoiceMarkedUncollectible(event)
                     break
                   }
                   case 'customer.subscription.created': {

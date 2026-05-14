@@ -164,8 +164,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             cost: sessionCost * getCostMultiplier(),
           },
         ],
-      }).catch((err) => {
-        logger.warn('Failed to record voice input usage, continuing:', err)
       })
     }
 

@@ -7,6 +7,7 @@
 
 import { db } from '@sim/db'
 import {
+  billingClaim,
   credential,
   credentialMember,
   invitation,
@@ -15,6 +16,7 @@ import {
   permissionGroupMember,
   permissions,
   subscription as subscriptionTable,
+  usageLog,
   user,
   userStats,
   workspace,
@@ -22,8 +24,14 @@ import {
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { BILLING_CLAIM_PAYMENT_BLOCKING_STATUSES } from '@/lib/billing/claims/status'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { isPaid, sqlIsPro } from '@/lib/billing/plan-helpers'
+import {
+  doesOrganizationSubscriptionOwnMemberUsage,
+  sqlIsPaid,
+  sqlIsPro,
+  sqlIsTeam,
+} from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
@@ -32,6 +40,7 @@ import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('OrganizationMembership')
+type BillingTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 export type BillingBlockReason = 'payment_failed' | 'dispute'
 
@@ -134,12 +143,19 @@ export interface RestoreProResult {
  *   - A team subscription ends (members stay but get Pro restored).
  */
 export async function restoreUserProSubscription(userId: string): Promise<RestoreProResult> {
+  return db.transaction((tx) => restoreUserProSubscriptionTx(tx, userId))
+}
+
+async function restoreUserProSubscriptionTx(
+  tx: BillingTransaction,
+  userId: string
+): Promise<RestoreProResult> {
   const result: RestoreProResult = {
     restored: false,
     usageRestored: false,
   }
 
-  const [personalPro] = await db
+  const [personalPro] = await tx
     .select()
     .from(subscriptionTable)
     .where(
@@ -157,59 +173,50 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
 
   result.subscriptionId = personalPro.id
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(subscriptionTable)
-      .set({ cancelAtPeriodEnd: false })
-      .where(eq(subscriptionTable.id, personalPro.id))
+  await tx
+    .update(subscriptionTable)
+    .set({ cancelAtPeriodEnd: false })
+    .where(eq(subscriptionTable.id, personalPro.id))
 
-    await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
-      stripeSubscriptionId: personalPro.stripeSubscriptionId,
-      subscriptionId: personalPro.id,
-      reason: 'member-left-paid-org',
+  await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+    stripeSubscriptionId: personalPro.stripeSubscriptionId,
+    subscriptionId: personalPro.id,
+    reason: 'member-left-paid-org',
+  })
+
+  result.restored = true
+
+  const [stats] = await tx
+    .select({
+      proPeriodCostSnapshot: userStats.proPeriodCostSnapshot,
     })
+    .from(userStats)
+    .where(eq(userStats.userId, userId))
+    .limit(1)
 
-    result.restored = true
+  if (!stats) {
+    return result
+  }
 
-    const [stats] = await tx
-      .select({
-        currentPeriodCost: userStats.currentPeriodCost,
-        proPeriodCostSnapshot: userStats.proPeriodCostSnapshot,
-      })
-      .from(userStats)
-      .where(eq(userStats.userId, userId))
-      .limit(1)
+  const snapshotNum = toNumber(toDecimal(stats.proPeriodCostSnapshot))
 
-    if (!stats) {
-      return
-    }
+  if (snapshotNum <= 0) {
+    return result
+  }
 
-    const currentNum = toNumber(toDecimal(stats.currentPeriodCost))
-    const snapshotNum = toNumber(toDecimal(stats.proPeriodCostSnapshot))
-
-    if (snapshotNum <= 0) {
-      return
-    }
-
-    const restoredUsage = (currentNum + snapshotNum).toString()
-
-    await tx
-      .update(userStats)
-      .set({
-        currentPeriodCost: restoredUsage,
-        proPeriodCostSnapshot: '0',
-        proPeriodCostSnapshotAt: null,
-      })
-      .where(eq(userStats.userId, userId))
-
-    result.usageRestored = true
-
-    logger.info('Restored Pro usage snapshot', {
-      userId,
-      previousUsage: currentNum,
-      snapshotUsage: snapshotNum,
-      restoredUsage,
+  await tx
+    .update(userStats)
+    .set({
+      proPeriodCostSnapshot: '0',
+      proPeriodCostSnapshotAt: null,
     })
+    .where(eq(userStats.userId, userId))
+
+  result.usageRestored = true
+
+  logger.info('Restored Pro usage snapshot', {
+    userId,
+    snapshotUsage: snapshotNum,
   })
 
   logger.info('Restored personal Pro subscription (DB committed, Stripe queued)', {
@@ -600,8 +607,8 @@ interface PaidOrgJoinBillingActions {
 }
 
 /**
- * Applies the billing side-effects of a user joining a paid (Team/Enterprise)
- * organization inside an existing transaction:
+ * Applies the billing side-effects of a user joining org-owned billing
+ * inside an existing transaction:
  *   - snapshots current Pro usage so new usage attributes to the org;
  *   - marks personal Pro subscription `cancelAtPeriodEnd=true` and enqueues
  *     the Stripe sync via the outbox;
@@ -633,34 +640,6 @@ async function applyPaidOrgJoinBillingTx(
     .limit(1)
 
   if (personalPro && !personalPro.cancelAtPeriodEnd) {
-    const [userStatsRow] = await tx
-      .select({ currentPeriodCost: userStats.currentPeriodCost })
-      .from(userStats)
-      .where(eq(userStats.userId, userId))
-      .limit(1)
-
-    if (userStatsRow) {
-      const currentProUsage = userStatsRow.currentPeriodCost || '0'
-
-      await tx
-        .update(userStats)
-        .set({
-          proPeriodCostSnapshot: currentProUsage,
-          proPeriodCostSnapshotAt: new Date(),
-          currentPeriodCost: '0',
-          currentPeriodCopilotCost: '0',
-        })
-        .where(eq(userStats.userId, userId))
-
-      actions.proUsageSnapshotted = true
-
-      logger.info('Snapshotted Pro usage when joining paid org', {
-        userId,
-        proUsageSnapshot: currentProUsage,
-        organizationId,
-      })
-    }
-
     await tx
       .update(subscriptionTable)
       .set({ cancelAtPeriodEnd: true })
@@ -726,23 +705,211 @@ export async function reapplyPaidOrgJoinBillingForExistingMember(
   organizationId: string
 ): Promise<PaidOrgJoinBillingActions> {
   return db.transaction(async (tx) => {
+    const [membershipRow] = await tx
+      .select({ role: member.role })
+      .from(member)
+      .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
+      .limit(1)
+
     const [orgSub] = await tx
       .select({ plan: subscriptionTable.plan })
       .from(subscriptionTable)
       .where(
         and(
           eq(subscriptionTable.referenceId, organizationId),
-          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+          sqlIsPaid(subscriptionTable.plan)!
         )
       )
       .limit(1)
 
-    if (!orgSub || !isPaid(orgSub.plan)) {
+    if (!orgSub || !doesOrganizationSubscriptionOwnMemberUsage(orgSub.plan, membershipRow?.role)) {
       return { proUsageSnapshotted: false, proCancelledAtPeriodEnd: false }
     }
 
     return applyPaidOrgJoinBillingTx(tx, userId, organizationId)
   })
+}
+
+export async function handleOrganizationMemberRoleBillingTransition(params: {
+  userId: string
+  organizationId: string
+  previousRole: 'admin' | 'member' | 'owner'
+  nextRole: 'admin' | 'member' | 'owner'
+}): Promise<void> {
+  await db.transaction((tx) => applyOrganizationMemberRoleBillingTransitionTx(tx, params))
+  await syncUsageLimitsFromSubscription(params.userId)
+}
+
+export async function updateOrganizationMemberRoleWithBilling(params: {
+  userId: string
+  organizationId: string
+  previousRole: 'admin' | 'member' | 'owner'
+  nextRole: 'admin' | 'member' | 'owner'
+}): Promise<typeof member.$inferSelect | null> {
+  const updatedMember = await db.transaction(async (tx) => {
+    const [currentMember] = await tx
+      .select()
+      .from(member)
+      .where(
+        and(eq(member.userId, params.userId), eq(member.organizationId, params.organizationId))
+      )
+      .for('update')
+      .limit(1)
+
+    if (!currentMember) return null
+    if (currentMember.role !== params.previousRole) {
+      throw new Error('Organization member role changed before billing transition could complete')
+    }
+
+    await applyOrganizationMemberRoleBillingTransitionTx(tx, params)
+
+    const [updated] = await tx
+      .update(member)
+      .set({ role: params.nextRole })
+      .where(eq(member.id, currentMember.id))
+      .returning()
+
+    return updated ?? null
+  })
+
+  if (updatedMember) {
+    await syncUsageLimitsFromSubscription(params.userId)
+  }
+
+  return updatedMember
+}
+
+async function applyOrganizationMemberRoleBillingTransitionTx(
+  tx: BillingTransaction,
+  params: {
+    userId: string
+    organizationId: string
+    previousRole: 'admin' | 'member' | 'owner'
+    nextRole: 'admin' | 'member' | 'owner'
+  }
+): Promise<void> {
+  const { userId, organizationId, previousRole, nextRole } = params
+  if (previousRole === nextRole) return
+
+  const [orgSub] = await tx
+    .select({
+      plan: subscriptionTable.plan,
+      periodStart: subscriptionTable.periodStart,
+      periodEnd: subscriptionTable.periodEnd,
+    })
+    .from(subscriptionTable)
+    .where(
+      and(
+        eq(subscriptionTable.referenceId, organizationId),
+        inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+        sqlIsPaid(subscriptionTable.plan)!
+      )
+    )
+    .limit(1)
+
+  if (!orgSub) {
+    return
+  }
+
+  const previouslyOwned = doesOrganizationSubscriptionOwnMemberUsage(orgSub.plan, previousRole)
+  const nowOwned = doesOrganizationSubscriptionOwnMemberUsage(orgSub.plan, nextRole)
+
+  if (!previouslyOwned && nowOwned) {
+    await attributeLegacyUsageForRoleOwnershipTransition({
+      executor: tx,
+      userId,
+      organizationId,
+      entityType: 'user',
+      entityId: userId,
+      periodStart: orgSub.periodStart,
+      periodEnd: orgSub.periodEnd,
+    })
+    await applyPaidOrgJoinBillingTx(tx, userId, organizationId)
+  } else if (previouslyOwned && !nowOwned) {
+    await attributeLegacyUsageForRoleOwnershipTransition({
+      executor: tx,
+      userId,
+      organizationId,
+      entityType: 'organization',
+      entityId: organizationId,
+      periodStart: orgSub.periodStart,
+      periodEnd: orgSub.periodEnd,
+    })
+    await restoreUserProSubscriptionTx(tx, userId)
+    await unblockUserIfNoPersonalPaymentIssueTx(tx, userId)
+  }
+}
+
+async function attributeLegacyUsageForRoleOwnershipTransition(params: {
+  executor: BillingTransaction
+  userId: string
+  organizationId: string
+  entityType: 'user' | 'organization'
+  entityId: string
+  periodStart: Date | null
+  periodEnd: Date | null
+}): Promise<void> {
+  if (!params.periodStart) return
+
+  const [membershipRow] = await params.executor
+    .select({ createdAt: member.createdAt })
+    .from(member)
+    .where(and(eq(member.userId, params.userId), eq(member.organizationId, params.organizationId)))
+    .limit(1)
+
+  if (!membershipRow) return
+
+  const now = new Date()
+  const periodStart =
+    membershipRow.createdAt > params.periodStart ? membershipRow.createdAt : params.periodStart
+  const periodEnd = params.periodEnd && params.periodEnd < now ? params.periodEnd : now
+  if (periodEnd <= periodStart) return
+
+  await params.executor.execute(sql`
+    UPDATE ${usageLog}
+    SET
+      ${usageLog.billingEntityType} = ${params.entityType},
+      ${usageLog.billingEntityId} = ${params.entityId}
+    WHERE ${usageLog.userId} = ${params.userId}
+      AND ${usageLog.billingEntityType} IS NULL
+      AND ${usageLog.createdAt} >= ${periodStart}
+      AND ${usageLog.createdAt} < ${periodEnd}
+  `)
+}
+
+async function unblockUserIfNoPersonalPaymentIssue(userId: string): Promise<void> {
+  await db.transaction((tx) => unblockUserIfNoPersonalPaymentIssueTx(tx, userId))
+}
+
+async function unblockUserIfNoPersonalPaymentIssueTx(
+  tx: BillingTransaction,
+  userId: string
+): Promise<void> {
+  const [pastDueSubscription] = await tx
+    .select({ id: subscriptionTable.id })
+    .from(subscriptionTable)
+    .where(and(eq(subscriptionTable.referenceId, userId), eq(subscriptionTable.status, 'past_due')))
+    .limit(1)
+  if (pastDueSubscription) return
+
+  const [unresolvedClaim] = await tx
+    .select({ id: billingClaim.id })
+    .from(billingClaim)
+    .where(
+      and(
+        eq(billingClaim.entityType, 'user'),
+        eq(billingClaim.entityId, userId),
+        inArray(billingClaim.status, BILLING_CLAIM_PAYMENT_BLOCKING_STATUSES)
+      )
+    )
+    .limit(1)
+  if (unresolvedClaim) return
+
+  await tx
+    .update(userStats)
+    .set({ billingBlocked: false, billingBlockedReason: null })
+    .where(and(eq(userStats.userId, userId), eq(userStats.billingBlockedReason, 'payment_failed')))
 }
 
 /**
@@ -836,12 +1003,13 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
         .where(
           and(
             eq(subscriptionTable.referenceId, organizationId),
-            inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+            inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+            sqlIsPaid(subscriptionTable.plan)!
           )
         )
         .limit(1)
 
-      if (!orgSub || !isPaid(orgSub.plan)) {
+      if (!orgSub || !doesOrganizationSubscriptionOwnMemberUsage(orgSub.plan, role)) {
         return
       }
 
@@ -915,6 +1083,62 @@ export async function removeUserFromOrganization(
       credentialMembershipsRevoked,
       pendingInvitationsCancelled,
     } = await db.transaction(async (tx) => {
+      const [membershipRow] = await tx
+        .select({ createdAt: member.createdAt })
+        .from(member)
+        .where(and(eq(member.id, memberId), ne(member.role, 'owner')))
+        .for('update')
+        .limit(1)
+
+      if (!membershipRow) {
+        throw new Error(
+          'Member could not be removed — they may have been promoted to owner concurrently'
+        )
+      }
+
+      let capturedUsage = 0
+      if (!skipBillingLogic) {
+        const [orgSub] = await tx
+          .select({
+            plan: subscriptionTable.plan,
+            periodStart: subscriptionTable.periodStart,
+            periodEnd: subscriptionTable.periodEnd,
+          })
+          .from(subscriptionTable)
+          .where(
+            and(
+              eq(subscriptionTable.referenceId, organizationId),
+              inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+              sqlIsPaid(subscriptionTable.plan)!
+            )
+          )
+          .limit(1)
+        if (
+          orgSub &&
+          doesOrganizationSubscriptionOwnMemberUsage(orgSub.plan, existingMember.role)
+        ) {
+          const periodStart =
+            orgSub.periodStart && orgSub.periodStart > membershipRow.createdAt
+              ? orgSub.periodStart
+              : membershipRow.createdAt
+          const attributedRows = await tx.execute<{ cost: string }>(sql`
+            UPDATE ${usageLog}
+            SET
+              ${usageLog.billingEntityType} = 'organization',
+              ${usageLog.billingEntityId} = ${organizationId}
+            WHERE ${usageLog.userId} = ${userId}
+              AND ${usageLog.billingEntityType} IS NULL
+              AND ${usageLog.createdAt} >= ${periodStart}
+              AND ${orgSub.periodEnd ? sql`${usageLog.createdAt} < ${orgSub.periodEnd}` : sql`TRUE`}
+            RETURNING ${usageLog.cost}::text AS cost
+          `)
+          capturedUsage = Array.from(attributedRows).reduce(
+            (sum, row) => sum + toNumber(toDecimal(row.cost ?? '0')),
+            0
+          )
+        }
+      }
+
       const deletedMember = await tx
         .delete(member)
         .where(and(eq(member.id, memberId), ne(member.role, 'owner')))
@@ -926,32 +1150,32 @@ export async function removeUserFromOrganization(
         )
       }
 
-      let capturedUsage = 0
-      if (!skipBillingLogic) {
-        const [departingUserStats] = await tx
-          .select({ currentPeriodCost: userStats.currentPeriodCost })
-          .from(userStats)
-          .where(eq(userStats.userId, userId))
-          .limit(1)
+      const [personalSubscriptionPaymentIssue] = await tx
+        .select({ id: subscriptionTable.id })
+        .from(subscriptionTable)
+        .where(
+          and(eq(subscriptionTable.referenceId, userId), eq(subscriptionTable.status, 'past_due'))
+        )
+        .limit(1)
+      const [personalOveragePaymentIssue] = await tx
+        .select({ id: billingClaim.id })
+        .from(billingClaim)
+        .innerJoin(subscriptionTable, eq(subscriptionTable.id, billingClaim.subscriptionId))
+        .where(
+          and(
+            eq(subscriptionTable.referenceId, userId),
+            inArray(billingClaim.status, BILLING_CLAIM_PAYMENT_BLOCKING_STATUSES)
+          )
+        )
+        .limit(1)
 
-        if (departingUserStats?.currentPeriodCost) {
-          const usage = toNumber(toDecimal(departingUserStats.currentPeriodCost))
-          if (usage > 0) {
-            await tx
-              .update(organization)
-              .set({
-                departedMemberUsage: sql`${organization.departedMemberUsage} + ${usage}`,
-              })
-              .where(eq(organization.id, organizationId))
-
-            await tx
-              .update(userStats)
-              .set({ currentPeriodCost: '0' })
-              .where(eq(userStats.userId, userId))
-
-            capturedUsage = usage
-          }
-        }
+      if (!personalSubscriptionPaymentIssue && !personalOveragePaymentIssue) {
+        await tx
+          .update(userStats)
+          .set({ billingBlocked: false, billingBlockedReason: null })
+          .where(
+            and(eq(userStats.userId, userId), eq(userStats.billingBlockedReason, 'payment_failed'))
+          )
       }
 
       const [targetUser] = await tx
@@ -1068,11 +1292,12 @@ export async function removeUserFromOrganization(
             .where(
               and(
                 inArray(subscriptionTable.referenceId, orgIds),
-                inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+                inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+                or(eq(subscriptionTable.plan, 'enterprise'), sqlIsTeam(subscriptionTable.plan)!)
               )
             )
 
-          hasAnyPaidTeam = orgPaidSubs.some((s) => isPaid(s.plan))
+          hasAnyPaidTeam = orgPaidSubs.length > 0
         }
 
         if (!hasAnyPaidTeam) {
@@ -1298,35 +1523,57 @@ export async function transferOrganizationOwnership(
 
   try {
     await db.transaction(async (tx) => {
-      const [currentOwnerMember] = await tx
-        .select({ id: member.id, role: member.role })
+      const lockedMembers = await tx
+        .select({ id: member.id, role: member.role, userId: member.userId })
         .from(member)
         .where(
           and(
             eq(member.organizationId, organizationId),
-            eq(member.userId, currentOwnerUserId),
-            eq(member.role, 'owner')
+            inArray(member.userId, [currentOwnerUserId, newOwnerUserId])
           )
         )
-        .limit(1)
+        .for('update')
+
+      const currentOwnerMember = lockedMembers.find(
+        (m) => m.userId === currentOwnerUserId && m.role === 'owner'
+      )
 
       if (!currentOwnerMember) {
         throw new Error('Current user is not the owner of this organization')
       }
 
-      const [newOwnerMember] = await tx
-        .select({ id: member.id, role: member.role })
-        .from(member)
-        .where(and(eq(member.organizationId, organizationId), eq(member.userId, newOwnerUserId)))
-        .limit(1)
+      const newOwnerMember = lockedMembers.find((m) => m.userId === newOwnerUserId)
 
       if (!newOwnerMember) {
         throw new Error('Target user is not a member of this organization')
       }
 
-      await tx.update(member).set({ role: 'admin' }).where(eq(member.id, currentOwnerMember.id))
+      await applyOrganizationMemberRoleBillingTransitionTx(tx, {
+        userId: newOwnerUserId,
+        organizationId,
+        previousRole: newOwnerMember.role as 'admin' | 'member' | 'owner',
+        nextRole: 'owner',
+      })
 
-      await tx.update(member).set({ role: 'owner' }).where(eq(member.id, newOwnerMember.id))
+      const demotedMembers = await tx
+        .update(member)
+        .set({ role: 'admin' })
+        .where(eq(member.id, currentOwnerMember.id))
+        .returning({ id: member.id })
+
+      if (demotedMembers.length !== 1) {
+        throw new Error('Current owner changed before ownership transfer could complete')
+      }
+
+      const promotedMembers = await tx
+        .update(member)
+        .set({ role: 'owner' })
+        .where(eq(member.id, newOwnerMember.id))
+        .returning({ id: member.id })
+
+      if (promotedMembers.length !== 1) {
+        throw new Error('Target owner changed before ownership transfer could complete')
+      }
 
       const billedUpdate = await tx
         .update(workspace)
@@ -1475,6 +1722,7 @@ export async function transferOrganizationOwnership(
         })
       }
     })
+    await syncUsageLimitsFromSubscription(newOwnerUserId)
 
     logger.info('Transferred organization ownership', {
       organizationId,
@@ -1525,12 +1773,13 @@ export async function isSoleOwnerOfPaidOrganization(userId: string): Promise<{
     .where(
       and(
         eq(subscriptionTable.referenceId, ownerMembership.organizationId),
-        inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+        or(eq(subscriptionTable.plan, 'enterprise'), sqlIsTeam(subscriptionTable.plan)!)
       )
     )
     .limit(1)
 
-  if (!orgSub || !isPaid(orgSub.plan)) {
+  if (!orgSub) {
     return { isBlocker: false }
   }
 

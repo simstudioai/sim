@@ -17,6 +17,7 @@ import {
 } from '@/lib/api/contracts/organization'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { calculateOrganizationMemberLedgerUsage } from '@/lib/billing/ledger/usage-ledger'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -109,7 +110,6 @@ export const GET = withRouteHandler(
             createdAt: member.createdAt,
             userName: user.name,
             userEmail: user.email,
-            currentPeriodCost: userStats.currentPeriodCost,
             currentUsageLimit: userStats.currentUsageLimit,
             usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
           })
@@ -138,9 +138,15 @@ export const GET = withRouteHandler(
 
         const billingPeriodStart = orgSub?.periodStart ?? null
         const billingPeriodEnd = orgSub?.periodEnd ?? null
+        const memberUsage = await calculateOrganizationMemberLedgerUsage(organizationId, {
+          periodStart: billingPeriodStart,
+          periodEnd: billingPeriodEnd,
+          memberIds: base.map((row) => row.userId),
+        })
 
         const membersWithUsage = base.map((row) => ({
           ...row,
+          currentPeriodCost: (memberUsage[row.userId] ?? 0).toString(),
           billingPeriodStart,
           billingPeriodEnd,
         }))

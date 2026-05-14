@@ -1,12 +1,10 @@
 import type { Span } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { billingUpdateCostContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
 import { recordUsage } from '@/lib/billing/core/usage-log'
-import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { BillingRouteOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
@@ -155,21 +153,6 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       source,
     })
 
-    const totalTokens = inputTokens + outputTokens
-
-    const additionalStats: Record<string, ReturnType<typeof sql>> = {
-      totalCopilotCost: sql`total_copilot_cost + ${cost}`,
-      currentPeriodCopilotCost: sql`current_period_copilot_cost + ${cost}`,
-      totalCopilotCalls: sql`total_copilot_calls + 1`,
-      totalCopilotTokens: sql`total_copilot_tokens + ${totalTokens}`,
-    }
-
-    if (isMcp) {
-      additionalStats.totalMcpCopilotCost = sql`total_mcp_copilot_cost + ${cost}`
-      additionalStats.currentPeriodMcpCopilotCost = sql`current_period_mcp_copilot_cost + ${cost}`
-      additionalStats.totalMcpCopilotCalls = sql`total_mcp_copilot_calls + 1`
-    }
-
     await recordUsage({
       userId,
       entries: [
@@ -181,7 +164,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
           metadata: { inputTokens, outputTokens },
         },
       ],
-      additionalStats,
+      sourceEventKey: idempotencyKey ? `update-cost:${idempotencyKey}` : undefined,
     })
     usageCommitted = true
 
@@ -190,9 +173,6 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       addedCost: cost,
       source,
     })
-
-    // Check if user has hit overage threshold and bill incrementally
-    await checkAndBillOverageThreshold(userId)
 
     const duration = Date.now() - startTime
 

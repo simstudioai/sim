@@ -10,13 +10,10 @@ import {
   McpError,
   type RequestId,
 } from '@modelcontextprotocol/sdk/types.js'
-import { db } from '@sim/db'
-import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
-import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { mcpRequestBodySchema, mcpToolCallParamsSchema } from '@/lib/api/contracts/mcp'
 import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
@@ -299,8 +296,6 @@ function buildMcpServer(abortSignal?: AbortSignal): Server {
       abortSignal
     )
 
-    trackMcpCopilotCall(authResult.userId)
-
     return result
   })
 
@@ -403,22 +398,6 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
   void request
   return NextResponse.json(createError(0, -32000, 'Method not allowed.'), { status: 405 })
 })
-
-/**
- * Increment MCP copilot call counter in userStats (fire-and-forget).
- */
-function trackMcpCopilotCall(userId: string): void {
-  db.update(userStats)
-    .set({
-      totalMcpCopilotCalls: sql`total_mcp_copilot_calls + 1`,
-      lastActive: new Date(),
-    })
-    .where(eq(userStats.userId, userId))
-    .then(() => {})
-    .catch((error) => {
-      logger.error('Failed to track MCP copilot call', { error, userId })
-    })
-}
 
 async function handleToolsCall(
   params: { name: string; arguments?: Record<string, unknown> },

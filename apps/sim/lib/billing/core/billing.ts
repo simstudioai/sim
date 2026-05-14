@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, organization, subscription, userStats } from '@sim/db/schema'
+import { organization, subscription } from '@sim/db/schema'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import {
   getBillingInterval,
@@ -7,12 +7,12 @@ import {
   type SubscriptionMetadata,
 } from '@/lib/billing/core/subscription'
 import { getOrgUsageLimit, getUserUsageData } from '@/lib/billing/core/usage'
-import { getCreditBalance } from '@/lib/billing/credits/balance'
+import { getCreditBalance, getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import {
-  computeDailyRefreshConsumed,
-  getOrgMemberRefreshBounds,
-} from '@/lib/billing/credits/daily-refresh'
-import { getPlanTierDollars, isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
+  calculateCurrentLedgerUsageForSubscription,
+  calculateCurrentLedgerUsageForUser,
+} from '@/lib/billing/ledger/usage-ledger'
+import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   getFreeTierLimit,
@@ -20,7 +20,6 @@ import {
   hasPaidSubscriptionStatus,
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
-import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 
 export { getPlanPricing }
 
@@ -91,249 +90,72 @@ export async function isSubscriptionOrgScoped(sub: { referenceId: string }): Pro
  * call `getUserUsageData` per-member — that helper now returns the entire
  * pool for org-scoped subs, which would N-times-count the usage.
  *
- * The `currentPeriodCost` sum here is semantically identical to
- * `getPooledOrgCurrentPeriodCost` (same `LEFT JOIN` + `toDecimal`
- * null handling); this helper bundles the copilot fields in the same
- * round-trip. Never fall back to lifetime `totalCost` on nulls — the
- * column is `NOT NULL DEFAULT '0'` and mixing scopes would break
- * current-period billing math.
+ * Current usage and copilot spend come from usage_log so billing display
+ * follows the same attribution model as threshold/final claims.
  */
-async function aggregateOrgMemberStats(organizationId: string): Promise<{
+async function aggregateOrgMemberStats(
+  organizationId: string,
+  sub?: {
+    id: string
+    plan: string | null
+    referenceId: string
+    seats?: number | null
+    periodStart?: Date | null
+    periodEnd?: Date | null
+  }
+): Promise<{
   memberIds: string[]
   currentPeriodCost: number
+  effectiveCurrentPeriodCost: number
   currentPeriodCopilotCost: number
+  lastPeriodCost: number
   lastPeriodCopilotCost: number
 }> {
-  const rows = await db
-    .select({
-      userId: member.userId,
-      currentPeriodCost: userStats.currentPeriodCost,
-      currentPeriodCopilotCost: userStats.currentPeriodCopilotCost,
-      lastPeriodCopilotCost: userStats.lastPeriodCopilotCost,
-    })
-    .from(member)
-    .leftJoin(userStats, eq(member.userId, userStats.userId))
-    .where(eq(member.organizationId, organizationId))
+  const ledgerUsage = sub
+    ? await calculateCurrentLedgerUsageForSubscription({
+        ...sub,
+        referenceId: organizationId,
+      })
+    : await calculateCurrentLedgerUsageForSubscription({
+        id: `org:${organizationId}`,
+        plan: null,
+        referenceId: organizationId,
+        seats: 1,
+      })
 
-  let currentPeriodCost = new Decimal(0)
-  let currentPeriodCopilotCost = new Decimal(0)
-  let lastPeriodCopilotCost = new Decimal(0)
-  const memberIds: string[] = []
-
-  for (const row of rows) {
-    memberIds.push(row.userId)
-    currentPeriodCost = currentPeriodCost.plus(toDecimal(row.currentPeriodCost))
-    currentPeriodCopilotCost = currentPeriodCopilotCost.plus(
-      toDecimal(row.currentPeriodCopilotCost)
-    )
-    lastPeriodCopilotCost = lastPeriodCopilotCost.plus(toDecimal(row.lastPeriodCopilotCost))
+  const currentPeriodCopilotCost =
+    (ledgerUsage.sourceTotals.copilot ?? 0) + (ledgerUsage.sourceTotals.mcp_copilot ?? 0)
+  let lastPeriodCost = 0
+  let lastPeriodCopilotCost = 0
+  if (sub?.periodStart && sub.periodEnd) {
+    const periodMs = sub.periodEnd.getTime() - sub.periodStart.getTime()
+    if (periodMs > 0) {
+      const lastPeriodUsage = await calculateCurrentLedgerUsageForSubscription(
+        {
+          ...sub,
+          referenceId: organizationId,
+        },
+        db,
+        {
+          periodStart: new Date(sub.periodStart.getTime() - periodMs),
+          periodEnd: sub.periodStart,
+        }
+      )
+      lastPeriodCost = lastPeriodUsage.grossUsage
+      lastPeriodCopilotCost =
+        (lastPeriodUsage.sourceTotals.copilot ?? 0) +
+        (lastPeriodUsage.sourceTotals.mcp_copilot ?? 0)
+    }
   }
 
   return {
-    memberIds,
-    currentPeriodCost: toNumber(currentPeriodCost),
-    currentPeriodCopilotCost: toNumber(currentPeriodCopilotCost),
-    lastPeriodCopilotCost: toNumber(lastPeriodCopilotCost),
+    memberIds: ledgerUsage.memberIds,
+    currentPeriodCost: ledgerUsage.grossUsage,
+    effectiveCurrentPeriodCost: ledgerUsage.effectiveUsage,
+    currentPeriodCopilotCost,
+    lastPeriodCost,
+    lastPeriodCopilotCost,
   }
-}
-
-/**
- * Compute an org's overage amount from already-fetched pool/departed
- * inputs. Internally performs one daily-refresh DB read to subtract
- * refresh credits; callers are expected to have already loaded the
- * pooled `currentPeriodCost` and `departedMemberUsage` (threshold
- * billing passes lock-held values; `calculateSubscriptionOverage`
- * passes lockless values from `aggregateOrgMemberStats`). Both
- * callers route through this to keep the overage math in one place.
- */
-export async function computeOrgOverageAmount(params: {
-  plan: string | null
-  seats: number | null
-  periodStart: Date | null
-  periodEnd: Date | null
-  organizationId: string
-  pooledCurrentPeriodCost: number
-  departedMemberUsage: number
-  memberIds: string[]
-}): Promise<{
-  effectiveUsage: number
-  baseSubscriptionAmount: number
-  dailyRefreshDeduction: number
-  totalOverage: number
-}> {
-  const totalUsage = params.pooledCurrentPeriodCost + params.departedMemberUsage
-
-  let dailyRefreshDeduction = 0
-  const planDollars = getPlanTierDollars(params.plan)
-  if (planDollars > 0 && params.periodStart && params.memberIds.length > 0) {
-    const userBounds = await getOrgMemberRefreshBounds(params.organizationId, params.periodStart)
-    dailyRefreshDeduction = await computeDailyRefreshConsumed({
-      userIds: params.memberIds,
-      periodStart: params.periodStart,
-      periodEnd: params.periodEnd ?? null,
-      planDollars,
-      seats: params.seats || 1,
-      userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
-    })
-  }
-
-  const effectiveUsage = Math.max(0, totalUsage - dailyRefreshDeduction)
-  const { basePrice } = getPlanPricing(params.plan ?? '')
-  const baseSubscriptionAmount = (params.seats || 1) * basePrice
-  const totalOverage = Math.max(0, effectiveUsage - baseSubscriptionAmount)
-
-  return { effectiveUsage, baseSubscriptionAmount, dailyRefreshDeduction, totalOverage }
-}
-
-/**
- * Calculate overage amount for a subscription
- * Shared logic between invoice.finalized and customer.subscription.deleted handlers
- */
-export async function calculateSubscriptionOverage(sub: {
-  id: string
-  plan: string | null
-  referenceId: string
-  seats?: number | null
-  periodStart?: Date | null
-  periodEnd?: Date | null
-}): Promise<number> {
-  // Enterprise plans have no overages
-  if (isEnterprise(sub.plan)) {
-    logger.info('Enterprise plan has no overages', {
-      subscriptionId: sub.id,
-      plan: sub.plan,
-    })
-    return 0
-  }
-
-  let totalOverageDecimal = new Decimal(0)
-
-  const isOrgScoped = await isSubscriptionOrgScoped(sub)
-
-  if (isOrgScoped) {
-    const pooled = await aggregateOrgMemberStats(sub.referenceId)
-
-    const orgData = await db
-      .select({ departedMemberUsage: organization.departedMemberUsage })
-      .from(organization)
-      .where(eq(organization.id, sub.referenceId))
-      .limit(1)
-
-    const departedMemberUsage =
-      orgData.length > 0 ? toNumber(toDecimal(orgData[0].departedMemberUsage)) : 0
-
-    const { totalOverage, effectiveUsage, baseSubscriptionAmount } = await computeOrgOverageAmount({
-      plan: sub.plan,
-      seats: sub.seats ?? null,
-      periodStart: sub.periodStart ?? null,
-      periodEnd: sub.periodEnd ?? null,
-      organizationId: sub.referenceId,
-      pooledCurrentPeriodCost: pooled.currentPeriodCost,
-      departedMemberUsage,
-      memberIds: pooled.memberIds,
-    })
-
-    totalOverageDecimal = toDecimal(totalOverage)
-
-    logger.info('Calculated org-scoped overage', {
-      subscriptionId: sub.id,
-      plan: sub.plan,
-      currentMemberUsage: pooled.currentPeriodCost,
-      departedMemberUsage,
-      totalUsage: pooled.currentPeriodCost + departedMemberUsage,
-      effectiveUsage,
-      baseSubscriptionAmount,
-      totalOverage,
-    })
-  } else if (isPro(sub.plan)) {
-    // Read user_stats directly (not via `getUserUsageData`). Priority
-    // lookup prefers org over personal within tier, so during a
-    // cancel-at-period-end grace window it would return pooled org usage
-    // instead of this user's personal period — overbilling the final
-    // personal Pro invoice.
-    const [statsRow] = await db
-      .select({
-        currentPeriodCost: userStats.currentPeriodCost,
-        proPeriodCostSnapshot: userStats.proPeriodCostSnapshot,
-        proPeriodCostSnapshotAt: userStats.proPeriodCostSnapshotAt,
-      })
-      .from(userStats)
-      .where(eq(userStats.userId, sub.referenceId))
-      .limit(1)
-
-    const personalCurrentUsage = statsRow ? toNumber(toDecimal(statsRow.currentPeriodCost)) : 0
-    const snapshotUsage = statsRow ? toNumber(toDecimal(statsRow.proPeriodCostSnapshot)) : 0
-    const snapshotAt = statsRow?.proPeriodCostSnapshotAt ?? null
-
-    const joinedOrgMidCycle = snapshotAt !== null || snapshotUsage > 0
-    const totalProUsageDecimal = joinedOrgMidCycle
-      ? toDecimal(snapshotUsage)
-      : toDecimal(personalCurrentUsage)
-
-    if (joinedOrgMidCycle) {
-      logger.info('Billing personal Pro only for pre-join usage (user joined org mid-cycle)', {
-        userId: sub.referenceId,
-        preJoinUsage: snapshotUsage,
-        postJoinUsageOnMemberRow: personalCurrentUsage,
-        snapshotAt: snapshotAt?.toISOString() ?? null,
-        subscriptionId: sub.id,
-      })
-    }
-
-    let dailyRefreshDeduction = 0
-    const planDollars = getPlanTierDollars(sub.plan)
-    if (planDollars > 0 && sub.periodStart) {
-      // If the user joined an org mid-cycle, their usageLog rows after
-      // `snapshotAt` belong to the org's pooled refresh. Cap refresh
-      // to [periodStart, snapshotAt) so post-join refresh isn't
-      // deducted from pre-join personal Pro usage.
-      const refreshCap = joinedOrgMidCycle && snapshotAt ? snapshotAt : (sub.periodEnd ?? null)
-      dailyRefreshDeduction = await computeDailyRefreshConsumed({
-        userIds: [sub.referenceId],
-        periodStart: sub.periodStart,
-        periodEnd: refreshCap,
-        planDollars,
-      })
-    }
-
-    const effectiveUsageDecimal = Decimal.max(
-      0,
-      totalProUsageDecimal.minus(toDecimal(dailyRefreshDeduction))
-    )
-    const { basePrice } = getPlanPricing(sub.plan ?? '')
-    totalOverageDecimal = Decimal.max(0, effectiveUsageDecimal.minus(basePrice))
-
-    logger.info('Calculated personal pro overage', {
-      subscriptionId: sub.id,
-      joinedOrgMidCycle,
-      personalCurrentUsage,
-      snapshot: snapshotUsage,
-      billedUsage: toNumber(totalProUsageDecimal),
-      dailyRefreshDeduction,
-      basePrice,
-      totalOverage: toNumber(totalOverageDecimal),
-    })
-  } else {
-    // Free or unknown plan. Same direct-read rationale as the Pro branch.
-    const [statsRow] = await db
-      .select({ currentPeriodCost: userStats.currentPeriodCost })
-      .from(userStats)
-      .where(eq(userStats.userId, sub.referenceId))
-      .limit(1)
-    const personalCurrentUsage = statsRow ? toNumber(toDecimal(statsRow.currentPeriodCost)) : 0
-    const { basePrice } = getPlanPricing(sub.plan || 'free')
-    totalOverageDecimal = Decimal.max(0, toDecimal(personalCurrentUsage).minus(basePrice))
-
-    logger.info('Calculated overage for plan', {
-      subscriptionId: sub.id,
-      plan: sub.plan || 'free',
-      usage: personalCurrentUsage,
-      basePrice,
-      totalOverage: toNumber(totalOverageDecimal),
-    })
-  }
-
-  return toNumber(totalOverageDecimal)
 }
 
 /**
@@ -410,35 +232,12 @@ export async function getSimplifiedBillingSummary(
       // Pool usage/copilot across all members in one query. Must not use
       // `getUserUsageData` per-member — it now returns the pool itself
       // for org-scoped subs, which would N-times-count.
-      const pooled = await aggregateOrgMemberStats(organizationId)
+      const pooled = await aggregateOrgMemberStats(organizationId, subscription)
 
       const rawCurrentUsage = pooled.currentPeriodCost
+      const effectiveCurrentUsage = pooled.effectiveCurrentPeriodCost
       const totalCopilotCost = pooled.currentPeriodCopilotCost
       const totalLastPeriodCopilotCost = pooled.lastPeriodCopilotCost
-
-      // Deduct daily-refresh credits against this specific org's pool.
-      // `usageData` is derived from the caller's priority subscription
-      // and may not match the requested org (multi-org admins, personal
-      // priority sub, etc.), so it cannot be reused here.
-      let refreshDeduction = 0
-      if (isPaid(plan) && subscription.periodStart) {
-        const planDollars = getPlanTierDollars(plan)
-        if (planDollars > 0) {
-          const userBounds = await getOrgMemberRefreshBounds(
-            organizationId,
-            subscription.periodStart
-          )
-          refreshDeduction = await computeDailyRefreshConsumed({
-            userIds: pooled.memberIds,
-            periodStart: subscription.periodStart,
-            periodEnd: subscription.periodEnd ?? null,
-            planDollars,
-            seats: subscription.seats || 1,
-            userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
-          })
-        }
-      }
-      const effectiveCurrentUsage = Math.max(0, rawCurrentUsage - refreshDeduction)
 
       const { limit: orgUsageLimit } = await getOrgUsageLimit(
         organizationId,
@@ -459,7 +258,7 @@ export async function getSimplifiedBillingSummary(
           )
         : 0
 
-      const orgCredits = await getCreditBalance(userId)
+      const orgCreditBalance = await getCreditBalanceForEntity('organization', organizationId)
       const orgBillingInterval = getBillingInterval(subscription.metadata as SubscriptionMetadata)
 
       return {
@@ -471,7 +270,7 @@ export async function getSimplifiedBillingSummary(
         isWarning,
         isExceeded,
         daysRemaining,
-        creditBalance: orgCredits.balance,
+        creditBalance: orgCreditBalance,
         billingInterval: orgBillingInterval,
         // Subscription details
         isPaid: planIsPaid,
@@ -495,7 +294,7 @@ export async function getSimplifiedBillingSummary(
           isExceeded,
           billingPeriodStart: subscription.periodStart ?? null,
           billingPeriodEnd: subscription.periodEnd ?? null,
-          lastPeriodCost: usageData.lastPeriodCost,
+          lastPeriodCost: pooled.lastPeriodCost,
           lastPeriodCopilotCost: totalLastPeriodCopilotCost,
           daysRemaining,
           copilotCost: totalCopilotCost,
@@ -503,26 +302,29 @@ export async function getSimplifiedBillingSummary(
       }
     }
 
-    const userStatsRows = await db
-      .select({
-        currentPeriodCopilotCost: userStats.currentPeriodCopilotCost,
-        lastPeriodCopilotCost: userStats.lastPeriodCopilotCost,
-      })
-      .from(userStats)
-      .where(eq(userStats.userId, userId))
-      .limit(1)
-
+    const ledgerUsage = await calculateCurrentLedgerUsageForUser(userId, subscription)
     const copilotCost =
-      userStatsRows.length > 0 ? toNumber(toDecimal(userStatsRows[0].currentPeriodCopilotCost)) : 0
+      (ledgerUsage.sourceTotals.copilot ?? 0) + (ledgerUsage.sourceTotals.mcp_copilot ?? 0)
 
-    const lastPeriodCopilotCost =
-      userStatsRows.length > 0 ? toNumber(toDecimal(userStatsRows[0].lastPeriodCopilotCost)) : 0
+    let lastPeriodCopilotCost = 0
+    if (usageData.billingPeriodStart && usageData.billingPeriodEnd) {
+      const periodMs = usageData.billingPeriodEnd.getTime() - usageData.billingPeriodStart.getTime()
+      if (periodMs > 0) {
+        const lastPeriodUsage = await calculateCurrentLedgerUsageForUser(userId, subscription, db, {
+          periodStart: new Date(usageData.billingPeriodStart.getTime() - periodMs),
+          periodEnd: usageData.billingPeriodStart,
+        })
+        lastPeriodCopilotCost =
+          (lastPeriodUsage.sourceTotals.copilot ?? 0) +
+          (lastPeriodUsage.sourceTotals.mcp_copilot ?? 0)
+      }
+    }
 
     const currentUsage = usageData.currentUsage
     let totalCopilotCost = copilotCost
     let totalLastPeriodCopilotCost = lastPeriodCopilotCost
     if (orgScoped && subscription?.referenceId) {
-      const pooled = await aggregateOrgMemberStats(subscription.referenceId)
+      const pooled = await aggregateOrgMemberStats(subscription.referenceId, subscription)
       totalCopilotCost = pooled.currentPeriodCopilotCost
       totalLastPeriodCopilotCost = pooled.lastPeriodCopilotCost
     }

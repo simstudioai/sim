@@ -18,11 +18,14 @@ vi.mock('@/lib/billing/core/usage', () => ({
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({
-  recordUsage: vi.fn(() => Promise.resolve()),
-}))
-
-vi.mock('@/lib/billing/threshold-billing', () => ({
-  checkAndBillOverageThreshold: vi.fn(() => Promise.resolve()),
+  recordUsage: vi.fn(() =>
+    Promise.resolve({
+      recorded: true,
+      userId: 'user-1',
+      billingAttribution: { entityType: 'user', entityId: 'user-1' },
+      subscriptionId: 'sub-1',
+    })
+  ),
 }))
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)

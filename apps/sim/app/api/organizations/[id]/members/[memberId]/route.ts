@@ -1,8 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, user, userStats } from '@sim/db/schema'
+import { member, subscription as subscriptionTable, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   removeOrganizationMemberQuerySchema,
@@ -11,12 +11,14 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
-import { getUserUsageData } from '@/lib/billing/core/usage'
+import { calculateOrganizationMemberLedgerUsage } from '@/lib/billing/ledger/usage-ledger'
 import {
   removeExternalUserFromOrganizationWorkspaces,
   removeUserFromOrganization,
+  updateOrganizationMemberRoleWithBilling,
 } from '@/lib/billing/organizations/membership'
 import { reduceOrganizationSeatsByOne } from '@/lib/billing/organizations/seats'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationMemberAPI')
@@ -89,7 +91,6 @@ export const GET = withRouteHandler(
       if (includeUsage && hasAdminAccess) {
         const usageData = await db
           .select({
-            currentPeriodCost: userStats.currentPeriodCost,
             currentUsageLimit: userStats.currentUsageLimit,
             usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
             lastPeriodCost: userStats.lastPeriodCost,
@@ -98,15 +99,33 @@ export const GET = withRouteHandler(
           .where(eq(userStats.userId, memberId))
           .limit(1)
 
-        const computed = await getUserUsageData(memberId)
+        const [orgSub] = await db
+          .select({
+            periodStart: subscriptionTable.periodStart,
+            periodEnd: subscriptionTable.periodEnd,
+          })
+          .from(subscriptionTable)
+          .where(
+            and(
+              eq(subscriptionTable.referenceId, organizationId),
+              inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+            )
+          )
+          .limit(1)
+        const memberUsage = await calculateOrganizationMemberLedgerUsage(organizationId, {
+          periodStart: orgSub?.periodStart ?? null,
+          periodEnd: orgSub?.periodEnd ?? null,
+          memberIds: [memberId],
+        })
 
         if (usageData.length > 0) {
           memberData = {
             ...memberData,
             usage: {
               ...usageData[0],
-              billingPeriodStart: computed.billingPeriodStart,
-              billingPeriodEnd: computed.billingPeriodEnd,
+              currentPeriodCost: (memberUsage[memberId] ?? 0).toString(),
+              billingPeriodStart: orgSub?.periodStart ?? null,
+              billingPeriodEnd: orgSub?.periodEnd ?? null,
             },
           } as typeof memberData & {
             usage: (typeof usageData)[0] & {
@@ -202,13 +221,14 @@ export const PUT = withRouteHandler(
         )
       }
 
-      const updatedMember = await db
-        .update(member)
-        .set({ role })
-        .where(and(eq(member.organizationId, organizationId), eq(member.userId, memberId)))
-        .returning()
+      const updatedMember = await updateOrganizationMemberRoleWithBilling({
+        userId: memberId,
+        organizationId,
+        previousRole: targetMember[0].role as 'admin' | 'member' | 'owner',
+        nextRole: role as 'admin' | 'member' | 'owner',
+      })
 
-      if (updatedMember.length === 0) {
+      if (!updatedMember) {
         return NextResponse.json({ error: 'Failed to update member role' }, { status: 500 })
       }
 
@@ -241,9 +261,9 @@ export const PUT = withRouteHandler(
         success: true,
         message: 'Member role updated successfully',
         data: {
-          id: updatedMember[0].id,
-          userId: updatedMember[0].userId,
-          role: updatedMember[0].role,
+          id: updatedMember.id,
+          userId: updatedMember.userId,
+          role: updatedMember.role,
           updatedBy: session.user.id,
         },
       })

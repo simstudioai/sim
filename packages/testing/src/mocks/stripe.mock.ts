@@ -37,6 +37,7 @@ export const stripePaymentMethodMockFns = {
   mockResolveDefaultPaymentMethod: vi.fn(async () => ({
     paymentMethodId: undefined as string | undefined,
     collectionMethod: 'charge_automatically' as 'charge_automatically' | 'send_invoice' | null,
+    daysUntilDue: null as number | null,
   })),
   mockGetCustomerId: vi.fn(),
 }

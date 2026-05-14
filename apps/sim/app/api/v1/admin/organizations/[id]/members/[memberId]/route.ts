@@ -26,16 +26,27 @@
  */
 
 import { db } from '@sim/db'
-import { member, organization, user, userStats } from '@sim/db/schema'
+import {
+  member,
+  organization,
+  subscription as subscriptionTable,
+  user,
+  userStats,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import {
   adminV1GetOrganizationMemberContract,
   adminV1RemoveOrganizationMemberContract,
   adminV1UpdateOrganizationMemberContract,
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
-import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
+import { calculateOrganizationMemberLedgerUsage } from '@/lib/billing/ledger/usage-ledger'
+import {
+  removeUserFromOrganization,
+  updateOrganizationMemberRoleWithBilling,
+} from '@/lib/billing/organizations/membership'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -84,7 +95,6 @@ export const GET = withRouteHandler(
           createdAt: member.createdAt,
           userName: user.name,
           userEmail: user.email,
-          currentPeriodCost: userStats.currentPeriodCost,
           currentUsageLimit: userStats.currentUsageLimit,
           lastActive: userStats.lastActive,
           billingBlocked: userStats.billingBlocked,
@@ -99,6 +109,25 @@ export const GET = withRouteHandler(
         return notFoundResponse('Member')
       }
 
+      const [orgSub] = await db
+        .select({
+          periodStart: subscriptionTable.periodStart,
+          periodEnd: subscriptionTable.periodEnd,
+        })
+        .from(subscriptionTable)
+        .where(
+          and(
+            eq(subscriptionTable.referenceId, organizationId),
+            inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          )
+        )
+        .limit(1)
+      const memberUsage = await calculateOrganizationMemberLedgerUsage(organizationId, {
+        periodStart: orgSub?.periodStart ?? null,
+        periodEnd: orgSub?.periodEnd ?? null,
+        memberIds: [memberData.userId],
+      })
+
       const data: AdminMemberDetail = {
         id: memberData.id,
         userId: memberData.userId,
@@ -107,7 +136,7 @@ export const GET = withRouteHandler(
         createdAt: memberData.createdAt.toISOString(),
         userName: memberData.userName,
         userEmail: memberData.userEmail,
-        currentPeriodCost: memberData.currentPeriodCost ?? '0',
+        currentPeriodCost: (memberUsage[memberData.userId] ?? 0).toString(),
         currentUsageLimit: memberData.currentUsageLimit,
         lastActive: memberData.lastActive?.toISOString() ?? null,
         billingBlocked: memberData.billingBlocked ?? false,
@@ -170,11 +199,16 @@ export const PATCH = withRouteHandler(
         return badRequestResponse('Cannot change owner role')
       }
 
-      const [updated] = await db
-        .update(member)
-        .set({ role })
-        .where(eq(member.id, memberId))
-        .returning()
+      const updated = await updateOrganizationMemberRoleWithBilling({
+        userId: existingMember.userId,
+        organizationId,
+        previousRole: existingMember.role as 'admin' | 'member' | 'owner',
+        nextRole: role as 'admin' | 'member' | 'owner',
+      })
+
+      if (!updated) {
+        return notFoundResponse('Member')
+      }
 
       const [userData] = await db
         .select({ name: user.name, email: user.email })
@@ -269,7 +303,7 @@ export const DELETE = withRouteHandler(
         memberId,
         userId,
         billingActions: {
-          usageCaptured: result.billingActions.usageCaptured,
+          usageCaptured: result.billingActions.usageCaptured > 0,
           proRestored: result.billingActions.proRestored,
           usageRestored: result.billingActions.usageRestored,
           skipBillingLogic,

@@ -25,7 +25,6 @@ export {
 export * from '@/lib/billing/core/usage'
 export {
   checkUsageStatus,
-  getTeamUsageLimits,
   getUserUsageData as getUsageData,
   getUserUsageLimit as getUsageLimit,
   updateUserUsageLimit as updateUsageLimit,

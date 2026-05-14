@@ -11,7 +11,7 @@
  */
 
 import type { AnyColumn } from 'drizzle-orm'
-import { eq, like, or, type SQL } from 'drizzle-orm'
+import { eq, like, or, type SQL, sql } from 'drizzle-orm'
 import {
   CREDIT_TIERS,
   DEFAULT_PRO_TIER_COST_LIMIT,
@@ -55,6 +55,30 @@ export function isPaid(plan: string | null | undefined): boolean {
  */
 export function isOrgPlan(plan: string | null | undefined): boolean {
   return isTeam(plan) || isEnterprise(plan)
+}
+
+export function isPooledOrganizationPlan(plan: string | null | undefined): boolean {
+  return isTeam(plan) || isEnterprise(plan)
+}
+
+export function doesOrganizationSubscriptionOwnMemberUsage(
+  plan: string | null | undefined,
+  role: string | null | undefined
+): boolean {
+  if (isPooledOrganizationPlan(plan)) return true
+  return isPro(plan) && (role === 'owner' || role === 'admin')
+}
+
+export function sqlOrganizationSubscriptionOwnsMemberUsage(
+  planColumn: AnyColumn,
+  roleColumn: AnyColumn
+): SQL {
+  return or(
+    eq(planColumn, 'enterprise'),
+    sqlIsTeam(planColumn)!,
+    sql`((${planColumn} = 'pro' OR ${planColumn} LIKE 'pro_%')
+      AND (${roleColumn} = 'owner' OR ${roleColumn} = 'admin'))`
+  )!
 }
 
 /**

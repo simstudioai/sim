@@ -1,14 +1,13 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { wandGenerateContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getSession } from '@/lib/auth'
 import { recordUsage } from '@/lib/billing/core/usage-log'
-import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -106,7 +105,6 @@ async function updateUserStatsForWand(
   }
 
   try {
-    const totalTokens = usage.total_tokens || 0
     const promptTokens = usage.prompt_tokens || 0
     const completionTokens = usage.completion_tokens || 0
 
@@ -141,12 +139,8 @@ async function updateUserStatsForWand(
           metadata: { inputTokens: promptTokens, outputTokens: completionTokens },
         },
       ],
-      additionalStats: {
-        totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
-      },
+      sourceEventKey: `wand:${requestId}`,
     })
-
-    await checkAndBillOverageThreshold(billingUserId)
   } catch (error) {
     logger.error(`[${requestId}] Failed to update user stats for wand usage`, error)
   }

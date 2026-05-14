@@ -12,23 +12,34 @@
  * Body:
  *   - currentUsageLimit?: number | null - Usage limit (null to use default)
  *   - billingBlocked?: boolean - Block/unblock billing
- *   - currentPeriodCost?: number - Reset/adjust current period cost (use with caution)
  *   - reason?: string - Reason for the change (for audit logging)
  *
  * Response: AdminSingleResponse<{ success: true, updated: string[], warnings: string[] }>
  */
 
 import { db } from '@sim/db'
-import { member, organization, subscription, user, userStats } from '@sim/db/schema'
+import {
+  member,
+  organization,
+  subscription,
+  user,
+  userStats,
+  workflow,
+  workflowExecutionLogs,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
-import { eq, or } from 'drizzle-orm'
+import { eq, or, sql } from 'drizzle-orm'
 import {
   adminV1GetUserBillingContract,
   adminV1UpdateUserBillingContract,
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import {
+  calculateAllTimeUsageActivityForUser,
+  calculateCurrentLedgerUsageForUser,
+} from '@/lib/billing/ledger/usage-ledger'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -77,6 +88,54 @@ export const GET = withRouteHandler(
       }
 
       const [stats] = await db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1)
+      const highestSubscription = await getHighestPrioritySubscription(userId)
+      const [executionCounts] = await db
+        .select({
+          manual: sql<number>`COUNT(*) FILTER (WHERE ${workflowExecutionLogs.trigger} = 'manual')::int`,
+          api: sql<number>`COUNT(*) FILTER (WHERE ${workflowExecutionLogs.trigger} = 'api')::int`,
+          webhook: sql<number>`COUNT(*) FILTER (WHERE ${workflowExecutionLogs.trigger} = 'webhook')::int`,
+          schedule: sql<number>`COUNT(*) FILTER (WHERE ${workflowExecutionLogs.trigger} = 'schedule')::int`,
+          chat: sql<number>`COUNT(*) FILTER (WHERE ${workflowExecutionLogs.trigger} = 'chat')::int`,
+          mcp: sql<number>`COUNT(*) FILTER (WHERE ${workflowExecutionLogs.trigger} = 'mcp')::int`,
+          a2a: sql<number>`COUNT(*) FILTER (WHERE ${workflowExecutionLogs.trigger} = 'a2a')::int`,
+        })
+        .from(workflowExecutionLogs)
+        .innerJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+        .where(eq(workflow.userId, userId))
+      const currentPeriod =
+        highestSubscription?.periodStart && highestSubscription.periodEnd
+          ? {
+              periodStart: highestSubscription.periodStart,
+              periodEnd: highestSubscription.periodEnd,
+            }
+          : undefined
+      const [currentActivity, allTimeLedgerUsage] = await Promise.all([
+        calculateAllTimeUsageActivityForUser(userId, db, currentPeriod),
+        calculateAllTimeUsageActivityForUser(userId),
+      ])
+      const currentCopilotCost =
+        (currentActivity.sourceTotals.copilot ?? 0) +
+        (currentActivity.sourceTotals.mcp_copilot ?? 0)
+      const totalCopilotCost =
+        (allTimeLedgerUsage.sourceTotals.copilot ?? 0) +
+        (allTimeLedgerUsage.sourceTotals.mcp_copilot ?? 0)
+      let lastPeriodCost = stats?.lastPeriodCost ?? null
+      let lastPeriodCopilotCost = stats?.lastPeriodCopilotCost ?? null
+      if (highestSubscription?.periodStart && highestSubscription.periodEnd) {
+        const periodMs =
+          highestSubscription.periodEnd.getTime() - highestSubscription.periodStart.getTime()
+        if (periodMs > 0) {
+          const lastPeriodUsage = await calculateAllTimeUsageActivityForUser(userId, db, {
+            periodStart: new Date(highestSubscription.periodStart.getTime() - periodMs),
+            periodEnd: highestSubscription.periodStart,
+          })
+          lastPeriodCost = lastPeriodUsage.grossUsage.toString()
+          lastPeriodCopilotCost = (
+            (lastPeriodUsage.sourceTotals.copilot ?? 0) +
+            (lastPeriodUsage.sourceTotals.mcp_copilot ?? 0)
+          ).toString()
+        }
+      }
 
       const memberOrgs = await db
         .select({
@@ -107,27 +166,27 @@ export const GET = withRouteHandler(
         userName: userData.name,
         userEmail: userData.email,
         stripeCustomerId: userData.stripeCustomerId,
-        totalManualExecutions: stats?.totalManualExecutions ?? 0,
-        totalApiCalls: stats?.totalApiCalls ?? 0,
-        totalWebhookTriggers: stats?.totalWebhookTriggers ?? 0,
-        totalScheduledExecutions: stats?.totalScheduledExecutions ?? 0,
-        totalChatExecutions: stats?.totalChatExecutions ?? 0,
-        totalMcpExecutions: stats?.totalMcpExecutions ?? 0,
-        totalA2aExecutions: stats?.totalA2aExecutions ?? 0,
-        totalTokensUsed: stats?.totalTokensUsed ?? 0,
-        totalCost: stats?.totalCost ?? '0',
+        totalManualExecutions: Number(executionCounts?.manual ?? 0),
+        totalApiCalls: Number(executionCounts?.api ?? 0),
+        totalWebhookTriggers: Number(executionCounts?.webhook ?? 0),
+        totalScheduledExecutions: Number(executionCounts?.schedule ?? 0),
+        totalChatExecutions: Number(executionCounts?.chat ?? 0),
+        totalMcpExecutions: Number(executionCounts?.mcp ?? 0),
+        totalA2aExecutions: Number(executionCounts?.a2a ?? 0),
+        totalTokensUsed: allTimeLedgerUsage.totalTokens,
+        totalCost: allTimeLedgerUsage.grossUsage.toString(),
         currentUsageLimit: stats?.currentUsageLimit ?? null,
-        currentPeriodCost: stats?.currentPeriodCost ?? '0',
-        lastPeriodCost: stats?.lastPeriodCost ?? null,
+        currentPeriodCost: currentActivity.grossUsage.toString(),
+        lastPeriodCost,
         billedOverageThisPeriod: stats?.billedOverageThisPeriod ?? '0',
         storageUsedBytes: stats?.storageUsedBytes ?? 0,
         lastActive: stats?.lastActive?.toISOString() ?? null,
         billingBlocked: stats?.billingBlocked ?? false,
-        totalCopilotCost: stats?.totalCopilotCost ?? '0',
-        currentPeriodCopilotCost: stats?.currentPeriodCopilotCost ?? '0',
-        lastPeriodCopilotCost: stats?.lastPeriodCopilotCost ?? null,
-        totalCopilotTokens: stats?.totalCopilotTokens ?? 0,
-        totalCopilotCalls: stats?.totalCopilotCalls ?? 0,
+        totalCopilotCost: totalCopilotCost.toString(),
+        currentPeriodCopilotCost: currentCopilotCost.toString(),
+        lastPeriodCopilotCost,
+        totalCopilotTokens: allTimeLedgerUsage.copilotTokens,
+        totalCopilotCalls: allTimeLedgerUsage.copilotCalls,
         subscriptions: subscriptions.map(toAdminSubscription),
         organizationMemberships: memberOrgs.map((m) => ({
           organizationId: m.organizationId,
@@ -204,7 +263,8 @@ export const PATCH = withRouteHandler(
         if (currentUsageLimit === null) {
           updateData.currentUsageLimit = null
         } else {
-          const currentCost = Number.parseFloat(existingStats?.currentPeriodCost || '0')
+          const ledgerUsage = await calculateCurrentLedgerUsageForUser(userId, userSubscription)
+          const currentCost = ledgerUsage.effectiveUsage
           if (currentUsageLimit < currentCost) {
             warnings.push(
               `New limit ($${currentUsageLimit.toFixed(2)}) is below current usage ($${currentCost.toFixed(2)}). User may be immediately blocked.`
@@ -232,16 +292,20 @@ export const PATCH = withRouteHandler(
       }
 
       if (currentPeriodCost !== undefined) {
-        const previousCost = existingStats?.currentPeriodCost || '0'
         warnings.push(
-          `Manually adjusting currentPeriodCost from $${previousCost} to $${currentPeriodCost.toFixed(2)}. This may affect billing accuracy.`
+          'currentPeriodCost is derived from usage logs and is ignored for compatibility.'
         )
-
-        updateData.currentPeriodCost = currentPeriodCost.toFixed(2)
-        updated.push('currentPeriodCost')
       }
 
       if (updated.length === 0) {
+        if (currentPeriodCost !== undefined) {
+          return singleResponse({
+            success: true,
+            updated,
+            warnings,
+            reason,
+          })
+        }
         return badRequestResponse('No valid fields to update')
       }
 

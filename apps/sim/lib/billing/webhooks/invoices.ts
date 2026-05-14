@@ -1,6 +1,7 @@
 import { render } from '@react-email/render'
 import { db } from '@sim/db'
 import {
+  billingClaim,
   member,
   organization,
   subscription as subscriptionTable,
@@ -11,15 +12,18 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
-import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
+import {
+  BILLING_CLAIM_PAYMENT_BLOCKING_STATUSES,
+  BILLING_CLAIM_WEBHOOK_MUTABLE_STATUSES,
+} from '@/lib/billing/claims/status'
+import { isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { addCredits, getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
-import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
-import { isEnterprise } from '@/lib/billing/plan-helpers'
+import { createOverageBillingClaim } from '@/lib/billing/ledger/usage-ledger'
+import { blockOrgMembers } from '@/lib/billing/organizations/membership'
+import { isEnterprise, isPooledOrganizationPlan } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
-import { resolveDefaultPaymentMethod } from '@/lib/billing/stripe-payment-method'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
-import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -50,6 +54,17 @@ type BillingSubscription = typeof subscriptionTable.$inferSelect
 interface ResolvedInvoiceSubscription extends InvoiceSubscriptionContext {
   sub: BillingSubscription
   stripeSubscriptionId: string
+}
+
+function resolveInvoiceCustomerId(invoice: Stripe.Invoice): string | null {
+  const { customer } = invoice
+  if (typeof customer === 'string') {
+    return customer || null
+  }
+  if (!customer || ('deleted' in customer && customer.deleted)) {
+    return null
+  }
+  return customer.id || null
 }
 
 function resolveInvoiceSubscriptionContext(invoice: Stripe.Invoice): InvoiceSubscriptionContext {
@@ -127,14 +142,14 @@ async function resolveInvoiceSubscription(
     .limit(1)
 
   if (records.length === 0) {
-    logger.warn('Subscription not found in database for invoice', {
+    logger.error('Subscription not found in database for subscription invoice', {
       handlerName,
       invoiceId: invoice.id,
       invoiceType: subscriptionContext.invoiceType,
       resolutionSource: subscriptionContext.resolutionSource,
       stripeSubscriptionId: subscriptionContext.stripeSubscriptionId,
     })
-    return null
+    throw new Error('Subscription row is required for subscription invoice handling')
   }
 
   return {
@@ -339,83 +354,36 @@ async function sendPaymentFailureEmails(
   }
 }
 
-/**
- * Get total billed overage for a subscription, handling org-scoped vs
- * personally-scoped plans.
- * - Org-scoped (team, enterprise, or `pro_*` attached to an org):
- *   stored on the org owner's `userStats.billedOverageThisPeriod`.
- * - Personally-scoped: the user's own `billedOverageThisPeriod`.
- */
-export async function getBilledOverageForSubscription(sub: {
+export async function resetUsageForSubscription(sub: { plan: string | null; referenceId: string }) {
+  await clearLegacyCoveredOverageForSubscription(sub)
+
+  if (!(await isSubscriptionOrgScoped(sub))) {
+    await db
+      .update(userStats)
+      .set({
+        proPeriodCostSnapshot: '0',
+        proPeriodCostSnapshotAt: null,
+      })
+      .where(eq(userStats.userId, sub.referenceId))
+  }
+}
+
+async function clearLegacyCoveredOverageForSubscription(sub: {
   plan: string | null
   referenceId: string
-}): Promise<number> {
+}) {
   if (await isSubscriptionOrgScoped(sub)) {
-    const ownerRows = await db
+    const [ownerRow] = await db
       .select({ userId: member.userId })
       .from(member)
       .where(and(eq(member.organizationId, sub.referenceId), eq(member.role, 'owner')))
       .limit(1)
 
-    const ownerId = ownerRows[0]?.userId
-
-    if (!ownerId) {
-      logger.warn('Organization has no owner when fetching billed overage', {
-        organizationId: sub.referenceId,
-      })
-      return 0
-    }
-
-    const ownerStats = await db
-      .select({ billedOverageThisPeriod: userStats.billedOverageThisPeriod })
-      .from(userStats)
-      .where(eq(userStats.userId, ownerId))
-      .limit(1)
-
-    return ownerStats.length > 0 ? toNumber(toDecimal(ownerStats[0].billedOverageThisPeriod)) : 0
-  }
-
-  const userStatsRecords = await db
-    .select({ billedOverageThisPeriod: userStats.billedOverageThisPeriod })
-    .from(userStats)
-    .where(eq(userStats.userId, sub.referenceId))
-    .limit(1)
-
-  return userStatsRecords.length > 0
-    ? toNumber(toDecimal(userStatsRecords[0].billedOverageThisPeriod))
-    : 0
-}
-
-export async function resetUsageForSubscription(sub: { plan: string | null; referenceId: string }) {
-  if (await isSubscriptionOrgScoped(sub)) {
-    const membersRows = await db
-      .select({ userId: member.userId })
-      .from(member)
-      .where(eq(member.organizationId, sub.referenceId))
-
-    for (const m of membersRows) {
-      const currentStats = await db
-        .select({
-          current: userStats.currentPeriodCost,
-          currentCopilot: userStats.currentPeriodCopilotCost,
-        })
-        .from(userStats)
-        .where(eq(userStats.userId, m.userId))
-        .limit(1)
-      if (currentStats.length > 0) {
-        const current = currentStats[0].current || '0'
-        const currentCopilot = currentStats[0].currentCopilot || '0'
-        await db
-          .update(userStats)
-          .set({
-            lastPeriodCost: current,
-            lastPeriodCopilotCost: currentCopilot,
-            currentPeriodCost: sql`GREATEST(0, ${userStats.currentPeriodCost} - ${current}::decimal)`,
-            currentPeriodCopilotCost: sql`GREATEST(0, ${userStats.currentPeriodCopilotCost} - ${currentCopilot}::decimal)`,
-            billedOverageThisPeriod: '0',
-          })
-          .where(eq(userStats.userId, m.userId))
-      }
+    if (ownerRow?.userId) {
+      await db
+        .update(userStats)
+        .set({ billedOverageThisPeriod: '0' })
+        .where(eq(userStats.userId, ownerRow.userId))
     }
 
     await db
@@ -423,53 +391,125 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
       .set({ departedMemberUsage: '0' })
       .where(eq(organization.id, sub.referenceId))
   } else {
-    const currentStats = await db
-      .select({
-        current: userStats.currentPeriodCost,
-        snapshot: userStats.proPeriodCostSnapshot,
-        currentCopilot: userStats.currentPeriodCopilotCost,
+    await db
+      .update(userStats)
+      .set({
+        billedOverageThisPeriod: '0',
       })
-      .from(userStats)
       .where(eq(userStats.userId, sub.referenceId))
-      .limit(1)
-    if (currentStats.length > 0) {
-      const current = currentStats[0].current || '0'
-      const snapshot = toNumber(toDecimal(currentStats[0].snapshot))
-      const currentCopilot = currentStats[0].currentCopilot || '0'
-
-      // Snapshot > 0: user joined a paid org mid-cycle. The pre-join
-      // portion was billed on this invoice (snapshot); `currentPeriodCost`
-      // is post-join usage the org will bill next cycle-close, so keep
-      // it. Only retire the personal-billing trackers here.
-      if (snapshot > 0) {
-        await db
-          .update(userStats)
-          .set({
-            lastPeriodCost: snapshot.toString(),
-            lastPeriodCopilotCost: '0',
-            proPeriodCostSnapshot: '0',
-            proPeriodCostSnapshotAt: null,
-            billedOverageThisPeriod: '0',
-          })
-          .where(eq(userStats.userId, sub.referenceId))
-      } else {
-        const totalLastPeriod = toNumber(toDecimal(current).plus(snapshot)).toString()
-        // Delta-reset for the same reason as the org branch above.
-        await db
-          .update(userStats)
-          .set({
-            lastPeriodCost: totalLastPeriod,
-            lastPeriodCopilotCost: currentCopilot,
-            currentPeriodCost: sql`GREATEST(0, ${userStats.currentPeriodCost} - ${current}::decimal)`,
-            currentPeriodCopilotCost: sql`GREATEST(0, ${userStats.currentPeriodCopilotCost} - ${currentCopilot}::decimal)`,
-            proPeriodCostSnapshot: '0',
-            proPeriodCostSnapshotAt: null,
-            billedOverageThisPeriod: '0',
-          })
-          .where(eq(userStats.userId, sub.referenceId))
-      }
-    }
   }
+}
+
+async function getOrganizationBillingContactIds(organizationId: string): Promise<string[]> {
+  const rows = await db
+    .select({ userId: member.userId })
+    .from(member)
+    .where(and(eq(member.organizationId, organizationId), inArray(member.role, ['owner', 'admin'])))
+
+  return rows.map((row) => row.userId)
+}
+
+async function getOrganizationBillingContactsBlocked(organizationId: string): Promise<boolean> {
+  const contactIds = await getOrganizationBillingContactIds(organizationId)
+  if (contactIds.length === 0) return false
+
+  const rows = await db
+    .select({ blocked: userStats.billingBlocked })
+    .from(userStats)
+    .where(inArray(userStats.userId, contactIds))
+
+  return rows.some((row) => !!row.blocked)
+}
+
+async function blockOrganizationBillingContacts(organizationId: string): Promise<number> {
+  const contactIds = await getOrganizationBillingContactIds(organizationId)
+  if (contactIds.length === 0) return 0
+
+  const rows = await db
+    .update(userStats)
+    .set({ billingBlocked: true, billingBlockedReason: 'payment_failed' })
+    .where(
+      and(
+        inArray(userStats.userId, contactIds),
+        or(ne(userStats.billingBlockedReason, 'dispute'), isNull(userStats.billingBlockedReason))
+      )
+    )
+    .returning({ userId: userStats.userId })
+
+  return rows.length
+}
+
+async function unblockOrganizationBillingContacts(organizationId: string): Promise<number> {
+  const contactIds = await getOrganizationBillingContactIds(organizationId)
+  if (contactIds.length === 0) return 0
+
+  return unblockUsersWithoutPersonalPaymentIssue(contactIds)
+}
+
+async function unblockOrganizationMembersWithoutPersonalPaymentIssue(
+  organizationId: string
+): Promise<number> {
+  const rows = await db
+    .select({ userId: member.userId })
+    .from(member)
+    .where(eq(member.organizationId, organizationId))
+
+  return unblockUsersWithoutPersonalPaymentIssue(rows.map((row) => row.userId))
+}
+
+async function unblockUsersWithoutPersonalPaymentIssue(userIds: string[]): Promise<number> {
+  if (userIds.length === 0) return 0
+
+  const unblockableContactIds: string[] = []
+  for (const userId of userIds) {
+    if (await hasPersonalPaymentIssue(userId)) continue
+    unblockableContactIds.push(userId)
+  }
+  if (unblockableContactIds.length === 0) return 0
+
+  const rows = await db
+    .update(userStats)
+    .set({ billingBlocked: false, billingBlockedReason: null })
+    .where(
+      and(
+        inArray(userStats.userId, unblockableContactIds),
+        eq(userStats.billingBlockedReason, 'payment_failed')
+      )
+    )
+    .returning({ userId: userStats.userId })
+
+  return rows.length
+}
+
+async function hasPersonalPaymentIssue(userId: string): Promise<boolean> {
+  const [pastDueSubscription] = await db
+    .select({ id: subscriptionTable.id })
+    .from(subscriptionTable)
+    .where(and(eq(subscriptionTable.referenceId, userId), eq(subscriptionTable.status, 'past_due')))
+    .limit(1)
+
+  if (pastDueSubscription) return true
+
+  return hasUnresolvedBillingClaimsForEntity('user', userId)
+}
+
+async function hasUnresolvedBillingClaimsForEntity(
+  entityType: 'user' | 'organization',
+  entityId: string
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: billingClaim.id })
+    .from(billingClaim)
+    .where(
+      and(
+        eq(billingClaim.entityType, entityType),
+        eq(billingClaim.entityId, entityId),
+        inArray(billingClaim.status, BILLING_CLAIM_PAYMENT_BLOCKING_STATUSES)
+      )
+    )
+    .limit(1)
+
+  return rows.length > 0
 }
 
 /**
@@ -644,11 +684,14 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
           return
         }
 
+        await updateBillingClaimFromInvoice(invoice, 'paid')
+
         const { sub } = resolvedInvoice
         const subIsOrgScoped = await isSubscriptionOrgScoped(sub)
+        const subIsPooledOrgScoped = subIsOrgScoped && isPooledOrganizationPlan(sub.plan)
 
         let wasBlocked = false
-        if (subIsOrgScoped) {
+        if (subIsPooledOrgScoped) {
           const membersRows = await db
             .select({ userId: member.userId })
             .from(member)
@@ -662,6 +705,8 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
 
             wasBlocked = blockedRows.some((row) => !!row.blocked)
           }
+        } else if (subIsOrgScoped) {
+          wasBlocked = await getOrganizationBillingContactsBlocked(sub.referenceId)
         } else {
           const row = await db
             .select({ blocked: userStats.billingBlocked })
@@ -673,10 +718,16 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
 
         const isProrationInvoice = invoice.billing_reason === 'subscription_update'
         const shouldUnblock = !isProrationInvoice || (invoice.amount_paid ?? 0) > 0
+        const hasUnresolvedClaims = await hasUnresolvedBillingClaimsForEntity(
+          subIsOrgScoped ? 'organization' : 'user',
+          sub.referenceId
+        )
 
-        if (shouldUnblock) {
-          if (subIsOrgScoped) {
-            await unblockOrgMembers(sub.referenceId, 'payment_failed')
+        if (shouldUnblock && !hasUnresolvedClaims) {
+          if (subIsPooledOrgScoped) {
+            await unblockOrganizationMembersWithoutPersonalPaymentIssue(sub.referenceId)
+          } else if (subIsOrgScoped) {
+            await unblockOrganizationBillingContacts(sub.referenceId)
           } else {
             await db
               .update(userStats)
@@ -689,14 +740,15 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
               )
           }
         } else {
-          logger.info('Skipping unblock for zero-amount proration invoice', {
+          logger.info('Skipping unblock after invoice payment', {
             invoiceId: invoice.id,
             billingReason: invoice.billing_reason,
             amountPaid: invoice.amount_paid,
+            hasUnresolvedClaims,
           })
         }
 
-        if (wasBlocked && !isProrationInvoice) {
+        if (!resolvedInvoice.invoiceType && wasBlocked && !isProrationInvoice) {
           await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
         }
       }
@@ -724,10 +776,12 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
           return
         }
 
+        await updateBillingClaimFromInvoice(invoice, 'failed')
+
         const { invoiceType, resolutionSource, stripeSubscriptionId, sub } = resolvedInvoice
 
-        const customerId = invoice.customer
-        if (!customerId || typeof customerId !== 'string') {
+        const customerId = resolveInvoiceCustomerId(invoice)
+        if (!customerId) {
           logger.error('Invalid customer ID on invoice', {
             invoiceId: invoice.id,
             customer: invoice.customer,
@@ -761,11 +815,19 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
             stripeSubscriptionId,
           })
 
-          if (await isSubscriptionOrgScoped(sub)) {
+          const subIsOrgScoped = await isSubscriptionOrgScoped(sub)
+          if (subIsOrgScoped && isPooledOrganizationPlan(sub.plan)) {
             const memberCount = await blockOrgMembers(sub.referenceId, 'payment_failed')
             logger.info('Blocked org members due to payment failure', {
               invoiceType: invoiceType ?? 'subscription',
               memberCount,
+              organizationId: sub.referenceId,
+            })
+          } else if (subIsOrgScoped) {
+            const contactCount = await blockOrganizationBillingContacts(sub.referenceId)
+            logger.info('Blocked organization billing contacts due to payment failure', {
+              invoiceType: invoiceType ?? 'subscription',
+              contactCount,
               organizationId: sub.referenceId,
             })
           } else {
@@ -812,6 +874,168 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
   }
 }
 
+export async function handleInvoiceVoided(event: Stripe.Event) {
+  const invoice = event.data.object as Stripe.Invoice
+  await moveClaimForTerminalInvoice(invoice, 'invoice_failed')
+}
+
+export async function handleInvoiceMarkedUncollectible(event: Stripe.Event) {
+  const invoice = event.data.object as Stripe.Invoice
+  await moveClaimForTerminalInvoice(invoice, 'failed')
+}
+
+async function updateBillingClaimFromInvoice(
+  invoice: Stripe.Invoice,
+  status: 'paid' | 'failed'
+): Promise<void> {
+  const claimId = invoice.metadata?.claimId
+  if (!claimId) return
+
+  const condition =
+    status === 'failed'
+      ? and(
+          eq(billingClaim.id, claimId),
+          inArray(billingClaim.status, BILLING_CLAIM_WEBHOOK_MUTABLE_STATUSES)
+        )
+      : and(
+          eq(billingClaim.id, claimId),
+          inArray(billingClaim.status, BILLING_CLAIM_WEBHOOK_MUTABLE_STATUSES)
+        )
+
+  await db
+    .update(billingClaim)
+    .set({
+      status,
+      stripeInvoiceId: invoice.id ?? null,
+      updatedAt: new Date(),
+    })
+    .where(condition)
+
+  logger.info('Updated billing claim from Stripe invoice webhook', {
+    claimId,
+    invoiceId: invoice.id,
+    status,
+  })
+}
+
+async function moveClaimForTerminalInvoice(
+  invoice: Stripe.Invoice,
+  status: 'failed' | 'invoice_failed'
+): Promise<void> {
+  const claimId = invoice.metadata?.claimId
+  if (!claimId) return
+
+  await db.transaction(async (tx) => {
+    const [claim] = await tx
+      .select({
+        id: billingClaim.id,
+        entityType: billingClaim.entityType,
+        entityId: billingClaim.entityId,
+        creditApplied: billingClaim.creditApplied,
+      })
+      .from(billingClaim)
+      .where(
+        and(
+          eq(billingClaim.id, claimId),
+          inArray(billingClaim.status, BILLING_CLAIM_WEBHOOK_MUTABLE_STATUSES)
+        )
+      )
+      .for('update')
+      .limit(1)
+
+    if (!claim) return
+
+    if (status === 'invoice_failed') {
+      const creditApplied = Number(claim.creditApplied)
+      if (Number.isFinite(creditApplied) && creditApplied > 0) {
+        if (claim.entityType === 'organization') {
+          await tx
+            .update(organization)
+            .set({ creditBalance: sql`${organization.creditBalance} + ${creditApplied}` })
+            .where(eq(organization.id, claim.entityId))
+        } else {
+          await tx
+            .update(userStats)
+            .set({ creditBalance: sql`${userStats.creditBalance} + ${creditApplied}` })
+            .where(eq(userStats.userId, claim.entityId))
+        }
+      }
+    }
+
+    await tx
+      .update(billingClaim)
+      .set({
+        status,
+        creditApplied: status === 'invoice_failed' ? '0' : claim.creditApplied,
+        stripeInvoiceId: invoice.id ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(billingClaim.id, claimId))
+  })
+}
+
+function resolveInvoiceServicePeriod(invoice: Stripe.Invoice): {
+  periodStart: Date
+  periodEnd: Date
+} | null {
+  const linePeriod = invoice.lines?.data?.find(
+    (line) => line.period?.start && line.period?.end
+  )?.period
+  const periodStartSeconds = linePeriod?.start ?? invoice.period_start
+  const periodEndSeconds = linePeriod?.end ?? invoice.period_end
+
+  if (!periodStartSeconds || !periodEndSeconds) {
+    return null
+  }
+
+  return {
+    periodStart: new Date(periodStartSeconds * 1000),
+    periodEnd: new Date(periodEndSeconds * 1000),
+  }
+}
+
+function datesAreClose(left: Date | null | undefined, right: Date | null | undefined): boolean {
+  return !!left && !!right && Math.abs(left.getTime() - right.getTime()) < 60_000
+}
+
+function resolveClosedUsagePeriod(
+  invoice: Stripe.Invoice,
+  sub: BillingSubscription
+): {
+  periodStart: Date
+  periodEnd: Date
+} | null {
+  const servicePeriod = resolveInvoiceServicePeriod(invoice)
+  if (!servicePeriod) return null
+
+  const closedPeriodEnd = servicePeriod.periodStart
+  if (invoice.period_start && invoice.period_end) {
+    const invoicePeriodStart = new Date(invoice.period_start * 1000)
+    const invoicePeriodEnd = new Date(invoice.period_end * 1000)
+    if (datesAreClose(invoicePeriodEnd, closedPeriodEnd) && invoicePeriodStart < invoicePeriodEnd) {
+      return {
+        periodStart: invoicePeriodStart,
+        periodEnd: invoicePeriodEnd,
+      }
+    }
+  }
+
+  if (datesAreClose(sub.periodEnd, closedPeriodEnd) && sub.periodStart) {
+    return {
+      periodStart: sub.periodStart,
+      periodEnd: closedPeriodEnd,
+    }
+  }
+
+  const servicePeriodMs = servicePeriod.periodEnd.getTime() - servicePeriod.periodStart.getTime()
+  if (servicePeriodMs <= 0) return null
+
+  return {
+    periodStart: new Date(closedPeriodEnd.getTime() - servicePeriodMs),
+    periodEnd: closedPeriodEnd,
+  }
+}
+
 /**
  * Handle base invoice finalized → create a separate overage-only invoice
  * Note: Enterprise plans no longer have overages
@@ -835,223 +1059,102 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
       .where(eq(subscriptionTable.stripeSubscriptionId, stripeSubscriptionId))
       .limit(1)
 
-    if (records.length === 0) return
+    if (records.length === 0) {
+      logger.error('Subscription not found in database for finalized invoice', {
+        invoiceId: invoice.id,
+        stripeSubscriptionId,
+      })
+      throw new Error('Subscription row is required for finalized invoice handling')
+    }
     const sub = records[0]
 
     if (isEnterprise(sub.plan)) {
       await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
       return
     }
+    const orgScoped = await isSubscriptionOrgScoped(sub)
 
     await stripeWebhookIdempotency.executeWithIdempotency(
       'invoice-finalized',
       event.id,
       async () => {
-        const stripe = requireStripeClient()
-        const periodEnd =
-          invoice.lines?.data?.[0]?.period?.end ||
-          invoice.period_end ||
-          Math.floor(Date.now() / 1000)
-        const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
-
-        const totalOverage = await calculateSubscriptionOverage(sub)
-
-        const entityType = (await isSubscriptionOrgScoped(sub)) ? 'organization' : 'user'
-        const entityId = sub.referenceId
-
-        // Resolve the userStats row that holds the `billedOverageThisPeriod`
-        // tracker. Org subs: the owner's row. Personal: the user's own row.
-        // Throw if an org has no owner — returning early would cache a
-        // "successful" no-op, and the next cycle's tracker would still
-        // reflect this cycle's billed amount, breaking future overage math.
-        let trackerUserId: string
-        if (entityType === 'organization') {
-          const ownerRows = await db
-            .select({ userId: member.userId })
-            .from(member)
-            .where(and(eq(member.organizationId, entityId), eq(member.role, 'owner')))
-            .limit(1)
-          const ownerId = ownerRows[0]?.userId
-          if (!ownerId) {
-            throw new Error(
-              `Organization ${entityId} has no owner member; cannot process invoice finalization`
-            )
-          }
-          trackerUserId = ownerId
-        } else {
-          trackerUserId = entityId
+        const closedUsagePeriod = resolveClosedUsagePeriod(invoice, sub)
+        if (!closedUsagePeriod) {
+          logger.warn('Invoice finalized without a billing period; skipping final overage claim', {
+            invoiceId: invoice.id,
+            subscriptionId: sub.id,
+            stripeSubscriptionId,
+          })
+          return
         }
 
-        // Phase 1 — atomic commit. Lock the tracker row first so we read
-        // `billedOverageThisPeriod` serialized against concurrent events;
-        // then read the credit balance, decrement it, and bump the
-        // tracker to `totalOverage`. On retry, the locked re-read sees
-        // `billed == totalOverage` → `remaining == 0` → credit removal
-        // skipped. That's the invariant preventing double-deduction.
-        const phase1 = await db.transaction(async (tx) => {
-          const trackerRows = await tx
-            .select({ billed: userStats.billedOverageThisPeriod })
-            .from(userStats)
-            .where(eq(userStats.userId, trackerUserId))
-            .for('update')
-            .limit(1)
+        const { periodStart, periodEnd: claimPeriodEnd } = closedUsagePeriod
+        const billingPeriod = claimPeriodEnd.toISOString().slice(0, 7)
 
-          const billedInTx = trackerRows.length > 0 ? toNumber(toDecimal(trackerRows[0].billed)) : 0
-          const remaining = Math.max(0, totalOverage - billedInTx)
-
-          if (remaining === 0) {
-            return { billedInTx, applied: 0, billed: 0, remaining: 0 }
-          }
-
-          const lockedBalance =
-            entityType === 'organization'
-              ? await tx
-                  .select({ creditBalance: organization.creditBalance })
-                  .from(organization)
-                  .where(eq(organization.id, entityId))
-                  .for('update')
-                  .limit(1)
-              : await tx
-                  .select({ creditBalance: userStats.creditBalance })
-                  .from(userStats)
-                  .where(eq(userStats.userId, entityId))
-                  .for('update')
-                  .limit(1)
-
-          const creditBalance =
-            lockedBalance.length > 0 ? toNumber(toDecimal(lockedBalance[0].creditBalance)) : 0
-
-          const applied = Math.min(creditBalance, remaining)
-          const billed = remaining - applied
-
-          if (applied > 0) {
-            if (entityType === 'organization') {
-              await tx
-                .update(organization)
-                .set({
-                  creditBalance: sql`GREATEST(0, ${organization.creditBalance} - ${applied})`,
-                })
-                .where(eq(organization.id, entityId))
-            } else {
-              await tx
-                .update(userStats)
-                .set({
-                  creditBalance: sql`GREATEST(0, ${userStats.creditBalance} - ${applied})`,
-                })
-                .where(eq(userStats.userId, entityId))
-            }
-          }
-
-          await tx
-            .update(userStats)
-            .set({ billedOverageThisPeriod: totalOverage.toString() })
-            .where(eq(userStats.userId, trackerUserId))
-
-          return { billedInTx, applied, billed, remaining }
+        const customerId = resolveInvoiceCustomerId(invoice)
+        if (!customerId) {
+          throw new Error('Invoice customer id is required for overage billing')
+        }
+        const claim = await createOverageBillingClaim({
+          subscription: {
+            ...sub,
+            periodStart,
+            periodEnd: claimPeriodEnd,
+          },
+          claimType: 'final',
+          periodStart,
+          periodEnd: claimPeriodEnd,
+          usageCutoff: claimPeriodEnd,
+          customerId,
+          stripeSubscriptionId,
+          description: `Usage overage billing - ${billingPeriod}`,
+          itemDescription: `Usage Based Overage - ${billingPeriod}`,
+          enqueueStripeInvoice: true,
+          metadata: {
+            billingPeriod,
+            subscriptionId: stripeSubscriptionId,
+            sourceInvoiceId: invoice.id ?? 'unknown',
+          },
         })
 
-        const creditsApplied = phase1.applied
-        const amountToBillStripe = phase1.billed
-
-        logger.info('Invoice finalized overage calculation', {
+        logger.info('Invoice finalized ledger overage claim completed', {
           subscriptionId: sub.id,
-          totalOverage,
-          billedOverageBeforeTx: phase1.billedInTx,
-          creditsApplied,
-          amountToBillStripe,
+          claimId: claim.claimId,
+          claimed: claim.claimed,
+          grossUsage: claim.grossUsage,
+          overageAmount: claim.overageAmount,
+          priorCoveredOverage: claim.priorCoveredOverage,
+          creditsApplied: claim.creditApplied,
+          amountToBillStripe: claim.amountToBill,
           billingPeriod,
         })
 
-        // Phase 2 — Stripe invoice. Runs outside any DB transaction.
-        // Every call uses a deterministic idempotency key so retries
-        // converge on the same invoice object: re-create returns the
-        // existing draft, re-finalize no-ops on an already-finalized
-        // invoice, re-pay no-ops on an already-paid invoice.
-        if (amountToBillStripe > 0) {
-          const customerId = String(invoice.customer)
-          const cents = Math.round(amountToBillStripe * 100)
-          const itemIdemKey = `overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-          const invoiceIdemKey = `overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-          const finalizeIdemKey = `overage-finalize:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-          const payIdemKey = `overage-pay:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-
-          const { paymentMethodId: defaultPaymentMethod, collectionMethod } =
-            await resolveDefaultPaymentMethod(stripe, stripeSubscriptionId, customerId)
-
-          const effectiveCollectionMethod = collectionMethod ?? 'charge_automatically'
-
-          const overageInvoice = await stripe.invoices.create(
+        if (
+          !sub.periodEnd ||
+          datesAreClose(sub.periodEnd, claimPeriodEnd) ||
+          datesAreClose(sub.periodStart, claimPeriodEnd)
+        ) {
+          await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
+        } else {
+          await clearLegacyCoveredOverageForSubscription({
+            plan: sub.plan,
+            referenceId: sub.referenceId,
+          })
+          logger.warn(
+            'Skipping display counter reset because invoice period does not match DB period',
             {
-              customer: customerId,
-              collection_method: effectiveCollectionMethod,
-              auto_advance: false,
-              ...(defaultPaymentMethod ? { default_payment_method: defaultPaymentMethod } : {}),
-              metadata: {
-                type: 'overage_billing',
-                billingPeriod,
-                subscriptionId: stripeSubscriptionId,
-              },
-            },
-            { idempotencyKey: invoiceIdemKey }
-          )
-
-          await stripe.invoiceItems.create(
-            {
-              customer: customerId,
-              invoice: overageInvoice.id,
-              amount: cents,
-              currency: 'usd',
-              description: `Usage Based Overage – ${billingPeriod}`,
-              metadata: {
-                type: 'overage_billing',
-                billingPeriod,
-                subscriptionId: stripeSubscriptionId,
-              },
-            },
-            { idempotencyKey: itemIdemKey }
-          )
-
-          const draftId = overageInvoice.id
-          if (typeof draftId !== 'string' || draftId.length === 0) {
-            logger.error('Stripe created overage invoice without id; aborting finalize')
-          } else {
-            const finalized = await stripe.invoices.finalizeInvoice(
-              draftId,
-              {},
-              { idempotencyKey: finalizeIdemKey }
-            )
-            if (
-              effectiveCollectionMethod === 'charge_automatically' &&
-              finalized.status === 'open'
-            ) {
-              try {
-                const payId = finalized.id
-                if (typeof payId !== 'string' || payId.length === 0) {
-                  logger.error('Finalized invoice missing id')
-                  throw new Error('Finalized invoice missing id')
-                }
-                await stripe.invoices.pay(
-                  payId,
-                  { payment_method: defaultPaymentMethod },
-                  { idempotencyKey: payIdemKey }
-                )
-              } catch (payError) {
-                logger.error('Failed to auto-pay overage invoice', {
-                  error: payError,
-                  invoiceId: finalized.id,
-                })
-              }
+              subscriptionId: sub.id,
+              invoicePeriodEnd: claimPeriodEnd.toISOString(),
+              subscriptionPeriodEnd: sub.periodEnd?.toISOString() ?? null,
             }
-          }
+          )
         }
 
-        // Phase 3 — reset usage for the new period. Clears trackers and
-        // rolls `currentPeriodCost` forward by delta. Idempotent on its
-        // own (delta subtraction of a value that's already been
-        // subtracted is a no-op).
-        await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
-
-        return { totalOverage, creditsApplied, amountToBillStripe }
+        return {
+          totalOverage: claim.priorCoveredOverage + claim.overageAmount,
+          creditsApplied: claim.creditApplied,
+          amountToBillStripe: claim.amountToBill,
+        }
       }
     )
   } catch (error) {

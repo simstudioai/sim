@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
+import { doesOrganizationSubscriptionOwnMemberUsage } from '@/lib/billing/plan-helpers'
 import {
   checkEnterprisePlan,
   checkProPlan,
@@ -18,14 +19,15 @@ export type HighestPrioritySubscription = Awaited<ReturnType<typeof getHighestPr
  *
  * Selection order:
  *   1. Plan tier: Enterprise > Team > Pro > Free
- *   2. Within the same tier, **org-scoped subs beat personally-scoped subs**.
+ *   2. Within Team/Enterprise tiers, **org-scoped subs beat personally-scoped subs**.
+ *   3. Org-scoped Pro/Max applies only for org owners/admins; regular
+ *      members keep their personal subscription ownership.
  *
- * The tie-break matters because a user can legitimately hold both scopes
- * at once — e.g. they accepted an org invite while their own personal Pro
- * is still in its `cancelAtPeriodEnd` grace window. In that case the org
- * is already paying for their usage, so pooled resources should win over
- * the runoff personal sub; otherwise usage, credits, and rate limits would
- * leak onto the user's row until the next billing cycle.
+ * The tie-break matters because a member can legitimately hold both a
+ * pooled Team/Enterprise org entitlement and a personal subscription.
+ * Organization-attached Pro/Max subscriptions do not pool every member.
+ * They are still valid org-owned billing for owners/admins, while restored
+ * personal Pro subscriptions own regular member usage after an org downgrade.
  */
 export async function getHighestPrioritySubscription(userId: string) {
   try {
@@ -40,7 +42,7 @@ export async function getHighestPrioritySubscription(userId: string) {
       )
 
     const memberships = await db
-      .select({ organizationId: member.organizationId })
+      .select({ organizationId: member.organizationId, role: member.role })
       .from(member)
       .where(eq(member.userId, userId))
 
@@ -71,9 +73,14 @@ export async function getHighestPrioritySubscription(userId: string) {
 
     if (personalSubs.length === 0 && orgSubs.length === 0) return null
 
-    // Within each tier, prefer org-scoped over personally-scoped.
+    const roleByOrgId = new Map(memberships.map((m) => [m.organizationId, m.role]))
+    const orgOwnedSubs = orgSubs.filter((sub) =>
+      doesOrganizationSubscriptionOwnMemberUsage(sub.plan, roleByOrgId.get(sub.referenceId))
+    )
+
+    // Within org-owned tiers, prefer org-scoped over personally-scoped.
     const pickAtTier = (predicate: (sub: (typeof personalSubs)[number]) => boolean) =>
-      orgSubs.find(predicate) ?? personalSubs.find(predicate)
+      orgOwnedSubs.find(predicate) ?? personalSubs.find(predicate)
 
     const enterpriseSub = pickAtTier(checkEnterprisePlan)
     if (enterpriseSub) return enterpriseSub

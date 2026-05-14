@@ -15,13 +15,49 @@ import {
 import type Stripe from 'stripe'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBlockOrgMembers, mockUnblockOrgMembers } = vi.hoisted(() => ({
-  mockBlockOrgMembers: vi.fn(),
-  mockUnblockOrgMembers: vi.fn(),
-}))
+const { mockBlockOrgMembers, mockUnblockOrgMembers, mockCreateOverageBillingClaim } = vi.hoisted(
+  () => ({
+    mockBlockOrgMembers: vi.fn(),
+    mockUnblockOrgMembers: vi.fn(),
+    mockCreateOverageBillingClaim: vi.fn(),
+  })
+)
 
 vi.mock('@sim/db', () => dbChainMock)
 vi.mock('drizzle-orm', () => drizzleOrmMock)
+vi.mock('@sim/db/schema', () => ({
+  billingClaim: {
+    id: 'billing_claim.id',
+    subscriptionId: 'billing_claim.subscription_id',
+    status: 'billing_claim.status',
+  },
+  member: {
+    userId: 'member.user_id',
+    organizationId: 'member.organization_id',
+    role: 'member.role',
+  },
+  organization: {
+    id: 'organization.id',
+    departedMemberUsage: 'organization.departed_member_usage',
+  },
+  subscription: {
+    id: 'subscription.id',
+    stripeSubscriptionId: 'subscription.stripe_subscription_id',
+  },
+  user: {
+    id: 'user.id',
+    email: 'user.email',
+    stripeCustomerId: 'user.stripe_customer_id',
+  },
+  userStats: {
+    userId: 'user_stats.user_id',
+    billingBlocked: 'user_stats.billing_blocked',
+    billingBlockedReason: 'user_stats.billing_blocked_reason',
+    billedOverageThisPeriod: 'user_stats.billed_overage_this_period',
+    proPeriodCostSnapshot: 'user_stats.pro_period_cost_snapshot',
+    proPeriodCostSnapshotAt: 'user_stats.pro_period_cost_snapshot_at',
+  },
+}))
 
 vi.mock('@/components/emails', () => ({
   PaymentFailedEmail: vi.fn(),
@@ -30,7 +66,6 @@ vi.mock('@/components/emails', () => ({
 }))
 
 vi.mock('@/lib/billing/core/billing', () => ({
-  calculateSubscriptionOverage: vi.fn(),
   isSubscriptionOrgScoped: vi.fn().mockResolvedValue(true),
 }))
 
@@ -44,6 +79,10 @@ vi.mock('@/lib/billing/credits/purchase', () => ({
   setUsageLimitForCredits: vi.fn(),
 }))
 
+vi.mock('@/lib/billing/ledger/usage-ledger', () => ({
+  createOverageBillingClaim: mockCreateOverageBillingClaim,
+}))
+
 vi.mock('@/lib/billing/organizations/membership', () => ({
   blockOrgMembers: mockBlockOrgMembers,
   unblockOrgMembers: mockUnblockOrgMembers,
@@ -52,6 +91,9 @@ vi.mock('@/lib/billing/organizations/membership', () => ({
 vi.mock('@/lib/billing/plan-helpers', () => ({
   isEnterprise: vi.fn(() => false),
   isOrgPlan: vi.fn((plan: string | null | undefined) => Boolean(plan?.startsWith('team'))),
+  isPooledOrganizationPlan: vi.fn((plan: string | null | undefined) =>
+    Boolean(plan === 'enterprise' || plan?.startsWith('team'))
+  ),
   isTeam: vi.fn((plan: string | null | undefined) => Boolean(plan?.startsWith('team'))),
 }))
 
@@ -101,6 +143,7 @@ vi.mock('@react-email/render', () => ({
 }))
 
 import {
+  handleInvoiceFinalized,
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
@@ -139,7 +182,7 @@ function installSelectResponseQueue() {
 }
 
 function createInvoiceEvent(
-  type: 'invoice.payment_failed' | 'invoice.payment_succeeded',
+  type: 'invoice.finalized' | 'invoice.payment_failed' | 'invoice.payment_succeeded',
   invoice: Partial<Stripe.Invoice>
 ): Stripe.Event {
   return createMockStripeEvent(type, invoice)
@@ -154,6 +197,120 @@ describe('invoice billing recovery', () => {
     urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
     mockBlockOrgMembers.mockResolvedValue(2)
     mockUnblockOrgMembers.mockResolvedValue(2)
+    mockCreateOverageBillingClaim.mockResolvedValue({
+      claimed: true,
+      claimId: 'claim-1',
+      grossUsage: 35,
+      overageAmount: 15,
+      priorCoveredOverage: 0,
+      creditApplied: 5,
+      amountToBill: 10,
+    })
+  })
+
+  it('creates a final ledger claim for the period ending at renewal start before resetting counters', async () => {
+    const subscription = {
+      id: 'sub-db-1',
+      plan: 'team_8000',
+      referenceId: 'org-1',
+      seats: 1,
+      stripeSubscriptionId: 'sub_stripe_1',
+      periodStart: new Date('2026-05-01T00:00:00Z'),
+      periodEnd: new Date('2026-06-01T00:00:00Z'),
+    }
+    queueSelectResponse({ limitResult: [subscription] })
+    queueSelectResponse({ whereResult: [] })
+    queueSelectResponse({ whereResult: [] })
+
+    await handleInvoiceFinalized(
+      createInvoiceEvent('invoice.finalized', {
+        billing_reason: 'subscription_cycle',
+        customer: 'cus_123',
+        id: 'in_123',
+        period_end: Date.parse('2026-06-01T00:00:00Z') / 1000,
+        period_start: Date.parse('2026-05-01T00:00:00Z') / 1000,
+        lines: {
+          data: [
+            {
+              period: {
+                start: Date.parse('2026-06-01T00:00:00Z') / 1000,
+                end: Date.parse('2026-07-01T00:00:00Z') / 1000,
+              },
+            },
+          ],
+        } as Stripe.ApiList<Stripe.InvoiceLineItem>,
+        parent: {
+          subscription_details: {
+            subscription: 'sub_stripe_1',
+          },
+        } as Stripe.Invoice.Parent,
+      })
+    )
+
+    expect(mockCreateOverageBillingClaim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subscription: expect.objectContaining({
+          ...subscription,
+          periodStart: new Date('2026-05-01T00:00:00Z'),
+          periodEnd: new Date('2026-06-01T00:00:00Z'),
+        }),
+        claimType: 'final',
+        periodStart: new Date('2026-05-01T00:00:00Z'),
+        periodEnd: new Date('2026-06-01T00:00:00Z'),
+        usageCutoff: new Date('2026-06-01T00:00:00Z'),
+        customerId: 'cus_123',
+        stripeSubscriptionId: 'sub_stripe_1',
+        enqueueStripeInvoice: true,
+      })
+    )
+  })
+
+  it('derives the closed period when Better Auth has already advanced the subscription row', async () => {
+    const subscription = {
+      id: 'sub-db-1',
+      plan: 'team_8000',
+      referenceId: 'org-1',
+      seats: 1,
+      stripeSubscriptionId: 'sub_stripe_1',
+      periodStart: new Date('2026-06-01T00:00:00Z'),
+      periodEnd: new Date('2026-07-01T00:00:00Z'),
+    }
+    queueSelectResponse({ limitResult: [subscription] })
+    queueSelectResponse({ whereResult: [] })
+    queueSelectResponse({ whereResult: [] })
+
+    await handleInvoiceFinalized(
+      createInvoiceEvent('invoice.finalized', {
+        billing_reason: 'subscription_cycle',
+        customer: 'cus_123',
+        id: 'in_123',
+        period_end: Date.parse('2026-06-01T00:00:00Z') / 1000,
+        period_start: Date.parse('2026-05-01T00:00:00Z') / 1000,
+        lines: {
+          data: [
+            {
+              period: {
+                start: Date.parse('2026-06-01T00:00:00Z') / 1000,
+                end: Date.parse('2026-07-01T00:00:00Z') / 1000,
+              },
+            },
+          ],
+        } as Stripe.ApiList<Stripe.InvoiceLineItem>,
+        parent: {
+          subscription_details: {
+            subscription: 'sub_stripe_1',
+          },
+        } as Stripe.Invoice.Parent,
+      })
+    )
+
+    expect(mockCreateOverageBillingClaim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        periodStart: new Date('2026-05-01T00:00:00Z'),
+        periodEnd: new Date('2026-06-01T00:00:00Z'),
+        usageCutoff: new Date('2026-06-01T00:00:00Z'),
+      })
+    )
   })
 
   it('blocks org members when a metadata-backed invoice payment fails', async () => {
@@ -205,6 +362,15 @@ describe('invoice billing recovery', () => {
     queueSelectResponse({
       whereResult: [{ blocked: false }, { blocked: false }],
     })
+    queueSelectResponse({ limitResult: [] })
+    queueSelectResponse({
+      whereResult: [{ userId: 'owner-1' }, { userId: 'member-1' }],
+    })
+    queueSelectResponse({ limitResult: [] })
+    queueSelectResponse({ limitResult: [] })
+    queueSelectResponse({ limitResult: [] })
+    queueSelectResponse({ limitResult: [] })
+    queueSelectResponse({ whereResult: [{ userId: 'owner-1' }, { userId: 'member-1' }] })
 
     await handleInvoicePaymentSucceeded(
       createInvoiceEvent('invoice.payment_succeeded', {
@@ -220,7 +386,7 @@ describe('invoice billing recovery', () => {
       })
     )
 
-    expect(mockUnblockOrgMembers).toHaveBeenCalledWith('org-1', 'payment_failed')
+    expect(mockUnblockOrgMembers).not.toHaveBeenCalled()
     expect(mockBlockOrgMembers).not.toHaveBeenCalled()
   })
 })

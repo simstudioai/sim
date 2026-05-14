@@ -28,7 +28,6 @@ import {
   sql,
 } from 'drizzle-orm'
 import { recordUsage } from '@/lib/billing/core/usage-log'
-import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
@@ -446,6 +445,7 @@ export async function processDocumentAsync(
     let embeddingIsBYOK = false
     let embeddingModelName = kbEmbeddingModel
     let embeddingPricingId = kbEmbeddingModel
+    let embeddingContentHash = ''
 
     await withTimeout(
       (async () => {
@@ -476,6 +476,7 @@ export async function processDocumentAsync(
         )
 
         const chunkTexts = processed.chunks.map((chunk) => chunk.text)
+        embeddingContentHash = sha256Hex(chunkTexts.join('\n'))
         const embeddings: number[][] = []
 
         if (chunkTexts.length > 0) {
@@ -657,11 +658,8 @@ export async function processDocumentAsync(
                 metadata: { inputTokens: totalEmbeddingTokens, outputTokens: 0 },
               },
             ],
-            additionalStats: {
-              totalTokensUsed: sql`total_tokens_used + ${totalEmbeddingTokens}`,
-            },
+            sourceEventKey: `knowledge-document:${documentId}:embedding:${embeddingModelName}:${embeddingContentHash}`,
           })
-          await checkAndBillOverageThreshold(billingUserId)
         } else {
           logger.warn(
             `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,

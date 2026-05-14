@@ -37,6 +37,8 @@ interface OutboxEventContext {
   eventType: string
   /** How many times this event has been attempted (zero on first run). */
   attempts: number
+  /** Total attempts before the event moves to `dead_letter`. */
+  maxAttempts: number
 }
 
 /**
@@ -44,7 +46,10 @@ interface OutboxEventContext {
  * Throwing bumps `attempts` and schedules a retry via exponential
  * backoff; a successful return transitions the event to `completed`.
  */
-export type OutboxHandler<T = unknown> = (payload: T, context: OutboxEventContext) => Promise<void>
+export interface OutboxHandler<T = unknown> {
+  (payload: T, context: OutboxEventContext): Promise<void>
+  onTimeout?: (payload: T, context: OutboxEventContext, error: Error) => Promise<void>
+}
 
 /**
  * Map of `eventType` → handler. Register all handlers in one place
@@ -313,7 +318,7 @@ async function runHandler(
     return 'completed'
   } catch (error) {
     if (error instanceof OutboxHandlerTimeoutError) {
-      return recordTimedOutAttempt(event, error.message)
+      return recordTimedOutAttempt(event, handler, error)
     }
 
     const nextAttempts = event.attempts + 1
@@ -350,12 +355,24 @@ async function runHandler(
 
 async function recordTimedOutAttempt(
   event: typeof outboxEvent.$inferSelect,
-  errMsg: string
+  handler: OutboxHandler,
+  error: OutboxHandlerTimeoutError
 ): Promise<'dead_letter' | 'lease_lost'> {
   const nextAttempts = event.attempts + 1
   const isDead = nextAttempts >= event.maxAttempts
+  const errMsg = error.message
 
   if (isDead) {
+    await handler.onTimeout?.(
+      event.payload,
+      {
+        eventId: event.id,
+        eventType: event.eventType,
+        attempts: event.attempts,
+        maxAttempts: event.maxAttempts,
+      },
+      error
+    )
     const updated = await updateIfLeaseHeld(event, {
       attempts: nextAttempts,
       status: 'dead_letter',
@@ -483,6 +500,7 @@ function runHandlerWithTimeout(
     eventId: event.id,
     eventType: event.eventType,
     attempts: event.attempts,
+    maxAttempts: event.maxAttempts,
   }
 
   return new Promise((resolve, reject) => {

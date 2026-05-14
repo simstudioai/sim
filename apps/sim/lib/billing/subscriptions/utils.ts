@@ -16,9 +16,9 @@ import {
 import { parseEnterpriseSubscriptionMetadata } from '@/lib/billing/types'
 import { env, envNumber } from '@/lib/core/config/env'
 
-export const ENTITLED_SUBSCRIPTION_STATUSES = ['active', 'past_due'] as const
+export const ENTITLED_SUBSCRIPTION_STATUSES = ['active', 'trialing', 'past_due'] as const
 
-export const USABLE_SUBSCRIPTION_STATUSES = ['active'] as const
+export const USABLE_SUBSCRIPTION_STATUSES = ['active', 'trialing'] as const
 
 /**
  * Returns true when a subscription should still count as a paid plan entitlement.

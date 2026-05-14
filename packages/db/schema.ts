@@ -781,38 +781,61 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One record per user
+  /** @deprecated Derived from workflow execution logs; do not write on hot execution paths. */
   totalManualExecutions: integer('total_manual_executions').notNull().default(0),
+  /** @deprecated Derived from workflow execution logs; do not write on hot execution paths. */
   totalApiCalls: integer('total_api_calls').notNull().default(0),
+  /** @deprecated Derived from workflow execution logs; do not write on hot execution paths. */
   totalWebhookTriggers: integer('total_webhook_triggers').notNull().default(0),
+  /** @deprecated Derived from workflow execution logs; do not write on hot execution paths. */
   totalScheduledExecutions: integer('total_scheduled_executions').notNull().default(0),
+  /** @deprecated Derived from workflow execution logs; do not write on hot execution paths. */
   totalChatExecutions: integer('total_chat_executions').notNull().default(0),
+  /** @deprecated Derived from workflow execution logs; do not write on hot execution paths. */
   totalMcpExecutions: integer('total_mcp_executions').notNull().default(0),
+  /** @deprecated Derived from workflow execution logs; do not write on hot execution paths. */
   totalA2aExecutions: integer('total_a2a_executions').notNull().default(0),
+  /** @deprecated Derived from usage_log metadata; do not write on hot usage paths. */
   totalTokensUsed: bigint('total_tokens_used', { mode: 'number' }).notNull().default(0),
+  /** @deprecated Derived from usage_log; retained only for legacy/admin compatibility. */
   totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $5 (1,000 credits) for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
   // Billing period tracking
+  /** @deprecated Derived from usage_log/ledger; retained only for legacy/admin compatibility. */
   currentPeriodCost: decimal('current_period_cost').notNull().default('0'), // Usage in current billing period
+  /** @deprecated Derived from usage_log/ledger; retained only for legacy/admin compatibility. */
   lastPeriodCost: decimal('last_period_cost').default('0'), // Usage from previous billing period
+  /** @deprecated Legacy migration seed for pre-ledger threshold coverage; do not write for new usage. */
   billedOverageThisPeriod: decimal('billed_overage_this_period').notNull().default('0'), // Amount of overage already billed via threshold billing
   // Pro usage snapshot when joining a team (to prevent double-billing)
+  /** @deprecated Legacy pre-ledger join snapshot; retained for cleanup of existing rows only. */
   proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'), // Snapshot of Pro usage when joining team
+  /** @deprecated Legacy pre-ledger join snapshot timestamp; retained for cleanup of existing rows only. */
   proPeriodCostSnapshotAt: timestamp('pro_period_cost_snapshot_at'), // When the snapshot was captured (= join moment). Used to cap daily-refresh computation so post-join refresh isn't deducted from pre-join personal Pro usage (and vice-versa for the org's pooled refresh).
   // Pre-purchased credits (for Pro users only)
   creditBalance: decimal('credit_balance').notNull().default('0'),
   // Copilot usage tracking
+  /** @deprecated Derived from usage_log source totals; do not write on hot usage paths. */
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
+  /** @deprecated Derived from usage_log source totals; do not write on hot usage paths. */
   currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
+  /** @deprecated Derived from usage_log source totals; retained only for compatibility. */
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
+  /** @deprecated Derived from usage_log metadata; do not write on hot usage paths. */
   totalCopilotTokens: bigint('total_copilot_tokens', { mode: 'number' }).notNull().default(0),
+  /** @deprecated Derived from usage_log source rows; do not write on hot usage paths. */
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
   // MCP Copilot usage tracking
+  /** @deprecated Derived from usage_log source rows; do not write on hot usage paths. */
   totalMcpCopilotCalls: integer('total_mcp_copilot_calls').notNull().default(0),
+  /** @deprecated Derived from usage_log source totals; do not write on hot usage paths. */
   totalMcpCopilotCost: decimal('total_mcp_copilot_cost').notNull().default('0'),
+  /** @deprecated Derived from usage_log source totals; do not write on hot usage paths. */
   currentPeriodMcpCopilotCost: decimal('current_period_mcp_copilot_cost').notNull().default('0'),
   // Storage tracking (for free/pro users)
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
+  /** @deprecated Activity is derived from execution/session data; do not update on hot paths. */
   lastActive: timestamp('last_active').notNull().defaultNow(),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
@@ -2482,6 +2505,15 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'knowledge-base',
   'voice-input',
 ])
+export const billingEntityTypeEnum = pgEnum('billing_entity_type', ['user', 'organization'])
+export const billingClaimTypeEnum = pgEnum('billing_claim_type', ['threshold', 'final'])
+export const billingClaimStatusEnum = pgEnum('billing_claim_status', [
+  'claimed',
+  'invoiced',
+  'paid',
+  'failed',
+  'invoice_failed',
+])
 
 export const usageLog = pgTable(
   'usage_log',
@@ -2504,6 +2536,10 @@ export const usageLog = pgTable(
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
     workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
     executionId: text('execution_id'),
+    sourceEventKey: text('source_event_key'),
+    sourceEventHash: text('source_event_hash'),
+    billingEntityType: billingEntityTypeEnum('billing_entity_type'),
+    billingEntityId: text('billing_entity_id'),
 
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
@@ -2512,9 +2548,86 @@ export const usageLog = pgTable(
     sourceIdx: index('usage_log_source_idx').on(table.source),
     workspaceIdIdx: index('usage_log_workspace_id_idx').on(table.workspaceId),
     workflowIdIdx: index('usage_log_workflow_id_idx').on(table.workflowId),
+    sourceEventKeyIdx: uniqueIndex('usage_log_source_event_key_idx')
+      .on(table.sourceEventKey)
+      .where(sql`${table.sourceEventKey} IS NOT NULL`),
+    billingEntityPeriodIdx: index('usage_log_billing_entity_period_idx').on(
+      table.billingEntityType,
+      table.billingEntityId,
+      table.createdAt
+    ),
     workspaceCreatedAtIdx: index('usage_log_workspace_created_at_idx').on(
       table.workspaceId,
       table.createdAt
+    ),
+  })
+)
+
+export const billingClaim = pgTable(
+  'billing_claim',
+  {
+    id: text('id').primaryKey(),
+    entityType: billingEntityTypeEnum('entity_type').notNull(),
+    entityId: text('entity_id').notNull(),
+    subscriptionId: text('subscription_id').references(() => subscription.id, {
+      onDelete: 'set null',
+    }),
+    claimType: billingClaimTypeEnum('claim_type').notNull(),
+    status: billingClaimStatusEnum('status').notNull().default('claimed'),
+    billingPeriod: text('billing_period').notNull(),
+    periodStart: timestamp('period_start').notNull(),
+    periodEnd: timestamp('period_end'),
+    grossUsage: decimal('gross_usage').notNull().default('0'),
+    dailyRefreshDeduction: decimal('daily_refresh_deduction').notNull().default('0'),
+    priorCoveredOverage: decimal('prior_covered_overage').notNull().default('0'),
+    overageAmount: decimal('overage_amount').notNull().default('0'),
+    creditApplied: decimal('credit_applied').notNull().default('0'),
+    amountToBill: decimal('amount_to_bill').notNull().default('0'),
+    stripeCustomerId: text('stripe_customer_id'),
+    stripeSubscriptionId: text('stripe_subscription_id'),
+    stripeInvoiceId: text('stripe_invoice_id'),
+    outboxEventId: text('outbox_event_id').references(() => outboxEvent.id, {
+      onDelete: 'set null',
+    }),
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    entityPeriodIdx: index('billing_claim_entity_period_idx').on(
+      table.entityType,
+      table.entityId,
+      table.periodStart,
+      table.periodEnd
+    ),
+    subscriptionPeriodIdx: index('billing_claim_subscription_period_idx').on(
+      table.subscriptionId,
+      table.periodStart,
+      table.periodEnd
+    ),
+    statusIdx: index('billing_claim_status_idx').on(table.status),
+  })
+)
+
+export const billingClaimUsage = pgTable(
+  'billing_claim_usage',
+  {
+    id: text('id').primaryKey(),
+    claimId: text('claim_id')
+      .notNull()
+      .references(() => billingClaim.id, { onDelete: 'cascade' }),
+    usageLogId: text('usage_log_id')
+      .notNull()
+      .references(() => usageLog.id, { onDelete: 'cascade' }),
+    allocatedAmount: decimal('allocated_amount').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    claimIdIdx: index('billing_claim_usage_claim_id_idx').on(table.claimId),
+    usageLogIdIdx: index('billing_claim_usage_usage_log_id_idx').on(table.usageLogId),
+    claimUsageUniqueIdx: uniqueIndex('billing_claim_usage_claim_usage_unique_idx').on(
+      table.claimId,
+      table.usageLogId
     ),
   })
 )

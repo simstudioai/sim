@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions, userStats, workflowFolder, workflow as workflowTable } from '@sim/db/schema'
+import { permissions, workflowFolder, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
@@ -10,7 +10,6 @@ import { materializeLargeValueRefsSync } from '@/lib/execution/payloads/cache'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import type { ExecutionResult } from '@/executor/types'
 
 const logger = createLogger('WorkflowUtils')
@@ -243,53 +242,6 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
         lastRunAt: new Date(),
       })
       .where(eq(workflowTable.id, workflowId))
-
-    let activityUserId: string | null = null
-    if (workflow.workspaceId) {
-      try {
-        activityUserId = await getWorkspaceBilledAccountUserId(workflow.workspaceId)
-      } catch (error) {
-        logger.warn(`Error resolving billed account for workspace ${workflow.workspaceId}`, {
-          workflowId,
-          error,
-        })
-      }
-    }
-
-    if (activityUserId) {
-      try {
-        const existing = await db
-          .select()
-          .from(userStats)
-          .where(eq(userStats.userId, activityUserId))
-          .limit(1)
-
-        if (existing.length === 0) {
-          logger.warn('User stats record not found - should be created during onboarding', {
-            userId: activityUserId,
-            workflowId,
-          })
-        } else {
-          await db
-            .update(userStats)
-            .set({
-              lastActive: new Date(),
-            })
-            .where(eq(userStats.userId, activityUserId))
-        }
-      } catch (error) {
-        logger.error(`Error updating userStats lastActive for userId ${activityUserId}:`, error)
-        // Don't rethrow - we want to continue even if this fails
-      }
-    } else {
-      logger.warn(
-        'Skipping userStats lastActive update: unable to resolve workspace billed account',
-        {
-          workflowId,
-          workspaceId: workflow.workspaceId,
-        }
-      )
-    }
 
     return {
       success: true,

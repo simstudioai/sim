@@ -1,10 +1,18 @@
+import { createHash } from 'node:crypto'
 import { db } from '@sim/db'
-import { usageLog, userStats } from '@sim/db/schema'
+import { usageLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, gte, lte, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import {
+  resolveUsageBillingContext,
+  type UsageBillingAttribution,
+  type UsageBillingContext,
+} from '@/lib/billing/ledger/usage-ledger'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-types'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 
 const logger = createLogger('UsageLog')
 
@@ -66,48 +74,99 @@ export interface RecordUsageParams {
   workflowId?: string
   /** Execution context */
   executionId?: string
-  /** Source-specific counter increments (e.g. totalCopilotCalls, totalManualExecutions) */
-  additionalStats?: Record<string, SQL>
+  /** Stable idempotency key for this source event. Replays with the same payload are ignored. */
+  sourceEventKey?: string
+  /** Billing owner captured when usage is recorded. Defaults to current subscription context. */
+  billingAttribution?: UsageBillingAttribution
+}
+
+export interface RecordUsageResult {
+  recorded: boolean
+  userId: string
+  billingAttribution: UsageBillingAttribution | null
+  subscriptionId: string | null
+  thresholdCheckEnqueued?: boolean
 }
 
 /**
- * Records usage by inserting into usage_log and incrementing userStats counters.
+ * Records usage by inserting immutable rows into usage_log.
  *
- * The two writes are intentionally not wrapped in a transaction: under high
- * concurrency for the same userId, holding BEGIN/COMMIT across the user_stats
- * row-lock wait pins pgbouncer connections and exhausts the pool.
- *
- * usage_log is the source of truth and the INSERT propagates errors to the
- * caller. The userStats UPDATE is best-effort: failures (and missing-row
- * cases) are logged as warnings and swallowed. Counter drift is acceptable
- * here — the long-term plan is to derive counters from usage_log directly.
- * Any drift warning in logs is a signal that needs investigation.
+ * Usage_log is the source of truth for active billing, enforcement, and
+ * display aggregates. Do not mirror cost counters into user_stats here; that
+ * hot-row write was the source of connection-pool contention under load.
  */
-export async function recordUsage(params: RecordUsageParams): Promise<void> {
+export async function recordUsage(params: RecordUsageParams): Promise<RecordUsageResult> {
   if (!isBillingEnabled) {
-    return
+    return {
+      recorded: false,
+      userId: params.userId,
+      billingAttribution: null,
+      subscriptionId: null,
+      thresholdCheckEnqueued: false,
+    }
   }
 
-  const { userId, entries, workspaceId, workflowId, executionId, additionalStats } = params
+  const {
+    userId,
+    entries,
+    workspaceId,
+    workflowId,
+    executionId,
+    sourceEventKey,
+    billingAttribution,
+  } = params
 
-  const validEntries = entries.filter((e) => e.cost > 0)
-  const totalCost = validEntries.reduce((sum, e) => sum + e.cost, 0)
+  const validEntries = entries.filter((e) => e.cost >= 0)
 
-  if (
-    validEntries.length === 0 &&
-    (!additionalStats || Object.keys(additionalStats).length === 0)
-  ) {
-    return
+  if (validEntries.length === 0) {
+    return {
+      recorded: false,
+      userId,
+      billingAttribution: null,
+      subscriptionId: null,
+      thresholdCheckEnqueued: false,
+    }
   }
 
-  const RESERVED_KEYS = new Set(['totalCost', 'currentPeriodCost', 'lastActive'])
-  const safeStats = additionalStats
-    ? Object.fromEntries(Object.entries(additionalStats).filter(([k]) => !RESERVED_KEYS.has(k)))
-    : undefined
+  const billingContext: UsageBillingContext = billingAttribution
+    ? { attribution: billingAttribution, subscriptionId: null }
+    : await resolveUsageBillingContext(userId)
+  const attribution = billingContext.attribution
 
-  if (validEntries.length > 0) {
-    await db.insert(usageLog).values(
-      validEntries.map((entry) => ({
+  return db.transaction(async (tx) => {
+    const usageRows: (typeof usageLog.$inferInsert)[] = []
+    let recordedUsageRows: (typeof usageLog.$inferInsert)[] = []
+
+    for (const [index, entry] of validEntries.entries()) {
+      const eventKey = sourceEventKey ? `${sourceEventKey}:${index}` : undefined
+      const eventHash = eventKey
+        ? hashUsageEvent({
+            userId,
+            entry,
+            entryIndex: index,
+            entryCount: validEntries.length,
+            workspaceId,
+            workflowId,
+            executionId,
+          })
+        : null
+
+      if (eventKey) {
+        const existingRows = await tx
+          .select({ sourceEventHash: usageLog.sourceEventHash })
+          .from(usageLog)
+          .where(eq(usageLog.sourceEventKey, eventKey))
+          .limit(1)
+
+        if (existingRows.length > 0) {
+          if (existingRows[0].sourceEventHash !== eventHash) {
+            throw new Error(`Usage event key ${eventKey} was replayed with a different payload`)
+          }
+          continue
+        }
+      }
+
+      usageRows.push({
         id: generateId(),
         userId,
         category: entry.category,
@@ -118,50 +177,151 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
         workspaceId: workspaceId ?? null,
         workflowId: workflowId ?? null,
         executionId: executionId ?? null,
-      }))
-    )
-  }
-
-  const updateFields: Record<string, SQL | Date> = {
-    lastActive: new Date(),
-    ...(totalCost > 0 && {
-      totalCost: sql`total_cost + ${totalCost}`,
-      currentPeriodCost: sql`current_period_cost + ${totalCost}`,
-    }),
-    ...safeStats,
-  }
-
-  try {
-    const result = await db
-      .update(userStats)
-      .set(updateFields)
-      .where(eq(userStats.userId, userId))
-      .returning({ userId: userStats.userId })
-
-    if (result.length === 0) {
-      logger.warn('recordUsage: userStats row not found; counter increment dropped', {
-        userId,
-        totalCost,
-        hadEntries: validEntries.length > 0,
-        additionalStatsKeys: safeStats ? Object.keys(safeStats) : [],
+        sourceEventKey: eventKey ?? null,
+        sourceEventHash: eventHash,
+        billingEntityType: attribution?.entityType ?? null,
+        billingEntityId: attribution?.entityId ?? null,
       })
     }
-  } catch (error) {
-    logger.warn('recordUsage: userStats update failed; counter increment dropped', {
-      error: toError(error).message,
-      userId,
-      totalCost,
-      hadEntries: validEntries.length > 0,
-      additionalStatsKeys: safeStats ? Object.keys(safeStats) : [],
-    })
-  }
 
-  logger.debug('Recorded usage', {
-    userId,
-    totalCost,
-    entryCount: validEntries.length,
-    sources: [...new Set(validEntries.map((e) => e.source))],
+    if (usageRows.length === 0) {
+      logger.debug('Usage event replay ignored', {
+        userId,
+        sourceEventKey,
+        entryCount: validEntries.length,
+      })
+      const thresholdCheckEnqueued = await enqueueThresholdCheckForUsage({
+        executor: tx,
+        userId,
+        billingAttribution: attribution,
+        subscriptionId: billingContext.subscriptionId,
+      })
+      return {
+        recorded: false,
+        userId,
+        billingAttribution: attribution,
+        subscriptionId: billingContext.subscriptionId,
+        thresholdCheckEnqueued,
+      }
+    }
+
+    const insertedRows = await tx
+      .insert(usageLog)
+      .values(usageRows)
+      .onConflictDoNothing({
+        target: usageLog.sourceEventKey,
+        where: sql`${usageLog.sourceEventKey} IS NOT NULL`,
+      })
+      .returning({ id: usageLog.id, sourceEventKey: usageLog.sourceEventKey })
+
+    const insertedIds = new Set(insertedRows.map((row) => row.id))
+    const insertedKeys = new Set(insertedRows.map((row) => row.sourceEventKey).filter(Boolean))
+    for (const row of usageRows) {
+      if (!row.sourceEventKey || insertedKeys.has(row.sourceEventKey)) continue
+
+      const existingRows = await tx
+        .select({ sourceEventHash: usageLog.sourceEventHash })
+        .from(usageLog)
+        .where(eq(usageLog.sourceEventKey, row.sourceEventKey))
+        .limit(1)
+
+      if (existingRows[0]?.sourceEventHash !== row.sourceEventHash) {
+        throw new Error(
+          `Usage event key ${row.sourceEventKey} was replayed with a different payload`
+        )
+      }
+    }
+
+    recordedUsageRows = usageRows.filter((row) => insertedIds.has(row.id))
+    if (recordedUsageRows.length === 0) {
+      logger.debug('Usage event replay ignored', {
+        userId,
+        sourceEventKey,
+        entryCount: validEntries.length,
+      })
+      const thresholdCheckEnqueued = await enqueueThresholdCheckForUsage({
+        executor: tx,
+        userId,
+        billingAttribution: attribution,
+        subscriptionId: billingContext.subscriptionId,
+      })
+      return {
+        recorded: false,
+        userId,
+        billingAttribution: attribution,
+        subscriptionId: billingContext.subscriptionId,
+        thresholdCheckEnqueued,
+      }
+    }
+    logger.debug('Recorded usage', {
+      userId,
+      totalCost: recordedUsageRows.reduce((sum, row) => sum + Number.parseFloat(row.cost), 0),
+      entryCount: recordedUsageRows.length,
+      sources: [...new Set(recordedUsageRows.map((e) => e.source))],
+    })
+
+    const thresholdCheckEnqueued = await enqueueThresholdCheckForUsage({
+      executor: tx,
+      userId,
+      billingAttribution: attribution,
+      subscriptionId: billingContext.subscriptionId,
+    })
+
+    return {
+      recorded: true,
+      userId,
+      billingAttribution: attribution,
+      subscriptionId: billingContext.subscriptionId,
+      thresholdCheckEnqueued,
+    }
   })
+}
+
+async function enqueueThresholdCheckForUsage(params: {
+  executor: Pick<typeof db, 'insert'>
+  userId: string
+  billingAttribution: UsageBillingAttribution | null
+  subscriptionId: string | null
+}): Promise<boolean> {
+  if (!params.subscriptionId || !params.billingAttribution) return false
+
+  await enqueueOutboxEvent(
+    params.executor,
+    OUTBOX_EVENT_TYPES.BILLING_THRESHOLD_CHECK,
+    {
+      userId: params.userId,
+      subscriptionId: params.subscriptionId,
+      billingEntityType: params.billingAttribution.entityType,
+      billingEntityId: params.billingAttribution.entityId,
+    },
+    { maxAttempts: 3 }
+  )
+
+  return true
+}
+
+function hashUsageEvent(params: {
+  userId: string
+  entry: UsageEntry
+  entryIndex: number
+  entryCount: number
+  workspaceId?: string
+  workflowId?: string
+  executionId?: string
+}): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        userId: params.userId,
+        entry: params.entry,
+        entryIndex: params.entryIndex,
+        entryCount: params.entryCount,
+        workspaceId: params.workspaceId ?? null,
+        workflowId: params.workflowId ?? null,
+        executionId: params.executionId ?? null,
+      })
+    )
+    .digest('hex')
 }
 
 /**

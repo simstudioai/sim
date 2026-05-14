@@ -2,55 +2,28 @@ import { db } from '@sim/db'
 import { member, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, ne } from 'drizzle-orm'
-import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
+import { isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import {
+  attributeLegacyOrganizationUsageForPeriod,
+  createOverageBillingClaim,
+} from '@/lib/billing/ledger/usage-ledger'
 import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
-import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import {
+  doesOrganizationSubscriptionOwnMemberUsage,
+  isEnterprise,
+  isPaid,
+  isPro,
+  isTeam,
+} from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
-import {
-  getBilledOverageForSubscription,
-  resetUsageForSubscription,
-} from '@/lib/billing/webhooks/invoices'
+import { resetUsageForSubscription } from '@/lib/billing/webhooks/invoices'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { detachOrganizationWorkspaces } from '@/lib/workspaces/organization-workspaces'
 
 const logger = createLogger('StripeSubscriptionWebhooks')
-
-/**
- * Restore personal Pro subscriptions for every member of an organization
- * when the team/enterprise subscription ends. Errors propagate so the
- * enclosing webhook handler fails and Stripe retries the delivery.
- *
- * `restoreUserProSubscription` is idempotent: already-restored members
- * are no-ops on retry, so a partial first attempt is safe to re-run.
- */
-async function restoreMemberProSubscriptions(organizationId: string): Promise<number> {
-  const members = await db
-    .select({ userId: member.userId })
-    .from(member)
-    .where(eq(member.organizationId, organizationId))
-
-  let restoredCount = 0
-
-  for (const m of members) {
-    const result = await restoreUserProSubscription(m.userId)
-    if (result.restored) {
-      restoredCount++
-    }
-  }
-
-  if (restoredCount > 0) {
-    logger.info('Restored Pro subscriptions for team members', {
-      organizationId,
-      restoredCount,
-      totalMembers: members.length,
-    })
-  }
-
-  return restoredCount
-}
 
 export interface OrganizationDormantTransitionResult {
   restoredProCount: number
@@ -90,7 +63,7 @@ async function transitionOrganizationToDormantState(
   triggeringSubscriptionId: string | null
 ): Promise<OrganizationDormantTransitionResult> {
   const memberUserIds = await db
-    .select({ userId: member.userId })
+    .select({ userId: member.userId, role: member.role })
     .from(member)
     .where(eq(member.organizationId, organizationId))
 
@@ -113,7 +86,29 @@ async function transitionOrganizationToDormantState(
   }
 
   const { detachedWorkspaceIds } = await detachOrganizationWorkspaces(organizationId)
-  const restoredProCount = await restoreMemberProSubscriptions(organizationId)
+  const activeOrgSubs = await db
+    .select({ id: subscription.id, plan: subscription.plan })
+    .from(subscription)
+    .where(
+      and(
+        eq(subscription.referenceId, organizationId),
+        inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+      )
+    )
+  const activeCoveringOrgSubs = activeOrgSubs.filter((sub) => sub.id !== triggeringSubscriptionId)
+
+  let restoredProCount = 0
+  for (const m of memberUserIds) {
+    const stillOwnedByOrg = activeCoveringOrgSubs.some((sub) =>
+      doesOrganizationSubscriptionOwnMemberUsage(sub.plan, m.role)
+    )
+    if (stillOwnedByOrg) continue
+
+    const result = await restoreUserProSubscription(m.userId)
+    if (result.restored) {
+      restoredProCount++
+    }
+  }
 
   for (const m of memberUserIds) {
     await syncUsageLimitsFromSubscription(m.userId)
@@ -130,9 +125,16 @@ async function transitionOrganizationToDormantState(
 export async function handleOrganizationPlanDowngrade(
   subscriptionData: {
     id: string
+    previousPlan?: string | null
     plan: string | null
     referenceId: string
     status: string | null
+    periodStart?: Date | null
+    periodEnd?: Date | null
+    usageCutoff?: Date | null
+    seats?: number | null
+    stripeCustomerId?: string | null
+    stripeSubscriptionId?: string | null
   },
   stripeEventId?: string
 ): Promise<void> {
@@ -168,9 +170,102 @@ export async function handleOrganizationPlanDowngrade(
       'organization-plan-downgrade',
       idempotencyIdentifier,
       async () => {
+        if (
+          (isTeam(subscriptionData.previousPlan) || isEnterprise(subscriptionData.previousPlan)) &&
+          !(isTeam(subscriptionData.plan) || isEnterprise(subscriptionData.plan))
+        ) {
+          if (!subscriptionData.periodStart || !subscriptionData.periodEnd) {
+            throw new Error('Subscription period is required for organization downgrade billing')
+          }
+          if (!subscriptionData.usageCutoff) {
+            throw new Error('Usage cutoff is required for organization downgrade billing')
+          }
+
+          const periodStart = subscriptionData.periodStart
+          const periodEnd = subscriptionData.periodEnd
+          const usageCutoff = subscriptionData.usageCutoff
+          const attributedRows = await attributeLegacyOrganizationUsageForPeriod({
+            organizationId: subscriptionData.referenceId,
+            periodStart,
+            periodEnd,
+            usageCutoff,
+          })
+          if (attributedRows > 0) {
+            logger.info('Attributed pooled legacy usage before organization plan downgrade', {
+              organizationId: subscriptionData.referenceId,
+              subscriptionId: subscriptionData.id,
+              previousPlan: subscriptionData.previousPlan,
+              newPlan: subscriptionData.plan,
+              attributedRows,
+            })
+          }
+
+          if (isTeam(subscriptionData.previousPlan)) {
+            let customerId = subscriptionData.stripeCustomerId ?? null
+            if (!customerId && subscriptionData.stripeSubscriptionId) {
+              const stripe = requireStripeClient()
+              const stripeSubscription = await stripe.subscriptions.retrieve(
+                subscriptionData.stripeSubscriptionId
+              )
+              customerId =
+                typeof stripeSubscription.customer === 'string'
+                  ? stripeSubscription.customer
+                  : stripeSubscription.customer.id
+            }
+
+            if (!subscriptionData.stripeSubscriptionId || !customerId) {
+              throw new Error(
+                'Stripe customer and subscription ids are required for downgrade claim'
+              )
+            }
+
+            const billingPeriod = periodEnd.toISOString().slice(0, 7)
+            const claim = await createOverageBillingClaim({
+              subscription: {
+                id: subscriptionData.id,
+                plan: subscriptionData.previousPlan ?? null,
+                referenceId: subscriptionData.referenceId,
+                seats: subscriptionData.seats ?? null,
+                periodStart,
+                periodEnd,
+                stripeCustomerId: customerId,
+                stripeSubscriptionId: subscriptionData.stripeSubscriptionId,
+              },
+              claimType: 'final',
+              periodStart,
+              periodEnd,
+              usageCutoff,
+              customerId,
+              stripeSubscriptionId: subscriptionData.stripeSubscriptionId,
+              description: `Final overage charges before downgrade from ${subscriptionData.previousPlan} (${billingPeriod})`,
+              itemDescription: `Usage overage before downgrade from ${subscriptionData.previousPlan}`,
+              enqueueStripeInvoice: true,
+              metadata: {
+                billingPeriod,
+                subscriptionId: subscriptionData.stripeSubscriptionId,
+                downgradeEventId: idempotencyIdentifier,
+                previousPlan: subscriptionData.previousPlan ?? '',
+                newPlan: subscriptionData.plan ?? '',
+                usageCutoff: usageCutoff.toISOString(),
+              },
+            })
+
+            logger.info('Created final pooled overage claim before organization plan downgrade', {
+              organizationId: subscriptionData.referenceId,
+              subscriptionId: subscriptionData.id,
+              claimId: claim.claimId,
+              claimed: claim.claimed,
+              overageAmount: claim.overageAmount,
+              priorCoveredOverage: claim.priorCoveredOverage,
+              creditApplied: claim.creditApplied,
+              amountToBill: claim.amountToBill,
+            })
+          }
+        }
+
         const result = await transitionOrganizationToDormantState(
           subscriptionData.referenceId,
-          subscriptionData.id
+          null
         )
 
         if (result.workspacesDetached > 0 || result.restoredProCount > 0) {
@@ -279,7 +374,10 @@ export async function handleSubscriptionDeleted(
     plan: string | null
     referenceId: string
     stripeSubscriptionId: string | null
+    stripeCustomerId?: string | null
     seats?: number | null
+    periodStart?: Date | null
+    periodEnd?: Date | null
   },
   stripeEventId?: string
 ) {
@@ -301,19 +399,43 @@ export async function handleSubscriptionDeleted(
       'subscription-deleted',
       idempotencyIdentifier,
       async () => {
-        const totalOverage = await calculateSubscriptionOverage(subscription)
-        const stripe = requireStripeClient()
+        const orgScoped = await isSubscriptionOrgScoped(subscription)
+        if (orgScoped && isEnterprise(subscription.plan)) {
+          if (subscription.periodStart && subscription.periodEnd) {
+            const attributedRows = await attributeLegacyOrganizationUsageForPeriod({
+              organizationId: subscription.referenceId,
+              periodStart: subscription.periodStart,
+              periodEnd: subscription.periodEnd,
+              usageCutoff: subscription.periodEnd,
+            })
+            if (attributedRows > 0) {
+              logger.info(
+                'Attributed legacy usage rows before organization subscription cancellation',
+                {
+                  subscriptionId: subscription.id,
+                  organizationId: subscription.referenceId,
+                  attributedRows,
+                }
+              )
+            }
+          } else {
+            logger.warn('Skipping enterprise cancellation attribution without a billing period', {
+              subscriptionId: subscription.id,
+              organizationId: subscription.referenceId,
+            })
+          }
+        }
 
         if (isEnterprise(subscription.plan)) {
-          await resetUsageForSubscription({
-            plan: subscription.plan,
-            referenceId: subscription.referenceId,
-          })
-
           const dormantResult = await transitionOrganizationToDormantState(
             subscription.referenceId,
             subscription.id
           )
+
+          await resetUsageForSubscription({
+            plan: subscription.plan,
+            referenceId: subscription.referenceId,
+          })
 
           logger.info('Successfully processed enterprise subscription cancellation', {
             subscriptionId: subscription.id,
@@ -329,77 +451,77 @@ export async function handleSubscriptionDeleted(
           return { totalOverage: 0, kind: 'enterprise' as const }
         }
 
-        const billedOverage = await getBilledOverageForSubscription(subscription)
-        const remainingOverage = Math.max(0, totalOverage - billedOverage)
+        const stripe = requireStripeClient()
+        let totalOverage = 0
 
-        logger.info('Subscription deleted overage calculation', {
-          subscriptionId: subscription.id,
-          totalOverage,
-          billedOverage,
-          remainingOverage,
-        })
-
-        if (remainingOverage > 0 && stripeSubscriptionId) {
+        if (stripeSubscriptionId) {
           const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId)
-          const customerId = stripeSubscription.customer as string
-          const cents = Math.round(remainingOverage * 100)
-          const endedAt = stripeSubscription.ended_at || Math.floor(Date.now() / 1000)
-          const billingPeriod = new Date(endedAt * 1000).toISOString().slice(0, 7)
+          const customerId =
+            typeof stripeSubscription.customer === 'string'
+              ? stripeSubscription.customer
+              : stripeSubscription.customer.id
+          if (!stripeSubscription.ended_at) {
+            throw new Error('Stripe subscription ended_at is required for cancellation billing')
+          }
+          if (!subscription.periodStart || !subscription.periodEnd) {
+            throw new Error('Subscription period is required for cancellation billing')
+          }
+          const endedAt = stripeSubscription.ended_at
+          const periodStart = subscription.periodStart
+          const usageCutoff = new Date(endedAt * 1000)
+          const periodEnd = subscription.periodEnd
+          const billingPeriod = periodEnd.toISOString().slice(0, 7)
 
-          const itemIdemKey = `final-overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-          const invoiceIdemKey = `final-overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-          const finalizeIdemKey = `final-overage-finalize:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-
-          const overageInvoice = await stripe.invoices.create(
-            {
-              customer: customerId,
-              collection_method: 'charge_automatically',
-              auto_advance: true,
-              description: `Final overage charges for ${subscription.plan} subscription (${billingPeriod})`,
-              metadata: {
-                type: 'final_overage_billing',
-                billingPeriod,
-                subscriptionId: stripeSubscriptionId,
-                cancelledAt: stripeSubscription.canceled_at?.toString() || '',
-              },
-            },
-            { idempotencyKey: invoiceIdemKey }
-          )
-
-          await stripe.invoiceItems.create(
-            {
-              customer: customerId,
-              invoice: overageInvoice.id,
-              amount: cents,
-              currency: 'usd',
-              description: `Usage overage for ${subscription.plan} plan (Final billing period)`,
-              metadata: {
-                type: 'final_usage_overage',
-                usage: remainingOverage.toFixed(2),
-                totalOverage: totalOverage.toFixed(2),
-                billedOverage: billedOverage.toFixed(2),
-                billingPeriod,
-              },
-            },
-            { idempotencyKey: itemIdemKey }
-          )
-
-          if (overageInvoice.id) {
-            await stripe.invoices.finalizeInvoice(
-              overageInvoice.id,
-              {},
-              { idempotencyKey: finalizeIdemKey }
-            )
+          if (orgScoped && isTeam(subscription.plan)) {
+            const attributedRows = await attributeLegacyOrganizationUsageForPeriod({
+              organizationId: subscription.referenceId,
+              periodStart,
+              periodEnd,
+              usageCutoff,
+            })
+            if (attributedRows > 0) {
+              logger.info('Attributed legacy usage rows before organization final claim', {
+                subscriptionId: subscription.id,
+                organizationId: subscription.referenceId,
+                attributedRows,
+              })
+            }
           }
 
-          logger.info('Created final overage invoice for cancelled subscription', {
+          const claim = await createOverageBillingClaim({
+            subscription: {
+              ...subscription,
+              periodStart,
+              periodEnd,
+            },
+            claimType: 'final',
+            periodStart,
+            periodEnd,
+            usageCutoff,
+            customerId: subscription.stripeCustomerId ?? customerId,
+            stripeSubscriptionId,
+            description: `Final overage charges for ${subscription.plan} subscription (${billingPeriod})`,
+            itemDescription: `Usage overage for ${subscription.plan} plan (Final billing period)`,
+            enqueueStripeInvoice: true,
+            metadata: {
+              billingPeriod,
+              subscriptionId: stripeSubscriptionId,
+              cancelledAt: stripeSubscription.canceled_at?.toString() || '',
+              usageCutoff: usageCutoff.toISOString(),
+            },
+          })
+          totalOverage = claim.priorCoveredOverage + claim.overageAmount
+
+          logger.info('Created final overage ledger claim for cancelled subscription', {
             subscriptionId: subscription.id,
             stripeSubscriptionId,
-            invoiceId: overageInvoice.id,
             totalOverage,
-            billedOverage,
-            remainingOverage,
-            cents,
+            claimId: claim.claimId,
+            claimed: claim.claimed,
+            overageAmount: claim.overageAmount,
+            priorCoveredOverage: claim.priorCoveredOverage,
+            creditApplied: claim.creditApplied,
+            amountToBill: claim.amountToBill,
             billingPeriod,
           })
         } else {
@@ -409,16 +531,11 @@ export async function handleSubscriptionDeleted(
           })
         }
 
-        await resetUsageForSubscription({
-          plan: subscription.plan,
-          referenceId: subscription.referenceId,
-        })
-
         let restoredProCount = 0
         let membersSynced = 0
         let workspacesDetached = 0
 
-        if (await isSubscriptionOrgScoped(subscription)) {
+        if (orgScoped) {
           const dormantResult = await transitionOrganizationToDormantState(
             subscription.referenceId,
             subscription.id
@@ -430,6 +547,11 @@ export async function handleSubscriptionDeleted(
           await syncUsageLimitsFromSubscription(subscription.referenceId)
           membersSynced = 1
         }
+
+        await resetUsageForSubscription({
+          plan: subscription.plan,
+          referenceId: subscription.referenceId,
+        })
 
         logger.info('Successfully processed subscription cancellation', {
           subscriptionId: subscription.id,
@@ -446,7 +568,7 @@ export async function handleSubscriptionDeleted(
           reference_id: subscription.referenceId,
         })
 
-        return { totalOverage, remainingOverage, restoredProCount, workspacesDetached }
+        return { totalOverage, restoredProCount, workspacesDetached }
       }
     )
   } catch (error) {

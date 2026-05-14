@@ -29,15 +29,26 @@
  */
 
 import { db } from '@sim/db'
-import { member, organization, user, userStats } from '@sim/db/schema'
+import {
+  member,
+  organization,
+  subscription as subscriptionTable,
+  user,
+  userStats,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { count, eq } from 'drizzle-orm'
+import { and, count, eq, inArray } from 'drizzle-orm'
 import {
   adminV1AddOrganizationMemberContract,
   adminV1ListOrganizationMembersContract,
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
-import { addUserToOrganization } from '@/lib/billing/organizations/membership'
+import { calculateOrganizationMemberLedgerUsage } from '@/lib/billing/ledger/usage-ledger'
+import {
+  addUserToOrganization,
+  updateOrganizationMemberRoleWithBilling,
+} from '@/lib/billing/organizations/membership'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -83,7 +94,7 @@ export const GET = withRouteHandler(
         return notFoundResponse('Organization')
       }
 
-      const [countResult, membersData] = await Promise.all([
+      const [countResult, membersData, orgSub] = await Promise.all([
         db.select({ count: count() }).from(member).where(eq(member.organizationId, organizationId)),
         db
           .select({
@@ -94,7 +105,6 @@ export const GET = withRouteHandler(
             createdAt: member.createdAt,
             userName: user.name,
             userEmail: user.email,
-            currentPeriodCost: userStats.currentPeriodCost,
             currentUsageLimit: userStats.currentUsageLimit,
             lastActive: userStats.lastActive,
             billingBlocked: userStats.billingBlocked,
@@ -106,9 +116,27 @@ export const GET = withRouteHandler(
           .orderBy(member.createdAt)
           .limit(limit)
           .offset(offset),
+        db
+          .select({
+            periodStart: subscriptionTable.periodStart,
+            periodEnd: subscriptionTable.periodEnd,
+          })
+          .from(subscriptionTable)
+          .where(
+            and(
+              eq(subscriptionTable.referenceId, organizationId),
+              inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+            )
+          )
+          .limit(1),
       ])
 
       const total = countResult[0].count
+      const memberUsage = await calculateOrganizationMemberLedgerUsage(organizationId, {
+        periodStart: orgSub[0]?.periodStart ?? null,
+        periodEnd: orgSub[0]?.periodEnd ?? null,
+        memberIds: membersData.map((m) => m.userId),
+      })
       const data: AdminMemberDetail[] = membersData.map((m) => ({
         id: m.id,
         userId: m.userId,
@@ -117,7 +145,7 @@ export const GET = withRouteHandler(
         createdAt: m.createdAt.toISOString(),
         userName: m.userName,
         userEmail: m.userEmail,
-        currentPeriodCost: m.currentPeriodCost ?? '0',
+        currentPeriodCost: (memberUsage[m.userId] ?? 0).toString(),
         currentUsageLimit: m.currentUsageLimit,
         lastActive: m.lastActive?.toISOString() ?? null,
         billingBlocked: m.billingBlocked ?? false,
@@ -188,7 +216,12 @@ export const POST = withRouteHandler(
           }
 
           if (existingMember.role !== role) {
-            await db.update(member).set({ role }).where(eq(member.id, existingMember.id))
+            await updateOrganizationMemberRoleWithBilling({
+              userId,
+              organizationId,
+              previousRole: existingMember.role as 'admin' | 'member' | 'owner',
+              nextRole: role as 'admin' | 'member' | 'owner',
+            })
 
             logger.info(
               `Admin API: Updated user ${userId} role in organization ${organizationId}`,

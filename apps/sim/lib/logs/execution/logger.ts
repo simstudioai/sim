@@ -1,23 +1,10 @@
 import { db } from '@sim/db'
-import {
-  member,
-  userStats,
-  user as userTable,
-  workflow,
-  workflowExecutionLogs,
-} from '@sim/db/schema'
+import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import {
-  checkUsageStatus,
-  getOrgUsageLimit,
-  maybeSendUsageThresholdEmail,
-} from '@/lib/billing/core/usage'
 import { type ModelUsageMetadata, recordUsage } from '@/lib/billing/core/usage-log'
-import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
@@ -35,17 +22,6 @@ import type {
   WorkflowState,
 } from '@/lib/logs/types'
 import type { SerializableExecutionState } from '@/executor/execution/types'
-
-/** Maps execution trigger types to their corresponding userStats counter columns */
-const TRIGGER_COUNTER_MAP: Record<string, { key: string; column: string }> = {
-  manual: { key: 'totalManualExecutions', column: 'total_manual_executions' },
-  api: { key: 'totalApiCalls', column: 'total_api_calls' },
-  webhook: { key: 'totalWebhookTriggers', column: 'total_webhook_triggers' },
-  schedule: { key: 'totalScheduledExecutions', column: 'total_scheduled_executions' },
-  chat: { key: 'totalChatExecutions', column: 'total_chat_executions' },
-  mcp: { key: 'totalMcpExecutions', column: 'total_mcp_executions' },
-  a2a: { key: 'totalA2aExecutions', column: 'total_a2a_executions' },
-} as const
 
 const logger = createLogger('ExecutionLogger')
 
@@ -390,113 +366,13 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
 
     try {
-      // Skip workflow lookup if workflow was deleted
-      const wf = updatedLog.workflowId
-        ? (await db.select().from(workflow).where(eq(workflow.id, updatedLog.workflowId)))[0]
-        : undefined
-      if (wf && billingUserId) {
-        const [usr] = await db
-          .select({ id: userTable.id, email: userTable.email, name: userTable.name })
-          .from(userTable)
-          .where(eq(userTable.id, billingUserId))
-          .limit(1)
-
-        if (usr?.email) {
-          const sub = await getHighestPrioritySubscription(usr.id)
-
-          const costDelta = costSummary.totalCost
-
-          const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
-          const { isOrgScopedSubscription } = await import('@/lib/billing/subscriptions/utils')
-          const planName = getDisplayPlanName(sub?.plan)
-          const scope: 'user' | 'organization' = isOrgScopedSubscription(sub, usr.id)
-            ? 'organization'
-            : 'user'
-
-          if (scope === 'user') {
-            const before = await checkUsageStatus(usr.id)
-
-            await this.updateUserStats(
-              updatedLog.workflowId,
-              costSummary,
-              updatedLog.trigger as ExecutionTrigger['type'],
-              executionId,
-              billingUserId
-            )
-
-            const limit = before.usageData.limit
-            const percentBefore = before.usageData.percentUsed
-            const percentAfter =
-              limit > 0 ? Math.min(100, percentBefore + (costDelta / limit) * 100) : percentBefore
-            const currentUsageAfter = before.usageData.currentUsage + costDelta
-
-            await maybeSendUsageThresholdEmail({
-              scope: 'user',
-              userId: usr.id,
-              userEmail: usr.email,
-              userName: usr.name || undefined,
-              planName,
-              percentBefore,
-              percentAfter,
-              currentUsageAfter,
-              limit,
-            })
-          } else if (sub?.referenceId) {
-            // Get org usage limit using shared helper
-            const { limit: orgLimit } = await getOrgUsageLimit(sub.referenceId, sub.plan, sub.seats)
-
-            const [{ sum: orgUsageBefore }] = await db
-              .select({ sum: sql`COALESCE(SUM(${userStats.currentPeriodCost}), 0)` })
-              .from(member)
-              .leftJoin(userStats, eq(member.userId, userStats.userId))
-              .where(eq(member.organizationId, sub.referenceId))
-              .limit(1)
-            const orgUsageBeforeNum = Number.parseFloat(String(orgUsageBefore ?? '0'))
-
-            await this.updateUserStats(
-              updatedLog.workflowId,
-              costSummary,
-              updatedLog.trigger as ExecutionTrigger['type'],
-              executionId,
-              billingUserId
-            )
-
-            const percentBefore =
-              orgLimit > 0 ? Math.min(100, (orgUsageBeforeNum / orgLimit) * 100) : 0
-            const percentAfter =
-              orgLimit > 0
-                ? Math.min(100, percentBefore + (costDelta / orgLimit) * 100)
-                : percentBefore
-            const currentUsageAfter = orgUsageBeforeNum + costDelta
-
-            await maybeSendUsageThresholdEmail({
-              scope: 'organization',
-              organizationId: sub.referenceId,
-              planName,
-              percentBefore,
-              percentAfter,
-              currentUsageAfter,
-              limit: orgLimit,
-            })
-          }
-        } else {
-          await this.updateUserStats(
-            updatedLog.workflowId,
-            costSummary,
-            updatedLog.trigger as ExecutionTrigger['type'],
-            executionId,
-            billingUserId
-          )
-        }
-      } else {
-        await this.updateUserStats(
-          updatedLog.workflowId,
-          costSummary,
-          updatedLog.trigger as ExecutionTrigger['type'],
-          executionId,
-          billingUserId
-        )
-      }
+      await this.updateUserStats(
+        updatedLog.workflowId,
+        costSummary,
+        updatedLog.trigger as ExecutionTrigger['type'],
+        executionId,
+        billingUserId
+      )
     } catch (e) {
       try {
         await this.updateUserStats(
@@ -678,26 +554,14 @@ export class ExecutionLogger implements IExecutionLoggerService {
         }
       }
 
-      const additionalStats: Record<string, ReturnType<typeof sql>> = {
-        totalTokensUsed: sql`total_tokens_used + ${costSummary.totalTokens}`,
-      }
-
-      const triggerCounter = TRIGGER_COUNTER_MAP[trigger]
-      if (triggerCounter) {
-        additionalStats[triggerCounter.key] = sql`${sql.raw(triggerCounter.column)} + 1`
-      }
-
       await recordUsage({
         userId,
         entries,
         workspaceId: workflowRecord.workspaceId ?? undefined,
         workflowId,
         executionId,
-        additionalStats,
+        sourceEventKey: executionId ? `workflow-execution:${executionId}` : undefined,
       })
-
-      // Check if user has hit overage threshold and bill incrementally
-      await checkAndBillOverageThreshold(userId)
     } catch (error) {
       statsLog.error('Error updating user stats with cost information', {
         error,

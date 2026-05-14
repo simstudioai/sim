@@ -5,10 +5,10 @@ import { and, count, eq, gt, ne } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
 import {
-  computeDailyRefreshConsumed,
-  getOrgMemberRefreshBounds,
-} from '@/lib/billing/credits/daily-refresh'
-import { getPlanTierDollars, isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
+  calculateCurrentLedgerUsageForSubscription,
+  calculateOrganizationMemberLedgerUsage,
+} from '@/lib/billing/ledger/usage-ledger'
+import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
 import {
   getEffectiveSeats,
   getFreeTierLimit,
@@ -89,8 +89,6 @@ export async function getOrganizationBillingData(
         userEmail: user.email,
         role: member.role,
         joinedAt: member.createdAt,
-        // User stats fields
-        currentPeriodCost: userStats.currentPeriodCost,
         currentUsageLimit: userStats.currentUsageLimit,
         lastActive: userStats.lastActive,
       })
@@ -99,9 +97,15 @@ export async function getOrganizationBillingData(
       .leftJoin(userStats, eq(member.userId, userStats.userId))
       .where(eq(member.organizationId, organizationId))
 
+    const memberUsage = await calculateOrganizationMemberLedgerUsage(organizationId, {
+      periodStart: subscription.periodStart ?? null,
+      periodEnd: subscription.periodEnd ?? null,
+      memberIds: membersWithUsage.map((memberRecord) => memberRecord.userId),
+    })
+
     // Process member data
     const members: MemberUsageData[] = membersWithUsage.map((memberRecord) => {
-      const currentUsage = Number(memberRecord.currentPeriodCost || 0)
+      const currentUsage = memberUsage[memberRecord.userId] ?? 0
       const usageLimit = Number(memberRecord.currentUsageLimit || getFreeTierLimit())
       const percentUsed = usageLimit > 0 ? (currentUsage / usageLimit) * 100 : 0
 
@@ -119,28 +123,8 @@ export async function getOrganizationBillingData(
       }
     })
 
-    // Calculate aggregated statistics
-    let totalCurrentUsage = members.reduce((sum, m) => sum + m.currentUsage, 0)
-
-    if (isPaid(subscription.plan) && subscription.periodStart) {
-      const planDollars = getPlanTierDollars(subscription.plan)
-      if (planDollars > 0) {
-        const memberIds = members.map((m) => m.userId)
-        const userBounds = await getOrgMemberRefreshBounds(
-          subscription.referenceId,
-          subscription.periodStart
-        )
-        const refreshConsumed = await computeDailyRefreshConsumed({
-          userIds: memberIds,
-          periodStart: subscription.periodStart,
-          periodEnd: subscription.periodEnd ?? null,
-          planDollars,
-          seats: subscription.seats || 1,
-          userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
-        })
-        totalCurrentUsage = Math.max(0, totalCurrentUsage - refreshConsumed)
-      }
-    }
+    const ledgerUsage = await calculateCurrentLedgerUsageForSubscription(subscription)
+    const totalCurrentUsage = ledgerUsage.effectiveUsage
 
     const { basePrice: pricePerSeat } = getPlanPricing(subscription.plan)
 

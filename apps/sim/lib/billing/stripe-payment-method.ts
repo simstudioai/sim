@@ -44,14 +44,17 @@ export async function resolveDefaultPaymentMethod(
 ): Promise<{
   paymentMethodId: string | undefined
   collectionMethod: 'charge_automatically' | 'send_invoice' | null
+  daysUntilDue: number | null
 }> {
   let collectionMethod: 'charge_automatically' | 'send_invoice' | null = null
   let paymentMethodId: string | undefined
+  let daysUntilDue: number | null = null
 
   try {
     const sub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
     collectionMethod =
       sub.collection_method === 'send_invoice' ? 'send_invoice' : 'charge_automatically'
+    daysUntilDue = sub.days_until_due ?? null
     paymentMethodId = getPaymentMethodId(sub.default_payment_method)
 
     if (!paymentMethodId && collectionMethod === 'charge_automatically') {
@@ -70,5 +73,5 @@ export async function resolveDefaultPaymentMethod(
     })
   }
 
-  return { paymentMethodId, collectionMethod }
+  return { paymentMethodId, collectionMethod, daysUntilDue }
 }
