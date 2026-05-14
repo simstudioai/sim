@@ -10,7 +10,7 @@ export const v1CopilotChatBodySchema = z.object({
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   model: z.string().optional(),
   autoExecuteTools: z.boolean().optional().default(true),
-  timeout: z.number().optional().default(3_600_000),
+  timeout: z.number().int().min(1000).max(3_600_000).optional().default(3_600_000),
 })
 
 export type V1CopilotChatBody = z.output<typeof v1CopilotChatBodySchema>

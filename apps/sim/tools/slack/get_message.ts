@@ -1,6 +1,9 @@
+import { createLogger } from '@sim/logger'
 import type { SlackGetMessageParams, SlackGetMessageResponse } from '@/tools/slack/types'
 import { MESSAGE_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('SlackGetMessageTool')
 
 export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMessageResponse> = {
   id: 'slack_get_message',
@@ -49,11 +52,10 @@ export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMess
 
   request: {
     url: (params: SlackGetMessageParams) => {
-      const url = new URL('https://slack.com/api/conversations.history')
+      const url = new URL('https://slack.com/api/conversations.replies')
       url.searchParams.append('channel', params.channel?.trim() ?? '')
-      url.searchParams.append('oldest', params.timestamp?.trim() ?? '')
+      url.searchParams.append('ts', params.timestamp?.trim() ?? '')
       url.searchParams.append('limit', '1')
-      url.searchParams.append('inclusive', 'true')
       return url.toString()
     },
     method: 'GET',
@@ -63,8 +65,9 @@ export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMess
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: SlackGetMessageParams) => {
     const data = await response.json()
+    const requestedTs = params?.timestamp?.trim() ?? ''
 
     if (!data.ok) {
       if (data.error === 'missing_scope') {
@@ -78,15 +81,25 @@ export const slackGetMessageTool: ToolConfig<SlackGetMessageParams, SlackGetMess
       if (data.error === 'channel_not_found') {
         throw new Error('Channel not found. Please check the channel ID.')
       }
+      if (data.error === 'message_not_found' || data.error === 'thread_not_found') {
+        throw new Error(`Message not found at timestamp ${requestedTs}`)
+      }
       throw new Error(data.error || 'Failed to get message from Slack')
     }
 
     const messages = data.messages || []
     if (messages.length === 0) {
-      throw new Error('Message not found')
+      throw new Error(`Message not found at timestamp ${requestedTs}`)
     }
 
     const msg = messages[0]
+    if (requestedTs && msg.ts !== requestedTs) {
+      logger.warn('Slack returned a message with a different timestamp than requested', {
+        requestedTs,
+        returnedTs: msg.ts,
+      })
+      throw new Error(`Message not found at timestamp ${requestedTs}`)
+    }
     const message = {
       type: msg.type ?? 'message',
       ts: msg.ts,

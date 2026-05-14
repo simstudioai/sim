@@ -11,6 +11,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
+import { BILLING_LOCK_TIMEOUT_MS } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { addCredits, getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
@@ -388,40 +389,86 @@ export async function getBilledOverageForSubscription(sub: {
 
 export async function resetUsageForSubscription(sub: { plan: string | null; referenceId: string }) {
   if (await isSubscriptionOrgScoped(sub)) {
-    const membersRows = await db
-      .select({ userId: member.userId })
-      .from(member)
-      .where(eq(member.organizationId, sub.referenceId))
+    await db.transaction(async (tx) => {
+      await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
 
-    for (const m of membersRows) {
-      const currentStats = await db
-        .select({
-          current: userStats.currentPeriodCost,
-          currentCopilot: userStats.currentPeriodCopilotCost,
-        })
-        .from(userStats)
-        .where(eq(userStats.userId, m.userId))
+      const ownerRows = await tx
+        .select({ userId: member.userId })
+        .from(member)
+        .where(and(eq(member.organizationId, sub.referenceId), eq(member.role, 'owner')))
+        .for('update')
         .limit(1)
-      if (currentStats.length > 0) {
-        const current = currentStats[0].current || '0'
-        const currentCopilot = currentStats[0].currentCopilot || '0'
-        await db
+
+      const ownerId = ownerRows[0]?.userId
+      if (ownerId) {
+        await tx
+          .select({ userId: userStats.userId })
+          .from(userStats)
+          .where(eq(userStats.userId, ownerId))
+          .for('update')
+          .limit(1)
+      }
+
+      await tx
+        .select({ id: organization.id })
+        .from(organization)
+        .where(eq(organization.id, sub.referenceId))
+        .for('update')
+        .limit(1)
+
+      const membersRows = await tx
+        .select({ userId: member.userId })
+        .from(member)
+        .where(eq(member.organizationId, sub.referenceId))
+
+      const memberIds = membersRows.map((row) => row.userId)
+      if (memberIds.length > 0) {
+        const memberStatsRows = await tx
+          .select({
+            userId: userStats.userId,
+            current: userStats.currentPeriodCost,
+            currentCopilot: userStats.currentPeriodCopilotCost,
+          })
+          .from(userStats)
+          .where(inArray(userStats.userId, memberIds))
+
+        const statsUserIds = memberStatsRows.map((row) => row.userId)
+        if (statsUserIds.length === 0) {
+          await tx
+            .update(organization)
+            .set({ departedMemberUsage: '0' })
+            .where(eq(organization.id, sub.referenceId))
+          return
+        }
+
+        const currentCostByUser = sql.join(
+          memberStatsRows.map((row) => sql`WHEN ${row.userId} THEN ${row.current ?? '0'}`),
+          sql` `
+        )
+        const currentCopilotCostByUser = sql.join(
+          memberStatsRows.map((row) => sql`WHEN ${row.userId} THEN ${row.currentCopilot ?? '0'}`),
+          sql` `
+        )
+        const capturedCurrentCost = sql`CASE ${userStats.userId} ${currentCostByUser} ELSE '0' END`
+        const capturedCurrentCopilotCost = sql`CASE ${userStats.userId} ${currentCopilotCostByUser} ELSE '0' END`
+
+        await tx
           .update(userStats)
           .set({
-            lastPeriodCost: current,
-            lastPeriodCopilotCost: currentCopilot,
-            currentPeriodCost: sql`GREATEST(0, ${userStats.currentPeriodCost} - ${current}::decimal)`,
-            currentPeriodCopilotCost: sql`GREATEST(0, ${userStats.currentPeriodCopilotCost} - ${currentCopilot}::decimal)`,
+            lastPeriodCost: capturedCurrentCost,
+            lastPeriodCopilotCost: capturedCurrentCopilotCost,
+            currentPeriodCost: sql`GREATEST(0, ${userStats.currentPeriodCost} - (${capturedCurrentCost})::decimal)`,
+            currentPeriodCopilotCost: sql`GREATEST(0, ${userStats.currentPeriodCopilotCost} - (${capturedCurrentCopilotCost})::decimal)`,
             billedOverageThisPeriod: '0',
           })
-          .where(eq(userStats.userId, m.userId))
+          .where(inArray(userStats.userId, statsUserIds))
       }
-    }
 
-    await db
-      .update(organization)
-      .set({ departedMemberUsage: '0' })
-      .where(eq(organization.id, sub.referenceId))
+      await tx
+        .update(organization)
+        .set({ departedMemberUsage: '0' })
+        .where(eq(organization.id, sub.referenceId))
+    })
   } else {
     const currentStats = await db
       .select({
@@ -859,36 +906,29 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
         const entityType = (await isSubscriptionOrgScoped(sub)) ? 'organization' : 'user'
         const entityId = sub.referenceId
 
-        // Resolve the userStats row that holds the `billedOverageThisPeriod`
-        // tracker. Org subs: the owner's row. Personal: the user's own row.
-        // Throw if an org has no owner — returning early would cache a
-        // "successful" no-op, and the next cycle's tracker would still
-        // reflect this cycle's billed amount, breaking future overage math.
-        let trackerUserId: string
-        if (entityType === 'organization') {
-          const ownerRows = await db
-            .select({ userId: member.userId })
-            .from(member)
-            .where(and(eq(member.organizationId, entityId), eq(member.role, 'owner')))
-            .limit(1)
-          const ownerId = ownerRows[0]?.userId
-          if (!ownerId) {
-            throw new Error(
-              `Organization ${entityId} has no owner member; cannot process invoice finalization`
-            )
-          }
-          trackerUserId = ownerId
-        } else {
-          trackerUserId = entityId
-        }
-
-        // Phase 1 — atomic commit. Lock the tracker row first so we read
-        // `billedOverageThisPeriod` serialized against concurrent events;
-        // then read the credit balance, decrement it, and bump the
-        // tracker to `totalOverage`. On retry, the locked re-read sees
-        // `billed == totalOverage` → `remaining == 0` → credit removal
-        // skipped. That's the invariant preventing double-deduction.
+        // Phase 1 — atomic commit. Resolve org owners inside the transaction,
+        // then lock the tracker row so `billedOverageThisPeriod` is serialized
+        // against threshold billing, resets, owner transfers, and retries.
         const phase1 = await db.transaction(async (tx) => {
+          await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${BILLING_LOCK_TIMEOUT_MS}ms'`))
+
+          let trackerUserId = entityId
+          if (entityType === 'organization') {
+            const ownerRows = await tx
+              .select({ userId: member.userId })
+              .from(member)
+              .where(and(eq(member.organizationId, entityId), eq(member.role, 'owner')))
+              .for('update')
+              .limit(1)
+            const ownerId = ownerRows[0]?.userId
+            if (!ownerId) {
+              throw new Error(
+                `Organization ${entityId} has no owner member; cannot process invoice finalization`
+              )
+            }
+            trackerUserId = ownerId
+          }
+
           const trackerRows = await tx
             .select({ billed: userStats.billedOverageThisPeriod })
             .from(userStats)

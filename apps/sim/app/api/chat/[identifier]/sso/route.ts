@@ -30,20 +30,18 @@ export const POST = withRouteHandler(
     const requestId = generateRequestId()
 
     const ip = getClientIp(request)
-    if (ip !== 'unknown') {
-      const ipRateLimit = await rateLimiter.checkRateLimitDirect(
-        `chat-sso:ip:${ip}`,
-        SSO_IP_RATE_LIMIT
+    const ipRateLimit = await rateLimiter.checkRateLimitDirect(
+      `chat-sso:ip:${ip}`,
+      SSO_IP_RATE_LIMIT
+    )
+    if (!ipRateLimit.allowed) {
+      logger.warn(`[${requestId}] SSO eligibility rate limit exceeded from ${ip}`)
+      const retryAfter = Math.ceil(
+        (ipRateLimit.retryAfterMs ?? SSO_IP_RATE_LIMIT.refillIntervalMs) / 1000
       )
-      if (!ipRateLimit.allowed) {
-        logger.warn(`[${requestId}] SSO eligibility rate limit exceeded from ${ip}`)
-        const retryAfter = Math.ceil(
-          (ipRateLimit.retryAfterMs ?? SSO_IP_RATE_LIMIT.refillIntervalMs) / 1000
-        )
-        const response = createErrorResponse('Too many requests. Please try again later.', 429)
-        response.headers.set('Retry-After', String(retryAfter))
-        return addCorsHeaders(response, request)
-      }
+      const response = createErrorResponse('Too many requests. Please try again later.', 429)
+      response.headers.set('Retry-After', String(retryAfter))
+      return addCorsHeaders(response, request)
     }
 
     const parsed = await parseRequest(chatSSOContract, request, context)

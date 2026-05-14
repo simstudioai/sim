@@ -223,20 +223,18 @@ export const POST = withRouteHandler(
 
     try {
       const ip = getClientIp(request)
-      if (ip !== 'unknown') {
-        const ipRateLimit = await rateLimiter.checkRateLimitDirect(
-          `chat-otp:ip:${identifier}:${ip}`,
-          OTP_IP_RATE_LIMIT
+      const ipRateLimit = await rateLimiter.checkRateLimitDirect(
+        `chat-otp:ip:${identifier}:${ip}`,
+        OTP_IP_RATE_LIMIT
+      )
+      if (!ipRateLimit.allowed) {
+        logger.warn(`[${requestId}] OTP IP rate limit exceeded for ${identifier} from ${ip}`)
+        const retryAfter = Math.ceil(
+          (ipRateLimit.retryAfterMs ?? OTP_IP_RATE_LIMIT.refillIntervalMs) / 1000
         )
-        if (!ipRateLimit.allowed) {
-          logger.warn(`[${requestId}] OTP IP rate limit exceeded for ${identifier} from ${ip}`)
-          const retryAfter = Math.ceil(
-            (ipRateLimit.retryAfterMs ?? OTP_IP_RATE_LIMIT.refillIntervalMs) / 1000
-          )
-          const response = createErrorResponse('Too many requests. Please try again later.', 429)
-          response.headers.set('Retry-After', String(retryAfter))
-          return addCorsHeaders(response, request)
-        }
+        const response = createErrorResponse('Too many requests. Please try again later.', 429)
+        response.headers.set('Retry-After', String(retryAfter))
+        return addCorsHeaders(response, request)
       }
 
       const parsed = await parseRequest(requestChatEmailOtpContract, request, context, {

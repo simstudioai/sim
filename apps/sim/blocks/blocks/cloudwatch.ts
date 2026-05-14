@@ -8,8 +8,10 @@ import type {
   CloudWatchGetLogEventsResponse,
   CloudWatchGetMetricStatisticsResponse,
   CloudWatchListMetricsResponse,
+  CloudWatchMuteAlarmResponse,
   CloudWatchPutMetricDataResponse,
   CloudWatchQueryLogsResponse,
+  CloudWatchUnmuteAlarmResponse,
 } from '@/tools/cloudwatch/types'
 
 export const CloudWatchBlock: BlockConfig<
@@ -21,6 +23,8 @@ export const CloudWatchBlock: BlockConfig<
   | CloudWatchListMetricsResponse
   | CloudWatchGetMetricStatisticsResponse
   | CloudWatchPutMetricDataResponse
+  | CloudWatchMuteAlarmResponse
+  | CloudWatchUnmuteAlarmResponse
 > = {
   type: 'cloudwatch',
   name: 'CloudWatch',
@@ -47,6 +51,8 @@ export const CloudWatchBlock: BlockConfig<
         { label: 'Get Metric Statistics', id: 'get_metric_statistics' },
         { label: 'Publish Metric', id: 'put_metric_data' },
         { label: 'Describe Alarms', id: 'describe_alarms' },
+        { label: 'Mute Alarm', id: 'mute_alarm' },
+        { label: 'Unmute Alarm', id: 'unmute_alarm' },
       ],
       value: () => 'query_logs',
     },
@@ -361,6 +367,14 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'describe_alarms' },
     },
     {
+      id: 'alarmNames',
+      title: 'Alarm Names',
+      type: 'short-input',
+      placeholder: 'my-alarm-1, my-alarm-2',
+      condition: { field: 'operation', value: ['mute_alarm', 'unmute_alarm'] },
+      required: { field: 'operation', value: ['mute_alarm', 'unmute_alarm'] },
+    },
+    {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
@@ -389,6 +403,8 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       'cloudwatch_get_metric_statistics',
       'cloudwatch_put_metric_data',
       'cloudwatch_describe_alarms',
+      'cloudwatch_mute_alarm',
+      'cloudwatch_unmute_alarm',
     ],
     config: {
       tool: (params) => {
@@ -409,6 +425,10 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
             return 'cloudwatch_put_metric_data'
           case 'describe_alarms':
             return 'cloudwatch_describe_alarms'
+          case 'mute_alarm':
+            return 'cloudwatch_mute_alarm'
+          case 'unmute_alarm':
+            return 'cloudwatch_unmute_alarm'
           default:
             throw new Error(`Invalid CloudWatch operation: ${params.operation}`)
         }
@@ -613,6 +633,33 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               ...(parsedLimit !== undefined && { limit: parsedLimit }),
             }
 
+          case 'mute_alarm':
+          case 'unmute_alarm': {
+            const alarmNames = rest.alarmNames
+            if (!alarmNames) {
+              throw new Error('Alarm names are required')
+            }
+
+            const names =
+              typeof alarmNames === 'string'
+                ? alarmNames
+                    .split(',')
+                    .map((n: string) => n.trim())
+                    .filter(Boolean)
+                : alarmNames
+
+            if (!Array.isArray(names) || names.length === 0) {
+              throw new Error('At least one alarm name is required')
+            }
+
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              alarmNames: names,
+            }
+          }
+
           default:
             throw new Error(`Invalid CloudWatch operation: ${operation}`)
         }
@@ -653,6 +700,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       description: 'Alarm state filter (OK, ALARM, INSUFFICIENT_DATA)',
     },
     alarmType: { type: 'string', description: 'Alarm type filter (MetricAlarm, CompositeAlarm)' },
+    alarmNames: { type: 'string', description: 'Comma-separated alarm names to mute or unmute' },
     limit: { type: 'number', description: 'Maximum number of results' },
   },
   outputs: {
@@ -696,9 +744,13 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       type: 'array',
       description: 'CloudWatch alarms with state and configuration',
     },
+    alarmNames: {
+      type: 'array',
+      description: 'Names of the alarms that were muted or unmuted',
+    },
     success: {
       type: 'boolean',
-      description: 'Whether the published metric was successful',
+      description: 'Whether the operation completed successfully',
     },
     namespace: {
       type: 'string',
