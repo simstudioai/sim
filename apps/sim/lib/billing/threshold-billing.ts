@@ -22,6 +22,7 @@ import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 const logger = createLogger('ThresholdBilling')
 
 const OVERAGE_THRESHOLD = envNumber(env.OVERAGE_THRESHOLD_DOLLARS, DEFAULT_OVERAGE_THRESHOLD)
+const USER_STATS_LOCK_TIMEOUT_MS = 5_000
 
 export async function checkAndBillOverageThreshold(userId: string): Promise<void> {
   try {
@@ -53,7 +54,51 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
       return
     }
 
+    const currentOverage = await calculateSubscriptionOverage({
+      id: userSubscription.id,
+      plan: userSubscription.plan,
+      referenceId: userSubscription.referenceId,
+      seats: userSubscription.seats,
+      periodStart: userSubscription.periodStart,
+      periodEnd: userSubscription.periodEnd,
+    })
+
+    if (currentOverage < threshold) {
+      logger.debug('Threshold billing check below threshold before locking user stats', {
+        userId,
+        plan: userSubscription.plan,
+        currentOverage,
+        threshold,
+      })
+      return
+    }
+
+    const stripeSubscriptionId = userSubscription.stripeSubscriptionId
+    if (!stripeSubscriptionId) {
+      logger.error('No Stripe subscription ID found', { userId })
+      return
+    }
+
+    const customerRows = await db
+      .select({ stripeCustomerId: subscription.stripeCustomerId })
+      .from(subscription)
+      .where(eq(subscription.id, userSubscription.id))
+      .limit(1)
+    const customerId = customerRows[0]?.stripeCustomerId
+    if (!customerId) {
+      logger.error('No Stripe customer ID found', { userId, subscriptionId: userSubscription.id })
+      return
+    }
+
+    const periodEnd = userSubscription.periodEnd
+      ? Math.floor(userSubscription.periodEnd.getTime() / 1000)
+      : Math.floor(Date.now() / 1000)
+    const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
+    const totalOverageCents = Math.round(currentOverage * 100)
+
     await db.transaction(async (tx) => {
+      await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${USER_STATS_LOCK_TIMEOUT_MS}ms'`))
+
       const statsRecords = await tx
         .select()
         .from(userStats)
@@ -67,15 +112,6 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
       }
 
       const stats = statsRecords[0]
-
-      const currentOverage = await calculateSubscriptionOverage({
-        id: userSubscription.id,
-        plan: userSubscription.plan,
-        referenceId: userSubscription.referenceId,
-        seats: userSubscription.seats,
-        periodStart: userSubscription.periodStart,
-        periodEnd: userSubscription.periodEnd,
-      })
       const billedOverageThisPeriod = toNumber(toDecimal(stats.billedOverageThisPeriod))
       const unbilledOverage = Math.max(0, currentOverage - billedOverageThisPeriod)
 
@@ -89,23 +125,6 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
       })
 
       if (unbilledOverage < threshold) {
-        return
-      }
-
-      const stripeSubscriptionId = userSubscription.stripeSubscriptionId
-      if (!stripeSubscriptionId) {
-        logger.error('No Stripe subscription ID found', { userId })
-        return
-      }
-
-      const customerRows = await tx
-        .select({ stripeCustomerId: subscription.stripeCustomerId })
-        .from(subscription)
-        .where(eq(subscription.id, userSubscription.id))
-        .limit(1)
-      const customerId = customerRows[0]?.stripeCustomerId
-      if (!customerId) {
-        logger.error('No Stripe customer ID found', { userId, subscriptionId: userSubscription.id })
         return
       }
 
@@ -149,12 +168,7 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         return
       }
 
-      const periodEnd = userSubscription.periodEnd
-        ? Math.floor(userSubscription.periodEnd.getTime() / 1000)
-        : Math.floor(Date.now() / 1000)
-      const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
       const amountCents = Math.round(amountToBill * 100)
-      const totalOverageCents = Math.round(currentOverage * 100)
 
       await tx
         .update(userStats)
@@ -264,6 +278,8 @@ async function checkAndBillOrganizationOverageThreshold(organizationId: string):
     })
 
     await db.transaction(async (tx) => {
+      await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${USER_STATS_LOCK_TIMEOUT_MS}ms'`))
+
       // Lock both owner stats and organization rows
       const ownerStatsLock = await tx
         .select()
