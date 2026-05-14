@@ -36,6 +36,7 @@ type AgentContextType =
   | 'workflow_block'
   | 'docs'
   | 'folder'
+  | 'filefolder'
   | 'active_resource'
 
 interface AgentContext {
