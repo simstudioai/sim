@@ -2,6 +2,7 @@ import type { Logger } from '@sim/logger'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { ToolFileData } from '@/tools/types'
 
 /**
@@ -73,7 +74,8 @@ async function uploadFilesToSlack(
   files: any[],
   accessToken: string,
   requestId: string,
-  logger: Logger
+  logger: Logger,
+  ownerUserId: string
 ): Promise<{ fileIds: string[]; files: ToolFileData[] }> {
   const userFiles = processFilesToUserFiles(files, requestId, logger)
   const uploadedFileIds: string[] = []
@@ -81,6 +83,11 @@ async function uploadFilesToSlack(
 
   for (const userFile of userFiles) {
     logger.info(`[${requestId}] Uploading file: ${userFile.name}`)
+
+    const hasAccess = await verifyFileAccess(userFile.key, ownerUserId)
+    if (!hasAccess) {
+      throw new Error('File not found')
+    }
 
     const buffer = await downloadFileFromStorage(userFile, requestId, logger)
 
@@ -220,6 +227,7 @@ export interface SlackMessageParams {
   accessToken: string
   channel?: string
   userId?: string
+  ownerUserId: string
   text: string
   threadTs?: string | null
   blocks?: unknown[] | null
@@ -245,7 +253,7 @@ export async function sendSlackMessage(
   }
   error?: string
 }> {
-  const { accessToken, text, threadTs, blocks, files } = params
+  const { accessToken, text, threadTs, blocks, files, ownerUserId } = params
   let { channel } = params
 
   if (!channel && params.userId) {
@@ -278,7 +286,8 @@ export async function sendSlackMessage(
     files,
     accessToken,
     requestId,
-    logger
+    logger,
+    ownerUserId
   )
 
   // No valid files uploaded - send text-only
