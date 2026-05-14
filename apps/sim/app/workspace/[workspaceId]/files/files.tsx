@@ -308,8 +308,20 @@ export function Files() {
           folder.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
         )
       : siblings
-    return [...searched].sort((a, b) => a.name.localeCompare(b.name))
-  }, [folders, currentFolderId, debouncedSearchTerm])
+    const col = activeSort?.column ?? 'name'
+    const dir = activeSort?.direction ?? 'asc'
+    return [...searched].sort((a, b) => {
+      let cmp = 0
+      if (col === 'updated') {
+        cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+      } else if (col === 'created') {
+        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      } else {
+        cmp = a.name.localeCompare(b.name)
+      }
+      return dir === 'asc' ? cmp : -cmp
+    })
+  }, [folders, currentFolderId, debouncedSearchTerm, activeSort])
 
   const filteredFiles = useMemo(() => {
     let result = debouncedSearchTerm
@@ -598,6 +610,16 @@ export function Files() {
         if (source.id === target.id) return true
         if (descendantFolderIdsByFolderId.get(source.id)?.has(target.id)) return true
       }
+
+      // Reject drop if every dragged item is already a direct child of the target
+      const allAlreadyInTarget = sourceRowIds.every((sourceRowId) => {
+        const source = parseRowId(sourceRowId)
+        if (source.kind === 'file') {
+          return filesRef.current.find((f) => f.id === source.id)?.folderId === target.id
+        }
+        return (foldersRef.current.find((f) => f.id === source.id)?.parentId ?? null) === target.id
+      })
+      if (allAlreadyInTarget) return true
 
       return false
     },
