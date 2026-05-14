@@ -102,9 +102,30 @@ export function useUpdateWorkspaceFileFolder() {
         workspaceFileFolderKeys.list(workspaceId, 'active')
       )
       if (previous) {
+        const target = previous.find((f) => f.id === folderId)
+        const oldPath = target?.path
+        const newPath =
+          updates.name !== undefined && oldPath !== undefined
+            ? [...oldPath.split('/').slice(0, -1), updates.name].filter(Boolean).join('/')
+            : oldPath
+
         queryClient.setQueryData<WorkspaceFileFolderApi[]>(
           workspaceFileFolderKeys.list(workspaceId, 'active'),
-          previous.map((f) => (f.id === folderId ? { ...f, ...updates } : f))
+          previous.map((f) => {
+            if (f.id === folderId) {
+              return { ...f, ...updates, ...(newPath !== undefined ? { path: newPath } : {}) }
+            }
+            // Recompute descendant paths so breadcrumbs stay correct during the optimistic window
+            if (
+              updates.name !== undefined &&
+              oldPath !== undefined &&
+              newPath !== undefined &&
+              f.path?.startsWith(`${oldPath}/`)
+            ) {
+              return { ...f, path: `${newPath}${f.path.slice(oldPath.length)}` }
+            }
+            return f
+          })
         )
       }
       return { previous }

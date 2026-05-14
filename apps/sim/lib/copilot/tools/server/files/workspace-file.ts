@@ -113,7 +113,6 @@ export function splitWorkspaceFilePath(fileName: string): {
 } {
   const segments = fileName
     .trim()
-    .replace(/^files\//, '')
     .split('/')
     .map((segment) => segment.trim())
     .filter(Boolean)
