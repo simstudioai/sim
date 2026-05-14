@@ -11,7 +11,6 @@ import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/
 import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
-  getWorkspaceFileByName,
   resolveWorkspaceFileReference,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
