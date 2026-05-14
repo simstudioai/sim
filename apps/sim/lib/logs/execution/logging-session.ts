@@ -1090,9 +1090,9 @@ export class LoggingSession {
 
   static async markExecutionAsFailed(
     executionId: string,
-    errorMessage?: string,
-    requestId?: string,
-    workflowId?: string
+    errorMessage: string | undefined,
+    requestId: string | undefined,
+    workflowId: string
   ): Promise<void> {
     try {
       const message = errorMessage || 'Run failed'
@@ -1118,7 +1118,7 @@ export class LoggingSession {
         .where(
           and(
             eq(workflowExecutionLogs.executionId, executionId),
-            workflowId ? eq(workflowExecutionLogs.workflowId, workflowId) : undefined
+            eq(workflowExecutionLogs.workflowId, workflowId)
           )
         )
 
