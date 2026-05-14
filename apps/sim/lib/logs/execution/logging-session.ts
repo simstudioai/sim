@@ -1080,13 +1080,19 @@ export class LoggingSession {
 
   async markAsFailed(errorMessage?: string): Promise<void> {
     await this.waitForCompletion()
-    await LoggingSession.markExecutionAsFailed(this.executionId, errorMessage, this.requestId)
+    await LoggingSession.markExecutionAsFailed(
+      this.executionId,
+      errorMessage,
+      this.requestId,
+      this.workflowId
+    )
   }
 
   static async markExecutionAsFailed(
     executionId: string,
     errorMessage?: string,
-    requestId?: string
+    requestId?: string,
+    workflowId?: string
   ): Promise<void> {
     try {
       const message = errorMessage || 'Run failed'
@@ -1109,7 +1115,12 @@ export class LoggingSession {
             to_jsonb('force_failed'::text)
           )`,
         })
-        .where(eq(workflowExecutionLogs.executionId, executionId))
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            workflowId ? eq(workflowExecutionLogs.workflowId, workflowId) : undefined
+          )
+        )
 
       logger.info(`[${requestId || 'unknown'}] Marked execution ${executionId} as failed`)
     } catch (error) {
