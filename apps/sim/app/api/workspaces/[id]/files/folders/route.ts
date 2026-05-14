@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   createWorkspaceFileFolderContract,
@@ -88,9 +89,8 @@ export const POST = withRouteHandler(
       return NextResponse.json({ success: true, folder })
     } catch (error) {
       logger.error('Failed to create workspace file folder:', error)
-      const message = error instanceof Error ? error.message : 'Failed to create folder'
       return NextResponse.json(
-        { success: false, error: message },
+        { success: false, error: toError(error).message },
         { status: error instanceof WorkspaceFileFolderConflictError ? 409 : 400 }
       )
     }

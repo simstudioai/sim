@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   deleteWorkspaceFileFolderContract,
@@ -80,7 +80,7 @@ export const PATCH = withRouteHandler(
       return NextResponse.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to update folder',
+          error: toError(error).message,
         },
         { status: 400 }
       )
@@ -127,7 +127,7 @@ export const DELETE = withRouteHandler(
       return NextResponse.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to delete folder',
+          error: toError(error).message,
         },
         { status: 400 }
       )
