@@ -70,6 +70,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const accountRow = credentials[0]
 
+    if (!resolved.workspaceId && accountRow.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const accessToken = await refreshAccessTokenIfNeeded(
       resolved.accountId,
       accountRow.userId,
