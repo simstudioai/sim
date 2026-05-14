@@ -470,7 +470,10 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     },
   },
   inputs: {
-    operation: { type: 'string', description: 'Operation to perform (read, get, write, or append)' },
+    operation: {
+      type: 'string',
+      description: 'Operation to perform (read, get, write, or append)',
+    },
     fileInput: { type: 'json', description: 'File input for read' },
     fileType: { type: 'string', description: 'File type for read' },
     getFileInput: { type: 'json', description: 'Selected file or workspace file ID for get' },

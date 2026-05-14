@@ -54,7 +54,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         const file = await getWorkspaceFile(workspaceId, fileId)
         if (!file) {
-          return NextResponse.json({ success: false, error: `File not found: "${fileId}"` }, { status: 404 })
+          return NextResponse.json(
+            { success: false, error: `File not found: "${fileId}"` },
+            { status: 404 }
+          )
         }
 
         return NextResponse.json({
