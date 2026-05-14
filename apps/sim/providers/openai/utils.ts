@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type OpenAI from 'openai'
+import type { ChatCompletionContentPart } from 'openai/resources/chat/completions'
 import type { Message, ProviderFileAttachment } from '@/providers/types'
 
 const logger = createLogger('ResponsesUtils')
@@ -111,6 +112,41 @@ function buildResponsesFileParts(
         type: 'input_file' as const,
         file_data: dataUrl,
         filename: file.name,
+      },
+    ]
+  })
+}
+
+export function buildChatCompletionFileParts(
+  fileAttachments?: ProviderFileAttachment[]
+): ChatCompletionContentPart[] {
+  if (!fileAttachments?.length) return []
+
+  return fileAttachments.flatMap<ChatCompletionContentPart>((file) => {
+    const type = file.type.toLowerCase()
+    if (OPENAI_SUPPORTED_IMAGE_MIME_TYPES.has(type)) {
+      return [
+        {
+          type: 'image_url',
+          image_url: {
+            url: toDataUrl(file),
+            detail: 'auto',
+          },
+        },
+      ]
+    }
+
+    if (!OPENAI_SUPPORTED_FILE_MIME_TYPES.has(type)) {
+      return []
+    }
+
+    return [
+      {
+        type: 'file',
+        file: {
+          file_data: file.base64,
+          filename: file.name,
+        },
       },
     ]
   })

@@ -15,6 +15,7 @@ import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
+  appendFileAttachmentsToChatCompletionMessages,
   checkForForcedToolUsage,
   createReadableStreamFromAzureOpenAIStream,
   extractApiVersionFromUrl,
@@ -92,6 +93,8 @@ async function executeChatCompletionsRequest(
   if (request.messages) {
     allMessages.push(...(request.messages as ChatCompletionMessageParam[]))
   }
+
+  appendFileAttachmentsToChatCompletionMessages(allMessages, request.fileAttachments)
 
   const tools: ChatCompletionTool[] | undefined = request.tools?.length
     ? request.tools.map((tool) => ({

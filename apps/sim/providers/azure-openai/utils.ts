@@ -1,8 +1,15 @@
 import type { Logger } from '@sim/logger'
 import type OpenAI from 'openai'
-import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
+import type {
+  ChatCompletionChunk,
+  ChatCompletionContentPart,
+  ChatCompletionMessageParam,
+  ChatCompletionUserMessageParam,
+} from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import type { Stream } from 'openai/streaming'
+import { buildChatCompletionFileParts } from '@/providers/openai/utils'
+import type { ProviderFileAttachment } from '@/providers/types'
 import { checkForForcedToolUsageOpenAI, createOpenAICompatibleStream } from '@/providers/utils'
 
 /**
@@ -35,6 +42,43 @@ export function checkForForcedToolUsage(
     usedForcedTools,
     _logger
   )
+}
+
+function isUserMessage(
+  message: ChatCompletionMessageParam
+): message is ChatCompletionUserMessageParam {
+  return message.role === 'user'
+}
+
+function createTextPart(text: string): ChatCompletionContentPart {
+  return {
+    type: 'text',
+    text,
+  }
+}
+
+/**
+ * Adds supported file attachments to the latest user message for Azure Chat Completions.
+ */
+export function appendFileAttachmentsToChatCompletionMessages(
+  messages: ChatCompletionMessageParam[],
+  fileAttachments?: ProviderFileAttachment[]
+): void {
+  const fileParts = buildChatCompletionFileParts(fileAttachments)
+  if (fileParts.length === 0) return
+
+  const lastUserMessage = [...messages].reverse().find(isUserMessage)
+  if (!lastUserMessage) {
+    messages.push({
+      role: 'user',
+      content: [createTextPart('Please use the attached files.'), ...fileParts],
+    })
+    return
+  }
+
+  lastUserMessage.content = Array.isArray(lastUserMessage.content)
+    ? [...lastUserMessage.content, ...fileParts]
+    : [createTextPart(lastUserMessage.content || 'Please use the attached files.'), ...fileParts]
 }
 
 /**
