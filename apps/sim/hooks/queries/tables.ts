@@ -594,11 +594,13 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
           queryClient.setQueryData(queryKey, data)
         }
       }
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: () => {
       if (queryClient.isMutating({ mutationKey: tableKeys.rowWrites(tableId) }) === 1) {
         invalidateRowData(queryClient, tableId)
       }
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
     },
   })
 }
