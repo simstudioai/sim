@@ -796,7 +796,7 @@ async function resolveFileFolderResource(
   workspaceId: string
 ): Promise<AgentContext | null> {
   try {
-    const { workspaceFileFolder, workspaceFile } = await import('@sim/db/schema')
+    const { workspaceFileFolder, workspaceFiles } = await import('@sim/db/schema')
     const [folder] = await db
       .select({ id: workspaceFileFolder.id, name: workspaceFileFolder.name })
       .from(workspaceFileFolder)
@@ -811,9 +811,18 @@ async function resolveFileFolderResource(
     if (!folder) return null
 
     const files = await db
-      .select({ id: workspaceFile.id, name: workspaceFile.name, type: workspaceFile.type })
-      .from(workspaceFile)
-      .where(and(eq(workspaceFile.folderId, folderId), eq(workspaceFile.workspaceId, workspaceId)))
+      .select({
+        name: workspaceFiles.originalName,
+        type: workspaceFiles.contentType,
+      })
+      .from(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.folderId, folderId),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
 
     const fileList = files.map((f) => `- ${f.name}${f.type ? ` (${f.type})` : ''}`).join('\n')
     const content = `File Folder: ${folder.name} (id: ${folder.id})\nFiles:\n${fileList || '(empty)'}`
