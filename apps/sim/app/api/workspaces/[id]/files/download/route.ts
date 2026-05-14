@@ -111,10 +111,9 @@ export const GET = withRouteHandler(
         )
       }
 
-      // Phase 1: fetch all buffers in parallel
       const buffers = await Promise.all(filesToZip.map((file) => fetchWorkspaceFileBuffer(file)))
 
-      // Phase 2: assemble zip synchronously so path deduplication is deterministic
+      // Assemble zip synchronously so path deduplication is deterministic.
       const zip = new JSZip()
       const usedPaths = new Set<string>()
       for (let i = 0; i < filesToZip.length; i++) {

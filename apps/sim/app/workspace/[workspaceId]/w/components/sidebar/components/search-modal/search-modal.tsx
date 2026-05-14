@@ -34,14 +34,21 @@ import {
   WorkflowsGroup,
   WorkspacesGroup,
 } from './components/search-groups'
-import type { PageItem, SearchModalProps, TaskItem, WorkflowItem, WorkspaceItem } from './utils'
+import type {
+  FileItem,
+  PageItem,
+  SearchModalProps,
+  TaskItem,
+  WorkflowItem,
+  WorkspaceItem,
+} from './utils'
 import { filterAndSort } from './utils'
 
 const EMPTY_WORKFLOWS: WorkflowItem[] = []
 const EMPTY_WORKSPACES: WorkspaceItem[] = []
 const EMPTY_TASKS: TaskItem[] = []
 const EMPTY_TABLES: TaskItem[] = []
-const EMPTY_FILES: TaskItem[] = []
+const EMPTY_FILES: FileItem[] = []
 const EMPTY_KNOWLEDGE_BASES: TaskItem[] = []
 
 export type { SearchModalProps } from './utils'
@@ -289,7 +296,7 @@ export function SearchModal({
   )
 
   const handleFileSelect = useCallback(
-    (item: TaskItem) => {
+    (item: FileItem) => {
       routerRef.current.push(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'file',
@@ -401,7 +408,12 @@ export function SearchModal({
     [tables, deferredSearch]
   )
   const filteredFiles = useMemo(
-    () => filterAndSort(files, (f) => `${f.name} file-${f.id}`, deferredSearch),
+    () =>
+      filterAndSort(
+        files,
+        (f) => `${f.name} ${f.folderPath?.join(' / ') ?? ''} file-${f.id}`,
+        deferredSearch
+      ),
     [files, deferredSearch]
   )
   const filteredKnowledgeBases = useMemo(

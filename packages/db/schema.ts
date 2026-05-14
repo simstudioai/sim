@@ -1243,7 +1243,6 @@ export const workspaceFiles = pgTable(
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
       .on(table.key)
       .where(sql`${table.deletedAt} IS NULL`),
-    /** One active display name per workspace file folder. */
     workspaceFolderOriginalNameActiveUnique: uniqueIndex(
       'workspace_files_workspace_folder_name_active_unique'
     )

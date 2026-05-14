@@ -826,6 +826,7 @@ export const Sidebar = memo(function Sidebar() {
             id: f.id,
             name: f.name,
             href: `/workspace/${workspaceId}/files/${f.id}`,
+            folderPath: f.folderPath ? f.folderPath.split('/') : undefined,
           })),
     [fetchedFiles, workspaceId, permissionConfig.hideFilesTab]
   )
