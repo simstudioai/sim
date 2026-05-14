@@ -54,16 +54,24 @@ export const updateWorkspaceFileFolderBodySchema = z.object({
   sortOrder: z.number().int().optional(),
 })
 
-export const moveWorkspaceFileItemsBodySchema = z.object({
-  fileIds: z.array(z.string()).default([]),
-  folderIds: z.array(z.string()).default([]),
-  targetFolderId: z.string().nullable().optional(),
-})
+export const moveWorkspaceFileItemsBodySchema = z
+  .object({
+    fileIds: z.array(z.string()).default([]),
+    folderIds: z.array(z.string()).default([]),
+    targetFolderId: z.string().nullable().optional(),
+  })
+  .refine((body) => body.fileIds.length > 0 || body.folderIds.length > 0, {
+    message: 'At least one file or folder must be selected',
+  })
 
-export const bulkArchiveWorkspaceFileItemsBodySchema = z.object({
-  fileIds: z.array(z.string()).default([]),
-  folderIds: z.array(z.string()).default([]),
-})
+export const bulkArchiveWorkspaceFileItemsBodySchema = z
+  .object({
+    fileIds: z.array(z.string()).default([]),
+    folderIds: z.array(z.string()).default([]),
+  })
+  .refine((body) => body.fileIds.length > 0 || body.folderIds.length > 0, {
+    message: 'At least one file or folder must be selected',
+  })
 
 const queryIdListSchema = z
   .union([z.string(), z.array(z.string())])

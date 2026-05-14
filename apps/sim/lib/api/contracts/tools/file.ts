@@ -27,7 +27,7 @@ export const fileManageGetBodySchema = z
     operation: z.literal('get'),
     workspaceId: z.string().min(1).optional(),
     fileId: z.string().min(1).optional(),
-    fileInput: z.any().optional(),
+    fileInput: z.unknown().optional(),
   })
   .refine((data) => data.fileId !== undefined || data.fileInput !== undefined, {
     message: 'Either fileId or fileInput is required for get operation',

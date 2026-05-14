@@ -48,8 +48,12 @@ export const DeleteConfirmModal = memo(function DeleteConfirmModal({
         <ModalBody>
           <ModalDescription className='text-[var(--text-secondary)]'>
             Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{fileName}</span>?{' '}
-            {consequence}
+            {fileName ? (
+              <span className='font-medium text-[var(--text-primary)]'>{fileName}</span>
+            ) : (
+              `${totalCount} item${totalCount === 1 ? '' : 's'}`
+            )}
+            ? {consequence}
           </ModalDescription>
         </ModalBody>
         <ModalFooter>

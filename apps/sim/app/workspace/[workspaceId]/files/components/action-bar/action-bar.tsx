@@ -91,10 +91,12 @@ export function FilesActionBar({
                       align='center'
                       className='max-h-[240px] overflow-y-auto'
                     >
-                      <DropdownMenuItem onSelect={() => onMove(moveOptions[0].value)}>
-                        <Folder />
-                        {moveOptions[0].label}
-                      </DropdownMenuItem>
+                      {moveOptions.length > 0 && (
+                        <DropdownMenuItem onSelect={() => onMove(moveOptions[0].value)}>
+                          <Folder />
+                          {moveOptions[0].label}
+                        </DropdownMenuItem>
+                      )}
                       {moveOptions.length > 1 && <DropdownMenuSeparator />}
                       {moveOptions.slice(1).map((option) => renderMoveOption(option, onMove))}
                     </DropdownMenuContent>

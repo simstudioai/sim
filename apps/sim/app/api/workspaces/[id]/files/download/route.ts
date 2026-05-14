@@ -97,7 +97,7 @@ export const GET = withRouteHandler(
           {
             error: `Too many files selected for download. Select ${MAX_ZIP_DOWNLOAD_FILES} or fewer files.`,
           },
-          { status: 413 }
+          { status: 400 }
         )
       }
 
@@ -107,7 +107,7 @@ export const GET = withRouteHandler(
           {
             error: `Selected files total ${formatFileSize(totalBytes)}, which exceeds the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit.`,
           },
-          { status: 413 }
+          { status: 400 }
         )
       }
 
