@@ -55,7 +55,6 @@ describe('workspace lifecycle', () => {
     })
 
     const tx = {
-      execute: vi.fn().mockResolvedValue([]),
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([{ id: 'kb-1' }]),

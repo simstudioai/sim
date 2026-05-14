@@ -49,13 +49,6 @@ export async function archiveWorkspace(
     .where(eq(workflowMcpServer.workspaceId, workspaceId))
 
   await db.transaction(async (tx) => {
-    // Workspace archival is a rare admin/cleanup operation that touches every
-    // child table; on large workspaces it can exceed the 30s session default.
-    // Override per-tx with a generous ceiling — if it ever runs longer than
-    // this something is genuinely wrong.
-    await tx.execute(sql`SET LOCAL statement_timeout = '5min'`)
-    await tx.execute(sql`SET LOCAL lock_timeout = '30s'`)
-
     await tx
       .update(knowledgeBase)
       .set({
