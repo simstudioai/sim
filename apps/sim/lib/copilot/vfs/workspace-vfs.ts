@@ -17,7 +17,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, isNotNull, isNull, ne } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import { buildWorkspaceMd, type WorkspaceMdData } from '@/lib/copilot/chat/workspace-context'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
@@ -1157,7 +1157,28 @@ export class WorkspaceVFS {
         .select({
           id: copilotChats.id,
           title: copilotChats.title,
-          messages: copilotChats.messages,
+          messageCount: sql<number>`COALESCE(jsonb_array_length(${copilotChats.messages}), 0)`,
+          messages: sql<unknown[]>`COALESCE((
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'role', m.value->>'role',
+                'content', m.value->'content',
+                'contentBlocks', COALESCE((
+                  SELECT jsonb_agg(jsonb_build_object('type', 'text', 'content', b.value->'content') ORDER BY b.ord)
+                  FROM jsonb_array_elements(
+                    CASE WHEN jsonb_typeof(m.value->'contentBlocks') = 'array'
+                         THEN m.value->'contentBlocks'
+                         ELSE '[]'::jsonb
+                    END
+                  ) WITH ORDINALITY AS b(value, ord)
+                  WHERE b.value->>'type' = 'text'
+                ), '[]'::jsonb)
+              )
+              ORDER BY m.ord
+            )
+            FROM jsonb_array_elements(${copilotChats.messages}) WITH ORDINALITY AS m(value, ord)
+            WHERE m.value->>'role' IN ('user', 'assistant')
+          ), '[]'::jsonb)`,
           createdAt: copilotChats.createdAt,
           updatedAt: copilotChats.updatedAt,
         })
@@ -1177,13 +1198,14 @@ export class WorkspaceVFS {
         const safeName = sanitizeName(title)
         const prefix = `tasks/${safeName}/`
         const messages = Array.isArray(task.messages) ? task.messages : []
+        const messageCount = Number(task.messageCount) || 0
 
         this.files.set(
           `${prefix}session.md`,
           serializeTaskSession({
             id: task.id,
             title,
-            messageCount: messages.length,
+            messageCount,
             createdAt: task.createdAt,
             updatedAt: task.updatedAt,
           })
