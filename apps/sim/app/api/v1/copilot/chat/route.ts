@@ -7,7 +7,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
-import { authenticateV1Request } from '@/app/api/v1/auth'
+import { authenticateRequest } from '@/app/api/v1/middleware'
 
 export const maxDuration = 3600
 
@@ -25,12 +25,16 @@ const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
  */
 export const POST = withRouteHandler(async (req: NextRequest) => {
   let messageId: string | undefined
-  const auth = await authenticateV1Request(req)
-  if (!auth.authenticated || !auth.userId) {
-    return NextResponse.json(
-      { success: false, error: auth.error || 'Unauthorized' },
-      { status: 401 }
-    )
+  const authorized = await authenticateRequest(req, 'copilot-chat')
+  if (authorized instanceof NextResponse) {
+    return authorized
+  }
+  const { userId, rateLimit } = authorized
+  const auth = {
+    authenticated: true as const,
+    userId,
+    keyType: rateLimit.keyType,
+    workspaceId: rateLimit.workspaceId,
   }
 
   try {

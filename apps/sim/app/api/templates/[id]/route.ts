@@ -7,7 +7,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { templateIdParamsSchema, updateTemplateContract } from '@/lib/api/contracts/templates'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { generateRequestId } from '@/lib/core/utils/request'
+import { RateLimiter } from '@/lib/core/rate-limiter'
+import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { canAccessTemplate } from '@/lib/templates/permissions'
 import {
@@ -17,6 +18,18 @@ import {
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('TemplateByIdAPI')
+
+const viewRateLimiter = new RateLimiter()
+
+/**
+ * Per-IP, per-template view-counter dedup bucket: one increment per 10 minutes.
+ * Prevents scripted inflation of `templates.views` from the public GET handler.
+ */
+const TEMPLATE_VIEW_DEDUP = {
+  maxTokens: 1,
+  refillRate: 1,
+  refillIntervalMs: 10 * 60_000,
+}
 
 export const revalidate = 0
 
@@ -63,21 +76,31 @@ export const GET = withRouteHandler(
         isStarred = starResult.length > 0
       }
 
-      const shouldIncrementView = template.status === 'approved'
+      let shouldIncrementView = template.status === 'approved'
 
       if (shouldIncrementView) {
-        try {
-          await db
-            .update(templates)
-            .set({
-              views: sql`${templates.views} + 1`,
-            })
-            .where(eq(templates.id, id))
-        } catch (viewError) {
-          logger.warn(
-            `[${requestId}] Failed to increment view count for template: ${id}`,
-            viewError
-          )
+        const viewer = session?.user?.id ?? `ip:${getClientIp(request)}`
+        const dedupKey = `template-view:${id}:${viewer}`
+        const { allowed } = await viewRateLimiter.checkRateLimitDirect(
+          dedupKey,
+          TEMPLATE_VIEW_DEDUP
+        )
+        if (!allowed) {
+          shouldIncrementView = false
+        } else {
+          try {
+            await db
+              .update(templates)
+              .set({
+                views: sql`${templates.views} + 1`,
+              })
+              .where(eq(templates.id, id))
+          } catch (viewError) {
+            logger.warn(
+              `[${requestId}] Failed to increment view count for template: ${id}`,
+              viewError
+            )
+          }
         }
       }
 

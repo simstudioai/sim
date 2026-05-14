@@ -4,6 +4,7 @@ import { telemetryContract } from '@/lib/api/contracts/telemetry'
 import { parseRequest } from '@/lib/api/server'
 import { env } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/feature-flags'
+import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('TelemetryAPI')
@@ -148,6 +149,13 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
  * Endpoint that receives telemetry events and forwards them to OpenTelemetry collector
  */
 export const POST = withRouteHandler(async (req: NextRequest) => {
+  const rateLimited = await enforceIpRateLimit('telemetry', req, {
+    maxTokens: 60,
+    refillRate: 30,
+    refillIntervalMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
+
   try {
     const parsed = await parseRequest(telemetryContract, req, {})
     if (!parsed.success) return parsed.response
