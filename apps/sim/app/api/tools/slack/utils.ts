@@ -141,7 +141,8 @@ async function completeSlackFileUpload(
   channel: string,
   text: string,
   accessToken: string,
-  threadTs?: string | null
+  threadTs?: string | null,
+  blocks?: unknown[] | null
 ): Promise<{ ok: boolean; files?: any[]; error?: string }> {
   const response = await fetch('https://slack.com/api/files.completeUploadExternal', {
     method: 'POST',
@@ -154,6 +155,7 @@ async function completeSlackFileUpload(
       channel_id: channel,
       initial_comment: text,
       ...(threadTs && { thread_ts: threadTs }),
+      ...(blocks && blocks.length > 0 && { blocks }),
     }),
   })
 
@@ -295,7 +297,14 @@ export async function sendSlackMessage(
   }
 
   // Complete file upload with thread support
-  const completeData = await completeSlackFileUpload(fileIds, channel, text, accessToken, threadTs)
+  const completeData = await completeSlackFileUpload(
+    fileIds,
+    channel,
+    text,
+    accessToken,
+    threadTs,
+    blocks
+  )
 
   if (!completeData.ok) {
     logger.error(`[${requestId}] Failed to complete upload:`, completeData.error)

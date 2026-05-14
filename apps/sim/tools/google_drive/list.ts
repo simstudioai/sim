@@ -66,8 +66,13 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
       const escapeQueryValue = (value: string): string =>
         value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 
-      // Build the query conditions
-      const conditions = ['trashed = false'] // Always exclude trashed files
+      // Build the query conditions. Default to excluding trashed files unless
+      // the user-supplied query explicitly specifies a `trashed = ...` predicate.
+      const userSpecifiesTrashed = params.query ? /\btrashed\s*=/.test(params.query) : false
+      const conditions: string[] = []
+      if (!userSpecifiesTrashed) {
+        conditions.push('trashed = false')
+      }
       const folderId = (params.folderId || params.folderSelector)?.trim()
       if (folderId) {
         const escapedFolderId = escapeQueryValue(folderId)
