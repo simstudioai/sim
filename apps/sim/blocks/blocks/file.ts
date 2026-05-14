@@ -266,6 +266,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
       type: 'dropdown' as SubBlockType,
       options: [
         { label: 'Read', id: 'file_parser_v3' },
+        { label: 'Get', id: 'file_get' },
         { label: 'Write', id: 'file_write' },
         { label: 'Append', id: 'file_append' },
       ],
@@ -293,6 +294,28 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
       mode: 'advanced',
       required: { field: 'operation', value: 'file_parser_v3' },
       condition: { field: 'operation', value: 'file_parser_v3' },
+    },
+    {
+      id: 'getFile',
+      title: 'File',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'getFileInput',
+      acceptedTypes: '*',
+      placeholder: 'Select a workspace file',
+      multiple: false,
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_get' },
+      required: { field: 'operation', value: 'file_get' },
+    },
+    {
+      id: 'getFileId',
+      title: 'File ID',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'getFileInput',
+      placeholder: 'Workspace file ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_get' },
+      required: { field: 'operation', value: 'file_get' },
     },
     {
       id: 'fileName',
@@ -349,7 +372,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     },
   ],
   tools: {
-    access: ['file_parser_v3', 'file_write', 'file_append'],
+    access: ['file_parser_v3', 'file_get', 'file_write', 'file_append'],
     config: {
       tool: (params) => params.operation || 'file_parser_v3',
       params: (params) => {
@@ -386,6 +409,25 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
           return {
             fileName,
             content: params.appendContent,
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_get') {
+          const getInput = params.getFileInput
+          if (!getInput) {
+            throw new Error('File is required for get')
+          }
+
+          if (typeof getInput === 'string') {
+            return {
+              fileId: getInput.trim(),
+              workspaceId: params._context?.workspaceId,
+            }
+          }
+
+          return {
+            fileInput: normalizeFileInput(getInput, { single: true }),
             workspaceId: params._context?.workspaceId,
           }
         }
@@ -428,9 +470,13 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     },
   },
   inputs: {
-    operation: { type: 'string', description: 'Operation to perform (read, write, or append)' },
+    operation: {
+      type: 'string',
+      description: 'Operation to perform (read, get, write, or append)',
+    },
     fileInput: { type: 'json', description: 'File input for read' },
     fileType: { type: 'string', description: 'File type for read' },
+    getFileInput: { type: 'json', description: 'Selected file or workspace file ID for get' },
     fileName: { type: 'string', description: 'Name for a new file (write)' },
     content: { type: 'string', description: 'File content to write' },
     contentType: { type: 'string', description: 'MIME content type for write' },
@@ -445,6 +491,10 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     combinedContent: {
       type: 'string',
       description: 'All file contents merged into a single text string (read)',
+    },
+    file: {
+      type: 'file',
+      description: 'Workspace file object (get)',
     },
     id: {
       type: 'string',
