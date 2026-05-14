@@ -34,6 +34,7 @@ export interface TaskMetadata {
   updatedAt: Date
   isActive: boolean
   isUnread: boolean
+  isPinned: boolean
 }
 
 export interface TaskChatHistory {
@@ -193,6 +194,7 @@ function mapTask(chat: MothershipTask): TaskMetadata {
     isUnread:
       chat.activeStreamId === null &&
       (chat.lastSeenAt === null || updatedAt > new Date(chat.lastSeenAt)),
+    isPinned: chat.pinned,
   }
 }
 
@@ -538,6 +540,57 @@ export function useMarkTaskUnread(workspaceId?: string) {
   })
 }
 
+async function setTaskPinned({
+  chatId,
+  pinned,
+}: {
+  chatId: string
+  pinned: boolean
+}): Promise<void> {
+  await requestJson(updateMothershipChatContract, {
+    params: { chatId },
+    body: { pinned },
+  })
+}
+
+/**
+ * Pins or unpins a task with optimistic update. Pinned tasks are sorted to
+ * the top of the list by the server; the optimistic reducer preserves that
+ * ordering by partitioning pinned and unpinned tasks while keeping each
+ * partition in its existing order (server returns desc(updatedAt) within).
+ */
+export function useSetTaskPinned(workspaceId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: setTaskPinned,
+    onMutate: async ({ chatId, pinned }) => {
+      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
+      const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+      if (!previousTasks) return { previousTasks: undefined }
+
+      const updated = previousTasks.map((task) =>
+        task.id === chatId ? { ...task, isPinned: pinned } : task
+      )
+      const pinnedTasks = updated.filter((task) => task.isPinned)
+      const unpinnedTasks = updated.filter((task) => !task.isPinned)
+      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [
+        ...pinnedTasks,
+        ...unpinnedTasks,
+      ])
+
+      return { previousTasks }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+    },
+  })
+}
+
 async function createChat(workspaceId: string): Promise<{ id: string }> {
   const { id } = await requestJson(createMothershipChatContract, { body: { workspaceId } })
   return { id }
@@ -559,8 +612,15 @@ export function useCreateTask(workspaceId?: string) {
         updatedAt: new Date(),
         isActive: false,
         isUnread: false,
+        isPinned: false,
       }
-      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [newTask, ...existing])
+      const pinnedCount = existing.findIndex((task) => !task.isPinned)
+      const insertAt = pinnedCount === -1 ? existing.length : pinnedCount
+      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [
+        ...existing.slice(0, insertAt),
+        newTask,
+        ...existing.slice(insertAt),
+      ])
     },
     onSettled: () => {
       if (!workspaceId) return
@@ -597,10 +657,14 @@ export function useForkTask(workspaceId?: string) {
           updatedAt: new Date(),
           isActive: false,
           isUnread: false,
+          isPinned: false,
         }
+        const pinnedCount = existing.findIndex((task) => !task.isPinned)
+        const insertAt = pinnedCount === -1 ? existing.length : pinnedCount
         queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [
+          ...existing.slice(0, insertAt),
           optimisticTask,
-          ...existing,
+          ...existing.slice(insertAt),
         ])
       }
     },

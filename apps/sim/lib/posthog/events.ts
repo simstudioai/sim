@@ -415,6 +415,14 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  task_pinned: {
+    workspace_id: string
+  }
+
+  task_unpinned: {
+    workspace_id: string
+  }
+
   task_generation_aborted: {
     workspace_id: string
     view: 'mothership' | 'copilot'

@@ -26,6 +26,7 @@ export type V1Endpoint =
   | 'knowledge'
   | 'knowledge-detail'
   | 'knowledge-search'
+  | 'copilot-chat'
 
 export interface RateLimitResult {
   allowed: boolean

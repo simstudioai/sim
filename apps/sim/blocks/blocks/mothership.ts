@@ -41,6 +41,25 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
       type: 'short-input',
       placeholder: 'e.g., user-123, session-abc, customer-456',
     },
+    {
+      id: 'attachmentFiles',
+      title: 'Attachments',
+      type: 'file-upload',
+      canonicalParamId: 'files',
+      placeholder: 'Upload files to attach',
+      mode: 'basic',
+      multiple: true,
+      required: false,
+    },
+    {
+      id: 'fileReferences',
+      title: 'Attachments',
+      type: 'short-input',
+      canonicalParamId: 'files',
+      placeholder: 'Reference files from previous blocks',
+      mode: 'advanced',
+      required: false,
+    },
   ],
   tools: {
     access: [],
@@ -53,6 +72,10 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
     conversationId: {
       type: 'string',
       description: 'Mothership chat ID to continue; generated when omitted',
+    },
+    files: {
+      type: 'file',
+      description: 'Files to send to Mothership as attachments',
     },
   },
   outputs: {

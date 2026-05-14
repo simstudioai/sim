@@ -8,11 +8,13 @@ import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   fetchWorkspaceFileBuffer,
+  getWorkspaceFile,
   getWorkspaceFileByName,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +41,54 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
+    await assertActiveWorkspaceAccess(workspaceId, userId)
+
     switch (body.operation) {
+      case 'get': {
+        const { fileId, fileInput } = body
+        const selectedFileId =
+          fileId ||
+          (fileInput && typeof fileInput === 'object' && !Array.isArray(fileInput)
+            ? typeof fileInput.id === 'string'
+              ? fileInput.id
+              : typeof fileInput.fileId === 'string'
+                ? fileInput.fileId
+                : ''
+            : '')
+
+        if (!selectedFileId) {
+          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+
+        const file = await getWorkspaceFile(workspaceId, selectedFileId)
+        if (!file) {
+          return NextResponse.json(
+            { success: false, error: `File not found: "${selectedFileId}"` },
+            { status: 404 }
+          )
+        }
+
+        logger.info('File retrieved', {
+          fileId: file.id,
+          name: file.name,
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            file: {
+              id: file.id,
+              name: file.name,
+              url: ensureAbsoluteUrl(file.path),
+              size: file.size,
+              type: file.type,
+              key: file.key,
+              context: 'workspace',
+            },
+          },
+        })
+      }
+
       case 'write': {
         const { fileName, content, contentType } = body
         const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(fileName))

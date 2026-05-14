@@ -1,6 +1,7 @@
 'use client'
 
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Pin, PinOff } from 'lucide-react'
 import {
   Button,
   DropdownMenu,
@@ -234,6 +235,7 @@ interface ContextMenuProps {
   onOpenInNewTab?: () => void
   onMarkAsRead?: () => void
   onMarkAsUnread?: () => void
+  onTogglePin?: () => void
   onRename?: () => void
   onCreate?: () => void
   onCreateFolder?: () => void
@@ -245,6 +247,8 @@ interface ContextMenuProps {
   showOpenInNewTab?: boolean
   showMarkAsRead?: boolean
   showMarkAsUnread?: boolean
+  showPin?: boolean
+  isPinned?: boolean
   showRename?: boolean
   showCreate?: boolean
   showCreateFolder?: boolean
@@ -288,6 +292,7 @@ export function ContextMenu({
   onOpenInNewTab,
   onMarkAsRead,
   onMarkAsUnread,
+  onTogglePin,
   onRename,
   onCreate,
   onCreateFolder,
@@ -299,6 +304,8 @@ export function ContextMenu({
   showOpenInNewTab = false,
   showMarkAsRead = false,
   showMarkAsUnread = false,
+  showPin = false,
+  isPinned = false,
   showRename = true,
   showCreate = false,
   showCreateFolder = false,
@@ -375,7 +382,10 @@ export function ContextMenu({
   }, [])
 
   const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
-  const hasStatusSection = (showMarkAsRead && onMarkAsRead) || (showMarkAsUnread && onMarkAsUnread)
+  const hasStatusSection =
+    (showMarkAsRead && onMarkAsRead) ||
+    (showMarkAsUnread && onMarkAsUnread) ||
+    (showPin && onTogglePin)
   const hasEditSection =
     (showRename && onRename) ||
     (showCreate && onCreate) ||
@@ -445,6 +455,17 @@ export function ContextMenu({
           >
             <Mail />
             Mark as unread
+          </DropdownMenuItem>
+        )}
+        {showPin && onTogglePin && (
+          <DropdownMenuItem
+            onSelect={() => {
+              onTogglePin()
+              onClose()
+            }}
+          >
+            {isPinned ? <PinOff className='size-[14px]' /> : <Pin className='size-[14px]' />}
+            {isPinned ? 'Unpin' : 'Pin'}
           </DropdownMenuItem>
         )}
         {hasStatusSection && (hasEditSection || hasCopySection) && <DropdownMenuSeparator />}

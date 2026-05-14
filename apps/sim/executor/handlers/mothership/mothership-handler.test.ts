@@ -13,6 +13,7 @@ const {
   mockGenerateId,
   mockIsExecutionCancelled,
   mockIsRedisCancellationEnabled,
+  mockReadUserFileContent,
 } = vi.hoisted(() => ({
   mockBuildAuthHeaders: vi.fn(),
   mockBuildAPIUrl: vi.fn(),
@@ -20,6 +21,7 @@ const {
   mockGenerateId: vi.fn(),
   mockIsExecutionCancelled: vi.fn(),
   mockIsRedisCancellationEnabled: vi.fn(),
+  mockReadUserFileContent: vi.fn(),
 }))
 
 vi.mock('@/executor/utils/http', () => ({
@@ -35,6 +37,10 @@ vi.mock('@sim/utils/id', () => ({
 vi.mock('@/lib/execution/cancellation', () => ({
   isExecutionCancelled: mockIsExecutionCancelled,
   isRedisCancellationEnabled: mockIsRedisCancellationEnabled,
+}))
+
+vi.mock('@/lib/execution/payloads/materialization.server', () => ({
+  readUserFileContent: mockReadUserFileContent,
 }))
 
 function createAbortError(): Error {
@@ -78,13 +84,14 @@ describe('MothershipBlockHandler', () => {
     mockIsExecutionCancelled.mockReset()
     mockIsRedisCancellationEnabled.mockReset()
     mockIsRedisCancellationEnabled.mockReturnValue(false)
+    mockReadUserFileContent.mockReset()
 
     block = {
       id: 'mothership-block-1',
       metadata: { id: BlockType.MOTHERSHIP, name: 'Mothership' },
       position: { x: 0, y: 0 },
       config: { tool: BlockType.MOTHERSHIP, params: {} },
-      inputs: { prompt: 'string', conversationId: 'string' },
+      inputs: { prompt: 'string', conversationId: 'string', files: 'file[]' },
       outputs: {},
       enabled: true,
     } as SerializedBlock
@@ -210,6 +217,80 @@ describe('MothershipBlockHandler', () => {
       executionId: 'execution-1',
     })
     expect(mockGenerateId).toHaveBeenCalledTimes(2)
+  })
+
+  it('embeds attached files for the mothership execute request', async () => {
+    const fileContent = Buffer.from('hello mothership', 'utf8').toString('base64')
+    mockGenerateId.mockReturnValueOnce('chat-uuid')
+    mockGenerateId.mockReturnValueOnce('message-uuid')
+    mockGenerateId.mockReturnValueOnce('request-uuid')
+    mockReadUserFileContent.mockResolvedValueOnce(fileContent)
+
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          content: 'analyzed',
+          model: 'mothership',
+          conversationId: 'chat-uuid',
+          tokens: {},
+          toolCalls: [],
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
+    )
+
+    const result = await handler.execute(context, block, {
+      prompt: 'Analyze this file',
+      files: [
+        {
+          name: 'notes.txt',
+          key: 'workspace/workspace-1/notes.txt',
+          size: 16,
+          type: 'text/plain',
+        },
+      ],
+    })
+
+    expect(result).toMatchObject({
+      content: 'analyzed',
+      model: 'mothership',
+      conversationId: 'chat-uuid',
+    })
+    expect(mockReadUserFileContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: expect.stringMatching(/^file-/),
+        key: 'workspace/workspace-1/notes.txt',
+        name: 'notes.txt',
+        url: '',
+        size: 16,
+        type: 'text/plain',
+      }),
+      expect.objectContaining({
+        encoding: 'base64',
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        requestId: 'request-uuid',
+      })
+    )
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(options.body))
+    expect(body.fileAttachments).toEqual([
+      {
+        type: 'document',
+        source: {
+          type: 'base64',
+          media_type: 'text/plain',
+          data: fileContent,
+        },
+        filename: 'notes.txt',
+      },
+    ])
   })
 
   it('propagates local aborts to the mothership request', async () => {
