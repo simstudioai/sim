@@ -350,8 +350,10 @@ import {
   cloudwatchGetLogEventsTool,
   cloudwatchGetMetricStatisticsTool,
   cloudwatchListMetricsTool,
+  cloudwatchMuteAlarmTool,
   cloudwatchPutMetricDataTool,
   cloudwatchQueryLogsTool,
+  cloudwatchUnmuteAlarmTool,
 } from '@/tools/cloudwatch'
 import {
   confluenceAddLabelTool,
@@ -3813,8 +3815,10 @@ export const tools: Record<string, ToolConfig> = {
   cloudwatch_get_log_events: cloudwatchGetLogEventsTool,
   cloudwatch_get_metric_statistics: cloudwatchGetMetricStatisticsTool,
   cloudwatch_list_metrics: cloudwatchListMetricsTool,
+  cloudwatch_mute_alarm: cloudwatchMuteAlarmTool,
   cloudwatch_put_metric_data: cloudwatchPutMetricDataTool,
   cloudwatch_query_logs: cloudwatchQueryLogsTool,
+  cloudwatch_unmute_alarm: cloudwatchUnmuteAlarmTool,
   crowdstrike_get_sensor_aggregates: crowdstrikeGetSensorAggregatesTool,
   crowdstrike_get_sensor_details: crowdstrikeGetSensorDetailsTool,
   crowdstrike_query_sensors: crowdstrikeQuerySensorsTool,

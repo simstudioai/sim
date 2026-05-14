@@ -163,3 +163,25 @@ export interface CloudWatchPutMetricDataResponse extends ToolResponse {
     timestamp: string
   }
 }
+
+export interface CloudWatchMuteAlarmParams extends CloudWatchConnectionConfig {
+  alarmNames: string[]
+}
+
+export interface CloudWatchMuteAlarmResponse extends ToolResponse {
+  output: {
+    success: boolean
+    alarmNames: string[]
+  }
+}
+
+export interface CloudWatchUnmuteAlarmParams extends CloudWatchConnectionConfig {
+  alarmNames: string[]
+}
+
+export interface CloudWatchUnmuteAlarmResponse extends ToolResponse {
+  output: {
+    success: boolean
+    alarmNames: string[]
+  }
+}
