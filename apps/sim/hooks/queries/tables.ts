@@ -575,13 +575,18 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
 
       return { previousQueries }
     },
-    onSuccess: (response, { rowId }) => {
+    onSuccess: (response, { rowId, data: mutatedData }) => {
       const serverRow = response.data.row
+      const mutatedKeys = Object.keys(mutatedData)
       patchCachedRows(queryClient, tableId, (row) => {
         if (row.id !== rowId) return row
+        const merged: RowData = { ...row.data }
+        for (const key of mutatedKeys) {
+          merged[key] = (serverRow.data as RowData)[key]
+        }
         return {
           ...row,
-          data: serverRow.data,
+          data: merged,
           position: serverRow.position,
           createdAt: serverRow.createdAt,
           updatedAt: serverRow.updatedAt,
