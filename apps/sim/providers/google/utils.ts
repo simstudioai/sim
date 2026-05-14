@@ -14,7 +14,7 @@ import {
 } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import type { ProviderRequest } from '@/providers/types'
+import type { ProviderFileAttachment, ProviderRequest } from '@/providers/types'
 import { trackForcedToolUsage } from '@/providers/utils'
 
 const logger = createLogger('GoogleUtils')
@@ -163,6 +163,36 @@ export interface GeminiToolDef {
   parameters: Schema
 }
 
+function buildGeminiFileParts(fileAttachments?: ProviderFileAttachment[]): Part[] {
+  if (!fileAttachments?.length) return []
+
+  return fileAttachments.map((file) => ({
+    inlineData: {
+      mimeType: file.type,
+      data: file.base64,
+    },
+  }))
+}
+
+function appendFilePartsToContents(
+  contents: Content[],
+  fileAttachments?: ProviderFileAttachment[]
+) {
+  const fileParts = buildGeminiFileParts(fileAttachments)
+  if (fileParts.length === 0) return
+
+  const lastUserContent = [...contents].reverse().find((content) => content.role === 'user')
+  if (lastUserContent) {
+    lastUserContent.parts = [...(lastUserContent.parts ?? []), ...fileParts]
+    return
+  }
+
+  contents.push({
+    role: 'user',
+    parts: [{ text: 'Please use the attached files.' }, ...fileParts],
+  })
+}
+
 /**
  * Converts OpenAI-style request format to Gemini format
  */
@@ -233,6 +263,8 @@ export function convertToGeminiFormat(request: ProviderRequest): {
       }
     }
   }
+
+  appendFilePartsToContents(contents, request.fileAttachments)
 
   const tools = request.tools?.map((tool): GeminiToolDef => {
     const toolParameters = { ...(tool.parameters || {}) }

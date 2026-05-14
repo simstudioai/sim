@@ -26,21 +26,25 @@ const logger = createLogger('FileUpload')
 interface FileUploadProps {
   blockId: string
   subBlockId: string
+  value?: FileUploadValue | null
+  onValueChange?: (value: FileUploadValue | null) => void
   maxSize?: number // in MB
   acceptedTypes?: string // comma separated MIME types
   multiple?: boolean // whether to allow multiple file uploads
   isPreview?: boolean
-  previewValue?: any | null
+  previewValue?: FileUploadValue | null
   disabled?: boolean
 }
 
-interface UploadedFile {
+export interface UploadedFile {
   name: string
   path: string
   key?: string
   size: number
   type: string
 }
+
+export type FileUploadValue = UploadedFile | UploadedFile[]
 
 interface SingleFileSelectorProps {
   file: UploadedFile
@@ -143,6 +147,8 @@ interface UploadingFile {
 export function FileUpload({
   blockId,
   subBlockId,
+  value: controlledValue,
+  onValueChange,
   maxSize = 10, // Default 10MB
   acceptedTypes = '*',
   multiple = false, // Default to single file for backward compatibility
@@ -151,6 +157,7 @@ export function FileUpload({
   disabled = false,
 }: FileUploadProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+  const isControlled = controlledValue !== undefined
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -173,7 +180,21 @@ export function FileUpload({
   const uploadFileMutation = useUploadWorkspaceFile()
   const queryClient = useQueryClient()
 
-  const value = isPreview ? previewValue : storeValue
+  const value =
+    isPreview && previewValue !== undefined
+      ? previewValue
+      : isControlled
+        ? controlledValue
+        : storeValue
+
+  const setValue = (newValue: FileUploadValue | null) => {
+    if (isControlled) {
+      onValueChange?.(newValue)
+    } else {
+      setStoreValue(newValue)
+    }
+    useWorkflowStore.getState().triggerUpdate()
+  }
 
   /**
    * Checks if a file's MIME type matches the accepted types
@@ -390,11 +411,9 @@ export function FileUpload({
 
         const newFiles = Array.from(uniqueFiles.values())
 
-        setStoreValue(newFiles)
-        useWorkflowStore.getState().triggerUpdate()
+        setValue(newFiles)
       } else {
-        setStoreValue(uploadedFiles[0] || null)
-        useWorkflowStore.getState().triggerUpdate()
+        setValue(uploadedFiles[0] || null)
       }
     } catch (error) {
       logger.error(
@@ -439,12 +458,11 @@ export function FileUpload({
       uniqueFiles.set(uploadedFile.path, uploadedFile)
       const newFiles = Array.from(uniqueFiles.values())
 
-      setStoreValue(newFiles)
+      setValue(newFiles)
     } else {
-      setStoreValue(uploadedFile)
+      setValue(uploadedFile)
     }
 
-    useWorkflowStore.getState().triggerUpdate()
     logger.info(`Selected workspace file: ${selectedFile.name}`, activeWorkflowId)
   }
 
@@ -481,12 +499,10 @@ export function FileUpload({
       if (multiple) {
         const filesArray = Array.isArray(value) ? value : value ? [value] : []
         const updatedFiles = filesArray.filter((f) => f.path !== file.path)
-        setStoreValue(updatedFiles.length > 0 ? updatedFiles : null)
+        setValue(updatedFiles.length > 0 ? updatedFiles : null)
       } else {
-        setStoreValue(null)
+        setValue(null)
       }
-
-      useWorkflowStore.getState().triggerUpdate()
     } catch (error) {
       logger.error(
         error instanceof Error ? error.message : 'Failed to remove file',

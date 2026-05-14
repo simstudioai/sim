@@ -10,6 +10,7 @@ import {
   generateStructuredOutputInstructions,
   shouldBillModelUsage,
   sumToolCosts,
+  supportsFileAttachments,
   supportsReasoningEffort,
   supportsTemperature,
   supportsThinking,
@@ -42,6 +43,10 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
 
   if (model && !supportsThinking(model)) {
     sanitizedRequest.thinkingLevel = undefined
+  }
+
+  if (model && !supportsFileAttachments(model)) {
+    sanitizedRequest.fileAttachments = undefined
   }
 
   return sanitizedRequest

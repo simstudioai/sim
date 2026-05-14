@@ -9,11 +9,22 @@ import {
 } from 'react'
 import { generateShortId } from '@sim/utils/id'
 import { isEqual } from 'es-toolkit'
-import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
-import { Button, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@/components/emcn'
+import { AlertTriangle, ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
+import {
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+  Tooltip,
+} from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
+import {
+  FileUpload,
+  type FileUploadValue,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/file-upload/file-upload'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
@@ -22,9 +33,36 @@ import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workf
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
+import { getProviderFromModel, supportsFileAttachments } from '@/providers/models'
 
 const MIN_TEXTAREA_HEIGHT_PX = 80
 const MAX_TEXTAREA_HEIGHT_PX = 320
+
+const ANTHROPIC_SUPPORTED_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+])
+
+const ANTHROPIC_SUPPORTED_DOCUMENT_TYPES = new Set([
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'application/json',
+  'application/xml',
+  'text/xml',
+  'text/html',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/msword',
+  'application/vnd.ms-excel',
+  'application/vnd.ms-powerpoint',
+  'text/markdown',
+  'application/rtf',
+])
 
 /** Pattern to match complete message objects in JSON */
 const COMPLETE_MESSAGE_PATTERN =
@@ -42,13 +80,44 @@ const ROLE_BEFORE_CONTENT_PATTERN = /"role"\s*:\s*"(system|user|assistant)"[^{]*
 const unescapeContent = (str: string): string =>
   str.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
 
+function isTextMessage(message: Message | undefined): message is TextMessage {
+  return (
+    !!message &&
+    (message.role === 'system' || message.role === 'user' || message.role === 'assistant')
+  )
+}
+
+function hasFilesValue(value: FileUploadValue | null | undefined): boolean {
+  return Array.isArray(value) ? value.length > 0 : Boolean(value)
+}
+
+function hasAnthropicUnsupportedFiles(value: FileUploadValue | null | undefined): boolean {
+  const files = Array.isArray(value) ? value : value ? [value] : []
+  return files.some((file) => {
+    const type = file.type.toLowerCase()
+    if (type === 'image/svg+xml') return false
+    return (
+      !ANTHROPIC_SUPPORTED_IMAGE_TYPES.has(type) && !ANTHROPIC_SUPPORTED_DOCUMENT_TYPES.has(type)
+    )
+  })
+}
+
 /**
  * Interface for individual message in the messages array
  */
-interface Message {
-  role: 'system' | 'user' | 'assistant'
+type TextMessageRole = 'system' | 'user' | 'assistant'
+
+interface TextMessage {
+  role: TextMessageRole
   content: string
 }
+
+interface FilesMessage {
+  role: 'files'
+  files?: FileUploadValue | null
+}
+
+type Message = TextMessage | FilesMessage
 
 /**
  * Props for the MessagesInput component
@@ -88,10 +157,13 @@ export function MessagesInput({
   wandControlRef,
 }: MessagesInputProps) {
   const [messages, setMessages] = useSubBlockValue<Message[]>(blockId, subBlockId, false)
+  const [selectedModel] = useSubBlockValue<string>(blockId, 'model', false)
   const [localMessages, setLocalMessages] = useState<Message[]>([{ role: 'user', content: '' }])
   const messageIdsRef = useRef<string[]>([generateShortId()])
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null)
+  const fileAttachmentsSupported = selectedModel ? supportsFileAttachments(selectedModel) : true
+  const selectedProvider = selectedModel ? getProviderFromModel(selectedModel) : null
   const subBlockInput = useSubBlockInput({
     blockId,
     subBlockId,
@@ -106,7 +178,9 @@ export function MessagesInput({
   const getMessagesJson = useCallback((): string => {
     if (localMessages.length === 0) return ''
     // Filter out empty messages for cleaner context
-    const nonEmptyMessages = localMessages.filter((m) => m.content.trim() !== '')
+    const nonEmptyMessages = localMessages.filter(
+      (m): m is TextMessage => isTextMessage(m) && m.content.trim() !== ''
+    )
     if (nonEmptyMessages.length === 0) return ''
     return JSON.stringify(nonEmptyMessages, null, 2)
   }, [localMessages])
@@ -119,11 +193,11 @@ export function MessagesInput({
   /**
    * Parses and validates messages from JSON content
    */
-  const parseMessages = useCallback((content: string): Message[] | null => {
+  const parseMessages = useCallback((content: string): TextMessage[] | null => {
     try {
       const parsed = JSON.parse(content)
       if (Array.isArray(parsed)) {
-        const validMessages: Message[] = parsed
+        const validMessages: TextMessage[] = parsed
           .filter(
             (m): m is { role: string; content: string } =>
               typeof m === 'object' &&
@@ -134,7 +208,7 @@ export function MessagesInput({
           .map((m) => ({
             role: (['system', 'user', 'assistant'].includes(m.role)
               ? m.role
-              : 'user') as Message['role'],
+              : 'user') as TextMessageRole,
             content: m.content,
           }))
         return validMessages.length > 0 ? validMessages : null
@@ -150,18 +224,18 @@ export function MessagesInput({
    * Uses simple pattern matching for efficiency
    */
   const extractStreamingMessages = useCallback(
-    (buffer: string): Message[] => {
+    (buffer: string): TextMessage[] => {
       // Try complete JSON parse first
       const complete = parseMessages(buffer)
       if (complete) return complete
 
-      const result: Message[] = []
+      const result: TextMessage[] = []
 
       // Reset regex lastIndex for global pattern
       COMPLETE_MESSAGE_PATTERN.lastIndex = 0
       let match
       while ((match = COMPLETE_MESSAGE_PATTERN.exec(buffer)) !== null) {
-        result.push({ role: match[1] as Message['role'], content: unescapeContent(match[2]) })
+        result.push({ role: match[1] as TextMessageRole, content: unescapeContent(match[2]) })
       }
 
       // Check for incomplete message at end (content still streaming)
@@ -176,7 +250,7 @@ export function MessagesInput({
             const content = unescapeContent(incomplete[1])
             // Only add if not duplicate of last complete message
             if (result.length === 0 || result[result.length - 1].content !== content) {
-              result.push({ role: roleMatch[1] as Message['role'], content })
+              result.push({ role: roleMatch[1] as TextMessageRole, content })
             }
           }
         }
@@ -288,6 +362,7 @@ export function MessagesInput({
       if (isPreview || disabled) return
 
       const updatedMessages = [...localMessages]
+      if (!isTextMessage(updatedMessages[index])) return
       updatedMessages[index] = {
         ...updatedMessages[index],
         content,
@@ -302,14 +377,27 @@ export function MessagesInput({
    * Updates a specific message's role
    */
   const updateMessageRole = useCallback(
-    (index: number, role: 'system' | 'user' | 'assistant') => {
+    (index: number, role: TextMessageRole | 'files') => {
       if (isPreview || disabled) return
 
       const updatedMessages = [...localMessages]
-      updatedMessages[index] = {
-        ...updatedMessages[index],
-        role,
-      }
+      const currentMessage = updatedMessages[index]
+      updatedMessages[index] =
+        role === 'files'
+          ? { role: 'files', files: isTextMessage(currentMessage) ? null : currentMessage.files }
+          : { role, content: isTextMessage(currentMessage) ? currentMessage.content : '' }
+      setLocalMessages(updatedMessages)
+      setMessages(updatedMessages)
+    },
+    [localMessages, setMessages, isPreview, disabled]
+  )
+
+  const updateMessageFiles = useCallback(
+    (index: number, files: FileUploadValue | null) => {
+      if (isPreview || disabled) return
+
+      const updatedMessages = [...localMessages]
+      updatedMessages[index] = { role: 'files', files }
       setLocalMessages(updatedMessages)
       setMessages(updatedMessages)
     },
@@ -553,10 +641,19 @@ export function MessagesInput({
         >
           {(() => {
             const fieldId = `message-${index}`
+            const textContent = isTextMessage(message) ? message.content : ''
+            const isFilesMessage = message.role === 'files'
+            const showFilesWarning =
+              isFilesMessage && hasFilesValue(message.files) && !fileAttachmentsSupported
+            const showUnsupportedFilesWarning =
+              isFilesMessage &&
+              fileAttachmentsSupported &&
+              (selectedProvider === 'anthropic' || selectedProvider === 'azure-anthropic') &&
+              hasAnthropicUnsupportedFiles(message.files)
             const fieldState = subBlockInput.fieldHelpers.getFieldState(fieldId)
             const fieldHandlers = subBlockInput.fieldHelpers.createFieldHandlers(
               fieldId,
-              message.content,
+              textContent,
               (newValue: string) => {
                 updateMessageContent(index, newValue)
               }
@@ -564,7 +661,7 @@ export function MessagesInput({
 
             const handleEnvSelect = subBlockInput.fieldHelpers.createEnvVarSelectHandler(
               fieldId,
-              message.content,
+              textContent,
               (newValue: string) => {
                 updateMessageContent(index, newValue)
               }
@@ -572,7 +669,7 @@ export function MessagesInput({
 
             const handleTagSelect = subBlockInput.fieldHelpers.createTagSelectHandler(
               fieldId,
-              message.content,
+              textContent,
               (newValue: string) => {
                 updateMessageContent(index, newValue)
               }
@@ -598,51 +695,80 @@ export function MessagesInput({
                     }
                   }}
                 >
-                  <Popover
-                    open={openPopoverIndex === index}
-                    onOpenChange={(open) => setOpenPopoverIndex(open ? index : null)}
-                    colorScheme='inverted'
-                  >
-                    <PopoverTrigger asChild>
-                      <button
-                        type='button'
-                        disabled={isPreview || disabled}
-                        className={cn(
-                          'group -ml-1.5 -my-1 flex items-center gap-1 rounded px-1.5 py-1 font-medium text-[var(--text-primary)] text-small leading-none transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]',
-                          (isPreview || disabled) &&
-                            'cursor-default hover-hover:bg-transparent hover-hover:text-[var(--text-primary)]'
-                        )}
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label='Select message role'
-                      >
-                        {formatRole(message.role)}
-                        {!isPreview && !disabled && (
-                          <ChevronDown
-                            className={cn(
-                              'h-3 w-3 flex-shrink-0 transition-transform duration-100',
-                              openPopoverIndex === index && 'rotate-180'
-                            )}
-                          />
-                        )}
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent minWidth={140} align='start'>
-                      <div className='flex flex-col gap-0.5'>
-                        {(['system', 'user', 'assistant'] as const).map((role) => (
-                          <PopoverItem
-                            key={role}
-                            active={message.role === role}
-                            onClick={() => {
-                              updateMessageRole(index, role)
-                              setOpenPopoverIndex(null)
-                            }}
-                          >
-                            <span>{formatRole(role)}</span>
-                          </PopoverItem>
-                        ))}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                  <div className='flex items-center gap-1'>
+                    <Popover
+                      open={openPopoverIndex === index}
+                      onOpenChange={(open) => setOpenPopoverIndex(open ? index : null)}
+                      colorScheme='inverted'
+                    >
+                      <PopoverTrigger asChild>
+                        <button
+                          type='button'
+                          disabled={isPreview || disabled}
+                          className={cn(
+                            'group -ml-1.5 -my-1 flex items-center gap-1 rounded px-1.5 py-1 font-medium text-[var(--text-primary)] text-small leading-none transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]',
+                            (isPreview || disabled) &&
+                              'cursor-default hover-hover:bg-transparent hover-hover:text-[var(--text-primary)]'
+                          )}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label='Select message role'
+                        >
+                          {formatRole(message.role)}
+                          {!isPreview && !disabled && (
+                            <ChevronDown
+                              className={cn(
+                                'size-3 flex-shrink-0 transition-transform duration-100',
+                                openPopoverIndex === index && 'rotate-180'
+                              )}
+                            />
+                          )}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent minWidth={140} align='start'>
+                        <div className='flex flex-col gap-0.5'>
+                          {(['system', 'user', 'assistant', 'files'] as const).map((role) => (
+                            <PopoverItem
+                              key={role}
+                              active={message.role === role}
+                              onClick={() => {
+                                updateMessageRole(index, role)
+                                setOpenPopoverIndex(null)
+                              }}
+                            >
+                              <span>{formatRole(role)}</span>
+                            </PopoverItem>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+
+                    {showFilesWarning && (
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <span className='flex size-5 items-center justify-center text-[var(--warning)]'>
+                            <AlertTriangle className='size-3.5' />
+                          </span>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top'>
+                          The selected model does not accept files. These files will be ignored.
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                    )}
+
+                    {showUnsupportedFilesWarning && (
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <span className='flex size-5 items-center justify-center text-[var(--warning)]'>
+                            <AlertTriangle className='size-3.5' />
+                          </span>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top'>
+                          The selected model does not accept one or more file types. Unsupported
+                          files will be ignored.
+                        </Tooltip.Content>
+                      </Tooltip.Root>
+                    )}
+                  </div>
 
                   {!isPreview && !disabled && (
                     <div className='flex items-center'>
@@ -703,100 +829,118 @@ export function MessagesInput({
                 </div>
 
                 {/* Content Input with overlay for variable highlighting */}
-                <div className='relative w-full overflow-hidden'>
-                  <textarea
-                    ref={(el) => {
-                      textareaRefs.current[fieldId] = el
-                    }}
-                    className='relative z-[2] m-0 box-border h-auto min-h-[80px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-medium font-sans text-sm text-transparent leading-[1.5] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
-                    placeholder='Enter message content...'
-                    value={message.content}
-                    onChange={fieldHandlers.onChange}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Tab' && !isPreview && !disabled) {
-                        e.preventDefault()
-                        const direction = e.shiftKey ? -1 : 1
-                        const nextIndex = index + direction
+                <div
+                  className={cn('relative w-full overflow-hidden', isFilesMessage && 'p-2 pt-1')}
+                >
+                  {isFilesMessage ? (
+                    <FileUpload
+                      blockId={blockId}
+                      subBlockId={`${subBlockId}-${messageIdsRef.current[index] ?? index}-files`}
+                      value={message.files ?? null}
+                      onValueChange={(files) => updateMessageFiles(index, files)}
+                      acceptedTypes='*'
+                      multiple
+                      maxSize={10}
+                      isPreview={isPreview}
+                      disabled={disabled}
+                    />
+                  ) : (
+                    <>
+                      <textarea
+                        ref={(el) => {
+                          textareaRefs.current[fieldId] = el
+                        }}
+                        className='relative z-[2] m-0 box-border h-auto min-h-[80px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-medium font-sans text-sm text-transparent leading-[1.5] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
+                        placeholder='Enter message content...'
+                        value={textContent}
+                        onChange={fieldHandlers.onChange}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Tab' && !isPreview && !disabled) {
+                            e.preventDefault()
+                            const direction = e.shiftKey ? -1 : 1
+                            const nextIndex = index + direction
 
-                        if (nextIndex >= 0 && nextIndex < currentMessages.length) {
-                          const nextFieldId = `message-${nextIndex}`
-                          const nextTextarea = textareaRefs.current[nextFieldId]
-                          if (nextTextarea) {
-                            nextTextarea.focus()
-                            nextTextarea.selectionStart = nextTextarea.value.length
-                            nextTextarea.selectionEnd = nextTextarea.value.length
+                            if (nextIndex >= 0 && nextIndex < currentMessages.length) {
+                              const nextFieldId = `message-${nextIndex}`
+                              const nextTextarea = textareaRefs.current[nextFieldId]
+                              if (nextTextarea) {
+                                nextTextarea.focus()
+                                nextTextarea.selectionStart = nextTextarea.value.length
+                                nextTextarea.selectionEnd = nextTextarea.value.length
+                              }
+                            }
+                            return
                           }
-                        }
-                        return
-                      }
 
-                      fieldHandlers.onKeyDown(e)
-                    }}
-                    onDrop={fieldHandlers.onDrop}
-                    onDragOver={fieldHandlers.onDragOver}
-                    onFocus={fieldHandlers.onFocus}
-                    onScroll={(e) => {
-                      const overlay = overlayRefs.current[fieldId]
-                      if (overlay) {
-                        overlay.scrollTop = e.currentTarget.scrollTop
-                        overlay.scrollLeft = e.currentTarget.scrollLeft
-                      }
-                    }}
-                    disabled={isPreview || disabled}
-                  />
-                  <div
-                    ref={(el) => {
-                      overlayRefs.current[fieldId] = el
-                    }}
-                    className={cn(
-                      'absolute top-0 left-0 z-[1] m-0 box-border w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.5] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-                      !(isPreview || disabled) && 'pointer-events-none'
-                    )}
-                  >
-                    {formatDisplayText(message.content, {
-                      accessiblePrefixes,
-                      highlightAll: !accessiblePrefixes,
-                    })}
-                    {message.content.endsWith('\n') && '\u200B'}
-                  </div>
+                          fieldHandlers.onKeyDown(e)
+                        }}
+                        onDrop={fieldHandlers.onDrop}
+                        onDragOver={fieldHandlers.onDragOver}
+                        onFocus={fieldHandlers.onFocus}
+                        onScroll={(e) => {
+                          const overlay = overlayRefs.current[fieldId]
+                          if (overlay) {
+                            overlay.scrollTop = e.currentTarget.scrollTop
+                            overlay.scrollLeft = e.currentTarget.scrollLeft
+                          }
+                        }}
+                        disabled={isPreview || disabled}
+                      />
+                      <div
+                        ref={(el) => {
+                          overlayRefs.current[fieldId] = el
+                        }}
+                        className={cn(
+                          'absolute top-0 left-0 z-[1] m-0 box-border w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.5] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                          !(isPreview || disabled) && 'pointer-events-none'
+                        )}
+                      >
+                        {formatDisplayText(textContent, {
+                          accessiblePrefixes,
+                          highlightAll: !accessiblePrefixes,
+                        })}
+                        {textContent.endsWith('\n') && '\u200B'}
+                      </div>
 
-                  {/* Env var dropdown for this message */}
-                  <EnvVarDropdown
-                    visible={fieldState.showEnvVars && !isPreview && !disabled}
-                    onSelect={handleEnvSelect}
-                    searchTerm={fieldState.searchTerm}
-                    inputValue={message.content}
-                    cursorPosition={fieldState.cursorPosition}
-                    onClose={() => subBlockInput.fieldHelpers.hideFieldDropdowns(fieldId)}
-                    workspaceId={subBlockInput.workspaceId}
-                    maxHeight='192px'
-                    inputRef={textareaRefObject}
-                  />
+                      {/* Env var dropdown for this message */}
+                      <EnvVarDropdown
+                        visible={fieldState.showEnvVars && !isPreview && !disabled}
+                        onSelect={handleEnvSelect}
+                        searchTerm={fieldState.searchTerm}
+                        inputValue={textContent}
+                        cursorPosition={fieldState.cursorPosition}
+                        onClose={() => subBlockInput.fieldHelpers.hideFieldDropdowns(fieldId)}
+                        workspaceId={subBlockInput.workspaceId}
+                        maxHeight='192px'
+                        inputRef={textareaRefObject}
+                      />
 
-                  {/* Tag dropdown for this message */}
-                  <TagDropdown
-                    visible={fieldState.showTags && !isPreview && !disabled}
-                    onSelect={handleTagSelect}
-                    blockId={blockId}
-                    activeSourceBlockId={fieldState.activeSourceBlockId}
-                    inputValue={message.content}
-                    cursorPosition={fieldState.cursorPosition}
-                    onClose={() => subBlockInput.fieldHelpers.hideFieldDropdowns(fieldId)}
-                    inputRef={textareaRefObject}
-                  />
+                      {/* Tag dropdown for this message */}
+                      <TagDropdown
+                        visible={fieldState.showTags && !isPreview && !disabled}
+                        onSelect={handleTagSelect}
+                        blockId={blockId}
+                        activeSourceBlockId={fieldState.activeSourceBlockId}
+                        inputValue={textContent}
+                        cursorPosition={fieldState.cursorPosition}
+                        onClose={() => subBlockInput.fieldHelpers.hideFieldDropdowns(fieldId)}
+                        inputRef={textareaRefObject}
+                      />
 
-                  {!isPreview && !disabled && (
-                    <div
-                      role='separator'
-                      aria-orientation='horizontal'
-                      className='absolute right-1 bottom-1 z-[3] flex size-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
-                      onMouseDown={(e) => handleResizeStart(fieldId, e)}
-                      onDragStart={(e) => {
-                        e.preventDefault()
-                      }}
-                    >
-                      <ChevronsUpDown className='size-3 text-[var(--text-muted)]' />
-                    </div>
+                      {!isPreview && !disabled && (
+                        <div
+                          role='separator'
+                          aria-orientation='horizontal'
+                          className='absolute right-1 bottom-1 z-[3] flex size-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                          onMouseDown={(e) => handleResizeStart(fieldId, e)}
+                          onDragStart={(e) => {
+                            e.preventDefault()
+                          }}
+                        >
+                          <ChevronsUpDown className='size-3 text-[var(--text-muted)]' />
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </>

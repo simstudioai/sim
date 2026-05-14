@@ -39,6 +39,7 @@ import {
   getThinkingLevelsForModel as getThinkingLevelsForModelFromDefinitions,
   getVerbosityValuesForModel as getVerbosityValuesForModelFromDefinitions,
   PROVIDER_DEFINITIONS,
+  supportsFileAttachments as supportsFileAttachmentsFromDefinitions,
   supportsTemperature as supportsTemperatureFromDefinitions,
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
   updateOllamaModels as updateOllamaModelsInDefinitions,
@@ -1084,6 +1085,10 @@ export function getMaxTemperature(model: string): number | undefined {
 
 export function supportsToolUsageControl(provider: string): boolean {
   return supportsToolUsageControlFromDefinitions(provider)
+}
+
+export function supportsFileAttachments(model: string): boolean {
+  return supportsFileAttachmentsFromDefinitions(model)
 }
 
 /**

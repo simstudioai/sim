@@ -33,6 +33,7 @@ export interface ModelCapabilities {
     max: number
   }
   toolUsageControl?: boolean
+  fileAttachments?: boolean
   computerUse?: boolean
   nativeStructuredOutputs?: boolean
   /** Maximum supported output tokens for this model */
@@ -135,6 +136,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     color: '#E8E8E8',
     capabilities: {
       toolUsageControl: true,
+      fileAttachments: true,
     },
     models: [
       // GPT-4.1 family
@@ -565,6 +567,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     color: '#D97757',
     capabilities: {
       toolUsageControl: true,
+      fileAttachments: true,
     },
     models: [
       {
@@ -773,6 +776,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     modelPatterns: [/^azure\//],
     capabilities: {
       toolUsageControl: true,
+      fileAttachments: true,
     },
     icon: AzureIcon,
     isReseller: true,
@@ -1088,6 +1092,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     isReseller: true,
     capabilities: {
       toolUsageControl: true,
+      fileAttachments: true,
     },
     models: [
       {
@@ -1200,6 +1205,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     modelPatterns: [/^gemini/, /^deep-research/],
     capabilities: {
       toolUsageControl: true,
+      fileAttachments: true,
     },
     icon: GeminiIcon,
     color: '#4285F4',
@@ -1346,6 +1352,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           deepResearch: true,
+          fileAttachments: false,
           memory: false,
           maxOutputTokens: 65536,
         },
@@ -1364,6 +1371,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     isReseller: true,
     capabilities: {
       toolUsageControl: true,
+      fileAttachments: true,
     },
     models: [
       {
@@ -1516,6 +1524,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           deepResearch: true,
+          fileAttachments: false,
           memory: false,
         },
         contextWindow: 1000000,
@@ -2971,6 +2980,20 @@ export function getMaxTemperature(modelId: string): number | undefined {
 
 export function supportsToolUsageControl(providerId: string): boolean {
   return getProvidersWithToolUsageControl().includes(providerId)
+}
+
+export function supportsFileAttachments(modelId: string): boolean {
+  if (
+    modelId
+      .toLowerCase()
+      .replace(/^vertex\//, '')
+      .startsWith('deep-research')
+  ) {
+    return false
+  }
+
+  const capabilities = getModelCapabilities(modelId)
+  return capabilities?.fileAttachments === true
 }
 
 export function updateOllamaModels(models: string[]): void {

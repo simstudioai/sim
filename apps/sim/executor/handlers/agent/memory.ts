@@ -5,14 +5,14 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { getAccurateTokenCount } from '@/lib/tokenization/estimators'
 import { MEMORY } from '@/executor/constants'
-import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
+import type { AgentInputs, TextMessage } from '@/executor/handlers/agent/types'
 import type { ExecutionContext } from '@/executor/types'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
 const logger = createLogger('Memory')
 
 export class Memory {
-  async fetchMemoryMessages(ctx: ExecutionContext, inputs: AgentInputs): Promise<Message[]> {
+  async fetchMemoryMessages(ctx: ExecutionContext, inputs: AgentInputs): Promise<TextMessage[]> {
     if (!inputs.memoryType || inputs.memoryType === 'none') {
       return []
     }
@@ -50,7 +50,7 @@ export class Memory {
   async appendToMemory(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    message: Message
+    message: TextMessage
   ): Promise<void> {
     if (!inputs.memoryType || inputs.memoryType === 'none') {
       return
@@ -71,7 +71,11 @@ export class Memory {
     })
   }
 
-  async seedMemory(ctx: ExecutionContext, inputs: AgentInputs, messages: Message[]): Promise<void> {
+  async seedMemory(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    messages: TextMessage[]
+  ): Promise<void> {
     if (!inputs.memoryType || inputs.memoryType === 'none') {
       return
     }
@@ -118,12 +122,16 @@ export class Memory {
     return ctx.workspaceId
   }
 
-  private applyWindow(messages: Message[], limit: number): Message[] {
+  private applyWindow(messages: TextMessage[], limit: number): TextMessage[] {
     return messages.slice(-limit)
   }
 
-  private applyTokenWindow(messages: Message[], maxTokens: number, model?: string): Message[] {
-    const result: Message[] = []
+  private applyTokenWindow(
+    messages: TextMessage[],
+    maxTokens: number,
+    model?: string
+  ): TextMessage[] {
+    const result: TextMessage[] = []
     let tokenCount = 0
 
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -144,7 +152,7 @@ export class Memory {
     return result
   }
 
-  private applyContextWindowLimit(messages: Message[], model?: string): Message[] {
+  private applyContextWindowLimit(messages: TextMessage[], model?: string): TextMessage[] {
     if (!model) return messages
 
     for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
@@ -165,7 +173,7 @@ export class Memory {
     return messages
   }
 
-  private async fetchMemory(workspaceId: string, key: string): Promise<Message[]> {
+  private async fetchMemory(workspaceId: string, key: string): Promise<TextMessage[]> {
     const result = await db
       .select({ data: memory.data })
       .from(memory)
@@ -178,14 +186,19 @@ export class Memory {
     if (!Array.isArray(data)) return []
 
     return data.filter(
-      (msg): msg is Message => msg && typeof msg === 'object' && 'role' in msg && 'content' in msg
+      (msg): msg is TextMessage =>
+        msg &&
+        typeof msg === 'object' &&
+        'role' in msg &&
+        ['system', 'user', 'assistant'].includes(msg.role) &&
+        'content' in msg
     )
   }
 
   private async seedMemoryRecord(
     workspaceId: string,
     key: string,
-    messages: Message[]
+    messages: TextMessage[]
   ): Promise<void> {
     const now = new Date()
 
@@ -202,7 +215,11 @@ export class Memory {
       .onConflictDoNothing()
   }
 
-  private async appendMessage(workspaceId: string, key: string, message: Message): Promise<void> {
+  private async appendMessage(
+    workspaceId: string,
+    key: string,
+    message: TextMessage
+  ): Promise<void> {
     const now = new Date()
 
     await db

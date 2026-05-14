@@ -3,6 +3,7 @@ import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema
 import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages/messages'
 import type { Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { createFileContentFromBase64 } from '@/lib/uploads/utils/file-utils'
 import type { BlockTokens, IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
@@ -16,7 +17,12 @@ import {
   supportsTemperature,
 } from '@/providers/models'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
-import type { ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
+import type {
+  ProviderFileAttachment,
+  ProviderRequest,
+  ProviderResponse,
+  TimeSegment,
+} from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
@@ -147,6 +153,57 @@ function buildThinkingConfig(
  */
 const ANTHROPIC_SDK_NON_STREAMING_MAX_TOKENS = 21333
 
+function buildAnthropicFileBlocks(
+  fileAttachments?: ProviderFileAttachment[]
+): Anthropic.Messages.ContentBlockParam[] {
+  if (!fileAttachments?.length) return []
+
+  const blocks: Anthropic.Messages.ContentBlockParam[] = []
+  for (const file of fileAttachments) {
+    const content = createFileContentFromBase64(file.base64, file.type)
+    if (!content?.source || (content.type !== 'image' && content.type !== 'document')) {
+      continue
+    }
+
+    if (content.type === 'image') {
+      blocks.push({
+        type: 'image',
+        source: content.source as Anthropic.Messages.ImageBlockParam['source'],
+      })
+      continue
+    }
+
+    blocks.push({
+      type: 'document',
+      source: content.source as Anthropic.Messages.DocumentBlockParam['source'],
+      title: file.name,
+    })
+  }
+
+  return blocks
+}
+
+function appendFileBlocksToMessages(
+  messages: Anthropic.Messages.MessageParam[],
+  fileAttachments?: ProviderFileAttachment[]
+) {
+  const fileBlocks = buildAnthropicFileBlocks(fileAttachments)
+  if (fileBlocks.length === 0) return
+
+  const lastUserMessage = [...messages].reverse().find((message) => message.role === 'user')
+  if (!lastUserMessage) {
+    messages.push({
+      role: 'user',
+      content: [{ type: 'text', text: 'Please use the attached files.' }, ...fileBlocks],
+    })
+    return
+  }
+
+  lastUserMessage.content = Array.isArray(lastUserMessage.content)
+    ? [...lastUserMessage.content, ...fileBlocks]
+    : [{ type: 'text', text: lastUserMessage.content }, ...fileBlocks]
+}
+
 /**
  * Creates an Anthropic message, automatically using streaming internally when max_tokens
  * exceeds the SDK's non-streaming threshold. Returns the same Message object either way.
@@ -244,6 +301,8 @@ export async function executeAnthropicProviderRequest(
     })
     systemPrompt = ''
   }
+
+  appendFileBlocksToMessages(messages, request.fileAttachments)
 
   let anthropicTools: Anthropic.Messages.Tool[] | undefined = request.tools?.length
     ? request.tools.map((tool) => ({

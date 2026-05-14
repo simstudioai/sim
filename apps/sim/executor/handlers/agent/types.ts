@@ -63,13 +63,20 @@ export interface ToolInput {
   customToolId?: string
 }
 
-export interface Message {
+export interface TextMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
   executionId?: string
   function_call?: any
   tool_calls?: any[]
 }
+
+export interface FilesMessage {
+  role: 'files'
+  files?: unknown
+}
+
+export type Message = TextMessage | FilesMessage
 
 export interface StreamingConfig {
   shouldUseStreaming: boolean

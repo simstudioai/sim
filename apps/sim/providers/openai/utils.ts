@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type OpenAI from 'openai'
-import type { Message } from '@/providers/types'
+import type { Message, ProviderFileAttachment } from '@/providers/types'
 
 const logger = createLogger('ResponsesUtils')
 
@@ -21,7 +21,13 @@ export interface ResponsesToolCall {
 export type ResponsesInputItem =
   | {
       role: 'system' | 'user' | 'assistant'
-      content: string
+      content:
+        | string
+        | Array<
+            | { type: 'input_text'; text: string }
+            | { type: 'input_image'; image_url: string; detail: 'auto' }
+            | { type: 'input_file'; file_data: string; filename?: string }
+          >
     }
   | {
       type: 'function_call'
@@ -42,13 +48,53 @@ export interface ResponsesToolDefinition {
   parameters?: Record<string, unknown>
 }
 
+function toDataUrl(file: ProviderFileAttachment): string {
+  return `data:${file.type};base64,${file.base64}`
+}
+
+function buildResponsesFileParts(fileAttachments?: ProviderFileAttachment[]) {
+  if (!fileAttachments?.length) return []
+
+  return fileAttachments.map((file) => {
+    const dataUrl = toDataUrl(file)
+    if (file.type.toLowerCase().startsWith('image/')) {
+      return {
+        type: 'input_image' as const,
+        image_url: dataUrl,
+        detail: 'auto' as const,
+      }
+    }
+
+    return {
+      type: 'input_file' as const,
+      file_data: dataUrl,
+      filename: file.name,
+    }
+  })
+}
+
 /**
  * Converts chat-style messages into Responses API input items.
  */
-export function buildResponsesInputFromMessages(messages: Message[]): ResponsesInputItem[] {
+export function buildResponsesInputFromMessages(
+  messages: Message[],
+  fileAttachments?: ProviderFileAttachment[]
+): ResponsesInputItem[] {
   const input: ResponsesInputItem[] = []
+  const fileParts = buildResponsesFileParts(fileAttachments)
+  let lastUserMessageIndex = -1
+  if (fileParts.length > 0) {
+    for (let index = messages.length - 1; index >= 0; index--) {
+      const message = messages[index]
+      if (message.role === 'user' && !!message.content) {
+        lastUserMessageIndex = index
+        break
+      }
+    }
+  }
+  let attachmentsAdded = false
 
-  for (const message of messages) {
+  for (const [index, message] of messages.entries()) {
     if (message.role === 'tool' && message.tool_call_id) {
       input.push({
         type: 'function_call_output',
@@ -62,6 +108,15 @@ export function buildResponsesInputFromMessages(messages: Message[]): ResponsesI
       message.content &&
       (message.role === 'system' || message.role === 'user' || message.role === 'assistant')
     ) {
+      if (index === lastUserMessageIndex && fileParts.length > 0 && !attachmentsAdded) {
+        input.push({
+          role: message.role,
+          content: [{ type: 'input_text', text: message.content }, ...fileParts],
+        })
+        attachmentsAdded = true
+        continue
+      }
+
       input.push({
         role: message.role,
         content: message.content,
@@ -78,6 +133,13 @@ export function buildResponsesInputFromMessages(messages: Message[]): ResponsesI
         })
       }
     }
+  }
+
+  if (fileParts.length > 0 && !attachmentsAdded) {
+    input.push({
+      role: 'user',
+      content: [{ type: 'input_text', text: 'Please use the attached files.' }, ...fileParts],
+    })
   }
 
   return input

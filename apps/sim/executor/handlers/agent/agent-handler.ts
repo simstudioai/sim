@@ -3,12 +3,16 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
+import { readUserFileContent } from '@/lib/execution/payloads/materialization.server'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { processSingleFileToUserFile, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import {
   validateBlockType,
   validateCustomToolsAllowed,
@@ -27,6 +31,7 @@ import type {
   AgentInputs,
   Message,
   StreamingConfig,
+  TextMessage,
   ToolInput,
 } from '@/executor/handlers/agent/types'
 import { parseResponseFormat } from '@/executor/handlers/shared/response-format'
@@ -36,13 +41,19 @@ import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
-import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
+import type { ProviderFileAttachment } from '@/providers/types'
+import {
+  getProviderFromModel,
+  supportsFileAttachments,
+  transformBlockTool,
+} from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { filterSchemaForLLM, type ToolSchema } from '@/tools/params'
 import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
 const logger = createLogger('AgentBlockHandler')
+const MAX_AGENT_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
 /**
  * Handler for Agent blocks that process LLM requests with optional tools.
@@ -87,6 +98,8 @@ export class AgentBlockHandler implements BlockHandler {
 
     const streamingConfig = this.getStreamingConfig(ctx, block)
     const messages = await this.buildMessages(ctx, filteredInputs, skillMetadata)
+    const requestId = generateId()
+    const fileAttachments = await this.buildFileAttachments(ctx, filteredInputs, model, requestId)
 
     const providerRequest = this.buildProviderRequest({
       ctx,
@@ -97,6 +110,7 @@ export class AgentBlockHandler implements BlockHandler {
       formattedTools,
       responseFormat,
       streaming: streamingConfig.shouldUseStreaming ?? false,
+      fileAttachments,
     })
 
     const result = await this.executeProviderRequest(ctx, providerRequest, block, responseFormat)
@@ -576,8 +590,8 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     inputs: AgentInputs,
     skillMetadata: Array<{ name: string; description: string }> = []
-  ): Promise<Message[] | undefined> {
-    const messages: Message[] = []
+  ): Promise<TextMessage[] | undefined> {
+    const messages: TextMessage[] = []
     const memoryEnabled = inputs.memoryType && inputs.memoryType !== 'none'
 
     // 1. Extract and validate messages from messages-input subblock
@@ -672,11 +686,11 @@ export class AgentBlockHandler implements BlockHandler {
     return messages.length > 0 ? messages : undefined
   }
 
-  private extractValidMessages(messages?: Message[]): Message[] {
+  private extractValidMessages(messages?: Message[]): TextMessage[] {
     if (!messages || !Array.isArray(messages)) return []
 
     return messages.filter(
-      (msg): msg is Message =>
+      (msg): msg is TextMessage =>
         msg &&
         typeof msg === 'object' &&
         'role' in msg &&
@@ -685,7 +699,69 @@ export class AgentBlockHandler implements BlockHandler {
     )
   }
 
-  private processMemories(memories: any): Message[] {
+  private extractFileInputs(messages?: Message[]): object[] {
+    if (!messages || !Array.isArray(messages)) return []
+
+    const files: object[] = []
+    for (const message of messages) {
+      if (!message || typeof message !== 'object' || message.role !== 'files') continue
+      const normalizedFiles = normalizeFileInput(message.files)
+      if (normalizedFiles) {
+        files.push(...normalizedFiles)
+      }
+    }
+    return files
+  }
+
+  private async buildFileAttachments(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    model: string,
+    requestId: string
+  ): Promise<ProviderFileAttachment[] | undefined> {
+    const files = this.extractFileInputs(inputs.messages)
+    if (files.length === 0) return undefined
+
+    if (!supportsFileAttachments(model)) {
+      logger.warn(
+        'Ignoring agent file attachments because the selected model does not support them',
+        {
+          model,
+          fileCount: files.length,
+        }
+      )
+      return undefined
+    }
+
+    if (!ctx.userId) {
+      throw new Error('Agent file attachments require an authenticated user.')
+    }
+
+    const attachments: ProviderFileAttachment[] = []
+    for (const file of files) {
+      const userFile = processSingleFileToUserFile(file as RawFileInput, requestId, logger)
+      const base64 = await readUserFileContent(userFile, {
+        workflowId: ctx.workflowId,
+        workspaceId: ctx.workspaceId,
+        executionId: ctx.executionId,
+        userId: ctx.userId,
+        requestId,
+        logger,
+        encoding: 'base64',
+        maxBytes: MAX_AGENT_ATTACHMENT_BYTES,
+        maxSourceBytes: MAX_AGENT_ATTACHMENT_BYTES,
+      })
+      attachments.push({
+        name: userFile.name,
+        type: userFile.type,
+        base64,
+      })
+    }
+
+    return attachments.length > 0 ? attachments : undefined
+  }
+
+  private processMemories(memories: any): TextMessage[] {
     if (!memories) return []
 
     let memoryArray: any[] = []
@@ -695,7 +771,7 @@ export class AgentBlockHandler implements BlockHandler {
       memoryArray = memories
     }
 
-    const messages: Message[] = []
+    const messages: TextMessage[] = []
     memoryArray.forEach((memory: any) => {
       if (memory.data && Array.isArray(memory.data)) {
         memory.data.forEach((msg: any) => {
@@ -725,7 +801,7 @@ export class AgentBlockHandler implements BlockHandler {
    * Ensures system message is at position 0 (industry standard)
    * Preserves existing system message if already at position 0, otherwise adds/moves it
    */
-  private addSystemPrompt(messages: Message[], systemPrompt: any) {
+  private addSystemPrompt(messages: TextMessage[], systemPrompt: any) {
     let content: string
 
     if (typeof systemPrompt === 'string') {
@@ -759,7 +835,7 @@ export class AgentBlockHandler implements BlockHandler {
     }
   }
 
-  private addUserPrompt(messages: Message[], userPrompt: any) {
+  private addUserPrompt(messages: TextMessage[], userPrompt: any) {
     let content: string
     if (typeof userPrompt === 'object' && userPrompt.input) {
       content = String(userPrompt.input)
@@ -776,14 +852,24 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext
     providerId: string
     model: string
-    messages: Message[] | undefined
+    messages: TextMessage[] | undefined
     inputs: AgentInputs
     formattedTools: any[]
     responseFormat: any
     streaming: boolean
+    fileAttachments?: ProviderFileAttachment[]
   }) {
-    const { ctx, providerId, model, messages, inputs, formattedTools, responseFormat, streaming } =
-      config
+    const {
+      ctx,
+      providerId,
+      model,
+      messages,
+      inputs,
+      formattedTools,
+      responseFormat,
+      streaming,
+      fileAttachments,
+    } = config
 
     const validMessages = this.validateMessages(messages)
 
@@ -816,6 +902,7 @@ export class AgentBlockHandler implements BlockHandler {
       userId: ctx.userId,
       stream: streaming,
       messages: messages?.map(({ executionId, ...msg }) => msg),
+      fileAttachments,
       environmentVariables: normalizeStringRecord(ctx.environmentVariables),
       workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
       blockData,
@@ -827,7 +914,7 @@ export class AgentBlockHandler implements BlockHandler {
     }
   }
 
-  private validateMessages(messages: Message[] | undefined): boolean {
+  private validateMessages(messages: TextMessage[] | undefined): boolean {
     return (
       Array.isArray(messages) &&
       messages.length > 0 &&
@@ -886,6 +973,7 @@ export class AgentBlockHandler implements BlockHandler {
         userId: ctx.userId,
         stream: providerRequest.stream,
         messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
+        fileAttachments: providerRequest.fileAttachments,
         environmentVariables: normalizeStringRecord(ctx.environmentVariables),
         workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
         blockData,

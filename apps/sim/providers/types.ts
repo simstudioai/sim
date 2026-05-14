@@ -137,6 +137,12 @@ export interface Message {
   tool_call_id?: string
 }
 
+export interface ProviderFileAttachment {
+  name: string
+  type: string
+  base64: string
+}
+
 export interface ProviderRequest {
   model: string
   systemPrompt?: string
@@ -146,6 +152,7 @@ export interface ProviderRequest {
   maxTokens?: number
   apiKey?: string
   messages?: Message[]
+  fileAttachments?: ProviderFileAttachment[]
   responseFormat?: {
     name: string
     schema: any
