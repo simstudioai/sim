@@ -282,7 +282,24 @@ export async function getWorkspaceFileFolder(
 ): Promise<WorkspaceFileFolderRecord | null> {
   const { includeDeleted = false } = options ?? {}
   const folder = await getRawWorkspaceFileFolder(workspaceId, folderId, { includeDeleted })
-  return folder ? mapFolderWithPath(workspaceId, folder, { includeDeleted }) : null
+  if (!folder) return null
+
+  // Load all folders in one query to build the path map instead of chaining
+  // per-ancestor SELECTs inside buildWorkspaceFileFolderPath.
+  const allFolders = await db
+    .select()
+    .from(workspaceFileFolder)
+    .where(
+      includeDeleted
+        ? eq(workspaceFileFolder.workspaceId, workspaceId)
+        : and(
+            eq(workspaceFileFolder.workspaceId, workspaceId),
+            isNull(workspaceFileFolder.deletedAt)
+          )
+    )
+
+  const paths = buildWorkspaceFileFolderPathMap(allFolders)
+  return mapFolder(folder, paths)
 }
 
 export async function assertWorkspaceFileFolderTarget(
@@ -391,36 +408,76 @@ export async function ensureWorkspaceFileFolderPath(params: {
   userId: string
   pathSegments: string[]
 }): Promise<string | null> {
+  if (params.pathSegments.length === 0) return null
+
+  // Load all active folders once and build a lookup keyed by "name|parentId"
+  // so we can resolve existing segments without a per-segment SELECT.
+  const existingFolders = await db
+    .select()
+    .from(workspaceFileFolder)
+    .where(
+      and(
+        eq(workspaceFileFolder.workspaceId, params.workspaceId),
+        isNull(workspaceFileFolder.deletedAt)
+      )
+    )
+
+  /** Key format: `${name}|${parentId ?? ''}` */
+  const folderByNameParent = new Map<string, RawWorkspaceFileFolder>()
+  for (const folder of existingFolders) {
+    folderByNameParent.set(`${folder.name}|${folder.parentId ?? ''}`, folder)
+  }
+
   let parentId: string | null = null
+
   for (const rawSegment of params.pathSegments) {
     const name = normalizeWorkspaceFileItemName(rawSegment, 'Folder')
+    const lookupKey = `${name}|${parentId ?? ''}`
 
-    const existing = await findRawWorkspaceFileFolderByName(params.workspaceId, name, parentId)
-    if (existing) {
-      parentId = existing.id
+    const cached = folderByNameParent.get(lookupKey)
+    if (cached) {
+      parentId = cached.id
       continue
     }
 
     try {
-      parentId = (
-        await createWorkspaceFileFolder({
-          workspaceId: params.workspaceId,
-          userId: params.userId,
-          name,
-          parentId,
-        })
-      ).id
+      const created = await createWorkspaceFileFolder({
+        workspaceId: params.workspaceId,
+        userId: params.userId,
+        name,
+        parentId,
+      })
+      // Insert the newly created folder into the in-memory map so subsequent
+      // segments in this path can find their parent without extra DB round trips.
+      folderByNameParent.set(`${created.name}|${created.parentId ?? ''}`, {
+        id: created.id,
+        workspaceId: created.workspaceId,
+        userId: created.userId,
+        name: created.name,
+        parentId: created.parentId,
+        sortOrder: created.sortOrder,
+        deletedAt: created.deletedAt,
+        createdAt: created.createdAt,
+        updatedAt: created.updatedAt,
+      })
+      parentId = created.id
     } catch (error) {
       if (
         error instanceof WorkspaceFileFolderConflictError ||
         getPostgresErrorCode(error) === '23505'
       ) {
+        // A concurrent request created this folder between our initial load and
+        // the INSERT — fall back to a targeted SELECT to get its id.
         const concurrentExisting = await findRawWorkspaceFileFolderByName(
           params.workspaceId,
           name,
           parentId
         )
         if (concurrentExisting) {
+          folderByNameParent.set(
+            `${concurrentExisting.name}|${concurrentExisting.parentId ?? ''}`,
+            concurrentExisting
+          )
           parentId = concurrentExisting.id
           continue
         }
