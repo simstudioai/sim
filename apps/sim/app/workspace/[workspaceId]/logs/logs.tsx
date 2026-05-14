@@ -206,7 +206,9 @@ function SpinningRefreshCw(props: React.SVGProps<SVGSVGElement>) {
 }
 
 function formatDateShort(dateStr: string): string {
-  const date = new Date(dateStr)
+  const hasTime = dateStr.includes('T')
+  const [datePart, timePart] = dateStr.split('T')
+  const [year, month, day] = datePart.split('-').map(Number)
   const months = [
     'Jan',
     'Feb',
@@ -221,7 +223,11 @@ function formatDateShort(dateStr: string): string {
     'Nov',
     'Dec',
   ]
-  return `${months[date.getMonth()]} ${date.getDate()}`
+  const dateLabel = `${months[month - 1]} ${day}`
+  if (hasTime && timePart) {
+    return `${dateLabel} ${timePart.slice(0, 5)}`
+  }
+  return dateLabel
 }
 
 /**
@@ -866,7 +872,7 @@ export default function Logs() {
       tags.push({
         label:
           timeRange === 'Custom range' && startDate && endDate
-            ? `${startDate} – ${endDate}`
+            ? `${formatDateShort(startDate)} – ${formatDateShort(endDate)}`
             : timeRange,
         onRemove: () => {
           clearDateRange()
@@ -1519,10 +1525,12 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             }
             size='sm'
             className='h-[32px] w-full rounded-md'
+            maxHeight={320}
           />
           <DatePicker
             mode='range'
             showTrigger={false}
+            showTime
             open={datePickerOpen}
             onOpenChange={(isOpen) => {
               if (!isOpen) {

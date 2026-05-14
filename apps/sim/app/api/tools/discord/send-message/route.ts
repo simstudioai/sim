@@ -8,6 +8,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized Discord send attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -30,8 +31,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    const userId = authResult.userId
     logger.info(`[${requestId}] Authenticated Discord send request via ${authResult.authType}`, {
-      userId: authResult.userId,
+      userId,
     })
 
     const parsed = await parseRequest(discordSendMessageContract, request, {})
@@ -134,17 +136,30 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
     formData.append('payload_json', JSON.stringify(payload))
 
-    const downloadedFiles = await Promise.all(
-      userFiles.map(async (userFile, i) => {
-        logger.info(`[${requestId}] Downloading file ${i}: ${userFile.name}`)
-        const buffer = await downloadFileFromStorage(userFile, requestId, logger)
-        logger.info(`[${requestId}] Added file ${i}: ${userFile.name} (${buffer.length} bytes)`)
-        return { userFile, buffer }
+    const accessResults = await Promise.all(
+      userFiles.map((file) => assertToolFileAccess(file.key, userId, requestId, logger))
+    )
+    const denied = accessResults.find((r) => r !== null)
+    if (denied) return denied
+
+    const buffers = await Promise.all(
+      userFiles.map(async (file, i) => {
+        try {
+          logger.info(`[${requestId}] Downloading file ${i}: ${file.name}`)
+          return await downloadFileFromStorage(file, requestId, logger)
+        } catch (error) {
+          logger.error(`[${requestId}] Failed to download attachment ${file.name}:`, error)
+          throw new Error(
+            `Failed to download attachment "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`
+          )
+        }
       })
     )
 
-    for (let i = 0; i < downloadedFiles.length; i++) {
-      const { userFile, buffer } = downloadedFiles[i]
+    for (let i = 0; i < userFiles.length; i++) {
+      const userFile = userFiles[i]
+      const buffer = buffers[i]
+      logger.info(`[${requestId}] Added file ${i}: ${userFile.name} (${buffer.length} bytes)`)
       filesOutput.push({
         name: userFile.name,
         mimeType: userFile.type || 'application/octet-stream',

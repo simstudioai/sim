@@ -27,7 +27,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized SFTP upload attempt: ${authResult.error}`)
       return NextResponse.json(
         { success: false, error: authResult.error || 'Authentication required' },

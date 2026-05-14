@@ -179,7 +179,7 @@ async function handleWhatsAppVerification(
         continue
       }
 
-      if (token === verificationToken) {
+      if (safeCompare(token, verificationToken as string)) {
         logger.info(`[${requestId}] WhatsApp verification successful for webhook ${wh.id}`)
         return new NextResponse(challenge, {
           status: 200,

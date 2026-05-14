@@ -1390,7 +1390,7 @@ export class PauseResumeManager {
       await tx
         .update(pausedExecutions)
         .set({
-          pausePoints: sql`jsonb_set(jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"resumed"'::jsonb), ARRAY[${contextId}, 'resumedAt'], '"${sql.raw(now.toISOString())}"'::jsonb)`,
+          pausePoints: sql`jsonb_set(jsonb_set(pause_points, ARRAY[${contextId}, 'resumeStatus'], '"resumed"'::jsonb), ARRAY[${contextId}, 'resumedAt'], ${JSON.stringify(now.toISOString())}::jsonb)`,
           resumedCount: sql`resumed_count + 1`,
           status: sql`CASE WHEN status = 'cancelling' THEN 'cancelling' WHEN resumed_count + 1 >= total_pause_count THEN 'fully_resumed' ELSE 'partially_resumed' END`,
           updatedAt: now,

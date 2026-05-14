@@ -598,16 +598,12 @@ async function authorizeFileAccess(
  */
 export async function assertToolFileAccess(
   key: unknown,
-  userId: string | undefined,
+  userId: string,
   requestId: string,
   routeLogger: ReturnType<typeof createLogger>
 ): Promise<NextResponse | null> {
   if (typeof key !== 'string' || key.length === 0) {
     routeLogger.warn(`[${requestId}] File access check rejected: missing key`)
-    return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
-  }
-  if (!userId) {
-    routeLogger.warn(`[${requestId}] File access check requires userId but none available`)
     return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
   }
   const hasAccess = await verifyFileAccess(key, userId)

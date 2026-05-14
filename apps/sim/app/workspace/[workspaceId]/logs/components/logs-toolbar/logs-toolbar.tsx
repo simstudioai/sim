@@ -44,10 +44,12 @@ const TIME_RANGE_OPTIONS: ComboboxOption[] = [
 ] as const
 
 /**
- * Formats a date string (YYYY-MM-DD) for display.
+ * Formats a date string (YYYY-MM-DD or YYYY-MM-DDTHH:mm) for display.
  */
 function formatDateShort(dateStr: string): string {
-  const date = new Date(dateStr)
+  const hasTime = dateStr.includes('T')
+  const [datePart, timePart] = dateStr.split('T')
+  const [year, month, day] = datePart.split('-').map(Number)
   const months = [
     'Jan',
     'Feb',
@@ -62,7 +64,11 @@ function formatDateShort(dateStr: string): string {
     'Nov',
     'Dec',
   ]
-  return `${months[date.getMonth()]} ${date.getDate()}`
+  const dateLabel = `${months[month - 1]} ${day}`
+  if (hasTime && timePart) {
+    return `${dateLabel} ${timePart.slice(0, 5)}`
+  }
+  return dateLabel
 }
 
 type ViewMode = 'logs' | 'dashboard'
@@ -794,11 +800,13 @@ export const LogsToolbar = memo(function LogsToolbar({
                 }
                 size='sm'
                 align='end'
-                className='h-[32px] w-[120px] rounded-md'
+                className='h-[32px] w-[160px] rounded-md'
+                maxHeight={320}
               />
               <DatePicker
                 mode='range'
                 showTrigger={false}
+                showTime
                 open={datePickerOpen}
                 onOpenChange={(isOpen) => {
                   if (!isOpen) {

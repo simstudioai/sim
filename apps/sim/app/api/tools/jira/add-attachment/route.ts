@@ -6,6 +6,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('JiraAddAttachmentAPI')
@@ -17,7 +18,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       return NextResponse.json(
         { success: false, error: authResult.error || 'Unauthorized' },
         { status: 401 }
@@ -43,6 +44,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const formData = new FormData()
 
     for (const file of userFiles) {
+      const denied = await assertToolFileAccess(file.key, authResult.userId, requestId, logger)
+      if (denied) return denied
       const buffer = await downloadFileFromStorage(file, requestId, logger)
       const blob = new Blob([new Uint8Array(buffer)], {
         type: file.type || 'application/octet-stream',

@@ -368,7 +368,7 @@ export async function resolveMentionsForChat(
         })
       }
       resolvedTags.add(mention.fullTag)
-      updatedContent = updatedContent.replace(
+      updatedContent = updatedContent.replaceAll(
         mention.fullTag,
         `<at id="${mention.mentionId}">${mention.name}</at>`
       )
@@ -435,7 +435,7 @@ export async function resolveMentionsForChannel(
         })
       }
       resolvedTags.add(mention.fullTag)
-      updatedContent = updatedContent.replace(
+      updatedContent = updatedContent.replaceAll(
         mention.fullTag,
         `<at id="${mention.mentionId}">${mention.name}</at>`
       )

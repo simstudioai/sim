@@ -7,6 +7,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import {
   base64UrlEncode,
   buildMimeMessage,
@@ -26,7 +27,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized Gmail send attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -37,8 +38,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    const userId = authResult.userId
     logger.info(`[${requestId}] Authenticated Gmail send request via ${authResult.authType}`, {
-      userId: authResult.userId,
+      userId,
     })
 
     const parsed = await parseRequest(gmailSendContract, request, {})
@@ -85,20 +87,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
-        const attachmentBuffers = await Promise.all(
+        const accessResults = await Promise.all(
+          attachments.map((file) => assertToolFileAccess(file.key, userId, requestId, logger))
+        )
+        const denied = accessResults.find((r) => r !== null)
+        if (denied) return denied
+
+        const buffers = await Promise.all(
           attachments.map(async (file) => {
             try {
               logger.info(
                 `[${requestId}] Downloading attachment: ${file.name} (${file.size} bytes)`
               )
-
-              const buffer = await downloadFileFromStorage(file, requestId, logger)
-
-              return {
-                filename: file.name,
-                mimeType: file.type || 'application/octet-stream',
-                content: buffer,
-              }
+              return await downloadFileFromStorage(file, requestId, logger)
             } catch (error) {
               logger.error(`[${requestId}] Failed to download attachment ${file.name}:`, error)
               throw new Error(
@@ -107,6 +108,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             }
           })
         )
+
+        const attachmentBuffers = attachments.map((file, i) => ({
+          filename: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          content: buffers[i],
+        }))
 
         const mimeMessage = buildMimeMessage({
           to: validatedData.to,
