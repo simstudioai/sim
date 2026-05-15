@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import {
   CreateFile,
+  CreateFileFolder,
   DeleteFile,
+  DeleteFileFolder,
   DownloadToWorkspaceFile,
   GenerateImage,
   GenerateVisualization,
@@ -11,7 +13,10 @@ import {
   ManageCustomTool,
   ManageMcpTool,
   ManageSkill,
+  MoveFile,
+  MoveFileFolder,
   RenameFile,
+  RenameFileFolder,
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -27,6 +32,14 @@ import { createFileServerTool } from '@/lib/copilot/tools/server/files/create-fi
 import { deleteFileServerTool } from '@/lib/copilot/tools/server/files/delete-file'
 import { downloadToWorkspaceFileServerTool } from '@/lib/copilot/tools/server/files/download-to-workspace-file'
 import { editContentServerTool } from '@/lib/copilot/tools/server/files/edit-content'
+import {
+  createFileFolderServerTool,
+  deleteFileFolderServerTool,
+  listFileFoldersServerTool,
+  moveFileFolderServerTool,
+  moveFileServerTool,
+  renameFileFolderServerTool,
+} from '@/lib/copilot/tools/server/files/file-folders'
 import { renameFileServerTool } from '@/lib/copilot/tools/server/files/rename-file'
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
@@ -94,6 +107,11 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [CreateFile.id]: ['*'],
   [RenameFile.id]: ['*'],
   [DeleteFile.id]: ['*'],
+  [MoveFile.id]: ['*'],
+  [CreateFileFolder.id]: ['*'],
+  [RenameFileFolder.id]: ['*'],
+  [MoveFileFolder.id]: ['*'],
+  [DeleteFileFolder.id]: ['*'],
   [DownloadToWorkspaceFile.id]: ['*'],
   [GenerateVisualization.id]: ['generate'],
   [GenerateImage.id]: ['generate'],
@@ -135,6 +153,12 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [createFileServerTool.name]: createFileServerTool,
   [renameFileServerTool.name]: renameFileServerTool,
   [deleteFileServerTool.name]: deleteFileServerTool,
+  [moveFileServerTool.name]: moveFileServerTool,
+  [listFileFoldersServerTool.name]: listFileFoldersServerTool,
+  [createFileFolderServerTool.name]: createFileFolderServerTool,
+  [renameFileFolderServerTool.name]: renameFileFolderServerTool,
+  [moveFileFolderServerTool.name]: moveFileFolderServerTool,
+  [deleteFileFolderServerTool.name]: deleteFileFolderServerTool,
   [downloadToWorkspaceFileServerTool.name]: downloadToWorkspaceFileServerTool,
   [generateVisualizationServerTool.name]: generateVisualizationServerTool,
   [generateImageServerTool.name]: generateImageServerTool,
