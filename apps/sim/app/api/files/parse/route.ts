@@ -110,7 +110,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { filePath, fileType, workspaceId, workflowId, executionId } = parsed.data.body
+    const { filePath, fileType, headers, workspaceId, workflowId, executionId } = parsed.data.body
 
     if (!filePath || (typeof filePath === 'string' && filePath.trim() === '')) {
       return NextResponse.json({ success: false, error: 'No file path provided' }, { status: 400 })
@@ -128,6 +128,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       workspaceId,
       userId,
       hasExecutionContext: !!executionContext,
+      hasHeaders: Boolean(headers && Object.keys(headers).length > 0),
     })
 
     if (Array.isArray(filePath)) {
@@ -146,7 +147,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             fileType,
             workspaceId,
             userId,
-            executionContext
+            executionContext,
+            headers
           )
           if (result.metadata) {
             result.metadata.processingTime = Date.now() - startTime
@@ -180,7 +182,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    const result = await parseFileSingle(filePath, fileType, workspaceId, userId, executionContext)
+    const result = await parseFileSingle(
+      filePath,
+      fileType,
+      workspaceId,
+      userId,
+      executionContext,
+      headers
+    )
 
     if (result.metadata) {
       result.metadata.processingTime = Date.now() - startTime
@@ -225,7 +234,8 @@ async function parseFileSingle(
   fileType: string,
   workspaceId: string,
   userId: string,
-  executionContext?: ExecutionContext
+  executionContext?: ExecutionContext,
+  headers?: Record<string, string>
 ): Promise<ParseResult> {
   logger.info('Parsing file:', filePath)
 
@@ -251,7 +261,7 @@ async function parseFileSingle(
   }
 
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    return handleExternalUrl(filePath, fileType, workspaceId, userId, executionContext)
+    return handleExternalUrl(filePath, fileType, workspaceId, userId, executionContext, headers)
   }
 
   if (isUsingCloudStorage()) {
@@ -298,7 +308,8 @@ async function handleExternalUrl(
   fileType: string,
   workspaceId: string,
   userId: string,
-  executionContext?: ExecutionContext
+  executionContext?: ExecutionContext,
+  headers?: Record<string, string>
 ): Promise<ParseResult> {
   try {
     logger.info('Fetching external URL:', url)
@@ -382,6 +393,7 @@ async function handleExternalUrl(
 
     const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, {
       timeout: DOWNLOAD_TIMEOUT_MS,
+      ...(headers && Object.keys(headers).length > 0 && { headers }),
     })
     if (!response.ok) {
       throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`)

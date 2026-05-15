@@ -13,6 +13,7 @@ import {
   processSingleFileToUserFile,
 } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { normalizeExcelValues } from '@/tools/onedrive/utils'
 
 export const dynamic = 'force-dynamic'
@@ -47,7 +48,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized OneDrive upload attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -107,6 +108,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { status: 400 }
         )
       }
+
+      const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+      if (denied) return denied
 
       try {
         fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)

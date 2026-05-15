@@ -73,9 +73,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       const content = await new Promise<string>((resolve, reject) => {
         const chunks: Buffer[] = []
+        let totalBytes = 0
         const readStream = sftp.createReadStream(filePath)
 
         readStream.on('data', (chunk: Buffer) => {
+          totalBytes += chunk.length
+          if (totalBytes > maxBytes) {
+            readStream.destroy()
+            reject(new Error(`File exceeds maximum allowed size of ${params.maxSize}MB`))
+            return
+          }
           chunks.push(chunk)
         })
 

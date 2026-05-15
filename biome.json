@@ -6,7 +6,7 @@
     "includes": [
       "**",
       "!**/.next",
-      "!**/.next/**",
+      "!**/.next",
       "!**/next-env.d.ts",
       "!**/out",
       "!**/dist",
@@ -69,8 +69,7 @@
     "rules": {
       "recommended": true,
       "nursery": {
-        "useSortedClasses": "warn",
-        "noNestedComponentDefinitions": "off"
+        "useSortedClasses": "warn"
       },
       "a11y": {
         "noSvgWithoutTitle": "off",

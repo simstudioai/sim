@@ -30,13 +30,6 @@ function validateAttioSignature(secret: string, signature: string, body: string)
       return false
     }
     const computedHash = hmacSha256Hex(body, secret)
-    logger.debug('Attio signature comparison', {
-      computedSignature: `${computedHash.substring(0, 10)}...`,
-      providedSignature: `${signature.substring(0, 10)}...`,
-      computedLength: computedHash.length,
-      providedLength: signature.length,
-      match: computedHash === signature,
-    })
     return safeCompare(computedHash, signature)
   } catch (error) {
     logger.error('Error validating Attio signature:', error)
@@ -65,10 +58,7 @@ export const attioHandler: WebhookProviderHandler = {
       const isValidSignature = validateAttioSignature(secret, signature, rawBody)
 
       if (!isValidSignature) {
-        logger.warn(`[${requestId}] Attio signature verification failed`, {
-          signatureLength: signature.length,
-          secretLength: secret.length,
-        })
+        logger.warn(`[${requestId}] Attio signature verification failed`)
         return new NextResponse('Unauthorized - Invalid Attio signature', {
           status: 401,
         })

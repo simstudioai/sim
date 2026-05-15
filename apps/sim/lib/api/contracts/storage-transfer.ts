@@ -243,7 +243,7 @@ export const sshReadFileContentBodySchema = requirePasswordOrPrivateKey(
     ...connectionFields,
     path: z.string().min(1, 'Path is required'),
     encoding: z.string().default('utf-8'),
-    maxSize: z.coerce.number().default(10),
+    maxSize: z.coerce.number().min(0.01).max(50).default(10),
   })
 )
 
@@ -302,6 +302,7 @@ export const fileParseBodySchema = z
   .object({
     filePath: z.union([z.string(), z.array(z.string())]).optional(),
     fileType: z.string().optional().default(''),
+    headers: z.record(z.string(), z.string()).optional(),
     workspaceId: z.string().optional().default(''),
     workflowId: z.string().optional(),
     executionId: z.string().optional(),

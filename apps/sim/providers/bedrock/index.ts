@@ -17,6 +17,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { buildBedrockMessageContent } from '@/providers/attachments'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromBedrockStream,
@@ -178,9 +179,11 @@ export const bedrockProvider: ProviderConfig = {
           }
         } else {
           const role: ConversationRole = msg.role === 'assistant' ? 'assistant' : 'user'
+          const content = buildBedrockMessageContent(msg.content, msg.files, 'bedrock')
           messages.push({
             role,
-            content: [{ text: msg.content || '' }],
+            // double-cast-allowed: shared attachment builder emits Bedrock Converse content blocks while keeping provider-neutral attachment types
+            content: content as unknown as ContentBlock[],
           })
         }
       }

@@ -10,6 +10,7 @@ import type {
   FileParserV3OutputData,
   FileUploadInput,
 } from '@/tools/file/types'
+import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('FileParserTool')
@@ -33,6 +34,20 @@ const isFileParseResult = (value: unknown): value is FileParseResult =>
   typeof value.size === 'number' &&
   typeof value.name === 'string' &&
   typeof value.binary === 'boolean'
+
+const normalizeHeaders = (headers: FileParserInput['headers']): Record<string, string> => {
+  const transformed = transformTable(headers ?? null)
+  return Object.entries(transformed).reduce(
+    (acc, [key, value]) => {
+      const headerName = key.trim()
+      if (headerName && value !== undefined && value !== null) {
+        acc[headerName] = String(value)
+      }
+      return acc
+    },
+    {} as Record<string, string>
+  )
+}
 
 const normalizeFileParseResult = (value: unknown): FileParseResult => {
   if (isRecord(value) && isFileParseResult(value.output)) {
@@ -245,9 +260,11 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       }
 
       logger.info('Tool body determined filePath:', determinedFilePath)
+      const headers = normalizeHeaders(params.headers)
       return {
         filePath: determinedFilePath,
         fileType: determinedFileType,
+        ...(Object.keys(headers).length > 0 && { headers }),
         workspaceId: params.workspaceId || params._context?.workspaceId,
         workflowId: params._context?.workflowId,
         executionId: params._context?.executionId,
@@ -286,6 +303,25 @@ export const fileParserV2Tool: ToolConfig<FileParserInput, FileParserOutput> = {
   },
 }
 
+const parseFileParserV3Response = async (response: Response): Promise<FileParserV3Output> => {
+  const parsed = await parseFileParserResponse(response)
+  const output = parsed.output as FileParserOutputData
+  const files =
+    Array.isArray(output.processedFiles) && output.processedFiles.length > 0
+      ? output.processedFiles
+      : []
+
+  const cleanedOutput: FileParserV3OutputData = {
+    files,
+    combinedContent: output.combinedContent,
+  }
+
+  return {
+    success: true,
+    output: cleanedOutput,
+  }
+}
+
 export const fileParserV3Tool: ToolConfig<FileParserInput, FileParserV3Output> = {
   id: 'file_parser_v3',
   name: 'File Parser',
@@ -293,26 +329,31 @@ export const fileParserV3Tool: ToolConfig<FileParserInput, FileParserV3Output> =
   version: '3.0.0',
   params: fileParserTool.params,
   request: fileParserTool.request,
-  transformResponse: async (response: Response): Promise<FileParserV3Output> => {
-    const parsed = await parseFileParserResponse(response)
-    const output = parsed.output as FileParserOutputData
-    const files =
-      Array.isArray(output.processedFiles) && output.processedFiles.length > 0
-        ? output.processedFiles
-        : []
-
-    const cleanedOutput: FileParserV3OutputData = {
-      files,
-      combinedContent: output.combinedContent,
-    }
-
-    return {
-      success: true,
-      output: cleanedOutput,
-    }
-  },
+  transformResponse: parseFileParserV3Response,
   outputs: {
     files: { type: 'file[]', description: 'Parsed files as UserFile objects' },
     combinedContent: { type: 'string', description: 'Combined content of all parsed files' },
+  },
+}
+
+export const fileFetchTool: ToolConfig<FileParserInput, FileParserV3Output> = {
+  id: 'file_fetch',
+  name: 'File Fetch',
+  description: 'Fetch and parse a file from a URL with optional custom headers.',
+  version: '1.0.0',
+  params: {
+    ...fileParserTool.params,
+    headers: {
+      type: 'object',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'HTTP headers to include when fetching URL-based files.',
+    },
+  },
+  request: fileParserTool.request,
+  transformResponse: parseFileParserV3Response,
+  outputs: {
+    files: { type: 'file[]', description: 'Fetched files as UserFile objects' },
+    combinedContent: { type: 'string', description: 'Combined content of all fetched files' },
   },
 }

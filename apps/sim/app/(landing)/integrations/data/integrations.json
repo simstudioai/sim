@@ -4032,18 +4032,22 @@
     "tags": ["meeting", "note-taking"]
   },
   {
-    "type": "file_v3",
+    "type": "file_v4",
     "slug": "file",
     "name": "File",
-    "description": "Read and write workspace files",
-    "longDescription": "Read and parse files from uploads or URLs, write new workspace files, or append content to existing files.",
+    "description": "Read, fetch, write, and append files",
+    "longDescription": "Read workspace files by picker or canonical ID, fetch and parse files from URLs with optional headers, write new workspace files, or append content to existing files.",
     "bgColor": "#40916C",
     "iconName": "DocumentIcon",
     "docsUrl": "https://docs.sim.ai/tools/file",
     "operations": [
       {
         "name": "Read",
-        "description": "Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)"
+        "description": "Get a workspace file object from a selected file or canonical workspace file ID."
+      },
+      {
+        "name": "Fetch",
+        "description": "Parse a file from a URL with optional custom headers for authenticated downloads."
       },
       {
         "name": "Write",
@@ -4054,7 +4058,7 @@
         "description": "Append content to an existing workspace file. The file must already exist. Content is added to the end of the file."
       }
     ],
-    "operationCount": 3,
+    "operationCount": 4,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",

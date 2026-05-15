@@ -22,7 +22,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized SMTP send attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -33,8 +33,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    const userId = authResult.userId
     logger.info(`[${requestId}] Authenticated SMTP request via ${authResult.authType}`, {
-      userId: authResult.userId,
+      userId,
     })
 
     const parsed = await parseRequest(smtpSendContract, request, {})
@@ -120,25 +121,33 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
-        const attachmentBuffers: { filename: string; content: Buffer; contentType: string }[] = []
-        for (const file of attachments) {
-          const denied = await assertToolFileAccess(file.key, authResult.userId, requestId, logger)
-          if (denied) return denied
-          try {
-            logger.info(`[${requestId}] Downloading attachment: ${file.name} (${file.size} bytes)`)
-            const buffer = await downloadFileFromStorage(file, requestId, logger)
-            attachmentBuffers.push({
-              filename: file.name,
-              content: buffer,
-              contentType: file.type || 'application/octet-stream',
-            })
-          } catch (error) {
-            logger.error(`[${requestId}] Failed to download attachment ${file.name}:`, error)
-            throw new Error(
-              `Failed to download attachment "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`
-            )
-          }
-        }
+        const accessResults = await Promise.all(
+          attachments.map((file) => assertToolFileAccess(file.key, userId, requestId, logger))
+        )
+        const denied = accessResults.find((r) => r !== null)
+        if (denied) return denied
+
+        const buffers = await Promise.all(
+          attachments.map(async (file) => {
+            try {
+              logger.info(
+                `[${requestId}] Downloading attachment: ${file.name} (${file.size} bytes)`
+              )
+              return await downloadFileFromStorage(file, requestId, logger)
+            } catch (error) {
+              logger.error(`[${requestId}] Failed to download attachment ${file.name}:`, error)
+              throw new Error(
+                `Failed to download attachment "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`
+              )
+            }
+          })
+        )
+
+        const attachmentBuffers = attachments.map((file, i) => ({
+          filename: file.name,
+          content: buffers[i],
+          contentType: file.type || 'application/octet-stream',
+        }))
 
         logger.info(`[${requestId}] Processed ${attachmentBuffers.length} attachment(s)`)
         mailOptions.attachments = attachmentBuffers

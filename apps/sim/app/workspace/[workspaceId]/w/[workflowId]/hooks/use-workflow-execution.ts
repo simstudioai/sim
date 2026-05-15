@@ -524,6 +524,7 @@ export function useWorkflowExecution() {
                       size: fileData.file.size,
                       type: fileData.file.type,
                       key: result.key,
+                      context: 'execution',
                     })
                   } catch (uploadError) {
                     if (
@@ -565,6 +566,7 @@ export function useWorkflowExecution() {
                         size: r.size,
                         type: r.type,
                         key: r.key,
+                        context: r.context || 'execution',
                         uploadedAt: r.uploadedAt,
                         expiresAt: r.expiresAt,
                       })
@@ -1126,6 +1128,7 @@ export function useWorkflowExecution() {
         await executionStream.execute({
           workflowId: activeWorkflowId,
           input: finalWorkflowInput,
+          executionId,
           startBlockId,
           selectedOutputs,
           triggerType: overrideTriggerType || 'manual',

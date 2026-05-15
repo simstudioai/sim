@@ -8,6 +8,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import {
   assertSafeExternalUrl,
   extractSapConcurError,
@@ -180,13 +181,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized Concur upload request: ${authResult.error}`)
       return NextResponse.json(
         { success: false, error: authResult.error || 'Authentication required' },
         { status: 401 }
       )
     }
+    const userId = authResult.userId
 
     // boundary-raw-json: internal upload envelope validated by SapConcurUploadRequestSchema below; not a public boundary
     const json = await request.json()
@@ -204,6 +206,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
     const userFile = userFiles[0]
+    const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
+    if (denied) return denied
     const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
     const fileName = userFile.name
     const mimeType = inferMimeType(fileName, userFile.type)

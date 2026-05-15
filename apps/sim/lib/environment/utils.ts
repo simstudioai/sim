@@ -9,6 +9,7 @@ import {
   getAccessibleEnvCredentials,
   syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('EnvironmentUtils')
 const EFFECTIVE_ENV_CACHE_TTL_MS = 15_000
@@ -72,6 +73,13 @@ export async function getPersonalAndWorkspaceEnv(
   conflicts: string[]
   decryptionFailures: string[]
 }> {
+  if (workspaceId) {
+    const access = await checkWorkspaceAccess(workspaceId, userId)
+    if (!access.hasAccess) {
+      throw new Error(`Access denied to workspace ${workspaceId}`)
+    }
+  }
+
   const [personalRows, workspaceRows, accessibleEnvCredentials] = await Promise.all([
     db.select().from(environment).where(eq(environment.userId, userId)).limit(1),
     workspaceId

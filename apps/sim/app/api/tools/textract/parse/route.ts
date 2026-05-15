@@ -18,6 +18,7 @@ import {
   downloadFileFromStorage,
   resolveInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes for large multi-page PDF processing
@@ -428,6 +429,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
+      const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
+      if (denied) return denied
       const buffer = await downloadFileFromStorage(userFile, requestId, logger)
       bytes = buffer.toString('base64')
       contentType = userFile.type || 'application/octet-stream'

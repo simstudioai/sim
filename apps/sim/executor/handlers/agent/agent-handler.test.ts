@@ -264,6 +264,78 @@ describe('AgentBlockHandler', () => {
       expect(result).toEqual(expectedOutput)
     })
 
+    it('should attach files to the last user message only', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system' as const, content: 'You are helpful.' },
+          { role: 'user' as const, content: 'Earlier question' },
+          { role: 'assistant' as const, content: 'Earlier answer' },
+          { role: 'user' as const, content: 'Analyze this file' },
+        ],
+        files: [
+          {
+            id: 'file-1',
+            key: 'workspace/ws-1/example.png',
+            name: 'example.png',
+            url: '/api/files/serve/workspace%2Fws-1%2Fexample.png?context=workspace',
+            size: 128,
+            type: 'image/png',
+            base64: 'aW1hZ2U=',
+          },
+        ],
+        apiKey: 'test-api-key',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockContext, mockBlock, inputs)
+
+      const requestBody = mockExecuteProviderRequest.mock.calls[0][1]
+      expect(requestBody.messages[1]).toMatchObject({
+        role: 'user',
+        content: 'Earlier question',
+      })
+      expect(requestBody.messages[1].files).toBeUndefined()
+      expect(requestBody.messages[3]).toMatchObject({
+        role: 'user',
+        content: 'Analyze this file',
+        files: [
+          {
+            id: 'file-1',
+            name: 'example.png',
+            type: 'image/png',
+            base64: 'aW1hZ2U=',
+          },
+        ],
+      })
+    })
+
+    it('should reject files for providers without attachment support', async () => {
+      const inputs = {
+        model: 'deepseek-chat',
+        messages: [{ role: 'user' as const, content: 'Analyze this file' }],
+        files: [
+          {
+            id: 'file-1',
+            key: 'workspace/ws-1/example.png',
+            name: 'example.png',
+            url: '/api/files/serve/workspace%2Fws-1%2Fexample.png?context=workspace',
+            size: 128,
+            type: 'image/png',
+            base64: 'aW1hZ2U=',
+          },
+        ],
+        apiKey: 'test-api-key',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('deepseek')
+
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
+        'File attachments are not supported for provider "deepseek"'
+      )
+    })
+
     it('should preserve usageControl for custom tools and filter out "none"', async () => {
       const inputs = {
         model: 'gpt-4o',

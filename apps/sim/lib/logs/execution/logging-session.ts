@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
@@ -29,6 +29,7 @@ type TriggerData = Record<string, unknown> & {
 
 function buildStartedMarkerPersistenceQuery(params: {
   executionId: string
+  workflowId: string
   marker: ExecutionLastStartedBlock
 }) {
   const markerJson = JSON.stringify(params.marker)
@@ -41,6 +42,7 @@ function buildStartedMarkerPersistenceQuery(params: {
       true
     )
     WHERE execution_id = ${params.executionId}
+      AND workflow_id = ${params.workflowId}
       AND COALESCE(
         jsonb_extract_path_text(COALESCE(execution_data, '{}'::jsonb), 'lastStartedBlock', 'startedAt'),
         ''
@@ -49,6 +51,7 @@ function buildStartedMarkerPersistenceQuery(params: {
 
 function buildCompletedMarkerPersistenceQuery(params: {
   executionId: string
+  workflowId: string
   marker: ExecutionLastCompletedBlock
 }) {
   const markerJson = JSON.stringify(params.marker)
@@ -61,6 +64,7 @@ function buildCompletedMarkerPersistenceQuery(params: {
       true
     )
     WHERE execution_id = ${params.executionId}
+      AND workflow_id = ${params.workflowId}
       AND COALESCE(
         jsonb_extract_path_text(COALESCE(execution_data, '{}'::jsonb), 'lastCompletedBlock', 'endedAt'),
         ''
@@ -190,6 +194,7 @@ export class LoggingSession {
       await db.execute(
         buildStartedMarkerPersistenceQuery({
           executionId: this.executionId,
+          workflowId: this.workflowId,
           marker,
         })
       )
@@ -205,6 +210,7 @@ export class LoggingSession {
       await db.execute(
         buildCompletedMarkerPersistenceQuery({
           executionId: this.executionId,
+          workflowId: this.workflowId,
           marker,
         })
       )
@@ -357,7 +363,12 @@ export class LoggingSession {
             models: this.accumulatedCost.models,
           },
         })
-        .where(eq(workflowExecutionLogs.executionId, this.executionId))
+        .where(
+          and(
+            eq(workflowExecutionLogs.workflowId, this.workflowId),
+            eq(workflowExecutionLogs.executionId, this.executionId)
+          )
+        )
 
       this.costFlushed = true
     } catch (error) {
@@ -372,7 +383,12 @@ export class LoggingSession {
       const [existing] = await db
         .select({ cost: workflowExecutionLogs.cost })
         .from(workflowExecutionLogs)
-        .where(eq(workflowExecutionLogs.executionId, this.executionId))
+        .where(
+          and(
+            eq(workflowExecutionLogs.workflowId, this.workflowId),
+            eq(workflowExecutionLogs.executionId, this.executionId)
+          )
+        )
         .limit(1)
 
       if (existing?.cost) {
@@ -655,7 +671,12 @@ export class LoggingSession {
       const currentLog = await db
         .select({ status: workflowExecutionLogs.status })
         .from(workflowExecutionLogs)
-        .where(eq(workflowExecutionLogs.executionId, this.executionId))
+        .where(
+          and(
+            eq(workflowExecutionLogs.workflowId, this.workflowId),
+            eq(workflowExecutionLogs.executionId, this.executionId)
+          )
+        )
         .limit(1)
         .then((rows) => rows[0])
 
@@ -754,7 +775,12 @@ export class LoggingSession {
       const currentLog = await db
         .select({ status: workflowExecutionLogs.status })
         .from(workflowExecutionLogs)
-        .where(eq(workflowExecutionLogs.executionId, this.executionId))
+        .where(
+          and(
+            eq(workflowExecutionLogs.workflowId, this.workflowId),
+            eq(workflowExecutionLogs.executionId, this.executionId)
+          )
+        )
         .limit(1)
         .then((rows) => rows[0])
 
@@ -1064,13 +1090,19 @@ export class LoggingSession {
 
   async markAsFailed(errorMessage?: string): Promise<void> {
     await this.waitForCompletion()
-    await LoggingSession.markExecutionAsFailed(this.executionId, errorMessage, this.requestId)
+    await LoggingSession.markExecutionAsFailed(
+      this.executionId,
+      errorMessage,
+      this.requestId,
+      this.workflowId
+    )
   }
 
   static async markExecutionAsFailed(
     executionId: string,
-    errorMessage?: string,
-    requestId?: string
+    errorMessage: string | undefined,
+    requestId: string | undefined,
+    workflowId: string
   ): Promise<void> {
     try {
       const message = errorMessage || 'Run failed'
@@ -1093,7 +1125,12 @@ export class LoggingSession {
             to_jsonb('force_failed'::text)
           )`,
         })
-        .where(eq(workflowExecutionLogs.executionId, executionId))
+        .where(
+          and(
+            eq(workflowExecutionLogs.executionId, executionId),
+            eq(workflowExecutionLogs.workflowId, workflowId)
+          )
+        )
 
       logger.info(`[${requestId || 'unknown'}] Marked execution ${executionId} as failed`)
     } catch (error) {

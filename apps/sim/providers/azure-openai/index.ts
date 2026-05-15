@@ -90,6 +90,9 @@ async function executeChatCompletionsRequest(
   }
 
   if (request.messages) {
+    if (request.messages.some((message) => message.files?.length)) {
+      throw new Error('File attachments require an Azure OpenAI Responses API endpoint')
+    }
     allMessages.push(...(request.messages as ChatCompletionMessageParam[]))
   }
 
