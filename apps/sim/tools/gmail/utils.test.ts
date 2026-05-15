@@ -75,6 +75,12 @@ describe('htmlToPlainText', () => {
   it('drops <style> and <script> contents', () => {
     expect(htmlToPlainText('<style>p{}</style><p>Hi</p>')).toBe('Hi')
   })
+
+  it('does not double-decode compound entities like &amp;lt;', () => {
+    expect(htmlToPlainText('<p>&amp;lt; is the literal &lt; entity</p>')).toBe(
+      '&lt; is the literal < entity'
+    )
+  })
 })
 
 describe('buildSimpleEmailMessage', () => {
