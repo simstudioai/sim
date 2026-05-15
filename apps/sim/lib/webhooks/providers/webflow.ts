@@ -1,8 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Hex } from '@sim/security/hmac'
+import { NextResponse } from 'next/server'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getCredentialOwner, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
+  AuthContext,
   DeleteSubscriptionContext,
   EventFilterContext,
   FormatInputContext,
@@ -15,7 +19,30 @@ import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/
 
 const logger = createLogger('WebhookProvider:Webflow')
 
+function validateWebflowSignature(secret: string, signature: string, rawBody: string): boolean {
+  const computed = hmacSha256Hex(rawBody, secret)
+  return safeCompare(computed, signature)
+}
+
 export const webflowHandler: WebhookProviderHandler = {
+  verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
+    const secret = providerConfig.webhookSecret as string | undefined
+    if (!secret) return null
+
+    const signature = request.headers.get('x-webflow-signature')
+    if (!signature) {
+      logger.warn(`[${requestId}] Webflow webhook missing X-Webflow-Signature header`)
+      return new NextResponse('Unauthorized - Missing Webflow signature', { status: 401 })
+    }
+
+    if (!validateWebflowSignature(secret, signature, rawBody)) {
+      logger.warn(`[${requestId}] Webflow signature verification failed`)
+      return new NextResponse('Unauthorized - Invalid Webflow signature', { status: 401 })
+    }
+
+    return null
+  },
+
   async createSubscription({
     webhook: webhookRecord,
     workflow,
@@ -132,7 +159,12 @@ export const webflowHandler: WebhookProviderHandler = {
         }
       )
 
-      return { providerConfigUpdates: { externalId: responseBody.id || responseBody._id } }
+      return {
+        providerConfigUpdates: {
+          externalId: responseBody.id || responseBody._id,
+          ...(responseBody.secretToken ? { webhookSecret: responseBody.secretToken } : {}),
+        },
+      }
     } catch (error: unknown) {
       const err = error as Error
       logger.error(

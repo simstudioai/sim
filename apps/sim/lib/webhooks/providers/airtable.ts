@@ -1,7 +1,10 @@
 import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
+import { hmacSha256Base64 } from '@sim/security/hmac'
 import { eq } from 'drizzle-orm'
+import { NextResponse } from 'next/server'
 import { validateAirtableId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -10,6 +13,7 @@ import {
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
 import type {
+  AuthContext,
   DeleteSubscriptionContext,
   FormatInputContext,
   SubscriptionContext,
@@ -437,7 +441,34 @@ async function fetchAndProcessAirtablePayloads(
   }
 }
 
+function validateAirtableSignature(webhookSecret: string, mac: string, rawBody: string): boolean {
+  const prefix = 'hmac-sha256='
+  if (!mac.startsWith(prefix)) return false
+  const provided = mac.slice(prefix.length)
+  const secretBuffer = Buffer.from(webhookSecret, 'base64')
+  const computed = hmacSha256Base64(rawBody, secretBuffer)
+  return safeCompare(provided, computed)
+}
+
 export const airtableHandler: WebhookProviderHandler = {
+  verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
+    const webhookSecret = providerConfig.webhookSecret as string | undefined
+    if (!webhookSecret) return null
+
+    const mac = request.headers.get('x-airtable-content-mac')
+    if (!mac) {
+      logger.warn(`[${requestId}] Airtable webhook missing X-Airtable-Content-Mac header`)
+      return new NextResponse('Unauthorized - Missing Airtable signature', { status: 401 })
+    }
+
+    if (!validateAirtableSignature(webhookSecret, mac, rawBody)) {
+      logger.warn(`[${requestId}] Airtable signature verification failed`)
+      return new NextResponse('Unauthorized - Invalid Airtable signature', { status: 401 })
+    }
+
+    return null
+  },
+
   async createSubscription({
     webhook: webhookRecord,
     workflow,
@@ -554,7 +585,12 @@ export const airtableHandler: WebhookProviderHandler = {
           airtableWebhookId: responseBody.id,
         }
       )
-      return { providerConfigUpdates: { externalId: responseBody.id } }
+      return {
+        providerConfigUpdates: {
+          externalId: responseBody.id,
+          ...(responseBody.macSecretBase64 ? { webhookSecret: responseBody.macSecretBase64 } : {}),
+        },
+      }
     } catch (error: unknown) {
       const err = error as Error
       logger.error(
