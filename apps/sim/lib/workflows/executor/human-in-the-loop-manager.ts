@@ -64,8 +64,17 @@ function updateResumeOutputInAggregationBuffers(
     if (!isRecord(scope) || !isRecord(scope.currentIterationOutputs)) continue
 
     const outputs = scope.currentIterationOutputs
-    if (outputs[stateBlockKey] !== undefined || outputs[pauseBlockId] !== undefined) {
-      delete outputs[pauseBlockId]
+    const pausedEntry =
+      outputs[stateBlockKey] !== undefined
+        ? stateBlockKey
+        : outputs[pauseBlockId] !== undefined
+          ? pauseBlockId
+          : undefined
+
+    if (pausedEntry !== undefined && isPausedOutputForContext(outputs[pausedEntry], contextId)) {
+      if (pausedEntry !== stateBlockKey) {
+        delete outputs[pausedEntry]
+      }
       outputs[stateBlockKey] = mergedOutput
     }
   }
