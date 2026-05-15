@@ -161,9 +161,6 @@ export interface CreateWorkspaceMcpServerParams {
   workspaceId?: string
   name?: string
   description?: string
-  toolName?: string
-  toolDescription?: string
-  serverName?: string
   isPublic?: boolean
   workflowIds?: string[]
 }

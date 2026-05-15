@@ -51,6 +51,7 @@ export interface PerformUpdateJobParams extends ActorMetadata {
   title?: string
   prompt?: string
   cronExpression?: string
+  time?: string | null
   timezone?: string
   status?: string
   lifecycle?: string
@@ -274,6 +275,20 @@ export async function performUpdateJob(
       }
       updates.cronExpression = params.cronExpression
       if ((updates.status ?? job.status) === 'active') updates.nextRunAt = validation.nextRun
+    }
+    if (params.time !== undefined && params.time !== null) {
+      const timezone = params.timezone || job.timezone || 'UTC'
+      const parsed = parseOneTimeRun(params.time, timezone)
+      if (!parsed) {
+        return {
+          success: false,
+          error: `Invalid time value: ${params.time}`,
+          errorCode: 'validation',
+        }
+      }
+      const cronExpression =
+        params.cronExpression !== undefined ? params.cronExpression : job.cronExpression
+      if (!cronExpression || parsed > new Date()) updates.nextRunAt = parsed
     }
 
     const updatedFields = Object.keys(updates).filter((key) => key !== 'updatedAt')

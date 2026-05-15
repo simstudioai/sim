@@ -87,7 +87,14 @@ export const DELETE = withRouteHandler(
       if (!result.success) {
         return NextResponse.json(
           { success: false, error: result.error },
-          { status: result.errorCode === 'validation' ? 400 : 500 }
+          {
+            status:
+              result.errorCode === 'validation'
+                ? 400
+                : result.errorCode === 'not_found'
+                  ? 404
+                  : 500,
+          }
         )
       }
       if (!result.deletedItems) {

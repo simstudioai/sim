@@ -285,6 +285,7 @@ export async function executeManageJob(
           title: args.title,
           prompt: args.prompt,
           cronExpression: args.cron,
+          time: args.time,
           timezone: args.timezone,
           status: args.status,
           lifecycle: args.lifecycle,
