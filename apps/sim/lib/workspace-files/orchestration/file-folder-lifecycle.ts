@@ -13,6 +13,7 @@ import {
   type WorkspaceFileArchiveResult,
   WorkspaceFileFolderConflictError,
   type WorkspaceFileFolderRecord,
+  WorkspaceFileItemsNotFoundError,
   WorkspaceFileMoveConflictError,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
@@ -259,6 +260,9 @@ export async function performMoveWorkspaceFileItems(
             : 'A file or folder with this name already exists in the destination folder',
         errorCode: 'conflict',
       }
+    }
+    if (error instanceof WorkspaceFileItemsNotFoundError) {
+      return { success: false, error: error.message, errorCode: 'not_found' }
     }
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }

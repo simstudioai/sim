@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -44,6 +45,7 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
     const nested = params.args
     const fileName = params.fileName || (nested?.fileName as string) || ''

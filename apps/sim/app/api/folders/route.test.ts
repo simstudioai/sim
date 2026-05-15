@@ -150,7 +150,11 @@ describe('Folders API Route', () => {
 
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
-    mockWhere.mockReturnValue({ orderBy: mockOrderBy })
+    const defaultWhereResult = [] as Array<Record<string, unknown>> & {
+      orderBy: typeof mockOrderBy
+    }
+    defaultWhereResult.orderBy = mockOrderBy
+    mockWhere.mockReturnValue(defaultWhereResult)
     mockOrderBy.mockReturnValue(mockFolders)
 
     mockInsert.mockReturnValue({ values: mockValues })
@@ -328,6 +332,14 @@ describe('Folders API Route', () => {
           },
         })
       )
+      mockWhere
+        .mockReturnValueOnce([{ minSortOrder: 5 }])
+        .mockReturnValueOnce([{ minSortOrder: 2 }])
+      mockValues.mockImplementationOnce((values: CapturedFolderValues) => {
+        capturedValues = values
+        return { returning: mockReturning }
+      })
+      mockReturning.mockReturnValueOnce([{ ...mockFolders[0], sortOrder: 1 }])
 
       const req = createMockRequest('POST', {
         name: 'New Test Folder',
@@ -355,6 +367,7 @@ describe('Folders API Route', () => {
           insertResult: [{ ...mockFolders[1] }],
         })
       )
+      mockReturning.mockReturnValueOnce([{ ...mockFolders[1] }])
 
       const req = createMockRequest('POST', {
         name: 'Subfolder',
@@ -478,8 +491,8 @@ describe('Folders API Route', () => {
     it('should handle database errors gracefully', async () => {
       mockAuthenticatedUser()
 
-      mockTransaction.mockImplementationOnce(() => {
-        throw new Error('Database transaction failed')
+      mockInsert.mockImplementationOnce(() => {
+        throw new Error('Database insert failed')
       })
 
       const req = createMockRequest('POST', {
@@ -493,7 +506,7 @@ describe('Folders API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Internal server error')
-      expect(mockLogger.error).toHaveBeenCalledWith('Error creating folder:', {
+      expect(mockLogger.error).toHaveBeenCalledWith('Failed to create workflow folder', {
         error: expect.any(Error),
       })
     })
@@ -512,6 +525,10 @@ describe('Folders API Route', () => {
           },
         })
       )
+      mockValues.mockImplementationOnce((values: CapturedFolderValues) => {
+        capturedValues = values
+        return { returning: mockReturning }
+      })
 
       const req = createMockRequest('POST', {
         name: '  Test Folder With Spaces  ',
@@ -538,6 +555,10 @@ describe('Folders API Route', () => {
           },
         })
       )
+      mockValues.mockImplementationOnce((values: CapturedFolderValues) => {
+        capturedValues = values
+        return { returning: mockReturning }
+      })
 
       const req = createMockRequest('POST', {
         name: 'Test Folder',

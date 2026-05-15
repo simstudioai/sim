@@ -121,17 +121,12 @@ function isWritePermission(userPermission: string): boolean {
   return userPermission === 'write' || userPermission === 'admin'
 }
 
-function isActionAllowed(
-  toolName: string,
-  action: string | undefined,
-  userPermission: string
-): boolean {
+function isWriteAction(toolName: string, action: string | undefined): boolean {
   const writeActions = WRITE_ACTIONS[toolName]
-  if (!writeActions) return true
+  if (!writeActions) return false
   // '*' means the tool is always a write operation regardless of action field
-  if (writeActions.includes('*')) return isWritePermission(userPermission)
-  if (action && writeActions.includes(action)) return isWritePermission(userPermission)
-  return true
+  if (writeActions.includes('*')) return true
+  return Boolean(action && writeActions.includes(action))
 }
 
 /** Registry of all server tools. Tools self-declare their validation schemas. */
@@ -184,13 +179,13 @@ export async function routeExecution(
   )
 
   // Action-level permission enforcement for mixed read/write tools
-  if (context?.userPermission && WRITE_ACTIONS[toolName]) {
+  if (WRITE_ACTIONS[toolName]) {
     const p = payload as Record<string, unknown>
     const action = (p?.operation ?? p?.action) as string | undefined
-    if (!isActionAllowed(toolName, action, context.userPermission)) {
+    if (isWriteAction(toolName, action) && !isWritePermission(context?.userPermission ?? '')) {
       const actionLabel = action ? `'${action}' on ` : ''
       throw new Error(
-        `Permission denied: ${actionLabel}${toolName} requires write access. You have '${context.userPermission}' permission.`
+        `Permission denied: ${actionLabel}${toolName} requires write access. You have '${context?.userPermission ?? 'none'}' permission.`
       )
     }
   }

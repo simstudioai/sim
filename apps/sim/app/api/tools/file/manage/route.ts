@@ -154,7 +154,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         if (!moveResult.success) {
           return NextResponse.json(
             { success: false, error: moveResult.error },
-            { status: moveResult.errorCode === 'conflict' ? 409 : 400 }
+            {
+              status:
+                moveResult.errorCode === 'conflict'
+                  ? 409
+                  : moveResult.errorCode === 'not_found'
+                    ? 404
+                    : 400,
+            }
           )
         }
         logger.info('File moved', { fileId, targetFolder: targetFolder || '(root)' })

@@ -26,6 +26,18 @@ export class WorkspaceFileMoveConflictError extends Error {
   }
 }
 
+export class WorkspaceFileItemsNotFoundError extends Error {
+  readonly code = 'WORKSPACE_FILE_ITEMS_NOT_FOUND' as const
+
+  constructor(fileIds: string[], folderIds: string[]) {
+    const parts = [
+      fileIds.length > 0 ? `files: ${fileIds.join(', ')}` : null,
+      folderIds.length > 0 ? `folders: ${folderIds.join(', ')}` : null,
+    ].filter(Boolean)
+    super(`Workspace file items not found (${parts.join('; ')})`)
+  }
+}
+
 export interface WorkspaceFileFolderRecord {
   id: string
   workspaceId: string
@@ -754,6 +766,16 @@ export async function moveWorkspaceFileItems(params: {
               )
             )
         : []
+
+    const movingFileIds = new Set(movingFiles.map((file) => file.id))
+    const movingFolderIds = new Set(movingFolders.map((folder) => folder.id))
+    const missingFileIds = [...new Set(fileIds)].filter((fileId) => !movingFileIds.has(fileId))
+    const missingFolderIds = [...new Set(folderIds)].filter(
+      (folderId) => !movingFolderIds.has(folderId)
+    )
+    if (missingFileIds.length > 0 || missingFolderIds.length > 0) {
+      throw new WorkspaceFileItemsNotFoundError(missingFileIds, missingFolderIds)
+    }
 
     for (const file of movingFiles) {
       const conflictingFiles = await tx

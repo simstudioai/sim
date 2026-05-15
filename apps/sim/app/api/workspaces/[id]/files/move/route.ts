@@ -40,7 +40,13 @@ export const POST = withRouteHandler(
           { success: false, error: result.error },
           {
             status:
-              result.errorCode === 'conflict' ? 409 : result.errorCode === 'validation' ? 400 : 500,
+              result.errorCode === 'conflict'
+                ? 409
+                : result.errorCode === 'not_found'
+                  ? 404
+                  : result.errorCode === 'validation'
+                    ? 400
+                    : 500,
           }
         )
       }

@@ -92,9 +92,13 @@ function parseOneTimeRun(time: string, timezone: string): Date | null {
       const offsetPart = parts.find((part) => part.type === 'timeZoneName')
       const match = offsetPart?.value.match(/GMT([+-]\d{1,2}(?::\d{2})?)/)
       if (match) {
-        const [hours, minutes] = match[1].split(':')
-        const offset = `${hours.padStart(3, hours.startsWith('-') ? '-' : '+')}:${minutes || '00'}`
-        timeStr = `${timeStr}${offset}`
+        const [rawHours, rawMinutes = '00'] = match[1].split(':')
+        const sign = rawHours.startsWith('-') ? '-' : '+'
+        const hour = Number(rawHours.replace(/^[+-]/, ''))
+        if (Number.isFinite(hour)) {
+          const offset = `${sign}${String(hour).padStart(2, '0')}:${rawMinutes.padStart(2, '0')}`
+          timeStr = `${timeStr}${offset}`
+        }
       }
     } catch {}
   }

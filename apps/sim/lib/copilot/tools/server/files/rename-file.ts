@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { RenameFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -36,6 +37,7 @@ export const renameFileServerTool: BaseServerTool<RenameFileArgs, RenameFileResu
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
     const nested = params.args
     const fileId = params.fileId || (nested?.fileId as string) || ''

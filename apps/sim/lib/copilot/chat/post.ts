@@ -885,6 +885,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           executionContextPromise,
         ])
 
+      executionContext.userPermission = userPermission ?? undefined
+
       if (persistedMessages) {
         conversationHistory = persistedMessages.filter((message) => {
           const record = message as Record<string, unknown>

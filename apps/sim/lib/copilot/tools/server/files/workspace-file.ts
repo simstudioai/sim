@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -198,6 +199,8 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
     }
 
     try {
+      await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+
       switch (operation) {
         case 'create': {
           const target = normalized.target
