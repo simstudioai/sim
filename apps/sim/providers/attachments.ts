@@ -1,3 +1,7 @@
+import type Anthropic from '@anthropic-ai/sdk'
+import type { ContentBlock } from '@aws-sdk/client-bedrock-runtime'
+import type { Part } from '@google/genai'
+import type OpenAI from 'openai'
 import {
   getContentType,
   getExtensionFromMimeType,
@@ -49,7 +53,7 @@ type ProviderFormattedMessage = {
   [key: string]: unknown
 }
 
-const AGENT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+export const AGENT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 const PDF_MIME_TYPE = 'application/pdf'
 
 const DOCUMENT_MIME_TYPES = new Set(
@@ -76,15 +80,7 @@ const BEDROCK_DOCUMENT_FORMATS = new Set([
 const BEDROCK_IMAGE_FORMATS = new Set(['png', 'jpeg', 'jpg', 'gif', 'webp'])
 const BEDROCK_VIDEO_FORMATS = new Set(['mp4', 'mov', 'mkv', 'webm'])
 
-const IMAGE_ONLY_PROVIDERS = new Set<AttachmentProvider>([
-  'mistral',
-  'groq',
-  'fireworks',
-  'ollama',
-  'vllm',
-])
-
-const UNSUPPORTED_FILE_PROVIDERS = new Set<AttachmentProvider>(['xai', 'deepseek', 'cerebras'])
+const UNSUPPORTED_FILE_PROVIDERS = new Set<AttachmentProvider>(['deepseek', 'cerebras'])
 
 const PROVIDER_SUPPORTED_LABELS: Record<AttachmentProvider, string> = {
   openai: 'images and documents through the Responses API input_image/input_file parts',
@@ -97,7 +93,7 @@ const PROVIDER_SUPPORTED_LABELS: Record<AttachmentProvider, string> = {
   fireworks: 'images through image_url message parts on vision models',
   ollama: 'images through image_url message parts on vision models',
   vllm: 'images through image_url message parts on multimodal models',
-  xai: 'no file attachments in the current chat-completions adapter',
+  xai: 'images through image_url message parts on Grok vision models',
   deepseek: 'no file attachments in the current API adapter',
   cerebras: 'no file attachments in the current API adapter',
 }
@@ -119,13 +115,13 @@ export function getAttachmentProvider(providerId: ProviderId | string): Attachme
   return null
 }
 
-export function getProviderAttachmentMaxBytes(_providerId: ProviderId | string): number {
-  return AGENT_ATTACHMENT_MAX_BYTES
-}
-
 export function supportsFileAttachments(providerId: ProviderId | string): boolean {
   const provider = getAttachmentProvider(providerId)
   return Boolean(provider && !UNSUPPORTED_FILE_PROVIDERS.has(provider))
+}
+
+export function getProviderAttachmentMaxBytes(_providerId: ProviderId | string): number {
+  return AGENT_ATTACHMENT_MAX_BYTES
 }
 
 export function inferAttachmentMimeType(file: UserFile): string {
@@ -223,8 +219,44 @@ function toDataUrl(mimeType: string, base64: string): string {
   return `data:${mimeType};base64,${base64}`
 }
 
-function getProviderSupportedLabel(provider: AttachmentProvider): string {
-  return PROVIDER_SUPPORTED_LABELS[provider]
+function isMimeTypeSupportedByProvider(
+  provider: AttachmentProvider,
+  mimeType: string,
+  contentType: PreparedProviderAttachment['contentType'],
+  extension: string
+): boolean {
+  switch (provider) {
+    case 'openai':
+      return isImageMimeType(mimeType) || isOpenAIDocumentMimeType(mimeType)
+    case 'anthropic':
+      return (
+        isImageMimeType(mimeType) || mimeType === PDF_MIME_TYPE || isTextDocumentMimeType(mimeType)
+      )
+    case 'google':
+      return GEMINI_INLINE_MIME_TYPES.has(mimeType) || isTextDocumentMimeType(mimeType)
+    case 'bedrock':
+      return (
+        (contentType === 'image' && BEDROCK_IMAGE_FORMATS.has(extension)) ||
+        (contentType === 'document' && BEDROCK_DOCUMENT_FORMATS.has(extension)) ||
+        (contentType === 'video' && BEDROCK_VIDEO_FORMATS.has(extension))
+      )
+    case 'openrouter':
+      return isImageMimeType(mimeType) || mimeType === PDF_MIME_TYPE
+    case 'mistral':
+    case 'groq':
+    case 'fireworks':
+    case 'ollama':
+    case 'vllm':
+    case 'xai':
+      return isImageMimeType(mimeType)
+    case 'deepseek':
+    case 'cerebras':
+      return false
+    default: {
+      const _exhaustive: never = provider
+      return _exhaustive
+    }
+  }
 }
 
 function validateProviderSupport(
@@ -233,26 +265,9 @@ function validateProviderSupport(
   providerId: ProviderId | string
 ) {
   const { filename, mimeType, contentType, extension } = attachment
-  const supportedLabel = getProviderSupportedLabel(provider)
+  const supportedLabel = PROVIDER_SUPPORTED_LABELS[provider]
 
-  const supported =
-    provider === 'openai'
-      ? isImageMimeType(mimeType) || isOpenAIDocumentMimeType(mimeType)
-      : provider === 'anthropic'
-        ? isImageMimeType(mimeType) ||
-          mimeType === PDF_MIME_TYPE ||
-          isTextDocumentMimeType(mimeType)
-        : provider === 'google'
-          ? GEMINI_INLINE_MIME_TYPES.has(mimeType) || isTextDocumentMimeType(mimeType)
-          : provider === 'bedrock'
-            ? (contentType === 'image' && BEDROCK_IMAGE_FORMATS.has(extension)) ||
-              (contentType === 'document' && BEDROCK_DOCUMENT_FORMATS.has(extension)) ||
-              (contentType === 'video' && BEDROCK_VIDEO_FORMATS.has(extension))
-            : provider === 'openrouter'
-              ? isImageMimeType(mimeType) || mimeType === PDF_MIME_TYPE
-              : IMAGE_ONLY_PROVIDERS.has(provider)
-                ? isImageMimeType(mimeType)
-                : !UNSUPPORTED_FILE_PROVIDERS.has(provider)
+  const supported = isMimeTypeSupportedByProvider(provider, mimeType, contentType, extension)
 
   if (!supported) {
     throw new Error(
@@ -274,11 +289,9 @@ export function prepareProviderAttachments(
 
   if (UNSUPPORTED_FILE_PROVIDERS.has(provider)) {
     throw new Error(
-      `File attachments are not supported for provider "${providerId}" in the current adapter. Supported attachments: ${getProviderSupportedLabel(provider)}.`
+      `File attachments are not supported for provider "${providerId}" in the current adapter. Supported attachments: ${PROVIDER_SUPPORTED_LABELS[provider]}.`
     )
   }
-
-  const maxBytes = getProviderAttachmentMaxBytes(providerId)
 
   return files.map((file) => {
     const declaredMimeType = inferAttachmentMimeType(file)
@@ -286,13 +299,13 @@ export function prepareProviderAttachments(
 
     if (!contentType) {
       throw new Error(
-        `File "${file.name}" has MIME type "${declaredMimeType}", which is not supported by provider "${providerId}". Supported attachments: ${getProviderSupportedLabel(provider)}.`
+        `File "${file.name}" has MIME type "${declaredMimeType}", which is not supported by provider "${providerId}". Supported attachments: ${PROVIDER_SUPPORTED_LABELS[provider]}.`
       )
     }
 
-    if (Number.isFinite(file.size) && file.size > maxBytes) {
+    if (Number.isFinite(file.size) && file.size > AGENT_ATTACHMENT_MAX_BYTES) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
-      const maxMB = (maxBytes / (1024 * 1024)).toFixed(0)
+      const maxMB = (AGENT_ATTACHMENT_MAX_BYTES / (1024 * 1024)).toFixed(0)
       throw new Error(
         `File "${file.name}" (${sizeMB}MB) exceeds the ${maxMB}MB agent attachment limit for provider "${providerId}"`
       )
@@ -334,28 +347,36 @@ export function prepareProviderAttachments(
   })
 }
 
+type OpenAIResponsesInputContent = OpenAI.Responses.ResponseInputContent
+type OpenAIChatContentPart = OpenAI.Chat.Completions.ChatCompletionContentPart
+type AnthropicImageMediaType = Anthropic.Messages.Base64ImageSource['media_type']
+
 export function buildOpenAIMessageContent(
   content: string | null | undefined,
   files: UserFile[] | undefined,
   providerId: ProviderId | string
-): string | Array<Record<string, unknown>> {
+): string | OpenAIResponsesInputContent[] {
   const attachments = prepareProviderAttachments(files, providerId)
   if (attachments.length === 0) return content ?? ''
 
-  const parts: Array<Record<string, unknown>> = []
+  const parts: OpenAIResponsesInputContent[] = []
   if (content) {
-    parts.push({ type: 'input_text', text: content })
+    parts.push({ type: 'input_text', text: content } satisfies OpenAI.Responses.ResponseInputText)
   }
 
   for (const attachment of attachments) {
     if (attachment.contentType === 'image') {
-      parts.push({ type: 'input_image', image_url: attachment.dataUrl })
+      parts.push({
+        type: 'input_image',
+        image_url: attachment.dataUrl,
+        detail: 'auto',
+      } satisfies OpenAI.Responses.ResponseInputImage)
     } else {
       parts.push({
         type: 'input_file',
         filename: attachment.filename,
         file_data: attachment.dataUrl,
-      })
+      } satisfies OpenAI.Responses.ResponseInputFile)
     }
   }
 
@@ -366,10 +387,10 @@ export function buildAnthropicMessageContent(
   content: string | null | undefined,
   files: UserFile[] | undefined,
   providerId: ProviderId | string
-): Array<Record<string, unknown>> {
-  const parts: Array<Record<string, unknown>> = []
+): Anthropic.Messages.ContentBlockParam[] {
+  const parts: Anthropic.Messages.ContentBlockParam[] = []
   if (content) {
-    parts.push({ type: 'text', text: content })
+    parts.push({ type: 'text', text: content } satisfies Anthropic.Messages.TextBlockParam)
   }
 
   for (const attachment of prepareProviderAttachments(files, providerId)) {
@@ -378,10 +399,10 @@ export function buildAnthropicMessageContent(
         type: 'image',
         source: {
           type: 'base64',
-          media_type: attachment.providerMimeType,
+          media_type: attachment.providerMimeType as AnthropicImageMediaType,
           data: attachment.base64,
         },
-      })
+      } satisfies Anthropic.Messages.ImageBlockParam)
     } else if (attachment.text) {
       parts.push({
         type: 'document',
@@ -391,17 +412,17 @@ export function buildAnthropicMessageContent(
           data: attachment.text,
         },
         title: attachment.filename,
-      })
+      } satisfies Anthropic.Messages.DocumentBlockParam)
     } else {
       parts.push({
         type: 'document',
         source: {
           type: 'base64',
-          media_type: attachment.providerMimeType,
+          media_type: 'application/pdf',
           data: attachment.base64,
         },
         title: attachment.filename,
-      })
+      } satisfies Anthropic.Messages.DocumentBlockParam)
     }
   }
 
@@ -412,10 +433,10 @@ export function buildGeminiMessageParts(
   content: string | null | undefined,
   files: UserFile[] | undefined,
   providerId: ProviderId | string
-): Array<Record<string, unknown>> {
-  const parts: Array<Record<string, unknown>> = []
+): Part[] {
+  const parts: Part[] = []
   if (content) {
-    parts.push({ text: content })
+    parts.push({ text: content } satisfies Part)
   }
 
   for (const attachment of prepareProviderAttachments(files, providerId)) {
@@ -424,7 +445,7 @@ export function buildGeminiMessageParts(
         mimeType: attachment.providerMimeType,
         data: attachment.base64,
       },
-    })
+    } satisfies Part)
   }
 
   return parts
@@ -434,13 +455,16 @@ export function buildOpenAICompatibleChatContent(
   content: string | null | undefined,
   files: UserFile[] | undefined,
   providerId: ProviderId | string
-): string | Array<Record<string, unknown>> {
+): string | OpenAIChatContentPart[] {
   const attachments = prepareProviderAttachments(files, providerId)
   if (attachments.length === 0) return content ?? ''
 
-  const parts: Array<Record<string, unknown>> = []
+  const parts: OpenAIChatContentPart[] = []
   if (content) {
-    parts.push({ type: 'text', text: content })
+    parts.push({
+      type: 'text',
+      text: content,
+    } satisfies OpenAI.Chat.Completions.ChatCompletionContentPartText)
   }
 
   for (const attachment of attachments) {
@@ -449,7 +473,7 @@ export function buildOpenAICompatibleChatContent(
       image_url: {
         url: attachment.dataUrl,
       },
-    })
+    } satisfies OpenAI.Chat.Completions.ChatCompletionContentPartImage)
   }
 
   return parts
@@ -459,13 +483,16 @@ export function buildOpenRouterMessageContent(
   content: string | null | undefined,
   files: UserFile[] | undefined,
   providerId: ProviderId | string
-): string | Array<Record<string, unknown>> {
+): string | OpenAIChatContentPart[] {
   const attachments = prepareProviderAttachments(files, providerId)
   if (attachments.length === 0) return content ?? ''
 
-  const parts: Array<Record<string, unknown>> = []
+  const parts: OpenAIChatContentPart[] = []
   if (content) {
-    parts.push({ type: 'text', text: content })
+    parts.push({
+      type: 'text',
+      text: content,
+    } satisfies OpenAI.Chat.Completions.ChatCompletionContentPartText)
   }
 
   for (const attachment of attachments) {
@@ -473,7 +500,7 @@ export function buildOpenRouterMessageContent(
       parts.push({
         type: 'image_url',
         image_url: { url: attachment.dataUrl },
-      })
+      } satisfies OpenAI.Chat.Completions.ChatCompletionContentPartImage)
     } else {
       parts.push({
         type: 'file',
@@ -481,7 +508,7 @@ export function buildOpenRouterMessageContent(
           filename: attachment.filename,
           file_data: attachment.dataUrl,
         },
-      })
+      } satisfies OpenAI.Chat.Completions.ChatCompletionContentPart.File)
     }
   }
 
@@ -508,10 +535,10 @@ export function buildBedrockMessageContent(
   content: string | null | undefined,
   files: UserFile[] | undefined,
   providerId: ProviderId | string
-): Array<Record<string, unknown>> {
-  const parts: Array<Record<string, unknown>> = []
+): ContentBlock[] {
+  const parts: ContentBlock[] = []
   if (content) {
-    parts.push({ text: content })
+    parts.push({ text: content } as ContentBlock.TextMember)
   }
 
   for (const attachment of prepareProviderAttachments(files, providerId)) {
@@ -519,53 +546,70 @@ export function buildBedrockMessageContent(
     if (attachment.contentType === 'image') {
       parts.push({
         image: {
-          format: getBedrockImageFormat(attachment),
+          format: getBedrockImageFormat(attachment) as ContentBlock.ImageMember['image']['format'],
           source: { bytes },
         },
-      })
+      } as ContentBlock.ImageMember)
     } else if (attachment.contentType === 'video') {
       parts.push({
         video: {
-          format: attachment.extension,
+          format: attachment.extension as ContentBlock.VideoMember['video']['format'],
           source: { bytes },
         },
-      })
+      } as ContentBlock.VideoMember)
     } else {
       parts.push({
         document: {
-          format: getBedrockDocumentFormat(attachment),
+          format: getBedrockDocumentFormat(
+            attachment
+          ) as ContentBlock.DocumentMember['document']['format'],
           name: sanitizeBedrockName(attachment.filename),
           source: { bytes },
         },
-      })
+      } as ContentBlock.DocumentMember)
     }
   }
 
   return parts
 }
 
+const SDK_NATIVE_ATTACHMENT_PROVIDERS = new Set<AttachmentProvider>([
+  'openai',
+  'anthropic',
+  'google',
+  'bedrock',
+])
+
 export function formatMessagesForProvider(
   messages: ProviderMessageInput[],
   providerId: ProviderId | string
 ): ProviderFormattedMessage[] {
+  const provider = getAttachmentProvider(providerId)
+  if (provider && SDK_NATIVE_ATTACHMENT_PROVIDERS.has(provider)) {
+    return messages as ProviderFormattedMessage[]
+  }
+
   return messages.map((message) => {
     if (!message.files?.length || (message.role !== 'user' && message.role !== 'assistant')) {
       return message as ProviderFormattedMessage
     }
 
-    const provider = getAttachmentProvider(providerId)
     if (provider === 'openrouter') {
-      const { files: _files, ...rest } = message
+      const { files: _omit, ...rest } = message
       return {
         ...rest,
-        content: buildOpenRouterMessageContent(message.content, message.files, providerId),
+        content: buildOpenRouterMessageContent(message.content, message.files, providerId) as
+          | string
+          | Array<Record<string, unknown>>,
       }
     }
 
-    const { files: _files, ...rest } = message
+    const { files: _omit, ...rest } = message
     return {
       ...rest,
-      content: buildOpenAICompatibleChatContent(message.content, message.files, providerId),
+      content: buildOpenAICompatibleChatContent(message.content, message.files, providerId) as
+        | string
+        | Array<Record<string, unknown>>,
     }
   })
 }

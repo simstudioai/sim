@@ -22,7 +22,7 @@ export interface ResponsesToolCall {
 export type ResponsesInputItem =
   | {
       role: 'system' | 'user' | 'assistant'
-      content: string | Array<Record<string, unknown>>
+      content: string | OpenAI.Responses.ResponseInputContent[]
     }
   | {
       type: 'function_call'
