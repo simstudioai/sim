@@ -337,6 +337,7 @@ export interface ExecutionContext {
       items?: any[]
       condition?: string
       skipFirstConditionCheck?: boolean
+      skippedAtStart?: boolean
       loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
     }
   >
