@@ -81,9 +81,9 @@ describe('plainTextToHtml', () => {
 })
 
 describe('htmlToPlainText', () => {
-  it('strips tags, decodes entities, and collapses whitespace', () => {
+  it('strips tags and decodes entities', () => {
     const result = htmlToPlainText('<p>Hi &amp; bye</p><p>Line<br>break</p>')
-    expect(result).toBe('Hi & bye\nLine\nbreak')
+    expect(result).toBe('Hi & bye\n\nLine\nbreak')
   })
 
   it('drops <style> and <script> contents', () => {
@@ -97,9 +97,20 @@ describe('htmlToPlainText', () => {
   })
 
   it('decodes decimal and hexadecimal numeric entities', () => {
-    expect(htmlToPlainText('<p>&#8220;hi&#8221; &#160;and&#x2019;s</p>')).toBe(
-      '\u201chi\u201d \u00a0and\u2019s'
+    expect(htmlToPlainText('<p>&#8220;hi&#8221; and&#x2019;s</p>')).toBe(
+      '\u201chi\u201d and\u2019s'
     )
+  })
+
+  it('preserves &#160; (non-breaking space) as U+00A0 for fidelity in plain-text output', () => {
+    expect(htmlToPlainText('<p>a&#160;b</p>')).toBe('a\u00a0b')
+  })
+
+  it('elides anchor URLs that exactly match link text, and drops bare # anchors', () => {
+    expect(
+      htmlToPlainText('<p>Visit <a href="https://example.com">https://example.com</a></p>')
+    ).toBe('Visit https://example.com')
+    expect(htmlToPlainText('<p><a href="#section">Anchor</a></p>')).toBe('Anchor')
   })
 })
 

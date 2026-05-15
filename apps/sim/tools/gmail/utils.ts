@@ -1,3 +1,4 @@
+import { convert } from 'html-to-text'
 import type {
   GmailAttachment,
   GmailMessage,
@@ -344,26 +345,21 @@ export function plainTextToHtml(body: string): string {
 }
 
 /**
- * Best-effort conversion of an HTML body to a plain-text fallback. Strips tags
- * and decodes the common entities. Used so we always include a plain-text part
- * alongside HTML for clients that don't render HTML.
+ * Best-effort conversion of an HTML body to a plain-text fallback. Used so we
+ * always include a plain-text part alongside HTML for clients that don't render
+ * HTML. Delegates to the `html-to-text` library for robust tag stripping and
+ * entity decoding (also used elsewhere in the repo for the same purpose).
  */
 export function htmlToPlainText(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number.parseInt(dec, 10)))
-    .replace(/&amp;/g, '&')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
+  return convert(html, {
+    wordwrap: false,
+    selectors: [
+      { selector: 'a', options: { hideLinkHrefIfSameAsText: true, noAnchorUrl: true } },
+      { selector: 'img', format: 'skip' },
+      { selector: 'script', format: 'skip' },
+      { selector: 'style', format: 'skip' },
+    ],
+  })
 }
 
 /**
