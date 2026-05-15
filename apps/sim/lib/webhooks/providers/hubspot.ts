@@ -72,7 +72,8 @@ export const hubspotHandler: WebhookProviderHandler = {
         )
         return new NextResponse('Unauthorized - Missing HubSpot v3 timestamp', { status: 401 })
       }
-      if (Math.abs(Date.now() - Number(timestamp)) > FIVE_MINUTES_MS) {
+      const ts = Number(timestamp)
+      if (isNaN(ts) || Math.abs(Date.now() - ts) > FIVE_MINUTES_MS) {
         logger.warn(`[${requestId}] HubSpot webhook timestamp too old, possible replay attack`)
         return new NextResponse('Unauthorized - HubSpot timestamp expired', { status: 401 })
       }
