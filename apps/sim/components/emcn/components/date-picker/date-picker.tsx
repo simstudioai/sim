@@ -126,8 +126,22 @@ interface DatePickerRangeProps extends DatePickerBaseProps {
 export type DatePickerProps = DatePickerSingleProps | DatePickerRangeProps
 
 /**
- * Month names for calendar display.
+ * Flattened props type for safe destructuring.
+ * The discriminated union prevents direct destructuring of mode-specific props,
+ * so we cast to this merged shape after the forwardRef boundary.
  */
+type FlatDatePickerProps = DatePickerBaseProps & {
+  mode?: 'single' | 'range'
+  value?: string | Date
+  onChange?: (value: string) => void
+  startDate?: string | Date
+  endDate?: string | Date
+  onRangeChange?: (startDate: string, endDate: string) => void
+  onCancel?: () => void
+  onClear?: () => void
+  showTime?: boolean
+}
+
 const MONTHS = [
   'January',
   'February',
@@ -143,28 +157,8 @@ const MONTHS = [
   'December',
 ]
 
-/**
- * Day abbreviations for calendar header.
- */
 const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
-/**
- * Gets the number of days in a given month.
- */
-function getDaysInMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate()
-}
-
-/**
- * Gets the day of the week (0-6) for the first day of the month.
- */
-function getFirstDayOfMonth(year: number, month: number): number {
-  return new Date(year, month, 1).getDay()
-}
-
-/**
- * Short month names for display.
- */
 const MONTHS_SHORT = [
   'Jan',
   'Feb',
@@ -180,9 +174,14 @@ const MONTHS_SHORT = [
   'Dec',
 ]
 
-/**
- * Formats a date for display in the trigger button.
- */
+function getDaysInMonth(year: number, month: number): number {
+  return new Date(year, month + 1, 0).getDate()
+}
+
+function getFirstDayOfMonth(year: number, month: number): number {
+  return new Date(year, month, 1).getDay()
+}
+
 function formatDateForDisplay(date: Date | null): string {
   if (!date) return ''
   return date.toLocaleDateString('en-US', {
@@ -192,9 +191,6 @@ function formatDateForDisplay(date: Date | null): string {
   })
 }
 
-/**
- * Formats a date range for display.
- */
 function formatDateRangeForDisplay(start: Date | null, end: Date | null): string {
   if (!start && !end) return ''
   if (start && !end) return formatDateForDisplay(start)
@@ -210,9 +206,6 @@ function formatDateRangeForDisplay(start: Date | null, end: Date | null): string
   return ''
 }
 
-/**
- * Checks if a date is between two dates (inclusive).
- */
 function isDateInRange(date: Date, start: Date | null, end: Date | null): boolean {
   if (!start || !end) return false
   const time = date.getTime()
@@ -221,9 +214,6 @@ function isDateInRange(date: Date, start: Date | null, end: Date | null): boolea
   return time >= startTime && time <= endTime
 }
 
-/**
- * Checks if two dates are the same day.
- */
 function isSameDay(date1: Date, date2: Date): boolean {
   return (
     date1.getFullYear() === date2.getFullYear() &&
@@ -232,9 +222,6 @@ function isSameDay(date1: Date, date2: Date): boolean {
   )
 }
 
-/**
- * Formats a date as YYYY-MM-DD string.
- */
 function formatDateAsString(year: number, month: number, day: number): string {
   const m = (month + 1).toString().padStart(2, '0')
   const d = day.toString().padStart(2, '0')
@@ -243,7 +230,7 @@ function formatDateAsString(year: number, month: number, day: number): string {
 
 /**
  * Parses a string or Date value into a Date object.
- * Handles various date formats including YYYY-MM-DD and ISO strings.
+ * YYYY-MM-DD strings are parsed as local time to avoid UTC offset shifts.
  */
 function parseDate(value: string | Date | undefined): Date | null {
   if (!value) return null
@@ -272,9 +259,6 @@ function parseDate(value: string | Date | undefined): Date | null {
   }
 }
 
-/**
- * Calendar component for rendering a single month.
- */
 interface CalendarMonthProps {
   viewMonth: number
   viewYear: number
@@ -296,7 +280,7 @@ function CalendarMonth({
   selectedDate,
   rangeStart,
   rangeEnd,
-  hoverDate,
+  hoverDate: _hoverDate,
   isRangeMode,
   onSelectDate,
   onHoverDate,
@@ -368,17 +352,13 @@ function CalendarMonth({
 
   const isInRange = React.useCallback(
     (day: number) => {
-      if (!isRangeMode) return false
+      if (!isRangeMode || !rangeStart || !rangeEnd) return false
       const date = new Date(viewYear, viewMonth, day)
-      // Only show range highlight when both start and end are selected
-      if (rangeStart && rangeEnd) {
-        return (
-          isDateInRange(date, rangeStart, rangeEnd) &&
-          !isSameDay(date, rangeStart) &&
-          !isSameDay(date, rangeEnd)
-        )
-      }
-      return false
+      return (
+        isDateInRange(date, rangeStart, rangeEnd) &&
+        !isSameDay(date, rangeStart) &&
+        !isSameDay(date, rangeEnd)
+      )
     },
     [isRangeMode, rangeStart, rangeEnd, viewMonth, viewYear]
   )
@@ -490,89 +470,99 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
     className,
     variant,
     size,
-    placeholder = props.mode === 'range' ? 'Select date range' : 'Select date',
+    placeholder: placeholderProp,
     disabled,
     showTrigger = true,
     open: controlledOpen,
     onOpenChange,
     inline = false,
-    mode: _mode,
-    ...rest
-  } = props
-
-  const {
-    value: _value,
-    onChange: _onChange,
-    startDate: _startDate,
-    endDate: _endDate,
-    onRangeChange: _onRangeChange,
-    onCancel: _onCancel,
-    onClear: _onClear,
+    mode,
+    value,
+    onChange,
+    startDate,
+    endDate,
+    onRangeChange,
+    onCancel,
+    onClear,
     showTime = false,
     ...htmlProps
-  } = rest as any
+  } = props as FlatDatePickerProps
 
-  const isRangeMode = props.mode === 'range'
+  const isRangeMode = mode === 'range'
+  const placeholder = placeholderProp ?? (isRangeMode ? 'Select date range' : 'Select date')
 
   const isControlled = controlledOpen !== undefined
   const [internalOpen, setInternalOpen] = React.useState(false)
   const open = isControlled ? controlledOpen : internalOpen
 
   const setOpen = React.useCallback(
-    (value: boolean) => {
-      if (!isControlled) {
-        setInternalOpen(value)
-      }
-      onOpenChange?.(value)
+    (next: boolean) => {
+      if (!isControlled) setInternalOpen(next)
+      onOpenChange?.(next)
     },
     [isControlled, onOpenChange]
   )
 
-  const selectedDate = !isRangeMode ? parseDate(props.value) : null
+  const selectedDate = !isRangeMode ? parseDate(value) : null
 
-  const initialStart = isRangeMode ? parseDate(props.startDate) : null
-  const initialEnd = isRangeMode ? parseDate(props.endDate) : null
-  const [rangeStart, setRangeStart] = React.useState<Date | null>(initialStart)
-  const [rangeEnd, setRangeEnd] = React.useState<Date | null>(initialEnd)
+  const [rangeStart, setRangeStart] = React.useState<Date | null>(() =>
+    isRangeMode ? parseDate(startDate) : null
+  )
+  const [rangeEnd, setRangeEnd] = React.useState<Date | null>(() =>
+    isRangeMode ? parseDate(endDate) : null
+  )
   const [hoverDate, setHoverDate] = React.useState<Date | null>(null)
   const [selectingEnd, setSelectingEnd] = React.useState(false)
   const [startTime, setStartTime] = React.useState('00:00')
   const [endTime, setEndTime] = React.useState('23:59')
 
   const [viewMonth, setViewMonth] = React.useState(() => {
-    const d = selectedDate || initialStart || new Date()
+    const d = selectedDate ?? (isRangeMode ? parseDate(startDate) : null) ?? new Date()
     return d.getMonth()
   })
   const [viewYear, setViewYear] = React.useState(() => {
-    const d = selectedDate || initialStart || new Date()
+    const d = selectedDate ?? (isRangeMode ? parseDate(startDate) : null) ?? new Date()
     return d.getFullYear()
   })
 
   const rightViewMonth = viewMonth === 11 ? 0 : viewMonth + 1
   const rightViewYear = viewMonth === 11 ? viewYear + 1 : viewYear
 
+  // Sync range state when the popover opens with the current prop values.
+  // Deps are the raw string/Date props — NOT derived Date objects — to avoid
+  // an infinite re-render loop: Object.is(new Date(), new Date()) === false,
+  // so derived Date objects in deps cause the effect to fire every render.
   React.useEffect(() => {
-    if (open && isRangeMode) {
-      setRangeStart(initialStart)
-      setRangeEnd(initialEnd)
-      setSelectingEnd(false)
-      if (showTime) {
-        const sd = isRangeMode ? props.startDate : undefined
-        const ed = isRangeMode ? props.endDate : undefined
-        setStartTime(typeof sd === 'string' && sd.includes('T') ? sd.slice(11, 16) : '00:00')
-        setEndTime(typeof ed === 'string' && ed.includes('T') ? ed.slice(11, 16) : '23:59')
-      }
-      if (initialStart) {
-        setViewMonth(initialStart.getMonth())
-        setViewYear(initialStart.getFullYear())
-      } else {
-        const now = new Date()
-        setViewMonth(now.getMonth())
-        setViewYear(now.getFullYear())
-      }
-    }
-  }, [open, isRangeMode, initialStart, initialEnd, showTime, props.startDate, props.endDate])
+    if (!open || !isRangeMode) return
 
+    const start = parseDate(startDate)
+    const end = parseDate(endDate)
+    setRangeStart(start)
+    setRangeEnd(end)
+    setSelectingEnd(false)
+
+    if (showTime) {
+      setStartTime(
+        typeof startDate === 'string' && startDate.includes('T') ? startDate.slice(11, 16) : '00:00'
+      )
+      setEndTime(
+        typeof endDate === 'string' && endDate.includes('T') ? endDate.slice(11, 16) : '23:59'
+      )
+    }
+
+    if (start) {
+      setViewMonth(start.getMonth())
+      setViewYear(start.getFullYear())
+    } else {
+      const now = new Date()
+      setViewMonth(now.getMonth())
+      setViewYear(now.getFullYear())
+    }
+  }, [open, isRangeMode, startDate, endDate, showTime])
+
+  // Sync the calendar view when the external single-date value changes.
+  // This is a render-phase state update (derived state pattern): safe because
+  // it only triggers when singleValueKey — a primitive timestamp — actually changes.
   const singleValueKey = !isRangeMode && selectedDate ? selectedDate.getTime() : undefined
   const [prevSingleValueKey, setPrevSingleValueKey] = React.useState(singleValueKey)
   if (singleValueKey !== prevSingleValueKey) {
@@ -583,26 +573,19 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
     }
   }
 
-  /**
-   * Handles selection of a specific day in single mode.
-   */
   const handleSelectDateSingle = React.useCallback(
     (day: number) => {
-      if (!isRangeMode && props.onChange) {
-        props.onChange(formatDateAsString(viewYear, viewMonth, day))
+      if (!isRangeMode) {
+        onChange?.(formatDateAsString(viewYear, viewMonth, day))
         setOpen(false)
       }
     },
-    [isRangeMode, viewYear, viewMonth, props.onChange, setOpen]
+    [isRangeMode, onChange, viewYear, viewMonth, setOpen]
   )
 
-  /**
-   * Handles selection of a day in range mode.
-   */
   const handleSelectDateRange = React.useCallback(
     (year: number, month: number, day: number) => {
       const date = new Date(year, month, day)
-
       if (!selectingEnd || !rangeStart) {
         setRangeStart(date)
         setRangeEnd(null)
@@ -620,113 +603,72 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
     [selectingEnd, rangeStart]
   )
 
-  /**
-   * Handles hover for range preview.
-   */
   const handleHoverDate = React.useCallback((year: number, month: number, day: number | null) => {
-    if (day === null) {
-      setHoverDate(null)
-    } else {
-      setHoverDate(new Date(year, month, day))
-    }
+    setHoverDate(day === null ? null : new Date(year, month, day))
   }, [])
 
-  /**
-   * Navigates to the previous month.
-   */
   const goToPrevMonth = React.useCallback(() => {
     if (viewMonth === 0) {
       setViewMonth(11)
-      setViewYear((prev) => prev - 1)
+      setViewYear((y) => y - 1)
     } else {
-      setViewMonth((prev) => prev - 1)
+      setViewMonth((m) => m - 1)
     }
   }, [viewMonth])
 
-  /**
-   * Navigates to the next month.
-   */
   const goToNextMonth = React.useCallback(() => {
     if (viewMonth === 11) {
       setViewMonth(0)
-      setViewYear((prev) => prev + 1)
+      setViewYear((y) => y + 1)
     } else {
-      setViewMonth((prev) => prev + 1)
+      setViewMonth((m) => m + 1)
     }
   }, [viewMonth])
 
-  /**
-   * Selects today's date (single mode only).
-   */
   const handleSelectToday = React.useCallback(() => {
-    if (!isRangeMode && props.onChange) {
+    if (!isRangeMode) {
       const now = new Date()
       setViewMonth(now.getMonth())
       setViewYear(now.getFullYear())
-      props.onChange(formatDateAsString(now.getFullYear(), now.getMonth(), now.getDate()))
+      onChange?.(formatDateAsString(now.getFullYear(), now.getMonth(), now.getDate()))
       setOpen(false)
     }
-  }, [isRangeMode, props.onChange, setOpen])
+  }, [isRangeMode, onChange, setOpen])
 
-  /**
-   * Applies the selected range (range mode only).
-   */
   const handleApplyRange = React.useCallback(() => {
-    if (isRangeMode && props.onRangeChange && rangeStart) {
-      const start = rangeEnd && rangeEnd < rangeStart ? rangeEnd : rangeStart
-      const end = rangeEnd && rangeEnd < rangeStart ? rangeStart : rangeEnd || rangeStart
-      const startStr = formatDateAsString(start.getFullYear(), start.getMonth(), start.getDate())
-      const endStr = formatDateAsString(end.getFullYear(), end.getMonth(), end.getDate())
+    if (!isRangeMode || !onRangeChange || !rangeStart) return
 
-      let effectiveStartTime = startTime
-      let effectiveEndTime = endTime
-      if (showTime && startStr === endStr && startTime > endTime) {
-        effectiveStartTime = endTime
-        effectiveEndTime = startTime
-      }
+    const start = rangeEnd && rangeEnd < rangeStart ? rangeEnd : rangeStart
+    const end = rangeEnd && rangeEnd < rangeStart ? rangeStart : (rangeEnd ?? rangeStart)
+    const startStr = formatDateAsString(start.getFullYear(), start.getMonth(), start.getDate())
+    const endStr = formatDateAsString(end.getFullYear(), end.getMonth(), end.getDate())
 
-      props.onRangeChange(
-        showTime ? `${startStr}T${effectiveStartTime}` : startStr,
-        showTime ? `${endStr}T${effectiveEndTime}:59` : endStr
-      )
-      setOpen(false)
+    let effectiveStartTime = startTime
+    let effectiveEndTime = endTime
+    if (showTime && startStr === endStr && startTime > endTime) {
+      effectiveStartTime = endTime
+      effectiveEndTime = startTime
     }
-  }, [
-    isRangeMode,
-    props.onRangeChange,
-    rangeStart,
-    rangeEnd,
-    showTime,
-    startTime,
-    endTime,
-    setOpen,
-  ])
 
-  /**
-   * Cancels range selection.
-   */
-  const handleCancelRange = React.useCallback(() => {
-    if (isRangeMode && props.onCancel) {
-      props.onCancel()
-    }
+    onRangeChange(
+      showTime ? `${startStr}T${effectiveStartTime}` : startStr,
+      showTime ? `${endStr}T${effectiveEndTime}:59` : endStr
+    )
     setOpen(false)
-  }, [isRangeMode, props.onCancel, setOpen])
+  }, [isRangeMode, onRangeChange, rangeStart, rangeEnd, showTime, startTime, endTime, setOpen])
 
-  /**
-   * Clears the selected range.
-   */
+  const handleCancelRange = React.useCallback(() => {
+    if (isRangeMode) onCancel?.()
+    setOpen(false)
+  }, [isRangeMode, onCancel, setOpen])
+
   const handleClearRange = React.useCallback(() => {
     setRangeStart(null)
     setRangeEnd(null)
     setSelectingEnd(false)
-    if (isRangeMode && props.onClear) {
-      props.onClear()
-    }
-  }, [isRangeMode, props.onClear])
+    if (isRangeMode) onClear?.()
+  }, [isRangeMode, onClear])
 
-  /**
-   * Handles keyboard events on the trigger.
-   */
   const handleKeyDown = React.useCallback(
     (e: React.KeyboardEvent) => {
       if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
@@ -737,17 +679,12 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
     [disabled, open, setOpen]
   )
 
-  /**
-   * Handles click on the trigger.
-   */
   const handleTriggerClick = React.useCallback(() => {
-    if (!disabled) {
-      setOpen(!open)
-    }
+    if (!disabled) setOpen(!open)
   }, [disabled, open, setOpen])
 
   const displayValue = isRangeMode
-    ? formatDateRangeForDisplay(initialStart, initialEnd)
+    ? formatDateRangeForDisplay(parseDate(startDate), parseDate(endDate))
     : formatDateForDisplay(selectedDate)
 
   const calendarContent = isRangeMode ? (
