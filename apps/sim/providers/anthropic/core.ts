@@ -233,6 +233,7 @@ export async function executeAnthropicProviderRequest(
         const content = buildAnthropicMessageContent(msg.content, msg.files, config.providerId)
         messages.push({
           role: msg.role === 'assistant' ? 'assistant' : 'user',
+          // double-cast-allowed: shared attachment builder returns Anthropic-compatible content blocks but avoids importing SDK-only union types
           content: content as unknown as Anthropic.Messages.ContentBlockParam[],
         })
       }

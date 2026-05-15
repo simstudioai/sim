@@ -179,13 +179,11 @@ export const bedrockProvider: ProviderConfig = {
           }
         } else {
           const role: ConversationRole = msg.role === 'assistant' ? 'assistant' : 'user'
+          const content = buildBedrockMessageContent(msg.content, msg.files, 'bedrock')
           messages.push({
             role,
-            content: buildBedrockMessageContent(
-              msg.content,
-              msg.files,
-              'bedrock'
-            ) as unknown as ContentBlock[],
+            // double-cast-allowed: shared attachment builder emits Bedrock Converse content blocks while keeping provider-neutral attachment types
+            content: content as unknown as ContentBlock[],
           })
         }
       }
