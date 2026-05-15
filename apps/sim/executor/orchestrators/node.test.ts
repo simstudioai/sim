@@ -234,6 +234,7 @@ describe('NodeExecutionOrchestrator parallel sentinel batching', () => {
 
     await orchestrator.handleNodeCompletion(ctx, endNode.id, {
       results: ['loop-result'],
+      shouldExit: true,
       selectedRoute: EDGE.LOOP_EXIT,
     })
 
@@ -241,7 +242,7 @@ describe('NodeExecutionOrchestrator parallel sentinel batching', () => {
       ctx,
       'parent-parallel',
       endNode.id,
-      { results: ['loop-result'], selectedRoute: EDGE.LOOP_EXIT },
+      { results: ['loop-result'] },
       3
     )
   })
@@ -273,6 +274,7 @@ describe('NodeExecutionOrchestrator parallel sentinel batching', () => {
 
     await orchestrator.handleNodeCompletion(ctx, endNode.id, {
       results: ['parallel-result'],
+      sentinelEnd: true,
       selectedRoute: EDGE.PARALLEL_EXIT,
     })
 
@@ -280,7 +282,7 @@ describe('NodeExecutionOrchestrator parallel sentinel batching', () => {
       ctx,
       'parent-loop',
       'nested-parallel',
-      { results: ['parallel-result'], selectedRoute: EDGE.PARALLEL_EXIT }
+      { results: ['parallel-result'] }
     )
   })
 })

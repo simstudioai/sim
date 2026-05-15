@@ -24,6 +24,10 @@ function getResultCount(value: unknown): number {
   return Array.isArray(value) ? value.length : 0
 }
 
+function getSubflowResultOutput(output: NormalizedBlockOutput): NormalizedBlockOutput {
+  return { results: output.results ?? [] }
+}
+
 export interface NodeExecutionResult {
   nodeId: string
   output: NormalizedBlockOutput
@@ -311,13 +315,18 @@ export class NodeExecutionOrchestrator {
         ctx,
         parentEntry.parentId,
         node.id,
-        output,
+        getSubflowResultOutput(output),
         parentEntry.branchIndex
       )
       return
     }
 
-    this.loopOrchestrator.storeLoopNodeOutput(ctx, parentEntry.parentId, subflowId, output)
+    this.loopOrchestrator.storeLoopNodeOutput(
+      ctx,
+      parentEntry.parentId,
+      subflowId,
+      getSubflowResultOutput(output)
+    )
   }
 
   private handleRegularNodeCompletion(

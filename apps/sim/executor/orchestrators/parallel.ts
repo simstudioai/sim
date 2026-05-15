@@ -7,7 +7,6 @@ import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { ParallelScope } from '@/executor/execution/state'
 import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
-import type { ParallelConfigWithNodes } from '@/executor/types/parallel'
 import { type ClonedSubflowInfo, ParallelExpander } from '@/executor/utils/parallel-expansion'
 import {
   addSubflowErrorLog,
@@ -586,15 +585,5 @@ export class ParallelOrchestrator {
 
   getParallelScope(ctx: ExecutionContext, parallelId: string): ParallelScope | undefined {
     return ctx.parallelExecutions?.get(parallelId)
-  }
-
-  findParallelIdForNode(baseNodeId: string): string | undefined {
-    for (const [parallelId, config] of this.dag.parallelConfigs) {
-      const parallelConfig = config as ParallelConfigWithNodes
-      if (parallelConfig.nodes?.includes(baseNodeId)) {
-        return parallelId
-      }
-    }
-    return undefined
   }
 }
