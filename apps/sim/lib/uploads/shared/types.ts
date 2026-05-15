@@ -23,6 +23,23 @@ export type StorageContext =
   | 'logs'
   | 'workspace-logos'
 
+/**
+ * Contexts exempt from storage quota checks. Includes system-internal contexts
+ * (`logs` — written by the execution pipeline, not user-initiated) and small
+ * metadata assets (`profile-pictures`, `workspace-logos`, `og-images`). All
+ * other contexts are user-driven uploads and must pass quota validation.
+ *
+ * Note: `logs` is excluded from `ALLOWED_UPLOAD_CONTEXTS` in the multipart
+ * endpoint, so it is unreachable there. The exemption applies to non-multipart
+ * (single-part) upload paths used by the execution logging pipeline.
+ */
+export const QUOTA_EXEMPT_STORAGE_CONTEXTS = new Set<StorageContext>([
+  'profile-pictures',
+  'workspace-logos',
+  'og-images',
+  'logs',
+])
+
 export interface FileInfo {
   path: string
   key: string

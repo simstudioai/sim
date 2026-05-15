@@ -243,7 +243,7 @@ export const sshReadFileContentBodySchema = requirePasswordOrPrivateKey(
     ...connectionFields,
     path: z.string().min(1, 'Path is required'),
     encoding: z.string().default('utf-8'),
-    maxSize: z.coerce.number().default(10),
+    maxSize: z.coerce.number().min(0.01).max(50).default(10),
   })
 )
 

@@ -1,12 +1,12 @@
 import type { MetadataRoute } from 'next'
 import { COURSES } from '@/lib/academy/content'
 import { getAllPostMeta } from '@/lib/blog/registry'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import integrations from '@/app/(landing)/integrations/data/integrations.json'
 import { ALL_CATALOG_MODELS, MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = getBaseUrl()
+  const baseUrl = SITE_URL
   const posts = await getAllPostMeta()
 
   const latestPostDate =
@@ -45,6 +45,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/partners`,
+    },
+    {
+      url: `${baseUrl}/contact`,
     },
     {
       url: `${baseUrl}/terms`,

@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { SITE_URL } from '@/lib/core/utils/urls'
 
 const DISALLOWED_PATHS = [
   '/api/',
@@ -45,8 +45,6 @@ const LINK_PREVIEW_BOTS = [
 ]
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = getBaseUrl()
-
   return {
     rules: [
       { userAgent: '*', allow: '/', disallow: DISALLOWED_PATHS },
@@ -56,6 +54,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: LINK_PREVIEW_DISALLOWED_PATHS,
       },
     ],
-    sitemap: [`${baseUrl}/sitemap.xml`, `${baseUrl}/blog/sitemap-images.xml`],
+    sitemap: [`${SITE_URL}/sitemap.xml`, `${SITE_URL}/blog/sitemap-images.xml`],
   }
 }

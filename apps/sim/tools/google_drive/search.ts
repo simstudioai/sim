@@ -64,9 +64,14 @@ export const searchTool: ToolConfig<GoogleDriveSearchParams, GoogleDriveSearchRe
       url.searchParams.append('includeItemsFromAllDrives', 'true')
 
       // The query is passed directly as Google Drive query syntax
-      const conditions = ['trashed = false']
-      if (params.query?.trim()) {
-        conditions.push(params.query.trim())
+      const userQuery = params.query?.trim()
+      const userSpecifiesTrashed = userQuery ? /\btrashed\s*=/.test(userQuery) : false
+      const conditions: string[] = []
+      if (!userSpecifiesTrashed) {
+        conditions.push('trashed = false')
+      }
+      if (userQuery) {
+        conditions.push(userQuery)
       }
       url.searchParams.append('q', conditions.join(' and '))
 

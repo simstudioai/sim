@@ -7,6 +7,7 @@ import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processSingleFileToUserFile, type RawFileInput } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
@@ -79,6 +80,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: 400 }
       )
     }
+
+    const denied = await assertToolFileAccess(
+      userFile.key,
+      auth.userId,
+      'confluence-upload',
+      logger
+    )
+    if (denied) return denied
 
     let fileBuffer: Buffer
     try {

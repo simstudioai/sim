@@ -416,6 +416,18 @@ function createToolIcon(
  * - Allows drag-and-drop reordering of selected tools
  * - Supports tool usage control (auto/force/none) for compatible LLM providers
  */
+
+function IconComponent({
+  icon: Icon,
+  className,
+}: {
+  icon?: React.ComponentType<{ className?: string }>
+  className?: string
+}) {
+  if (!Icon) return null
+  return <Icon className={className} />
+}
+
 export const ToolInput = memo(function ToolInput({
   blockId,
   subBlockId,
@@ -1069,17 +1081,6 @@ export const ToolInput = memo(function ToolInput({
     setStoreValue(newTools)
     setDraggedIndex(null)
     setDragOverIndex(null)
-  }
-
-  const IconComponent = ({
-    icon: Icon,
-    className,
-  }: {
-    icon?: React.ComponentType<{ className?: string }>
-    className?: string
-  }) => {
-    if (!Icon) return null
-    return <Icon className={className} />
   }
 
   const evaluateParameterCondition = (param: ToolParameterConfig, tool: StoredTool): boolean => {

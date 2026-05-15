@@ -21,7 +21,11 @@ import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { captureEvent } from '@/lib/posthog/client'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
-import { type LogStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
+import {
+  formatDateShort,
+  type LogStatus,
+  STATUS_CONFIG,
+} from '@/app/workspace/[workspaceId]/logs/utils'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -42,28 +46,6 @@ const TIME_RANGE_OPTIONS: ComboboxOption[] = [
   { value: 'Past 30 days', label: 'Past 30 days' },
   { value: 'Custom range', label: 'Custom range' },
 ] as const
-
-/**
- * Formats a date string (YYYY-MM-DD) for display.
- */
-function formatDateShort(dateStr: string): string {
-  const date = new Date(dateStr)
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ]
-  return `${months[date.getMonth()]} ${date.getDate()}`
-}
 
 type ViewMode = 'logs' | 'dashboard'
 
@@ -794,11 +776,13 @@ export const LogsToolbar = memo(function LogsToolbar({
                 }
                 size='sm'
                 align='end'
-                className='h-[32px] w-[120px] rounded-md'
+                className='h-[32px] w-[160px] rounded-md'
+                maxHeight={320}
               />
               <DatePicker
                 mode='range'
                 showTrigger={false}
+                showTime
                 open={datePickerOpen}
                 onOpenChange={(isOpen) => {
                   if (!isOpen) {
