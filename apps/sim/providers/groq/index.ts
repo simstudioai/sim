@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { Groq } from 'groq-sdk'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { formatMessagesForProvider } from '@/providers/attachments'
 import { createReadableStreamFromGroqStream } from '@/providers/groq/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
@@ -60,6 +61,7 @@ export const groqProvider: ProviderConfig = {
     if (request.messages) {
       allMessages.push(...request.messages)
     }
+    const formattedMessages = formatMessagesForProvider(allMessages, 'groq')
 
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
@@ -74,7 +76,7 @@ export const groqProvider: ProviderConfig = {
 
     const payload: any = {
       model: request.model.replace('groq/', ''),
-      messages: allMessages,
+      messages: formattedMessages,
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
@@ -205,7 +207,7 @@ export const groqProvider: ProviderConfig = {
       }
       const toolCalls = []
       const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...allMessages]
+      const currentMessages = [...formattedMessages]
       let iterationCount = 0
       let modelTime = firstResponseTime
       let toolsTime = 0

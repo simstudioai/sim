@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { formatMessagesForProvider } from '@/providers/attachments'
 import type { CerebrasResponse } from '@/providers/cerebras/types'
 import { createReadableStreamFromCerebrasStream } from '@/providers/cerebras/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
@@ -64,6 +65,7 @@ export const cerebrasProvider: ProviderConfig = {
       if (request.messages) {
         allMessages.push(...request.messages)
       }
+      const formattedMessages = formatMessagesForProvider(allMessages, 'cerebras')
 
       const tools = request.tools?.length
         ? request.tools.map((tool) => ({
@@ -78,7 +80,7 @@ export const cerebrasProvider: ProviderConfig = {
 
       const payload: any = {
         model: request.model.replace('cerebras/', ''),
-        messages: allMessages,
+        messages: formattedMessages,
       }
       if (request.temperature !== undefined) payload.temperature = request.temperature
       if (request.maxTokens != null) payload.max_completion_tokens = request.maxTokens
@@ -199,7 +201,7 @@ export const cerebrasProvider: ProviderConfig = {
       }
       const toolCalls = []
       const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...allMessages]
+      const currentMessages = [...formattedMessages]
       let iterationCount = 0
 
       let modelTime = firstResponseTime

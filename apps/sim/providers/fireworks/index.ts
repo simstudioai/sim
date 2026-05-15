@@ -4,6 +4,7 @@ import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { formatMessagesForProvider } from '@/providers/attachments'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromOpenAIStream,
@@ -108,6 +109,7 @@ export const fireworksProvider: ProviderConfig = {
     if (request.messages) {
       allMessages.push(...request.messages)
     }
+    const formattedMessages = formatMessagesForProvider(allMessages, 'fireworks') as Message[]
 
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
@@ -122,7 +124,7 @@ export const fireworksProvider: ProviderConfig = {
 
     const payload: any = {
       model: requestedModel,
-      messages: allMessages,
+      messages: formattedMessages,
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
@@ -250,7 +252,7 @@ export const fireworksProvider: ProviderConfig = {
       }
       const toolCalls: FunctionCallResponse[] = []
       const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...allMessages]
+      const currentMessages = [...formattedMessages]
       let iterationCount = 0
       let modelTime = firstResponseTime
       let toolsTime = 0

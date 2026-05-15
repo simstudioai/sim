@@ -6,9 +6,12 @@ import { sleep } from '@sim/utils/helpers'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
+import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import {
   validateBlockType,
   validateCustomToolsAllowed,
@@ -36,6 +39,7 @@ import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
+import { getAttachmentProvider, getProviderAttachmentMaxBytes } from '@/providers/attachments'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { filterSchemaForLLM, type ToolSchema } from '@/tools/params'
@@ -87,12 +91,18 @@ export class AgentBlockHandler implements BlockHandler {
 
     const streamingConfig = this.getStreamingConfig(ctx, block)
     const messages = await this.buildMessages(ctx, filteredInputs, skillMetadata)
+    const messagesWithFiles = await this.attachFilesToLastUserMessage(
+      ctx,
+      messages,
+      filteredInputs.files,
+      providerId
+    )
 
     const providerRequest = this.buildProviderRequest({
       ctx,
       providerId,
       model,
-      messages,
+      messages: messagesWithFiles,
       inputs: filteredInputs,
       formattedTools,
       responseFormat,
@@ -670,6 +680,62 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     return messages.length > 0 ? messages : undefined
+  }
+
+  private async attachFilesToLastUserMessage(
+    ctx: ExecutionContext,
+    messages: Message[] | undefined,
+    filesInput: unknown,
+    providerId: string
+  ): Promise<Message[] | undefined> {
+    const normalizedFiles = normalizeFileInput(filesInput)
+    if (!normalizedFiles || normalizedFiles.length === 0) {
+      return messages
+    }
+
+    if (!messages || messages.length === 0) {
+      throw new Error('Files require at least one user message in the agent prompt')
+    }
+
+    if (!getAttachmentProvider(providerId)) {
+      throw new Error(`File attachments are not supported for provider "${providerId}"`)
+    }
+
+    let lastUserMessageIndex = -1
+    for (let index = messages.length - 1; index >= 0; index--) {
+      if (messages[index].role === 'user') {
+        lastUserMessageIndex = index
+        break
+      }
+    }
+    if (lastUserMessageIndex === -1) {
+      throw new Error('Files require at least one user message in the agent prompt')
+    }
+
+    const requestId = ctx.executionId || ctx.workflowId || 'agent-files'
+    const userFiles = processFilesToUserFiles(normalizedFiles as RawFileInput[], requestId, logger)
+    if (userFiles.length === 0) {
+      throw new Error('Files must include at least one valid file object')
+    }
+
+    const hydratedFiles = await hydrateUserFilesWithBase64(userFiles, {
+      requestId,
+      workspaceId: ctx.workspaceId,
+      workflowId: ctx.workflowId,
+      executionId: ctx.executionId,
+      userId: ctx.userId,
+      logger,
+      maxBytes: getProviderAttachmentMaxBytes(providerId),
+    })
+
+    const lastUserMessage = messages[lastUserMessageIndex]
+    const nextMessages = [...messages]
+    nextMessages[lastUserMessageIndex] = {
+      ...lastUserMessage,
+      files: [...(lastUserMessage.files ?? []), ...hydratedFiles],
+    }
+
+    return nextMessages
   }
 
   private extractValidMessages(messages?: Message[]): Message[] {

@@ -917,7 +917,7 @@ export async function executeGeminiRequest(
   const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
   try {
-    const { contents, tools, systemInstruction } = convertToGeminiFormat(request)
+    const { contents, tools, systemInstruction } = convertToGeminiFormat(request, providerType)
 
     // Build configuration
     const geminiConfig: GenerateContentConfig = {}

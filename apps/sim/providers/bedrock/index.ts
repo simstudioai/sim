@@ -17,6 +17,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { buildBedrockMessageContent } from '@/providers/attachments'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromBedrockStream,
@@ -180,7 +181,11 @@ export const bedrockProvider: ProviderConfig = {
           const role: ConversationRole = msg.role === 'assistant' ? 'assistant' : 'user'
           messages.push({
             role,
-            content: [{ text: msg.content || '' }],
+            content: buildBedrockMessageContent(
+              msg.content,
+              msg.files,
+              'bedrock'
+            ) as unknown as ContentBlock[],
           })
         }
       }

@@ -5,6 +5,7 @@ import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/
 import { getOllamaUrl } from '@/lib/core/utils/urls'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { formatMessagesForProvider } from '@/providers/attachments'
 import type { ModelsObject } from '@/providers/ollama/types'
 import { createReadableStreamFromOllamaStream } from '@/providers/ollama/utils'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
@@ -91,6 +92,7 @@ export const ollamaProvider: ProviderConfig = {
     if (request.messages) {
       allMessages.push(...request.messages)
     }
+    const formattedMessages = formatMessagesForProvider(allMessages, 'ollama')
 
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
@@ -105,7 +107,7 @@ export const ollamaProvider: ProviderConfig = {
 
     const payload: any = {
       model: request.model,
-      messages: allMessages,
+      messages: formattedMessages,
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
@@ -274,7 +276,7 @@ export const ollamaProvider: ProviderConfig = {
       }
       const toolCalls = []
       const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...allMessages]
+      const currentMessages = [...formattedMessages]
       let iterationCount = 0
 
       let modelTime = firstResponseTime

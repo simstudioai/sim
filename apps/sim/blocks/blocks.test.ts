@@ -163,6 +163,42 @@ describe.concurrent('Blocks Module', () => {
     })
   })
 
+  describe('Agent block', () => {
+    it('should expose canonical file attachments and normalize file params', () => {
+      const block = getBlock('agent')
+
+      expect(block).toBeDefined()
+      const uploadSubBlock = block?.subBlocks.find((subBlock) => subBlock.id === 'attachmentFiles')
+      const advancedSubBlock = block?.subBlocks.find((subBlock) => subBlock.id === 'files')
+
+      expect(uploadSubBlock?.type).toBe('file-upload')
+      expect(uploadSubBlock?.canonicalParamId).toBe('files')
+      expect(uploadSubBlock?.multiple).toBe(true)
+      expect(advancedSubBlock?.canonicalParamId).toBe('files')
+      expect(block?.inputs.files).toEqual({
+        type: 'array',
+        description: 'Files to include with the latest user message',
+      })
+
+      expect(
+        block?.tools.config?.params?.({
+          model: 'gpt-4o',
+          files:
+            '[{"id":"file-1","key":"workspace/ws-1/example.png","name":"example.png","url":"/api/files/serve/workspace%2Fws-1%2Fexample.png?context=workspace","size":123,"type":"image/png"}]',
+        })
+      ).toMatchObject({
+        files: [
+          {
+            id: 'file-1',
+            key: 'workspace/ws-1/example.png',
+            name: 'example.png',
+            type: 'image/png',
+          },
+        ],
+      })
+    })
+  })
+
   describe('getBlocksByCategory', () => {
     it('should return blocks in the "blocks" category', () => {
       const blocks = getBlocksByCategory('blocks')

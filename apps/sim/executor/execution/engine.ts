@@ -449,19 +449,6 @@ export class ExecutionEngine {
 
     const readyNodes = this.edgeManager.processOutgoingEdges(node, output, false)
 
-    this.execLogger.info('Processing outgoing edges', {
-      nodeId,
-      outgoingEdgesCount: node.outgoingEdges.size,
-      outgoingEdges: Array.from(node.outgoingEdges.entries()).map(([id, e]) => ({
-        id,
-        target: e.target,
-        sourceHandle: e.sourceHandle,
-      })),
-      output,
-      readyNodesCount: readyNodes.length,
-      readyNodes,
-    })
-
     this.addMultipleToQueue(readyNodes)
 
     if (this.context.pendingDynamicNodes && this.context.pendingDynamicNodes.length > 0) {
