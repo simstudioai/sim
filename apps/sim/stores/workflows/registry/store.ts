@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { deepClone } from '@sim/utils/object'
 import { generateRandomHex } from '@sim/utils/random'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
@@ -328,11 +327,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         blockIdSet.forEach((blockId) => {
           const block = workflowStore.blocks[blockId]
           if (block) {
-            copiedBlocks[blockId] = deepClone(block)
+            copiedBlocks[blockId] = structuredClone(block)
             if (activeWorkflowId) {
               const blockValues = subBlockStore.workflowValues[activeWorkflowId]?.[blockId]
               if (blockValues) {
-                copiedSubBlockValues[blockId] = deepClone(blockValues)
+                copiedSubBlockValues[blockId] = structuredClone(blockValues)
               }
             }
           }
@@ -345,14 +344,14 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         const copiedLoops: Record<string, Loop> = {}
         Object.entries(workflowStore.loops).forEach(([loopId, loop]) => {
           if (blockIdSet.has(loopId)) {
-            copiedLoops[loopId] = deepClone(loop)
+            copiedLoops[loopId] = structuredClone(loop)
           }
         })
 
         const copiedParallels: Record<string, Parallel> = {}
         Object.entries(workflowStore.parallels).forEach(([parallelId, parallel]) => {
           if (blockIdSet.has(parallelId)) {
-            copiedParallels[parallelId] = deepClone(parallel)
+            copiedParallels[parallelId] = structuredClone(parallel)
           }
         })
 

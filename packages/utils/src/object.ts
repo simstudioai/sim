@@ -1,16 +1,4 @@
 /**
- * Creates a deep clone of a value using the platform's structured-clone
- * algorithm. Handles Dates, Maps, Sets, ArrayBuffers, and other structured
- * types correctly. Does not clone functions or non-serializable objects.
- *
- * Replaces the common `JSON.parse(JSON.stringify(obj))` pattern, which loses
- * type information (Dates become strings, undefined values are dropped).
- */
-export function deepClone<T>(value: T): T {
-  return structuredClone(value)
-}
-
-/**
  * Returns a new object with the given keys removed.
  *
  * @example

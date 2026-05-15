@@ -14,7 +14,7 @@ You are a professional software engineer. All code must follow best practices: a
   - `sleep(ms)` from `@sim/utils/helpers` — never `new Promise(resolve => setTimeout(resolve, ms))`
   - `toError(e)` from `@sim/utils/errors` — normalize caught values to `Error`
   - `getErrorMessage(e, fallback?)` from `@sim/utils/errors` — extract message string from unknown caught value; never write `e instanceof Error ? e.message : 'fallback'`
-  - `deepClone(value)` from `@sim/utils/object` — structural clone; never `JSON.parse(JSON.stringify(...))`
+  - `structuredClone(value)` — built-in deep clone; never `JSON.parse(JSON.stringify(...))`
   - `omit(obj, keys)` / `filterUndefined(obj)` from `@sim/utils/object` — object trimming; never `Object.fromEntries(Object.entries(...).filter(...))`
   - `truncate(str, maxLength, suffix?)` from `@sim/utils/string` — never inline slice + ellipsis
   - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — shared retry pacing; never reimplement exponential backoff inline

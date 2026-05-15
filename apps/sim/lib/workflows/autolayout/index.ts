@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { deepClone } from '@sim/utils/object'
 import {
   DEFAULT_HORIZONTAL_SPACING,
   DEFAULT_VERTICAL_SPACING,
@@ -33,7 +32,7 @@ export function applyAutoLayout(
       edgeCount: edges.length,
     })
 
-    const blocksCopy: Record<string, BlockState> = deepClone(blocks)
+    const blocksCopy: Record<string, BlockState> = structuredClone(blocks)
 
     const horizontalSpacing = options.horizontalSpacing ?? DEFAULT_HORIZONTAL_SPACING
     const verticalSpacing = options.verticalSpacing ?? DEFAULT_VERTICAL_SPACING

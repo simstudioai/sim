@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { deepClone } from '@sim/utils/object'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
@@ -153,7 +152,7 @@ export function applyOperationsToWorkflowState(
   permissionConfig: PermissionGroupConfig | null = null
 ): ApplyOperationsResult {
   // Deep clone the workflow state to avoid mutations
-  const modifiedState = deepClone(workflowState)
+  const modifiedState = structuredClone(workflowState)
 
   // Collect validation errors across all operations
   const validationErrors: ValidationError[] = []

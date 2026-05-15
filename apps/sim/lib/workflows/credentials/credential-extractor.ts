@@ -1,4 +1,3 @@
-import { deepClone } from '@sim/utils/object'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -239,7 +238,7 @@ export function sanitizeWorkflowForSharing(
     preserveEnvVars?: boolean // Keep {{VAR}} references for export
   } = {}
 ): SanitizedWorkflowState {
-  const sanitized = deepClone(state) as SanitizedWorkflowState
+  const sanitized = structuredClone(state) as SanitizedWorkflowState
 
   if (!sanitized?.blocks) {
     return sanitized

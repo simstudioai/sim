@@ -39,7 +39,7 @@ Use shared helpers from `@sim/utils` instead of writing inline implementations:
 - `sleep(ms)` from `@sim/utils/helpers` — async delay. Never write `new Promise(resolve => setTimeout(resolve, ms))`
 - `toError(value)` from `@sim/utils/errors` — normalize unknown caught values to `Error`. Never write `e instanceof Error ? e : new Error(String(e))`
 - `getErrorMessage(value, fallback?)` from `@sim/utils/errors` — extract error message string. Never write `e instanceof Error ? e.message : 'fallback'`
-- `deepClone(value)` from `@sim/utils/object` — structural clone. Never write `JSON.parse(JSON.stringify(obj))`
+- `structuredClone(value)` — built-in deep clone, no import needed. Never write `JSON.parse(JSON.stringify(obj))`
 - `omit(obj, keys)` from `@sim/utils/object` — remove keys from object
 - `filterUndefined(obj)` from `@sim/utils/object` — strip undefined-valued keys. Never write `Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))`
 - `truncate(str, maxLength, suffix?)` from `@sim/utils/string` — safe string truncation with ellipsis
@@ -56,10 +56,10 @@ const filtered = Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== 
 // ✓ Good
 import { sleep } from '@sim/utils/helpers'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { deepClone, filterUndefined } from '@sim/utils/object'
+import { filterUndefined } from '@sim/utils/object'
 await sleep(1000)
 const msg = getErrorMessage(error, 'Unknown error')
-const clone = deepClone(obj)
+const clone = structuredClone(obj)
 const filtered = filterUndefined(obj)
 ```
 

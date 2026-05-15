@@ -62,7 +62,7 @@ const BANNED_PATTERNS: Array<{
   {
     pattern: /JSON\.parse\s*\(\s*JSON\.stringify\s*\(/g,
     description: 'JSON.parse(JSON.stringify(...))',
-    suggestion: 'deepClone() from @sim/utils/object',
+    suggestion: 'structuredClone() — built-in, no import needed',
   },
   // Inline error message extraction (excludes null/undefined/false fallbacks — those have different semantics)
   {

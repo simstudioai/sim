@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
-import { deepClone } from '@sim/utils/object'
 import { isEqual } from 'es-toolkit'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
@@ -150,7 +149,11 @@ export function useSubBlockValue<T = any>(
 
         // Ensure we're passing the actual value, not a reference that might change
         const valueCopy =
-          newValue === null ? null : typeof newValue === 'object' ? deepClone(newValue) : newValue
+          newValue === null
+            ? null
+            : typeof newValue === 'object'
+              ? structuredClone(newValue)
+              : newValue
 
         // If streaming, hold value locally and do not update global store to avoid render-phase updates
         if (isStreaming) {

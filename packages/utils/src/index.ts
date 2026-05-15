@@ -12,7 +12,7 @@ export {
 } from './formatting.js'
 export { noop, sleep } from './helpers.js'
 export { generateId, generateShortId, isValidUuid } from './id.js'
-export { deepClone, filterUndefined, omit } from './object.js'
+export { filterUndefined, omit } from './object.js'
 export {
   generateRandomBytes,
   generateRandomHex,

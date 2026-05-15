@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { deepClone } from '@sim/utils/object'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { BaseImageRequestBody } from '@/tools/openai/types'
 import type { ToolConfig } from '@/tools/types'
@@ -110,7 +109,7 @@ export const imageTool: ToolConfig = {
     try {
       const data = await response.json()
 
-      const sanitizedData = deepClone(data)
+      const sanitizedData = structuredClone(data)
       if (sanitizedData.data && Array.isArray(sanitizedData.data)) {
         sanitizedData.data.forEach((item: { b64_json?: string }) => {
           if (item.b64_json) {

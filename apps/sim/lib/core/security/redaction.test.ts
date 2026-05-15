@@ -1,4 +1,3 @@
-import { deepClone } from '@sim/utils/object'
 import { describe, expect, it } from 'vitest'
 import {
   isLargeDataKey,
@@ -538,7 +537,7 @@ describe('Security edge cases', () => {
         },
       }
 
-      const originalCopy = deepClone(original)
+      const originalCopy = structuredClone(original)
       redactApiKeys(original)
 
       expect(original).toEqual(originalCopy)

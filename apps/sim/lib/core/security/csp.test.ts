@@ -1,5 +1,4 @@
 import { createEnvMock, featureFlagsMock } from '@sim/testing'
-import { deepClone } from '@sim/utils/object'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env', () =>
@@ -186,7 +185,7 @@ describe('generateRuntimeCSP', () => {
 })
 
 describe('addCSPSource', () => {
-  const originalDirectives = deepClone(buildTimeCSPDirectives)
+  const originalDirectives = structuredClone(buildTimeCSPDirectives)
 
   afterEach(() => {
     Object.keys(buildTimeCSPDirectives).forEach((key) => {
@@ -223,7 +222,7 @@ describe('addCSPSource', () => {
 })
 
 describe('removeCSPSource', () => {
-  const originalDirectives = deepClone(buildTimeCSPDirectives)
+  const originalDirectives = structuredClone(buildTimeCSPDirectives)
 
   afterEach(() => {
     Object.keys(buildTimeCSPDirectives).forEach((key) => {

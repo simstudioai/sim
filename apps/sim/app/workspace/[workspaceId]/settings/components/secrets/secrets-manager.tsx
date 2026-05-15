@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { deepClone } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, Clipboard, Key, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -599,8 +598,8 @@ export function SecretsManager() {
       })),
       createEmptyEnvVar(),
     ]
-    initialVarsRef.current = deepClone(initialVars)
-    setEnvVars(deepClone(initialVars))
+    initialVarsRef.current = structuredClone(initialVars)
+    setEnvVars(structuredClone(initialVars))
   }, [personalEnvData])
 
   useEffect(() => {
@@ -957,7 +956,7 @@ export function SecretsManager() {
   }
 
   const resetToSaved = () => {
-    setEnvVars(deepClone(initialVarsRef.current))
+    setEnvVars(structuredClone(initialVarsRef.current))
     setWorkspaceVars({ ...initialWorkspaceVarsRef.current })
     setNewWorkspaceRows([createEmptyEnvVar()])
     setShowUnsavedChanges(false)
@@ -1038,7 +1037,7 @@ export function SecretsManager() {
       if (firstFailure) throw firstFailure.reason
 
       initialWorkspaceVarsRef.current = { ...mergedWorkspaceVars }
-      initialVarsRef.current = deepClone(envVars.filter((v) => v.key && v.value))
+      initialVarsRef.current = structuredClone(envVars.filter((v) => v.key && v.value))
 
       setWorkspaceVars(mergedWorkspaceVars)
       setNewWorkspaceRows([createEmptyEnvVar()])

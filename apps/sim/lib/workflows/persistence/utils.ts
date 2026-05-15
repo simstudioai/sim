@@ -717,7 +717,7 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
     const newBlock: BlockState = {
       ...block,
       id: newId,
-      subBlocks: deepClone(block.subBlocks),
+      subBlocks: structuredClone(block.subBlocks),
       locked: false,
     }
 
