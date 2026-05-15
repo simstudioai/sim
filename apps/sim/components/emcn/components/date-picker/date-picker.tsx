@@ -553,25 +553,33 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
 
   React.useEffect(() => {
     if (open && isRangeMode) {
-      setRangeStart(initialStart)
-      setRangeEnd(initialEnd)
+      const start = parseDate(props.startDate)
+      const end = parseDate(props.endDate)
+      setRangeStart(start)
+      setRangeEnd(end)
       setSelectingEnd(false)
       if (showTime) {
-        const sd = isRangeMode ? props.startDate : undefined
-        const ed = isRangeMode ? props.endDate : undefined
-        setStartTime(typeof sd === 'string' && sd.includes('T') ? sd.slice(11, 16) : '00:00')
-        setEndTime(typeof ed === 'string' && ed.includes('T') ? ed.slice(11, 16) : '23:59')
+        setStartTime(
+          typeof props.startDate === 'string' && props.startDate.includes('T')
+            ? props.startDate.slice(11, 16)
+            : '00:00'
+        )
+        setEndTime(
+          typeof props.endDate === 'string' && props.endDate.includes('T')
+            ? props.endDate.slice(11, 16)
+            : '23:59'
+        )
       }
-      if (initialStart) {
-        setViewMonth(initialStart.getMonth())
-        setViewYear(initialStart.getFullYear())
+      if (start) {
+        setViewMonth(start.getMonth())
+        setViewYear(start.getFullYear())
       } else {
         const now = new Date()
         setViewMonth(now.getMonth())
         setViewYear(now.getFullYear())
       }
     }
-  }, [open, isRangeMode, initialStart, initialEnd, showTime, props.startDate, props.endDate])
+  }, [open, isRangeMode, props.startDate, props.endDate, showTime])
 
   const singleValueKey = !isRangeMode && selectedDate ? selectedDate.getTime() : undefined
   const [prevSingleValueKey, setPrevSingleValueKey] = React.useState(singleValueKey)

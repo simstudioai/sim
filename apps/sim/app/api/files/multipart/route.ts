@@ -134,12 +134,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         const config = getStorageConfig(storageContext)
 
-        if (
-          !QUOTA_EXEMPT_STORAGE_CONTEXTS.has(context as StorageContext) &&
-          typeof fileSize === 'number'
-        ) {
+        if (!QUOTA_EXEMPT_STORAGE_CONTEXTS.has(context as StorageContext)) {
           const { checkStorageQuota } = await import('@/lib/billing/storage')
-          const quotaCheck = await checkStorageQuota(userId, fileSize)
+          const quotaCheck = await checkStorageQuota(userId, fileSize ?? 0)
           if (!quotaCheck.allowed) {
             return NextResponse.json(
               { error: quotaCheck.error || 'Storage limit exceeded' },
