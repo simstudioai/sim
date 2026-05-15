@@ -1,4 +1,4 @@
-import { CloudWatchClient, EnableAlarmActionsCommand } from '@aws-sdk/client-cloudwatch'
+import { CloudWatchClient, DeleteAlarmMuteRuleCommand } from '@aws-sdk/client-cloudwatch'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -23,7 +23,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const validatedData = parsed.data.body
 
-    logger.info(`Unmuting ${validatedData.alarmNames.length} CloudWatch alarm(s)`)
+    logger.info(`Deleting CloudWatch alarm mute rule "${validatedData.muteRuleName}"`)
 
     const client = new CloudWatchClient({
       region: validatedData.region,
@@ -34,19 +34,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     try {
-      const command = new EnableAlarmActionsCommand({
-        AlarmNames: validatedData.alarmNames,
+      const command = new DeleteAlarmMuteRuleCommand({
+        AlarmMuteRuleName: validatedData.muteRuleName,
       })
 
       await client.send(command)
 
-      logger.info(`Successfully unmuted ${validatedData.alarmNames.length} alarm(s)`)
+      logger.info(`Successfully deleted mute rule "${validatedData.muteRuleName}"`)
 
       return NextResponse.json({
         success: true,
         output: {
           success: true,
-          alarmNames: validatedData.alarmNames,
+          muteRuleName: validatedData.muteRuleName,
         },
       })
     } finally {
@@ -55,7 +55,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error('UnmuteAlarm failed', { error: toError(error).message })
     return NextResponse.json(
-      { error: `Failed to unmute CloudWatch alarm: ${toError(error).message}` },
+      { error: `Failed to delete CloudWatch alarm mute rule: ${toError(error).message}` },
       { status: 500 }
     )
   }

@@ -164,24 +164,34 @@ export interface CloudWatchPutMetricDataResponse extends ToolResponse {
   }
 }
 
+export type CloudWatchMuteDurationUnit = 'minutes' | 'hours' | 'days'
+
 export interface CloudWatchMuteAlarmParams extends CloudWatchConnectionConfig {
+  muteRuleName: string
   alarmNames: string[]
+  durationValue: number
+  durationUnit: CloudWatchMuteDurationUnit
+  description?: string
+  startDate?: number
 }
 
 export interface CloudWatchMuteAlarmResponse extends ToolResponse {
   output: {
     success: boolean
+    muteRuleName: string
     alarmNames: string[]
+    expression: string
+    duration: string
   }
 }
 
 export interface CloudWatchUnmuteAlarmParams extends CloudWatchConnectionConfig {
-  alarmNames: string[]
+  muteRuleName: string
 }
 
 export interface CloudWatchUnmuteAlarmResponse extends ToolResponse {
   output: {
     success: boolean
-    alarmNames: string[]
+    muteRuleName: string
   }
 }

@@ -10,7 +10,7 @@ export const unmuteAlarmTool: ToolConfig<
 > = {
   id: 'cloudwatch_unmute_alarm',
   name: 'CloudWatch Unmute Alarm',
-  description: 'Re-enable notification actions on one or more CloudWatch alarms',
+  description: 'Delete a CloudWatch alarm mute rule, restoring alarm notifications',
   version: '1.0.0',
 
   params: {
@@ -32,11 +32,11 @@ export const unmuteAlarmTool: ToolConfig<
       visibility: 'user-only',
       description: 'AWS secret access key',
     },
-    alarmNames: {
-      type: 'array',
+    muteRuleName: {
+      type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Names of the CloudWatch alarms to unmute',
+      description: 'Name of the mute rule to delete',
     },
   },
 
@@ -50,7 +50,7 @@ export const unmuteAlarmTool: ToolConfig<
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,
-      alarmNames: params.alarmNames,
+      muteRuleName: params.muteRuleName,
     }),
   },
 
@@ -58,7 +58,7 @@ export const unmuteAlarmTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error || 'Failed to unmute CloudWatch alarm')
+      throw new Error(data.error || 'Failed to delete CloudWatch alarm mute rule')
     }
 
     return {
@@ -68,11 +68,7 @@ export const unmuteAlarmTool: ToolConfig<
   },
 
   outputs: {
-    success: { type: 'boolean', description: 'Whether the alarms were unmuted successfully' },
-    alarmNames: {
-      type: 'array',
-      description: 'Names of the alarms that were unmuted',
-      items: { type: 'string' },
-    },
+    success: { type: 'boolean', description: 'Whether the mute rule was deleted successfully' },
+    muteRuleName: { type: 'string', description: 'Name of the mute rule that was deleted' },
   },
 }
