@@ -544,6 +544,23 @@ export class LoggingSession {
     this.completing = true
 
     try {
+      const currentLog = await db
+        .select({ status: workflowExecutionLogs.status })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            eq(workflowExecutionLogs.workflowId, this.workflowId),
+            eq(workflowExecutionLogs.executionId, this.executionId)
+          )
+        )
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (currentLog?.status === 'cancelled') {
+        this.completed = true
+        return
+      }
+
       const { endedAt, totalDurationMs, error, traceSpans, skipCost } = params
 
       const endTime = endedAt ? new Date(endedAt) : new Date()
