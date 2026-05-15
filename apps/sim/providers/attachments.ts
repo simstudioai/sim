@@ -120,6 +120,10 @@ export function supportsFileAttachments(providerId: ProviderId | string): boolea
   return Boolean(provider && !UNSUPPORTED_FILE_PROVIDERS.has(provider))
 }
 
+export function getProviderAttachmentMaxBytes(_providerId: ProviderId | string): number {
+  return AGENT_ATTACHMENT_MAX_BYTES
+}
+
 export function inferAttachmentMimeType(file: UserFile): string {
   const explicitType = file.type?.trim().toLowerCase()
   if (explicitType && explicitType !== 'application/octet-stream') {
