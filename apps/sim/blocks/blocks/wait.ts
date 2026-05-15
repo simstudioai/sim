@@ -26,6 +26,7 @@ export const WaitBlock: BlockConfig = {
       id: 'timeValue',
       title: 'Wait Amount',
       type: 'short-input',
+      description: 'Max 5 minutes (300 seconds). Enable Suspend Workflow for up to 30 days.',
       placeholder: '10',
       value: () => '10',
       required: true,
