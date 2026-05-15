@@ -28,6 +28,55 @@ function createBlock(id: string, metadataId: string): SerializedBlock {
 }
 
 describe('Nested parallel expansion + edge resolution', () => {
+  it('waits for every branch terminal before queuing the parallel end sentinel', () => {
+    const parallelId = 'parallel-1'
+    const taskId = 'task-1'
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [
+        createBlock('start', BlockType.STARTER),
+        createBlock(parallelId, BlockType.PARALLEL),
+        createBlock(taskId, BlockType.FUNCTION),
+      ],
+      connections: [
+        { source: 'start', target: parallelId },
+        {
+          source: parallelId,
+          target: taskId,
+          sourceHandle: 'parallel-start-source',
+        },
+      ],
+      loops: {},
+      parallels: {
+        [parallelId]: {
+          id: parallelId,
+          nodes: [taskId],
+          count: 2,
+          parallelType: 'count',
+        },
+      },
+    }
+
+    const dag = new DAGBuilder().build(workflow)
+    const expander = new ParallelExpander()
+    const { terminalNodes } = expander.expandParallel(dag, parallelId, 2)
+    const edgeManager = new EdgeManager(dag)
+    const parallelEndId = buildParallelSentinelEndId(parallelId)
+
+    expect(terminalNodes).toEqual([buildBranchNodeId(taskId, 0), buildBranchNodeId(taskId, 1)])
+    expect(dag.nodes.get(parallelEndId)?.incomingEdges).toEqual(new Set(terminalNodes))
+
+    const firstBranchReady = edgeManager.processOutgoingEdges(dag.nodes.get(terminalNodes[0])!, {
+      value: 'first',
+    })
+    expect(firstBranchReady).not.toContain(parallelEndId)
+
+    const secondBranchReady = edgeManager.processOutgoingEdges(dag.nodes.get(terminalNodes[1])!, {
+      value: 'second',
+    })
+    expect(secondBranchReady).toContain(parallelEndId)
+  })
+
   it('outer parallel expansion clones inner subflow per branch and edge manager resolves correctly', () => {
     const outerParallelId = 'outer-parallel'
     const innerParallelId = 'inner-parallel'
