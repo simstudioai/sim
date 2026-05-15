@@ -903,6 +903,7 @@ export async function executeWorkflowWithFullLogging(
     triggerType: options.overrideTriggerType || 'manual',
     useDraftState: options.useDraftState ?? true,
     isClientSession: true,
+    ...(options.executionId ? { executionId: options.executionId } : {}),
     ...(options.triggerBlockId ? { triggerBlockId: options.triggerBlockId } : {}),
     ...(options.stopAfterBlockId ? { stopAfterBlockId: options.stopAfterBlockId } : {}),
     ...(options.runFromBlock

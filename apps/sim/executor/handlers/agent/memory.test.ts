@@ -178,6 +178,34 @@ describe('Memory', () => {
     })
   })
 
+  describe('sanitizeMessageForStorage', () => {
+    it('should strip file payloads and provider-only fields before memory persistence', () => {
+      const message: Message = {
+        role: 'user',
+        content: 'Analyze this file',
+        executionId: 'exec-1',
+        files: [
+          {
+            id: 'file-1',
+            key: 'workspace/ws-1/example.png',
+            name: 'example.png',
+            url: '/api/files/serve/workspace%2Fws-1%2Fexample.png?context=workspace',
+            size: 128,
+            type: 'image/png',
+            base64: 'iVBORw0KGgo=',
+          },
+        ],
+        tool_calls: [{ id: 'call-1' }],
+      }
+
+      expect((memoryService as any).sanitizeMessageForStorage(message)).toEqual({
+        role: 'user',
+        content: 'Analyze this file',
+        executionId: 'exec-1',
+      })
+    })
+  })
+
   describe('Token-based vs Message-based comparison', () => {
     it('should produce different results for same limit concept', () => {
       const messages: Message[] = [

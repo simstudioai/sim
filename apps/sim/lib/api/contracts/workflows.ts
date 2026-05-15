@@ -336,6 +336,7 @@ export const executeWorkflowBodySchema = z.object({
   includeFileBase64: z.boolean().optional().default(true),
   base64MaxBytes: z.number().int().positive().optional(),
   workflowStateOverride: workflowStateSchema.optional(),
+  executionId: z.string().optional(),
   triggerBlockId: z.string().optional(),
   startBlockId: z.string().optional(),
   stopAfterBlockId: z.string().optional(),

@@ -359,6 +359,7 @@ async function handleExecutePost(
       includeFileBase64,
       base64MaxBytes,
       workflowStateOverride,
+      executionId: requestedExecutionId,
       triggerBlockId: parsedTriggerBlockId,
       startBlockId,
       stopAfterBlockId,
@@ -508,7 +509,8 @@ async function handleExecutePost(
       )
     }
 
-    const executionId = generateId()
+    const executionId =
+      isClientSession && requestedExecutionId ? requestedExecutionId : generateId()
     reqLogger = reqLogger.withMetadata({ userId, executionId })
 
     reqLogger.info('Starting server-side execution', {
