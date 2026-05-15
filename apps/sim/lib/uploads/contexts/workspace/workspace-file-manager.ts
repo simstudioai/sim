@@ -3,6 +3,7 @@
  * Files uploaded at workspace level persist indefinitely and are accessible across all workflows
  */
 
+import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -117,7 +118,7 @@ export function parseWorkspaceFileKey(key: string): string | null {
  */
 export function generateWorkspaceFileKey(workspaceId: string, fileName: string): string {
   const timestamp = Date.now()
-  const random = Math.random().toString(36).substring(2, 9)
+  const random = randomBytes(8).toString('hex')
   const safeFileName = sanitizeFileName(fileName)
   return `workspace/${workspaceId}/${timestamp}-${random}-${safeFileName}`
 }
