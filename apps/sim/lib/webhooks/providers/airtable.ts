@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
-import { hmacSha256Base64 } from '@sim/security/hmac'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { validateAirtableId } from '@/lib/core/security/input-validation'
@@ -446,7 +446,7 @@ function validateAirtableSignature(webhookSecret: string, mac: string, rawBody: 
   if (!mac.startsWith(prefix)) return false
   const provided = mac.slice(prefix.length)
   const secretBuffer = Buffer.from(webhookSecret, 'base64')
-  const computed = hmacSha256Base64(rawBody, secretBuffer)
+  const computed = hmacSha256Hex(rawBody, secretBuffer)
   return safeCompare(provided, computed)
 }
 

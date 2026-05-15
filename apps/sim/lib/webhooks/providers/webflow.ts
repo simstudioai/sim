@@ -19,15 +19,28 @@ import { getOAuthToken, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/
 
 const logger = createLogger('WebhookProvider:Webflow')
 
-function validateWebflowSignature(secret: string, signature: string, rawBody: string): boolean {
-  const computed = hmacSha256Hex(rawBody, secret)
+function validateWebflowSignature(
+  secret: string,
+  signature: string,
+  timestamp: string,
+  rawBody: string
+): boolean {
+  const computed = hmacSha256Hex(`${timestamp}:${rawBody}`, secret)
   return safeCompare(computed, signature)
 }
+
+const FIVE_MINUTES_MS = 5 * 60 * 1000
 
 export const webflowHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const secret = providerConfig.webhookSecret as string | undefined
     if (!secret) return null
+
+    const timestamp = request.headers.get('x-webflow-timestamp')
+    if (!timestamp) {
+      logger.warn(`[${requestId}] Webflow webhook missing X-Webflow-Timestamp header`)
+      return new NextResponse('Unauthorized - Missing Webflow timestamp', { status: 401 })
+    }
 
     const signature = request.headers.get('x-webflow-signature')
     if (!signature) {
@@ -35,7 +48,12 @@ export const webflowHandler: WebhookProviderHandler = {
       return new NextResponse('Unauthorized - Missing Webflow signature', { status: 401 })
     }
 
-    if (!validateWebflowSignature(secret, signature, rawBody)) {
+    if (Math.abs(Date.now() - Number(timestamp)) > FIVE_MINUTES_MS) {
+      logger.warn(`[${requestId}] Webflow webhook timestamp too old, possible replay attack`)
+      return new NextResponse('Unauthorized - Webflow timestamp expired', { status: 401 })
+    }
+
+    if (!validateWebflowSignature(secret, signature, timestamp, rawBody)) {
       logger.warn(`[${requestId}] Webflow signature verification failed`)
       return new NextResponse('Unauthorized - Invalid Webflow signature', { status: 401 })
     }
@@ -162,7 +180,7 @@ export const webflowHandler: WebhookProviderHandler = {
       return {
         providerConfigUpdates: {
           externalId: responseBody.id || responseBody._id,
-          ...(responseBody.secretToken ? { webhookSecret: responseBody.secretToken } : {}),
+          ...(responseBody.secretKey ? { webhookSecret: responseBody.secretKey } : {}),
         },
       }
     } catch (error: unknown) {
