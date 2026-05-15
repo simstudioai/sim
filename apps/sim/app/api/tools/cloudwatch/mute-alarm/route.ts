@@ -71,7 +71,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           },
         },
         MuteTargets: { AlarmNames: validatedData.alarmNames },
-        ...(validatedData.startDate !== undefined && { StartDate: startDate }),
       })
 
       await client.send(command)
