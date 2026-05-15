@@ -36,6 +36,19 @@ export interface PreparedProviderAttachment {
   contentType: 'image' | 'document' | 'audio' | 'video'
 }
 
+type ProviderMessageInput = {
+  role: string
+  content?: string | null
+  files?: UserFile[]
+}
+
+type ProviderFormattedMessage = {
+  role: string
+  content?: string | null | Array<Record<string, unknown>>
+  files?: UserFile[]
+  [key: string]: unknown
+}
+
 const AGENT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 const PDF_MIME_TYPE = 'application/pdf'
 
@@ -532,12 +545,12 @@ export function buildBedrockMessageContent(
 }
 
 export function formatMessagesForProvider(
-  messages: Array<{ role: string; content?: string | null; files?: UserFile[] }>,
+  messages: ProviderMessageInput[],
   providerId: ProviderId | string
-) {
+): ProviderFormattedMessage[] {
   return messages.map((message) => {
     if (!message.files?.length || (message.role !== 'user' && message.role !== 'assistant')) {
-      return message
+      return message as ProviderFormattedMessage
     }
 
     const provider = getAttachmentProvider(providerId)
