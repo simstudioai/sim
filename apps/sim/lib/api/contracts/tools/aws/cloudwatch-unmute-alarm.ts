@@ -16,17 +16,17 @@ const UnmuteAlarmSchema = z.object({
     }),
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  alarmNames: z
-    .array(z.string().min(1, 'Alarm name cannot be empty'))
-    .min(1, 'At least one alarm name is required')
-    .max(100, 'At most 100 alarm names are allowed per request'),
+  muteRuleName: z
+    .string()
+    .min(1, 'muteRuleName cannot be empty')
+    .max(255, 'muteRuleName must be at most 255 characters'),
 })
 
 const UnmuteAlarmResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     success: z.literal(true),
-    alarmNames: z.array(z.string()),
+    muteRuleName: z.string(),
   }),
 })
 
