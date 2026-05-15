@@ -495,17 +495,22 @@ const DataRow = memo(function DataRow({
   const isActiveDropTarget = rowDragDrop?.activeDropTargetId === row.id
   const isDragging = rowDragDrop?.draggedRowIds?.has(row.id) ?? false
   const isAnyDragActive = rowDragDrop?.isAnyDragActive ?? false
+  const hasActiveSelection = (selectable?.selectedIds.size ?? 0) > 0
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLTableRowElement>) => {
-      if (selectable && !selectable.disabled && (e.shiftKey || !onRowClick)) {
+      if (
+        selectable &&
+        !selectable.disabled &&
+        (e.shiftKey || e.metaKey || e.ctrlKey || !onRowClick || hasActiveSelection)
+      ) {
         e.preventDefault()
         selectable.onSelectRow(row.id, !isSelected, e.shiftKey)
         return
       }
       onRowClick?.(row.id)
     },
-    [isSelected, onRowClick, row.id, selectable]
+    [hasActiveSelection, isSelected, onRowClick, row.id, selectable]
   )
 
   const handleMouseEnter = useCallback(() => {

@@ -267,6 +267,8 @@ export async function performUpdateJob(
     }
     if (params.successCondition !== undefined) updates.successCondition = params.successCondition
     if (params.maxRuns !== undefined) updates.maxRuns = params.maxRuns
+    const effectiveStatus = updates.status ?? job.status
+
     if (params.cronExpression !== undefined) {
       const timezone = params.timezone || job.timezone || 'UTC'
       const validation = validateCronExpression(params.cronExpression, timezone)
@@ -278,7 +280,7 @@ export async function performUpdateJob(
         }
       }
       updates.cronExpression = params.cronExpression
-      if ((updates.status ?? job.status) === 'active') updates.nextRunAt = validation.nextRun
+      if (effectiveStatus === 'active') updates.nextRunAt = validation.nextRun
     }
     if (params.time !== undefined && params.time !== null) {
       const timezone = params.timezone || job.timezone || 'UTC'
@@ -292,7 +294,9 @@ export async function performUpdateJob(
       }
       const cronExpression =
         params.cronExpression !== undefined ? params.cronExpression : job.cronExpression
-      if (!cronExpression || parsed > new Date()) updates.nextRunAt = parsed
+      if (effectiveStatus === 'active' && (!cronExpression || parsed > new Date())) {
+        updates.nextRunAt = parsed
+      }
     }
 
     const updatedFields = Object.keys(updates).filter((key) => key !== 'updatedAt')
