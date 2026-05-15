@@ -20,6 +20,100 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('FileManageAPI')
 
+const workspaceFileToUserFile = (file: Awaited<ReturnType<typeof getWorkspaceFile>>) => {
+  if (!file) return null
+
+  return {
+    id: file.id,
+    name: file.name,
+    url: ensureAbsoluteUrl(file.path),
+    size: file.size,
+    type: file.type,
+    key: file.key,
+    context: 'workspace',
+  }
+}
+
+const fileInputToUserFile = (fileInput: unknown) => {
+  if (!fileInput || typeof fileInput !== 'object' || Array.isArray(fileInput)) return null
+
+  const record = fileInput as Record<string, unknown>
+  const id =
+    typeof record.id === 'string'
+      ? record.id.trim()
+      : typeof record.fileId === 'string'
+        ? record.fileId.trim()
+        : ''
+
+  // Objects with ids are resolved through workspace metadata. This fallback is for
+  // picker/upload values that only carry storage fields.
+  if (id) return null
+
+  const key = typeof record.key === 'string' ? record.key.trim() : ''
+  const path = typeof record.path === 'string' ? record.path.trim() : ''
+  const url = typeof record.url === 'string' ? record.url.trim() : ''
+  const fileUrl =
+    url || path || (key ? `/api/files/serve/${encodeURIComponent(key)}?context=workspace` : '')
+
+  if (!fileUrl && !key) return null
+
+  return {
+    id: key || fileUrl,
+    name:
+      typeof record.name === 'string' && record.name.trim() ? record.name.trim() : 'workspace-file',
+    url: fileUrl ? ensureAbsoluteUrl(fileUrl) : '',
+    size: typeof record.size === 'number' ? record.size : 0,
+    type:
+      typeof record.type === 'string' && record.type.trim()
+        ? record.type.trim()
+        : 'application/octet-stream',
+    key,
+    context: 'workspace',
+  }
+}
+
+const normalizeFileIdList = (value: unknown): string[] => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return []
+
+    try {
+      return normalizeFileIdList(JSON.parse(trimmed))
+    } catch {
+      return [trimmed]
+    }
+  }
+
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter((id) => id.length > 0)
+}
+
+const extractUserFilesFromInput = (fileInput: unknown) => {
+  const inputs = Array.isArray(fileInput) ? fileInput : fileInput ? [fileInput] : []
+  return inputs
+    .map((input) => fileInputToUserFile(input))
+    .filter((file): file is NonNullable<ReturnType<typeof fileInputToUserFile>> => Boolean(file))
+}
+
+const extractFileIdsFromInput = (fileInput: unknown): string[] => {
+  const inputs = Array.isArray(fileInput) ? fileInput : fileInput ? [fileInput] : []
+
+  return inputs
+    .flatMap((input) => {
+      if (typeof input === 'string') return normalizeFileIdList(input)
+      if (input && typeof input === 'object') {
+        const record = input as Record<string, unknown>
+        if (typeof record.id === 'string') return normalizeFileIdList(record.id)
+        if (typeof record.fileId === 'string') return normalizeFileIdList(record.fileId)
+      }
+      return []
+    })
+    .filter((id) => id.length > 0)
+}
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!auth.success) {
@@ -76,15 +170,52 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({
           success: true,
           data: {
-            file: {
-              id: file.id,
-              name: file.name,
-              url: ensureAbsoluteUrl(file.path),
-              size: file.size,
-              type: file.type,
-              key: file.key,
-              context: 'workspace',
-            },
+            file: workspaceFileToUserFile(file),
+          },
+        })
+      }
+
+      case 'read': {
+        const { fileId, fileInput } = body
+        const selectedFileIds = Array.isArray(fileId)
+          ? fileId.map((id) => id.trim()).filter(Boolean)
+          : fileId
+            ? normalizeFileIdList(fileId)
+            : extractFileIdsFromInput(fileInput)
+        const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
+          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+
+        const files = await Promise.all(
+          selectedFileIds.map((id) => getWorkspaceFile(workspaceId, id))
+        )
+        const missingFileId = selectedFileIds.find((_, index) => !files[index])
+        if (missingFileId) {
+          return NextResponse.json(
+            { success: false, error: `File not found: "${missingFileId}"` },
+            { status: 404 }
+          )
+        }
+
+        const userFiles = files
+          .map((file) => workspaceFileToUserFile(file))
+          .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
+            Boolean(file)
+          )
+          .concat(selectedInputFiles)
+
+        logger.info('Files retrieved', {
+          count: userFiles.length,
+          fileIds: userFiles.map((file) => file.id),
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            file: userFiles[0],
+            files: userFiles,
           },
         })
       }

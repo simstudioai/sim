@@ -8,6 +8,7 @@ import {
   createMockRequest,
   hybridAuthMockFns,
   inputValidationMock,
+  inputValidationMockFns,
   permissionsMock,
   permissionsMockFns,
   storageServiceMock,
@@ -308,6 +309,39 @@ describe('File Parse API Route', () => {
     expect(data).toHaveProperty('results')
     expect(Array.isArray(data.results)).toBe(true)
     expect(data.results).toHaveLength(2)
+  })
+
+  it('should pass custom headers when fetching external URLs', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response('private file content', {
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+      })
+    )
+
+    const headers = { Authorization: 'Bearer xoxb-test-token' }
+    const req = createMockRequest('POST', {
+      filePath: 'https://files.slack.com/files-pri/T000-F000/download/report.txt',
+      headers,
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'https://files.slack.com/files-pri/T000-F000/download/report.txt',
+      '203.0.113.10',
+      expect.objectContaining({
+        timeout: 30000,
+        headers,
+      })
+    )
   })
 
   it('should process execution file URLs with context query param', async () => {
