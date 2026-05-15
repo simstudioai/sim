@@ -444,7 +444,9 @@ export class PauseResumeManager {
           })
           await LoggingSession.markExecutionAsFailed(
             effectiveExecutionId,
-            'Missing snapshot seed for paused execution'
+            'Missing snapshot seed for paused execution',
+            undefined,
+            pausedExecution.workflowId
           )
         } else {
           try {
@@ -462,7 +464,9 @@ export class PauseResumeManager {
             })
             await LoggingSession.markExecutionAsFailed(
               effectiveExecutionId,
-              `Failed to persist pause state: ${toError(pauseError).message}`
+              `Failed to persist pause state: ${toError(pauseError).message}`,
+              undefined,
+              pausedExecution.workflowId
             )
           }
         }

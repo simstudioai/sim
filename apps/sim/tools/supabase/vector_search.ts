@@ -1,3 +1,4 @@
+import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
 import type {
   SupabaseVectorSearchParams,
   SupabaseVectorSearchResponse,
@@ -56,8 +57,9 @@ export const vectorSearchTool: ToolConfig<
 
   request: {
     url: (params) => {
-      // Use RPC endpoint for calling PostgreSQL functions
-      return `${supabaseBaseUrl(params.projectId)}/rest/v1/rpc/${params.functionName}`
+      const fnValidation = validateDatabaseIdentifier(params.functionName, 'functionName')
+      if (!fnValidation.isValid) throw new Error(fnValidation.error)
+      return `${supabaseBaseUrl(params.projectId)}/rest/v1/rpc/${encodeURIComponent(params.functionName)}`
     },
     method: 'POST',
     headers: (params) => ({

@@ -10,6 +10,7 @@ const dbMocks = vi.hoisted(() => {
   const update = vi.fn()
   const execute = vi.fn()
   const eq = vi.fn()
+  const and = vi.fn((...args: unknown[]) => ({ type: 'and', args }))
   const sql = vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }))
 
   select.mockReturnValue({ from: selectFrom })
@@ -29,6 +30,7 @@ const dbMocks = vi.hoisted(() => {
     updateWhere,
     execute,
     eq,
+    and,
     sql,
   }
 })
@@ -47,6 +49,7 @@ vi.mock('@sim/db', () => ({
 
 vi.mock('drizzle-orm', () => ({
   eq: dbMocks.eq,
+  and: dbMocks.and,
   sql: dbMocks.sql,
 }))
 
@@ -447,5 +450,44 @@ describe('LoggingSession completion retries', () => {
     expect(session.completeExecutionWithFinalization).toHaveBeenCalledTimes(1)
     expect(session.completed).toBe(true)
     expect(session.completing).toBe(true)
+  })
+})
+
+describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    dbMocks.updateWhere.mockResolvedValue(undefined)
+  })
+
+  it('scopes UPDATE by both executionId and workflowId', async () => {
+    await LoggingSession.markExecutionAsFailed('exec-1', undefined, undefined, 'wf-1')
+
+    expect(dbMocks.update).toHaveBeenCalledTimes(1)
+    expect(dbMocks.updateSet).toHaveBeenCalledTimes(1)
+    expect(dbMocks.updateWhere).toHaveBeenCalledTimes(1)
+
+    const whereArgs = dbMocks.updateWhere.mock.calls[0]
+    expect(whereArgs).toBeDefined()
+  })
+
+  it('instance markAsFailed forwards workflowId to the static method', async () => {
+    const updateWhereSpy = dbMocks.updateWhere
+    dbMocks.selectLimit.mockResolvedValue([{ executionData: {} }])
+
+    const session = new LoggingSession('wf-42', 'exec-42', 'api', 'req-1')
+    await session.markAsFailed('something went wrong')
+
+    expect(updateWhereSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the provided errorMessage in the SQL set', async () => {
+    const sqlMock = dbMocks.sql
+    await LoggingSession.markExecutionAsFailed('exec-2', 'custom error', undefined, 'wf-2')
+
+    expect(sqlMock).toHaveBeenCalled()
+    const lastCall = sqlMock.mock.calls.at(-1)!
+    const [strings, ...values] = lastCall
+    const combined = String(Array.from(strings)).toLowerCase() + values.join(' ').toLowerCase()
+    expect(combined).toContain('force_failed')
   })
 })

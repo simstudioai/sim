@@ -23,6 +23,18 @@ export type StorageContext =
   | 'logs'
   | 'workspace-logos'
 
+/**
+ * Contexts exempt from storage quota checks — small metadata assets not managed
+ * by the user (profile pictures, logos, OG images). All other contexts represent
+ * user-driven uploads and must pass quota validation before upload is initiated.
+ */
+export const QUOTA_EXEMPT_STORAGE_CONTEXTS = new Set<StorageContext>([
+  'profile-pictures',
+  'workspace-logos',
+  'og-images',
+  'logs',
+])
+
 export interface FileInfo {
   path: string
   key: string
