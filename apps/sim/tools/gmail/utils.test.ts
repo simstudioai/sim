@@ -2,7 +2,18 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { encodeRfc2047 } from './utils'
+import {
+  buildMimeMessage,
+  buildSimpleEmailMessage,
+  encodeRfc2047,
+  escapeHtml,
+  htmlToPlainText,
+  plainTextToHtml,
+} from './utils'
+
+function decodeSimpleMessage(encoded: string): string {
+  return Buffer.from(encoded, 'base64url').toString('utf-8')
+}
 
 describe('encodeRfc2047', () => {
   it('returns ASCII text unchanged', () => {
@@ -32,5 +43,109 @@ describe('encodeRfc2047', () => {
   it('does not double-encode already-encoded subjects', () => {
     const alreadyEncoded = '=?UTF-8?B?VGltZSB0byBTdHJldGNoISDwn6eY?='
     expect(encodeRfc2047(alreadyEncoded)).toBe(alreadyEncoded)
+  })
+})
+
+describe('escapeHtml', () => {
+  it('escapes the five HTML special characters', () => {
+    expect(escapeHtml(`<script>alert("x & y's")</script>`)).toBe(
+      '&lt;script&gt;alert(&quot;x &amp; y&#39;s&quot;)&lt;/script&gt;'
+    )
+  })
+})
+
+describe('plainTextToHtml', () => {
+  it('renders blank lines as paragraph breaks and single newlines as <br>', () => {
+    const html = plainTextToHtml('Hi Janice,\n\nHope you are well.\nSecond line.')
+    expect(html).toContain('<p>Hi Janice,</p>')
+    expect(html).toContain('<p>Hope you are well.<br>Second line.</p>')
+  })
+
+  it('escapes HTML in the source text', () => {
+    expect(plainTextToHtml('<b>bold</b>')).toContain('&lt;b&gt;bold&lt;/b&gt;')
+  })
+})
+
+describe('htmlToPlainText', () => {
+  it('strips tags, decodes entities, and collapses whitespace', () => {
+    const result = htmlToPlainText('<p>Hi &amp; bye</p><p>Line<br>break</p>')
+    expect(result).toBe('Hi & bye\nLine\nbreak')
+  })
+
+  it('drops <style> and <script> contents', () => {
+    expect(htmlToPlainText('<style>p{}</style><p>Hi</p>')).toBe('Hi')
+  })
+})
+
+describe('buildSimpleEmailMessage', () => {
+  it('emits multipart/alternative with text/plain then text/html for plain-text input', () => {
+    const encoded = buildSimpleEmailMessage({
+      to: 'a@example.com',
+      subject: 'Hi',
+      body: 'Hi Janice,\n\nQuick question.',
+    })
+    const decoded = decodeSimpleMessage(encoded)
+    expect(decoded).toMatch(/Content-Type: multipart\/alternative; boundary="([^"]+)"/)
+    const plainIdx = decoded.indexOf('text/plain')
+    const htmlIdx = decoded.indexOf('text/html')
+    expect(plainIdx).toBeGreaterThan(-1)
+    expect(htmlIdx).toBeGreaterThan(plainIdx)
+    expect(decoded).toContain('Hi Janice,')
+    expect(decoded).toContain('<p>Hi Janice,</p>')
+  })
+
+  it('uses the supplied HTML body and derives a plain-text fallback when contentType is html', () => {
+    const encoded = buildSimpleEmailMessage({
+      to: 'a@example.com',
+      subject: 'Hi',
+      body: '<p>Hello <b>there</b></p>',
+      contentType: 'html',
+    })
+    const decoded = decodeSimpleMessage(encoded)
+    expect(decoded).toContain('<p>Hello <b>there</b></p>')
+    expect(decoded).toContain('Hello there')
+  })
+
+  it('includes threading headers when replying', () => {
+    const encoded = buildSimpleEmailMessage({
+      to: 'a@example.com',
+      body: 'reply',
+      inReplyTo: '<msg-1@example.com>',
+      references: '<root@example.com>',
+    })
+    const decoded = decodeSimpleMessage(encoded)
+    expect(decoded).toContain('In-Reply-To: <msg-1@example.com>')
+    expect(decoded).toContain('References: <root@example.com> <msg-1@example.com>')
+  })
+})
+
+describe('buildMimeMessage', () => {
+  it('nests multipart/alternative inside multipart/mixed when attachments are present', () => {
+    const message = buildMimeMessage({
+      to: 'a@example.com',
+      subject: 'Hi',
+      body: 'Hello',
+      attachments: [
+        {
+          filename: 'note.txt',
+          mimeType: 'text/plain',
+          content: Buffer.from('hi'),
+        },
+      ],
+    })
+    expect(message).toMatch(/Content-Type: multipart\/mixed; boundary="([^"]+)"/)
+    expect(message).toMatch(/Content-Type: multipart\/alternative; boundary="([^"]+)"/)
+    expect(message).toContain('Content-Disposition: attachment; filename="note.txt"')
+    expect(message).toContain('<p>Hello</p>')
+  })
+
+  it('emits multipart/alternative without multipart/mixed when no attachments', () => {
+    const message = buildMimeMessage({
+      to: 'a@example.com',
+      subject: 'Hi',
+      body: 'Hello',
+    })
+    expect(message).toMatch(/Content-Type: multipart\/alternative; boundary="([^"]+)"/)
+    expect(message).not.toContain('multipart/mixed')
   })
 })
