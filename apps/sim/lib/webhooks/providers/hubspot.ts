@@ -61,47 +61,53 @@ export const hubspotHandler: WebhookProviderHandler = {
       return null
     }
 
-    const version = (request.headers.get('x-hubspot-signature-version') ?? 'v1').toLowerCase()
-
-    if (version === 'v1') {
-      const signature = request.headers.get('x-hubspot-signature')
-      if (!signature) {
-        logger.warn(`[${requestId}] HubSpot webhook missing X-HubSpot-Signature header`)
-        return new NextResponse('Unauthorized - Missing HubSpot signature', { status: 401 })
-      }
-      if (!validateHubSpotV1(clientSecret, signature, rawBody)) {
-        logger.warn(`[${requestId}] HubSpot v1 signature verification failed`)
-        return new NextResponse('Unauthorized - Invalid HubSpot signature', { status: 401 })
-      }
-    } else if (version === 'v2') {
-      const signature = request.headers.get('x-hubspot-signature')
-      if (!signature) {
-        logger.warn(`[${requestId}] HubSpot webhook missing X-HubSpot-Signature header`)
-        return new NextResponse('Unauthorized - Missing HubSpot signature', { status: 401 })
-      }
-      if (!validateHubSpotV2(clientSecret, signature, request.method, request.url, rawBody)) {
-        logger.warn(`[${requestId}] HubSpot v2 signature verification failed`)
-        return new NextResponse('Unauthorized - Invalid HubSpot signature', { status: 401 })
-      }
-    } else if (version === 'v3') {
-      const signature = request.headers.get('x-hubspot-signature-v3')
-      const timestamp = request.headers.get('x-hubspot-signature-timestamp')
-      if (!signature || !timestamp) {
+    // v3 is identified by the presence of X-HubSpot-Signature-v3, not a version header
+    const v3Signature = request.headers.get('x-hubspot-signature-v3')
+    if (v3Signature) {
+      // HubSpot v3 sends the timestamp in X-HubSpot-Request-Timestamp
+      const timestamp = request.headers.get('x-hubspot-request-timestamp')
+      if (!timestamp) {
         logger.warn(
-          `[${requestId}] HubSpot webhook missing X-HubSpot-Signature-v3 or X-HubSpot-Signature-Timestamp header`
+          `[${requestId}] HubSpot webhook missing X-HubSpot-Request-Timestamp header for v3`
         )
-        return new NextResponse('Unauthorized - Missing HubSpot v3 signature headers', {
-          status: 401,
-        })
+        return new NextResponse('Unauthorized - Missing HubSpot v3 timestamp', { status: 401 })
       }
       if (Math.abs(Date.now() - Number(timestamp)) > FIVE_MINUTES_MS) {
         logger.warn(`[${requestId}] HubSpot webhook timestamp too old, possible replay attack`)
         return new NextResponse('Unauthorized - HubSpot timestamp expired', { status: 401 })
       }
       if (
-        !validateHubSpotV3(clientSecret, signature, request.method, request.url, rawBody, timestamp)
+        !validateHubSpotV3(
+          clientSecret,
+          v3Signature,
+          request.method,
+          request.url,
+          rawBody,
+          timestamp
+        )
       ) {
         logger.warn(`[${requestId}] HubSpot v3 signature verification failed`)
+        return new NextResponse('Unauthorized - Invalid HubSpot signature', { status: 401 })
+      }
+      return null
+    }
+
+    // v1/v2 are identified by X-HubSpot-Signature-Version (defaults to v1 when absent)
+    const version = (request.headers.get('x-hubspot-signature-version') ?? 'v1').toLowerCase()
+    const signature = request.headers.get('x-hubspot-signature')
+    if (!signature) {
+      logger.warn(`[${requestId}] HubSpot webhook missing X-HubSpot-Signature header`)
+      return new NextResponse('Unauthorized - Missing HubSpot signature', { status: 401 })
+    }
+
+    if (version === 'v1') {
+      if (!validateHubSpotV1(clientSecret, signature, rawBody)) {
+        logger.warn(`[${requestId}] HubSpot v1 signature verification failed`)
+        return new NextResponse('Unauthorized - Invalid HubSpot signature', { status: 401 })
+      }
+    } else if (version === 'v2') {
+      if (!validateHubSpotV2(clientSecret, signature, request.method, request.url, rawBody)) {
+        logger.warn(`[${requestId}] HubSpot v2 signature verification failed`)
         return new NextResponse('Unauthorized - Invalid HubSpot signature', { status: 401 })
       }
     } else {
