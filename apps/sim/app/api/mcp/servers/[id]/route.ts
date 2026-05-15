@@ -1,22 +1,15 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { updateMcpServerBodySchema } from '@/lib/api/contracts/mcp'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  McpDnsResolutionError,
-  McpDomainNotAllowedError,
-  McpSsrfError,
-  validateMcpDomain,
-  validateMcpServerSsrf,
-} from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
-import { mcpService } from '@/lib/mcp/service'
-import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import { performUpdateMcpServer } from '@/lib/mcp/orchestration'
+import {
+  createMcpErrorResponse,
+  createMcpSuccessResponse,
+  mcpOrchestrationStatus,
+} from '@/lib/mcp/utils'
 
 const logger = createLogger('McpServerAPI')
 
@@ -55,99 +48,32 @@ export const PATCH = withRouteHandler(
         // Remove workspaceId from body to prevent it from being updated
         const { workspaceId: _, ...updateData } = body
 
-        if (updateData.url) {
-          try {
-            validateMcpDomain(updateData.url)
-          } catch (e) {
-            if (e instanceof McpDomainNotAllowedError) {
-              return createMcpErrorResponse(e, e.message, 403)
-            }
-            throw e
-          }
-
-          try {
-            await validateMcpServerSsrf(updateData.url)
-          } catch (e) {
-            if (e instanceof McpDnsResolutionError) {
-              return createMcpErrorResponse(e, e.message, 502)
-            }
-            if (e instanceof McpSsrfError) {
-              return createMcpErrorResponse(e, e.message, 403)
-            }
-            throw e
-          }
-        }
-
-        // Get the current server to check if URL is changing
-        const [currentServer] = await db
-          .select({ url: mcpServers.url })
-          .from(mcpServers)
-          .where(
-            and(
-              eq(mcpServers.id, serverId),
-              eq(mcpServers.workspaceId, workspaceId),
-              isNull(mcpServers.deletedAt)
-            )
-          )
-          .limit(1)
-
-        const [updatedServer] = await db
-          .update(mcpServers)
-          .set({
-            ...updateData,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(mcpServers.id, serverId),
-              eq(mcpServers.workspaceId, workspaceId),
-              isNull(mcpServers.deletedAt)
-            )
-          )
-          .returning()
-
-        if (!updatedServer) {
-          return createMcpErrorResponse(
-            new Error('Server not found or access denied'),
-            'Server not found',
-            404
-          )
-        }
-
-        const shouldClearCache =
-          (body.url !== undefined && currentServer?.url !== body.url) ||
-          body.enabled !== undefined ||
-          body.headers !== undefined ||
-          body.timeout !== undefined ||
-          body.retries !== undefined
-
-        if (shouldClearCache) {
-          await mcpService.clearCache(workspaceId)
-          logger.info(`[${requestId}] Cleared MCP cache after server lifecycle update`)
-        }
-
-        logger.info(`[${requestId}] Successfully updated MCP server: ${serverId}`)
-
-        recordAudit({
+        const result = await performUpdateMcpServer({
           workspaceId,
-          actorId: userId,
+          userId,
           actorName: userName,
           actorEmail: userEmail,
-          action: AuditAction.MCP_SERVER_UPDATED,
-          resourceType: AuditResourceType.MCP_SERVER,
-          resourceId: serverId,
-          resourceName: updatedServer.name || serverId,
-          description: `Updated MCP server "${updatedServer.name || serverId}"`,
-          metadata: {
-            serverName: updatedServer.name,
-            transport: updatedServer.transport,
-            url: updatedServer.url,
-            updatedFields: Object.keys(updateData).filter(
-              (k) => k !== 'workspaceId' && k !== 'updatedAt'
-            ),
-          },
+          serverId,
+          name: updateData.name,
+          description: updateData.description,
+          transport: updateData.transport,
+          url: updateData.url,
+          headers: updateData.headers,
+          timeout: updateData.timeout,
+          retries: updateData.retries,
+          enabled: updateData.enabled,
           request,
         })
+        if (!result.success || !result.server) {
+          return createMcpErrorResponse(
+            new Error('Server not found or access denied'),
+            result.error || 'Server not found',
+            mcpOrchestrationStatus(result.errorCode)
+          )
+        }
+        const updatedServer = result.server
+
+        logger.info(`[${requestId}] Successfully updated MCP server: ${serverId}`)
 
         return createMcpSuccessResponse({ server: updatedServer })
       } catch (error) {

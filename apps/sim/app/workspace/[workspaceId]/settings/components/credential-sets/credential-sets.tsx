@@ -15,6 +15,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Skeleton,
@@ -778,6 +779,9 @@ export function CredentialSets() {
         <ModalContent size='sm'>
           <ModalHeader>Create Polling Group</ModalHeader>
           <ModalBody>
+            <ModalDescription className='sr-only'>
+              Create a new polling group for email accounts
+            </ModalDescription>
             <div className='flex flex-col gap-3'>
               <div className='flex flex-col gap-1'>
                 <Label>Name</Label>
@@ -850,13 +854,13 @@ export function CredentialSets() {
         <ModalContent size='sm'>
           <ModalHeader>Leave Polling Group</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to leave{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {leavingMembership?.name}
               </span>
               ? Your email account will no longer be polled in workflows using this group.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setLeavingMembership(null)}>
@@ -877,11 +881,11 @@ export function CredentialSets() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Polling Group</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{deletingSet?.name}</span>?{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setDeletingSet(null)}>

@@ -84,3 +84,4 @@ i18n.cache
 .claude/launch.json
 .claude/worktrees/
 .claude/scheduled_tasks.lock
+.deepsec/

@@ -7,15 +7,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Plus, Upload } from '@/components/emcn/icons'
+import { FolderPlus, Plus, Upload } from '@/components/emcn/icons'
 
 interface FilesListContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
   onClose: () => void
   onCreateFile?: () => void
+  onCreateFolder?: () => void
   onUploadFile?: () => void
   disableCreate?: boolean
+  disableCreateFolder?: boolean
   disableUpload?: boolean
 }
 
@@ -24,22 +26,18 @@ export const FilesListContextMenu = memo(function FilesListContextMenu({
   position,
   onClose,
   onCreateFile,
+  onCreateFolder,
   onUploadFile,
   disableCreate = false,
+  disableCreateFolder = false,
   disableUpload = false,
 }: FilesListContextMenuProps) {
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
         <div
-          style={{
-            position: 'fixed',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
+          className='pointer-events-none fixed size-px'
+          style={{ left: position.x, top: position.y }}
           tabIndex={-1}
           aria-hidden
         />
@@ -54,6 +52,12 @@ export const FilesListContextMenu = memo(function FilesListContextMenu({
           <DropdownMenuItem disabled={disableCreate} onSelect={onCreateFile}>
             <Plus />
             New file
+          </DropdownMenuItem>
+        )}
+        {onCreateFolder && (
+          <DropdownMenuItem disabled={disableCreateFolder} onSelect={onCreateFolder}>
+            <FolderPlus />
+            New folder
           </DropdownMenuItem>
         )}
         {onUploadFile && (

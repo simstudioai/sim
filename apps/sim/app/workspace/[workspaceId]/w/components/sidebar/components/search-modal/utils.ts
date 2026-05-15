@@ -32,6 +32,13 @@ export interface PageItem {
   hidden?: boolean
 }
 
+export interface FileItem {
+  id: string
+  name: string
+  href: string
+  folderPath?: string[]
+}
+
 export interface SearchModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -39,7 +46,7 @@ export interface SearchModalProps {
   workspaces?: WorkspaceItem[]
   tasks?: TaskItem[]
   tables?: TaskItem[]
-  files?: TaskItem[]
+  files?: FileItem[]
   knowledgeBases?: TaskItem[]
   isOnWorkflowPage?: boolean
 }

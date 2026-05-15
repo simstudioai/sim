@@ -74,6 +74,7 @@ async function insertFileMetadataHelper(
     key,
     userId: metadata.userId,
     workspaceId: metadata.workspaceId || null,
+    folderId: metadata.folderId || null,
     context,
     originalName: metadata.originalName || fileName,
     contentType,

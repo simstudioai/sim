@@ -166,6 +166,7 @@ export const normalizePresignedData = (data: unknown, context: string): Presigne
 interface GetPresignedOptions {
   endpoint: string
   file: File
+  body?: Record<string, unknown>
   signal?: AbortSignal
 }
 
@@ -176,7 +177,7 @@ interface GetPresignedOptions {
 export const getPresignedUploadInfo = async (
   opts: GetPresignedOptions
 ): Promise<PresignedUploadInfo> => {
-  const { endpoint, file, signal } = opts
+  const { endpoint, file, body, signal } = opts
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -184,6 +185,7 @@ export const getPresignedUploadInfo = async (
       fileName: file.name,
       contentType: getFileContentType(file),
       fileSize: file.size,
+      ...body,
     }),
     signal,
   })
@@ -538,6 +540,8 @@ export interface RunUploadStrategyOptions {
   presignedEndpoint?: string
   /** Pre-fetched presigned data (e.g. from a batch endpoint). Skips per-file fetch. */
   presignedOverride?: PresignedUploadInfo
+  /** Extra JSON body fields for the presigned endpoint. */
+  presignedBody?: Record<string, unknown>
   /** Required when context is `execution`; forwarded to the multipart route to scope the storage key. */
   workflowId?: string
   /** Required when context is `execution`; forwarded to the multipart route to scope the storage key. */
@@ -561,6 +565,7 @@ export const runUploadStrategy = async (
     file,
     presignedEndpoint,
     presignedOverride,
+    presignedBody,
     workspaceId,
     context,
     workflowId,
@@ -597,7 +602,12 @@ export const runUploadStrategy = async (
         'PRESIGNED_URL_ERROR'
       )
     }
-    presigned = await getPresignedUploadInfo({ endpoint: presignedEndpoint, file, signal })
+    presigned = await getPresignedUploadInfo({
+      endpoint: presignedEndpoint,
+      file,
+      body: presignedBody,
+      signal,
+    })
   }
 
   if (!presigned.directUploadSupported) {

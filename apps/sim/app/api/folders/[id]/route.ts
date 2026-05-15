@@ -9,8 +9,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performDeleteFolder } from '@/lib/workflows/orchestration'
-import { checkForCircularReference } from '@/lib/workflows/utils'
+import { performDeleteFolder, performUpdateFolder } from '@/lib/workflows/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersIDAPI')
@@ -81,39 +80,27 @@ export const PUT = withRouteHandler(
         await assertFolderMutable(parentId)
       }
 
-      // Prevent setting a folder as its own parent or creating circular references
-      if (parentId && parentId === id) {
-        return NextResponse.json({ error: 'Folder cannot be its own parent' }, { status: 400 })
+      const result = await performUpdateFolder({
+        folderId: id,
+        workspaceId: existingFolder.workspaceId,
+        userId: session.user.id,
+        name,
+        color,
+        isExpanded,
+        locked,
+        parentId,
+        sortOrder,
+      })
+
+      if (!result.success || !result.folder) {
+        const status =
+          result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
+        return NextResponse.json({ error: result.error }, { status })
       }
 
-      // Check for circular references if parentId is provided
-      if (parentId) {
-        const wouldCreateCycle = await checkForCircularReference(id, parentId)
-        if (wouldCreateCycle) {
-          return NextResponse.json(
-            { error: 'Cannot create circular folder reference' },
-            { status: 400 }
-          )
-        }
-      }
+      logger.info('Updated folder:', { id, updates: parsed.data.body })
 
-      const updates: Record<string, unknown> = { updatedAt: new Date() }
-      if (name !== undefined) updates.name = name.trim()
-      if (color !== undefined) updates.color = color
-      if (isExpanded !== undefined) updates.isExpanded = isExpanded
-      if (locked !== undefined) updates.locked = locked
-      if (parentId !== undefined) updates.parentId = parentId || null
-      if (sortOrder !== undefined) updates.sortOrder = sortOrder
-
-      const [updatedFolder] = await db
-        .update(workflowFolder)
-        .set(updates)
-        .where(eq(workflowFolder.id, id))
-        .returning()
-
-      logger.info('Updated folder:', { id, updates })
-
-      return NextResponse.json({ folder: updatedFolder })
+      return NextResponse.json({ folder: result.folder })
     } catch (error) {
       if (error instanceof FolderLockedError) {
         return NextResponse.json({ error: error.message }, { status: error.status })

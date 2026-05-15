@@ -1,5 +1,6 @@
 import { type SQL, sql } from 'drizzle-orm'
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -1167,6 +1168,46 @@ export const workspaceFile = pgTable(
   })
 )
 
+export const workspaceFileFolder = pgTable(
+  'workspace_file_folders',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    parentId: text('parent_id').references((): AnyPgColumn => workspaceFileFolder.id, {
+      onDelete: 'set null',
+    }),
+    sortOrder: integer('sort_order').notNull().default(0),
+    deletedAt: timestamp('deleted_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceParentIdx: index('workspace_file_folders_workspace_parent_idx').on(
+      table.workspaceId,
+      table.parentId
+    ),
+    parentSortIdx: index('workspace_file_folders_parent_sort_idx').on(
+      table.parentId,
+      table.sortOrder
+    ),
+    deletedAtIdx: index('workspace_file_folders_deleted_at_idx').on(table.deletedAt),
+    workspaceDeletedAtPartialIdx: index('workspace_file_folders_workspace_deleted_partial_idx')
+      .on(table.workspaceId, table.deletedAt)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
+    workspaceParentNameActiveUnique: uniqueIndex(
+      'workspace_file_folders_workspace_parent_name_active_unique'
+    )
+      .on(table.workspaceId, sql`coalesce(${table.parentId}, '')`, table.name)
+      .where(sql`${table.deletedAt} IS NULL`),
+  })
+)
+
 export const workspaceFiles = pgTable(
   'workspace_files',
   {
@@ -1176,6 +1217,9 @@ export const workspaceFiles = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    folderId: text('folder_id').references(() => workspaceFileFolder.id, {
+      onDelete: 'set null',
+    }),
     context: text('context').notNull(), // 'workspace', 'mothership', 'copilot', 'chat', 'knowledge-base', 'profile-pictures', 'general', 'execution'
     chatId: uuid('chat_id').references(() => copilotChats.id, { onDelete: 'cascade' }),
     originalName: text('original_name').notNull(),
@@ -1199,9 +1243,10 @@ export const workspaceFiles = pgTable(
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
       .on(table.key)
       .where(sql`${table.deletedAt} IS NULL`),
-    /** One active display name per workspace for workspace-scoped files (VFS / file picker). */
-    workspaceOriginalNameActiveUnique: uniqueIndex('workspace_files_workspace_name_active_unique')
-      .on(table.workspaceId, table.originalName)
+    workspaceFolderOriginalNameActiveUnique: uniqueIndex(
+      'workspace_files_workspace_folder_name_active_unique'
+    )
+      .on(table.workspaceId, sql`coalesce(${table.folderId}, '')`, table.originalName)
       .where(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
       ),
@@ -1219,6 +1264,7 @@ export const workspaceFiles = pgTable(
     keyIdx: index('workspace_files_key_idx').on(table.key),
     userIdIdx: index('workspace_files_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workspace_files_workspace_id_idx').on(table.workspaceId),
+    folderIdIdx: index('workspace_files_folder_id_idx').on(table.folderId),
     contextIdx: index('workspace_files_context_idx').on(table.context),
     chatIdIdx: index('workspace_files_chat_id_idx').on(table.chatId),
     deletedAtIdx: index('workspace_files_deleted_at_idx').on(table.deletedAt),

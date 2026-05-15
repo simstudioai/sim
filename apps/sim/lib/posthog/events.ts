@@ -289,6 +289,20 @@ export interface PostHogEventMap {
     file_type: string
   }
 
+  file_deleted: {
+    workspace_id: string
+  }
+
+  file_renamed: {
+    workspace_id: string
+  }
+
+  file_moved: {
+    workspace_id: string
+    file_count: number
+    folder_count: number
+  }
+
   api_key_created: {
     workspace_id: string
     key_name: string
@@ -498,6 +512,22 @@ export interface PostHogEventMap {
 
   folder_deleted: {
     workspace_id: string
+  }
+
+  folder_renamed: {
+    workspace_id: string
+  }
+
+  folder_moved: {
+    workspace_id: string
+    file_count: number
+    folder_count: number
+  }
+
+  file_bulk_deleted: {
+    workspace_id: string
+    file_count: number
+    folder_count: number
   }
 
   folder_restored: {

@@ -157,16 +157,12 @@ export interface CheckDeploymentStatusParams {
 
 export interface ListWorkspaceMcpServersParams {
   workspaceId?: string
-  workflowId?: string
 }
 
 export interface CreateWorkspaceMcpServerParams {
-  workflowId?: string
+  workspaceId?: string
   name?: string
   description?: string
-  toolName?: string
-  toolDescription?: string
-  serverName?: string
   isPublic?: boolean
   workflowIds?: string[]
 }

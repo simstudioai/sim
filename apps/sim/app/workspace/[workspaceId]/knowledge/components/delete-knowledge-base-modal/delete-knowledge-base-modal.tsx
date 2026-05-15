@@ -1,7 +1,15 @@
 'use client'
 
 import { memo } from 'react'
-import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
+import {
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn'
 
 interface DeleteKnowledgeBaseModalProps {
   /**
@@ -42,7 +50,7 @@ export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
       <ModalContent size='sm'>
         <ModalHeader>Delete Knowledge Base</ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
+          <ModalDescription className='text-[var(--text-secondary)]'>
             {knowledgeBaseName ? (
               <>
                 Are you sure you want to delete{' '}
@@ -60,7 +68,7 @@ export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
               </>
             )}{' '}
             You can restore it from Recently Deleted in Settings.
-          </p>
+          </ModalDescription>
         </ModalBody>
         <ModalFooter>
           <Button variant='default' onClick={onClose} disabled={isDeleting}>

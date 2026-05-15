@@ -59,7 +59,17 @@ const FileAttachmentSchema = z.object({
 })
 
 const ResourceAttachmentSchema = z.object({
-  type: z.enum(['workflow', 'table', 'file', 'knowledgebase', 'folder', 'task', 'log', 'generic']),
+  type: z.enum([
+    'workflow',
+    'table',
+    'file',
+    'knowledgebase',
+    'folder',
+    'filefolder',
+    'task',
+    'log',
+    'generic',
+  ]),
   id: z.string().min(1),
   title: z.string().optional(),
   active: z.boolean().optional(),
@@ -71,6 +81,7 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   file: 'File',
   knowledgebase: 'Knowledge Base',
   folder: 'Folder',
+  filefolder: 'File Folder',
   task: 'Task',
   log: 'Log',
   generic: 'Resource',
@@ -90,6 +101,7 @@ const ChatContextSchema = z.object({
     'table',
     'file',
     'folder',
+    'filefolder',
   ]),
   label: z.string(),
   chatId: z.string().optional(),
@@ -102,6 +114,7 @@ const ChatContextSchema = z.object({
   tableId: z.string().optional(),
   fileId: z.string().optional(),
   folderId: z.string().optional(),
+  fileFolderId: z.string().optional(),
 })
 
 const ChatMessageSchema = z.object({
@@ -871,6 +884,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           persistedMessagesPromise,
           executionContextPromise,
         ])
+
+      executionContext.userPermission = userPermission ?? undefined
 
       if (persistedMessages) {
         conversationHistory = persistedMessages.filter((message) => {

@@ -153,7 +153,10 @@ export function createFileContent(fileBuffer: Buffer, mimeType: string): Message
 /**
  * Create message content from base64-encoded file data.
  */
-export function createFileContentFromBase64(base64: string, mimeType: string): MessageContent | null {
+export function createFileContentFromBase64(
+  base64: string,
+  mimeType: string
+): MessageContent | null {
   // SVG is XML text — Claude only supports raster image formats (JPEG, PNG, GIF, WebP),
   // so send SVGs as an XML document instead
   if (mimeType.toLowerCase() === 'image/svg+xml') {

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import { DownloadToWorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -136,6 +137,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
     try {
       assertServerToolNotAborted(context)

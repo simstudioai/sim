@@ -9,6 +9,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
@@ -838,6 +839,10 @@ try {
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>
+              <ModalDescription className='sr-only'>
+                Create or edit a custom agent tool by defining its JSON schema and implementation
+                code.
+              </ModalDescription>
               <ModalTabsContent value='schema'>
                 <div className='mb-1 flex min-h-6 items-center justify-between gap-2'>
                   <div className='flex min-w-0 items-center gap-2'>
@@ -1190,13 +1195,13 @@ try {
         <ModalContent size='sm'>
           <ModalHeader>Delete Custom Tool</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               <span className='text-[var(--text-error)]'>
                 This will permanently delete the tool and remove it from any workflows that are
                 using it.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button
@@ -1221,10 +1226,10 @@ try {
         <ModalContent size='sm'>
           <ModalHeader>Unsaved Changes</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               You have unsaved changes to this tool. Are you sure you want to discard your changes
               and close the editor?
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowDiscardAlert(false)}>

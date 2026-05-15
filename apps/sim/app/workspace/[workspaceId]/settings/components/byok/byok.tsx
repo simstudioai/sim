@@ -10,6 +10,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
@@ -323,10 +324,10 @@ export function BYOK() {
             )}
           </ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               This key will be used for all {PROVIDERS.find((p) => p.id === editingProvider)?.name}{' '}
               requests in this workspace. Your key is encrypted and stored securely.
-            </p>
+            </ModalDescription>
 
             <div className='mt-4 flex flex-col gap-2'>
               <p className='font-medium text-[var(--text-secondary)] text-sm'>Enter your API key</p>
@@ -406,7 +407,7 @@ export function BYOK() {
         <ModalContent size='sm'>
           <ModalHeader>Delete API Key</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete the{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {PROVIDERS.find((p) => p.id === deleteConfirmProvider)?.name}
@@ -416,7 +417,7 @@ export function BYOK() {
                 This workspace will revert to using platform hosted keys.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setDeleteConfirmProvider(null)}>

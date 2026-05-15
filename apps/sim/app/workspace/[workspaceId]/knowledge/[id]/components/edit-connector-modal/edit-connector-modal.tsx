@@ -14,6 +14,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
@@ -216,6 +217,9 @@ export function EditConnectorModal({
             Edit {displayName}
           </div>
         </ModalHeader>
+        <ModalDescription className='sr-only'>
+          Configure settings and manage documents for this connector
+        </ModalDescription>
 
         <ModalTabs value={activeTab} onValueChange={setActiveTab}>
           <ModalTabsList>

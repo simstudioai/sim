@@ -631,7 +631,7 @@ const STATIC_MARKDOWN_COMPONENTS = {
     </div>
   ),
   thead: ({ children }: { children?: React.ReactNode }) => (
-    <thead className='bg-[var(--surface-2)]'>{children}</thead>
+    <thead className='bg-[var(--surface-3)]'>{children}</thead>
   ),
   tbody: ({ children }: { children?: React.ReactNode }) => <tbody>{children}</tbody>,
   tr: ({ children }: { children?: React.ReactNode }) => (

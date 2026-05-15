@@ -18,6 +18,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   MoreHorizontal,
@@ -452,6 +453,9 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
       <ModalContent size='md' className='max-h-[76vh]'>
         <ModalHeader>New data drain</ModalHeader>
         <ModalBody className='flex min-h-0 flex-1 flex-col gap-3'>
+          <ModalDescription className='sr-only'>
+            Configure a new data drain to export workflow logs to an external destination
+          </ModalDescription>
           <section className='flex flex-col gap-3'>
             <FormField label='Name'>
               <Input

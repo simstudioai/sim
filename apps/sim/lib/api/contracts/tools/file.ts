@@ -27,18 +27,27 @@ export const fileManageGetBodySchema = z
     operation: z.literal('get'),
     workspaceId: z.string().min(1).optional(),
     fileId: z.string().min(1).optional(),
-    fileInput: z.any().optional(),
+    fileInput: z.unknown().optional(),
   })
   .refine((data) => data.fileId !== undefined || data.fileInput !== undefined, {
     message: 'Either fileId or fileInput is required for get operation',
   })
+
+export const fileManageMoveBodySchema = z.object({
+  operation: z.literal('move'),
+  workspaceId: z.string().min(1).optional(),
+  fileId: z.string().min(1, 'fileId is required for move operation'),
+  targetFolder: z.string().optional().default(''),
+})
+
+export type FileManageMoveBody = z.input<typeof fileManageMoveBodySchema>
 
 export const fileManageReadBodySchema = z
   .object({
     operation: z.literal('read'),
     workspaceId: z.string().min(1).optional(),
     fileId: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
-    fileInput: z.any().optional(),
+    fileInput: z.unknown().optional(),
   })
   .refine((data) => data.fileId !== undefined || data.fileInput !== undefined, {
     message: 'Either fileId or fileInput is required for read operation',
@@ -48,6 +57,7 @@ export const fileManageBodySchema = z.union([
   fileManageWriteBodySchema,
   fileManageAppendBodySchema,
   fileManageGetBodySchema,
+  fileManageMoveBodySchema,
   fileManageReadBodySchema,
 ])
 

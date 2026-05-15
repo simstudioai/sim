@@ -1,20 +1,24 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
+import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
-  deleteWorkspaceFile,
   fetchWorkspaceFileBuffer as downloadWsFile,
   getWorkspaceFile,
   getWorkspaceFileByName,
-  renameWorkspaceFile,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  performDeleteWorkspaceFileItems,
+  performRenameWorkspaceFile,
+} from '@/lib/workspace-files/orchestration'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import { storeFileIntent } from './file-intent-store'
 
@@ -96,10 +100,29 @@ export function inferContentType(fileName: string, explicitType?: string): strin
 export function validateFlatWorkspaceFileName(fileName: string): string | null {
   const trimmed = fileName.trim()
   if (!trimmed) return 'File name cannot be empty'
-  if (trimmed.includes('/')) {
-    return 'Workspace files use a flat namespace. Use a plain file name like "report.csv", not a path like "files/reports/report.csv".'
+  const segments = trimmed.split('/').map((segment) => segment.trim())
+  if (segments.some((segment) => !segment)) {
+    return 'File path cannot contain empty segments'
+  }
+  if (segments.some((segment) => segment === '.' || segment === '..' || segment.includes('\\'))) {
+    return 'File path cannot contain dot segments or backslashes'
   }
   return null
+}
+
+export function splitWorkspaceFilePath(fileName: string): {
+  folderSegments: string[]
+  leafName: string
+} {
+  const segments = fileName
+    .trim()
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+  return {
+    folderSegments: segments.slice(0, -1),
+    leafName: segments[segments.length - 1] ?? '',
+  }
 }
 
 export interface DocumentFormatInfo {
@@ -176,6 +199,8 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
     }
 
     try {
+      await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+
       switch (operation) {
         case 'create': {
           const target = normalized.target
@@ -186,15 +211,21 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
-          const fileName = target.fileName
+          const { folderSegments, leafName } = splitWorkspaceFilePath(target.fileName)
+          const fileName = leafName
           const content = normalized.content ?? ''
           const explicitType = normalized.contentType
-          const fileNameValidationError = validateFlatWorkspaceFileName(fileName)
+          const fileNameValidationError = validateFlatWorkspaceFileName(target.fileName)
           if (fileNameValidationError) return { success: false, message: fileNameValidationError }
 
-          const existingFile = await getWorkspaceFileByName(workspaceId, fileName)
+          const folderId = await ensureWorkspaceFileFolderPath({
+            workspaceId,
+            userId: context.userId,
+            pathSegments: folderSegments,
+          })
+          const existingFile = await getWorkspaceFileByName(workspaceId, fileName, { folderId })
           if (existingFile) {
-            return { success: false, message: `File "${fileName}" already exists` }
+            return { success: false, message: `File "${target.fileName}" already exists` }
           }
 
           const docInfo = getDocumentFormatInfo(fileName)
@@ -223,7 +254,8 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             context.userId,
             fileBuffer,
             fileName,
-            contentType
+            contentType,
+            { folderId }
           )
 
           logger.info('Workspace file created via copilot', {
@@ -354,7 +386,15 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
           const oldName = fileRecord.name
           assertServerToolNotAborted(context)
-          await renameWorkspaceFile(workspaceId, target.fileId, normalized.newName)
+          const result = await performRenameWorkspaceFile({
+            workspaceId,
+            fileId: target.fileId,
+            name: normalized.newName,
+            userId: context.userId,
+          })
+          if (!result.success) {
+            return { success: false, message: result.error || 'Failed to rename file' }
+          }
 
           logger.info('Workspace file renamed via copilot', {
             fileId: target.fileId,
@@ -385,7 +425,14 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
 
           assertServerToolNotAborted(context)
-          await deleteWorkspaceFile(workspaceId, target.fileId)
+          const result = await performDeleteWorkspaceFileItems({
+            workspaceId,
+            userId: context.userId,
+            fileIds: [target.fileId],
+          })
+          if (!result.success) {
+            return { success: false, message: result.error || 'Failed to delete file' }
+          }
 
           logger.info('Workspace file deleted via copilot', {
             fileId: target.fileId,

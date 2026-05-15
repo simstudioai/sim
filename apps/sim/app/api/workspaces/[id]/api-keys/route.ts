@@ -2,7 +2,6 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -10,8 +9,8 @@ import {
   deleteWorkspaceApiKeysContract,
 } from '@/lib/api/contracts/api-keys'
 import { parseRequest } from '@/lib/api/server'
-import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
-import { hashApiKey } from '@/lib/api-key/crypto'
+import { getApiKeyDisplayFormat } from '@/lib/api-key/auth'
+import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -106,60 +105,17 @@ export const POST = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { name, source } = parsed.data.body
 
-      const existingKey = await db
-        .select()
-        .from(apiKey)
-        .where(
-          and(
-            eq(apiKey.workspaceId, workspaceId),
-            eq(apiKey.name, name),
-            eq(apiKey.type, 'workspace')
-          )
-        )
-        .limit(1)
-
-      if (existingKey.length > 0) {
-        return NextResponse.json(
-          {
-            error: `A workspace API key named "${name}" already exists. Please choose a different name.`,
-          },
-          { status: 409 }
-        )
-      }
-
-      const { key: plainKey, encryptedKey } = await createApiKey(true)
-
-      if (!encryptedKey) {
-        throw new Error('Failed to encrypt API key for storage')
-      }
-
-      const [newKey] = await db
-        .insert(apiKey)
-        .values({
-          id: generateShortId(),
-          workspaceId,
-          userId: userId,
-          createdBy: userId,
-          name,
-          key: encryptedKey,
-          keyHash: hashApiKey(plainKey),
-          type: 'workspace',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .returning({
-          id: apiKey.id,
-          name: apiKey.name,
-          createdAt: apiKey.createdAt,
-        })
-
-      try {
-        PlatformEvents.apiKeyGenerated({
-          userId: userId,
-          keyName: name,
-        })
-      } catch {
-        // Telemetry should not fail the operation
+      const result = await performCreateWorkspaceApiKey({
+        workspaceId,
+        userId,
+        name,
+        source,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+      })
+      if (!result.success || !result.key) {
+        const status = result.errorCode === 'conflict' ? 409 : 500
+        return NextResponse.json({ error: result.error }, { status })
       }
 
       captureServerEvent(
@@ -174,25 +130,8 @@ export const POST = withRouteHandler(
 
       logger.info(`[${requestId}] Created workspace API key: ${name} in workspace ${workspaceId}`)
 
-      recordAudit({
-        workspaceId,
-        actorId: userId,
-        actorName: session?.user?.name,
-        actorEmail: session?.user?.email,
-        action: AuditAction.API_KEY_CREATED,
-        resourceType: AuditResourceType.API_KEY,
-        resourceId: newKey.id,
-        resourceName: name,
-        description: `Created API key "${name}"`,
-        metadata: { keyName: name, keyType: 'workspace', source: source ?? 'settings' },
-        request,
-      })
-
       return NextResponse.json({
-        key: {
-          ...newKey,
-          key: plainKey,
-        },
+        key: result.key,
       })
     } catch (error: unknown) {
       logger.error(`[${requestId}] Workspace API key POST error`, error)

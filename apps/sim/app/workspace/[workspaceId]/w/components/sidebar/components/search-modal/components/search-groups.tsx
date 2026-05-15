@@ -3,16 +3,17 @@
 import type { ComponentType } from 'react'
 import { memo } from 'react'
 import { Command } from 'cmdk'
-import { Database, File, Table } from '@/components/emcn/icons'
+import { Database, Table } from '@/components/emcn/icons'
 import type {
   SearchBlockItem,
   SearchDocItem,
   SearchToolOperationItem,
 } from '@/stores/modals/search/types'
-import type { PageItem, TaskItem, WorkflowItem, WorkspaceItem } from '../utils'
+import type { FileItem, PageItem, TaskItem, WorkflowItem, WorkspaceItem } from '../utils'
 import { GROUP_HEADING_CLASSNAME } from '../utils'
 import {
   MemoizedCommandItem,
+  MemoizedFileItem,
   MemoizedIconItem,
   MemoizedPageItem,
   MemoizedTaskItem,
@@ -245,8 +246,30 @@ export const PagesGroup = memo(function PagesGroup({
 })
 
 export const TablesGroup = createIconGroup('Tables', 'table', Table)
-export const FilesGroup = createIconGroup('Files', 'file', File)
 export const KnowledgeBasesGroup = createIconGroup('Knowledge Bases', 'knowledge-base', Database)
+
+export const FilesGroup = memo(function FilesGroup({
+  items,
+  onSelect,
+}: {
+  items: FileItem[]
+  onSelect: (file: FileItem) => void
+}) {
+  if (items.length === 0) return null
+  return (
+    <Command.Group heading='Files' className={GROUP_HEADING_CLASSNAME}>
+      {items.map((file) => (
+        <MemoizedFileItem
+          key={file.id}
+          value={`${file.name} ${file.folderPath?.join(' / ') ?? ''} file-${file.id}`}
+          onSelect={() => onSelect(file)}
+          name={file.name}
+          folderPath={file.folderPath}
+        />
+      ))}
+    </Command.Group>
+  )
+})
 
 function createIconGroup(
   heading: string,

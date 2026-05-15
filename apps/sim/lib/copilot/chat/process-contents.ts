@@ -36,6 +36,7 @@ type AgentContextType =
   | 'workflow_block'
   | 'docs'
   | 'folder'
+  | 'filefolder'
   | 'active_resource'
 
 interface AgentContext {
@@ -130,6 +131,15 @@ export async function processContextsServer(
         const result = await resolveFolderResource(ctx.folderId, currentWorkspaceId)
         if (!result) return null
         return { type: 'folder', tag: ctx.label ? `@${ctx.label}` : '@', content: result.content }
+      }
+      if (ctx.kind === 'filefolder' && ctx.fileFolderId && currentWorkspaceId) {
+        const result = await resolveFileFolderResource(ctx.fileFolderId, currentWorkspaceId)
+        if (!result) return null
+        return {
+          type: 'filefolder',
+          tag: ctx.label ? `@${ctx.label}` : '@',
+          content: result.content,
+        }
       }
       if (ctx.kind === 'docs') {
         try {
@@ -737,6 +747,9 @@ export async function resolveActiveResourceContext(
       case 'folder': {
         return await resolveFolderResource(resourceId, workspaceId)
       }
+      case 'filefolder': {
+        return await resolveFileFolderResource(resourceId, workspaceId)
+      }
       default:
         return null
     }
@@ -775,6 +788,49 @@ async function resolveFileResource(
       size: record.size,
       uploadedAt: record.uploadedAt,
     }),
+  }
+}
+
+async function resolveFileFolderResource(
+  folderId: string,
+  workspaceId: string
+): Promise<AgentContext | null> {
+  try {
+    const { workspaceFileFolder, workspaceFiles } = await import('@sim/db/schema')
+    const [folder] = await db
+      .select({ id: workspaceFileFolder.id, name: workspaceFileFolder.name })
+      .from(workspaceFileFolder)
+      .where(
+        and(
+          eq(workspaceFileFolder.id, folderId),
+          eq(workspaceFileFolder.workspaceId, workspaceId),
+          isNull(workspaceFileFolder.deletedAt)
+        )
+      )
+      .limit(1)
+    if (!folder) return null
+
+    const files = await db
+      .select({
+        name: workspaceFiles.originalName,
+        type: workspaceFiles.contentType,
+      })
+      .from(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.folderId, folderId),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+
+    const fileList = files.map((f) => `- ${f.name}${f.type ? ` (${f.type})` : ''}`).join('\n')
+    const content = `File Folder: ${folder.name} (id: ${folder.id})\nFiles:\n${fileList || '(empty)'}`
+
+    return { type: 'active_resource', tag: '@active_resource', content }
+  } catch (error) {
+    logger.error('Failed to resolve file folder resource', { folderId, error })
+    return null
   }
 }
 

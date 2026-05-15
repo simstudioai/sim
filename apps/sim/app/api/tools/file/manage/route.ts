@@ -3,17 +3,20 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { splitWorkspaceFilePath } from '@/lib/copilot/tools/server/files/workspace-file'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
-  getWorkspaceFileByName,
+  resolveWorkspaceFileReference,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { performMoveWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
@@ -143,11 +146,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const selectedFileId =
           fileId ||
           (fileInput && typeof fileInput === 'object' && !Array.isArray(fileInput)
-            ? typeof fileInput.id === 'string'
-              ? fileInput.id
-              : typeof fileInput.fileId === 'string'
-                ? fileInput.fileId
-                : ''
+            ? (() => {
+                const obj = fileInput as Record<string, unknown>
+                return typeof obj.id === 'string'
+                  ? obj.id
+                  : typeof obj.fileId === 'string'
+                    ? obj.fileId
+                    : ''
+              })()
             : '')
 
         if (!selectedFileId) {
@@ -222,14 +228,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       case 'write': {
         const { fileName, content, contentType } = body
-        const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(fileName))
+        const { folderSegments, leafName } = splitWorkspaceFilePath(fileName)
+        const folderId = await ensureWorkspaceFileFolderPath({
+          workspaceId,
+          userId,
+          pathSegments: folderSegments,
+        })
+        const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(leafName))
         const fileBuffer = Buffer.from(content ?? '', 'utf-8')
         const result = await uploadWorkspaceFile(
           workspaceId,
           userId,
           fileBuffer,
-          fileName,
-          mimeType
+          leafName,
+          mimeType,
+          { folderId }
         )
 
         logger.info('File created', {
@@ -249,10 +262,50 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
       }
 
+      case 'move': {
+        const { fileId, targetFolder } = body
+        const pathSegments = targetFolder.trim()
+          ? targetFolder
+              .trim()
+              .split('/')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : []
+        const targetFolderId = await ensureWorkspaceFileFolderPath({
+          workspaceId,
+          userId,
+          pathSegments,
+        })
+        const moveResult = await performMoveWorkspaceFileItems({
+          workspaceId,
+          userId,
+          fileIds: [fileId],
+          targetFolderId,
+        })
+        if (!moveResult.success) {
+          return NextResponse.json(
+            { success: false, error: moveResult.error },
+            {
+              status:
+                moveResult.errorCode === 'conflict'
+                  ? 409
+                  : moveResult.errorCode === 'not_found'
+                    ? 404
+                    : 400,
+            }
+          )
+        }
+        logger.info('File moved', { fileId, targetFolder: targetFolder || '(root)' })
+        return NextResponse.json({
+          success: true,
+          data: { fileId, targetFolder: targetFolder || '(root)' },
+        })
+      }
+
       case 'append': {
         const { fileName, content } = body
 
-        const existing = await getWorkspaceFileByName(workspaceId, fileName)
+        const existing = await resolveWorkspaceFileReference(workspaceId, fileName)
         if (!existing) {
           return NextResponse.json(
             { success: false, error: `File not found: "${fileName}"` },

@@ -27,6 +27,7 @@ import { taskKeys } from '@/hooks/queries/tasks'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { useWorkflows } from '@/hooks/queries/workflows'
+import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 interface DropdownItemRenderProps {
@@ -180,6 +181,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={FolderIcon} />,
   },
+  filefolder: {
+    type: 'filefolder',
+    label: 'File Folders',
+    icon: FolderIcon,
+    renderTabIcon: (_resource, className) => (
+      <FolderIcon className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={FolderIcon} />,
+  },
   task: {
     type: 'task',
     label: 'Tasks',
@@ -231,6 +241,9 @@ const RESOURCE_INVALIDATORS: Record<
   },
   folder: (qc) => {
     qc.invalidateQueries({ queryKey: folderKeys.lists() })
+  },
+  filefolder: (qc, wId) => {
+    qc.invalidateQueries({ queryKey: workspaceFileFolderKeys.workspaceLists(wId) })
   },
   task: (qc, wId) => {
     qc.invalidateQueries({ queryKey: taskKeys.list(wId) })

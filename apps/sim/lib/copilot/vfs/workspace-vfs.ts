@@ -63,6 +63,7 @@ import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/ru
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { listTables } from '@/lib/table/service'
+import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
   findWorkspaceFileRecord,
@@ -866,11 +867,19 @@ export class WorkspaceVFS {
 
       for (const file of files) {
         const safeName = sanitizeName(file.name)
+        const safeFolderPath = file.folderPath
+          ?.split('/')
+          .map((segment) => sanitizeName(segment))
+          .join('/')
+        const fileVfsPath = safeFolderPath ? `${safeFolderPath}/${safeName}` : safeName
         this.files.set(
-          `files/${safeName}/meta.json`,
+          `files/${fileVfsPath}/meta.json`,
           serializeFileMeta({
             id: file.id,
             name: file.name,
+            folderId: file.folderId,
+            folderPath: file.folderPath,
+            vfsPath: `files/${fileVfsPath}`,
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
@@ -881,6 +890,9 @@ export class WorkspaceVFS {
           serializeFileMeta({
             id: file.id,
             name: file.name,
+            folderId: file.folderId,
+            folderPath: file.folderPath,
+            vfsPath: `files/${fileVfsPath}`,
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,
@@ -888,7 +900,13 @@ export class WorkspaceVFS {
         )
       }
 
-      return files.map((f) => ({ id: f.id, name: f.name, type: f.type, size: f.size }))
+      return files.map((f) => ({
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        size: f.size,
+        folderPath: f.folderPath ?? null,
+      }))
     } catch (err) {
       logger.warn('Failed to materialize files', {
         workspaceId,
@@ -1344,23 +1362,30 @@ export class WorkspaceVFS {
 
   private async materializeRecentlyDeleted(workspaceId: string, userId: string): Promise<void> {
     try {
-      const [archivedWorkflows, archivedFolders, archivedTables, archivedFiles, archivedKBs] =
-        await Promise.all([
-          listWorkflows(workspaceId, { scope: 'archived' }),
-          db
-            .select({
-              id: workflowFolder.id,
-              name: workflowFolder.name,
-              archivedAt: workflowFolder.archivedAt,
-            })
-            .from(workflowFolder)
-            .where(
-              and(eq(workflowFolder.workspaceId, workspaceId), isNotNull(workflowFolder.archivedAt))
-            ),
-          listTables(workspaceId, { scope: 'archived' }),
-          listWorkspaceFiles(workspaceId, { scope: 'archived' }),
-          getKnowledgeBases(userId, workspaceId, 'archived'),
-        ])
+      const [
+        archivedWorkflows,
+        archivedFolders,
+        archivedTables,
+        archivedFiles,
+        archivedFileFolders,
+        archivedKBs,
+      ] = await Promise.all([
+        listWorkflows(workspaceId, { scope: 'archived' }),
+        db
+          .select({
+            id: workflowFolder.id,
+            name: workflowFolder.name,
+            archivedAt: workflowFolder.archivedAt,
+          })
+          .from(workflowFolder)
+          .where(
+            and(eq(workflowFolder.workspaceId, workspaceId), isNotNull(workflowFolder.archivedAt))
+          ),
+        listTables(workspaceId, { scope: 'archived' }),
+        listWorkspaceFiles(workspaceId, { scope: 'archived' }),
+        listWorkspaceFileFolders(workspaceId, { scope: 'archived' }),
+        getKnowledgeBases(userId, workspaceId, 'archived'),
+      ])
 
       for (const wf of archivedWorkflows) {
         const safeName = sanitizeName(wf.name)
@@ -1399,13 +1424,43 @@ export class WorkspaceVFS {
         )
       }
 
+      for (const folder of archivedFileFolders) {
+        const safePath = folder.path
+          .split('/')
+          .map((segment) => sanitizeName(segment))
+          .join('/')
+        this.files.set(
+          `recently-deleted/file-folders/${safePath}/meta.json`,
+          JSON.stringify(
+            {
+              id: folder.id,
+              name: folder.name,
+              parentId: folder.parentId,
+              path: folder.path,
+              deletedAt: folder.deletedAt,
+              type: 'file_folder',
+            },
+            null,
+            2
+          )
+        )
+      }
+
       for (const file of archivedFiles) {
         const safeName = sanitizeName(file.name)
+        const safeFolderPath = file.folderPath
+          ?.split('/')
+          .map((segment) => sanitizeName(segment))
+          .join('/')
+        const fileVfsPath = safeFolderPath ? `${safeFolderPath}/${safeName}` : safeName
         this.files.set(
-          `recently-deleted/files/${safeName}/meta.json`,
+          `recently-deleted/files/${fileVfsPath}/meta.json`,
           serializeFileMeta({
             id: file.id,
             name: file.name,
+            folderId: file.folderId,
+            folderPath: file.folderPath,
+            vfsPath: `recently-deleted/files/${fileVfsPath}`,
             contentType: file.type,
             size: file.size,
             uploadedAt: file.uploadedAt,

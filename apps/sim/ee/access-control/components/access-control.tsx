@@ -15,6 +15,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
@@ -134,6 +135,9 @@ function AddMembersModal({
       <ModalContent size='sm'>
         <ModalHeader>Add Members</ModalHeader>
         <ModalBody className='!pb-4'>
+          <ModalDescription className='sr-only'>
+            Search and select workspace members to add to this permission group
+          </ModalDescription>
           {availableMembers.length === 0 ? (
             <p className='text-[var(--text-muted)] text-sm'>
               All workspace members are already in this group.
@@ -904,6 +908,10 @@ export function AccessControl() {
               </ModalTabsList>
 
               <ModalBody className='min-h-0 flex-1'>
+                <ModalDescription className='sr-only'>
+                  Configure model provider, block, and platform permissions for this permission
+                  group
+                </ModalDescription>
                 <ModalTabsContent value='providers'>
                   <div className='flex items-center gap-2 pb-3'>
                     <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
@@ -1179,9 +1187,9 @@ export function AccessControl() {
           <ModalContent size='sm'>
             <ModalHeader>Unsaved Changes</ModalHeader>
             <ModalBody>
-              <p className='text-[var(--text-secondary)]'>
+              <ModalDescription className='text-[var(--text-secondary)]'>
                 You have unsaved changes. Do you want to save them before closing?
-              </p>
+              </ModalDescription>
             </ModalBody>
             <ModalFooter>
               <Button
@@ -1299,6 +1307,9 @@ export function AccessControl() {
         <ModalContent size='sm'>
           <ModalHeader>Create Permission Group</ModalHeader>
           <ModalBody>
+            <ModalDescription className='sr-only'>
+              Enter a name and optional description to create a new permission group
+            </ModalDescription>
             <div className='flex flex-col gap-3'>
               <div className='flex flex-col gap-1'>
                 <Label>Name</Label>
@@ -1351,14 +1362,14 @@ export function AccessControl() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Permission Group</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{deletingGroup?.name}</span>?
               <span className='text-[var(--text-error)]'>
                 All members will be removed from this group.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setDeletingGroup(null)}>

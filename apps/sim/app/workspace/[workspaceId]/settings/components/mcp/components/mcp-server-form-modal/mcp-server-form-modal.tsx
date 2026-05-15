@@ -8,6 +8,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -597,6 +598,10 @@ export function McpServerFormModal({
       <ModalContent>
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
+          <ModalDescription className='sr-only'>
+            Configure an MCP server by entering the server URL and optional headers, or paste a JSON
+            configuration.
+          </ModalDescription>
           {formMode === 'json' ? (
             <div className='flex flex-col gap-2'>
               <Textarea
