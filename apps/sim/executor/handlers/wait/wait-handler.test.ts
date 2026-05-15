@@ -120,27 +120,27 @@ describe('WaitBlockHandler', () => {
     ).rejects.toThrow('Unknown wait unit: fortnights')
   })
 
-  it('should reject suspending waits longer than the 30-day ceiling', async () => {
+  it('should reject async waits longer than the 30-day ceiling', async () => {
     await expect(
       handler.execute(mockContext, mockBlock, {
-        suspend: true,
+        async: true,
         timeValue: '31',
         timeUnitLong: 'days',
       })
     ).rejects.toThrow('Wait time exceeds maximum of 30 days')
   })
 
-  it('should reject non-suspending waits longer than 5 minutes', async () => {
+  it('should reject synchronous waits longer than 5 minutes', async () => {
     await expect(
       handler.execute(mockContext, mockBlock, { timeValue: '10', timeUnit: 'minutes' })
     ).rejects.toThrow('Wait time exceeds maximum of 5 minutes')
   })
 
-  it('should default the suspend unit to minutes when timeUnitLong is missing', async () => {
+  it('should default the async unit to minutes when timeUnitLong is missing', async () => {
     vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
 
     const result = (await handler.execute(mockContext, mockBlock, {
-      suspend: true,
+      async: true,
       timeValue: '3',
     })) as Record<string, any>
 
@@ -149,14 +149,14 @@ describe('WaitBlockHandler', () => {
     expect(result.status).toBe('waiting')
   })
 
-  it('should reject seconds as a unit when Suspend Workflow is enabled', async () => {
+  it('should reject seconds as a unit when Async is enabled', async () => {
     await expect(
       handler.execute(mockContext, mockBlock, {
-        suspend: true,
+        async: true,
         timeValue: '30',
         timeUnitLong: 'seconds',
       })
-    ).rejects.toThrow('Seconds are not allowed when Suspend Workflow is enabled')
+    ).rejects.toThrow('Seconds are not allowed when Async is enabled')
   })
 
   it('should still execute in-process at the 5-minute boundary', async () => {
@@ -177,7 +177,7 @@ describe('WaitBlockHandler', () => {
   it('should suspend the workflow when wait exceeds the in-process threshold', async () => {
     vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
 
-    const inputs = { suspend: true, timeValue: '10', timeUnitLong: 'minutes' }
+    const inputs = { async: true, timeValue: '10', timeUnitLong: 'minutes' }
 
     const result = (await handler.execute(mockContext, mockBlock, inputs)) as Record<string, any>
 
@@ -200,7 +200,7 @@ describe('WaitBlockHandler', () => {
   it('should suspend the workflow for multi-day waits', async () => {
     vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
 
-    const inputs = { suspend: true, timeValue: '2', timeUnitLong: 'days' }
+    const inputs = { async: true, timeValue: '2', timeUnitLong: 'days' }
 
     const result = (await handler.execute(mockContext, mockBlock, inputs)) as Record<string, any>
 
@@ -218,7 +218,7 @@ describe('WaitBlockHandler', () => {
     vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
 
     const result = (await handler.execute(mockContext, mockBlock, {
-      suspend: true,
+      async: true,
       timeValue: '3',
       timeUnitLong: 'hours',
     })) as Record<string, any>
@@ -271,7 +271,7 @@ describe('WaitBlockHandler', () => {
     mockContext.abortSignal = abortController.signal
 
     const result = (await handler.execute(mockContext, mockBlock, {
-      suspend: true,
+      async: true,
       timeValue: '1',
       timeUnitLong: 'hours',
     })) as Record<string, any>
@@ -299,7 +299,7 @@ describe('WaitBlockHandler', () => {
     vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
 
     const result = (await handler.execute(mockContext, mockBlock, {
-      suspend: true,
+      async: true,
       timeValue: '1.5',
       timeUnitLong: 'days',
     })) as Record<string, any>
@@ -310,11 +310,11 @@ describe('WaitBlockHandler', () => {
     expect(result._pauseMetadata.pauseKind).toBe('time')
   })
 
-  it('should always suspend when suspend is enabled, even for short waits', async () => {
+  it('should always suspend when async is enabled, even for short waits', async () => {
     vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
 
     const result = (await handler.execute(mockContext, mockBlock, {
-      suspend: true,
+      async: true,
       timeValue: '2',
       timeUnitLong: 'minutes',
     })) as Record<string, any>

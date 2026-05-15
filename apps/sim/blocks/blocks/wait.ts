@@ -10,11 +10,11 @@ export const WaitBlock: BlockConfig = {
   name: 'Wait',
   description: 'Pause workflow execution for a time interval',
   longDescription:
-    'Pauses workflow execution for a specified time interval. By default the wait runs in-process for up to 5 minutes. Enable Suspend Workflow to pause the run on disk and resume automatically for waits up to 30 days.',
+    'Pauses workflow execution for a specified time interval. By default the wait runs in-process for up to 5 minutes. Enable Async to pause the run on disk and resume automatically for waits up to 30 days.',
   bestPractices: `
   - Configure the wait amount and unit
   - Default mode runs in-process and caps at 5 minutes
-  - Enable Suspend Workflow for longer waits (up to 30 days); seconds are not available in this mode
+  - Enable Async for longer waits (up to 30 days); seconds are not available in this mode
   - Enter a positive number for the wait amount
   `,
   category: 'blocks',
@@ -26,7 +26,7 @@ export const WaitBlock: BlockConfig = {
       id: 'timeValue',
       title: 'Wait Amount',
       type: 'short-input',
-      description: 'Max 5 minutes (300 seconds). Enable Suspend Workflow for up to 30 days.',
+      description: 'Max 5 minutes (300 seconds). Enable Async for up to 30 days.',
       placeholder: '10',
       value: () => '10',
       required: true,
@@ -41,7 +41,7 @@ export const WaitBlock: BlockConfig = {
       ],
       value: () => 'seconds',
       required: true,
-      condition: { field: 'suspend', value: true, not: true },
+      condition: { field: 'async', value: true, not: true },
     },
     {
       id: 'timeUnitLong',
@@ -54,23 +54,23 @@ export const WaitBlock: BlockConfig = {
       ],
       value: () => 'minutes',
       required: true,
-      condition: { field: 'suspend', value: true },
+      condition: { field: 'async', value: true },
     },
     {
-      id: 'suspend',
-      title: 'Suspend Workflow',
+      id: 'async',
+      title: 'Async',
       type: 'switch',
       tooltip:
-        'By default, the workflow pauses in memory and can wait up to 5 minutes. Turn this on to suspend the run to disk so it can wait much longer (up to 30 days) — execution resumes automatically when the timer fires. Seconds aren’t available while suspended.',
+        'By default, the workflow pauses in memory and can wait up to 5 minutes. Turn this on to run asynchronously — the workflow is saved to disk and resumed automatically when the timer fires, allowing waits up to 30 days. Seconds aren’t available in async mode.',
     },
   ],
   tools: {
     access: [],
   },
   inputs: {
-    suspend: {
+    async: {
       type: 'boolean',
-      description: 'Suspend the workflow to allow waits up to 30 days',
+      description: 'Run the wait asynchronously to allow durations up to 30 days',
     },
     timeValue: {
       type: 'string',
@@ -78,11 +78,11 @@ export const WaitBlock: BlockConfig = {
     },
     timeUnit: {
       type: 'string',
-      description: 'Wait duration unit when suspend is off (seconds or minutes)',
+      description: 'Wait duration unit when async is off (seconds or minutes)',
     },
     timeUnitLong: {
       type: 'string',
-      description: 'Wait duration unit when suspend is on (minutes, hours, or days)',
+      description: 'Wait duration unit when async is on (minutes, hours, or days)',
     },
   },
   outputs: {
