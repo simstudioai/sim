@@ -642,7 +642,8 @@ interface ResourceColGroupProps {
   hasCheckbox?: boolean
 }
 
-const CHECKBOX_WEIGHT = 0.4
+const CHECKBOX_COLUMN_WIDTH_PX = 52
+const CHECKBOX_COLUMN_WIDTH = `${CHECKBOX_COLUMN_WIDTH_PX}px`
 
 const ResourceColGroup = memo(function ResourceColGroup({
   columns,
@@ -651,14 +652,27 @@ const ResourceColGroup = memo(function ResourceColGroup({
   const weights = columns.map(
     (col, colIdx) => (colIdx === 0 ? 2.5 : 1.0) * (col.widthMultiplier ?? 1)
   )
-  const total = (hasCheckbox ? CHECKBOX_WEIGHT : 0) + weights.reduce((s, w) => s + w, 0)
+  const total = weights.reduce((s, w) => s + w, 0)
 
   return (
     <colgroup>
-      {hasCheckbox && <col style={{ width: `${(CHECKBOX_WEIGHT / total) * 100}%` }} />}
-      {columns.map((col, colIdx) => (
-        <col key={col.id} style={{ width: `${(weights[colIdx] / total) * 100}%` }} />
-      ))}
+      {hasCheckbox && <col style={{ width: CHECKBOX_COLUMN_WIDTH }} />}
+      {columns.map((col, colIdx) => {
+        const columnRatio = weights[colIdx] / total
+        const columnPercent = columnRatio * 100
+        const checkboxOffset = CHECKBOX_COLUMN_WIDTH_PX * columnRatio
+
+        return (
+          <col
+            key={col.id}
+            style={{
+              width: hasCheckbox
+                ? `calc(${columnPercent}% - ${checkboxOffset}px)`
+                : `${columnPercent}%`,
+            }}
+          />
+        )
+      })}
     </colgroup>
   )
 })

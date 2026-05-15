@@ -63,7 +63,7 @@
     "husky": "9.1.7",
     "json-schema-to-typescript": "15.0.4",
     "lint-staged": "16.0.0",
-    "turbo": "2.9.6",
+    "turbo": "2.9.12",
     "yaml": "^2.8.1"
   },
   "lint-staged": {
