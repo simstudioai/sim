@@ -9,7 +9,10 @@ import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace'
-import { performCreateWorkspaceFileFolder } from '@/lib/workspace-files/orchestration'
+import {
+  performCreateWorkspaceFileFolder,
+  workspaceFilesOrchestrationStatus,
+} from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFoldersAPI')
@@ -67,7 +70,7 @@ export const POST = withRouteHandler(
       if (!result.success || !result.folder) {
         return NextResponse.json(
           { success: false, error: result.error },
-          { status: result.errorCode === 'conflict' ? 409 : 400 }
+          { status: workspaceFilesOrchestrationStatus(result.errorCode) }
         )
       }
       captureServerEvent(

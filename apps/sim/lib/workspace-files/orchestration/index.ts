@@ -21,4 +21,5 @@ export {
   performRestoreWorkspaceFileFolder,
   performUpdateWorkspaceFileFolder,
   type WorkspaceFilesOrchestrationErrorCode,
+  workspaceFilesOrchestrationStatus,
 } from './file-folder-lifecycle'

@@ -473,20 +473,20 @@ export const CreateWorkspaceMcpServer: ToolCatalogEntry = {
     type: 'object',
     properties: {
       description: { type: 'string', description: 'Optional description for the server' },
-      name: { type: 'string', description: 'Required: server name' },
-      workspaceId: {
-        type: 'string',
-        description:
-          'Workspace ID. Required when no current workspace context is available, such as headless MCP calls.',
+      isPublic: {
+        type: 'boolean',
+        description: 'Whether the workflow MCP server is publicly accessible',
       },
+      name: { type: 'string', description: 'Required: server name' },
       workflowIds: {
         type: 'array',
         description: 'Optional deployed workflow IDs to publish as tools on the new server',
         items: { type: 'string' },
       },
-      isPublic: {
-        type: 'boolean',
-        description: 'Whether the workflow MCP server is publicly accessible',
+      workspaceId: {
+        type: 'string',
+        description:
+          'Workspace ID. Required when no current workspace context is available, such as headless MCP calls.',
       },
     },
     required: ['name'],
@@ -1597,7 +1597,7 @@ export const KnowledgeBase: ToolCatalogEntry = {
           fileIds: {
             type: 'array',
             description:
-              'Canonical workspace file IDs to add as documents (for add_file). Discover via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json").',
+              'Canonical workspace file IDs to add as documents (for add_file). Discover via read("files/{path}/{name}/meta.json") or glob("files/**/meta.json") / glob("files/by-id/*/meta.json").',
             items: { type: 'string' },
           },
           filename: {
@@ -2167,7 +2167,11 @@ export const OpenResource: ToolCatalogEntry = {
         items: {
           type: 'object',
           properties: {
-            id: { type: 'string', description: 'The resource ID.' },
+            id: {
+              type: 'string',
+              description:
+                'Canonical resource ID. For type "file" this must be a UUID from the workspace file meta.json "id" field—never a VFS path or display name.',
+            },
             type: {
               type: 'string',
               description: 'The resource type.',

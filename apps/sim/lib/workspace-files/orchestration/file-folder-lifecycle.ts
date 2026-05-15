@@ -26,6 +26,15 @@ export type WorkspaceFilesOrchestrationErrorCode =
   | 'conflict'
   | 'internal'
 
+export function workspaceFilesOrchestrationStatus(
+  errorCode: WorkspaceFilesOrchestrationErrorCode | undefined
+): number {
+  if (errorCode === 'validation') return 400
+  if (errorCode === 'conflict') return 409
+  if (errorCode === 'not_found') return 404
+  return 500
+}
+
 export interface PerformDeleteWorkspaceFileItemsParams {
   workspaceId: string
   userId: string

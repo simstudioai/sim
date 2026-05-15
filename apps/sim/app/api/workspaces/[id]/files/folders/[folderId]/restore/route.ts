@@ -5,7 +5,10 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performRestoreWorkspaceFileFolder } from '@/lib/workspace-files/orchestration'
+import {
+  performRestoreWorkspaceFileFolder,
+  workspaceFilesOrchestrationStatus,
+} from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFolderRestoreAPI')
@@ -35,7 +38,7 @@ export const POST = withRouteHandler(
       if (!result.success) {
         return NextResponse.json(
           { success: false, error: result.error },
-          { status: result.errorCode === 'conflict' ? 409 : 400 }
+          { status: workspaceFilesOrchestrationStatus(result.errorCode) }
         )
       }
       const { folder, restoredItems } = result

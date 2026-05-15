@@ -11,6 +11,7 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import {
   performDeleteWorkspaceFileItems,
   performUpdateWorkspaceFileFolder,
+  workspaceFilesOrchestrationStatus,
 } from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -46,7 +47,7 @@ export const PATCH = withRouteHandler(
       if (!result.success || !result.folder) {
         return NextResponse.json(
           { success: false, error: result.error },
-          { status: result.errorCode === 'conflict' ? 409 : 400 }
+          { status: workspaceFilesOrchestrationStatus(result.errorCode) }
         )
       }
       captureServerEvent(
