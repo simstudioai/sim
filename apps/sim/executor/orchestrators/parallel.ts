@@ -516,6 +516,7 @@ export class ParallelOrchestrator {
 
   prepareForBatchContinuation(parallelId: string): void {
     this.state.unmarkExecuted(buildParallelSentinelStartId(parallelId))
+    this.state.unmarkExecuted(buildParallelSentinelEndId(parallelId))
     this.state.deleteBlockState(buildParallelSentinelEndId(parallelId))
   }
 

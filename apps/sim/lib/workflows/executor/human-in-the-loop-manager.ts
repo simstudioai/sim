@@ -47,22 +47,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-function isPausedOutputForContext(
-  output: unknown,
-  stateBlockKey: string,
-  pauseBlockId: string,
-  contextId: string
-): boolean {
+function isPausedOutputForContext(output: unknown, contextId: string): boolean {
   if (!isRecord(output)) return false
   const metadata = output._pauseMetadata
-  if (isRecord(metadata)) {
-    return (
-      metadata.contextId === contextId ||
-      metadata.blockId === stateBlockKey ||
-      metadata.blockId === pauseBlockId
-    )
-  }
-  return false
+  return isRecord(metadata) && metadata.contextId === contextId
 }
 
 function updateResumeOutputInAggregationBuffers(
@@ -76,13 +64,8 @@ function updateResumeOutputInAggregationBuffers(
     if (!isRecord(scope) || !isRecord(scope.currentIterationOutputs)) continue
 
     const outputs = scope.currentIterationOutputs
-    if (
-      outputs[stateBlockKey] !== undefined ||
-      outputs[pauseBlockId] !== undefined ||
-      outputs[contextId] !== undefined
-    ) {
+    if (outputs[stateBlockKey] !== undefined || outputs[pauseBlockId] !== undefined) {
       delete outputs[pauseBlockId]
-      delete outputs[contextId]
       outputs[stateBlockKey] = mergedOutput
     }
   }
@@ -94,7 +77,7 @@ function updateResumeOutputInAggregationBuffers(
       if (!Array.isArray(branchOutputs)) continue
 
       const outputIndex = branchOutputs.findIndex((output) =>
-        isPausedOutputForContext(output, stateBlockKey, pauseBlockId, contextId)
+        isPausedOutputForContext(output, contextId)
       )
       if (outputIndex !== -1) {
         scope.branchOutputs[branchIndex] = [
