@@ -231,9 +231,6 @@ export const env = createEnv({
     EXECUTION_TIMEOUT_ASYNC_TEAM:          z.string().optional().default('5400'),  // 90 minutes
     EXECUTION_TIMEOUT_ASYNC_ENTERPRISE:    z.string().optional().default('5400'),  // 90 minutes
 
-    // Wait block configuration
-    WAIT_INPROCESS_MAX_MS:                 z.string().optional().default('300000'), // Threshold below which a wait runs in-process; above it, the wait suspends and the cron poller resumes. Default 5 min. Lower this locally (e.g. '5000' = 5s) to test the suspend path with short waits.
-
     // Isolated-VM Worker Pool Configuration
     IVM_POOL_SIZE:                         z.string().optional().default('4'),      // Max worker processes in pool
     IVM_MAX_CONCURRENT:                    z.string().optional().default('10000'),  // Max concurrent executions globally

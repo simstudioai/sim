@@ -1,4 +1,3 @@
-import { env, envNumber } from '@/lib/core/config/env'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
@@ -11,11 +10,11 @@ import type { SerializedBlock } from '@/serializer/types'
 
 const CANCELLATION_CHECK_INTERVAL_MS = 500
 
-/** Threshold below which we hold the wait in-process; above, we suspend via PauseMetadata. */
-const inprocessMaxMs = (): number => envNumber(env.WAIT_INPROCESS_MAX_MS, 5 * 60 * 1000)
+/** Hard ceiling for in-process (non-suspending) waits. */
+const MAX_INPROCESS_WAIT_MS = 5 * 60 * 1000
 
-/** Hard ceiling on configurable wait duration. */
-const MAX_WAIT_MS = 30 * 24 * 60 * 60 * 1000
+/** Hard ceiling for suspending waits. */
+const MAX_SUSPEND_WAIT_MS = 30 * 24 * 60 * 60 * 1000
 
 interface SleepOptions {
   signal?: AbortSignal
@@ -92,10 +91,10 @@ function isWaitUnit(value: string): value is WaitUnit {
 /**
  * Handler for Wait blocks that pause workflow execution for a time delay.
  *
- * Waits up to `WAIT_INPROCESS_MAX_MS` (default 5 minutes) are held in-process via an interruptible sleep.
- * Longer waits suspend the workflow by returning {@link PauseMetadata} with
- * `pauseKind: 'time'`; the cron-driven resume poller (see `/api/resume/poll`) picks
- * the execution back up once `resumeAt` is reached.
+ * Default (suspend=false) waits are held in-process via an interruptible sleep and capped at 5 minutes.
+ * When suspend=true is set, the workflow is always suspended by returning {@link PauseMetadata} with
+ * `pauseKind: 'time'`; the cron-driven resume poller (see `/api/resume/poll`) picks the execution back
+ * up once `resumeAt` is reached. Suspend caps at 30 days.
  */
 export class WaitBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
@@ -125,8 +124,9 @@ export class WaitBlockHandler implements BlockHandler {
       executionOrder?: number
     }
   ): Promise<BlockOutput> {
+    const suspend = inputs.suspend === true || inputs.suspend === 'true'
     const timeValue = Number.parseFloat(inputs.timeValue || '10')
-    const timeUnit = inputs.timeUnit || 'seconds'
+    const timeUnit = (suspend ? inputs.timeUnitLong : inputs.timeUnit) || 'seconds'
 
     if (!Number.isFinite(timeValue) || timeValue <= 0) {
       throw new Error('Wait amount must be a positive number')
@@ -135,13 +135,24 @@ export class WaitBlockHandler implements BlockHandler {
     if (!isWaitUnit(timeUnit)) {
       throw new Error(`Unknown wait unit: ${timeUnit}`)
     }
-    const waitMs = Math.round(timeValue * UNIT_TO_MS[timeUnit])
 
-    if (waitMs > MAX_WAIT_MS) {
-      throw new Error('Wait time exceeds maximum of 30 days')
+    if (suspend && timeUnit === 'seconds') {
+      throw new Error('Seconds are not allowed when Suspend Workflow is enabled')
     }
 
-    if (waitMs <= inprocessMaxMs()) {
+    const waitMs = Math.round(timeValue * UNIT_TO_MS[timeUnit])
+
+    if (suspend) {
+      if (waitMs > MAX_SUSPEND_WAIT_MS) {
+        throw new Error('Wait time exceeds maximum of 30 days')
+      }
+    } else if (waitMs > MAX_INPROCESS_WAIT_MS) {
+      throw new Error(
+        'Wait time exceeds maximum of 5 minutes; enable Suspend Workflow to wait up to 30 days'
+      )
+    }
+
+    if (!suspend) {
       const completed = await sleep(waitMs, {
         signal: ctx.abortSignal,
         executionId: ctx.executionId,
