@@ -13,6 +13,7 @@ import {
 import { organization, subscription, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { isPlatformAdmin } from '@/lib/auth/platform-admin'
 import { getPlanTypeForLimits, isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { getEnv } from '@/lib/core/config/env'
@@ -172,10 +173,20 @@ export async function checkStorageQuota(
   }
 
   try {
-    const [currentUsage, limit] = await Promise.all([
+    const [adminBypass, currentUsage, limit] = await Promise.all([
+      isPlatformAdmin(userId),
       getUserStorageUsage(userId),
       getUserStorageLimit(userId),
     ])
+
+    if (adminBypass) {
+      logger.info('Bypassing storage quota for platform admin', { userId })
+      return {
+        allowed: true,
+        currentUsage,
+        limit: Number.MAX_SAFE_INTEGER,
+      }
+    }
 
     const newUsage = currentUsage + additionalBytes
     const allowed = newUsage <= limit

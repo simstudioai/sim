@@ -3,6 +3,7 @@ import { member, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
+import { isPlatformAdmin } from '@/lib/auth/platform-admin'
 import {
   getHighestPrioritySubscription,
   type HighestPrioritySubscription,
@@ -334,6 +335,15 @@ export async function checkServerSideUsageLimits(
             message,
           }
         }
+      }
+    }
+
+    if (await isPlatformAdmin(userId)) {
+      logger.info('Bypassing usage cap for platform admin', { userId, currentUsage })
+      return {
+        isExceeded: false,
+        currentUsage,
+        limit: Number.MAX_SAFE_INTEGER,
       }
     }
 

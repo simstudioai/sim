@@ -5,6 +5,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { isPlatformAdmin } from '@/lib/auth/platform-admin'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
@@ -32,7 +33,22 @@ export async function getWorkspaceTableLimits(workspaceId: string): Promise<Tabl
       return planLimits.free
     }
 
-    const subscription = await getHighestPrioritySubscription(billedAccountUserId)
+    const [adminBypass, subscription] = await Promise.all([
+      isPlatformAdmin(billedAccountUserId),
+      getHighestPrioritySubscription(billedAccountUserId),
+    ])
+
+    if (adminBypass) {
+      logger.info('Bypassing table limits for platform-admin-owned workspace', {
+        workspaceId,
+        billedAccountUserId,
+      })
+      return {
+        maxTables: Number.MAX_SAFE_INTEGER,
+        maxRowsPerTable: Number.MAX_SAFE_INTEGER,
+      }
+    }
+
     const planName = getPlanTypeForLimits(subscription?.plan) as PlanName
 
     const limits = planLimits[planName] ?? planLimits.free

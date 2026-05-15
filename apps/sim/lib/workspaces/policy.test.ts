@@ -305,6 +305,7 @@ describe('getWorkspaceInvitePolicy', () => {
     vi.clearAllMocks()
     mockFeatureFlags.isBillingEnabled = true
     mockGetHighestPrioritySubscription.mockResolvedValue(null)
+    mockDbResults.value = [[{ role: 'user' }]]
   })
 
   const baseState = {
@@ -413,5 +414,28 @@ describe('getWorkspaceInvitePolicy', () => {
 
     expect(result.allowed).toBe(false)
     expect(result.upgradeRequired).toBe(true)
+  })
+
+  it('allows invites on a personal workspace billed to a platform admin', async () => {
+    mockDbResults.value = [[{ role: 'admin' }]]
+
+    const result = await getWorkspaceInvitePolicy(baseState)
+
+    expect(result.allowed).toBe(true)
+    expect(result.upgradeRequired).toBe(false)
+    expect(result.reason).toBeNull()
+  })
+
+  it('allows invites on a grandfathered workspace billed to a platform admin on a free plan', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValueOnce(null)
+    mockDbResults.value = [[{ role: 'admin' }]]
+
+    const result = await getWorkspaceInvitePolicy({
+      ...baseState,
+      workspaceMode: WORKSPACE_MODE.GRANDFATHERED_SHARED,
+    })
+
+    expect(result.allowed).toBe(true)
+    expect(result.upgradeRequired).toBe(false)
   })
 })

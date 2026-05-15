@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
-import { member, user, type WorkspaceMode, workspace } from '@sim/db/schema'
+import { member, type WorkspaceMode, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, isNull } from 'drizzle-orm'
+import { isPlatformAdmin } from '@/lib/auth/platform-admin'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserOrganization } from '@/lib/billing/organizations/membership'
@@ -84,12 +85,22 @@ export function isOrganizationWorkspace(
 export async function getWorkspaceInvitePolicy(
   workspaceState: WorkspaceOwnershipState
 ): Promise<WorkspaceInvitePolicy> {
-  const requiresSubscriptionLookup =
-    isBillingEnabled && workspaceState.workspaceMode === WORKSPACE_MODE.GRANDFATHERED_SHARED
-  const billedUserHasTeamOrEnterprise = requiresSubscriptionLookup
-    ? await hasActiveTeamOrEnterpriseSubscription(workspaceState.billedAccountUserId)
-    : false
-  return evaluateWorkspaceInvitePolicy(workspaceState, { billedUserHasTeamOrEnterprise })
+  if (!isBillingEnabled) {
+    return evaluateWorkspaceInvitePolicy(workspaceState, {
+      billedUserHasTeamOrEnterprise: false,
+      billedUserIsPlatformAdmin: false,
+    })
+  }
+  const [billedUserHasTeamOrEnterprise, billedUserIsPlatformAdmin] = await Promise.all([
+    workspaceState.workspaceMode === WORKSPACE_MODE.GRANDFATHERED_SHARED
+      ? hasActiveTeamOrEnterpriseSubscription(workspaceState.billedAccountUserId)
+      : Promise.resolve(false),
+    isPlatformAdmin(workspaceState.billedAccountUserId),
+  ])
+  return evaluateWorkspaceInvitePolicy(workspaceState, {
+    billedUserHasTeamOrEnterprise,
+    billedUserIsPlatformAdmin,
+  })
 }
 
 /**
@@ -100,13 +111,23 @@ export async function getWorkspaceInvitePolicy(
  */
 export function evaluateWorkspaceInvitePolicy(
   workspaceState: WorkspaceOwnershipState,
-  context: { billedUserHasTeamOrEnterprise: boolean }
+  context: { billedUserHasTeamOrEnterprise: boolean; billedUserIsPlatformAdmin: boolean }
 ): WorkspaceInvitePolicy {
   if (!isBillingEnabled) {
     return {
       allowed: true,
       reason: null,
       requiresSeat: false,
+      organizationId: workspaceState.organizationId,
+      upgradeRequired: false,
+    }
+  }
+
+  if (context.billedUserIsPlatformAdmin) {
+    return {
+      allowed: true,
+      reason: null,
+      requiresSeat: workspaceState.workspaceMode === WORKSPACE_MODE.ORGANIZATION,
       organizationId: workspaceState.organizationId,
       upgradeRequired: false,
     }
@@ -355,12 +376,6 @@ export async function getOrganizationOwnerId(organizationId: string): Promise<st
     .limit(1)
 
   return ownerMembership?.userId ?? null
-}
-
-async function isPlatformAdmin(userId: string): Promise<boolean> {
-  const [row] = await db.select({ role: user.role }).from(user).where(eq(user.id, userId)).limit(1)
-
-  return row?.role === 'admin'
 }
 
 /**

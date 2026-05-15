@@ -9,6 +9,7 @@ import { listWorkspacesQuerySchema } from '@/lib/api/contracts'
 import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { getPlatformAdminUserIds } from '@/lib/auth/platform-admin'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -124,18 +125,25 @@ export const GET = withRouteHandler(async (request: Request) => {
         .map(({ workspace: ws }) => ws.billedAccountUserId)
     ),
   ]
+  const allBilledUserIds = [
+    ...new Set(userWorkspaces.map(({ workspace: ws }) => ws.billedAccountUserId)),
+  ]
   const teamOrEnterpriseByUser = new Map<string, boolean>()
-  await Promise.all(
-    grandfatheredBilledUserIds.map(async (userId) => {
-      teamOrEnterpriseByUser.set(userId, await hasActiveTeamOrEnterpriseSubscription(userId))
-    })
-  )
+  const [, adminBilledUserIds] = await Promise.all([
+    Promise.all(
+      grandfatheredBilledUserIds.map(async (userId) => {
+        teamOrEnterpriseByUser.set(userId, await hasActiveTeamOrEnterpriseSubscription(userId))
+      })
+    ),
+    getPlatformAdminUserIds(allBilledUserIds),
+  ])
 
   const workspacesWithPermissions = userWorkspaces.map(
     ({ workspace: workspaceDetails, permissionType }) => {
       const invitePolicy = evaluateWorkspaceInvitePolicy(workspaceDetails, {
         billedUserHasTeamOrEnterprise:
           teamOrEnterpriseByUser.get(workspaceDetails.billedAccountUserId) ?? false,
+        billedUserIsPlatformAdmin: adminBilledUserIds.has(workspaceDetails.billedAccountUserId),
       })
       const callerIsBilledUser = workspaceDetails.billedAccountUserId === session.user.id
 

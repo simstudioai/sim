@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
-import { organization, subscription, workspace } from '@sim/db/schema'
+import { organization, subscription, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { tasks } from '@trigger.dev/sdk'
-import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { type PlanCategory, sqlIsPaid, sqlIsPro, sqlIsTeam } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { getJobQueue } from '@/lib/core/async-jobs'
@@ -78,7 +78,14 @@ export async function resolveWorkspaceIdsForPlan(plan: NonEnterprisePlan): Promi
           sqlIsPaid(subscription.plan)
         )
       )
-      .where(and(isNull(subscription.id), isNull(workspace.archivedAt)))
+      .leftJoin(user, eq(user.id, workspace.billedAccountUserId))
+      .where(
+        and(
+          isNull(subscription.id),
+          isNull(workspace.archivedAt),
+          or(isNull(user.role), ne(user.role, 'admin'))
+        )
+      )
 
     return rows.map((r) => r.id)
   }
@@ -95,7 +102,8 @@ export async function resolveWorkspaceIdsForPlan(plan: NonEnterprisePlan): Promi
         planPredicate!
       )
     )
-    .where(isNull(workspace.archivedAt))
+    .leftJoin(user, eq(user.id, workspace.billedAccountUserId))
+    .where(and(isNull(workspace.archivedAt), or(isNull(user.role), ne(user.role, 'admin'))))
     .groupBy(workspace.id)
 
   return rows.map((r) => r.id)
