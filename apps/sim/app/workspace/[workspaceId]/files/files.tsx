@@ -87,7 +87,6 @@ import {
 import {
   useDeleteWorkspaceFile,
   useRenameWorkspaceFile,
-  useStorageInfo,
   useUploadWorkspaceFile,
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
@@ -200,7 +199,6 @@ export function Files() {
   const updateFolder = useUpdateWorkspaceFileFolder()
   const moveItems = useMoveWorkspaceFileItems()
   const bulkArchiveItems = useBulkArchiveWorkspaceFileItems()
-  const { data: storageInfo } = useStorageInfo()
 
   const {
     isOpen: isContextMenuOpen,
@@ -1650,12 +1648,6 @@ export function Files() {
         ? 'This folder is empty'
         : 'No files yet'
 
-  const storageIndicator = storageInfo ? (
-    <span className='text-[var(--text-tertiary)] text-caption'>
-      {formatFileSize(storageInfo.usedBytes)} / {formatFileSize(storageInfo.limitBytes)}
-    </span>
-  ) : null
-
   const filterContent = useMemo(() => {
     const typeDisplayLabel =
       typeFilter.length === 0
@@ -1890,7 +1882,6 @@ export function Files() {
         filter={filterContent}
         filterTags={filterTags}
         headerActions={headerActionsConfig}
-        leadingActions={storageIndicator}
         columns={COLUMNS}
         rows={rows}
         selectable={selectableConfig}

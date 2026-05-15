@@ -79,6 +79,16 @@ export function createMcpSuccessResponse<T>(data: T, status = 200): NextResponse
 }
 
 /**
+ * Maps MCP orchestration error codes to safe HTTP statuses.
+ */
+export function mcpOrchestrationStatus(errorCode: string | undefined): number {
+  if (errorCode === 'forbidden') return 403
+  if (errorCode === 'bad_gateway') return 502
+  if (errorCode === 'not_found') return 404
+  return 500
+}
+
+/**
  * Validate string parameter
  * Consolidates parameter validation logic found across routes
  */

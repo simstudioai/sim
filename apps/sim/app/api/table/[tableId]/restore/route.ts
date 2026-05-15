@@ -40,7 +40,10 @@ export const POST = withRouteHandler(
 
       logger.info(`[${requestId}] Restored table ${tableId}`)
 
-      return NextResponse.json({ success: true })
+      return NextResponse.json({
+        success: true,
+        data: { table: result.table },
+      })
     } catch (error) {
       logger.error(`[${requestId}] Error restoring table ${tableId}`, error)
       return NextResponse.json(

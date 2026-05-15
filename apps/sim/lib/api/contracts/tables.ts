@@ -387,7 +387,7 @@ export const restoreTableContract = defineRouteContract({
   params: tableIdParamsSchema,
   response: {
     mode: 'json',
-    schema: z.object({ success: z.literal(true) }),
+    schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),
   },
 })
 

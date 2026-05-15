@@ -5,18 +5,15 @@ import { updateMcpServerBodySchema } from '@/lib/api/contracts/mcp'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { performUpdateMcpServer } from '@/lib/mcp/orchestration'
-import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import {
+  createMcpErrorResponse,
+  createMcpSuccessResponse,
+  mcpOrchestrationStatus,
+} from '@/lib/mcp/utils'
 
 const logger = createLogger('McpServerAPI')
 
 export const dynamic = 'force-dynamic'
-
-function mcpOrchestrationStatus(errorCode: string | undefined): number {
-  if (errorCode === 'forbidden') return 403
-  if (errorCode === 'bad_gateway') return 502
-  if (errorCode === 'not_found') return 404
-  return 500
-}
 
 /**
  * PATCH - Update an MCP server in the workspace (requires write or admin permission)

@@ -9,18 +9,15 @@ import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { performCreateMcpServer, performDeleteMcpServer } from '@/lib/mcp/orchestration'
-import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import {
+  createMcpErrorResponse,
+  createMcpSuccessResponse,
+  mcpOrchestrationStatus,
+} from '@/lib/mcp/utils'
 
 const logger = createLogger('McpServersAPI')
 
 export const dynamic = 'force-dynamic'
-
-function mcpOrchestrationStatus(errorCode: string | undefined): number {
-  if (errorCode === 'forbidden') return 403
-  if (errorCode === 'bad_gateway') return 502
-  if (errorCode === 'not_found') return 404
-  return 500
-}
 
 /**
  * GET - List all registered MCP servers for the workspace

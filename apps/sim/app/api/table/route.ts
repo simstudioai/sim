@@ -182,33 +182,34 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`[${requestId}] Listed ${tables.length} tables in workspace ${params.workspaceId}`)
 
+    const responseTables = tables.map((t) => {
+      const schemaData = t.schema as TableSchema
+      return {
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        schema: {
+          columns: schemaData.columns.map(normalizeColumn),
+        },
+        rowCount: t.rowCount,
+        maxRows: t.maxRows,
+        workspaceId: t.workspaceId,
+        createdBy: t.createdBy,
+        createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
+        updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),
+        archivedAt:
+          t.archivedAt instanceof Date
+            ? t.archivedAt.toISOString()
+            : t.archivedAt
+              ? String(t.archivedAt)
+              : null,
+      }
+    })
+
     return NextResponse.json({
       success: true,
       data: {
-        tables: tables.map((t) => {
-          const schemaData = t.schema as TableSchema
-          return {
-            id: t.id,
-            name: t.name,
-            description: t.description,
-            schema: {
-              columns: schemaData.columns.map(normalizeColumn),
-            },
-            rowCount: t.rowCount,
-            maxRows: t.maxRows,
-            createdBy: t.createdBy,
-            createdAt:
-              t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
-            updatedAt:
-              t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),
-            archivedAt:
-              t.archivedAt instanceof Date
-                ? t.archivedAt.toISOString()
-                : t.archivedAt
-                  ? String(t.archivedAt)
-                  : null,
-          }
-        }),
+        tables: responseTables,
         totalCount: tables.length,
       },
     })

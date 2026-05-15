@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import JSZip from 'jszip'
 import { type NextRequest, NextResponse } from 'next/server'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
@@ -145,7 +144,7 @@ export const GET = withRouteHandler(
       })
     } catch (error) {
       logger.error('Failed to download workspace file selection:', error)
-      return NextResponse.json({ error: toError(error).message }, { status: 500 })
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }
 )
