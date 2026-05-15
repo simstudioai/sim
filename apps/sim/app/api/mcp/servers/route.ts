@@ -165,9 +165,9 @@ export const DELETE = withRouteHandler(
         })
         if (!result.success || !result.server) {
           return createMcpErrorResponse(
-            new Error('Server not found or access denied'),
-            'Server not found',
-            404
+            new Error(result.error || 'Failed to delete MCP server'),
+            result.error || 'Failed to delete MCP server',
+            mcpOrchestrationStatus(result.errorCode)
           )
         }
 
