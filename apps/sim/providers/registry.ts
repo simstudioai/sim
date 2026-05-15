@@ -16,6 +16,7 @@ import type { ProviderConfig, ProviderId } from '@/providers/types'
 import { vertexProvider } from '@/providers/vertex'
 import { vllmProvider } from '@/providers/vllm'
 import { xAIProvider } from '@/providers/xai'
+import { astraflowCNProvider, astraflowProvider } from '@/providers/astraflow'
 
 const logger = createLogger('ProviderRegistry')
 
@@ -36,6 +37,8 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   fireworks: fireworksProvider,
   ollama: ollamaProvider,
   bedrock: bedrockProvider,
+  astraflow: astraflowProvider,
+  'astraflow-cn': astraflowCNProvider,
 }
 
 export async function getProviderExecutor(

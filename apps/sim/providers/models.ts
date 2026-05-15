@@ -81,6 +81,36 @@ export interface ProviderDefinition {
 }
 
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
+  astraflow: {
+    id: 'astraflow',
+    name: 'Astraflow',
+    description: 'Astraflow by UCloud — OpenAI-compatible platform supporting 200+ models (global endpoint)',
+    defaultModel: '',
+    modelPatterns: [/^astraflow\//],
+    color: '#0052D9',
+    isReseller: true,
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    contextInformationAvailable: false,
+    models: [],
+  },
+  'astraflow-cn': {
+    id: 'astraflow-cn',
+    name: 'Astraflow (CN)',
+    description: 'Astraflow by UCloud — OpenAI-compatible platform supporting 200+ models (China endpoint)',
+    defaultModel: '',
+    modelPatterns: [/^astraflow-cn\//],
+    color: '#0052D9',
+    isReseller: true,
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    contextInformationAvailable: false,
+    models: [],
+  },
   fireworks: {
     id: 'fireworks',
     name: 'Fireworks',

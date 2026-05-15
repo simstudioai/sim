@@ -17,6 +17,8 @@ export type ProviderId =
   | 'fireworks'
   | 'vllm'
   | 'bedrock'
+  | 'astraflow'
+  | 'astraflow-cn'
 
 export interface ModelPricing {
   input: number // Per 1M tokens
