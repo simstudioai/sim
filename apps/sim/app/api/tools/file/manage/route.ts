@@ -7,10 +7,7 @@ import { splitWorkspaceFilePath } from '@/lib/copilot/tools/server/files/workspa
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  ensureWorkspaceFileFolderPath,
-  moveWorkspaceFileItems,
-} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
@@ -19,6 +16,7 @@ import {
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { performMoveWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
@@ -147,7 +145,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           userId,
           pathSegments,
         })
-        await moveWorkspaceFileItems({ workspaceId, fileIds: [fileId], targetFolderId })
+        const moveResult = await performMoveWorkspaceFileItems({
+          workspaceId,
+          userId,
+          fileIds: [fileId],
+          targetFolderId,
+        })
+        if (!moveResult.success) {
+          return NextResponse.json(
+            { success: false, error: moveResult.error },
+            { status: moveResult.errorCode === 'conflict' ? 409 : 400 }
+          )
+        }
         logger.info('File moved', { fileId, targetFolder: targetFolder || '(root)' })
         return NextResponse.json({
           success: true,

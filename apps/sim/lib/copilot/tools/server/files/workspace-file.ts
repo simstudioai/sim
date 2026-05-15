@@ -9,13 +9,15 @@ import {
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
-  deleteWorkspaceFile,
   fetchWorkspaceFileBuffer as downloadWsFile,
   getWorkspaceFile,
   getWorkspaceFileByName,
-  renameWorkspaceFile,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  performDeleteWorkspaceFileItems,
+  performRenameWorkspaceFile,
+} from '@/lib/workspace-files/orchestration'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import { storeFileIntent } from './file-intent-store'
 
@@ -381,7 +383,15 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
           const oldName = fileRecord.name
           assertServerToolNotAborted(context)
-          await renameWorkspaceFile(workspaceId, target.fileId, normalized.newName)
+          const result = await performRenameWorkspaceFile({
+            workspaceId,
+            fileId: target.fileId,
+            name: normalized.newName,
+            userId: context.userId,
+          })
+          if (!result.success) {
+            return { success: false, message: result.error || 'Failed to rename file' }
+          }
 
           logger.info('Workspace file renamed via copilot', {
             fileId: target.fileId,
@@ -412,7 +422,14 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
 
           assertServerToolNotAborted(context)
-          await deleteWorkspaceFile(workspaceId, target.fileId)
+          const result = await performDeleteWorkspaceFileItems({
+            workspaceId,
+            userId: context.userId,
+            fileIds: [target.fileId],
+          })
+          if (!result.success) {
+            return { success: false, message: result.error || 'Failed to delete file' }
+          }
 
           logger.info('Workspace file deleted via copilot', {
             fileId: target.fileId,

@@ -155,13 +155,10 @@ export interface CheckDeploymentStatusParams {
   workflowId?: string
 }
 
-export interface ListWorkspaceMcpServersParams {
-  workspaceId?: string
-  workflowId?: string
-}
+export type ListWorkspaceMcpServersParams = Record<string, never>
 
 export interface CreateWorkspaceMcpServerParams {
-  workflowId?: string
+  workspaceId?: string
   name?: string
   description?: string
   toolName?: string

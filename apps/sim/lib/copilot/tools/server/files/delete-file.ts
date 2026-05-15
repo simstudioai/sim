@@ -5,10 +5,8 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import {
-  deleteWorkspaceFile,
-  getWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 
 const logger = createLogger('DeleteFileServerTool')
 
@@ -42,7 +40,7 @@ export const deleteFileServerTool: BaseServerTool<DeleteFileArgs, DeleteFileResu
 
     if (fileIds.length === 0) return { success: false, message: 'fileIds is required' }
 
-    const deleted: string[] = []
+    const deletable: { id: string; name: string }[] = []
     const failed: string[] = []
 
     for (const fileId of fileIds) {
@@ -51,24 +49,36 @@ export const deleteFileServerTool: BaseServerTool<DeleteFileArgs, DeleteFileResu
         failed.push(fileId)
         continue
       }
+      deletable.push({ id: fileId, name: existingFile.name })
+    }
 
+    if (deletable.length > 0) {
       assertServerToolNotAborted(context)
-      await deleteWorkspaceFile(workspaceId, fileId)
-      deleted.push(existingFile.name)
+      const result = await performDeleteWorkspaceFileItems({
+        workspaceId,
+        userId: context.userId,
+        fileIds: deletable.map((file) => file.id),
+      })
+      if (!result.success) {
+        return { success: false, message: result.error || 'Failed to delete files' }
+      }
+    }
 
+    for (const file of deletable) {
       logger.info('File deleted via delete_file', {
-        fileId,
-        name: existingFile.name,
+        fileId: file.id,
+        name: file.name,
         userId: context.userId,
       })
     }
 
     const parts: string[] = []
-    if (deleted.length > 0) parts.push(`Deleted: ${deleted.join(', ')}`)
+    if (deletable.length > 0)
+      parts.push(`Deleted: ${deletable.map((file) => file.name).join(', ')}`)
     if (failed.length > 0) parts.push(`Not found: ${failed.join(', ')}`)
 
     return {
-      success: deleted.length > 0,
+      success: deletable.length > 0,
       message: parts.join('. '),
     }
   },

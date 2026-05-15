@@ -1,6 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   deleteWorkspaceFileFolderContract,
@@ -11,10 +9,9 @@ import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
-  archiveWorkspaceFileFolderRecursive,
-  updateWorkspaceFileFolder,
-  WorkspaceFileFolderConflictError,
-} from '@/lib/uploads/contexts/workspace'
+  performDeleteWorkspaceFileItems,
+  performUpdateWorkspaceFileFolder,
+} from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFolderAPI')
@@ -40,50 +37,28 @@ export const PATCH = withRouteHandler(
     }
 
     try {
-      const folder = await updateWorkspaceFileFolder({
+      const result = await performUpdateWorkspaceFileFolder({
         workspaceId,
         folderId,
+        userId: session.user.id,
         ...parsed.data.body,
       })
+      if (!result.success || !result.folder) {
+        return NextResponse.json(
+          { success: false, error: result.error },
+          { status: result.errorCode === 'conflict' ? 409 : 400 }
+        )
+      }
       captureServerEvent(
         session.user.id,
         'folder_renamed',
         { workspace_id: workspaceId },
         { groups: { workspace: workspaceId } }
       )
-      recordAudit({
-        workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.FOLDER_UPDATED,
-        resourceType: AuditResourceType.FOLDER,
-        resourceId: folderId,
-        resourceName: folder.name,
-        description: `Updated folder "${folder.name}"`,
-      })
-      return NextResponse.json({ success: true, folder })
+      return NextResponse.json({ success: true, folder: result.folder })
     } catch (error) {
       logger.error('Failed to update workspace file folder:', error)
-      if (error instanceof WorkspaceFileFolderConflictError) {
-        return NextResponse.json({ success: false, error: error.message }, { status: 409 })
-      }
-      if (getPostgresErrorCode(error) === '23505') {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'A folder with this name already exists in this location',
-          },
-          { status: 409 }
-        )
-      }
-      return NextResponse.json(
-        {
-          success: false,
-          error: toError(error).message,
-        },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
     }
   }
 )
@@ -104,33 +79,35 @@ export const DELETE = withRouteHandler(
     }
 
     try {
-      const deletedItems = await archiveWorkspaceFileFolderRecursive(workspaceId, folderId)
+      const result = await performDeleteWorkspaceFileItems({
+        workspaceId,
+        userId: session.user.id,
+        folderIds: [folderId],
+      })
+      if (!result.success) {
+        return NextResponse.json(
+          { success: false, error: result.error },
+          { status: result.errorCode === 'validation' ? 400 : 500 }
+        )
+      }
+      if (!result.deletedItems) {
+        return NextResponse.json(
+          { success: false, error: 'Failed to delete workspace file folder' },
+          { status: 500 }
+        )
+      }
+
       captureServerEvent(
         session.user.id,
         'folder_deleted',
         { workspace_id: workspaceId },
         { groups: { workspace: workspaceId } }
       )
-      recordAudit({
-        workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.FOLDER_DELETED,
-        resourceType: AuditResourceType.FOLDER,
-        resourceId: folderId,
-        description: `Deleted folder`,
-      })
-      return NextResponse.json({ success: true, deletedItems })
+
+      return NextResponse.json({ success: true, deletedItems: result.deletedItems })
     } catch (error) {
       logger.error('Failed to delete workspace file folder:', error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: toError(error).message,
-        },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
     }
   }
 )

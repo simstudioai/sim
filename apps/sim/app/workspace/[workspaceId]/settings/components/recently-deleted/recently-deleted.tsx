@@ -100,7 +100,6 @@ const TABS: { id: ResourceType; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'workflow', label: 'Workflows' },
   { id: 'folder', label: 'Folders' },
-  { id: 'workspace_folder', label: 'File Folders' },
   { id: 'table', label: 'Tables' },
   { id: 'knowledge', label: 'Knowledge Bases' },
   { id: 'file', label: 'Files' },
@@ -142,6 +141,12 @@ function ResourceIcon({ resource }: { resource: DeletedResource }) {
     { type: mothershipType, id: resource.id, title: resource.name },
     ICON_CLASS
   )
+}
+
+function matchesActiveTab(resource: DeletedResource, activeTab: ResourceType): boolean {
+  if (activeTab === 'all') return true
+  if (activeTab === 'file') return resource.type === 'file' || resource.type === 'workspace_folder'
+  return resource.type === activeTab
 }
 
 export function RecentlyDeleted() {
@@ -270,7 +275,7 @@ export function RecentlyDeleted() {
   ])
 
   const filtered = useMemo(() => {
-    let items = activeTab === 'all' ? resources : resources.filter((r) => r.type === activeTab)
+    let items = resources.filter((resource) => matchesActiveTab(resource, activeTab))
     if (searchTerm.trim()) {
       const normalized = searchTerm.toLowerCase()
       items = items.filter((r) => r.name.toLowerCase().includes(normalized))

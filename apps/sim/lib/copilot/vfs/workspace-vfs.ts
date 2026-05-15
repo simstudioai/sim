@@ -63,6 +63,7 @@ import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/ru
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { listTables } from '@/lib/table/service'
+import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
   findWorkspaceFileRecord,
@@ -1361,23 +1362,30 @@ export class WorkspaceVFS {
 
   private async materializeRecentlyDeleted(workspaceId: string, userId: string): Promise<void> {
     try {
-      const [archivedWorkflows, archivedFolders, archivedTables, archivedFiles, archivedKBs] =
-        await Promise.all([
-          listWorkflows(workspaceId, { scope: 'archived' }),
-          db
-            .select({
-              id: workflowFolder.id,
-              name: workflowFolder.name,
-              archivedAt: workflowFolder.archivedAt,
-            })
-            .from(workflowFolder)
-            .where(
-              and(eq(workflowFolder.workspaceId, workspaceId), isNotNull(workflowFolder.archivedAt))
-            ),
-          listTables(workspaceId, { scope: 'archived' }),
-          listWorkspaceFiles(workspaceId, { scope: 'archived' }),
-          getKnowledgeBases(userId, workspaceId, 'archived'),
-        ])
+      const [
+        archivedWorkflows,
+        archivedFolders,
+        archivedTables,
+        archivedFiles,
+        archivedFileFolders,
+        archivedKBs,
+      ] = await Promise.all([
+        listWorkflows(workspaceId, { scope: 'archived' }),
+        db
+          .select({
+            id: workflowFolder.id,
+            name: workflowFolder.name,
+            archivedAt: workflowFolder.archivedAt,
+          })
+          .from(workflowFolder)
+          .where(
+            and(eq(workflowFolder.workspaceId, workspaceId), isNotNull(workflowFolder.archivedAt))
+          ),
+        listTables(workspaceId, { scope: 'archived' }),
+        listWorkspaceFiles(workspaceId, { scope: 'archived' }),
+        listWorkspaceFileFolders(workspaceId, { scope: 'archived' }),
+        getKnowledgeBases(userId, workspaceId, 'archived'),
+      ])
 
       for (const wf of archivedWorkflows) {
         const safeName = sanitizeName(wf.name)
@@ -1413,6 +1421,28 @@ export class WorkspaceVFS {
             createdAt: table.createdAt,
             updatedAt: table.updatedAt,
           })
+        )
+      }
+
+      for (const folder of archivedFileFolders) {
+        const safePath = folder.path
+          .split('/')
+          .map((segment) => sanitizeName(segment))
+          .join('/')
+        this.files.set(
+          `recently-deleted/file-folders/${safePath}/meta.json`,
+          JSON.stringify(
+            {
+              id: folder.id,
+              name: folder.name,
+              parentId: folder.parentId,
+              path: folder.path,
+              deletedAt: folder.deletedAt,
+              type: 'file_folder',
+            },
+            null,
+            2
+          )
         )
       }
 

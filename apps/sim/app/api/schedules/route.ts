@@ -1,8 +1,6 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflow, workflowDeploymentVersion, workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -11,8 +9,7 @@ import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { validateCronExpression } from '@/lib/workflows/schedules/utils'
+import { performCreateJob } from '@/lib/workflows/schedules/orchestration'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ScheduledAPI')
@@ -228,80 +225,43 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 
-    const validation = validateCronExpression(cronExpression, timezone)
-    if (!validation.isValid) {
+    const result = await performCreateJob({
+      workspaceId,
+      userId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      title,
+      prompt,
+      cronExpression,
+      timezone,
+      lifecycle,
+      maxRuns,
+      startDate,
+      request: req,
+    })
+    if (!result.success || !result.schedule) {
       return NextResponse.json(
-        { error: validation.error || 'Invalid cron expression' },
-        { status: 400 }
+        { error: result.error || 'Failed to create schedule' },
+        { status: result.errorCode === 'validation' ? 400 : 500 }
       )
     }
 
-    let nextRunAt = validation.nextRun!
-    if (startDate) {
-      const start = new Date(startDate)
-      if (start > new Date()) {
-        nextRunAt = start
-      }
-    }
-
-    const now = new Date()
-    const id = generateId()
-
-    await db.insert(workflowSchedule).values({
-      id,
-      cronExpression,
-      triggerType: 'schedule',
-      sourceType: 'job',
-      status: 'active',
-      timezone,
-      nextRunAt,
-      createdAt: now,
-      updatedAt: now,
-      failedCount: 0,
-      jobTitle: title.trim(),
-      prompt: prompt.trim(),
-      lifecycle,
-      maxRuns: maxRuns ?? null,
-      runCount: 0,
-      sourceWorkspaceId: workspaceId,
-      sourceUserId: session.user.id,
-    })
-
-    logger.info(`[${requestId}] Created job schedule ${id}`, {
+    logger.info(`[${requestId}] Created job schedule ${result.schedule.id}`, {
       title,
       cronExpression,
       timezone,
       lifecycle,
     })
 
-    recordAudit({
-      workspaceId,
-      actorId: session.user.id,
-      actorName: session.user.name,
-      actorEmail: session.user.email,
-      action: AuditAction.SCHEDULE_CREATED,
-      resourceType: AuditResourceType.SCHEDULE,
-      resourceId: id,
-      resourceName: title.trim(),
-      description: `Created job schedule "${title.trim()}"`,
-      metadata: {
-        cronExpression,
-        timezone,
-        lifecycle,
-        maxRuns: maxRuns ?? null,
-      },
-      request: req,
-    })
-
-    captureServerEvent(
-      session.user.id,
-      'scheduled_task_created',
-      { workspace_id: workspaceId },
-      { groups: { workspace: workspaceId } }
-    )
-
     return NextResponse.json(
-      { schedule: { id, status: 'active', cronExpression, nextRunAt } },
+      {
+        schedule: {
+          id: result.schedule.id,
+          status: result.schedule.status,
+          cronExpression: result.schedule.cronExpression,
+          nextRunAt: result.schedule.nextRunAt,
+        },
+      },
       { status: 201 }
     )
   } catch (error) {

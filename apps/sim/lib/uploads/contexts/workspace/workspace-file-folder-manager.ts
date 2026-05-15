@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull, min, type SQL, sql } from 'drizzle-orm'
+import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFolders')
 
@@ -57,6 +58,11 @@ interface WorkspaceFileFolderLockTx {
 export interface WorkspaceFileArchiveResult {
   folders: number
   files: number
+}
+
+export interface WorkspaceFileFolderRestoreResult {
+  folder: WorkspaceFileFolderRecord
+  restoredItems: WorkspaceFileArchiveResult
 }
 
 export function normalizeWorkspaceFileItemName(name: string, itemLabel: 'File' | 'Folder'): string {
@@ -901,8 +907,13 @@ export async function archiveWorkspaceFileFolderRecursive(
 export async function restoreWorkspaceFileFolder(
   workspaceId: string,
   folderId: string
-): Promise<WorkspaceFileFolderRecord> {
-  const restored = await db.transaction(async (tx) => {
+): Promise<WorkspaceFileFolderRestoreResult> {
+  const ws = await getWorkspaceWithOwner(workspaceId)
+  if (!ws || ws.archivedAt) {
+    throw new Error('Cannot restore folder into an archived workspace')
+  }
+
+  const { restored, restoredItems } = await db.transaction(async (tx) => {
     await acquireWorkspaceFileFolderMutationLock(tx, workspaceId)
 
     const raw = await tx
@@ -916,6 +927,8 @@ export async function restoreWorkspaceFileFolder(
 
     if (!raw) throw new Error('Folder not found')
     if (!raw.deletedAt) throw new Error('Folder is not archived')
+
+    const folderDeletedAt = raw.deletedAt
 
     // If the parent folder is still archived, restore to root so the folder
     // doesn't become an orphan (hidden under an archived parent).
@@ -935,6 +948,56 @@ export async function restoreWorkspaceFileFolder(
       if (!parent || parent.deletedAt) resolvedParentId = null
     }
 
+    const stats: WorkspaceFileArchiveResult = { folders: 0, files: 0 }
+    const seen = new Set<string>()
+    const restoreFolderSubtree = async (currentFolderId: string): Promise<void> => {
+      if (seen.has(currentFolderId)) return
+      seen.add(currentFolderId)
+
+      const restoredFiles = await tx
+        .update(workspaceFiles)
+        .set({ deletedAt: null, updatedAt: new Date() })
+        .where(
+          and(
+            eq(workspaceFiles.folderId, currentFolderId),
+            eq(workspaceFiles.workspaceId, workspaceId),
+            eq(workspaceFiles.context, 'workspace'),
+            eq(workspaceFiles.deletedAt, folderDeletedAt)
+          )
+        )
+        .returning({ id: workspaceFiles.id })
+      stats.files += restoredFiles.length
+
+      const archivedChildren = await tx
+        .select({ id: workspaceFileFolder.id })
+        .from(workspaceFileFolder)
+        .where(
+          and(
+            eq(workspaceFileFolder.parentId, currentFolderId),
+            eq(workspaceFileFolder.workspaceId, workspaceId),
+            eq(workspaceFileFolder.deletedAt, folderDeletedAt)
+          )
+        )
+
+      for (const child of archivedChildren) {
+        const [restoredChild] = await tx
+          .update(workspaceFileFolder)
+          .set({ deletedAt: null, updatedAt: new Date() })
+          .where(
+            and(
+              eq(workspaceFileFolder.id, child.id),
+              eq(workspaceFileFolder.workspaceId, workspaceId),
+              eq(workspaceFileFolder.deletedAt, folderDeletedAt)
+            )
+          )
+          .returning({ id: workspaceFileFolder.id })
+
+        if (!restoredChild) continue
+        stats.folders += 1
+        await restoreFolderSubtree(child.id)
+      }
+    }
+
     const [row] = await tx
       .update(workspaceFileFolder)
       .set({ deletedAt: null, parentId: resolvedParentId, updatedAt: new Date() })
@@ -943,10 +1006,13 @@ export async function restoreWorkspaceFileFolder(
       )
       .returning()
 
-    return row
+    stats.folders += 1
+    await restoreFolderSubtree(folderId)
+
+    return { restored: row, restoredItems: stats }
   })
 
-  logger.info('Restored workspace file folder', { workspaceId, folderId })
+  logger.info('Restored workspace file folder', { workspaceId, folderId, restoredItems })
 
   const allFolders = await db
     .select()
@@ -955,7 +1021,10 @@ export async function restoreWorkspaceFileFolder(
       and(eq(workspaceFileFolder.workspaceId, workspaceId), isNull(workspaceFileFolder.deletedAt))
     )
   const paths = buildWorkspaceFileFolderPathMap(allFolders)
-  return mapFolder(restored, paths)
+  return {
+    folder: mapFolder(restored, paths),
+    restoredItems,
+  }
 }
 
 export async function bulkArchiveWorkspaceFileItems(params: {

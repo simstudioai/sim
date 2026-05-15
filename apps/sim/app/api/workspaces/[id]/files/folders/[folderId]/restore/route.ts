@@ -1,13 +1,11 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { restoreWorkspaceFileFolderContract } from '@/lib/api/contracts/workspace-file-folders'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { restoreWorkspaceFileFolder } from '@/lib/uploads/contexts/workspace'
+import { performRestoreWorkspaceFileFolder } from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFolderRestoreAPI')
@@ -29,7 +27,24 @@ export const POST = withRouteHandler(
     }
 
     try {
-      const folder = await restoreWorkspaceFileFolder(workspaceId, folderId)
+      const result = await performRestoreWorkspaceFileFolder({
+        workspaceId,
+        folderId,
+        userId: session.user.id,
+      })
+      if (!result.success) {
+        return NextResponse.json(
+          { success: false, error: result.error },
+          { status: result.errorCode === 'conflict' ? 409 : 400 }
+        )
+      }
+      const { folder, restoredItems } = result
+      if (!folder || !restoredItems) {
+        return NextResponse.json(
+          { success: false, error: 'Failed to restore workspace file folder' },
+          { status: 500 }
+        )
+      }
 
       logger.info(`Restored workspace file folder: ${folderId}`)
 
@@ -39,29 +54,10 @@ export const POST = withRouteHandler(
         { folder_id: folderId, workspace_id: workspaceId },
         { groups: { workspace: workspaceId } }
       )
-      recordAudit({
-        workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.FOLDER_RESTORED,
-        resourceType: AuditResourceType.FOLDER,
-        resourceId: folderId,
-        resourceName: folder.name,
-        description: `Restored folder "${folder.name}"`,
-        request,
-      })
-
-      return NextResponse.json({ success: true, folder })
+      return NextResponse.json({ success: true, folder, restoredItems })
     } catch (error) {
       logger.error('Failed to restore workspace file folder:', error)
-      if (getPostgresErrorCode(error) === '23505') {
-        return NextResponse.json(
-          { success: false, error: 'A folder with this name already exists in this location' },
-          { status: 409 }
-        )
-      }
-      return NextResponse.json({ success: false, error: toError(error).message }, { status: 400 })
+      return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
     }
   }
 )

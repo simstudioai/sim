@@ -15,14 +15,16 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import {
-  bulkArchiveWorkspaceFileItems,
-  createWorkspaceFileFolder,
   getWorkspaceFileFolder,
   listWorkspaceFileFolders,
-  moveWorkspaceFileItems,
-  updateWorkspaceFileFolder,
   type WorkspaceFileFolderRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import {
+  performCreateWorkspaceFileFolder,
+  performDeleteWorkspaceFileItems,
+  performMoveWorkspaceFileItems,
+  performUpdateWorkspaceFileFolder,
+} from '@/lib/workspace-files/orchestration'
 
 const logger = createLogger('FileFolderServerTools')
 
@@ -150,12 +152,16 @@ export const createFileFolderServerTool: BaseServerTool<CreateFileFolderArgs, Fi
       const parentId = nullableStringValue(params.parentId ?? payload?.parentId) ?? null
 
       assertServerToolNotAborted(context)
-      const folder = await createWorkspaceFileFolder({
+      const result = await performCreateWorkspaceFileFolder({
         workspaceId,
         userId: context.userId,
         name,
         parentId,
       })
+      if (!result.success || !result.folder) {
+        return { success: false, message: result.error || 'Failed to create file folder' }
+      }
+      const { folder } = result
 
       logger.info('File folder created via create_file_folder', {
         workspaceId,
@@ -196,7 +202,16 @@ export const renameFileFolderServerTool: BaseServerTool<RenameFileFolderArgs, Fi
       if (!existing) return { success: false, message: 'Folder not found' }
 
       assertServerToolNotAborted(context)
-      const folder = await updateWorkspaceFileFolder({ workspaceId, folderId, name })
+      const result = await performUpdateWorkspaceFileFolder({
+        workspaceId,
+        folderId,
+        userId: context.userId,
+        name,
+      })
+      if (!result.success || !result.folder) {
+        return { success: false, message: result.error || 'Failed to rename file folder' }
+      }
+      const { folder } = result
 
       logger.info('File folder renamed via rename_file_folder', {
         workspaceId,
@@ -234,7 +249,16 @@ export const moveFileFolderServerTool: BaseServerTool<MoveFileFolderArgs, FileFo
       const parentId = nullableStringValue(params.parentId ?? payload?.parentId) ?? null
 
       assertServerToolNotAborted(context)
-      const folder = await updateWorkspaceFileFolder({ workspaceId, folderId, parentId })
+      const result = await performUpdateWorkspaceFileFolder({
+        workspaceId,
+        folderId,
+        userId: context.userId,
+        parentId,
+      })
+      if (!result.success || !result.folder) {
+        return { success: false, message: result.error || 'Failed to move file folder' }
+      }
+      const { folder } = result
 
       logger.info('File folder moved via move_file_folder', {
         workspaceId,
@@ -275,20 +299,27 @@ export const deleteFileFolderServerTool: BaseServerTool<DeleteFileFolderArgs, Fi
       if (folderIds.length === 0) return { success: false, message: 'folderIds is required' }
 
       assertServerToolNotAborted(context)
-      const result = await bulkArchiveWorkspaceFileItems({ workspaceId, folderIds })
+      const result = await performDeleteWorkspaceFileItems({
+        workspaceId,
+        userId: context.userId,
+        folderIds,
+      })
+      if (!result.success || !result.deletedItems) {
+        return { success: false, message: result.error || 'Failed to delete file folders' }
+      }
 
       logger.info('File folders deleted via delete_file_folder', {
         workspaceId,
         folderIds,
-        folders: result.folders,
-        files: result.files,
+        folders: result.deletedItems.folders,
+        files: result.deletedItems.files,
         userId: context.userId,
       })
 
       return {
-        success: result.folders > 0 || result.files > 0,
-        message: `Deleted ${result.folders} file folder${result.folders === 1 ? '' : 's'} and ${result.files} file${result.files === 1 ? '' : 's'}`,
-        data: result,
+        success: result.deletedItems.folders > 0 || result.deletedItems.files > 0,
+        message: `Deleted ${result.deletedItems.folders} file folder${result.deletedItems.folders === 1 ? '' : 's'} and ${result.deletedItems.files} file${result.deletedItems.files === 1 ? '' : 's'}`,
+        data: result.deletedItems,
       }
     } catch (error) {
       return { success: false, message: toError(error).message }
@@ -314,26 +345,30 @@ export const moveFileServerTool: BaseServerTool<MoveFileArgs, FileFolderResult> 
       const folderId = nullableStringValue(params.folderId ?? payload?.folderId) ?? null
 
       assertServerToolNotAborted(context)
-      const result = await moveWorkspaceFileItems({
+      const result = await performMoveWorkspaceFileItems({
         workspaceId,
+        userId: context.userId,
         fileIds,
         targetFolderId: folderId,
       })
+      if (!result.success || !result.movedItems) {
+        return { success: false, message: result.error || 'Failed to move files' }
+      }
 
       logger.info('Files moved via move_file', {
         workspaceId,
         fileIds,
         folderId,
-        movedFiles: result.movedFiles,
+        movedFiles: result.movedItems.files,
         userId: context.userId,
       })
 
       return {
-        success: result.movedFiles > 0,
+        success: result.movedItems.files > 0,
         message: folderId
-          ? `Moved ${result.movedFiles} file${result.movedFiles === 1 ? '' : 's'}`
-          : `Moved ${result.movedFiles} file${result.movedFiles === 1 ? '' : 's'} to root`,
-        data: result,
+          ? `Moved ${result.movedItems.files} file${result.movedItems.files === 1 ? '' : 's'}`
+          : `Moved ${result.movedItems.files} file${result.movedItems.files === 1 ? '' : 's'} to root`,
+        data: result.movedItems,
       }
     } catch (error) {
       return { success: false, message: toError(error).message }

@@ -1,6 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   createWorkspaceFileFolderContract,
@@ -10,11 +8,8 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  createWorkspaceFileFolder,
-  listWorkspaceFileFolders,
-  WorkspaceFileFolderConflictError,
-} from '@/lib/uploads/contexts/workspace'
+import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace'
+import { performCreateWorkspaceFileFolder } from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFoldersAPI')
@@ -63,36 +58,28 @@ export const POST = withRouteHandler(
     }
 
     try {
-      const folder = await createWorkspaceFileFolder({
+      const result = await performCreateWorkspaceFileFolder({
         workspaceId,
         userId: session.user.id,
         name,
         parentId,
       })
+      if (!result.success || !result.folder) {
+        return NextResponse.json(
+          { success: false, error: result.error },
+          { status: result.errorCode === 'conflict' ? 409 : 400 }
+        )
+      }
       captureServerEvent(
         session.user.id,
         'folder_created',
         { workspace_id: workspaceId },
         { groups: { workspace: workspaceId } }
       )
-      recordAudit({
-        workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.FOLDER_CREATED,
-        resourceType: AuditResourceType.FOLDER,
-        resourceId: folder.id,
-        resourceName: folder.name,
-        description: `Created folder "${folder.name}"`,
-      })
-      return NextResponse.json({ success: true, folder })
+      return NextResponse.json({ success: true, folder: result.folder })
     } catch (error) {
       logger.error('Failed to create workspace file folder:', error)
-      return NextResponse.json(
-        { success: false, error: toError(error).message },
-        { status: error instanceof WorkspaceFileFolderConflictError ? 409 : 400 }
-      )
+      return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
     }
   }
 )

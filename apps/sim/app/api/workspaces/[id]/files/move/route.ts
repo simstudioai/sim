@@ -1,17 +1,11 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { moveWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  moveWorkspaceFileItems,
-  WorkspaceFileFolderConflictError,
-  WorkspaceFileMoveConflictError,
-} from '@/lib/uploads/contexts/workspace'
+import { performMoveWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileMoveAPI')
@@ -34,12 +28,22 @@ export const POST = withRouteHandler(
     }
 
     try {
-      const moved = await moveWorkspaceFileItems({
+      const result = await performMoveWorkspaceFileItems({
         workspaceId,
+        userId: session.user.id,
         fileIds,
         folderIds,
         targetFolderId,
       })
+      if (!result.success || !result.movedItems) {
+        return NextResponse.json(
+          { success: false, error: result.error },
+          {
+            status:
+              result.errorCode === 'conflict' ? 409 : result.errorCode === 'validation' ? 400 : 500,
+          }
+        )
+      }
       if (fileIds.length > 0) {
         captureServerEvent(
           session.user.id,
@@ -56,52 +60,13 @@ export const POST = withRouteHandler(
           { groups: { workspace: workspaceId } }
         )
       }
-      if (fileIds.length > 0) {
-        recordAudit({
-          workspaceId,
-          actorId: session.user.id,
-          actorName: session.user.name,
-          actorEmail: session.user.email,
-          action: AuditAction.FILE_MOVED,
-          resourceType: AuditResourceType.FILE,
-          description: `Moved ${fileIds.length} file${fileIds.length === 1 ? '' : 's'}${targetFolderId ? ' to folder' : ' to root'}`,
-          metadata: { fileIds, targetFolderId },
-        })
-      }
-      if (folderIds.length > 0) {
-        recordAudit({
-          workspaceId,
-          actorId: session.user.id,
-          actorName: session.user.name,
-          actorEmail: session.user.email,
-          action: AuditAction.FOLDER_MOVED,
-          resourceType: AuditResourceType.FOLDER,
-          description: `Moved ${folderIds.length} folder${folderIds.length === 1 ? '' : 's'}${targetFolderId ? ' to folder' : ' to root'}`,
-          metadata: { folderIds, targetFolderId },
-        })
-      }
       return NextResponse.json({
         success: true,
-        movedItems: { files: moved.movedFiles, folders: moved.movedFolders },
+        movedItems: result.movedItems,
       })
     } catch (error) {
       logger.error('Failed to move workspace file items:', error)
-      if (
-        error instanceof WorkspaceFileMoveConflictError ||
-        error instanceof WorkspaceFileFolderConflictError
-      ) {
-        return NextResponse.json({ success: false, error: error.message }, { status: 409 })
-      }
-      if (getPostgresErrorCode(error) === '23505') {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'A file or folder with this name already exists in the destination folder',
-          },
-          { status: 409 }
-        )
-      }
-      return NextResponse.json({ success: false, error: toError(error).message }, { status: 400 })
+      return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
     }
   }
 )

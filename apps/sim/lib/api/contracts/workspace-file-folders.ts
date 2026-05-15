@@ -194,6 +194,10 @@ export const restoreWorkspaceFileFolderContract = defineRouteContract({
     mode: 'json',
     schema: workspaceFileFoldersSuccessSchema.extend({
       folder: workspaceFileFolderSchema,
+      restoredItems: z.object({
+        folders: z.number().int(),
+        files: z.number().int(),
+      }),
     }),
   },
 })

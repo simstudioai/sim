@@ -1,9 +1,7 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import {
@@ -12,11 +10,8 @@ import {
 } from '@/lib/api/contracts/workflow-mcp-servers'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
-import { mcpPubSub } from '@/lib/mcp/pubsub'
+import { performCreateWorkflowMcpTool } from '@/lib/mcp/orchestration'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
-import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
-import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
-import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
 
 const logger = createLogger('WorkflowMcpToolsAPI')
 
@@ -110,133 +105,32 @@ export const POST = withRouteHandler(
           workflowId: body.workflowId,
         })
 
-        const [server] = await db
-          .select({ id: workflowMcpServer.id })
-          .from(workflowMcpServer)
-          .where(
-            and(
-              eq(workflowMcpServer.id, serverId),
-              eq(workflowMcpServer.workspaceId, workspaceId),
-              isNull(workflowMcpServer.deletedAt)
-            )
-          )
-          .limit(1)
-
-        if (!server) {
-          return createMcpErrorResponse(new Error('Server not found'), 'Server not found', 404)
-        }
-
-        const [workflowRecord] = await db
-          .select({
-            id: workflow.id,
-            name: workflow.name,
-            description: workflow.description,
-            isDeployed: workflow.isDeployed,
-            workspaceId: workflow.workspaceId,
-          })
-          .from(workflow)
-          .where(and(eq(workflow.id, body.workflowId), isNull(workflow.archivedAt)))
-          .limit(1)
-
-        if (!workflowRecord) {
-          return createMcpErrorResponse(new Error('Workflow not found'), 'Workflow not found', 404)
-        }
-
-        if (workflowRecord.workspaceId !== workspaceId) {
-          return createMcpErrorResponse(
-            new Error('Workflow does not belong to this workspace'),
-            'Access denied',
-            403
-          )
-        }
-
-        if (!workflowRecord.isDeployed) {
-          return createMcpErrorResponse(
-            new Error('Workflow must be deployed before adding as a tool'),
-            'Workflow not deployed',
-            400
-          )
-        }
-
-        const hasStartBlock = await hasValidStartBlock(body.workflowId)
-        if (!hasStartBlock) {
-          return createMcpErrorResponse(
-            new Error('Workflow must have a Start block to be used as an MCP tool'),
-            'No start block found',
-            400
-          )
-        }
-
-        const [existingTool] = await db
-          .select({ id: workflowMcpTool.id })
-          .from(workflowMcpTool)
-          .where(
-            and(
-              eq(workflowMcpTool.serverId, serverId),
-              eq(workflowMcpTool.workflowId, body.workflowId),
-              isNull(workflowMcpTool.archivedAt)
-            )
-          )
-          .limit(1)
-
-        if (existingTool) {
-          return createMcpErrorResponse(
-            new Error('This workflow is already added as a tool to this server'),
-            'Tool already exists',
-            409
-          )
-        }
-
-        const toolName = sanitizeToolName(body.toolName?.trim() || workflowRecord.name)
-        const toolDescription =
-          body.toolDescription?.trim() ||
-          workflowRecord.description ||
-          `Execute ${workflowRecord.name} workflow`
-
-        const parameterSchema =
-          body.parameterSchema && Object.keys(body.parameterSchema).length > 0
-            ? body.parameterSchema
-            : await generateParameterSchemaForWorkflow(body.workflowId)
-
-        const toolId = generateId()
-        const [tool] = await db
-          .insert(workflowMcpTool)
-          .values({
-            id: toolId,
-            serverId,
-            workflowId: body.workflowId,
-            toolName,
-            toolDescription,
-            parameterSchema,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .returning()
-
-        logger.info(
-          `[${requestId}] Successfully added tool ${toolName} (workflow: ${body.workflowId}) to server ${serverId}`
-        )
-
-        mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
-
-        recordAudit({
+        const result = await performCreateWorkflowMcpTool({
+          serverId,
           workspaceId,
-          actorId: userId,
+          userId,
           actorName: userName,
           actorEmail: userEmail,
-          action: AuditAction.MCP_SERVER_UPDATED,
-          resourceType: AuditResourceType.MCP_SERVER,
-          resourceId: serverId,
-          description: `Added tool "${toolName}" to MCP server`,
-          metadata: {
-            toolId,
-            toolName,
-            toolDescription,
-            workflowId: body.workflowId,
-            workflowName: workflowRecord.name,
-          },
-          request,
+          workflowId: body.workflowId,
+          toolName: body.toolName,
+          toolDescription: body.toolDescription,
+          parameterSchema: body.parameterSchema,
         })
+        if (!result.success || !result.tool) {
+          const status =
+            result.errorCode === 'not_found' ? 404 : result.errorCode === 'conflict' ? 409 : 400
+          return createMcpErrorResponse(
+            new Error(result.error || 'Failed to add tool'),
+            result.error || 'Failed to add tool',
+            result.errorCode === 'internal' ? 500 : status
+          )
+        }
+
+        const tool = result.tool
+
+        logger.info(
+          `[${requestId}] Successfully added tool ${tool.toolName} (workflow: ${body.workflowId}) to server ${serverId}`
+        )
 
         return createMcpSuccessResponse({ tool }, 201)
       } catch (error) {
