@@ -172,7 +172,7 @@ export function createFileContentFromBase64(base64: string, mimeType: string): M
     return null
   }
 
-  if (contentType === 'image' && !CLAUDE_SUPPORTED_IMAGE_MIME_TYPES.has(mimeType.toLowerCase())) {
+  if (contentType === 'image' && !MODEL_SUPPORTED_IMAGE_MIME_TYPES.has(mimeType.toLowerCase())) {
     return null
   }
 
@@ -186,7 +186,7 @@ export function createFileContentFromBase64(base64: string, mimeType: string): M
   }
 }
 
-const CLAUDE_SUPPORTED_IMAGE_MIME_TYPES = new Set([
+export const MODEL_SUPPORTED_IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
   'image/jpg',
   'image/png',

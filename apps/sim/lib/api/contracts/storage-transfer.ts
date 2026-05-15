@@ -302,6 +302,7 @@ export const fileParseBodySchema = z
   .object({
     filePath: z.union([z.string(), z.array(z.string())]).optional(),
     fileType: z.string().optional().default(''),
+    headers: z.record(z.string(), z.string()).optional(),
     workspaceId: z.string().optional().default(''),
     workflowId: z.string().optional(),
     executionId: z.string().optional(),

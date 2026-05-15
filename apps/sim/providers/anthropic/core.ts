@@ -9,6 +9,7 @@ import {
   checkForForcedToolUsage,
   createReadableStreamFromAnthropicStream,
 } from '@/providers/anthropic/utils'
+import { buildAnthropicMessageContent } from '@/providers/attachments'
 import {
   getMaxOutputTokensForModel,
   getThinkingCapability,
@@ -229,9 +230,11 @@ export async function executeAnthropicProviderRequest(
           ],
         })
       } else {
+        const content = buildAnthropicMessageContent(msg.content, msg.files, config.providerId)
         messages.push({
           role: msg.role === 'assistant' ? 'assistant' : 'user',
-          content: msg.content ? [{ type: 'text', text: msg.content }] : [],
+          // double-cast-allowed: shared attachment builder returns Anthropic-compatible content blocks but avoids importing SDK-only union types
+          content: content as unknown as Anthropic.Messages.ContentBlockParam[],
         })
       }
     })

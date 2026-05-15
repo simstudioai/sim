@@ -645,10 +645,12 @@ import {
 } from '@/tools/fathom'
 import {
   fileAppendTool,
+  fileFetchTool,
   fileGetTool,
   fileParserV2Tool,
   fileParserV3Tool,
   fileParseTool,
+  fileReadTool,
   fileWriteTool,
 } from '@/tools/file'
 import {
@@ -3216,7 +3218,9 @@ export const tools: Record<string, ToolConfig> = {
   file_parser_v2: fileParserV2Tool,
   file_parser_v3: fileParserV3Tool,
   file_append: fileAppendTool,
+  file_fetch: fileFetchTool,
   file_get: fileGetTool,
+  file_read: fileReadTool,
   file_write: fileWriteTool,
   firecrawl_scrape: firecrawlScrapeTool,
   firecrawl_search: firecrawlSearchTool,

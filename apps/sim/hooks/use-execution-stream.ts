@@ -197,6 +197,7 @@ export interface ExecuteStreamOptions {
   envVarValues?: Record<string, string>
   workflowVariables?: Record<string, any>
   selectedOutputs?: string[]
+  executionId?: string
   startBlockId?: string
   triggerType?: string
   useDraftState?: boolean

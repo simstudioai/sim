@@ -6,9 +6,12 @@ import { sleep } from '@sim/utils/helpers'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
+import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 import {
   validateBlockType,
   validateCustomToolsAllowed,
@@ -36,6 +39,7 @@ import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
+import { getProviderAttachmentMaxBytes, supportsFileAttachments } from '@/providers/attachments'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { filterSchemaForLLM, type ToolSchema } from '@/tools/params'
@@ -87,12 +91,22 @@ export class AgentBlockHandler implements BlockHandler {
 
     const streamingConfig = this.getStreamingConfig(ctx, block)
     const messages = await this.buildMessages(ctx, filteredInputs, skillMetadata)
+    const messagesWithInputFiles = this.attachFilesToLastUserMessage(
+      ctx,
+      messages,
+      filteredInputs.files
+    )
+    const messagesWithFiles = await this.hydrateMessageFilesForProvider(
+      ctx,
+      messagesWithInputFiles,
+      providerId
+    )
 
     const providerRequest = this.buildProviderRequest({
       ctx,
       providerId,
       model,
-      messages,
+      messages: messagesWithFiles,
       inputs: filteredInputs,
       formattedTools,
       responseFormat,
@@ -670,6 +684,107 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     return messages.length > 0 ? messages : undefined
+  }
+
+  private attachFilesToLastUserMessage(
+    ctx: ExecutionContext,
+    messages: Message[] | undefined,
+    filesInput: unknown
+  ): Message[] | undefined {
+    const normalizedFiles = normalizeFileInput(filesInput)
+    if (!normalizedFiles || normalizedFiles.length === 0) {
+      return messages
+    }
+
+    if (!messages || messages.length === 0) {
+      throw new Error('Files require at least one user message in the agent prompt')
+    }
+
+    let lastUserMessageIndex = -1
+    for (let index = messages.length - 1; index >= 0; index--) {
+      if (messages[index].role === 'user') {
+        lastUserMessageIndex = index
+        break
+      }
+    }
+    if (lastUserMessageIndex === -1) {
+      throw new Error('Files require at least one user message in the agent prompt')
+    }
+
+    const requestId = ctx.executionId || ctx.workflowId || 'agent-files'
+    const userFiles = processFilesToUserFiles(normalizedFiles as RawFileInput[], requestId, logger)
+    if (userFiles.length === 0) {
+      throw new Error('Files must include at least one valid file object')
+    }
+
+    const lastUserMessage = messages[lastUserMessageIndex]
+    const nextMessages = [...messages]
+    nextMessages[lastUserMessageIndex] = {
+      ...lastUserMessage,
+      files: [...(lastUserMessage.files ?? []), ...userFiles],
+    }
+
+    return nextMessages
+  }
+
+  private async hydrateMessageFilesForProvider(
+    ctx: ExecutionContext,
+    messages: Message[] | undefined,
+    providerId: string
+  ): Promise<Message[] | undefined> {
+    if (!messages?.some((message) => message.files?.length)) {
+      return messages
+    }
+
+    if (!supportsFileAttachments(providerId)) {
+      throw new Error(`File attachments are not supported for provider "${providerId}"`)
+    }
+
+    const requestId = ctx.executionId || ctx.workflowId || 'agent-files'
+    const nextMessages = [...messages]
+
+    for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
+      const message = messages[messageIndex]
+      const normalizedFiles = normalizeFileInput(message.files)
+      if (!normalizedFiles || normalizedFiles.length === 0) {
+        continue
+      }
+
+      const userFiles = processFilesToUserFiles(
+        normalizedFiles as RawFileInput[],
+        requestId,
+        logger
+      )
+      if (userFiles.length === 0) {
+        throw new Error('Files must include at least one valid file object')
+      }
+
+      const hydratedFiles = await hydrateUserFilesWithBase64(userFiles, {
+        requestId,
+        workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
+        executionId: ctx.executionId,
+        largeValueExecutionIds: ctx.largeValueExecutionIds,
+        allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
+        userId: ctx.userId,
+        logger,
+        maxBytes: getProviderAttachmentMaxBytes(providerId),
+      })
+
+      const missingFile = hydratedFiles.find((file) => !file.base64)
+      if (missingFile) {
+        throw new Error(
+          `File "${missingFile.name}" could not be read for provider "${providerId}". Make sure the file is still accessible and under the provider attachment size limit.`
+        )
+      }
+
+      nextMessages[messageIndex] = {
+        ...message,
+        files: hydratedFiles,
+      }
+    }
+
+    return nextMessages
   }
 
   private extractValidMessages(messages?: Message[]): Message[] {

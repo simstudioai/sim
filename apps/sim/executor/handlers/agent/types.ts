@@ -1,3 +1,5 @@
+import type { UserFile } from '@/executor/types'
+
 export interface SkillInput {
   skillId: string
   name?: string
@@ -37,6 +39,7 @@ export interface AgentInputs {
   reasoningEffort?: string
   verbosity?: string
   thinkingLevel?: string
+  files?: unknown
 }
 
 /**
@@ -66,6 +69,7 @@ export interface ToolInput {
 export interface Message {
   role: 'system' | 'user' | 'assistant'
   content: string
+  files?: UserFile[]
   executionId?: string
   function_call?: any
   tool_calls?: any[]
