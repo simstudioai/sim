@@ -498,14 +498,14 @@ const DataRow = memo(function DataRow({
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLTableRowElement>) => {
-      if (e.shiftKey && selectable && !selectable.disabled) {
+      if (selectable && !selectable.disabled && (e.shiftKey || !onRowClick)) {
         e.preventDefault()
-        selectable.onSelectRow(row.id, true, true)
+        selectable.onSelectRow(row.id, !isSelected, e.shiftKey)
         return
       }
       onRowClick?.(row.id)
     },
-    [onRowClick, row.id, selectable]
+    [isSelected, onRowClick, row.id, selectable]
   )
 
   const handleMouseEnter = useCallback(() => {

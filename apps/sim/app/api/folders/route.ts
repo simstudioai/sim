@@ -13,6 +13,13 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersAPI')
 
+function folderMutationStatus(errorCode: string | undefined): number {
+  if (errorCode === 'validation') return 400
+  if (errorCode === 'conflict') return 409
+  if (errorCode === 'not_found') return 404
+  return 500
+}
+
 // GET - Fetch folders for a workspace
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -97,7 +104,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (!result.success || !result.folder) {
-      return NextResponse.json({ error: result.error }, { status: 500 })
+      return NextResponse.json(
+        { error: result.error },
+        { status: folderMutationStatus(result.errorCode) }
+      )
     }
 
     const newFolder = result.folder
