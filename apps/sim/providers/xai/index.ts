@@ -4,7 +4,6 @@ import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
-import { formatMessagesForProvider } from '@/providers/attachments'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
@@ -77,7 +76,6 @@ export const xAIProvider: ProviderConfig = {
     if (request.messages) {
       allMessages.push(...request.messages)
     }
-    const formattedMessages = formatMessagesForProvider(allMessages, 'xai') as Message[]
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
           type: 'function',
@@ -95,7 +93,7 @@ export const xAIProvider: ProviderConfig = {
     }
     const basePayload: any = {
       model: request.model,
-      messages: formattedMessages,
+      messages: allMessages,
     }
 
     if (request.temperature !== undefined) basePayload.temperature = request.temperature
@@ -221,7 +219,7 @@ export const xAIProvider: ProviderConfig = {
       }
       const toolCalls = []
       const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...formattedMessages]
+      const currentMessages = [...allMessages]
       let iterationCount = 0
 
       let hasUsedForcedTool = false
