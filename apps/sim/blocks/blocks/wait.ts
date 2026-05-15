@@ -60,8 +60,6 @@ export const WaitBlock: BlockConfig = {
       id: 'async',
       title: 'Async',
       type: 'switch',
-      tooltip:
-        'By default, the workflow pauses in memory and can wait up to 5 minutes. Turn this on to run asynchronously — the workflow is saved to disk and resumed automatically when the timer fires, allowing waits up to 30 days. Seconds aren’t available in async mode.',
     },
   ],
   tools: {
