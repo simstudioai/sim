@@ -13,21 +13,16 @@ import { cn } from '@/lib/core/utils/cn'
 import { convertScheduleOptionsToCron } from '@/lib/core/utils/scheduling'
 import { getInvalidCharacters, isValidName, validateName } from '@/lib/core/utils/validation'
 
-vi.mock('crypto', () => ({
-  createCipheriv: vi.fn().mockReturnValue({
-    update: vi.fn().mockReturnValue('encrypted-data'),
-    final: vi.fn().mockReturnValue('final-data'),
-    getAuthTag: vi.fn().mockReturnValue({
-      toString: vi.fn().mockReturnValue('auth-tag'),
-    }),
+vi.mock('@sim/security/encryption', () => ({
+  encrypt: vi.fn().mockResolvedValue({
+    encrypted: 'random-iv:encrypted-datafinal-data:auth-tag',
+    iv: 'random-iv',
   }),
-  createDecipheriv: vi.fn().mockReturnValue({
-    update: vi.fn().mockReturnValue('decrypted-data'),
-    final: vi.fn().mockReturnValue('final-data'),
-    setAuthTag: vi.fn(),
-  }),
-  randomBytes: vi.fn().mockReturnValue({
-    toString: vi.fn().mockReturnValue('random-iv'),
+  decrypt: vi.fn().mockImplementation(async (encryptedValue: string) => {
+    if (!encryptedValue.includes(':')) {
+      throw new Error('Invalid encrypted value format')
+    }
+    return { decrypted: 'decrypted-datafinal-data' }
   }),
 }))
 

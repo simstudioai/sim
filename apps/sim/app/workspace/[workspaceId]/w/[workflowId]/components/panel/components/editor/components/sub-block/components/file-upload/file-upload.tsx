@@ -2,6 +2,11 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import {
+  generateRandomString,
+  LOWERCASE_ALPHANUMERIC_ALPHABET,
+  randomFloat,
+} from '@sim/utils/random'
 import { useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -293,7 +298,7 @@ export function FileUpload({
     }
 
     const uploading = validFiles.map((file) => ({
-      id: `upload-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      id: `upload-${Date.now()}-${generateRandomString(7, LOWERCASE_ALPHANUMERIC_ALPHABET)}`,
       name: file.name,
       size: file.size,
     }))
@@ -308,7 +313,7 @@ export function FileUpload({
 
       progressInterval = setInterval(() => {
         setUploadProgress((prev) => {
-          const newProgress = prev + Math.random() * 10
+          const newProgress = prev + randomFloat() * 10
           return newProgress > 90 ? 90 : newProgress
         })
       }, 200)

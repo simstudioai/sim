@@ -4,6 +4,7 @@ import {
   createFunctionBlock,
   createStarterBlock,
 } from '../factories/block.factory'
+import { shortId } from '../factories/id'
 import type { Position } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -229,7 +230,7 @@ export class WorkflowBuilder {
     value: any
   ): this {
     this.variables?.push({
-      id: `var-${Math.random().toString(36).substring(2, 8)}`,
+      id: `var-${shortId(6)}`,
       name,
       type,
       value,

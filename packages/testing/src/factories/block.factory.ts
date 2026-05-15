@@ -1,4 +1,5 @@
 import type { BlockData, BlockOutput, Position } from '../types'
+import { shortId } from './id'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -28,7 +29,7 @@ export interface BlockFactoryOptions {
  * Generates a unique block ID.
  */
 function generateBlockId(prefix = 'block'): string {
-  return `${prefix}-${Math.random().toString(36).substring(2, 10)}`
+  return `${prefix}-${shortId(8)}`
 }
 
 /**

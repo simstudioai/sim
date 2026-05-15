@@ -3,12 +3,12 @@
  * Files uploaded at workspace level persist indefinitely and are accessible across all workflows
  */
 
-import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { generateRandomHex } from '@sim/utils/random'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
   checkStorageQuota,
@@ -118,7 +118,7 @@ export function parseWorkspaceFileKey(key: string): string | null {
  */
 export function generateWorkspaceFileKey(workspaceId: string, fileName: string): string {
   const timestamp = Date.now()
-  const random = randomBytes(8).toString('hex')
+  const random = generateRandomHex(8)
   const safeFileName = sanitizeFileName(fileName)
   return `workspace/${workspaceId}/${timestamp}-${random}-${safeFileName}`
 }

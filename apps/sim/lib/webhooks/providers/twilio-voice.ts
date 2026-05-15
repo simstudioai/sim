@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import { createHmac } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { NextResponse } from 'next/server'
@@ -37,17 +37,7 @@ async function validateTwilioSignature(
       sortedKeys,
       dataLength: data.length,
     })
-    const encoder = new TextEncoder()
-    const key = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(authToken),
-      { name: 'HMAC', hash: 'SHA-1' },
-      false,
-      ['sign']
-    )
-    const signatureBytes = await crypto.subtle.sign('HMAC', key, encoder.encode(data))
-    const signatureArray = Array.from(new Uint8Array(signatureBytes))
-    const signatureBase64 = btoa(String.fromCharCode(...signatureArray))
+    const signatureBase64 = createHmac('sha1', authToken).update(data, 'utf8').digest('base64')
     logger.debug('Twilio signature comparison', {
       computedSignature: `${signatureBase64.substring(0, 10)}...`,
       providedSignature: `${signature.substring(0, 10)}...`,

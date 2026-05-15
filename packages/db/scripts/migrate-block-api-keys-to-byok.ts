@@ -19,10 +19,11 @@
 //   bun run packages/db/scripts/migrate-block-api-keys-to-byok.ts --dry-run \
 //     --map jina=jina --user user_abc123 --user user_def456
 
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { createCipheriv, createDecipheriv } from 'crypto'
 import { appendFileSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 import { generateId } from '@sim/utils/id'
+import { generateRandomBytes } from '@sim/utils/random'
 import { eq, sql } from 'drizzle-orm'
 import { index, json, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -123,7 +124,7 @@ function getEncryptionKeyBuffer(): Buffer {
 }
 
 async function encryptSecret(secret: string): Promise<string> {
-  const iv = randomBytes(16)
+  const iv = Buffer.from(generateRandomBytes(16))
   const key = getEncryptionKeyBuffer()
   const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 })
   let encrypted = cipher.update(secret, 'utf8', 'hex')

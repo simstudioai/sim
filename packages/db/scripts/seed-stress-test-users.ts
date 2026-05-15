@@ -7,6 +7,11 @@
  */
 
 import { generateId } from '@sim/utils/id'
+import {
+  randomInt as getRandomInt,
+  randomItem as getRandomItem,
+  randomFloat,
+} from '@sim/utils/random'
 import { eq, type InferInsertModel } from 'drizzle-orm'
 import { db, userTableDefinitions, userTableRows } from '../index'
 
@@ -93,15 +98,15 @@ const lastNames = [
 ]
 
 function randomItem<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]
+  return getRandomItem(arr)
 }
 
 function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min
+  return getRandomInt(max - min + 1) + min
 }
 
 function randomDate(start: Date, end: Date): string {
-  const date = new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()))
+  const date = new Date(start.getTime() + randomFloat() * (end.getTime() - start.getTime()))
   return date.toISOString().split('T')[0]
 }
 
@@ -116,7 +121,7 @@ function generateUserRow(index: number): UserRow {
     age: randomInt(22, 65),
     department: randomItem(departments),
     salary: randomInt(40000, 200000),
-    active: Math.random() > 0.1, // 90% active
+    active: randomFloat() > 0.1, // 90% active
     hire_date: randomDate(new Date('2015-01-01'), new Date('2024-12-31')),
     country: randomItem(countries),
   }

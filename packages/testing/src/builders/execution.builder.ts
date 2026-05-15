@@ -1,3 +1,4 @@
+import { shortId } from '../factories/id'
 import type { ExecutionContext } from '../types'
 
 /**
@@ -18,7 +19,7 @@ import type { ExecutionContext } from '../types'
  */
 export class ExecutionContextBuilder {
   private workflowId = 'test-workflow'
-  private executionId = `exec-${Math.random().toString(36).substring(2, 10)}`
+  private executionId = `exec-${shortId(8)}`
   private blockStates = new Map<string, any>()
   private executedBlocks = new Set<string>()
   private blockLogs: any[] = []

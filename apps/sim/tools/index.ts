@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { randomFloat } from '@sim/utils/random'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -1273,7 +1274,7 @@ function isRetryableFailure(error: unknown, status?: number): boolean {
 
 function calculateBackoff(attempt: number, initialDelayMs: number, maxDelayMs: number): number {
   const base = Math.min(initialDelayMs * 2 ** attempt, maxDelayMs)
-  return Math.round(base / 2 + Math.random() * (base / 2))
+  return Math.round(base / 2 + randomFloat() * (base / 2))
 }
 
 function parseRetryAfterHeader(header: string | null): number {

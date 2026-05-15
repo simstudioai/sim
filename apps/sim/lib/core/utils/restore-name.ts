@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto'
+import { generateRandomHex } from '@sim/utils/random'
 
 const HASH_ATTEMPTS = 8
 
@@ -23,7 +23,7 @@ export async function generateRestoreName(
   }
 
   for (let i = 0; i < HASH_ATTEMPTS; i++) {
-    const hash = randomBytes(3).toString('hex')
+    const hash = generateRandomHex(3)
     const candidate = addSuffix(originalName, `_restored_${hash}`, options?.hasExtension)
     if (!(await nameExists(candidate))) {
       return candidate

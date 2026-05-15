@@ -1,3 +1,9 @@
+import { generateRandomBytes, generateRandomString } from './random.js'
+
+type RandomUuidSource = {
+  randomUUID?: () => string
+}
+
 /**
  * Generates a UUID v4 string safe for all contexts.
  *
@@ -7,12 +13,12 @@
  * to `crypto.getRandomValues()`, which does not require a secure context.
  */
 export function generateId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
+  const cryptoProvider = (globalThis as typeof globalThis & { crypto?: RandomUuidSource }).crypto
+  if (typeof cryptoProvider?.randomUUID === 'function') {
+    return cryptoProvider.randomUUID()
   }
 
-  const bytes = new Uint8Array(16)
-  crypto.getRandomValues(bytes)
+  const bytes = generateRandomBytes(16)
 
   bytes[6] = (bytes[6] & 0x0f) | 0x40
   bytes[8] = (bytes[8] & 0x3f) | 0x80
@@ -30,8 +36,6 @@ export function isValidUuid(value: string): boolean {
   return UUID_RE.test(value)
 }
 
-const URL_SAFE_ALPHABET = 'useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict'
-
 /**
  * Generates a short, URL-safe random ID.
  *
@@ -43,25 +47,6 @@ const URL_SAFE_ALPHABET = 'useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghj
  *                   Length must be in [2, 256].
  * @returns A random string drawn from the alphabet
  */
-export function generateShortId(size = 21, alphabet: string = URL_SAFE_ALPHABET): string {
-  const alphabetLength = alphabet.length
-  if (alphabetLength < 2 || alphabetLength > 256) {
-    throw new Error('generateShortId alphabet length must be between 2 and 256')
-  }
-
-  const mask = (2 << (31 - Math.clz32((alphabetLength - 1) | 1))) - 1
-  const step = Math.ceil((1.6 * mask * size) / alphabetLength)
-
-  let id = ''
-  while (id.length < size) {
-    const bytes = new Uint8Array(step)
-    crypto.getRandomValues(bytes)
-    for (let i = 0; i < step && id.length < size; i++) {
-      const index = bytes[i] & mask
-      if (index < alphabetLength) {
-        id += alphabet[index]
-      }
-    }
-  }
-  return id
+export function generateShortId(size = 21, alphabet?: string): string {
+  return generateRandomString(size, alphabet)
 }

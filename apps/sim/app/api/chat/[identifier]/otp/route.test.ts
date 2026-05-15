@@ -213,6 +213,7 @@ describe('Chat OTP API Route', () => {
 
     vi.stubGlobal('crypto', {
       ...crypto,
+      getRandomValues: crypto.getRandomValues.bind(crypto),
       randomUUID: vi.fn().mockReturnValue('test-uuid-1234'),
     })
 

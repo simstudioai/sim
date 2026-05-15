@@ -1,4 +1,3 @@
-import { randomBytes } from 'crypto'
 import {
   type Context,
   context,
@@ -11,6 +10,7 @@ import {
   trace,
 } from '@opentelemetry/api'
 import { toError } from '@sim/utils/errors'
+import { generateRandomHex } from '@sim/utils/random'
 import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
 import {
   CopilotBranchKind,
@@ -333,8 +333,8 @@ function isValidSpanContext(spanContext: SpanContext): boolean {
 
 function createFallbackSpanContext(): SpanContext {
   return {
-    traceId: randomBytes(16).toString('hex'),
-    spanId: randomBytes(8).toString('hex'),
+    traceId: generateRandomHex(16),
+    spanId: generateRandomHex(8),
     traceFlags: TraceFlags.SAMPLED,
   }
 }

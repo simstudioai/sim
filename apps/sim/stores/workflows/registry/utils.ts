@@ -1,3 +1,5 @@
+import { randomItem } from '@sim/utils/random'
+
 // Cosmos-themed adjectives and nouns for creative workflow names (max 9 chars each)
 const ADJECTIVES = [
   // Light & Luminosity
@@ -412,7 +414,7 @@ const NOUNS = [
  * @returns A creative workflow name like "blazing-phoenix" or "crystal-dragon"
  */
 export function generateCreativeWorkflowName(): string {
-  const adjective = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)]
-  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)]
+  const adjective = randomItem(ADJECTIVES)
+  const noun = randomItem(NOUNS)
   return `${adjective.toLowerCase()}-${noun.toLowerCase()}`
 }

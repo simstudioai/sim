@@ -9,6 +9,7 @@ import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { formatDuration } from '@sim/utils/formatting'
 import { generateId } from '@sim/utils/id'
+import { randomFloat } from '@sim/utils/random'
 import { getActiveWorkflowContext } from '@sim/workflow-authz'
 import { task } from '@trigger.dev/sdk'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
@@ -34,7 +35,7 @@ const logger = createLogger('WorkspaceNotificationDelivery')
 const MAX_ATTEMPTS = 5
 const RETRY_DELAYS = [5 * 1000, 15 * 1000, 60 * 1000, 3 * 60 * 1000, 10 * 60 * 1000]
 function getRetryDelayWithJitter(baseDelay: number): number {
-  const jitter = Math.random() * 0.1 * baseDelay
+  const jitter = randomFloat() * 0.1 * baseDelay
   return Math.floor(baseDelay + jitter)
 }
 

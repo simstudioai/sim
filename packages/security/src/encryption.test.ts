@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { generateRandomBytes } from '@sim/utils/random'
 import { describe, expect, it } from 'vitest'
 import { decrypt, encrypt } from './encryption'
 
@@ -68,7 +68,7 @@ describe('decrypt', () => {
 
   it('throws when decrypted with a different key', async () => {
     const { encrypted } = await encrypt('original', KEY)
-    const otherKey = randomBytes(32)
+    const otherKey = Buffer.from(generateRandomBytes(32))
     await expect(decrypt(encrypted, otherKey)).rejects.toThrow()
   })
 })

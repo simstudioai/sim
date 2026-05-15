@@ -13,6 +13,7 @@ import {
   VARIABLE_OPERATIONS,
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
+import { randomFloat } from '@sim/utils/random'
 import { getActiveWorkflowContext } from '@sim/workflow-authz'
 import { loadWorkflowFromNormalizedTablesRaw } from '@sim/workflow-persistence/load'
 import { mergeSubBlockValues } from '@sim/workflow-persistence/subblocks'
@@ -204,7 +205,7 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
       throw new Error(`Workflow ${workflowId} is archived or unavailable`)
     }
 
-    if (op === BLOCK_OPERATIONS.UPDATE_POSITION && Math.random() < 0.01) {
+    if (op === BLOCK_OPERATIONS.UPDATE_POSITION && randomFloat() < 0.01) {
       logger.debug('Socket DB operation sample:', {
         operation: op,
         target,

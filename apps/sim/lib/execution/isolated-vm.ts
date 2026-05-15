@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { generateRandomString, LOWERCASE_ALPHANUMERIC_ALPHABET } from '@sim/utils/random'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
@@ -1336,7 +1337,7 @@ export async function executeInIsolatedVM(
     }
   }
 
-  const distributedLeaseId = `${req.requestId}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`
+  const distributedLeaseId = `${req.requestId}:${Date.now()}:${generateRandomString(8, LOWERCASE_ALPHANUMERIC_ALPHABET)}`
   const leaseAcquireResult = await tryAcquireDistributedLease(
     ownerKey,
     distributedLeaseId,

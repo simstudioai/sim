@@ -1,5 +1,5 @@
-import { randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
+import { generateRandomHex } from '@sim/utils/random'
 import { getStorageConfig, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
 import type { BlobConfig } from '@/lib/uploads/providers/blob/types'
 import type { S3Config } from '@/lib/uploads/providers/s3/types'
@@ -295,7 +295,7 @@ export async function generatePresignedUploadUrl(
     key = customKey
   } else {
     const timestamp = Date.now()
-    const uniqueId = randomBytes(8).toString('hex')
+    const uniqueId = generateRandomHex(8)
     const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
     key = `${context}/${timestamp}-${uniqueId}-${safeFileName}`
   }

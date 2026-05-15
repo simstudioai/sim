@@ -8,7 +8,7 @@
  *
  * @vitest-environment node
  */
-import { randomBytes } from 'crypto'
+import { generateRandomHex } from '@sim/utils/random'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockEnv } = vi.hoisted(() => ({
@@ -56,7 +56,7 @@ describe('backfill idempotency — encrypted round-trip', () => {
   })
 
   it('re-running the backfill on the same row yields the same keyHash', async () => {
-    const plainKey = `sk-sim-${randomBytes(12).toString('hex')}`
+    const plainKey = `sk-sim-${generateRandomHex(12)}`
     const { encrypted } = await encryptApiKey(plainKey)
 
     const { decrypted: first } = await decryptApiKey(encrypted)

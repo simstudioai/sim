@@ -1,4 +1,5 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv } from 'node:crypto'
+import { generateRandomBytes } from '@sim/utils/random'
 
 /**
  * AES-256-GCM encryption primitive. Produces a self-contained string in the
@@ -14,7 +15,7 @@ export async function encrypt(
 ): Promise<{ encrypted: string; iv: string }> {
   assertKey(key)
 
-  const iv = randomBytes(16)
+  const iv = Buffer.from(generateRandomBytes(16))
   const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 })
   let encrypted = cipher.update(plaintext, 'utf8', 'hex')
   encrypted += cipher.final('hex')

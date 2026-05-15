@@ -1,18 +1,10 @@
-const URL_SAFE_ALPHABET = 'useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict'
+import { generateRandomString } from '@sim/utils/random'
 
 /**
  * Generates a short, URL-safe random ID for test fixtures.
  *
- * Uses `crypto.getRandomValues()` instead of `crypto.randomUUID()` for
- * consistency with the app-level `generateShortId` utility.
+ * Uses the shared app-level random utility for consistency.
  */
 export function shortId(size = 8): string {
-  const bytes = new Uint8Array(size)
-  crypto.getRandomValues(bytes)
-
-  let id = ''
-  for (let i = 0; i < size; i++) {
-    id += URL_SAFE_ALPHABET[bytes[i] & 63]
-  }
-  return id
+  return generateRandomString(size)
 }

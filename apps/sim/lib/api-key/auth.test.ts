@@ -9,7 +9,6 @@
  * - Edge cases
  */
 
-import { randomBytes } from 'crypto'
 import {
   createEncryptedApiKey,
   createLegacyApiKey,
@@ -18,24 +17,28 @@ import {
 } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
-const cryptoMock = vi.hoisted(() => ({
-  isEncryptedApiKeyFormat: (key: string) => key.startsWith('sk-sim-'),
-  isLegacyApiKeyFormat: (key: string) => key.startsWith('sim_') && !key.startsWith('sk-sim-'),
-  generateApiKey: () => `sim_${randomBytes(24).toString('base64url')}`,
-  generateEncryptedApiKey: () => `sk-sim-${randomBytes(24).toString('base64url')}`,
-  encryptApiKey: async (apiKey: string) => ({
-    encrypted: `mock-iv:${Buffer.from(apiKey).toString('hex')}:mock-tag`,
-    iv: 'mock-iv',
-  }),
-  decryptApiKey: async (encryptedValue: string) => {
-    if (!encryptedValue.includes(':') || encryptedValue.split(':').length !== 3) {
-      return { decrypted: encryptedValue }
-    }
-    const parts = encryptedValue.split(':')
-    const hexPart = parts[1]
-    return { decrypted: Buffer.from(hexPart, 'hex').toString('utf8') }
-  },
-}))
+const cryptoMock = vi.hoisted(() => {
+  let keyCounter = 0
+
+  return {
+    isEncryptedApiKeyFormat: (key: string) => key.startsWith('sk-sim-'),
+    isLegacyApiKeyFormat: (key: string) => key.startsWith('sim_') && !key.startsWith('sk-sim-'),
+    generateApiKey: () => `sim_test_key_${++keyCounter}`,
+    generateEncryptedApiKey: () => `sk-sim-test-key-${++keyCounter}`,
+    encryptApiKey: async (apiKey: string) => ({
+      encrypted: `mock-iv:${Buffer.from(apiKey).toString('hex')}:mock-tag`,
+      iv: 'mock-iv',
+    }),
+    decryptApiKey: async (encryptedValue: string) => {
+      if (!encryptedValue.includes(':') || encryptedValue.split(':').length !== 3) {
+        return { decrypted: encryptedValue }
+      }
+      const parts = encryptedValue.split(':')
+      const hexPart = parts[1]
+      return { decrypted: Buffer.from(hexPart, 'hex').toString('utf8') }
+    },
+  }
+})
 
 vi.mock('@/lib/api-key/crypto', () => cryptoMock)
 

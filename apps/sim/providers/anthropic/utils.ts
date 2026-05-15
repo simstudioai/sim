@@ -5,6 +5,7 @@ import type {
   Usage,
 } from '@anthropic-ai/sdk/resources'
 import { createLogger } from '@sim/logger'
+import { generateRandomString, LOWERCASE_ALPHANUMERIC_ALPHABET } from '@sim/utils/random'
 import { trackForcedToolUsage } from '@/providers/utils'
 
 const logger = createLogger('AnthropicUtils')
@@ -53,7 +54,7 @@ export function createReadableStreamFromAnthropicStream(
 }
 
 export function generateToolUseId(toolName: string): string {
-  return `${toolName}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+  return `${toolName}-${Date.now()}-${generateRandomString(5, LOWERCASE_ALPHANUMERIC_ALPHABET)}`
 }
 
 export function checkForForcedToolUsage(

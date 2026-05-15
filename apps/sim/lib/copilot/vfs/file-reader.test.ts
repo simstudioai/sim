@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 
-import { randomFillSync } from 'node:crypto'
 import { loggerMock } from '@sim/testing'
+import { generateRandomBytes } from '@sim/utils/random'
 import { describe, expect, it, vi } from 'vitest'
 
 const { fetchWorkspaceFileBuffer } = vi.hoisted(() => ({
@@ -21,8 +21,7 @@ const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024
 
 async function makeNoisePng(width: number, height: number): Promise<Buffer> {
   const sharp = (await import('sharp')).default
-  const raw = Buffer.alloc(width * height * 3)
-  randomFillSync(raw)
+  const raw = Buffer.from(generateRandomBytes(width * height * 3))
   return sharp(raw, { raw: { width, height, channels: 3 } })
     .png()
     .toBuffer()

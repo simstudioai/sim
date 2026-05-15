@@ -9,6 +9,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { randomInt } from '@sim/utils/random'
 import { and, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
@@ -93,7 +94,8 @@ async function isKnowledgeBaseActiveInTx(
 function calculateNextSyncTime(syncIntervalMinutes: number): Date | null {
   if (syncIntervalMinutes <= 0) return null
   const now = Date.now()
-  const jitterMs = Math.floor(Math.random() * Math.min(syncIntervalMinutes * 6_000, 300_000))
+  const jitterWindowMs = Math.min(syncIntervalMinutes * 6_000, 300_000)
+  const jitterMs = jitterWindowMs > 0 ? randomInt(jitterWindowMs) : 0
   return new Date(now + syncIntervalMinutes * 60_000 + jitterMs)
 }
 

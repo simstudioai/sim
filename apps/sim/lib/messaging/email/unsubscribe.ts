@@ -1,8 +1,8 @@
-import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
 import { settings, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { generateRandomHex } from '@sim/utils/random'
 import { eq } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import type { EmailType } from '@/lib/messaging/email/mailer'
@@ -20,7 +20,7 @@ export interface EmailPreferences {
  * Generate a secure unsubscribe token for an email address
  */
 export function generateUnsubscribeToken(email: string, emailType = 'marketing'): string {
-  const salt = randomBytes(16).toString('hex')
+  const salt = generateRandomHex(16)
   const hash = sha256Hex(`${email}:${salt}:${emailType}:${env.BETTER_AUTH_SECRET}`)
 
   return `${salt}:${hash}:${emailType}`

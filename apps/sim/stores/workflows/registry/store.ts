@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { generateRandomHex } from '@sim/utils/random'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { requestJson } from '@/lib/api/client/request'
@@ -25,7 +26,7 @@ const initialHydration: HydrationState = {
   error: null,
 }
 
-const createRequestId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`
+const createRequestId = () => `${Date.now()}-${generateRandomHex(8)}`
 
 function resetWorkflowStores() {
   useWorkflowStore.setState({

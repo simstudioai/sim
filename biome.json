@@ -30,7 +30,8 @@
       "!**/venv",
       "!**/.venv",
       "!**/uploads",
-      "!**/apps/sim/lib/execution/sandbox/bundles/*.cjs"
+      "!**/apps/sim/lib/execution/sandbox/bundles/*.cjs",
+      "!**/.claude/worktrees"
     ]
   },
   "formatter": {
@@ -113,7 +114,20 @@
         "noUnusedTemplateLiteral": "off",
         "useNumberNamespace": "error",
         "noInferrableTypes": "error",
-        "noUselessElse": "error"
+        "noUselessElse": "error",
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "nanoid": "Use generateShortId() from @sim/utils/id instead",
+              "uuid": "Use generateId() from @sim/utils/id instead",
+              "crypto": {
+                "importNames": ["randomUUID", "randomBytes"],
+                "message": "Use generateId()/generateShortId() from @sim/utils/id or generateRandomBytes()/generateRandomHex() from @sim/utils/random instead"
+              }
+            }
+          }
+        }
       },
       "complexity": {
         "noForEach": "off",

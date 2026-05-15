@@ -1,8 +1,8 @@
-import { randomInt } from 'crypto'
 import { db } from '@sim/db'
 import { chat, verification } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { randomInt } from '@sim/utils/random'
 import { and, eq, gt, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { renderOTPEmail } from '@/components/emails'
@@ -36,7 +36,7 @@ const OTP_EMAIL_RATE_LIMIT: TokenBucketConfig = {
 }
 
 function generateOTP(): string {
-  return randomInt(100000, 1000000).toString()
+  return (randomInt(900000) + 100000).toString()
 }
 
 const OTP_EXPIRY = 15 * 60 // 15 minutes

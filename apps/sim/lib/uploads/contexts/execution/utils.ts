@@ -1,3 +1,4 @@
+import { generateRandomString, LOWERCASE_ALPHANUMERIC_ALPHABET } from '@sim/utils/random'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
@@ -24,7 +25,7 @@ export function generateExecutionFileKey(context: ExecutionContext, fileName: st
  * Generate unique file ID for execution files
  */
 export function generateFileId(): string {
-  return `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+  return `file_${Date.now()}_${generateRandomString(7, LOWERCASE_ALPHANUMERIC_ALPHABET)}`
 }
 
 /**

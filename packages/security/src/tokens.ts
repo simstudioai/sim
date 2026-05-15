@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { generateRandomBytes } from '@sim/utils/random'
 
 /**
  * Generate a cryptographically secure random token encoded as base64url. The
@@ -8,5 +8,5 @@ import { randomBytes } from 'node:crypto'
  * @param byteLength - Number of random bytes to draw before encoding. Defaults to 24 (~32 chars).
  */
 export function generateSecureToken(byteLength = 24): string {
-  return randomBytes(byteLength).toString('base64url')
+  return Buffer.from(generateRandomBytes(byteLength)).toString('base64url')
 }

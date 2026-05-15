@@ -37,6 +37,18 @@ const shortId = generateShortId()
 const tiny = generateShortId(8)
 ```
 
+## Randomness
+Never use `Math.random()`, `crypto.randomBytes()`, or one-off random helpers. Use `@sim/utils/random`:
+
+- `generateRandomBytes(size)` — secure bytes
+- `generateRandomHex(byteLength)` — lowercase hex for salts, object keys, and trace/span IDs
+- `generateRandomString(size?, alphabet?)` — URL-safe or custom-alphabet suffixes
+- `randomFloat()` — sampling and jitter in `[0, 1)`
+- `randomInt(maxExclusive)` — unbiased integer ranges
+- `randomItem(items)` — unbiased array selection
+
+Use these for IDs, suffixes, MIME boundaries, storage keys, salts, tokens, retry jitter, telemetry sampling, and random UI palette/name selection. Do not add a `Math.random()` fallback; `crypto.getRandomValues()` is the standard CSPRNG primitive and works in insecure browser contexts. Only standalone published packages that cannot depend on `@sim/utils` may use Web Crypto directly, with a comment explaining why.
+
 ## Common Utilities
 Use shared helpers from `@sim/utils` instead of writing inline implementations:
 

@@ -1,5 +1,6 @@
 import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
 import { createLogger } from '@sim/logger'
+import { generateRandomString, LOWERCASE_ALPHANUMERIC_ALPHABET } from '@sim/utils/random'
 import { trackForcedToolUsage } from '@/providers/utils'
 
 const logger = createLogger('BedrockUtils')
@@ -73,7 +74,7 @@ export function checkForForcedToolUsage(
  */
 export function generateToolUseId(toolName: string): string {
   const timestamp = Date.now().toString(36) // Base36 timestamp (9 chars)
-  const random = Math.random().toString(36).substring(2, 7) // 5 random chars
+  const random = generateRandomString(5, LOWERCASE_ALPHANUMERIC_ALPHABET)
   const suffix = `-${timestamp}-${random}` // ~15 chars
   const maxNameLength = 64 - suffix.length
   const truncatedName = toolName.substring(0, maxNameLength).replace(/[^a-zA-Z0-9_-]/g, '_')

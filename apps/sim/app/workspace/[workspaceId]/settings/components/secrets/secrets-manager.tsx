@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateRandomString } from '@sim/utils/random'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, Clipboard, Key, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -217,7 +218,7 @@ function WorkspaceVariableRow({
           onPendingKeyChange(e.target.value)
         }}
         onBlur={() => onRenameEnd(envKey, value)}
-        name={`workspace_env_key_${envKey}_${Math.random()}`}
+        name={`workspace_env_key_${envKey}_${generateRandomString(8)}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -242,7 +243,7 @@ function WorkspaceVariableRow({
         onBlur={() => {
           if (canEdit) setValueFocused(false)
         }}
-        name={`workspace_env_value_${envKey}_${Math.random()}`}
+        name={`workspace_env_value_${envKey}_${generateRandomString(8)}`}
         autoComplete='off'
         autoCorrect='off'
         autoCapitalize='off'
@@ -298,7 +299,7 @@ function NewWorkspaceVariableRow({
         onChange={(e) => onUpdate(index, 'key', e.target.value)}
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='API_KEY'
-        name={`new_workspace_key_${envVar.id || index}_${Math.random()}`}
+        name={`new_workspace_key_${envVar.id || index}_${generateRandomString(8)}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -314,7 +315,7 @@ function NewWorkspaceVariableRow({
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='Enter value'
         type={valueFocused ? 'text' : 'password'}
-        name={`new_workspace_value_${envVar.id || index}_${Math.random()}`}
+        name={`new_workspace_value_${envVar.id || index}_${generateRandomString(8)}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -1088,7 +1089,7 @@ export function SecretsManager() {
           onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
           onPaste={(e) => handlePaste(e, originalIndex)}
           placeholder='API_KEY'
-          name={`env_variable_name_${envVar.id || originalIndex}_${Math.random()}`}
+          name={`env_variable_name_${envVar.id || originalIndex}_${generateRandomString(8)}`}
           autoComplete='off'
           autoCapitalize='off'
           spellCheck='false'
@@ -1116,7 +1117,7 @@ export function SecretsManager() {
           onBlur={() => setFocusedValueIndex(null)}
           onPaste={(e) => handlePaste(e, originalIndex)}
           placeholder={isConflict ? 'Workspace override active' : 'Enter value'}
-          name={`env_variable_value_${envVar.id || originalIndex}_${Math.random()}`}
+          name={`env_variable_value_${envVar.id || originalIndex}_${generateRandomString(8)}`}
           autoComplete='off'
           autoCapitalize='off'
           spellCheck='false'

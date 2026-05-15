@@ -1,4 +1,5 @@
 import type { ExecutionContext } from '../types'
+import { shortId } from './id'
 
 /**
  * Options for creating a mock execution context.
@@ -38,7 +39,7 @@ export function createExecutionContext(
 ): ExecutionContext {
   return {
     workflowId: options.workflowId ?? 'test-workflow',
-    executionId: options.executionId ?? `exec-${Math.random().toString(36).substring(2, 10)}`,
+    executionId: options.executionId ?? `exec-${shortId(8)}`,
     blockStates: options.blockStates ?? new Map(),
     executedBlocks: options.executedBlocks ?? new Set(),
     blockLogs: options.blockLogs ?? [],

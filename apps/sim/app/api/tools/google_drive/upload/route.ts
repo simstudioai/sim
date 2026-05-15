@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { generateRandomString, LOWERCASE_ALPHANUMERIC_ALPHABET } from '@sim/utils/random'
 import { type NextRequest, NextResponse } from 'next/server'
 import { googleDriveUploadContract } from '@/lib/api/contracts/tools/google'
 import { parseRequest } from '@/lib/api/server'
@@ -170,7 +171,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       metadata.parents = [validatedData.folderId.trim()]
     }
 
-    const boundary = `boundary_${Date.now()}_${Math.random().toString(36).substring(7)}`
+    const boundary = `boundary_${Date.now()}_${generateRandomString(7, LOWERCASE_ALPHANUMERIC_ALPHABET)}`
 
     const multipartBody = buildMultipartBody(metadata, fileBuffer, uploadMimeType, boundary)
 

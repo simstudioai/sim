@@ -379,6 +379,9 @@
     "packages/security": {
       "name": "@sim/security",
       "version": "0.1.0",
+      "dependencies": {
+        "@sim/utils": "workspace:*",
+      },
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
         "@types/node": "24.2.1",

@@ -1,4 +1,5 @@
 import { toError } from '@sim/utils/errors'
+import { randomFloat } from '@sim/utils/random'
 import { z } from 'zod'
 
 /**
@@ -57,7 +58,7 @@ export function backoffWithJitter(
     return Math.min(Math.max(retryAfterMs, baseMs), maxMs)
   }
   const exponential = Math.min(baseMs * 2 ** (attempt - 1), maxMs)
-  return exponential * (0.8 + Math.random() * 0.4)
+  return exponential * (0.8 + randomFloat() * 0.4)
 }
 
 /**

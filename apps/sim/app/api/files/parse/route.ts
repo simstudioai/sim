@@ -3,6 +3,7 @@ import { createHash } from 'crypto'
 import fsPromises, { readFile } from 'fs/promises'
 import path from 'path'
 import { createLogger } from '@sim/logger'
+import { generateRandomString, LOWERCASE_ALPHANUMERIC_ALPHABET } from '@sim/utils/random'
 import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
 import { fileParseContract } from '@/lib/api/contracts/storage-transfer'
@@ -552,7 +553,7 @@ async function handleCloudFile(
       // If file is already from execution context, create UserFile reference without re-uploading
       if (context === 'execution') {
         userFile = {
-          id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          id: `file_${Date.now()}_${generateRandomString(7, LOWERCASE_ALPHANUMERIC_ALPHABET)}`,
           name: filename,
           url: normalizedFilePath,
           size: fileBuffer.length,

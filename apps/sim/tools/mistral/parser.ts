@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { generateRandomString, LOWERCASE_ALPHANUMERIC_ALPHABET } from '@sim/utils/random'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import type {
   MistralParserInput,
@@ -296,7 +297,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       }
 
       const timestamp = Date.now()
-      const randomId = Math.random().toString(36).substring(2, 10)
+      const randomId = generateRandomString(8, LOWERCASE_ALPHANUMERIC_ALPHABET)
       const jobId = `mistral-ocr-${timestamp}-${randomId}`
 
       const usageInfo =

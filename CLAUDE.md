@@ -10,6 +10,7 @@ You are a professional software engineer. All code must follow best practices: a
 - **Comments**: Use TSDoc for documentation. No `====` separators. No non-TSDoc comments
 - **Styling**: Never update global styles. Keep all styling local to components
 - **ID Generation**: Never use `crypto.randomUUID()`, `nanoid`, or `uuid` package. Use `generateId()` (UUID v4) or `generateShortId()` (compact) from `@sim/utils/id`
+- **Randomness**: Never use `Math.random()`, `crypto.randomBytes()`, or ad-hoc random helpers. Use `@sim/utils/random`: `generateRandomBytes`, `generateRandomHex`, `generateRandomString`, `randomFloat`, `randomInt`, or `randomItem`. Use `randomInt` / `randomItem` for unbiased selection, jitter, and sampling; use hex/string helpers for suffixes, object keys, boundaries, salts, and tokens. Do not add a `Math.random()` fallback — the shared util uses `crypto.getRandomValues()`, which is the standard CSPRNG primitive that also works in non-secure browser contexts. Only standalone published packages that cannot depend on `@sim/utils` may use Web Crypto directly, with a comment explaining why.
 - **Common Utilities**: Use shared helpers from `@sim/utils` instead of inline implementations. `sleep(ms)` from `@sim/utils/helpers` for delays, `toError(e)` from `@sim/utils/errors` to normalize caught values.
 - **Package Manager**: Use `bun` and `bunx`, not `npm` and `npx`
 

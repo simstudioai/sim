@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { generateRandomString, LOWERCASE_ALPHANUMERIC_ALPHABET } from '@sim/utils/random'
 import { type NextRequest, NextResponse } from 'next/server'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
 import { parseRequest } from '@/lib/api/server'
@@ -314,7 +315,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
 
         const lockKey = `file-append:${workspaceId}:${existing.id}`
-        const lockValue = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const lockValue = `${Date.now()}-${generateRandomString(10, LOWERCASE_ALPHANUMERIC_ALPHABET)}`
         const acquired = await acquireLock(lockKey, lockValue, 30)
         if (!acquired) {
           return NextResponse.json(

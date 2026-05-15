@@ -1,4 +1,14 @@
+import { webcrypto } from 'node:crypto'
 import fetch from 'node-fetch'
+
+const UINT32_MAX_PLUS_ONE = 0x1_0000_0000
+
+// Published SDK stays self-contained; use Web Crypto directly instead of private workspace utils.
+function randomFloat(): number {
+  const value = new Uint32Array(1)
+  webcrypto.getRandomValues(value)
+  return value[0] / UINT32_MAX_PLUS_ONE
+}
 
 export interface SimStudioConfig {
   apiKey: string
@@ -434,7 +444,7 @@ export class SimStudioClient {
             ? this.rateLimitInfo.retryAfter
             : Math.min(delay, maxDelay)
 
-        const jitter = waitTime * (0.75 + Math.random() * 0.5)
+        const jitter = waitTime * (0.75 + randomFloat() * 0.5)
 
         await new Promise((resolve) => setTimeout(resolve, jitter))
 

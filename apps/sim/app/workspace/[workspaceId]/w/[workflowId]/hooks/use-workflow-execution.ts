@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { generateRandomString, LOWERCASE_ALPHANUMERIC_ALPHABET } from '@sim/utils/random'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
@@ -518,7 +519,7 @@ export function useWorkflowExecution() {
                       presignedEndpoint,
                     })
                     uploadedFiles.push({
-                      id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                      id: `file_${Date.now()}_${generateRandomString(7, LOWERCASE_ALPHANUMERIC_ALPHABET)}`,
                       name: fileData.file.name,
                       url: result.path,
                       size: fileData.file.size,
@@ -560,7 +561,7 @@ export function useWorkflowExecution() {
                       const processUploadResult = (r: any) => ({
                         id:
                           r.id ||
-                          `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                          `file_${Date.now()}_${generateRandomString(7, LOWERCASE_ALPHANUMERIC_ALPHABET)}`,
                         name: r.name,
                         url: r.url,
                         size: r.size,

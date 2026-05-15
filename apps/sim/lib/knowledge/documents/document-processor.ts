@@ -1,6 +1,6 @@
-import { randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { generateRandomHex } from '@sim/utils/random'
 import { PDFDocument } from 'pdf-lib'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import {
@@ -354,7 +354,7 @@ async function handleFileForOCR(
     }
 
     const timestamp = Date.now()
-    const uniqueId = randomBytes(8).toString('hex')
+    const uniqueId = generateRandomHex(8)
     const safeFileName = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
     const customKey = `kb/${timestamp}-${uniqueId}-${safeFileName}`
 
@@ -651,7 +651,7 @@ async function processChunk(
 
   try {
     const timestamp = Date.now()
-    const uniqueId = randomBytes(8).toString('hex')
+    const uniqueId = generateRandomHex(8)
     const safeFileName = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
     const chunkKey = `kb/${timestamp}-${uniqueId}-chunk${chunkIndex + 1}-${safeFileName}`
 
