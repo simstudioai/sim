@@ -26,6 +26,7 @@ export interface LoopScope {
   condition?: string
   loopType?: 'for' | 'forEach' | 'while' | 'doWhile'
   skipFirstConditionCheck?: boolean
+  skippedAtStart?: boolean
   /** Error message if loop validation failed (e.g., exceeded max iterations) */
   validationError?: string
 }
@@ -65,7 +66,7 @@ export class ExecutionState implements BlockStateController {
   getBlockOutput(blockId: string, currentNodeId?: string): NormalizedBlockOutput | undefined {
     const normalizedId = normalizeLookupId(blockId)
     if (normalizedId !== blockId) {
-      return undefined
+      return this.blockStates.get(blockId)?.output
     }
 
     if (currentNodeId) {

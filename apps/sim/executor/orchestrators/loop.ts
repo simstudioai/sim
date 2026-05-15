@@ -253,6 +253,11 @@ export class LoopOrchestrator {
       return await this.createExitResult(ctx, loopId, scope)
     }
 
+    if (scope.skippedAtStart) {
+      scope.skippedAtStart = false
+      return await this.createExitResult(ctx, loopId, scope)
+    }
+
     const iterationResults: NormalizedBlockOutput[] = []
     for (const blockOutput of scope.currentIterationOutputs.values()) {
       iterationResults.push(blockOutput)
@@ -600,6 +605,7 @@ export class LoopOrchestrator {
     if (scope.loopType === 'forEach') {
       if (!scope.items || scope.items.length === 0) {
         logger.info('ForEach loop has empty collection, skipping loop body', { loopId })
+        scope.skippedAtStart = true
         return false
       }
       return true
@@ -608,6 +614,7 @@ export class LoopOrchestrator {
     if (scope.loopType === 'for') {
       if (scope.maxIterations === 0) {
         logger.info('For loop has 0 iterations, skipping loop body', { loopId })
+        scope.skippedAtStart = true
         return false
       }
       return true
@@ -620,6 +627,7 @@ export class LoopOrchestrator {
     if (scope.loopType === 'while') {
       if (!scope.condition) {
         logger.warn('No condition defined for while loop', { loopId })
+        scope.skippedAtStart = true
         return false
       }
 
@@ -632,6 +640,7 @@ export class LoopOrchestrator {
 
       if (!result) {
         logger.info('While loop initial condition is false, skipping loop body', { loopId })
+        scope.skippedAtStart = true
       }
 
       return result

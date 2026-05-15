@@ -124,4 +124,52 @@ describe('LoopOrchestrator', () => {
     )
     expect(scope.maxIterations).toBe(1)
   })
+
+  it('exits immediately when a loop was skipped at start', async () => {
+    const loopId = 'loop-1'
+    const state = createState()
+    const dag: DAG = {
+      nodes: new Map(),
+      loopConfigs: new Map([[loopId, { id: loopId, nodes: ['task-1'], loopType: 'while' }]]),
+      parallelConfigs: new Map(),
+    }
+    const resolver = {
+      resolveSingleReference: vi.fn().mockResolvedValue(1),
+    }
+    const orchestrator = new LoopOrchestrator(dag, state, resolver as any, {}, {
+      clearDeactivatedEdgesForNodes: vi.fn(),
+    } as unknown as EdgeManager)
+    const ctx = {
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      executionId: 'execution-1',
+      userId: 'user-1',
+      loopExecutions: new Map([
+        [
+          loopId,
+          {
+            iteration: 0,
+            currentIterationOutputs: new Map(),
+            allIterationOutputs: [],
+            loopType: 'while',
+            condition: '<loop.index> > 0',
+            skippedAtStart: true,
+          },
+        ],
+      ]),
+      blockLogs: [],
+      metadata: {},
+    }
+
+    const result = await orchestrator.evaluateLoopContinuation(ctx as any, loopId)
+
+    expect(result).toMatchObject({
+      shouldContinue: false,
+      shouldExit: true,
+      selectedRoute: EDGE.LOOP_EXIT,
+      aggregatedResults: [],
+    })
+    expect(resolver.resolveSingleReference).not.toHaveBeenCalled()
+    expect(state.setBlockOutput).toHaveBeenCalledWith(loopId, { results: [] }, 0)
+  })
 })

@@ -220,7 +220,7 @@ export class DAGExecutor {
     })
     context.subflowParentMap = this.buildSubflowParentMap(dag)
 
-    const engine = this.buildExecutionPipeline(context, dag, state)
+    const engine = this.buildExecutionPipeline(context, dag, state, filteredSnapshot)
     return await engine.run()
   }
 
@@ -303,7 +303,12 @@ export class DAGExecutor {
     }
   }
 
-  private buildExecutionPipeline(context: ExecutionContext, dag: DAG, state: ExecutionState) {
+  private buildExecutionPipeline(
+    context: ExecutionContext,
+    dag: DAG,
+    state: ExecutionState,
+    snapshotState = this.contextExtensions.snapshotState
+  ) {
     const resolver = new VariableResolver(this.workflow, this.workflowVariables, state, {
       navigatePathAsync,
     })
@@ -325,8 +330,8 @@ export class DAGExecutor {
       edgeManager
     )
     edgeManager.restoreDeactivatedEdges(
-      this.contextExtensions.snapshotState?.deactivatedEdges,
-      this.contextExtensions.snapshotState?.nodesWithActivatedEdge
+      snapshotState?.deactivatedEdges,
+      snapshotState?.nodesWithActivatedEdge
     )
     const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,

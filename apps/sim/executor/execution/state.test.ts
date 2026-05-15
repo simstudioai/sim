@@ -5,6 +5,15 @@ import { describe, expect, it } from 'vitest'
 import { ExecutionState } from '@/executor/execution/state'
 
 describe('ExecutionState', () => {
+  it('returns exact suffixed cached node outputs', () => {
+    const state = new ExecutionState()
+    state.setBlockOutput('producer₍1₎', { value: 'branch-1' })
+    state.setBlockOutput('producer_loop1', { value: 'loop-1' })
+
+    expect(state.getBlockOutput('producer₍1₎')).toEqual({ value: 'branch-1' })
+    expect(state.getBlockOutput('producer_loop1')).toEqual({ value: 'loop-1' })
+  })
+
   it('prefers branch-local cloned outputs when resolving original block references', () => {
     const state = new ExecutionState()
     state.setBlockOutput('producer', { value: 'branch-0' })

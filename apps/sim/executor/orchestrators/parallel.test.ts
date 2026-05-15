@@ -2,11 +2,17 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DAG } from '@/executor/dag/builder'
+import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { ExecutionContext } from '@/executor/types'
-import { buildBranchNodeId } from '@/executor/utils/subflow-utils'
+import {
+  buildBranchNodeId,
+  buildParallelSentinelEndId,
+  buildParallelSentinelStartId,
+  buildSentinelEndId,
+  buildSentinelStartId,
+} from '@/executor/utils/subflow-utils'
 
 const { mockCompactSubflowResults } = vi.hoisted(() => ({
   mockCompactSubflowResults: vi.fn(async (results: unknown) => results),
@@ -31,6 +37,24 @@ function createDag(): DAG {
         },
       ],
     ]),
+  }
+}
+
+function createDagNode(id: string, metadata: DAGNode['metadata'] = {}): DAGNode {
+  return {
+    id,
+    block: {
+      id,
+      position: { x: 0, y: 0 },
+      config: { tool: '', params: {} },
+      inputs: {},
+      outputs: {},
+      metadata: { id: 'function', name: id },
+      enabled: true,
+    },
+    incomingEdges: new Set(),
+    outgoingEdges: new Map(),
+    metadata,
   }
 }
 
@@ -420,6 +444,88 @@ describe('ParallelOrchestrator', () => {
 
     expect(dirtySet.has(templateBranchId)).toBe(true)
     expect(dirtySet.has(secondBranchId)).toBe(true)
+  })
+
+  it('marks cloned nested loop body nodes dirty for non-zero branches', () => {
+    const dag = createDag()
+    const parallelId = 'parallel-1'
+    const loopId = 'loop-1'
+    const taskId = 'task-1'
+    const parallelStartId = buildParallelSentinelStartId(parallelId)
+    const parallelEndId = buildParallelSentinelEndId(parallelId)
+    const loopStartId = buildSentinelStartId(loopId)
+    const loopEndId = buildSentinelEndId(loopId)
+
+    dag.parallelConfigs.set(parallelId, {
+      id: parallelId,
+      nodes: [loopId],
+      count: 2,
+      parallelType: 'count',
+    })
+    dag.loopConfigs.set(loopId, {
+      id: loopId,
+      nodes: [taskId],
+      loopType: 'for',
+      iterations: 1,
+    })
+    dag.nodes.set(parallelStartId, createDagNode(parallelStartId))
+    dag.nodes.set(parallelEndId, createDagNode(parallelEndId))
+    dag.nodes.set(
+      loopStartId,
+      createDagNode(loopStartId, {
+        isSentinel: true,
+        sentinelType: 'start',
+        subflowId: loopId,
+        subflowType: 'loop',
+      })
+    )
+    dag.nodes.set(
+      taskId,
+      createDagNode(taskId, {
+        isLoopNode: true,
+        subflowId: loopId,
+        subflowType: 'loop',
+        originalBlockId: taskId,
+      })
+    )
+    dag.nodes.set(
+      loopEndId,
+      createDagNode(loopEndId, {
+        isSentinel: true,
+        sentinelType: 'end',
+        subflowId: loopId,
+        subflowType: 'loop',
+      })
+    )
+    dag.nodes.get(loopStartId)!.outgoingEdges.set(`${loopStartId}->${taskId}`, { target: taskId })
+    dag.nodes.get(taskId)!.incomingEdges.add(loopStartId)
+    dag.nodes.get(taskId)!.outgoingEdges.set(`${taskId}->${loopEndId}`, { target: loopEndId })
+    dag.nodes.get(loopEndId)!.incomingEdges.add(taskId)
+
+    const dirtySet = new Set([parallelId])
+    const orchestrator = new ParallelOrchestrator(dag, createState(), null, {})
+    orchestrator.prepareCurrentBatch(
+      createContext({
+        runFromBlockContext: { startBlockId: parallelId, dirtySet },
+        parallelExecutions: new Map([
+          [
+            parallelId,
+            {
+              parallelId,
+              totalBranches: 2,
+              batchSize: 2,
+              currentBatchStart: 0,
+              currentBatchSize: 2,
+              branchOutputs: new Map(),
+            },
+          ],
+        ]),
+      }),
+      parallelId
+    )
+
+    expect([...dirtySet]).toContain(taskId)
+    expect([...dirtySet].some((nodeId) => nodeId.startsWith(`${taskId}__clone`))).toBe(true)
   })
 
   it('compacts accumulated outputs before scheduling later batches', async () => {
