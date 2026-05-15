@@ -745,21 +745,11 @@ export class AgentBlockHandler implements BlockHandler {
 
     for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
       const message = messages[messageIndex]
-      const normalizedFiles = normalizeFileInput(message.files)
-      if (!normalizedFiles || normalizedFiles.length === 0) {
+      if (!message.files?.length) {
         continue
       }
 
-      const userFiles = processFilesToUserFiles(
-        normalizedFiles as RawFileInput[],
-        requestId,
-        logger
-      )
-      if (userFiles.length === 0) {
-        throw new Error('Files must include at least one valid file object')
-      }
-
-      const hydratedFiles = await hydrateUserFilesWithBase64(userFiles, {
+      const hydratedFiles = await hydrateUserFilesWithBase64(message.files, {
         requestId,
         workspaceId: ctx.workspaceId,
         workflowId: ctx.workflowId,
@@ -774,7 +764,7 @@ export class AgentBlockHandler implements BlockHandler {
       const missingFile = hydratedFiles.find((file) => !file.base64)
       if (missingFile) {
         throw new Error(
-          `File "${missingFile.name}" could not be read for provider "${providerId}". Make sure the file is still accessible and under the provider attachment size limit.`
+          `File "${missingFile.name}" could not be read for provider "${providerId}". The file may exceed the attachment size limit or may no longer be accessible.`
         )
       }
 

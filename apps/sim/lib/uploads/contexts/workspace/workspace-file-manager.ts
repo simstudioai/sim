@@ -8,6 +8,7 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { randomBytes } from 'crypto'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
   checkStorageQuota,
@@ -117,7 +118,7 @@ export function parseWorkspaceFileKey(key: string): string | null {
  */
 export function generateWorkspaceFileKey(workspaceId: string, fileName: string): string {
   const timestamp = Date.now()
-  const random = Math.random().toString(36).substring(2, 9)
+  const random = randomBytes(8).toString('hex')
   const safeFileName = sanitizeFileName(fileName)
   return `workspace/${workspaceId}/${timestamp}-${random}-${safeFileName}`
 }

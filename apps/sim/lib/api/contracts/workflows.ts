@@ -3,6 +3,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 
 const subBlockValuesSchema = z.record(z.string(), z.record(z.string(), z.unknown()))
+const executionIdSchema = z.string().uuid('Invalid execution ID')
 
 const workflowPositionSchema = z.object({
   x: z.number(),
@@ -336,7 +337,7 @@ export const executeWorkflowBodySchema = z.object({
   includeFileBase64: z.boolean().optional().default(true),
   base64MaxBytes: z.number().int().positive().optional(),
   workflowStateOverride: workflowStateSchema.optional(),
-  executionId: z.string().optional(),
+  executionId: executionIdSchema.optional(),
   triggerBlockId: z.string().optional(),
   startBlockId: z.string().optional(),
   stopAfterBlockId: z.string().optional(),

@@ -123,11 +123,8 @@ export class Memory {
   }
 
   private sanitizeMessageForStorage(message: Message): Message {
-    return {
-      role: message.role,
-      content: message.content,
-      ...(message.executionId && { executionId: message.executionId }),
-    }
+    const { files: _files, ...messageWithoutFiles } = message
+    return messageWithoutFiles
   }
 
   private applyTokenWindow(messages: Message[], maxTokens: number, model?: string): Message[] {

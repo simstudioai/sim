@@ -179,7 +179,7 @@ describe('Memory', () => {
   })
 
   describe('sanitizeMessageForStorage', () => {
-    it('should strip file payloads and provider-only fields before memory persistence', () => {
+    it('should strip file payloads but preserve tool-call fields before memory persistence', () => {
       const message: Message = {
         role: 'user',
         content: 'Analyze this file',
@@ -202,6 +202,7 @@ describe('Memory', () => {
         role: 'user',
         content: 'Analyze this file',
         executionId: 'exec-1',
+        tool_calls: [{ id: 'call-1' }],
       })
     })
   })
