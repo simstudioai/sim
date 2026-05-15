@@ -137,7 +137,7 @@ export class WaitBlockHandler implements BlockHandler {
     }
 
     if (isAsync && timeUnit === 'seconds') {
-      throw new Error('Seconds are not allowed when Async is enabled')
+      throw new Error('Seconds are not allowed in async mode')
     }
 
     const waitMs = Math.round(timeValue * UNIT_TO_MS[timeUnit])
@@ -147,7 +147,9 @@ export class WaitBlockHandler implements BlockHandler {
         throw new Error('Wait time exceeds maximum of 30 days')
       }
     } else if (waitMs > MAX_INPROCESS_WAIT_MS) {
-      throw new Error('Wait time exceeds maximum of 5 minutes; enable Async to wait up to 30 days')
+      throw new Error(
+        'Wait time exceeds maximum of 5 minutes; enable async mode to wait up to 30 days'
+      )
     }
 
     if (!isAsync) {

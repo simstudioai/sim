@@ -149,14 +149,14 @@ describe('WaitBlockHandler', () => {
     expect(result.status).toBe('waiting')
   })
 
-  it('should reject seconds as a unit when Async is enabled', async () => {
+  it('should reject seconds as a unit in async mode', async () => {
     await expect(
       handler.execute(mockContext, mockBlock, {
         async: true,
         timeValue: '30',
         timeUnitLong: 'seconds',
       })
-    ).rejects.toThrow('Seconds are not allowed when Async is enabled')
+    ).rejects.toThrow('Seconds are not allowed in async mode')
   })
 
   it('should still execute in-process at the 5-minute boundary', async () => {
