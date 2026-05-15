@@ -3,7 +3,14 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 
 const subBlockValuesSchema = z.record(z.string(), z.record(z.string(), z.unknown()))
-const executionIdSchema = z.string().uuid('Invalid execution ID')
+const executionIdSchema = z
+  .string()
+  .min(1, 'Invalid execution ID')
+  .max(128, 'Execution ID too long')
+  .regex(
+    /^[A-Za-z0-9._:-]+$/,
+    'Execution ID can only contain letters, numbers, dots, underscores, colons, and hyphens'
+  )
 
 const workflowPositionSchema = z.object({
   x: z.number(),

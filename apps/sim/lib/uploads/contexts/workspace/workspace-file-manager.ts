@@ -3,12 +3,12 @@
  * Files uploaded at workspace level persist indefinitely and are accessible across all workflows
  */
 
+import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { randomBytes } from 'crypto'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
   checkStorageQuota,
