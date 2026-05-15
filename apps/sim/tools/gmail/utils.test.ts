@@ -101,6 +101,17 @@ describe('htmlToPlainText', () => {
       '\u201chi\u201d and\u2019s'
     )
   })
+
+  it('preserves &#160; (non-breaking space) as U+00A0 for fidelity in plain-text output', () => {
+    expect(htmlToPlainText('<p>a&#160;b</p>')).toBe('a\u00a0b')
+  })
+
+  it('elides anchor URLs that exactly match link text, and drops bare # anchors', () => {
+    expect(
+      htmlToPlainText('<p>Visit <a href="https://example.com">https://example.com</a></p>')
+    ).toBe('Visit https://example.com')
+    expect(htmlToPlainText('<p><a href="#section">Anchor</a></p>')).toBe('Anchor')
+  })
 })
 
 describe('buildSimpleEmailMessage', () => {

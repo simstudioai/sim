@@ -351,7 +351,15 @@ export function plainTextToHtml(body: string): string {
  * entity decoding (also used elsewhere in the repo for the same purpose).
  */
 export function htmlToPlainText(html: string): string {
-  return convert(html, { wordwrap: false })
+  return convert(html, {
+    wordwrap: false,
+    selectors: [
+      { selector: 'a', options: { hideLinkHrefIfSameAsText: true, noAnchorUrl: true } },
+      { selector: 'img', format: 'skip' },
+      { selector: 'script', format: 'skip' },
+      { selector: 'style', format: 'skip' },
+    ],
+  })
 }
 
 /**
