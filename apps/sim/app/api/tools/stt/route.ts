@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -176,7 +177,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         logger.error(`[${requestId}] Video extraction failed:`, error)
         return NextResponse.json(
           {
-            error: `Failed to extract audio from video: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            error: `Failed to extract audio from video: ${getErrorMessage(error, 'Unknown error')}`,
           },
           { status: 500 }
         )
@@ -273,7 +274,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     } catch (error) {
       logger.error(`[${requestId}] Transcription failed:`, error)
-      const errorMessage = error instanceof Error ? error.message : 'Transcription failed'
+      const errorMessage = getErrorMessage(error, 'Transcription failed')
       return NextResponse.json({ error: errorMessage }, { status: 500 })
     }
 
@@ -291,7 +292,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(response)
   } catch (error) {
     logger.error(`[${requestId}] STT proxy error:`, error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage = getErrorMessage(error, 'Unknown error')
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 })

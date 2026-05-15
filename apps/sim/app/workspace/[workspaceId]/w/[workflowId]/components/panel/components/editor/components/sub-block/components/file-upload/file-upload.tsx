@@ -2,6 +2,9 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
+import { randomFloat } from '@sim/utils/random'
 import { useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -293,7 +296,7 @@ export function FileUpload({
     }
 
     const uploading = validFiles.map((file) => ({
-      id: `upload-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      id: `upload-${Date.now()}-${generateShortId(7)}`,
       name: file.name,
       size: file.size,
     }))
@@ -308,7 +311,7 @@ export function FileUpload({
 
       progressInterval = setInterval(() => {
         setUploadProgress((prev) => {
-          const newProgress = prev + Math.random() * 10
+          const newProgress = prev + randomFloat() * 10
           return newProgress > 90 ? 90 : newProgress
         })
       }, 200)
@@ -334,7 +337,7 @@ export function FileUpload({
           })
         } catch (error) {
           logger.error(`Error uploading ${file.name}:`, error)
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          const errorMessage = getErrorMessage(error, 'Unknown error')
           uploadErrors.push(`${file.name}: ${errorMessage}`)
           setUploadError(errorMessage)
         }
@@ -397,10 +400,7 @@ export function FileUpload({
         useWorkflowStore.getState().triggerUpdate()
       }
     } catch (error) {
-      logger.error(
-        error instanceof Error ? error.message : 'Failed to upload file(s)',
-        activeWorkflowId
-      )
+      logger.error(getErrorMessage(error, 'Failed to upload file(s)'), activeWorkflowId)
     } finally {
       if (progressInterval) {
         clearInterval(progressInterval)
@@ -488,10 +488,7 @@ export function FileUpload({
 
       useWorkflowStore.getState().triggerUpdate()
     } catch (error) {
-      logger.error(
-        error instanceof Error ? error.message : 'Failed to remove file',
-        activeWorkflowId
-      )
+      logger.error(getErrorMessage(error, 'Failed to remove file'), activeWorkflowId)
     } finally {
       setDeletingFiles((prev) => {
         const updated = { ...prev }

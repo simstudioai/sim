@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotTrainingExampleContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
@@ -74,7 +75,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers: { 'content-type': 'application/json' },
     })
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Failed to add example'
+    const errorMessage = getErrorMessage(err, 'Failed to add example')
     logger.error('Failed to send workflow example', { error: err })
     return NextResponse.json({ error: errorMessage }, { status: 502 })
   }

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { mothershipExecuteContract } from '@/lib/api/contracts/mothership-tasks'
@@ -207,12 +207,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       messageId ? `Mothership execute error [messageId:${messageId}]` : 'Mothership execute error',
       {
         requestId,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
       }
     )
 
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: getErrorMessage(error, 'Internal server error') },
       { status: 500 }
     )
   }

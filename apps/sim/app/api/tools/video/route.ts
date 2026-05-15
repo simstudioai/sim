@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -205,7 +206,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     } catch (error) {
       logger.error(`[${requestId}] Video generation failed:`, error)
-      const errorMessage = error instanceof Error ? error.message : 'Video generation failed'
+      const errorMessage = getErrorMessage(error, 'Video generation failed')
       return NextResponse.json({ error: errorMessage }, { status: 500 })
     }
 
@@ -242,9 +243,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
       } catch (error) {
         logger.error(`[${requestId}] Failed to upload video file:`, error)
-        throw new Error(
-          `Failed to store video: ${error instanceof Error ? error.message : 'Unknown error'}`
-        )
+        throw new Error(`Failed to store video: ${getErrorMessage(error, 'Unknown error')}`)
       }
 
       return NextResponse.json({
@@ -275,9 +274,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       videoUrl = `${getBaseUrl()}${fileInfo.path}`
     } catch (error) {
       logger.error(`[${requestId}] Failed to upload video file (fallback):`, error)
-      throw new Error(
-        `Failed to store video: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
+      throw new Error(`Failed to store video: ${getErrorMessage(error, 'Unknown error')}`)
     }
 
     logger.info(`[${requestId}] Video generation completed successfully`)
@@ -293,7 +290,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
   } catch (error) {
     logger.error(`[${requestId}] Video proxy error:`, error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage = getErrorMessage(error, 'Unknown error')
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 })

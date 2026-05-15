@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
+import { deepClone } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, Clipboard, Key, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -217,7 +220,7 @@ function WorkspaceVariableRow({
           onPendingKeyChange(e.target.value)
         }}
         onBlur={() => onRenameEnd(envKey, value)}
-        name={`workspace_env_key_${envKey}_${Math.random()}`}
+        name={`workspace_env_key_${envKey}_${generateShortId()}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -242,7 +245,7 @@ function WorkspaceVariableRow({
         onBlur={() => {
           if (canEdit) setValueFocused(false)
         }}
-        name={`workspace_env_value_${envKey}_${Math.random()}`}
+        name={`workspace_env_value_${envKey}_${generateShortId()}`}
         autoComplete='off'
         autoCorrect='off'
         autoCapitalize='off'
@@ -298,7 +301,7 @@ function NewWorkspaceVariableRow({
         onChange={(e) => onUpdate(index, 'key', e.target.value)}
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='API_KEY'
-        name={`new_workspace_key_${envVar.id || index}_${Math.random()}`}
+        name={`new_workspace_key_${envVar.id || index}_${generateShortId()}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -314,7 +317,7 @@ function NewWorkspaceVariableRow({
         onPaste={onPaste ? (e) => onPaste(e, index) : undefined}
         placeholder='Enter value'
         type={valueFocused ? 'text' : 'password'}
-        name={`new_workspace_value_${envVar.id || index}_${Math.random()}`}
+        name={`new_workspace_value_${envVar.id || index}_${generateShortId()}`}
         autoComplete='off'
         autoCapitalize='off'
         spellCheck='false'
@@ -596,8 +599,8 @@ export function SecretsManager() {
       })),
       createEmptyEnvVar(),
     ]
-    initialVarsRef.current = JSON.parse(JSON.stringify(initialVars))
-    setEnvVars(JSON.parse(JSON.stringify(initialVars)))
+    initialVarsRef.current = deepClone(initialVars)
+    setEnvVars(deepClone(initialVars))
   }, [personalEnvData])
 
   useEffect(() => {
@@ -782,7 +785,7 @@ export function SecretsManager() {
         })
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to save changes'
+      const message = getErrorMessage(error, 'Failed to save changes')
       setDetailsError(message)
       logger.error('Failed to save secret details', error)
     }
@@ -954,7 +957,7 @@ export function SecretsManager() {
   }
 
   const resetToSaved = () => {
-    setEnvVars(JSON.parse(JSON.stringify(initialVarsRef.current)))
+    setEnvVars(deepClone(initialVarsRef.current))
     setWorkspaceVars({ ...initialWorkspaceVarsRef.current })
     setNewWorkspaceRows([createEmptyEnvVar()])
     setShowUnsavedChanges(false)
@@ -1035,7 +1038,7 @@ export function SecretsManager() {
       if (firstFailure) throw firstFailure.reason
 
       initialWorkspaceVarsRef.current = { ...mergedWorkspaceVars }
-      initialVarsRef.current = JSON.parse(JSON.stringify(envVars.filter((v) => v.key && v.value)))
+      initialVarsRef.current = deepClone(envVars.filter((v) => v.key && v.value))
 
       setWorkspaceVars(mergedWorkspaceVars)
       setNewWorkspaceRows([createEmptyEnvVar()])
@@ -1088,7 +1091,7 @@ export function SecretsManager() {
           onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
           onPaste={(e) => handlePaste(e, originalIndex)}
           placeholder='API_KEY'
-          name={`env_variable_name_${envVar.id || originalIndex}_${Math.random()}`}
+          name={`env_variable_name_${envVar.id || originalIndex}_${generateShortId()}`}
           autoComplete='off'
           autoCapitalize='off'
           spellCheck='false'
@@ -1116,7 +1119,7 @@ export function SecretsManager() {
           onBlur={() => setFocusedValueIndex(null)}
           onPaste={(e) => handlePaste(e, originalIndex)}
           placeholder={isConflict ? 'Workspace override active' : 'Enter value'}
-          name={`env_variable_value_${envVar.id || originalIndex}_${Math.random()}`}
+          name={`env_variable_value_${envVar.id || originalIndex}_${generateShortId()}`}
           autoComplete='off'
           autoCapitalize='off'
           spellCheck='false'

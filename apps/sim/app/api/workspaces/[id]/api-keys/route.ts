@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -75,7 +76,7 @@ export const GET = withRouteHandler(
     } catch (error: unknown) {
       logger.error(`[${requestId}] Workspace API keys GET error`, error)
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to load API keys' },
+        { error: getErrorMessage(error, 'Failed to load API keys') },
         { status: 500 }
       )
     }
@@ -136,7 +137,7 @@ export const POST = withRouteHandler(
     } catch (error: unknown) {
       logger.error(`[${requestId}] Workspace API key POST error`, error)
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to create workspace API key' },
+        { error: getErrorMessage(error, 'Failed to create workspace API key') },
         { status: 500 }
       )
     }
@@ -207,7 +208,7 @@ export const DELETE = withRouteHandler(
     } catch (error: unknown) {
       logger.error(`[${requestId}] Workspace API key DELETE error`, error)
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to delete workspace API keys' },
+        { error: getErrorMessage(error, 'Failed to delete workspace API keys') },
         { status: 500 }
       )
     }

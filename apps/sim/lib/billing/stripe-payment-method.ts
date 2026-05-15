@@ -66,7 +66,7 @@ export async function resolveDefaultPaymentMethod(
     logger.warn('Failed to resolve default payment method', {
       stripeSubscriptionId,
       customerId,
-      error: error instanceof Error ? error.message : error,
+      error: getErrorMessage(error),
     })
   }
 

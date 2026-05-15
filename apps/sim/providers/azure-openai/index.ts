@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { AzureOpenAI } from 'openai'
 import type {
   ChatCompletion,
@@ -370,7 +370,7 @@ async function executeChatCompletionsRequest(
             result: {
               success: false,
               output: undefined,
-              error: error instanceof Error ? error.message : 'Tool execution failed',
+              error: getErrorMessage(error, 'Tool execution failed'),
             },
             startTime: toolCallStartTime,
             endTime: toolCallEndTime,

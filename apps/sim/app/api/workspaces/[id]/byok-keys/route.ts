@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -98,7 +99,7 @@ export const GET = withRouteHandler(
     } catch (error: unknown) {
       logger.error(`[${requestId}] BYOK keys GET error`, error)
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to load BYOK keys' },
+        { error: getErrorMessage(error, 'Failed to load BYOK keys') },
         { status: 500 }
       )
     }
@@ -233,7 +234,7 @@ export const POST = withRouteHandler(
     } catch (error: unknown) {
       logger.error(`[${requestId}] BYOK key POST error`, error)
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to save BYOK key' },
+        { error: getErrorMessage(error, 'Failed to save BYOK key') },
         { status: 500 }
       )
     }
@@ -301,7 +302,7 @@ export const DELETE = withRouteHandler(
     } catch (error: unknown) {
       logger.error(`[${requestId}] BYOK key DELETE error`, error)
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to delete BYOK key' },
+        { error: getErrorMessage(error, 'Failed to delete BYOK key') },
         { status: 500 }
       )
     }

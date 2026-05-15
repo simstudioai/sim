@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -120,7 +121,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
       onSuccess()
     } catch (err) {
       logger.error(`Failed to ${mode} row:`, err)
-      setError(err instanceof Error ? err.message : `Failed to ${mode} row`)
+      setError(getErrorMessage(err, `Failed to ${mode} row`))
     }
   }
 
@@ -139,7 +140,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
       onSuccess()
     } catch (err) {
       logger.error('Failed to delete row(s):', err)
-      setError(err instanceof Error ? err.message : 'Failed to delete row(s)')
+      setError(getErrorMessage(err, 'Failed to delete row(s)'))
     }
   }
 

@@ -50,7 +50,7 @@ export const ollamaProvider: ProviderConfig = {
       useProvidersStore.getState().setProviderModels('ollama', this.models)
     } catch (error) {
       logger.warn('Ollama model instantiation failed. The provider will be disabled.', {
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
       })
     }
   },
@@ -350,7 +350,7 @@ export const ollamaProvider: ProviderConfig = {
               result: {
                 success: false,
                 output: undefined,
-                error: error instanceof Error ? error.message : 'Tool execution failed',
+                error: getErrorMessage(error, 'Tool execution failed'),
               },
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,

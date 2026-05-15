@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { Edge } from 'reactflow'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -184,11 +185,11 @@ export async function applyAutoLayoutAndUpdateStore(
 
       return {
         success: false,
-        error: `Failed to save positions to database: ${saveError instanceof Error ? saveError.message : 'Unknown error'}`,
+        error: `Failed to save positions to database: ${getErrorMessage(saveError, 'Unknown error')}`,
       }
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown store update error'
+    const errorMessage = getErrorMessage(error, 'Unknown store update error')
     logger.error('Failed to update store with auto layout:', { workflowId, error: errorMessage })
 
     return {

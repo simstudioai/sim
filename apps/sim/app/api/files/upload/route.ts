@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sanitizeFileName } from '@/executor/constants'
 import '@/lib/uploads/core/setup.server'
@@ -218,8 +219,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           uploadResults.push(userFile)
           continue
         } catch (workspaceError) {
-          const errorMessage =
-            workspaceError instanceof Error ? workspaceError.message : 'Upload failed'
+          const errorMessage = getErrorMessage(workspaceError, 'Upload failed')
           const isDuplicate = errorMessage.includes('already exists')
           const isStorageLimitError =
             errorMessage.includes('Storage limit exceeded') ||

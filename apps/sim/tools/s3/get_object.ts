@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   encodeS3PathComponent,
   generatePresignedUrl,
@@ -100,7 +101,7 @@ export const s3GetObjectTool: ToolConfig = {
           Authorization: authorizationHeader,
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        const errorMessage = getErrorMessage(error, 'Unknown error')
         throw new Error(`Failed to generate request headers: ${errorMessage}`)
       }
     },

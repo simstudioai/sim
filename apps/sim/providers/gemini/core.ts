@@ -162,7 +162,7 @@ async function executeToolCallsBatch(
         args,
         resultContent: {
           error: true,
-          message: error instanceof Error ? error.message : 'Tool execution failed',
+          message: getErrorMessage(error, 'Tool execution failed'),
           tool: toolName,
         },
         toolParams: {},

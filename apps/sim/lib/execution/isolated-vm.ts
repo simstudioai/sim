@@ -3,7 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { randomFloat } from '@sim/utils/random'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
@@ -322,7 +323,7 @@ async function secureFetch(
       url: sanitizeUrlForLog(url),
       error: toError(error).message,
     })
-    return JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown fetch error' })
+    return JSON.stringify({ error: getErrorMessage(error, 'Unknown fetch error') })
   }
 }
 
@@ -720,9 +721,9 @@ function handleBrokerMessage(
     })
     .catch((err) => {
       logReject('handler_threw', {
-        error: err instanceof Error ? err.message : String(err),
+        error: getErrorMessage(err),
       })
-      sendResponse({ error: err instanceof Error ? err.message : String(err) })
+      sendResponse({ error: getErrorMessage(err) })
     })
 }
 
@@ -826,7 +827,7 @@ function handleWorkerMessage(workerId: number, message: unknown) {
             type: 'fetchResponse',
             fetchId,
             response: JSON.stringify({
-              error: err instanceof Error ? err.message : 'Fetch failed',
+              error: getErrorMessage(err, 'Fetch failed'),
             }),
           })
         } catch (sendErr) {
@@ -1336,7 +1337,7 @@ export async function executeInIsolatedVM(
     }
   }
 
-  const distributedLeaseId = `${req.requestId}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`
+  const distributedLeaseId = `${req.requestId}:${Date.now()}:${randomFloat().toString(36).slice(2, 10)}`
   const leaseAcquireResult = await tryAcquireDistributedLease(
     ownerKey,
     distributedLeaseId,

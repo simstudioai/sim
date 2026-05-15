@@ -1,3 +1,4 @@
+import { deepClone } from '@sim/utils/object'
 import {
   CONTAINER_PADDING,
   DEFAULT_HORIZONTAL_SPACING,
@@ -62,7 +63,7 @@ export function applyTargetedLayout(
   const changedSet = new Set(changedBlockIds)
   const resizedSet = new Set(resizedBlockIds)
   const shiftSourceSet = new Set(shiftSourceBlockIds)
-  const blocksCopy: Record<string, BlockState> = JSON.parse(JSON.stringify(blocks))
+  const blocksCopy: Record<string, BlockState> = deepClone(blocks)
 
   prepareContainerDimensions(
     blocksCopy,

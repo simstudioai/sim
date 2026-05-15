@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Plus, X } from 'lucide-react'
 import {
   Badge,
@@ -506,7 +507,7 @@ export const NotificationSettings = memo(function NotificationSettings({
       resetForm()
       setShowForm(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save notification'
+      const message = getErrorMessage(error, 'Failed to save notification')
       setFormErrors({ general: message })
     }
   }

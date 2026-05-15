@@ -1,5 +1,6 @@
 import { GetNamedQueryCommand } from '@aws-sdk/client-athena'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsAthenaGetNamedQueryContract } from '@/lib/api/contracts/tools/aws/athena-get-named-query'
 import { parseToolRequest } from '@/lib/api/server'
@@ -52,7 +53,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Failed to get Athena named query'
+    const errorMessage = getErrorMessage(error, 'Failed to get Athena named query')
     logger.error('GetNamedQuery failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }

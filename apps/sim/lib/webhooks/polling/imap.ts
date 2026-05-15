@@ -1,4 +1,5 @@
 import type { Logger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { FetchMessageObject, MailboxLockObject } from 'imapflow'
 import { ImapFlow } from 'imapflow'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
@@ -590,7 +591,7 @@ async function processEmails(
         )
         processedCount++
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        const errorMessage = getErrorMessage(error, 'Unknown error')
         logger.error(`[${requestId}] Error processing email ${email.uid}:`, errorMessage)
         failedCount++
       }

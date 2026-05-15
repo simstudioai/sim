@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { deepClone } from '@sim/utils/object'
+import { generateRandomHex } from '@sim/utils/random'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { requestJson } from '@/lib/api/client/request'
@@ -25,7 +27,7 @@ const initialHydration: HydrationState = {
   error: null,
 }
 
-const createRequestId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`
+const createRequestId = () => `${Date.now()}-${generateRandomHex(8)}`
 
 function resetWorkflowStores() {
   useWorkflowStore.setState({
@@ -326,11 +328,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         blockIdSet.forEach((blockId) => {
           const block = workflowStore.blocks[blockId]
           if (block) {
-            copiedBlocks[blockId] = JSON.parse(JSON.stringify(block))
+            copiedBlocks[blockId] = deepClone(block)
             if (activeWorkflowId) {
               const blockValues = subBlockStore.workflowValues[activeWorkflowId]?.[blockId]
               if (blockValues) {
-                copiedSubBlockValues[blockId] = JSON.parse(JSON.stringify(blockValues))
+                copiedSubBlockValues[blockId] = deepClone(blockValues)
               }
             }
           }
@@ -343,14 +345,14 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         const copiedLoops: Record<string, Loop> = {}
         Object.entries(workflowStore.loops).forEach(([loopId, loop]) => {
           if (blockIdSet.has(loopId)) {
-            copiedLoops[loopId] = JSON.parse(JSON.stringify(loop))
+            copiedLoops[loopId] = deepClone(loop)
           }
         })
 
         const copiedParallels: Record<string, Parallel> = {}
         Object.entries(workflowStore.parallels).forEach(([parallelId, parallel]) => {
           if (blockIdSet.has(parallelId)) {
-            copiedParallels[parallelId] = JSON.parse(JSON.stringify(parallel))
+            copiedParallels[parallelId] = deepClone(parallel)
           }
         })
 

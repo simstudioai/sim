@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 
+import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TraceCollector } from '@/lib/copilot/request/trace'
 
@@ -119,7 +120,7 @@ describe('sse-handlers tool lifecycle', () => {
 
     // tool_call fires execution without awaiting (fire-and-forget for parallel execution),
     // so we flush pending microtasks before asserting
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
 
     expect(executeTool).toHaveBeenCalledTimes(1)
     expect(onEvent).toHaveBeenCalledWith(
@@ -172,7 +173,7 @@ describe('sse-handlers tool lifecycle', () => {
       { onEvent, interactive: false, timeout: 1000 }
     )
 
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
 
     const updated = context.toolCalls.get('tool-phase-label')
     expect(updated?.displayTitle).toBe('Workspace')
@@ -208,7 +209,7 @@ describe('sse-handlers tool lifecycle', () => {
       { onEvent, interactive: false, timeout: 1000 }
     )
 
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
 
     expect(completeAsyncToolCall).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -255,7 +256,7 @@ describe('sse-handlers tool lifecycle', () => {
       { interactive: false, timeout: 1000 }
     )
 
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
 
     expect(executeTool).toHaveBeenCalledTimes(1)
     expect(context.contentBlocks).toEqual([])
@@ -310,7 +311,7 @@ describe('sse-handlers tool lifecycle', () => {
       { interactive: false, timeout: 1000 }
     )
 
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
 
     expect(executeTool).toHaveBeenCalledWith(
       'create_workflow',
@@ -401,7 +402,7 @@ describe('sse-handlers tool lifecycle', () => {
       { interactive: false, timeout: 1000 }
     )
 
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
 
     expect(context.subAgentToolCalls['parent-1']?.[0]?.id).toBe('sub-tool-scope-1')
   })
@@ -422,7 +423,7 @@ describe('sse-handlers tool lifecycle', () => {
     }
 
     await sseHandlers.tool(event as StreamEvent, context, execContext, { interactive: false })
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
     await sseHandlers.tool(event as StreamEvent, context, execContext, { interactive: false })
 
     expect(executeTool).toHaveBeenCalledTimes(1)
@@ -465,7 +466,7 @@ describe('sse-handlers tool lifecycle', () => {
 
     userStopController.abort()
     abortController.abort()
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await sleep(10)
 
     const updated = context.toolCalls.get('tool-cancel')
     expect(updated?.status).toBe(MothershipStreamV1ToolOutcome.cancelled)
@@ -495,7 +496,7 @@ describe('sse-handlers tool lifecycle', () => {
     }
 
     await sseHandlers.tool(event as StreamEvent, context, execContext, { interactive: false })
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
 
     const firstPromise = context.pendingToolPromises.get('tool-inflight')
     expect(firstPromise).toBeDefined()
@@ -506,7 +507,7 @@ describe('sse-handlers tool lifecycle', () => {
     expect(context.pendingToolPromises.get('tool-inflight')).toBe(firstPromise)
 
     resolveTool?.({ success: true, output: { ok: true } })
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
 
     expect(context.pendingToolPromises.has('tool-inflight')).toBe(false)
   })
@@ -532,7 +533,7 @@ describe('sse-handlers tool lifecycle', () => {
       { onEvent: vi.fn(), interactive: false, timeout: 1000 }
     )
 
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
 
     expect(executeTool).toHaveBeenCalledTimes(1)
     expect(context.toolCalls.get('tool-upsert-fail')?.status).toBe(
@@ -586,7 +587,7 @@ describe('sse-handlers tool lifecycle', () => {
     )
 
     resolveUpsert?.(null)
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
 
     expect(executeTool).not.toHaveBeenCalled()
     expect(context.toolCalls.get('tool-race')?.status).toBe(MothershipStreamV1ToolOutcome.success)
@@ -631,7 +632,7 @@ describe('sse-handlers tool lifecycle', () => {
       { onEvent, interactive: false, timeout: 1000 }
     )
 
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
 
     expect(executeTool).not.toHaveBeenCalled()
     expect(context.toolCalls.get('tool-early-result')?.status).toBe(
@@ -712,7 +713,7 @@ describe('sse-handlers tool lifecycle', () => {
       { interactive: false, timeout: 1000 }
     )
 
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
 
     expect(executeTool).toHaveBeenCalledWith('gmail_read', { maxResults: 10 }, expect.any(Object))
     expect(context.toolCalls.get('tool-dynamic-sim')?.status).toBe(

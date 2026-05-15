@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { jiraAddAttachmentContract } from '@/lib/api/contracts/selectors/jira'
 import { parseRequest } from '@/lib/api/server'
@@ -105,7 +106,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error(`[${requestId}] Jira attachment upload error`, error)
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Internal server error' },
+      { success: false, error: getErrorMessage(error, 'Internal server error') },
       { status: 500 }
     )
   }

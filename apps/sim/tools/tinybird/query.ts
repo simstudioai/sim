@@ -104,9 +104,7 @@ export const queryTool: ToolConfig<TinybirdQueryParams, TinybirdQueryResponse> =
           contentType,
           parseError: toError(parseError).message,
         })
-        throw new Error(
-          `Invalid JSON response: ${parseError instanceof Error ? parseError.message : 'Parse error'}`
-        )
+        throw new Error(`Invalid JSON response: ${getErrorMessage(parseError, 'Parse error')}`)
       }
     }
 

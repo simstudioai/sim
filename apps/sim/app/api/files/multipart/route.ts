@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   abortMultipartUploadContract,
@@ -438,7 +439,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error('Multipart upload error:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Multipart upload failed' },
+      { error: getErrorMessage(error, 'Multipart upload failed') },
       { status: 500 }
     )
   }

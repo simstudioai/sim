@@ -1,4 +1,5 @@
 import type { Logger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import Parser from 'rss-parser'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import {
@@ -278,7 +279,7 @@ async function fetchNewRssItems(
       lastModified: newLastModified,
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage = getErrorMessage(error, 'Unknown error')
     logger.error(`[${requestId}] Error fetching RSS feed:`, errorMessage)
     throw error
   }
@@ -363,7 +364,7 @@ async function processRssItems(
       )
       processedCount++
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(`[${requestId}] Error processing item:`, errorMessage)
       failedCount++
     }

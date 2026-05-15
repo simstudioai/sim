@@ -226,7 +226,7 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
     return { success: true }
   } catch (error) {
     logger.error('Failed to purchase credits', { error, userId, amountDollars })
-    const message = error instanceof Error ? error.message : 'Failed to process payment'
+    const message = getErrorMessage(error, 'Failed to process payment')
     return { success: false, error: message }
   }
 }

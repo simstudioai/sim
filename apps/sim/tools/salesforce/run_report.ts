@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type {
   SalesforceRunReportParams,
   SalesforceRunReportResponse,
@@ -74,7 +75,7 @@ export const salesforceRunReportTool: ToolConfig<
           return { reportMetadata: { reportFilters: filters } }
         } catch (e) {
           throw new Error(
-            `Invalid report filters JSON: ${e instanceof Error ? e.message : 'Parse error'}. Please provide a valid JSON array of filter objects.`
+            `Invalid report filters JSON: ${getErrorMessage(e, 'Parse error')}. Please provide a valid JSON array of filter objects.`
           )
         }
       }

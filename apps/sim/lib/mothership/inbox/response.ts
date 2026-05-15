@@ -54,7 +54,7 @@ export async function sendInboxResponse(
   } catch (error) {
     logger.error('Failed to send inbox response email', {
       taskId: inboxTask.id,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
     })
     return null
   }

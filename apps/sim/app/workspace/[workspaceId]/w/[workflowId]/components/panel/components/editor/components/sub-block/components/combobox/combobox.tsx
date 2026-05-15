@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isEqual } from 'es-toolkit'
 import { useReactFlow } from 'reactflow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
@@ -134,7 +135,7 @@ export const ComboBox = memo(function ComboBox({
       const options = await fetchOptions(blockId)
       setFetchedOptions(options)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
+      const errorMessage = getErrorMessage(error, 'Failed to fetch options')
       setFetchError(errorMessage)
       setFetchedOptions([])
     } finally {

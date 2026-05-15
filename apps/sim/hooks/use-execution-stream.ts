@@ -158,7 +158,7 @@ export async function processSSEStream(
             eventType: event.type,
             eventId: event.eventId,
           })
-          const message = error instanceof Error ? error.message : String(error)
+          const message = getErrorMessage(error)
           throw new SSEEventHandlerError(
             message,
             event.type,

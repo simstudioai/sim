@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { randomFloat } from '@sim/utils/random'
 
 const logger = createLogger('RetryUtils')
 
@@ -142,7 +143,7 @@ export async function retryWithExponentialBackoff<T>(
         )
       }
 
-      const jitter = Math.random() * 0.1 * delay
+      const jitter = randomFloat() * 0.1 * delay
       const actualDelay = cappedRetryAfter ?? Math.min(delay + jitter, maxDelayMs)
 
       logger.info(

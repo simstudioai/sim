@@ -1508,7 +1508,7 @@ export async function transferOrganizationOwnership(
     return {
       ...result,
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to transfer ownership',
+      error: getErrorMessage(error, 'Failed to transfer ownership'),
     }
   }
 }

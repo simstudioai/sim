@@ -20,6 +20,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListAuditLogsContract } from '@/lib/api/contracts/v1/audit-logs'
@@ -108,7 +109,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(response.body, { headers: response.headers })
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    const message = getErrorMessage(error, 'Unknown error')
     logger.error(`[${requestId}] Audit logs fetch error`, { error: message })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

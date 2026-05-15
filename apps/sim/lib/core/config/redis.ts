@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { randomFloat } from '@sim/utils/random'
 import Redis from 'ioredis'
 import { env } from '@/lib/core/config/env'
 
@@ -102,7 +103,7 @@ export function getRedisClient(): Redis | null {
           return 30000
         }
         const base = Math.min(1000 * 2 ** (times - 1), 10000)
-        const jitter = Math.random() * base * 0.3
+        const jitter = randomFloat() * base * 0.3
         const delay = Math.round(base + jitter)
         logger.warn('Redis reconnecting', { attempt: times, nextRetryMs: delay })
         return delay

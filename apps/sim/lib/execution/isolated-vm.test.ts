@@ -8,6 +8,7 @@ import {
   redisConfigMock,
   redisConfigMockFns,
 } from '@sim/testing'
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type MockProc = EventEmitter & {
@@ -273,7 +274,7 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:a',
     })
 
-    await new Promise((resolve) => setTimeout(resolve, 1))
+    await sleep(1)
 
     const second = await executeInIsolatedVM({
       code: 'return 2',
@@ -310,7 +311,7 @@ describe('isolated-vm scheduler', () => {
       ownerKey: 'user:hog',
     })
 
-    await new Promise((resolve) => setTimeout(resolve, 1))
+    await sleep(1)
 
     const second = await executeInIsolatedVM({
       code: 'return 2',

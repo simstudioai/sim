@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { jiraUpdateContract } from '@/lib/api/contracts/selectors/jira'
 import { parseRequest } from '@/lib/api/server'
@@ -167,7 +167,7 @@ export const PUT = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
         success: false,
       },
       { status: 500 }

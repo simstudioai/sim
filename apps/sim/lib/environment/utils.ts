@@ -167,7 +167,7 @@ export async function getPersonalAndWorkspaceEnv(
             userId,
             workspaceId,
             source,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: getErrorMessage(error, 'Unknown error'),
           })
           decryptionFailures.push(k)
           return [k, ''] as const

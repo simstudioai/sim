@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -113,7 +114,7 @@ export function Skills() {
           {error ? (
             <div className='flex h-full flex-col items-center justify-center gap-2'>
               <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
-                {error instanceof Error ? error.message : 'Failed to load skills'}
+                {getErrorMessage(error, 'Failed to load skills')}
               </p>
             </div>
           ) : isLoading ? (

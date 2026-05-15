@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { FileParseResult } from '@/lib/file-parsers/types'
 
 /**
@@ -28,7 +29,7 @@ export async function parseJSON(filePath: string): Promise<FileParseResult> {
       metadata,
     }
   } catch (error) {
-    throw new Error(`Invalid JSON: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Invalid JSON: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }
 
@@ -55,7 +56,7 @@ export async function parseJSONBuffer(buffer: Buffer): Promise<FileParseResult> 
       metadata,
     }
   } catch (error) {
-    throw new Error(`Invalid JSON: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Invalid JSON: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }
 

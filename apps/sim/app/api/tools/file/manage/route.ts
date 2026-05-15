@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
 import { parseRequest } from '@/lib/api/server'
@@ -314,7 +316,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
 
         const lockKey = `file-append:${workspaceId}:${existing.id}`
-        const lockValue = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const lockValue = `${Date.now()}-${generateShortId()}`
         const acquired = await acquireLock(lockKey, lockValue, 30)
         if (!acquired) {
           return NextResponse.json(
@@ -350,7 +352,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    const message = getErrorMessage(error, 'Unknown error')
     logger.error('File operation failed', { operation: body.operation, error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }

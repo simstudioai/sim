@@ -35,7 +35,7 @@ async function fetchProviderModels(
     }
   } catch (error) {
     logger.warn(`Failed to fetch ${provider} models`, {
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
     })
     throw error
   }

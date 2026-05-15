@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { speechTokenBodySchema } from '@/lib/api/contracts/media/speech'
@@ -171,7 +172,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ token: data.token })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to generate speech token'
+    const message = getErrorMessage(error, 'Failed to generate speech token')
     logger.error('Speech token error:', error)
     return NextResponse.json({ error: message }, { status: 500 })
   }

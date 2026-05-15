@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { discordSendMessageContract } from '@/lib/api/contracts/tools/communication/discord'
 import { parseRequest } from '@/lib/api/server'
@@ -150,7 +151,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         } catch (error) {
           logger.error(`[${requestId}] Failed to download attachment ${file.name}:`, error)
           throw new Error(
-            `Failed to download attachment "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`
+            `Failed to download attachment "${file.name}": ${getErrorMessage(error, 'Unknown error')}`
           )
         }
       })
@@ -208,7 +209,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
       },
       { status: 500 }
     )

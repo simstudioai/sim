@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
@@ -473,7 +474,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             if (firstIdx === -1) {
               return {
                 success: false,
-                message: `Patch failed: search string not found in file "${fileRecord.name}". Search: "${search.slice(0, 100)}${search.length > 100 ? '...' : ''}"`,
+                message: `Patch failed: search string not found in file "${fileRecord.name}". Search: "${truncate(search, 100)}"`,
               }
             }
             if (
@@ -543,7 +544,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      const errorMessage = getErrorMessage(error, 'Unknown error occurred')
       logger.error('Error in workspace_file tool', {
         operation,
         error: errorMessage,

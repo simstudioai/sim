@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Check, Eye, EyeOff } from 'lucide-react'
 import {
   ButtonGroup,
@@ -269,7 +270,7 @@ export function FormDeploy({
           onDeploymentComplete?.()
         }
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'An error occurred'
+        const message = getErrorMessage(err, 'An error occurred')
         logger.error('Error deploying form:', err)
 
         if (message.toLowerCase().includes('identifier')) {

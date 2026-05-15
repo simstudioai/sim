@@ -289,7 +289,7 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
     } catch (payError) {
       logger.warn('Auto-pay failed for threshold overage invoice — Stripe dunning will retry', {
         invoiceId: finalized.id,
-        error: payError instanceof Error ? payError.message : payError,
+        error: getErrorMessage(payError),
       })
     }
   }

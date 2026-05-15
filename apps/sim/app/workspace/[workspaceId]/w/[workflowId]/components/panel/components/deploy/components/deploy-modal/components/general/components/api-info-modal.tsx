@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -195,7 +196,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
       onOpenChange(false)
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to update access settings'
+      const message = getErrorMessage(err, 'Failed to update access settings')
       setSaveError(message)
     } finally {
       setIsSaving(false)

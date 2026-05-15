@@ -1,3 +1,4 @@
+import { deepClone } from '@sim/utils/object'
 import type { Metadata } from 'next'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import ResumeExecutionPage from '@/app/resume/[workflowId]/[executionId]/resume-page-client'
@@ -39,7 +40,7 @@ export default async function ResumeExecutionPageWrapper({
   return (
     <ResumeExecutionPage
       params={resolvedParams}
-      initialExecutionDetail={detail ? JSON.parse(JSON.stringify(detail)) : null}
+      initialExecutionDetail={detail ? deepClone(detail) : null}
       initialContextId={initialContextId}
     />
   )

@@ -103,7 +103,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.end()
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] SSH list directory failed:`, error)
 
     return NextResponse.json(

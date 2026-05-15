@@ -73,7 +73,7 @@ exit $exit_code`
       client.end()
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] SSH script execution failed:`, error)
 
     return NextResponse.json(

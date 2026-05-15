@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { jsmIssueFormsContract } from '@/lib/api/contracts/selectors/jsm'
 import { parseRequest } from '@/lib/api/server'
@@ -108,7 +108,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
         success: false,
       },
       { status: 500 }

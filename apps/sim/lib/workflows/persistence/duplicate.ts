@@ -8,6 +8,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { deepClone } from '@sim/utils/object'
 import { authorizeWorkflowByWorkspacePermission, FolderLockedError } from '@sim/workflow-authz'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
@@ -580,9 +581,7 @@ export async function duplicateWorkflow(
             | LoopConfig
             | ParallelConfig
           if (subflow.config && typeof subflow.config === 'object') {
-            updatedConfig = JSON.parse(JSON.stringify(subflow.config)) as
-              | LoopConfig
-              | ParallelConfig
+            updatedConfig = deepClone(subflow.config) as LoopConfig | ParallelConfig
 
             // Update the config ID to match the new subflow ID
 

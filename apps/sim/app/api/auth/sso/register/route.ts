@@ -1,5 +1,6 @@
 import { db, member, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
@@ -249,7 +250,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           })
         } catch (error) {
           logger.error('Error fetching OIDC discovery document', {
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: getErrorMessage(error, 'Unknown error'),
             discoveryUrl,
           })
           return NextResponse.json(
@@ -427,7 +428,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error('Failed to register SSO provider', {
       error,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorMessage: getErrorMessage(error, 'Unknown error'),
       errorStack: error instanceof Error ? error.stack : undefined,
       errorDetails: JSON.stringify(error),
     })
@@ -435,7 +436,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         error: 'Failed to register SSO provider',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        details: getErrorMessage(error, 'Unknown error'),
       },
       { status: 500 }
     )

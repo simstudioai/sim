@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import {
   extractBlockIdFromOutputId,
@@ -284,7 +285,7 @@ export async function createStreamingResponse(
             encodeSSE({
               event: 'stream_error',
               blockId,
-              error: error instanceof Error ? error.message : 'Stream reading error',
+              error: getErrorMessage(error, 'Stream reading error'),
             })
           )
         }

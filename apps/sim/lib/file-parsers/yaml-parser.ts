@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import * as yaml from 'js-yaml'
 import type { FileParseResult } from '@/lib/file-parsers/types'
 
@@ -29,7 +30,7 @@ export async function parseYAML(filePath: string): Promise<FileParseResult> {
       metadata,
     }
   } catch (error) {
-    throw new Error(`Invalid YAML: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Invalid YAML: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }
 
@@ -56,7 +57,7 @@ export async function parseYAMLBuffer(buffer: Buffer): Promise<FileParseResult> 
       metadata,
     }
   } catch (error) {
-    throw new Error(`Invalid YAML: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Invalid YAML: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }
 

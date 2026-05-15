@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { deepClone } from '@sim/utils/object'
 import {
   Button,
   Input as EmcnInput,
@@ -327,7 +329,7 @@ export function McpServerFormModal({
   if (open && !prevOpen) {
     const data = initialData ?? DEFAULT_FORM_DATA
     setFormData(data)
-    setOriginalData(JSON.parse(JSON.stringify(data)))
+    setOriginalData(deepClone(data))
     setFormMode('form')
     setJsonInput('')
     setJsonError(null)
@@ -520,7 +522,7 @@ export function McpServerFormModal({
 
       onOpenChange(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save server'
+      const message = getErrorMessage(error, 'Failed to save server')
       setSubmitError(message)
       logger.error('Failed to save MCP server:', error)
     } finally {
@@ -571,7 +573,7 @@ export function McpServerFormModal({
 
       onOpenChange(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save server'
+      const message = getErrorMessage(error, 'Failed to save server')
       setSubmitError(message)
       logger.error('Failed to save MCP server from JSON:', error)
     } finally {

@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
@@ -53,7 +54,7 @@ function ResetPasswordContent() {
       logger.error('Error resetting password:', { error })
       setStatusMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : 'Failed to reset password',
+        text: getErrorMessage(error, 'Failed to reset password'),
       })
     } finally {
       setIsSubmitting(false)

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { decrypt, encrypt } from '@sim/security/encryption'
 import { toError } from '@sim/utils/errors'
+import { randomInt } from '@sim/utils/random'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('Encryption')
@@ -45,7 +46,7 @@ export function generatePassword(length = 24): string {
   let result = ''
 
   for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length))
+    result += chars.charAt(randomInt(0, chars.length))
   }
 
   return result

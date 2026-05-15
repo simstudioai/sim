@@ -345,7 +345,7 @@ export async function sendBatchEmails(options: BatchEmailOptions): Promise<Batch
       } catch (error) {
         results.push({
           success: false,
-          message: error instanceof Error ? error.message : 'Failed to send email',
+          message: getErrorMessage(error, 'Failed to send email'),
         })
       }
     }

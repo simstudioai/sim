@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
@@ -11,10 +12,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('FormStatusAPI')
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback
-}
 
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {

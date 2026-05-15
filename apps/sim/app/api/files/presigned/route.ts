@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { presignedUploadBodyContract, uploadTypeSchema } from '@/lib/api/contracts/storage-transfer'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -124,9 +125,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           expirationSeconds: 3600,
         })
       } catch (error) {
-        throw new ValidationError(
-          error instanceof Error ? error.message : 'Copilot validation failed'
-        )
+        throw new ValidationError(getErrorMessage(error, 'Copilot validation failed'))
       }
     } else if (uploadType === 'mothership') {
       const workspaceId = request.nextUrl.searchParams.get('workspaceId')

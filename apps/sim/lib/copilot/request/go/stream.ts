@@ -334,7 +334,7 @@ export async function runStreamLoop(
         } catch (error) {
           logger.warn('Failed to forward stream event', {
             type: streamEvent.type,
-            error: error instanceof Error ? error.message : String(error),
+            error: getErrorMessage(error),
           })
         }
 
@@ -451,7 +451,7 @@ export async function runStreamLoop(
       } catch (error) {
         logger.warn('Failed to read abort marker at body close', {
           streamId: context.messageId,
-          error: error instanceof Error ? error.message : String(error),
+          error: getErrorMessage(error),
         })
       }
 

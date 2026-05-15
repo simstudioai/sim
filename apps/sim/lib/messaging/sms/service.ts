@@ -87,7 +87,7 @@ export async function sendSMS(options: SMSOptions): Promise<SendSMSResult> {
       } catch (error) {
         results.push({
           success: false,
-          message: error instanceof Error ? error.message : 'Failed to send SMS',
+          message: getErrorMessage(error, 'Failed to send SMS'),
         })
       }
     }
@@ -157,7 +157,7 @@ async function sendBatchSMS(options: BatchSMSOptions): Promise<BatchSendSMSResul
       } catch (error) {
         results.push({
           success: false,
-          message: error instanceof Error ? error.message : 'Failed to send SMS',
+          message: getErrorMessage(error, 'Failed to send SMS'),
         })
       }
     }

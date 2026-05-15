@@ -1,4 +1,5 @@
 import type { Logger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { htmlToText } from 'html-to-text'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
@@ -271,7 +272,7 @@ async function fetchNewOutlookEmails(
 
     return { emails: filteredEmails }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage = getErrorMessage(error, 'Unknown error')
     logger.error(`[${requestId}] Error fetching new Outlook emails:`, errorMessage)
     throw error
   }

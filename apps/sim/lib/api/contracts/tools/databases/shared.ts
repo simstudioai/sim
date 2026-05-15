@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 
 export const sslModeSchema = z.enum(['disabled', 'required', 'preferred']).default('preferred')
@@ -22,7 +23,7 @@ const jsonObjectStringSchema = (message: string, includeReceivedValue = false) =
           throw new Error(message)
         }
 
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        const errorMessage = getErrorMessage(error, 'Unknown error')
         throw new Error(`${message}: ${errorMessage}. Received: ${str.substring(0, 100)}...`)
       }
     })

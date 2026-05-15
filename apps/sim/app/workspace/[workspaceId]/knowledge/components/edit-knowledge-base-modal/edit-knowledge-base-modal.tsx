@@ -3,6 +3,7 @@
 import { memo, useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
@@ -94,7 +95,7 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
       onOpenChange(false)
     } catch (err) {
       logger.error('Error updating knowledge base:', err)
-      setError(err instanceof Error ? err.message : 'Failed to update knowledge base')
+      setError(getErrorMessage(err, 'Failed to update knowledge base'))
     } finally {
       setIsSubmitting(false)
     }

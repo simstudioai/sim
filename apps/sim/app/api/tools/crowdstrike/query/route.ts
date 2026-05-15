@@ -405,7 +405,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output: normalizeAggregatesOutput(aggregateData),
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    const message = getErrorMessage(error, 'Unknown error')
     logger.error(`[${requestId}] CrowdStrike request failed`, { error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }

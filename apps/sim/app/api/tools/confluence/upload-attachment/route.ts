@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { confluenceUploadAttachmentContract } from '@/lib/api/contracts/selectors/confluence'
 import { parseRequest } from '@/lib/api/server'
@@ -76,7 +77,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userFile = processSingleFileToUserFile(fileToProcess, 'confluence-upload', logger)
     } catch (error) {
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to process file' },
+        { error: getErrorMessage(error, 'Failed to process file') },
         { status: 400 }
       )
     }
@@ -96,7 +97,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       logger.error('Failed to download file from storage:', error)
       return NextResponse.json(
         {
-          error: `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          error: `Failed to download file: ${getErrorMessage(error, 'Unknown error')}`,
         },
         { status: 500 }
       )

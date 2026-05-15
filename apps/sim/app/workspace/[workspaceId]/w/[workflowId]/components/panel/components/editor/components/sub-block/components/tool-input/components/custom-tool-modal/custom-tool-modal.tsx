@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { AlertCircle, ArrowUp } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -509,7 +510,7 @@ try {
       handleClose()
     } catch (error) {
       logger.error('Error saving custom tool:', { error })
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save custom tool'
+      const errorMessage = getErrorMessage(error, 'Failed to save custom tool')
 
       if (errorMessage.includes('Cannot change function name')) {
         setSchemaError(
@@ -815,7 +816,7 @@ try {
       handleClose()
     } catch (error) {
       logger.error('Error deleting custom tool:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Failed to delete custom tool'
+      const errorMessage = getErrorMessage(error, 'Failed to delete custom tool')
       setSchemaError(`${errorMessage}. Please try again.`)
       setActiveSection('schema')
       setShowDeleteConfirm(false)

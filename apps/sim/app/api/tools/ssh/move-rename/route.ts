@@ -92,7 +92,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.end()
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] SSH move/rename failed:`, error)
 
     return NextResponse.json({ error: `SSH move/rename failed: ${errorMessage}` }, { status: 500 })

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   renameWorkspaceFileContract,
@@ -80,7 +81,7 @@ export const PATCH = withRouteHandler(
       return NextResponse.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to rename file',
+          error: getErrorMessage(error, 'Failed to rename file'),
         },
         { status: 500 }
       )
@@ -158,7 +159,7 @@ export const DELETE = withRouteHandler(
       return NextResponse.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to delete file',
+          error: getErrorMessage(error, 'Failed to delete file'),
         },
         { status: 500 }
       )

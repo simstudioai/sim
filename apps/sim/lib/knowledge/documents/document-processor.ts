@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { PDFDocument } from 'pdf-lib'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import {
@@ -375,7 +375,7 @@ async function handleFileForOCR(
 
     return { httpsUrl, cloudUrl: httpsUrl, buffer }
   } catch (uploadError) {
-    const message = uploadError instanceof Error ? uploadError.message : 'Unknown error'
+    const message = getErrorMessage(uploadError, 'Unknown error')
     throw new Error(`Cloud upload failed: ${message}. Cloud upload is required for OCR.`)
   }
 }

@@ -271,10 +271,10 @@ export async function executeInboxTask(taskId: string): Promise<void> {
   } catch (error) {
     logger.error('Inbox task execution failed', {
       taskId,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
     })
 
-    await markTaskFailed(taskId, error instanceof Error ? error.message : 'Execution failed')
+    await markTaskFailed(taskId, getErrorMessage(error, 'Execution failed'))
 
     if (!responseSent) {
       try {
@@ -283,7 +283,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
           {
             success: false,
             content: '',
-            error: error instanceof Error ? error.message : 'Execution failed',
+            error: getErrorMessage(error, 'Execution failed'),
           },
           { inboxProviderId: ws.inboxProviderId, workspaceId: ws.id }
         )
@@ -352,7 +352,7 @@ async function persistChatMessages(
   } catch (err) {
     logger.warn('Failed to persist chat messages', {
       chatId,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: getErrorMessage(err, 'Unknown error'),
     })
   }
 }
@@ -460,7 +460,7 @@ async function downloadAttachmentContents(
         taskId,
         attachmentId: attachment.attachment_id,
         filename: attachment.filename,
-        error: outcome.reason instanceof Error ? outcome.reason.message : 'Unknown error',
+        error: getErrorMessage(outcome.reason, 'Unknown error'),
       })
     }
   }

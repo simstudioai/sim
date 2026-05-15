@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { deepClone } from '@sim/utils/object'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
@@ -648,7 +649,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             ...acc,
             [subId]: {
               ...subBlock,
-              value: JSON.parse(JSON.stringify(subBlock.value)),
+              value: deepClone(subBlock.value),
             },
           }),
           {}
@@ -656,11 +657,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         // Remap condition/router IDs in the duplicated subBlocks
         const clonedSubBlockValues = activeWorkflowId
-          ? JSON.parse(
-              JSON.stringify(
-                useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id] || {}
-              )
-            )
+          ? deepClone(useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id] || {})
           : {}
         remapConditionIds(
           newSubBlocks as Record<string, SubBlockState>,

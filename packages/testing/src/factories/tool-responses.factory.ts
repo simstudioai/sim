@@ -4,6 +4,8 @@
  * This file contains mock data samples to be used in tool unit tests.
  */
 
+import { randomFloat } from '@sim/utils/random'
+
 /**
  * HTTP Request mock responses for different scenarios.
  */
@@ -147,7 +149,7 @@ export const mockPineconeResponses = {
   embedding: {
     embedding: Array(1536)
       .fill(0)
-      .map(() => Math.random() * 2 - 1),
+      .map(() => randomFloat() * 2 - 1),
     metadata: { text: 'Sample text for embedding', id: 'embed-123' },
   },
   searchResults: {

@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import { truncate } from '@sim/utils/string'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
@@ -264,7 +265,7 @@ export const getDisplayValue = (value: unknown): string => {
     const firstMessage = parsedValue[0]
     if (!firstMessage?.content || firstMessage.content.trim() === '') return '-'
     const content = firstMessage.content.trim()
-    return content.length > 50 ? `${content.slice(0, 50)}...` : content
+    return truncate(content, 50)
   }
 
   if (isVariableAssignmentsArray(parsedValue)) {

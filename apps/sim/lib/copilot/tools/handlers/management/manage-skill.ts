@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { deleteSkill, listSkills, upsertSkills } from '@/lib/workflows/skills/operations'
 
@@ -168,7 +168,7 @@ export async function executeManageSkill(
     )
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to manage skill',
+      error: getErrorMessage(error, 'Failed to manage skill'),
     }
   }
 }

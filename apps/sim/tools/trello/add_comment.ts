@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import {
   extractTrelloErrorMessage,
@@ -91,7 +92,7 @@ export const trelloAddCommentTool: ToolConfig<TrelloAddCommentParams, TrelloAddC
         },
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to parse created comment'
+      const message = getErrorMessage(error, 'Failed to parse created comment')
 
       return {
         success: false,

@@ -2,6 +2,7 @@
  * Sim Telemetry - Client-side Instrumentation
  */
 
+import { randomFloat } from '@sim/utils/random'
 import { env } from './lib/core/config/env'
 import { sanitizeEventData } from './lib/core/security/redaction'
 
@@ -117,7 +118,7 @@ if (typeof window !== 'undefined') {
   }
 
   if (telemetryEnabled) {
-    const shouldTrackVitals = Math.random() < 0.1
+    const shouldTrackVitals = randomFloat() < 0.1
 
     if (shouldTrackVitals) {
       window.addEventListener(

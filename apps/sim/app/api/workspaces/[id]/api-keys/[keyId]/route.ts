@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, not } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateWorkspaceApiKeyContract } from '@/lib/api/contracts/api-keys'
@@ -116,7 +117,7 @@ export const PUT = withRouteHandler(
     } catch (error: unknown) {
       logger.error(`[${requestId}] Workspace API key PUT error`, error)
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to update workspace API key' },
+        { error: getErrorMessage(error, 'Failed to update workspace API key') },
         { status: 500 }
       )
     }
@@ -191,7 +192,7 @@ export const DELETE = withRouteHandler(
     } catch (error: unknown) {
       logger.error(`[${requestId}] Workspace API key DELETE error`, error)
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to delete workspace API key' },
+        { error: getErrorMessage(error, 'Failed to delete workspace API key') },
         { status: 500 }
       )
     }

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -116,7 +117,7 @@ async function resolveReplayGapRequestId(
     logger.warn('Failed to resolve request ID for replay gap', {
       streamId,
       latestSeq,
-      error: error instanceof Error ? error.message : String(error),
+      error: getErrorMessage(error),
     })
     return ''
   }

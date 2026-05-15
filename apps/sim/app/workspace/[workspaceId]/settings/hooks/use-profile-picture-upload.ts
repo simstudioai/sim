@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { uploadViaApiFallback } from '@/lib/uploads/client/api-fallback'
 import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 
@@ -114,8 +115,7 @@ export function useProfilePictureUpload({
         setPreviewUrl(serverUrl)
         onUploadRef.current?.(serverUrl)
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : 'Failed to upload profile picture'
+        const errorMessage = getErrorMessage(error, 'Failed to upload profile picture')
         onErrorRef.current?.(errorMessage)
         URL.revokeObjectURL(newPreviewUrl)
         previewRef.current = null

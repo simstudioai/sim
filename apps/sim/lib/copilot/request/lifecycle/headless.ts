@@ -97,7 +97,7 @@ export async function runHeadlessCopilotLifecycle(
           logger.warn('Failed to report headless trace', {
             simRequestId,
             chatId: result?.chatId ?? options.chatId,
-            error: error instanceof Error ? error.message : String(error),
+            error: getErrorMessage(error),
           })
         }
       }
