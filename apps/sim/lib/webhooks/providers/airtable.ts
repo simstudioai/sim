@@ -453,7 +453,12 @@ function validateAirtableSignature(webhookSecret: string, mac: string, rawBody: 
 export const airtableHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const webhookSecret = providerConfig.webhookSecret as string | undefined
-    if (!webhookSecret) return null
+    if (!webhookSecret) {
+      logger.warn(
+        `[${requestId}] Airtable webhook has no webhookSecret stored — skipping signature verification`
+      )
+      return null
+    }
 
     const mac = request.headers.get('x-airtable-content-mac')
     if (!mac) {

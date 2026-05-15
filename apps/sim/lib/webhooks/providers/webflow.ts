@@ -34,7 +34,12 @@ const FIVE_MINUTES_MS = 5 * 60 * 1000
 export const webflowHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const secret = providerConfig.webhookSecret as string | undefined
-    if (!secret) return null
+    if (!secret) {
+      logger.warn(
+        `[${requestId}] Webflow webhook has no webhookSecret stored — skipping signature verification`
+      )
+      return null
+    }
 
     const timestamp = request.headers.get('x-webflow-timestamp')
     if (!timestamp) {
