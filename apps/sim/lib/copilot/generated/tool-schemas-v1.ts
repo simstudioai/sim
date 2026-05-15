@@ -1535,7 +1535,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
   ['list_workspace_mcp_servers']: {
     parameters: {
       type: 'object',
-      properties: {},
+      properties: {
+        workspaceId: {
+          type: 'string',
+          description:
+            'Workspace ID. Required when no current workspace context is available, such as headless MCP calls.',
+        },
+      },
     },
     resultSchema: undefined,
   },

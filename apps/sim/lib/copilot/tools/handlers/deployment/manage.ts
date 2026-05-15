@@ -120,7 +120,7 @@ export async function executeListWorkspaceMcpServers(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    let workspaceId = context.workspaceId
+    let workspaceId = params.workspaceId || context.workspaceId
     const workflowId = context.workflowId
 
     if (!workspaceId && workflowId) {

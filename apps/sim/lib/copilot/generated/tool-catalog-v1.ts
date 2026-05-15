@@ -1737,7 +1737,16 @@ export const ListWorkspaceMcpServers: ToolCatalogEntry = {
   name: 'list_workspace_mcp_servers',
   route: 'sim',
   mode: 'async',
-  parameters: { type: 'object', properties: {} },
+  parameters: {
+    type: 'object',
+    properties: {
+      workspaceId: {
+        type: 'string',
+        description:
+          'Workspace ID. Required when no current workspace context is available, such as headless MCP calls.',
+      },
+    },
+  },
 }
 
 export const ManageCredential: ToolCatalogEntry = {

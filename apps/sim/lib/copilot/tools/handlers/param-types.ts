@@ -155,7 +155,9 @@ export interface CheckDeploymentStatusParams {
   workflowId?: string
 }
 
-export type ListWorkspaceMcpServersParams = Record<string, never>
+export interface ListWorkspaceMcpServersParams {
+  workspaceId?: string
+}
 
 export interface CreateWorkspaceMcpServerParams {
   workspaceId?: string
