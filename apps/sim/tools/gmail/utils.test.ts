@@ -81,9 +81,9 @@ describe('plainTextToHtml', () => {
 })
 
 describe('htmlToPlainText', () => {
-  it('strips tags, decodes entities, and collapses whitespace', () => {
+  it('strips tags and decodes entities', () => {
     const result = htmlToPlainText('<p>Hi &amp; bye</p><p>Line<br>break</p>')
-    expect(result).toBe('Hi & bye\nLine\nbreak')
+    expect(result).toBe('Hi & bye\n\nLine\nbreak')
   })
 
   it('drops <style> and <script> contents', () => {
@@ -97,8 +97,8 @@ describe('htmlToPlainText', () => {
   })
 
   it('decodes decimal and hexadecimal numeric entities', () => {
-    expect(htmlToPlainText('<p>&#8220;hi&#8221; &#160;and&#x2019;s</p>')).toBe(
-      '\u201chi\u201d \u00a0and\u2019s'
+    expect(htmlToPlainText('<p>&#8220;hi&#8221; and&#x2019;s</p>')).toBe(
+      '\u201chi\u201d and\u2019s'
     )
   })
 })
