@@ -126,7 +126,7 @@ describe('convertToGeminiFormat', () => {
               url: '/api/files/serve/workspace%2Fws-1%2Fexample.png?context=workspace',
               size: 128,
               type: 'image/png',
-              base64: 'aW1hZ2U=',
+              base64: 'iVBORw0KGgo=',
             },
           ],
         },
@@ -142,7 +142,7 @@ describe('convertToGeminiFormat', () => {
         {
           inlineData: {
             mimeType: 'image/png',
-            data: 'aW1hZ2U=',
+            data: 'iVBORw0KGgo=',
           },
         },
       ],

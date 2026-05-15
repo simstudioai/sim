@@ -1,7 +1,9 @@
 import {
   getContentType,
+  getExtensionFromMimeType,
   getFileExtension,
   getMimeTypeFromExtension,
+  MIME_TYPE_MAPPING,
   MODEL_SUPPORTED_IMAGE_MIME_TYPES,
 } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
@@ -37,64 +39,15 @@ export interface PreparedProviderAttachment {
 const AGENT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 const PDF_MIME_TYPE = 'application/pdf'
 
-const TEXT_DOCUMENT_MIME_TYPES = new Set([
-  'text/plain',
-  'text/markdown',
-  'text/csv',
-  'text/html',
-  'text/xml',
-  'text/javascript',
-  'text/typescript',
-  'text/x-python',
-  'text/x-go',
-  'text/x-rust',
-  'text/x-java',
-  'text/x-kotlin',
-  'text/x-c',
-  'text/x-c++',
-  'text/x-csharp',
-  'text/x-ruby',
-  'text/x-php',
-  'text/x-swift',
-  'text/x-shellscript',
-  'application/json',
-  'application/xml',
-  'application/x-yaml',
-])
+const DOCUMENT_MIME_TYPES = new Set(
+  Object.entries(MIME_TYPE_MAPPING)
+    .filter(([, contentType]) => contentType === 'document')
+    .map(([mimeType]) => mimeType)
+)
 
-const OPENAI_DOCUMENT_MIME_TYPES = new Set([
-  PDF_MIME_TYPE,
-  ...TEXT_DOCUMENT_MIME_TYPES,
-  'application/rtf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-])
+const OPENAI_DOCUMENT_MIME_TYPES = new Set([...DOCUMENT_MIME_TYPES, 'application/x-yaml'])
 
-const GEMINI_INLINE_MIME_TYPES = new Set([
-  PDF_MIME_TYPE,
-  ...TEXT_DOCUMENT_MIME_TYPES,
-  ...MODEL_SUPPORTED_IMAGE_MIME_TYPES,
-  'audio/mpeg',
-  'audio/mp3',
-  'audio/mp4',
-  'audio/x-m4a',
-  'audio/m4a',
-  'audio/wav',
-  'audio/wave',
-  'audio/x-wav',
-  'audio/webm',
-  'audio/ogg',
-  'audio/flac',
-  'video/mp4',
-  'video/mpeg',
-  'video/quicktime',
-  'video/x-quicktime',
-  'video/webm',
-])
+const GEMINI_INLINE_MIME_TYPES = new Set([...Object.keys(MIME_TYPE_MAPPING), 'application/x-yaml'])
 
 const BEDROCK_DOCUMENT_FORMATS = new Set([
   'pdf',
@@ -168,7 +121,12 @@ export function inferAttachmentMimeType(file: UserFile): string {
 }
 
 function isTextDocumentMimeType(mimeType: string): boolean {
-  return TEXT_DOCUMENT_MIME_TYPES.has(mimeType) || mimeType.startsWith('text/')
+  return (
+    mimeType.startsWith('text/') ||
+    mimeType === 'application/json' ||
+    mimeType === 'application/xml' ||
+    mimeType === 'application/x-yaml'
+  )
 }
 
 function isImageMimeType(mimeType: string): boolean {
@@ -177,6 +135,12 @@ function isImageMimeType(mimeType: string): boolean {
 
 function isOpenAIDocumentMimeType(mimeType: string): boolean {
   return OPENAI_DOCUMENT_MIME_TYPES.has(mimeType) || isTextDocumentMimeType(mimeType)
+}
+
+function getAttachmentContentType(
+  mimeType: string
+): PreparedProviderAttachment['contentType'] | null {
+  return getContentType(mimeType) || (isTextDocumentMimeType(mimeType) ? 'document' : null)
 }
 
 function sniffImageMimeType(base64: string): string {
@@ -218,23 +182,8 @@ function sniffImageMimeType(base64: string): string {
 }
 
 function getAttachmentExtension(file: UserFile, mimeType: string): string {
-  if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') return 'jpeg'
-  if (mimeType === 'image/png') return 'png'
-  if (mimeType === 'image/gif') return 'gif'
-  if (mimeType === 'image/webp') return 'webp'
-  if (mimeType === 'video/mp4') return 'mp4'
-  if (mimeType === 'video/quicktime' || mimeType === 'video/x-quicktime') return 'mov'
-  if (mimeType === 'video/webm') return 'webm'
-
-  const extension = getFileExtension(file.name)
-  if (extension) return extension
-
-  if (mimeType === 'application/pdf') return 'pdf'
   if (mimeType === 'text/markdown') return 'md'
-  if (mimeType === 'text/plain') return 'txt'
-  if (mimeType === 'text/csv') return 'csv'
-  if (mimeType === 'text/html') return 'html'
-  return ''
+  return getExtensionFromMimeType(mimeType) || getFileExtension(file.name)
 }
 
 function normalizeProviderMimeType(mimeType: string, provider: AttachmentProvider): string {
@@ -315,7 +264,7 @@ export function prepareProviderAttachments(
 
   return files.map((file) => {
     const declaredMimeType = inferAttachmentMimeType(file)
-    const contentType = getContentType(declaredMimeType)
+    const contentType = getAttachmentContentType(declaredMimeType)
 
     if (!contentType) {
       throw new Error(

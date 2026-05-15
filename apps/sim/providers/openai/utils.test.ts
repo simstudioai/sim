@@ -18,7 +18,7 @@ describe('buildResponsesInputFromMessages', () => {
             url: '/api/files/serve/workspace%2Fws-1%2Fexample.png?context=workspace',
             size: 128,
             type: 'image/png',
-            base64: 'aW1hZ2U=',
+            base64: 'iVBORw0KGgo=',
           },
         ],
       },
@@ -31,7 +31,7 @@ describe('buildResponsesInputFromMessages', () => {
           { type: 'input_text', text: 'Analyze this image' },
           {
             type: 'input_image',
-            image_url: 'data:image/png;base64,aW1hZ2U=',
+            image_url: 'data:image/png;base64,iVBORw0KGgo=',
           },
         ],
       },
