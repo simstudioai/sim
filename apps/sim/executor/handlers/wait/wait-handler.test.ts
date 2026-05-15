@@ -136,6 +136,19 @@ describe('WaitBlockHandler', () => {
     ).rejects.toThrow('Wait time exceeds maximum of 5 minutes')
   })
 
+  it('should default the suspend unit to minutes when timeUnitLong is missing', async () => {
+    vi.setSystemTime(new Date('2026-04-28T00:00:00.000Z'))
+
+    const result = (await handler.execute(mockContext, mockBlock, {
+      suspend: true,
+      timeValue: '3',
+    })) as Record<string, any>
+
+    const waitMs = 3 * 60 * 1000
+    expect(result.waitDuration).toBe(waitMs)
+    expect(result.status).toBe('waiting')
+  })
+
   it('should reject seconds as a unit when Suspend Workflow is enabled', async () => {
     await expect(
       handler.execute(mockContext, mockBlock, {

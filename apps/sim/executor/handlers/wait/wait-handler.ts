@@ -126,7 +126,7 @@ export class WaitBlockHandler implements BlockHandler {
   ): Promise<BlockOutput> {
     const suspend = inputs.suspend === true || inputs.suspend === 'true'
     const timeValue = Number.parseFloat(inputs.timeValue || '10')
-    const timeUnit = (suspend ? inputs.timeUnitLong : inputs.timeUnit) || 'seconds'
+    const timeUnit = suspend ? inputs.timeUnitLong || 'minutes' : inputs.timeUnit || 'seconds'
 
     if (!Number.isFinite(timeValue) || timeValue <= 0) {
       throw new Error('Wait amount must be a positive number')
