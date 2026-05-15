@@ -15,6 +15,20 @@ function decodeSimpleMessage(encoded: string): string {
   return Buffer.from(encoded, 'base64url').toString('utf-8')
 }
 
+/**
+ * Extract and base64-decode the body of a specific MIME part identified by its
+ * Content-Type prefix (e.g. `text/plain`, `text/html`). Returns the decoded
+ * UTF-8 string.
+ */
+function decodePart(mime: string, contentTypePrefix: string): string {
+  const partRegex = new RegExp(
+    `Content-Type: ${contentTypePrefix}[^\\n]*\\nContent-Transfer-Encoding: base64\\n\\n([\\s\\S]*?)\\n\\n--`
+  )
+  const match = mime.match(partRegex)
+  if (!match) throw new Error(`No ${contentTypePrefix} part found`)
+  return Buffer.from(match[1].replace(/\n/g, ''), 'base64').toString('utf-8')
+}
+
 describe('encodeRfc2047', () => {
   it('returns ASCII text unchanged', () => {
     expect(encodeRfc2047('Simple ASCII Subject')).toBe('Simple ASCII Subject')
@@ -81,6 +95,12 @@ describe('htmlToPlainText', () => {
       '&lt; is the literal < entity'
     )
   })
+
+  it('decodes decimal and hexadecimal numeric entities', () => {
+    expect(htmlToPlainText('<p>&#8220;hi&#8221; &#160;and&#x2019;s</p>')).toBe(
+      '\u201chi\u201d \u00a0and\u2019s'
+    )
+  })
 })
 
 describe('buildSimpleEmailMessage', () => {
@@ -96,8 +116,21 @@ describe('buildSimpleEmailMessage', () => {
     const htmlIdx = decoded.indexOf('text/html')
     expect(plainIdx).toBeGreaterThan(-1)
     expect(htmlIdx).toBeGreaterThan(plainIdx)
-    expect(decoded).toContain('Hi Janice,')
-    expect(decoded).toContain('<p>Hi Janice,</p>')
+    expect(decodePart(decoded, 'text/plain')).toBe('Hi Janice,\n\nQuick question.')
+    expect(decodePart(decoded, 'text/html')).toContain('<p>Hi Janice,</p>')
+  })
+
+  it('encodes bodies as base64 so UTF-8 (emoji, accents) round-trips cleanly', () => {
+    const body = 'Café 🎉 — résumé'
+    const encoded = buildSimpleEmailMessage({
+      to: 'a@example.com',
+      subject: 'Hi',
+      body,
+    })
+    const decoded = decodeSimpleMessage(encoded)
+    expect(decoded).toContain('Content-Transfer-Encoding: base64')
+    expect(decodePart(decoded, 'text/plain')).toBe(body)
+    expect(decodePart(decoded, 'text/html')).toContain('Café 🎉 — résumé')
   })
 
   it('uses the supplied HTML body and derives a plain-text fallback when contentType is html', () => {
@@ -108,8 +141,8 @@ describe('buildSimpleEmailMessage', () => {
       contentType: 'html',
     })
     const decoded = decodeSimpleMessage(encoded)
-    expect(decoded).toContain('<p>Hello <b>there</b></p>')
-    expect(decoded).toContain('Hello there')
+    expect(decodePart(decoded, 'text/html')).toBe('<p>Hello <b>there</b></p>')
+    expect(decodePart(decoded, 'text/plain')).toBe('Hello there')
   })
 
   it('includes threading headers when replying', () => {
@@ -142,7 +175,8 @@ describe('buildMimeMessage', () => {
     expect(message).toMatch(/Content-Type: multipart\/mixed; boundary="([^"]+)"/)
     expect(message).toMatch(/Content-Type: multipart\/alternative; boundary="([^"]+)"/)
     expect(message).toContain('Content-Disposition: attachment; filename="note.txt"')
-    expect(message).toContain('<p>Hello</p>')
+    expect(decodePart(message, 'text/plain')).toBe('Hello')
+    expect(decodePart(message, 'text/html')).toContain('<p>Hello</p>')
   })
 
   it('emits multipart/alternative without multipart/mixed when no attachments', () => {

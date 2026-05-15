@@ -359,7 +359,8 @@ export function htmlToPlainText(html: string): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number.parseInt(dec, 10)))
     .replace(/&amp;/g, '&')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
@@ -382,6 +383,16 @@ export function buildBodyAlternatives(
 }
 
 /**
+ * Encode a text body as base64 with RFC 2045 line wrapping (max 76 chars).
+ * Using base64 lets us safely transport arbitrary UTF-8 (emoji, accented
+ * characters, etc.) — `7bit` is only valid for strict 7-bit ASCII.
+ */
+function encodeBodyBase64(content: string): string[] {
+  const base64 = Buffer.from(content, 'utf-8').toString('base64')
+  return base64.match(/.{1,76}/g) || ['']
+}
+
+/**
  * Render the inner part of a `multipart/alternative` section (text/plain
  * followed by text/html, per RFC 2046 — clients pick the last format they
  * understand).
@@ -390,15 +401,15 @@ function renderAlternativeParts(plain: string, html: string, boundary: string): 
   return [
     `--${boundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
-    'Content-Transfer-Encoding: 7bit',
+    'Content-Transfer-Encoding: base64',
     '',
-    plain,
+    ...encodeBodyBase64(plain),
     '',
     `--${boundary}`,
     'Content-Type: text/html; charset="UTF-8"',
-    'Content-Transfer-Encoding: 7bit',
+    'Content-Transfer-Encoding: base64',
     '',
-    html,
+    ...encodeBodyBase64(html),
     '',
     `--${boundary}--`,
   ]
