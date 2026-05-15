@@ -317,8 +317,108 @@ export function base64UrlEncode(data: string | Buffer): string {
 }
 
 /**
- * Build a simple text email message (without attachments)
- * @param params Email parameters including recipients, subject, body, and threading info
+ * Escape HTML special characters so user-supplied text renders safely inside an HTML body.
+ */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/**
+ * Convert a plain-text body to an HTML body that flows naturally in Gmail.
+ * Blank lines become paragraph breaks; single newlines become `<br>`.
+ * This avoids the narrow hard-wrapped rendering Gmail uses for `text/plain`.
+ */
+export function plainTextToHtml(body: string): string {
+  const normalized = body.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  const paragraphs = normalized.split(/\n{2,}/)
+  const htmlParagraphs = paragraphs.map((paragraph) => {
+    const escaped = escapeHtml(paragraph).replace(/\n/g, '<br>')
+    return `<p>${escaped}</p>`
+  })
+  return `<!DOCTYPE html><html><body>${htmlParagraphs.join('')}</body></html>`
+}
+
+/**
+ * Best-effort conversion of an HTML body to a plain-text fallback. Strips tags
+ * and decodes the common entities. Used so we always include a plain-text part
+ * alongside HTML for clients that don't render HTML.
+ */
+export function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number.parseInt(dec, 10)))
+    .replace(/&amp;/g, '&')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/**
+ * Produce the plain-text and HTML representations of a body so we can emit a
+ * `multipart/alternative` section. Gmail renders the HTML version full-width
+ * (matching how a manually-composed email looks); the plain-text part is the
+ * fallback for clients that don't render HTML.
+ */
+export function buildBodyAlternatives(
+  body: string,
+  contentType: 'text' | 'html' | undefined
+): { plain: string; html: string } {
+  if (contentType === 'html') {
+    return { plain: htmlToPlainText(body) || body, html: body }
+  }
+  return { plain: body, html: plainTextToHtml(body) }
+}
+
+/**
+ * Encode a text body as base64 with RFC 2045 line wrapping (max 76 chars).
+ * Using base64 lets us safely transport arbitrary UTF-8 (emoji, accented
+ * characters, etc.) — `7bit` is only valid for strict 7-bit ASCII.
+ */
+function encodeBodyBase64(content: string): string[] {
+  const base64 = Buffer.from(content, 'utf-8').toString('base64')
+  return base64.match(/.{1,76}/g) || ['']
+}
+
+/**
+ * Render the inner part of a `multipart/alternative` section (text/plain
+ * followed by text/html, per RFC 2046 — clients pick the last format they
+ * understand).
+ */
+function renderAlternativeParts(plain: string, html: string, boundary: string): string[] {
+  return [
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    ...encodeBodyBase64(plain),
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    ...encodeBodyBase64(html),
+    '',
+    `--${boundary}--`,
+  ]
+}
+
+/**
+ * Build a `multipart/alternative` email (without attachments). Always emits
+ * both text/plain and text/html parts so Gmail renders messages full-width
+ * like a hand-composed email.
  * @returns Base64url encoded raw message
  */
 export function buildSimpleEmailMessage(params: {
@@ -332,12 +432,10 @@ export function buildSimpleEmailMessage(params: {
   references?: string
 }): string {
   const { to, cc, bcc, subject, body, contentType, inReplyTo, references } = params
-  const mimeContentType = contentType === 'html' ? 'text/html' : 'text/plain'
-  const emailHeaders = [
-    `Content-Type: ${mimeContentType}; charset="UTF-8"`,
-    'MIME-Version: 1.0',
-    `To: ${to}`,
-  ]
+  const boundary = generateBoundary()
+  const { plain, html } = buildBodyAlternatives(body, contentType)
+
+  const emailHeaders = ['MIME-Version: 1.0', `To: ${to}`]
 
   if (cc) {
     emailHeaders.push(`Cc: ${cc}`)
@@ -354,7 +452,10 @@ export function buildSimpleEmailMessage(params: {
     emailHeaders.push(`References: ${referencesChain}`)
   }
 
-  emailHeaders.push('', body)
+  emailHeaders.push(`Content-Type: multipart/alternative; boundary="${boundary}"`)
+  emailHeaders.push('')
+  emailHeaders.push(...renderAlternativeParts(plain, html, boundary))
+
   const email = emailHeaders.join('\n')
   return Buffer.from(email).toString('base64url')
 }
@@ -382,9 +483,8 @@ export interface BuildMimeMessageParams {
 
 export function buildMimeMessage(params: BuildMimeMessageParams): string {
   const { to, cc, bcc, subject, body, contentType, inReplyTo, references, attachments } = params
-  const boundary = generateBoundary()
   const messageParts: string[] = []
-  const mimeContentType = contentType === 'html' ? 'text/html' : 'text/plain'
+  const { plain, html } = buildBodyAlternatives(body, contentType)
 
   messageParts.push(`To: ${to}`)
   if (cc) {
@@ -408,17 +508,19 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
   messageParts.push('MIME-Version: 1.0')
 
   if (attachments && attachments.length > 0) {
-    messageParts.push(`Content-Type: multipart/mixed; boundary="${boundary}"`)
+    const mixedBoundary = generateBoundary()
+    const altBoundary = generateBoundary()
+
+    messageParts.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`)
     messageParts.push('')
-    messageParts.push(`--${boundary}`)
-    messageParts.push(`Content-Type: ${mimeContentType}; charset="UTF-8"`)
-    messageParts.push('Content-Transfer-Encoding: 7bit')
+    messageParts.push(`--${mixedBoundary}`)
+    messageParts.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`)
     messageParts.push('')
-    messageParts.push(body)
+    messageParts.push(...renderAlternativeParts(plain, html, altBoundary))
     messageParts.push('')
 
     for (const attachment of attachments) {
-      messageParts.push(`--${boundary}`)
+      messageParts.push(`--${mixedBoundary}`)
       messageParts.push(`Content-Type: ${attachment.mimeType}`)
       messageParts.push(`Content-Disposition: attachment; filename="${attachment.filename}"`)
       messageParts.push('Content-Transfer-Encoding: base64')
@@ -430,12 +532,12 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
       messageParts.push('')
     }
 
-    messageParts.push(`--${boundary}--`)
+    messageParts.push(`--${mixedBoundary}--`)
   } else {
-    messageParts.push(`Content-Type: ${mimeContentType}; charset="UTF-8"`)
-    messageParts.push('MIME-Version: 1.0')
+    const altBoundary = generateBoundary()
+    messageParts.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`)
     messageParts.push('')
-    messageParts.push(body)
+    messageParts.push(...renderAlternativeParts(plain, html, altBoundary))
   }
 
   return messageParts.join('\n')
