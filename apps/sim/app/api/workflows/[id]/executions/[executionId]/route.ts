@@ -16,10 +16,56 @@ const logger = createLogger('WorkflowExecutionStatusAPI')
 
 type LogStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
+interface TraceSpanShape {
+  blockId?: string
+  output?: Record<string, unknown>
+  children?: TraceSpanShape[]
+}
+
 interface ExecutionDataShape {
   finalOutput?: { error?: string } & Record<string, unknown>
   error?: { message?: string } | string
   completionFailure?: string
+  traceSpans?: TraceSpanShape[]
+}
+
+function collectBlockOutputs(spans: TraceSpanShape[] | undefined): Map<string, unknown> {
+  const map = new Map<string, unknown>()
+  const visit = (list?: TraceSpanShape[]): void => {
+    if (!list) return
+    for (const span of list) {
+      if (span.blockId && span.output !== undefined && !map.has(span.blockId)) {
+        map.set(span.blockId, span.output)
+      }
+      if (span.children) visit(span.children)
+    }
+  }
+  visit(spans)
+  return map
+}
+
+function resolvePath(value: unknown, path: string[]): unknown {
+  let current: unknown = value
+  for (const segment of path) {
+    if (current == null || typeof current !== 'object') return undefined
+    current = (current as Record<string, unknown>)[segment]
+  }
+  return current
+}
+
+function pickSelectedOutputs(
+  selectedOutputs: string[],
+  blockOutputs: Map<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const selector of selectedOutputs) {
+    const [head, ...rest] = selector.split('.')
+    if (!head) continue
+    if (!blockOutputs.has(head)) continue
+    const blockValue = blockOutputs.get(head)
+    out[selector] = rest.length === 0 ? blockValue : resolvePath(blockValue, rest)
+  }
+  return out
 }
 
 function pickEarliestPausePoint(points: PausePoint[]): PausePoint | null {
@@ -60,7 +106,7 @@ export const GET = withRouteHandler(
     const parsed = await parseRequest(getWorkflowExecutionContract, request, context)
     if (!parsed.success) return parsed.response
     const { id: workflowId, executionId } = parsed.data.params
-    const { includeOutput } = parsed.data.query
+    const { includeOutput, selectedOutputs } = parsed.data.query
 
     const access = await validateWorkflowAccess(request, workflowId, false)
     if (access.error) {
@@ -137,9 +183,16 @@ export const GET = withRouteHandler(
 
     const error = status === 'failed' ? extractError(logRow.executionData) : null
 
+    const executionData = logRow.executionData as ExecutionDataShape | undefined
+
     const finalOutput =
-      includeOutput && status === 'completed' && logRow.executionData
-        ? ((logRow.executionData as ExecutionDataShape).finalOutput ?? null)
+      includeOutput && status === 'completed' && executionData
+        ? (executionData.finalOutput ?? null)
+        : null
+
+    const blockOutputs =
+      selectedOutputs.length > 0
+        ? pickSelectedOutputs(selectedOutputs, collectBlockOutputs(executionData?.traceSpans))
         : null
 
     const response: WorkflowExecutionStatusResponse = {
@@ -155,6 +208,7 @@ export const GET = withRouteHandler(
       cost,
       error,
       finalOutput,
+      blockOutputs,
     }
 
     logger.debug('Fetched execution status', {

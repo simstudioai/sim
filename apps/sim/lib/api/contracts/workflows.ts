@@ -541,6 +541,7 @@ const workflowExecutionStatusResponseSchema = z.object({
   cost: z.object({ total: z.number() }).nullable(),
   error: z.string().nullable(),
   finalOutput: z.unknown().nullable(),
+  blockOutputs: z.record(z.string(), z.unknown()).nullable(),
 })
 
 export type WorkflowExecutionStatusResponse = z.output<typeof workflowExecutionStatusResponseSchema>
@@ -550,6 +551,17 @@ const workflowExecutionStatusQuerySchema = z.object({
     .enum(['true', 'false'])
     .optional()
     .transform((value) => value === 'true'),
+  selectedOutputs: z
+    .string()
+    .optional()
+    .transform((value) =>
+      value
+        ? value
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : []
+    ),
 })
 
 const cancelWorkflowExecutionResponseSchema = z.object({
