@@ -8,6 +8,7 @@ import {
   createMockRequest,
   hybridAuthMockFns,
   inputValidationMock,
+  inputValidationMockFns,
   permissionsMock,
   permissionsMockFns,
   storageServiceMock,
@@ -69,6 +70,7 @@ vi.mock('@/app/api/files/authorization', () => ({
 vi.mock('@/lib/uploads', () => ({
   getStorageProvider: mockGetStorageProvider,
   isUsingCloudStorage: mockIsUsingCloudStorage,
+  StorageService: storageServiceMock,
 }))
 
 vi.mock('@/lib/file-parsers', () => ({
@@ -172,6 +174,7 @@ describe('File Parse API Route', () => {
 
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue({ canView: true })
     storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('test file content'))
     mockIsSupportedFileType.mockReturnValue(true)
     mockParseFile.mockResolvedValue({
       content: 'parsed content',
@@ -245,6 +248,48 @@ describe('File Parse API Route', () => {
     }
   })
 
+  it('should keep known binary extensions as binary even when the bytes are valid UTF-8', async () => {
+    setupFileApiMocks({
+      cloudEnabled: true,
+      storageProvider: 's3',
+      authenticated: true,
+    })
+    mockIsSupportedFileType.mockReturnValue(false)
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('valid utf8 bytes'))
+
+    const req = createMockRequest('POST', {
+      filePath: '/api/files/serve/execution/workspace-1/workflow-1/execution-1/image.png',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.output.content).toBe('[Binary PNG file - 16 bytes]')
+  })
+
+  it('should parse unknown extensions as text when the bytes look like UTF-8 text', async () => {
+    setupFileApiMocks({
+      cloudEnabled: true,
+      storageProvider: 's3',
+      authenticated: true,
+    })
+    mockIsSupportedFileType.mockReturnValue(false)
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('plain text content'))
+
+    const req = createMockRequest('POST', {
+      filePath: '/api/files/serve/execution/workspace-1/workflow-1/execution-1/readme.customtext',
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.output.content).toBe('plain text content')
+  })
+
   it('should handle multiple files', async () => {
     setupFileApiMocks({
       cloudEnabled: false,
@@ -264,6 +309,39 @@ describe('File Parse API Route', () => {
     expect(data).toHaveProperty('results')
     expect(Array.isArray(data.results)).toBe(true)
     expect(data.results).toHaveLength(2)
+  })
+
+  it('should pass custom headers when fetching external URLs', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+      isValid: true,
+      resolvedIP: '203.0.113.10',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValue(
+      new Response('private file content', {
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+      })
+    )
+
+    const headers = { Authorization: 'Bearer xoxb-test-token' }
+    const req = createMockRequest('POST', {
+      filePath: 'https://files.slack.com/files-pri/T000-F000/download/report.txt',
+      headers,
+    })
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+      'https://files.slack.com/files-pri/T000-F000/download/report.txt',
+      '203.0.113.10',
+      expect.objectContaining({
+        timeout: 30000,
+        headers,
+      })
+    )
   })
 
   it('should process execution file URLs with context query param', async () => {

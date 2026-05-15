@@ -325,6 +325,8 @@ export function useFloatResize({
     },
     [onDimensionsChange, onPositionChange]
   )
+  const handleGlobalMouseMoveRef = useRef(handleGlobalMouseMove)
+  handleGlobalMouseMoveRef.current = handleGlobalMouseMove
 
   /**
    * Handle global mouse up - stop resizing
@@ -339,19 +341,28 @@ export function useFloatResize({
     document.body.style.userSelect = ''
     setCursor('')
   }, [])
+  const handleGlobalMouseUpRef = useRef(handleGlobalMouseUp)
+  handleGlobalMouseUpRef.current = handleGlobalMouseUp
 
   /**
    * Set up global mouse event listeners
    */
   useEffect(() => {
-    window.addEventListener('mousemove', handleGlobalMouseMove)
-    window.addEventListener('mouseup', handleGlobalMouseUp)
+    const handleMouseMove = (e: MouseEvent) => {
+      handleGlobalMouseMoveRef.current(e)
+    }
+    const handleMouseUp = () => {
+      handleGlobalMouseUpRef.current()
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
 
     return () => {
-      window.removeEventListener('mousemove', handleGlobalMouseMove)
-      window.removeEventListener('mouseup', handleGlobalMouseUp)
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [handleGlobalMouseMove, handleGlobalMouseUp])
+  }, [])
 
   return {
     cursor,

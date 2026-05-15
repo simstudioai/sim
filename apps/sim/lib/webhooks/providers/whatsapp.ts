@@ -133,7 +133,7 @@ function buildWhatsAppIdempotencyKey(keys: Set<string>): string | null {
 /**
  * Handle WhatsApp verification requests
  */
-export async function handleWhatsAppVerification(
+async function handleWhatsAppVerification(
   requestId: string,
   path: string,
   mode: string | null,
@@ -179,7 +179,7 @@ export async function handleWhatsAppVerification(
         continue
       }
 
-      if (token === verificationToken) {
+      if (safeCompare(token, verificationToken as string)) {
         logger.info(`[${requestId}] WhatsApp verification successful for webhook ${wh.id}`)
         return new NextResponse(challenge, {
           status: 200,

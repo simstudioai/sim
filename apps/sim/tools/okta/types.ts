@@ -12,7 +12,7 @@ export interface OktaApiError {
 /**
  * Common params for all Okta tools
  */
-export interface OktaBaseParams {
+interface OktaBaseParams {
   apiKey: string
   domain: string
 }
@@ -20,7 +20,7 @@ export interface OktaBaseParams {
 /**
  * Okta User profile object from the API
  */
-export interface OktaUserProfile {
+interface OktaUserProfile {
   firstName?: string | null
   lastName?: string | null
   email?: string | null
@@ -59,7 +59,7 @@ export interface OktaUser {
 /**
  * Okta Group profile from the API
  */
-export interface OktaGroupProfile {
+interface OktaGroupProfile {
   name: string
   description?: string | null
 }
@@ -79,7 +79,7 @@ export interface OktaGroup {
 /**
  * Transformed user output
  */
-export interface OktaUserOutput {
+interface OktaUserOutput {
   id: string
   status: string
   firstName: string | null
@@ -99,7 +99,7 @@ export interface OktaUserOutput {
 /**
  * Transformed group output
  */
-export interface OktaGroupOutput {
+interface OktaGroupOutput {
   id: string
   name: string
   description: string | null

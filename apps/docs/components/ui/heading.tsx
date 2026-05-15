@@ -18,7 +18,7 @@ export function Heading({ as, className, ...props }: HeadingProps) {
     return <As className={className} {...props} />
   }
 
-  const handleClick = async (e: React.MouseEvent) => {
+  const copyHeadingLink = async (e: React.MouseEvent) => {
     e.preventDefault()
 
     const url = `${window.location.origin}${window.location.pathname}#${props.id}`
@@ -39,7 +39,7 @@ export function Heading({ as, className, ...props }: HeadingProps) {
 
   return (
     <As className={cn('group flex scroll-m-28 flex-row items-center gap-2', className)} {...props}>
-      <a href={`#${props.id}`} className='peer' onClick={handleClick}>
+      <a href={`#${props.id}`} className='peer' onClick={copyHeadingLink}>
         {props.children}
       </a>
       {copied ? (

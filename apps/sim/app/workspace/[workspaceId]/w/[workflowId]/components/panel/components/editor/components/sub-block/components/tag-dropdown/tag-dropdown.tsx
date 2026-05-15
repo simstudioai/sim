@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { isEqual } from 'es-toolkit'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
   Popover,
   PopoverAnchor,
@@ -36,6 +38,8 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+
+const EMPTY_VARIABLES: Variable[] = []
 
 /**
  * Context for sharing nested navigation state between components.
@@ -382,7 +386,7 @@ const TagIcon: React.FC<{
   color: string
 }> = ({ icon, color }) => (
   <div
-    className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded'
+    className='flex size-[14px] flex-shrink-0 items-center justify-center rounded'
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (
@@ -997,8 +1001,17 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     [blocks, workflowSubBlockValues]
   )
 
-  const getVariablesByWorkflowId = useVariablesStore((state) => state.getVariablesByWorkflowId)
-  const workflowVariables = workflowId ? getVariablesByWorkflowId(workflowId) : []
+  const workflowVariables = useStoreWithEqualityFn(
+    useVariablesStore,
+    useCallback(
+      (state) =>
+        workflowId
+          ? Object.values(state.variables).filter((variable) => variable.workflowId === workflowId)
+          : EMPTY_VARIABLES,
+      [workflowId]
+    ),
+    isEqual
+  )
 
   const searchTerm = useMemo(
     () => getTagSearchTerm(inputValue, cursorPosition),
@@ -1628,6 +1641,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     setSelectedIndex(0)
   }, [flatTagList.length])
 
+  const onCloseEvent = useEffectEvent(() => onClose?.())
+
   useEffect(() => {
     if (visible) {
       const handleKeyboardEvent = (e: KeyboardEvent) => {
@@ -1635,7 +1650,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           case 'Escape':
             e.preventDefault()
             e.stopPropagation()
-            onClose?.()
+            onCloseEvent()
             break
         }
       }
@@ -1643,7 +1658,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       window.addEventListener('keydown', handleKeyboardEvent, true)
       return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
     }
-  }, [visible, onClose])
+  }, [visible])
 
   if (!visible || tags.length === 0 || flatTagList.length === 0) return null
 

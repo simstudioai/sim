@@ -45,7 +45,7 @@ export function cleanCellValue(value: unknown, column: ColumnDefinition): unknow
   if (column.type === 'number') {
     if (value === '') return null
     const num = Number(value)
-    return Number.isNaN(num) ? 0 : num
+    return Number.isNaN(num) ? null : num
   }
   if (column.type === 'json') {
     if (typeof value === 'string') {

@@ -65,7 +65,7 @@ export interface FolderExportData {
   sortOrder?: number
 }
 
-export interface WorkspaceExportStructure {
+interface WorkspaceExportStructure {
   workspace: {
     name: string
     color?: string

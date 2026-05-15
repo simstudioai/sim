@@ -14,7 +14,9 @@ import {
 import { Plus } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
+  buildFileFolderTree,
   buildWorkflowFolderTree,
+  FileFolderTreeItems,
   type useAvailableResources,
   WorkflowFolderTreeItems,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -75,6 +77,12 @@ export const PlusMenuDropdown = React.memo(
       return buildWorkflowFolderTree(workflowGroup?.items ?? [], folderGroup?.items ?? [])
     }, [availableResources])
 
+    const fileFolderTree = useMemo(() => {
+      const fileGroup = availableResources.find((g) => g.type === 'file')
+      const fileFolderGroup = availableResources.find((g) => g.type === 'filefolder')
+      return buildFileFolderTree(fileGroup?.items ?? [], fileFolderGroup?.items ?? [])
+    }, [availableResources])
+
     const filteredItems = useMemo(() => {
       const rawQuery = isMention ? (mentionQuery ?? '') : search
       const q = rawQuery.toLowerCase().trim()
@@ -89,6 +97,7 @@ export const PlusMenuDropdown = React.memo(
         items.filter((item) => item.name.toLowerCase().includes(q)).map((item) => ({ type, item }))
       )
     }, [isMention, mentionQuery, search, availableResources])
+    const isRootMenu = !isMention && filteredItems === null
 
     const filteredItemsRef = useRef(filteredItems)
     filteredItemsRef.current = filteredItems
@@ -248,6 +257,7 @@ export const PlusMenuDropdown = React.memo(
             collisionPadding={8}
             className={cn(
               'flex flex-col overflow-hidden',
+              isRootMenu && 'max-h-none',
               // Plus-click shows short fixed labels (Workflows, Tables, …) — let it size
               // to its content via the emcn DropdownMenuContent default max-w.
               // Mention mode renders resource names directly, so widen for breathing room.
@@ -277,7 +287,7 @@ export const PlusMenuDropdown = React.memo(
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger>
                       <div
-                        className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+                        className='size-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
                         style={{
                           backgroundColor: '#808080',
                           borderColor: '#80808060',
@@ -291,8 +301,28 @@ export const PlusMenuDropdown = React.memo(
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                 )}
+                {fileFolderTree.length > 0 && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      {(() => {
+                        const Icon = getResourceConfig('file').icon
+                        return <Icon className='size-[14px]' />
+                      })()}
+                      <span>Files</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
+                      <FileFolderTreeItems nodes={fileFolderTree} onSelect={handleSelect} />
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
                 {availableResources
-                  .filter(({ type }) => type !== 'workflow' && type !== 'folder')
+                  .filter(
+                    ({ type }) =>
+                      type !== 'workflow' &&
+                      type !== 'folder' &&
+                      type !== 'file' &&
+                      type !== 'filefolder'
+                  )
                   .map(({ type, items }) => {
                     if (items.length === 0) return null
                     const config = getResourceConfig(type)
@@ -300,7 +330,7 @@ export const PlusMenuDropdown = React.memo(
                     return (
                       <DropdownMenuSub key={type}>
                         <DropdownMenuSubTrigger>
-                          <Icon className='h-[14px] w-[14px]' />
+                          <Icon className='size-[14px]' />
                           <span>{config.label}</span>
                         </DropdownMenuSubTrigger>
                         <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
@@ -357,10 +387,10 @@ export const PlusMenuDropdown = React.memo(
           ref={buttonRef}
           type='button'
           onClick={() => doOpen()}
-          className='flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-full border border-[var(--border-1)] transition-colors hover:bg-[var(--surface-hover)]'
+          className='flex size-[28px] cursor-pointer items-center justify-center rounded-full border border-[var(--border-1)] transition-colors hover:bg-[var(--surface-hover)]'
           title='Add attachments or resources'
         >
-          <Plus className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+          <Plus className='size-[16px] text-[var(--text-icon)]' />
         </button>
       </>
     )

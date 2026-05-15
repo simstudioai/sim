@@ -53,6 +53,15 @@ vi.mock('@/lib/uploads/providers/blob/client', () => ({
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
+const { mockCheckStorageQuota, mockInitiateS3MultipartUpload } = vi.hoisted(() => ({
+  mockCheckStorageQuota: vi.fn(),
+  mockInitiateS3MultipartUpload: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/storage', () => ({
+  checkStorageQuota: mockCheckStorageQuota,
+}))
+
 import { POST } from '@/app/api/files/multipart/route'
 
 const tokenPayload = {
@@ -198,5 +207,71 @@ describe('POST /api/files/multipart action=complete', () => {
     )
     expect(res.status).toBe(200)
     expect(mockCompleteS3MultipartUpload).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('POST /api/files/multipart action=initiate quota enforcement', () => {
+  const makeInitiateRequest = (body: unknown) =>
+    new NextRequest('http://localhost/api/files/multipart?action=initiate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
+    mockIsUsingCloudStorage.mockReturnValue(true)
+    mockGetStorageProvider.mockReturnValue('s3')
+    mockGetStorageConfig.mockReturnValue({ bucket: 'b', region: 'r' })
+    mockSignUploadToken.mockReturnValue('signed-token')
+    mockCheckStorageQuota.mockResolvedValue({ allowed: true })
+    mockInitiateS3MultipartUpload.mockResolvedValue({ uploadId: 'up-1', key: 'k/file.bin' })
+  })
+
+  it('blocks upload when fileSize: 0 exceeds quota', async () => {
+    mockCheckStorageQuota.mockResolvedValue({ allowed: false, error: 'Storage limit exceeded' })
+
+    const res = await makeInitiateRequest({
+      fileName: 'file.bin',
+      contentType: 'application/octet-stream',
+      fileSize: 0,
+      workspaceId: 'ws-1',
+      context: 'knowledge-base',
+    })
+
+    const response = await POST(res)
+    expect(response.status).toBe(413)
+    const body = await response.json()
+    expect(body.error).toContain('Storage limit exceeded')
+  })
+
+  it('does not check quota for quota-exempt contexts (og-images)', async () => {
+    const res = await makeInitiateRequest({
+      fileName: 'img.png',
+      contentType: 'image/png',
+      fileSize: 99999,
+      workspaceId: 'ws-1',
+      context: 'og-images',
+    })
+
+    const response = await POST(res)
+    expect(mockCheckStorageQuota).not.toHaveBeenCalled()
+  })
+
+  it('rejects logs context — not allowed via the multipart endpoint', async () => {
+    const res = await makeInitiateRequest({
+      fileName: 'exec.log',
+      contentType: 'text/plain',
+      fileSize: 1000,
+      workspaceId: 'ws-1',
+      context: 'logs',
+    })
+
+    const response = await POST(res)
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.error).toMatch(/invalid storage context/i)
   })
 })

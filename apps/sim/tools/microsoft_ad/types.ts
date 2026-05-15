@@ -1,6 +1,6 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
-export interface MicrosoftAdBaseParams {
+interface MicrosoftAdBaseParams {
   accessToken: string
 }
 

@@ -10,6 +10,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
@@ -170,7 +171,7 @@ export function ScheduledTasks() {
         id: item.id,
         cells: {
           task: {
-            icon: <Calendar className='h-[14px] w-[14px]' />,
+            icon: <Calendar className='size-[14px]' />,
             label: item.prompt,
           },
           schedule: { label: getScheduleDescription(item) },
@@ -447,13 +448,13 @@ export function ScheduledTasks() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Scheduled Task</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {activeTask?.jobTitle || 'this task'}
               </span>
               ? This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

@@ -1,10 +1,12 @@
 import { db } from '@sim/db'
-import { user } from '@sim/db/schema'
+import { settings, user } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { adminMothershipQuerySchema } from '@/lib/api/contracts/mothership-tasks'
+import { mothershipEnvironmentSchema } from '@/lib/api/contracts/user'
 import { searchParamsToObject, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -14,8 +16,15 @@ const ENV_URLS: Record<string, string | undefined> = {
   prod: env.MOTHERSHIP_PROD_URL,
 }
 
-function getMothershipUrl(environment: string): string | null {
-  return ENV_URLS[environment] ?? null
+async function getMothershipUrl(environment: string, userId: string): Promise<string | null> {
+  const parsedEnvironment = mothershipEnvironmentSchema.safeParse(environment)
+  if (!parsedEnvironment.success) return ENV_URLS[environment] ?? null
+
+  return getMothershipBaseURL({
+    userId,
+    environment: parsedEnvironment.data,
+    fallbackUrl: ENV_URLS[environment],
+  })
 }
 
 const ENDPOINT_PATTERN = /^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/
@@ -26,17 +35,22 @@ function isValidEndpoint(endpoint: string): boolean {
   return ENDPOINT_PATTERN.test(endpoint)
 }
 
-async function isAdminRequestAuthorized() {
+async function getAuthorizedAdminUserId() {
   const session = await getSession()
-  if (!session?.user?.id) return false
+  if (!session?.user?.id) return null
 
   const [currentUser] = await db
-    .select({ role: user.role })
+    .select({
+      role: user.role,
+      superUserModeEnabled: settings.superUserModeEnabled,
+    })
     .from(user)
+    .leftJoin(settings, eq(settings.userId, user.id))
     .where(eq(user.id, session.user.id))
     .limit(1)
 
-  return currentUser?.role === 'admin'
+  const authorized = currentUser?.role === 'admin' && (currentUser.superUserModeEnabled ?? false)
+  return authorized ? session.user.id : null
 }
 
 /**
@@ -50,7 +64,8 @@ async function isAdminRequestAuthorized() {
  * (e.g. requestId for GET /traces) are forwarded.
  */
 export const POST = withRouteHandler(async (req: NextRequest) => {
-  if (!(await isAdminRequestAuthorized())) {
+  const userId = await getAuthorizedAdminUserId()
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -68,7 +83,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'invalid endpoint' }, { status: 400 })
   }
 
-  const baseUrl = getMothershipUrl(environment)
+  const baseUrl = await getMothershipUrl(environment, userId)
   if (!baseUrl) {
     return NextResponse.json(
       { error: `No URL configured for environment: ${environment}` },
@@ -102,7 +117,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 })
 
 export const GET = withRouteHandler(async (req: NextRequest) => {
-  if (!(await isAdminRequestAuthorized())) {
+  const userId = await getAuthorizedAdminUserId()
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -120,7 +136,7 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'invalid endpoint' }, { status: 400 })
   }
 
-  const baseUrl = getMothershipUrl(environment)
+  const baseUrl = await getMothershipUrl(environment, userId)
   if (!baseUrl) {
     return NextResponse.json(
       { error: `No URL configured for environment: ${environment}` },

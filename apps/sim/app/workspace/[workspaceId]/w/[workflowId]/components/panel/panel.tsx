@@ -21,6 +21,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   MoreHorizontal,
@@ -608,12 +609,11 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const hasValidationErrors = false // TODO: Add validation logic if needed
   const isWorkflowBlocked = isExecuting || hasValidationErrors
   const isButtonDisabled = !isExecuting && (isWorkflowBlocked || (!canRun && !isLoadingPermissions))
-
   /**
    * Register global keyboard shortcuts using the central commands registry.
    *
    * - Mod+Enter: Run / cancel workflow (matches the Run button behavior)
-   * - Mod+F: Focus Toolbar tab and search input
+   * - Mod+Alt+F: Focus Toolbar tab and search input
    */
   useRegisterGlobalCommands(() =>
     createCommands([
@@ -657,7 +657,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
             <div className='flex gap-1.5'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  <Button className='h-[30px] w-[30px] rounded-[5px]' data-tour='panel-menu'>
+                  <Button className='size-[30px] rounded-[5px]' data-tour='panel-menu'>
                     <MoreHorizontal />
                   </Button>
                 </DropdownMenuTrigger>
@@ -716,7 +716,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 </DropdownMenuContent>
               </DropdownMenu>
               <Button
-                className='h-[30px] w-[30px] rounded-[5px]'
+                className='size-[30px] rounded-[5px]'
                 variant={isChatOpen ? 'active' : 'default'}
                 onClick={() => setIsChatOpen(!isChatOpen)}
               >
@@ -739,9 +739,9 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 disabled={!isExecuting && isButtonDisabled}
               >
                 {isExecuting ? (
-                  <Square className='h-[11.5px] w-[11.5px] fill-current' />
+                  <Square className='size-[11.5px] fill-current' />
                 ) : (
-                  <Play className='h-[11.5px] w-[11.5px]' />
+                  <Play className='size-[11.5px]' />
                 )}
                 {isExecuting ? 'Stop' : 'Run'}
               </Button>
@@ -815,7 +815,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   </h2>
                   <div className='flex items-center gap-2'>
                     <Button variant='ghost' className='p-0' onClick={handleCopilotNewChat}>
-                      <Plus className='h-[14px] w-[14px]' />
+                      <Plus className='size-[14px]' />
                     </Button>
                     <Popover
                       open={isCopilotHistoryOpen}
@@ -826,7 +826,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                     >
                       <PopoverTrigger asChild>
                         <Button variant='ghost' className='p-0'>
-                          <History className='h-[14px] w-[14px]' />
+                          <History className='size-[14px]' />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent align='end' side='bottom' sideOffset={8} maxHeight={280}>
@@ -854,14 +854,14 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                                         >
                                           <Button
                                             variant='ghost'
-                                            className='h-[16px] w-[16px] p-0'
+                                            className='size-[16px] p-0'
                                             onClick={(e) => {
                                               e.stopPropagation()
                                               handleCopilotDeleteChat(chat.id)
                                             }}
                                             aria-label='Delete chat'
                                           >
-                                            <Trash className='h-[10px] w-[10px]' />
+                                            <Trash className='size-[10px]' />
                                           </Button>
                                         </div>
                                       }
@@ -936,7 +936,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         <ModalContent size='sm'>
           <ModalHeader>Delete Workflow</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {currentWorkflow?.name ?? 'this workflow'}
@@ -946,7 +946,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                 All associated blocks, executions, and configuration will be removed.
               </span>{' '}
               You can restore it from Recently Deleted in Settings.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import type { Folder, Item, Separator } from 'fumadocs-core/page-tree'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -103,12 +103,10 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
   const isApiRef = isApiReferenceFolder(item)
   const isOnApiRefPage = stripLangPrefix(pathname).startsWith('/api-reference')
   const hasChildren = item.children.length > 0
-  const [open, setOpen] = useState(hasActiveChild || (isApiRef && isOnApiRefPage))
-
-  useEffect(() => {
-    setOpen(hasActiveChild || (isApiRef && isOnApiRefPage))
-  }, [hasActiveChild, isApiRef, isOnApiRefPage])
-
+  const defaultOpen = hasActiveChild || (isApiRef && isOnApiRefPage)
+  const [manualOpen, setManualOpen] = useState<{ pathname: string; open: boolean } | null>(null)
+  const open = manualOpen?.pathname === pathname ? manualOpen.open : defaultOpen
+  const toggleOpen = () => setManualOpen({ pathname, open: !open })
   const active = item.index ? isActive(item.index.url, pathname, false) : false
 
   if (item.index && !hasChildren) {
@@ -152,7 +150,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
             </Link>
             {hasChildren && (
               <button
-                onClick={() => setOpen(!open)}
+                onClick={toggleOpen}
                 className={cn(
                   'rounded p-1 hover:bg-fd-accent/50',
                   'lg:cursor-pointer lg:rounded lg:p-1 lg:transition-colors lg:hover:bg-[#f2f2f2] lg:dark:hover:bg-[#262626]'
@@ -165,7 +163,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
           </>
         ) : (
           <button
-            onClick={() => setOpen(!open)}
+            onClick={toggleOpen}
             className={cn(
               'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
               'text-fd-muted-foreground hover:bg-fd-accent/50',

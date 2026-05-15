@@ -230,6 +230,10 @@ export class EdgeManager {
       return handle === EDGE.PARALLEL_EXIT
     }
 
+    if (output.selectedRoute === EDGE.PARALLEL_CONTINUE) {
+      return false
+    }
+
     if (!handle) {
       return true
     }

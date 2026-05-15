@@ -8,13 +8,16 @@ metadata:
   labels:
     {{- include "sim.realtime.labels" . | nindent 4 }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.realtime.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "sim.realtime.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets-app.yaml") . | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -29,30 +32,31 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      automountServiceAccountToken: false
       {{- include "sim.podSecurityContext" .Values.realtime | nindent 6 }}
       {{- include "sim.nodeSelector" .Values.realtime | nindent 6 }}
       {{- include "sim.tolerations" .Values | nindent 6 }}
       {{- include "sim.affinity" .Values | nindent 6 }}
+      {{- include "sim.topologySpreadConstraints" .Values.realtime | nindent 6 }}
       containers:
         - name: realtime
-          image: {{ include "sim.image" (dict "context" . "image" .Values.realtime.image) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.realtime.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.realtime.image.pullPolicy }}
           ports:
             - name: http
               containerPort: {{ .Values.realtime.service.targetPort }}
               protocol: TCP
+          {{- /*
+            All keys from .Values.realtime.env are mounted via envFrom (see below).
+            Chart-computed values and operational tunables (.Values.realtime.envDefaults)
+            are inlined here so they don't leak into the chart-managed Secret and don't
+            need to be mapped when externalSecrets.enabled=true.
+          */}}
           env:
             - name: DATABASE_URL
               value: {{ include "sim.databaseUrl" . | quote }}
-            {{- if .Values.app.env.REDIS_URL }}
-            - name: REDIS_URL
-              value: {{ .Values.app.env.REDIS_URL | quote }}
-            {{- end }}
-            {{- range $key, $value := .Values.realtime.env }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
             {{- if .Values.telemetry.enabled }}
+            {{- $nodeEnv := default (default "production" (index (.Values.realtime.envDefaults | default dict) "NODE_ENV")) (index (.Values.realtime.env | default dict) "NODE_ENV") }}
             # OpenTelemetry configuration
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://{{ include "sim.fullname" . }}-otel-collector:4318"
@@ -61,7 +65,66 @@ spec:
             - name: OTEL_SERVICE_VERSION
               value: {{ .Chart.AppVersion | quote }}
             - name: OTEL_RESOURCE_ATTRIBUTES
-              value: "service.name=sim-realtime,service.version={{ .Chart.AppVersion }},deployment.environment={{ .Values.realtime.env.NODE_ENV }}"
+              value: "service.name=sim-realtime,service.version={{ .Chart.AppVersion }},deployment.environment={{ $nodeEnv }}"
+            {{- end }}
+            {{- /*
+              Inline realtime.envDefaults, skipping keys explicitly set in realtime.env
+              OR app.env (K8s `env` overrides `envFrom`, so an inline default would
+              otherwise mask a Secret-bound value). The chart-managed Secret is shared
+              between app and realtime via envFrom, so a key set in app.env (e.g.
+              NEXT_PUBLIC_APP_URL=https://prod.example.com) lands on the realtime pod
+              too — inlining the localhost envDefault here would mask it.
+            */}}
+            {{- $rtEnv := .Values.realtime.env | default dict }}
+            {{- $appEnv := .Values.app.env | default dict }}
+            {{- $useExistingSecret := and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
+            {{- /*
+              Skip envDefaults entirely in existingSecret mode — same rationale as
+              deployment-app.yaml: the pre-existing Secret is the source of truth,
+              and inlining localhost defaults would shadow URL keys (BETTER_AUTH_URL,
+              ALLOWED_ORIGINS, NEXT_PUBLIC_APP_URL, etc.) stored in the Secret.
+            */}}
+            {{- if not $useExistingSecret }}
+            {{- range $key, $value := .Values.realtime.envDefaults | default dict }}
+            {{- $rtOverride := index $rtEnv $key }}
+            {{- $appOverride := index $appEnv $key }}
+            {{- $hasRt := and $rtOverride (ne (toString $rtOverride) "") (ne (toString $rtOverride) "<nil>") }}
+            {{- $hasApp := and $appOverride (ne (toString $appOverride) "") (ne (toString $appOverride) "<nil>") }}
+            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (not $hasRt) (not $hasApp) }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- /*
+              In existingSecret mode the chart-managed Secret is not rendered, so
+              non-empty values in realtime.env / app.env would otherwise go nowhere
+              — inline them here so the user's overrides actually reach the pod.
+              realtime.env wins over app.env on collision (realtime-specific intent).
+              Skipped in ESO mode and inline mode for the same reasons as the app
+              deployment.
+            */}}
+            {{- if and .Values.app.secrets.existingSecret.enabled (not .Values.externalSecrets.enabled) }}
+            {{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" }}
+            {{- /*
+              Build the effective realtime env from app.env as the base, then
+              overlay non-empty realtime.env values. Sprig's `merge` keeps the
+              first source on collision and treats "" as a real value, which
+              would shadow non-empty app.env entries — so do the overlay
+              manually with an explicit empty-string check.
+            */}}
+            {{- $effective := deepCopy $appEnv }}
+            {{- range $key, $value := $rtEnv }}
+            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") }}
+            {{- $_ := set $effective $key $value }}
+            {{- end }}
+            {{- end }}
+            {{- range $key, $value := $effective }}
+            {{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") (not (has $key $chartComputed)) }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
             {{- end }}
             {{- with .Values.extraEnvVars }}
             {{- toYaml . | nindent 12 }}
@@ -78,6 +141,10 @@ spec:
             - secretRef:
                 name: {{ include "sim.externalDbSecretName" . }}
             {{- end }}
+          {{- if .Values.realtime.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.realtime.startupProbe | nindent 12 }}
+          {{- end }}
           {{- if .Values.realtime.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.realtime.livenessProbe | nindent 12 }}
@@ -87,7 +154,7 @@ spec:
             {{- toYaml .Values.realtime.readinessProbe | nindent 12 }}
           {{- end }}
           {{- include "sim.resources" .Values.realtime | nindent 10 }}
-          {{- include "sim.securityContext" .Values.realtime | nindent 10 }}
+          {{- include "sim.containerSecurityContext" .Values.realtime | nindent 10 }}
           {{- if or .Values.extraVolumeMounts .Values.realtime.extraVolumeMounts }}
           volumeMounts:
             {{- with .Values.extraVolumeMounts }}

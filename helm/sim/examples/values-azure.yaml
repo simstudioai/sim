@@ -1,5 +1,46 @@
-# Azure-specific values for Sim
-# Example configuration for Azure AKS deployment
+# values-azure.yaml
+#
+# When to use: Azure Kubernetes Service (AKS). Configures managed-csi /
+# managed-csi-premium storage, NGINX ingress, role-based node targeting,
+# and NVIDIA GPU node pool tolerations for Ollama.
+#
+# Prerequisites:
+#   - AKS cluster (Kubernetes 1.25+)
+#   - NGINX ingress controller installed
+#   - (optional) cert-manager for TLS
+#   - (optional) GPU node pool labeled with role: datalake / accelerator: nvidia
+#
+# Install:
+#   helm install sim ./helm/sim \
+#     --namespace sim --create-namespace \
+#     --values ./helm/sim/examples/values-azure.yaml \
+#     --set app.env.BETTER_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+#     --set app.env.ENCRYPTION_KEY="$ENCRYPTION_KEY" \
+#     --set app.env.INTERNAL_API_SECRET="$INTERNAL_API_SECRET" \
+#     --set app.env.CRON_SECRET="$CRON_SECRET" \
+#     --set postgresql.auth.password="$POSTGRES_PASSWORD"
+#
+# Choosing a secret strategy
+# --------------------------
+# Pick one of three modes — see helm/sim/README.md for details.
+#
+#   1. Inline (default below): set values directly in app.env. The chart
+#      writes every key into a chart-managed Secret. Simplest, but stores
+#      plaintext in your values file.
+#
+#   2. existingSecret: pre-create a Kubernetes Secret out-of-band and
+#      reference it via app.secrets.existingSecret.name. You are
+#      responsible for ensuring the Secret contains every key your app
+#      needs (BETTER_AUTH_SECRET, ENCRYPTION_KEY, INTERNAL_API_SECRET,
+#      AZURE_OPENAI_API_KEY, AZURE_ACCOUNT_KEY, ...). The chart-managed
+#      Secret is not rendered in this mode, so anything missing from your
+#      Secret will be empty at runtime.
+#
+#   3. External Secrets Operator (ESO): sync from Azure Key Vault via the
+#      External Secrets Operator. Map every key via
+#      externalSecrets.remoteRefs.app.<KEY>. The chart fails template
+#      rendering if a key is set in app.env but not mapped — see the
+#      commented ESO block at the bottom of this file.
 
 # Global configuration
 global:
@@ -237,3 +278,35 @@ ingressInternal:
   tls:
     enabled: true
     secretName: simstudio-internal-tls-secret
+# -----------------------------------------------------------------------------
+# External Secrets Operator (ESO) — recommended for production on Azure
+# -----------------------------------------------------------------------------
+# To switch from inline secrets to ESO:
+#   1. Install external-secrets in the cluster (https://external-secrets.io).
+#   2. Create a ClusterSecretStore backed by Azure Key Vault and grant
+#      Workload Identity / managed-identity access from this namespace.
+#   3. Remove entries from app.env above (or leave them and the chart will
+#      fail-fast naming each unmapped key).
+#   4. Uncomment the block below and replace the paths with the names of the
+#      secrets in your Key Vault.
+#
+# externalSecrets:
+#   enabled: true
+#   secretStoreRef:
+#     name: "azure-keyvault-store"      # name of your ClusterSecretStore
+#     kind: "ClusterSecretStore"
+#   remoteRefs:
+#     app:
+#       BETTER_AUTH_SECRET:      "sim-better-auth-secret"
+#       ENCRYPTION_KEY:          "sim-encryption-key"
+#       INTERNAL_API_SECRET:     "sim-internal-api-secret"
+#       CRON_SECRET:             "sim-cron-secret"
+#       API_ENCRYPTION_KEY:      "sim-api-encryption-key"
+#       # Azure provider keys
+#       AZURE_OPENAI_API_KEY:    "sim-azure-openai-api-key"
+#       AZURE_ANTHROPIC_API_KEY: "sim-azure-anthropic-api-key"
+#       AZURE_ACCOUNT_KEY:       "sim-azure-storage-account-key"
+#       # Use AZURE_CONNECTION_STRING instead if you prefer a single connection string:
+#       # AZURE_CONNECTION_STRING: "sim-azure-storage-connection-string"
+#     postgresql:
+#       password: "sim-postgresql-password"

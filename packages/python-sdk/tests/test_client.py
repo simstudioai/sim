@@ -95,17 +95,18 @@ def test_context_manager(mock_close):
 
 
 @patch('simstudio.requests.Session.post')
-def test_async_execution_returns_task_id(mock_post):
+def test_async_execution_returns_job_id(mock_post):
     """Test async execution returns AsyncExecutionResult."""
     mock_response = Mock()
     mock_response.ok = True
     mock_response.status_code = 202
     mock_response.json.return_value = {
         "success": True,
-        "taskId": "task-123",
-        "status": "queued",
-        "createdAt": "2024-01-01T00:00:00Z",
-        "links": {"status": "/api/jobs/task-123"}
+        "jobId": "job-123",
+        "statusUrl": "https://test.sim.ai/api/jobs/job-123",
+        "executionId": "execution-123",
+        "message": "Workflow execution started",
+        "async": True
     }
     mock_response.headers.get.return_value = None
     mock_post.return_value = mock_response
@@ -118,9 +119,10 @@ def test_async_execution_returns_task_id(mock_post):
     )
 
     assert result.success is True
-    assert result.task_id == "task-123"
-    assert result.status == "queued"
-    assert result.links["status"] == "/api/jobs/task-123"
+    assert result.job_id == "job-123"
+    assert result.status_url == "https://test.sim.ai/api/jobs/job-123"
+    assert result.execution_id == "execution-123"
+    assert result.async_execution is True
 
     call_args = mock_post.call_args
     assert call_args[1]["headers"]["X-Execution-Mode"] == "async"

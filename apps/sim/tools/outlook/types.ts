@@ -160,16 +160,16 @@ export interface OutlookDraftResponse extends ToolResponse {
 }
 
 // Outlook API response interfaces
-export interface OutlookEmailAddress {
+interface OutlookEmailAddress {
   name?: string
   address: string
 }
 
-export interface OutlookRecipient {
+interface OutlookRecipient {
   emailAddress: OutlookEmailAddress
 }
 
-export interface OutlookMessageBody {
+interface OutlookMessageBody {
   contentType?: string
   content?: string
 }

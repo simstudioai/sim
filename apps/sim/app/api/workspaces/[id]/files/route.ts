@@ -123,6 +123,9 @@ export const POST = withRouteHandler(
 
       const formData = await request.formData()
       const rawFile = formData.get('file')
+      const rawFolderId = formData.get('folderId')
+      const folderId =
+        typeof rawFolderId === 'string' && rawFolderId.length > 0 ? rawFolderId : null
 
       if (!rawFile || !(rawFile instanceof File)) {
         return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -146,7 +149,8 @@ export const POST = withRouteHandler(
         session.user.id,
         buffer,
         fileName,
-        rawFile.type || 'application/octet-stream'
+        rawFile.type || 'application/octet-stream',
+        { folderId }
       )
 
       logger.info(`[${requestId}] Uploaded workspace file: ${fileName}`)

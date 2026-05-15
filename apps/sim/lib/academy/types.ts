@@ -17,7 +17,7 @@ export interface Course {
   modules: Module[]
 }
 
-export interface Module {
+interface Module {
   id: string
   title: string
   description?: string

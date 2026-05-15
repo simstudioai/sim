@@ -3,13 +3,13 @@
 
 export type AuthType = 'oauth' | 'api-key' | 'none'
 
-export interface TriggerInfo {
+interface TriggerInfo {
   id: string
   name: string
   description: string
 }
 
-export interface OperationInfo {
+interface OperationInfo {
   name: string
   description: string
 }

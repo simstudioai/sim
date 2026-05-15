@@ -242,7 +242,7 @@ export async function throwIfRevenueCatError(response: Response): Promise<void> 
 /**
  * Base params interface for RevenueCat API calls
  */
-export interface RevenueCatBaseParams {
+interface RevenueCatBaseParams {
   apiKey: string
 }
 

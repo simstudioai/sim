@@ -73,7 +73,7 @@ export async function enqueueWorkflowUndeploySideEffects(
   )
 }
 
-export async function enqueueWorkflowInactiveDeploymentCleanup(
+async function enqueueWorkflowInactiveDeploymentCleanup(
   executor: Pick<typeof db, 'insert'>,
   payload: CleanupInactiveSideEffectsPayload
 ): Promise<string> {

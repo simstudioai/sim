@@ -5,6 +5,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toast } from '@/components/emcn'
+import { uploadViaApiFallback } from '@/lib/uploads/client/api-fallback'
+import { DirectUploadError, runUploadStrategy } from '@/lib/uploads/client/direct-upload'
 import { resolveFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('useFileAttachments')
@@ -115,6 +117,10 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         logger.error('User ID not available for file upload')
         return
       }
+      if (!workspaceId) {
+        logger.error('workspaceId required for mothership uploads')
+        return
+      }
 
       const files = Array.from(fileList)
       if (files.length === 0) return
@@ -134,49 +140,38 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
 
       setAttachedFiles((prev) => [...prev, ...placeholders])
 
+      const presignedEndpoint = `/api/files/presigned?type=mothership&workspaceId=${encodeURIComponent(workspaceId)}`
+
       await Promise.all(
         files.map(async (file, i) => {
           const placeholder = placeholders[i]
           try {
-            const formData = new FormData()
-            formData.append('file', file)
-            formData.append('context', 'mothership')
-            if (workspaceId) {
-              formData.append('workspaceId', workspaceId)
+            let result: { path: string; key: string }
+            try {
+              result = await runUploadStrategy({
+                file,
+                workspaceId,
+                context: 'mothership',
+                presignedEndpoint,
+              })
+            } catch (error) {
+              if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
+                const fallback = await uploadViaApiFallback(file, 'mothership', workspaceId)
+                if (!fallback.key) {
+                  throw new Error('Invalid upload response: missing key')
+                }
+                result = { path: fallback.path, key: fallback.key }
+              } else {
+                throw error
+              }
             }
 
-            // boundary-raw-fetch: multipart/form-data upload (FileUpload boundary), incompatible with requestJson which JSON-stringifies bodies
-            const uploadResponse = await fetch('/api/files/upload', {
-              method: 'POST',
-              body: formData,
-            })
-
-            if (!uploadResponse.ok) {
-              const errorData = await uploadResponse.json().catch(() => ({
-                message: `Upload failed: ${uploadResponse.status}`,
-              }))
-              throw new Error(
-                errorData.message ||
-                  errorData.error ||
-                  `Failed to upload file: ${uploadResponse.status}`
-              )
-            }
-
-            const uploadData = await uploadResponse.json()
-
-            logger.info(
-              `File uploaded successfully: ${uploadData.fileInfo?.path || uploadData.path}`
-            )
+            logger.info(`File uploaded successfully: ${result.path}`)
 
             setAttachedFiles((prev) =>
               prev.map((f) =>
                 f.id === placeholder.id
-                  ? {
-                      ...f,
-                      path: uploadData.fileInfo?.path || uploadData.path || uploadData.url,
-                      key: uploadData.fileInfo?.key || uploadData.key,
-                      uploading: false,
-                    }
+                  ? { ...f, path: result.path, key: result.key, uploading: false }
                   : f
               )
             )

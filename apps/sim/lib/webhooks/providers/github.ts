@@ -37,14 +37,6 @@ function validateGitHubSignature(secret: string, signature: string, body: string
       return false
     }
     const computedHash = crypto.createHmac(algorithm, secret).update(body, 'utf8').digest('hex')
-    logger.debug('GitHub signature comparison', {
-      algorithm,
-      computedSignature: `${computedHash.substring(0, 10)}...`,
-      providedSignature: `${providedSignature.substring(0, 10)}...`,
-      computedLength: computedHash.length,
-      providedLength: providedSignature.length,
-      match: computedHash === providedSignature,
-    })
     return safeCompare(computedHash, providedSignature)
   } catch (error) {
     logger.error('Error validating GitHub signature:', error)
@@ -68,8 +60,6 @@ export const githubHandler: WebhookProviderHandler = {
 
     if (!validateGitHubSignature(secret, signature, rawBody)) {
       logger.warn(`[${requestId}] GitHub signature verification failed`, {
-        signatureLength: signature.length,
-        secretLength: secret.length,
         usingSha256: !!request.headers.get('X-Hub-Signature-256'),
       })
       return new NextResponse('Unauthorized - Invalid GitHub signature', { status: 401 })

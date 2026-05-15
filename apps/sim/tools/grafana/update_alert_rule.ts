@@ -1,4 +1,5 @@
-import type { GrafanaUpdateAlertRuleParams } from '@/tools/grafana/types'
+import { ALERT_RULE_OUTPUT_FIELDS, type GrafanaUpdateAlertRuleParams } from '@/tools/grafana/types'
+import { mapAlertRule } from '@/tools/grafana/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 // Using ToolResponse for intermediate state since this tool fetches existing data first
@@ -79,7 +80,7 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'State on execution error (Alerting, OK)',
+      description: 'State on execution error (Error, Alerting, OK)',
     },
     annotations: {
       type: 'string',
@@ -92,6 +93,42 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       required: false,
       visibility: 'user-or-llm',
       description: 'JSON object of labels',
+    },
+    isPaused: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Whether the rule is paused',
+    },
+    keepFiringFor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Duration to keep firing after the condition stops (e.g., 5m)',
+    },
+    missingSeriesEvalsToResolve: {
+      type: 'number',
+      required: false,
+      visibility: 'user-only',
+      description: 'Number of missing series evaluations before resolving',
+    },
+    notificationSettings: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'JSON object of per-rule notification settings (overrides)',
+    },
+    record: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'JSON object configuring this as a recording rule',
+    },
+    disableProvenance: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description: 'Set X-Disable-Provenance header so the rule remains editable in the Grafana UI',
     },
   },
 
@@ -136,7 +173,7 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
     }
 
     // Build the updated rule by merging existing data with new params
-    const updatedRule: Record<string, any> = {
+    const updatedRule: Record<string, unknown> = {
       ...existingRule,
     }
 
@@ -148,12 +185,45 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
     if (params.forDuration) updatedRule.for = params.forDuration
     if (params.noDataState) updatedRule.noDataState = params.noDataState
     if (params.execErrState) updatedRule.execErrState = params.execErrState
+    if (params.isPaused !== undefined) updatedRule.isPaused = params.isPaused
+    if (params.keepFiringFor) updatedRule.keep_firing_for = params.keepFiringFor
+    if (params.missingSeriesEvalsToResolve !== undefined) {
+      updatedRule.missingSeriesEvalsToResolve = params.missingSeriesEvalsToResolve
+    }
+
+    if (params.notificationSettings) {
+      try {
+        updatedRule.notification_settings = JSON.parse(params.notificationSettings)
+      } catch {
+        return {
+          success: false,
+          output: {},
+          error: 'Invalid JSON for notificationSettings parameter',
+        }
+      }
+    }
+
+    if (params.record) {
+      try {
+        updatedRule.record = JSON.parse(params.record)
+      } catch {
+        return {
+          success: false,
+          output: {},
+          error: 'Invalid JSON for record parameter',
+        }
+      }
+    }
 
     if (params.data) {
       try {
         updatedRule.data = JSON.parse(params.data)
       } catch {
-        // Keep existing data if parse fails
+        return {
+          success: false,
+          output: {},
+          error: 'Invalid JSON for data parameter',
+        }
       }
     }
 
@@ -164,7 +234,11 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
           ...JSON.parse(params.annotations),
         }
       } catch {
-        // Keep existing annotations if parse fails
+        return {
+          success: false,
+          output: {},
+          error: 'Invalid JSON for annotations parameter',
+        }
       }
     }
 
@@ -175,7 +249,11 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
           ...JSON.parse(params.labels),
         }
       } catch {
-        // Keep existing labels if parse fails
+        return {
+          success: false,
+          output: {},
+          error: 'Invalid JSON for labels parameter',
+        }
       }
     }
 
@@ -186,6 +264,9 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
     }
     if (params.organizationId) {
       headers['X-Grafana-Org-Id'] = params.organizationId
+    }
+    if (params.disableProvenance) {
+      headers['X-Disable-Provenance'] = 'true'
     }
 
     const updateResponse = await fetch(
@@ -207,47 +288,8 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
     }
 
     const data = await updateResponse.json()
-
-    return {
-      success: true,
-      output: {
-        uid: data.uid,
-        title: data.title,
-        condition: data.condition,
-        data: data.data,
-        updated: data.updated,
-        noDataState: data.noDataState,
-        execErrState: data.execErrState,
-        for: data.for,
-        annotations: data.annotations || {},
-        labels: data.labels || {},
-        isPaused: data.isPaused || false,
-        folderUID: data.folderUID,
-        ruleGroup: data.ruleGroup,
-        orgId: data.orgId,
-        namespace_uid: data.namespace_uid,
-        namespace_id: data.namespace_id,
-        provenance: data.provenance || '',
-      },
-    }
+    return { success: true, output: mapAlertRule(data) }
   },
 
-  outputs: {
-    uid: {
-      type: 'string',
-      description: 'The UID of the updated alert rule',
-    },
-    title: {
-      type: 'string',
-      description: 'Alert rule title',
-    },
-    folderUID: {
-      type: 'string',
-      description: 'Parent folder UID',
-    },
-    ruleGroup: {
-      type: 'string',
-      description: 'Rule group name',
-    },
-  },
+  outputs: ALERT_RULE_OUTPUT_FIELDS,
 }

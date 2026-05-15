@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface GoogleVaultCommonParams {
+interface GoogleVaultCommonParams {
   accessToken: string
   matterId: string
 }
@@ -43,7 +43,7 @@ export interface GoogleVaultListMattersExportParams extends GoogleVaultCommonPar
   exportId?: string
 }
 
-export interface GoogleVaultListMattersExportResponse extends ToolResponse {
+interface GoogleVaultListMattersExportResponse extends ToolResponse {
   output: any
 }
 
@@ -68,6 +68,6 @@ export interface GoogleVaultListMattersHoldsParams extends GoogleVaultCommonPara
   holdId?: string
 }
 
-export interface GoogleVaultListMattersHoldsResponse extends ToolResponse {
+interface GoogleVaultListMattersHoldsResponse extends ToolResponse {
   output: any
 }

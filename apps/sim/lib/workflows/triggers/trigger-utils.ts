@@ -146,7 +146,7 @@ export function generateMockPayloadFromOutputsDefinition(
   return generateMockPayloadFromOutputs(outputs)
 }
 
-export interface TriggerInfo {
+interface TriggerInfo {
   id: string
   name: string
   description: string

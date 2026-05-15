@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface BaseCursorParams {
+interface BaseCursorParams {
   apiKey: string
 }
 
@@ -150,14 +150,14 @@ export interface DeleteAgentResponse extends ToolResponse {
   }
 }
 
-export interface GetApiKeyInfoResponse extends ToolResponse {
+interface GetApiKeyInfoResponse extends ToolResponse {
   output: {
     content: string
     metadata: ApiKeyInfoMetadata
   }
 }
 
-export interface ListModelsResponse extends ToolResponse {
+interface ListModelsResponse extends ToolResponse {
   output: {
     content: string
     metadata: {
@@ -166,7 +166,7 @@ export interface ListModelsResponse extends ToolResponse {
   }
 }
 
-export interface ListRepositoriesResponse extends ToolResponse {
+interface ListRepositoriesResponse extends ToolResponse {
   output: {
     content: string
     metadata: {
@@ -179,7 +179,7 @@ export interface ListArtifactsParams extends BaseCursorParams {
   agentId: string
 }
 
-export interface ArtifactMetadata {
+interface ArtifactMetadata {
   path: string
   size?: number
 }

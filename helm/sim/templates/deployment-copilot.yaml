@@ -38,6 +38,7 @@ spec:
   template:
     metadata:
       annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets-copilot.yaml") . | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -53,10 +54,9 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.copilot.server.podSecurityContext }}
-      securityContext:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- include "sim.podSecurityContext" .Values.copilot.server | nindent 6 }}
       {{- with .Values.copilot.server.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -71,7 +71,7 @@ spec:
       {{- end }}
       containers:
         - name: copilot
-          image: {{ include "sim.image" (dict "context" . "image" .Values.copilot.server.image) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.copilot.server.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.copilot.server.image.pullPolicy }}
           ports:
             - name: http
@@ -89,6 +89,10 @@ spec:
           env:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- if .Values.copilot.server.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.copilot.server.startupProbe | nindent 12 }}
+          {{- end }}
           {{- if .Values.copilot.server.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.copilot.server.livenessProbe | nindent 12 }}
@@ -101,9 +105,6 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.copilot.server.securityContext }}
-          securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+          {{- include "sim.containerSecurityContext" .Values.copilot.server | nindent 10 }}
 {{- end }}
 

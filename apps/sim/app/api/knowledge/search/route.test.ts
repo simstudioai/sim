@@ -24,7 +24,7 @@ const {
   mockHandleTagAndVectorSearch,
   mockGetQueryStrategy,
   mockGenerateSearchEmbedding,
-  mockGetDocumentNamesByIds,
+  mockGetDocumentMetadataByIds,
 } = vi.hoisted(() => ({
   mockDbChain: {
     select: vi.fn().mockReturnThis(),
@@ -43,7 +43,7 @@ const {
   mockHandleTagAndVectorSearch: vi.fn(),
   mockGetQueryStrategy: vi.fn(),
   mockGenerateSearchEmbedding: vi.fn(),
-  mockGetDocumentNamesByIds: vi.fn(),
+  mockGetDocumentMetadataByIds: vi.fn(),
 }))
 
 const mockCheckKnowledgeBaseAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseAccess
@@ -101,7 +101,7 @@ vi.mock('./utils', () => ({
   handleTagAndVectorSearch: mockHandleTagAndVectorSearch,
   getQueryStrategy: mockGetQueryStrategy,
   generateSearchEmbedding: mockGenerateSearchEmbedding,
-  getDocumentNamesByIds: mockGetDocumentNamesByIds,
+  getDocumentMetadataByIds: mockGetDocumentMetadataByIds,
   APIError: class APIError extends Error {
     public status: number
     constructor(message: string, status: number) {
@@ -159,9 +159,9 @@ describe('Knowledge Search API Route', () => {
       singleQueryOptimized: true,
     })
     mockGenerateSearchEmbedding.mockClear().mockResolvedValue([0.1, 0.2, 0.3, 0.4, 0.5])
-    mockGetDocumentNamesByIds.mockClear().mockResolvedValue({
-      doc1: 'Document 1',
-      doc2: 'Document 2',
+    mockGetDocumentMetadataByIds.mockClear().mockResolvedValue({
+      doc1: { filename: 'Document 1', sourceUrl: null },
+      doc2: { filename: 'Document 2', sourceUrl: null },
     })
     mockGetDocumentTagDefinitions.mockClear()
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockClear().mockResolvedValue({
@@ -998,8 +998,11 @@ describe('Knowledge Search API Route', () => {
       })
 
       mockGenerateSearchEmbedding.mockResolvedValue([0.1, 0.2, 0.3])
-      mockGetDocumentNamesByIds.mockResolvedValue({
-        'doc-active': 'Active Document.pdf',
+      mockGetDocumentMetadataByIds.mockResolvedValue({
+        'doc-active': {
+          filename: 'Active Document.pdf',
+          sourceUrl: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345',
+        },
       })
 
       const mockTagDefs = {
@@ -1023,6 +1026,9 @@ describe('Knowledge Search API Route', () => {
       expect(data.data.results).toHaveLength(1)
       expect(data.data.results[0].documentId).toBe('doc-active')
       expect(data.data.results[0].documentName).toBe('Active Document.pdf')
+      expect(data.data.results[0].sourceUrl).toBe(
+        'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345'
+      )
     })
 
     it('should exclude results from deleted documents in tag search', async () => {
@@ -1067,8 +1073,8 @@ describe('Knowledge Search API Route', () => {
         singleQueryOptimized: true,
       })
 
-      mockGetDocumentNamesByIds.mockResolvedValue({
-        'doc-active-tagged': 'Active Tagged Document.pdf',
+      mockGetDocumentMetadataByIds.mockResolvedValue({
+        'doc-active-tagged': { filename: 'Active Tagged Document.pdf', sourceUrl: null },
       })
 
       const mockTagDefs = {
@@ -1140,8 +1146,8 @@ describe('Knowledge Search API Route', () => {
       })
 
       mockGenerateSearchEmbedding.mockResolvedValue([0.1, 0.2, 0.3])
-      mockGetDocumentNamesByIds.mockResolvedValue({
-        'doc-active-combined': 'Active Combined Search.pdf',
+      mockGetDocumentMetadataByIds.mockResolvedValue({
+        'doc-active-combined': { filename: 'Active Combined Search.pdf', sourceUrl: null },
       })
 
       const mockTagDefs = {

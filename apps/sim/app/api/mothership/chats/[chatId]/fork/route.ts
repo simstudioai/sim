@@ -7,7 +7,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-tasks'
 import { parseRequest } from '@/lib/api/server'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -17,6 +16,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
+import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -109,7 +109,9 @@ export const POST = withRouteHandler(
         if (env.COPILOT_API_KEY) {
           copilotHeaders['x-api-key'] = env.COPILOT_API_KEY
         }
-        const copilotRes = await fetchGo(`${SIM_AGENT_API_URL}/api/chats/fork`, {
+        Object.assign(copilotHeaders, getMothershipSourceEnvHeaders())
+        const mothershipBaseURL = await getMothershipBaseURL({ userId })
+        const copilotRes = await fetchGo(`${mothershipBaseURL}/api/chats/fork`, {
           method: 'POST',
           headers: copilotHeaders,
           body: JSON.stringify({

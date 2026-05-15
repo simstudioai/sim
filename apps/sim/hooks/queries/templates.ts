@@ -9,7 +9,6 @@ import {
   listTemplatesContract,
   starTemplateContract,
   type TemplateContractData,
-  type TemplateCreator,
   type TemplateDetailContractResponse,
   type TemplateListFilters,
   type TemplatesContractResponse,
@@ -30,8 +29,6 @@ export const templateKeys = {
   byWorkflows: () => [...templateKeys.all, 'byWorkflow'] as const,
   byWorkflow: (workflowId?: string) => [...templateKeys.byWorkflows(), workflowId ?? ''] as const,
 }
-
-export type { TemplateCreator, TemplateListFilters }
 
 type TemplateApi = TemplateContractData
 

@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   removeWorkspaceEnvironmentContract,
@@ -96,16 +96,6 @@ export const PUT = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { variables } = parsed.data.body
 
-      // Read existing encrypted ws vars
-      const existingRows = await db
-        .select()
-        .from(workspaceEnvironment)
-        .where(eq(workspaceEnvironment.workspaceId, workspaceId))
-        .limit(1)
-
-      const existingEncrypted: Record<string, string> = (existingRows[0]?.variables as any) || {}
-
-      // Encrypt incoming
       const encryptedIncoming = await Promise.all(
         Object.entries(variables).map(async ([key, value]) => {
           const { encrypted } = await encryptSecret(value)
@@ -113,22 +103,37 @@ export const PUT = withRouteHandler(
         })
       ).then((entries) => Object.fromEntries(entries))
 
-      const merged = { ...existingEncrypted, ...encryptedIncoming }
+      const { existingEncrypted, merged } = await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${workspaceId}))`)
 
-      // Upsert by unique workspace_id
-      await db
-        .insert(workspaceEnvironment)
-        .values({
-          id: generateId(),
-          workspaceId,
-          variables: merged,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [workspaceEnvironment.workspaceId],
-          set: { variables: merged, updatedAt: new Date() },
-        })
+        const [existingRow] = await tx
+          .select()
+          .from(workspaceEnvironment)
+          .where(eq(workspaceEnvironment.workspaceId, workspaceId))
+          .limit(1)
+
+        const existing = ((existingRow?.variables as Record<string, string>) ?? {}) as Record<
+          string,
+          string
+        >
+        const mergedVars = { ...existing, ...encryptedIncoming }
+
+        await tx
+          .insert(workspaceEnvironment)
+          .values({
+            id: generateId(),
+            workspaceId,
+            variables: mergedVars,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: [workspaceEnvironment.workspaceId],
+            set: { variables: mergedVars, updatedAt: new Date() },
+          })
+
+        return { existingEncrypted: existing, merged: mergedVars }
+      })
 
       const newKeys = Object.keys(variables).filter((k) => !(k in existingEncrypted))
       await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId: userId })
@@ -183,38 +188,40 @@ export const DELETE = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { keys } = parsed.data.body
 
-      const wsRows = await db
-        .select()
-        .from(workspaceEnvironment)
-        .where(eq(workspaceEnvironment.workspaceId, workspaceId))
-        .limit(1)
+      const result = await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${workspaceId}))`)
 
-      const current: Record<string, string> = (wsRows[0]?.variables as any) || {}
-      let changed = false
-      for (const k of keys) {
-        if (k in current) {
-          delete current[k]
-          changed = true
+        const [existingRow] = await tx
+          .select()
+          .from(workspaceEnvironment)
+          .where(eq(workspaceEnvironment.workspaceId, workspaceId))
+          .limit(1)
+
+        if (!existingRow) return null
+
+        const current: Record<string, string> =
+          (existingRow.variables as Record<string, string>) ?? {}
+        let modified = false
+        for (const k of keys) {
+          if (k in current) {
+            delete current[k]
+            modified = true
+          }
         }
-      }
 
-      if (!changed) {
+        if (!modified) return null
+
+        await tx
+          .update(workspaceEnvironment)
+          .set({ variables: current, updatedAt: new Date() })
+          .where(eq(workspaceEnvironment.workspaceId, workspaceId))
+
+        return { remainingKeysCount: Object.keys(current).length }
+      })
+
+      if (!result) {
         return NextResponse.json({ success: true })
       }
-
-      await db
-        .insert(workspaceEnvironment)
-        .values({
-          id: wsRows[0]?.id || generateId(),
-          workspaceId,
-          variables: current,
-          createdAt: wsRows[0]?.createdAt || new Date(),
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [workspaceEnvironment.workspaceId],
-          set: { variables: current, updatedAt: new Date() },
-        })
 
       await deleteWorkspaceEnvCredentials({ workspaceId, removedKeys: keys })
 
@@ -229,7 +236,7 @@ export const DELETE = withRouteHandler(
         description: `Removed ${keys.length} workspace environment variable(s)`,
         metadata: {
           removedKeys: keys,
-          remainingKeysCount: Object.keys(current).length,
+          remainingKeysCount: result.remainingKeysCount,
         },
         request,
       })

@@ -28,7 +28,7 @@ export const A2A_ERROR_CODES = {
   AUTHENTICATION_REQUIRED: -32004,
 } as const
 
-export interface JSONRPCRequest {
+interface JSONRPCRequest {
   jsonrpc: '2.0'
   id: string | number
   method: string
@@ -46,7 +46,7 @@ export interface JSONRPCResponse {
   }
 }
 
-export interface MessageSendParams {
+interface MessageSendParams {
   message: Message
   configuration?: {
     acceptedOutputModes?: string[]
@@ -55,12 +55,12 @@ export interface MessageSendParams {
   }
 }
 
-export interface TaskIdParams {
+interface TaskIdParams {
   id: string
   historyLength?: number
 }
 
-export interface PushNotificationSetParams {
+interface PushNotificationSetParams {
   id: string
   pushNotificationConfig: PushNotificationConfig
 }

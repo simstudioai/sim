@@ -6,9 +6,9 @@ import {
 } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
+import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -37,9 +37,10 @@ export const GET = withRouteHandler(async () => {
     }
 
     const userId = session.user.id
+    const mothershipBaseURL = await getMothershipBaseURL({ userId })
 
     const res = await fetchGo(
-      `${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed?userId=${encodeURIComponent(userId)}`,
+      `${mothershipBaseURL}/api/tool-preferences/auto-allowed?userId=${encodeURIComponent(userId)}`,
       {
         method: 'GET',
         headers: copilotHeaders(),
@@ -74,6 +75,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = session.user.id
+    const mothershipBaseURL = await getMothershipBaseURL({ userId })
     const parsed = await parseRequest(
       addCopilotAutoAllowedToolContract,
       request,
@@ -88,7 +90,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const { toolId } = parsed.data.body
 
-    const res = await fetchGo(`${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed`, {
+    const res = await fetchGo(`${mothershipBaseURL}/api/tool-preferences/auto-allowed`, {
       method: 'POST',
       headers: copilotHeaders(),
       body: JSON.stringify({ userId, toolId }),
@@ -125,6 +127,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userId = session.user.id
+    const mothershipBaseURL = await getMothershipBaseURL({ userId })
     const parsed = await parseRequest(
       removeCopilotAutoAllowedToolContract,
       request,
@@ -138,7 +141,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
     const { toolId } = parsed.data.query
 
     const res = await fetchGo(
-      `${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed?userId=${encodeURIComponent(userId)}&toolId=${encodeURIComponent(toolId)}`,
+      `${mothershipBaseURL}/api/tool-preferences/auto-allowed?userId=${encodeURIComponent(userId)}&toolId=${encodeURIComponent(toolId)}`,
       {
         method: 'DELETE',
         headers: copilotHeaders(),

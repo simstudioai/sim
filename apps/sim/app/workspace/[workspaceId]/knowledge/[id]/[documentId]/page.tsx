@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { Document } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/document'
 
@@ -24,11 +25,13 @@ export default async function DocumentChunksPage({ params, searchParams }: Docum
   const { kbName, docName } = await searchParams
 
   return (
-    <Document
-      knowledgeBaseId={id}
-      documentId={documentId}
-      knowledgeBaseName={kbName || 'Knowledge Base'}
-      documentName={docName || 'Document'}
-    />
+    <Suspense fallback={null}>
+      <Document
+        knowledgeBaseId={id}
+        documentId={documentId}
+        knowledgeBaseName={kbName || 'Knowledge Base'}
+        documentName={docName || 'Document'}
+      />
+    </Suspense>
   )
 }

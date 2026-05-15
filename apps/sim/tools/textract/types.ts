@@ -30,36 +30,36 @@ export interface TextractParserV2Input {
 
 export type TextractFeatureType = 'TABLES' | 'FORMS' | 'QUERIES' | 'SIGNATURES' | 'LAYOUT'
 
-export interface TextractQuery {
+interface TextractQuery {
   Text: string
   Alias?: string
   Pages?: string[]
 }
 
-export interface TextractBoundingBox {
+interface TextractBoundingBox {
   Height: number
   Left: number
   Top: number
   Width: number
 }
 
-export interface TextractPolygonPoint {
+interface TextractPolygonPoint {
   X: number
   Y: number
 }
 
-export interface TextractGeometry {
+interface TextractGeometry {
   BoundingBox: TextractBoundingBox
   Polygon: TextractPolygonPoint[]
   RotationAngle?: number
 }
 
-export interface TextractRelationship {
+interface TextractRelationship {
   Type: string
   Ids: string[]
 }
 
-export interface TextractBlock {
+interface TextractBlock {
   BlockType: string
   Id: string
   Text?: string
@@ -81,28 +81,28 @@ export interface TextractBlock {
   }
 }
 
-export interface TextractDocumentMetadataRaw {
+interface TextractDocumentMetadataRaw {
   Pages: number
 }
 
-export interface TextractDocumentMetadata {
+interface TextractDocumentMetadata {
   pages: number
 }
 
-export interface TextractApiResponse {
+interface TextractApiResponse {
   Blocks: TextractBlock[]
   DocumentMetadata: TextractDocumentMetadataRaw
   AnalyzeDocumentModelVersion?: string
   DetectDocumentTextModelVersion?: string
 }
 
-export interface TextractNormalizedOutput {
+interface TextractNormalizedOutput {
   blocks: TextractBlock[]
   documentMetadata: TextractDocumentMetadata
   modelVersion?: string
 }
 
-export interface TextractAsyncJobResponse {
+interface TextractAsyncJobResponse {
   JobStatus: 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED' | 'PARTIAL_SUCCESS'
   StatusMessage?: string
   Blocks?: TextractBlock[]
@@ -112,7 +112,7 @@ export interface TextractAsyncJobResponse {
   DetectDocumentTextModelVersion?: string
 }
 
-export interface TextractStartJobResponse {
+interface TextractStartJobResponse {
   JobId: string
 }
 

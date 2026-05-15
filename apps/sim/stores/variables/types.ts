@@ -55,7 +55,7 @@ export interface VariablesPosition {
 /**
  * Dimensions for the floating variables modal.
  */
-export interface VariablesDimensions {
+interface VariablesDimensions {
   width: number
   height: number
 }

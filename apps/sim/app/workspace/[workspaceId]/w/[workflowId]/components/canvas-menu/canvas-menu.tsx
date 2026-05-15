@@ -24,6 +24,7 @@ export interface CanvasMenuProps {
   onAutoLayout: () => void
   onFitToView: () => void
   onOpenLogs: () => void
+  onOpenSearchReplace: () => void
   onToggleVariables: () => void
   onToggleChat: () => void
   onToggleWorkflowLock?: () => void
@@ -59,6 +60,7 @@ export function CanvasMenu({
   onAutoLayout,
   onFitToView,
   onOpenLogs,
+  onOpenSearchReplace,
   onToggleVariables,
   onToggleChat,
   onToggleWorkflowLock,
@@ -114,9 +116,6 @@ export function CanvasMenu({
           <span>Redo</span>
           <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘⇧Z</span>
         </PopoverItem>
-
-        {/* Edit and creation actions */}
-        <PopoverDivider />
         <PopoverItem
           className='group'
           disabled={disableEdit || !hasClipboard}
@@ -128,6 +127,9 @@ export function CanvasMenu({
           <span>Paste</span>
           <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘V</span>
         </PopoverItem>
+
+        {/* Edit and creation actions */}
+        <PopoverDivider />
         <PopoverItem
           className='group'
           disabled={disableEdit}
@@ -173,6 +175,16 @@ export function CanvasMenu({
 
         {/* Navigation actions */}
         <PopoverDivider />
+        <PopoverItem
+          className='group'
+          onClick={() => {
+            onOpenSearchReplace()
+            onClose()
+          }}
+        >
+          <span>Search and replace</span>
+          <span className='ml-auto opacity-70 group-hover:opacity-100'>⌘F</span>
+        </PopoverItem>
         <PopoverItem
           className='group'
           onClick={() => {

@@ -20,8 +20,8 @@ vi.mock('@sim/db', () => ({
   workflow: {},
 }))
 
-vi.mock('@/lib/api-key/auth', () => ({
-  createWorkspaceApiKey: vi.fn(),
+vi.mock('@/lib/api-key/orchestration', () => ({
+  performCreateWorkspaceApiKey: vi.fn(),
 }))
 
 vi.mock('@/lib/core/config/env', () => ({
@@ -46,8 +46,12 @@ vi.mock('@/lib/workflows/executor/execution-state', () => ({
 }))
 
 vi.mock('@/lib/workflows/orchestration', () => ({
+  performCreateFolder: vi.fn(),
+  performCreateWorkflow: vi.fn(),
   performDeleteFolder: vi.fn(),
   performDeleteWorkflow: vi.fn(),
+  performUpdateFolder: vi.fn(),
+  performUpdateWorkflow: vi.fn(),
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
@@ -60,13 +64,8 @@ vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
 }))
 
 vi.mock('@/lib/workflows/utils', () => ({
-  checkForCircularReference: vi.fn(),
-  createFolderRecord: vi.fn(),
-  createWorkflowRecord: vi.fn(),
   listFolders: vi.fn(),
   setWorkflowVariables: setWorkflowVariablesMock,
-  updateFolderRecord: vi.fn(),
-  updateWorkflowRecord: vi.fn(),
   verifyFolderWorkspace: vi.fn(),
 }))
 

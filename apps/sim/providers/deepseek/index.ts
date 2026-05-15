@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { formatMessagesForProvider } from '@/providers/attachments'
 import { createReadableStreamFromDeepseekStream } from '@/providers/deepseek/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
@@ -67,6 +68,7 @@ export const deepseekProvider: ProviderConfig = {
       if (request.messages) {
         allMessages.push(...request.messages)
       }
+      const formattedMessages = formatMessagesForProvider(allMessages, 'deepseek')
 
       const tools = request.tools?.length
         ? request.tools.map((tool) => ({
@@ -81,7 +83,7 @@ export const deepseekProvider: ProviderConfig = {
 
       const payload: any = {
         model: request.model,
-        messages: allMessages,
+        messages: formattedMessages,
       }
 
       if (request.temperature !== undefined) payload.temperature = request.temperature
@@ -209,7 +211,7 @@ export const deepseekProvider: ProviderConfig = {
       }
       const toolCalls = []
       const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...allMessages]
+      const currentMessages = [...formattedMessages]
       let iterationCount = 0
       let hasUsedForcedTool = false
       let modelTime = firstResponseTime

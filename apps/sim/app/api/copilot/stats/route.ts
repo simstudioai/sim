@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotStatsContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -9,6 +8,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
+import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -44,7 +44,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       diffAccepted,
     }
 
-    const agentRes = await fetchGo(`${SIM_AGENT_API_URL}/api/stats`, {
+    const mothershipBaseURL = await getMothershipBaseURL({ userId })
+    const agentRes = await fetchGo(`${mothershipBaseURL}/api/stats`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

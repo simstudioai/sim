@@ -54,7 +54,7 @@ export async function handlePostExecutionPauseState({
     }
   } else {
     try {
-      await PauseResumeManager.processQueuedResumes(executionId)
+      await PauseResumeManager.processQueuedResumes(executionId, workflowId)
     } catch (resumeError) {
       logger.error('Failed to process queued resumes', {
         executionId,

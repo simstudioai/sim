@@ -30,11 +30,11 @@ function shouldShowStreamingFilePanel(
   previewSession: FilePreviewSession | null | undefined,
   active: MothershipResource | null
 ): boolean {
-  if (!previewSession || previewSession.status === 'complete' || !active) return false
+  if (!previewSession || !hasRenderableFilePreviewContent(previewSession) || !active) return false
   if (active.id === 'streaming-file') return true
   if (active.type !== 'file') return false
   if (active.id && previewSession.fileId === active.id) {
-    return hasRenderableFilePreviewContent(previewSession)
+    return true
   }
   return false
 }

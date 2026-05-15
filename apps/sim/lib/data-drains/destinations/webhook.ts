@@ -7,19 +7,28 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import {
+  backoffWithJitter,
+  parseRetryAfter,
+  sleepUntilAborted,
+} from '@/lib/data-drains/destinations/utils'
 import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainWebhookDestination')
 
-/** Initial attempt + 3 retries — matches the documented 500ms/1s/2s backoff sequence. */
+/** Initial attempt + 3 retries — 500ms/1s/2s backoff sequence. */
 const MAX_ATTEMPTS = 4
-const BASE_BACKOFF_MS = 500
-const MAX_BACKOFF_MS = 30_000
 const PER_ATTEMPT_TIMEOUT_MS = 30_000
+/** Cap responder reply so a misbehaving receiver can't OOM the runner. */
+const MAX_RESPONSE_BYTES = 256 * 1024
 const SIGNATURE_VERSION = 'v1'
 const USER_AGENT = 'Sim-DataDrain/1.0'
 
-/** Reserved header names that callers cannot reuse as the signature header. */
+/**
+ * Headers `buildHeaders` emits. Callers cannot override these via
+ * `signatureHeader`. Keep in sync with `buildHeaders` — the drift-guard test
+ * enforces this by parsing the schema against every key the function writes.
+ */
 const RESERVED_SIGNATURE_HEADER_NAMES = new Set([
   'authorization',
   'content-type',
@@ -36,14 +45,9 @@ const RESERVED_SIGNATURE_HEADER_NAMES = new Set([
   'x-sim-signature',
 ])
 
-/**
- * Resolves the URL's hostname and returns the validated public IP. Uses
- * `ipaddr.js` so all non-`unicast` ranges (RFC1918, loopback, CGNAT, multicast,
- * broadcast, IPv4-mapped IPv6, link-local, cloud metadata) are blocked
- * uniformly. The returned IP is then pinned to the underlying socket via
- * `secureFetchWithPinnedIP` to defeat DNS rebinding (TOCTOU) between the
- * validation lookup and the actual delivery.
- */
+/** CR/LF/NUL would let a bearer token smuggle additional response headers. */
+const HEADER_INJECTION_PATTERN = /[\r\n\0]/
+
 async function resolvePublicTarget(url: string): Promise<string> {
   const result = await validateUrlWithDNS(url, 'url')
   if (!result.isValid || !result.resolvedIP) {
@@ -56,10 +60,10 @@ const webhookConfigSchema = z.object({
   url: z
     .string()
     .url('url must be a valid URL')
+    .max(2048, 'url must be at most 2048 characters')
     .refine((value) => validateExternalUrl(value, 'url').isValid, {
       message: 'url must be HTTPS and not point at a private, loopback, or metadata address',
     }),
-  /** Optional custom header name for the signature (default: X-Sim-Signature). */
   signatureHeader: z
     .string()
     .min(1)
@@ -67,71 +71,39 @@ const webhookConfigSchema = z.object({
     .refine((value) => !RESERVED_SIGNATURE_HEADER_NAMES.has(value.toLowerCase()), {
       message: 'signatureHeader cannot reuse a reserved Sim header name',
     })
+    .refine((value) => !HEADER_INJECTION_PATTERN.test(value) && /^[A-Za-z0-9\-_]+$/.test(value), {
+      message: 'signatureHeader must contain only letters, digits, hyphens, and underscores',
+    })
     .optional(),
 })
 
 const webhookCredentialsSchema = z.object({
-  /** Shared secret used for HMAC-SHA256 signing of the request body. */
-  signingSecret: z.string().min(8, 'signingSecret must be at least 8 characters'),
-  /** Optional bearer token sent as Authorization header. */
-  bearerToken: z.string().min(1).optional(),
+  signingSecret: z
+    .string()
+    .min(32, 'signingSecret must be at least 32 characters')
+    .max(512, 'signingSecret must be at most 512 characters'),
+  bearerToken: z
+    .string()
+    .min(1)
+    .max(4096, 'bearerToken must be at most 4096 characters')
+    .refine((value) => !HEADER_INJECTION_PATTERN.test(value), {
+      message: 'bearerToken cannot contain CR, LF, or NUL characters',
+    })
+    .optional(),
 })
 
 export type WebhookDestinationConfig = z.infer<typeof webhookConfigSchema>
 export type WebhookDestinationCredentials = z.infer<typeof webhookCredentialsSchema>
 
 /**
- * Stripe-style replay-resistant signature: signs `${unixSeconds}.${body}` and
- * emits `t=<unixSeconds>,v1=<hex(hmac)>`. Verifiers should reject signatures
- * older than ~5 minutes after also recomputing the HMAC over the same
- * concatenation, defending against captured-request replay attacks.
+ * Stripe-style signature: HMAC-SHA256 over `${unixSeconds}.${body}` rendered as
+ * `t=<unixSeconds>,v1=<hex>`. Verifiers reject stale timestamps (~5 min skew)
+ * to block replay; we re-sign per attempt so long backoffs don't fall outside
+ * that window.
  */
 function sign(body: Buffer, secret: string, timestamp: number): string {
   const hmac = createHmac('sha256', secret).update(`${timestamp}.`).update(body).digest('hex')
   return `t=${timestamp},${SIGNATURE_VERSION}=${hmac}`
-}
-
-/**
- * Resolves after `ms` or as soon as `signal` aborts, whichever happens first.
- * The caller checks `signal.aborted` at the top of the next iteration to
- * surface the abort — keeping resolution side-effect-free here.
- */
-function sleepUntilAborted(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve()
-  return new Promise((resolve) => {
-    const onAbort = () => {
-      clearTimeout(timeoutId)
-      resolve()
-    }
-    const timeoutId = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
-}
-
-function backoffWithJitter(attempt: number, retryAfterMs?: number): number {
-  if (retryAfterMs !== undefined) {
-    // Floor at 500ms so a misbehaving server returning Retry-After: 0 cannot
-    // pin us in a tight retry loop.
-    return Math.min(Math.max(retryAfterMs, BASE_BACKOFF_MS), MAX_BACKOFF_MS)
-  }
-  const exponential = Math.min(BASE_BACKOFF_MS * 2 ** (attempt - 1), MAX_BACKOFF_MS)
-  // ±20% jitter avoids thundering-herd alignment across drains.
-  return exponential * (0.8 + Math.random() * 0.4)
-}
-
-function parseRetryAfter(header: string | null): number | undefined {
-  if (!header) return undefined
-  const seconds = Number.parseInt(header, 10)
-  if (!Number.isNaN(seconds) && seconds >= 0) return seconds * 1000
-  const dateMs = Date.parse(header)
-  if (!Number.isNaN(dateMs)) {
-    const delta = dateMs - Date.now()
-    return delta > 0 ? delta : 0
-  }
-  return undefined
 }
 
 function isRetryableStatus(status: number): boolean {
@@ -164,7 +136,7 @@ function buildHeaders(input: {
     headers['X-Sim-Source'] = input.metadata.source
     headers['X-Sim-Sequence'] = input.metadata.sequence.toString()
     headers['X-Sim-Row-Count'] = input.metadata.rowCount.toString()
-    // Lets idempotent receivers dedupe retried chunks server-side.
+    // Stable across retries of the same chunk so receivers can dedupe.
     headers['Idempotency-Key'] = `${input.metadata.runId}-${input.metadata.sequence}`
   }
   if (input.isProbe) {
@@ -201,6 +173,7 @@ export const webhookDestination: DrainDestination<
       headers,
       signal,
       timeout: PER_ATTEMPT_TIMEOUT_MS,
+      maxResponseBytes: MAX_RESPONSE_BYTES,
     })
     if (!response.ok) {
       throw new Error(`Webhook probe failed: HTTP ${response.status}`)
@@ -211,21 +184,15 @@ export const webhookDestination: DrainDestination<
     let resolvedIP: string | null = null
     return {
       async deliver({ body, contentType, metadata, signal }) {
-        // Resolve once per session — within a run we trust the result rather
-        // than paying DNS on every chunk. Done lazily so a session that's
-        // opened-and-immediately-closed pays no cost. The pinned IP is reused
-        // across retries to defeat DNS rebinding (TOCTOU) attacks.
+        // Resolve once per session and pin across retries to defeat DNS rebinding (TOCTOU).
         if (resolvedIP === null) {
           resolvedIP = await resolvePublicTarget(config.url)
         }
         let lastError: unknown
         for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
           if (signal.aborted) throw signal.reason ?? new Error('Aborted')
-          // Re-build headers per attempt so the timestamp + signature are
-          // fresh (otherwise long backoffs would push us outside the
-          // verifier's skew window).
           const headers = buildHeaders({ config, credentials, body, contentType, metadata })
-          let retryAfterMs: number | undefined
+          let retryAfterMs: number | null = null
           let response: Awaited<ReturnType<typeof secureFetchWithPinnedIP>> | undefined
           try {
             response = await secureFetchWithPinnedIP(config.url, resolvedIP, {
@@ -234,6 +201,7 @@ export const webhookDestination: DrainDestination<
               headers,
               signal,
               timeout: PER_ATTEMPT_TIMEOUT_MS,
+              maxResponseBytes: MAX_RESPONSE_BYTES,
             })
           } catch (error) {
             lastError = error
@@ -262,7 +230,6 @@ export const webhookDestination: DrainDestination<
               }
             }
             if (!isRetryableStatus(response.status)) {
-              // Non-retryable HTTP error: surface immediately without retrying.
               throw new Error(`Webhook responded with HTTP ${response.status}`)
             }
             lastError = new Error(`Webhook responded with HTTP ${response.status}`)

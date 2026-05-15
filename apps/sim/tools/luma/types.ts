@@ -58,7 +58,7 @@ export interface LumaAddGuestsParams {
   guests: string
 }
 
-export interface LumaHostEntry {
+interface LumaHostEntry {
   id: string | null
   name: string | null
   firstName: string | null
@@ -67,7 +67,7 @@ export interface LumaHostEntry {
   avatarUrl: string | null
 }
 
-export interface LumaEventEntry {
+interface LumaEventEntry {
   id: string
   name: string
   startAt: string | null
@@ -87,7 +87,7 @@ export interface LumaEventEntry {
   calendarId: string | null
 }
 
-export interface LumaGuestEntry {
+interface LumaGuestEntry {
   id: string
   email: string | null
   name: string | null

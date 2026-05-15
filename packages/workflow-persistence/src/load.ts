@@ -4,6 +4,7 @@ import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
 import { SUBFLOW_TYPES } from '@sim/workflow-types/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
+import { clampParallelBatchSize } from './subflow-helpers'
 import type { DbOrTx, NormalizedWorkflowData } from './types'
 
 const logger = createLogger('WorkflowPersistenceLoad')
@@ -141,9 +142,24 @@ export async function loadWorkflowFromNormalizedTablesRaw(
             (config as Parallel).parallelType === 'collection'
               ? (config as Parallel).parallelType
               : 'count',
+          batchSize: clampParallelBatchSize((config as Parallel).batchSize),
           enabled: blocksMap[subflow.id]?.enabled ?? true,
         }
         parallels[subflow.id] = parallel
+
+        if (blocksMap[subflow.id]) {
+          const block = blocksMap[subflow.id]
+          blocksMap[subflow.id] = {
+            ...block,
+            data: {
+              ...block.data,
+              count: parallel.count,
+              collection: parallel.distribution ?? block.data?.collection ?? '',
+              parallelType: parallel.parallelType,
+              batchSize: parallel.batchSize,
+            },
+          }
+        }
       } else {
         logger.warn(`Unknown subflow type: ${subflow.type} for subflow ${subflow.id}`)
       }

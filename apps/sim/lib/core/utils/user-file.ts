@@ -43,6 +43,27 @@ export function isUserFileWithMetadata(value: unknown): value is UserFile {
 }
 
 /**
+ * Checks if a value matches the display-safe UserFile metadata shape after internal fields are stripped.
+ */
+export function isUserFileDisplayMetadata(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+
+  const candidate = value as Record<string, unknown>
+  const url = typeof candidate.url === 'string' ? candidate.url : ''
+
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.name === 'string' &&
+    url.length > 0 &&
+    typeof candidate.size === 'number' &&
+    typeof candidate.type === 'string' &&
+    (candidate.id.startsWith('file_') || url.includes('/api/files/serve/'))
+  )
+}
+
+/**
  * Filters a UserFile object to only include display fields.
  * Used for both UI display and log sanitization.
  */

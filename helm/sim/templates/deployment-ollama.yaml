@@ -59,12 +59,14 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- include "sim.podSecurityContext" .Values.ollama | nindent 6 }}
       {{- include "sim.nodeSelector" .Values.ollama | nindent 6 }}
       {{- include "sim.tolerations" .Values.ollama | nindent 6 }}
       {{- include "sim.affinity" .Values | nindent 6 }}
       containers:
         - name: ollama
-          image: {{ include "sim.image" (dict "context" . "image" .Values.ollama.image) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.ollama.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.ollama.image.pullPolicy }}
           command: ["ollama", "serve"]
           ports:
@@ -92,11 +94,12 @@ spec:
             {{- toYaml .Values.ollama.readinessProbe | nindent 12 }}
           {{- end }}
           {{- include "sim.resources" .Values.ollama | nindent 10 }}
+          {{- include "sim.containerSecurityContext" .Values.ollama | nindent 10 }}
           {{- if or .Values.ollama.persistence.enabled .Values.extraVolumeMounts .Values.ollama.extraVolumeMounts }}
           volumeMounts:
             {{- if .Values.ollama.persistence.enabled }}
             - name: ollama-data
-              mountPath: /root/.ollama
+              mountPath: /data
             {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}

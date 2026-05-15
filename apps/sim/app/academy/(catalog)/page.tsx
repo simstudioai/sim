@@ -56,12 +56,12 @@ export default function AcademyCatalogPage() {
                   <div className='mt-auto flex items-center gap-4 text-[#666] text-[12px]'>
                     {course.estimatedMinutes && (
                       <span className='flex items-center gap-1.5'>
-                        <Clock className='h-3 w-3' />
+                        <Clock className='size-3' />
                         {course.estimatedMinutes} min
                       </span>
                     )}
                     <span className='flex items-center gap-1.5'>
-                      <BookOpen className='h-3 w-3' />
+                      <BookOpen className='size-3' />
                       {totalLessons} lessons
                     </span>
                   </div>

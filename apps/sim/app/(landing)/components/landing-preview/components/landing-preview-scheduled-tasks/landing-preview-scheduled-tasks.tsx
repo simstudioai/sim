@@ -5,7 +5,7 @@ import type {
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
 import { LandingPreviewResource } from '@/app/(landing)/components/landing-preview/components/landing-preview-resource/landing-preview-resource'
 
-const CAL_ICON = <Calendar className='h-[14px] w-[14px]' />
+const CAL_ICON = <Calendar className='size-[14px]' />
 
 const COLUMNS: PreviewColumn[] = [
   { id: 'task', header: 'Task' },

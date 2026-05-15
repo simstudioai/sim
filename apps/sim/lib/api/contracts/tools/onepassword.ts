@@ -39,8 +39,6 @@ export const onePasswordReplaceItemBodySchema = onePasswordGetItemBodySchema.ext
   item: z.string().min(1, 'Item JSON is required'),
 })
 
-export const onePasswordDeleteItemBodySchema = onePasswordGetItemBodySchema
-
 export const onePasswordResolveSecretBodySchema = onePasswordCredentialsBodySchema.extend({
   secretReference: z.string().min(1, 'Secret reference is required'),
 })
@@ -129,7 +127,7 @@ const onePasswordDeleteItemResponseSchema = z.object({
 export const onePasswordDeleteItemContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/onepassword/delete-item',
-  body: onePasswordDeleteItemBodySchema,
+  body: onePasswordGetItemBodySchema,
   response: {
     mode: 'json',
     schema: onePasswordDeleteItemResponseSchema,

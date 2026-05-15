@@ -14,6 +14,7 @@ import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildFilterConditions } from '@/lib/logs/filters'
+import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
 
 const logger = createLogger('LogsStatsAPI')
 
@@ -36,6 +37,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const params = statsQueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
 
       const workspaceFilter = eq(workflowExecutionLogs.workspaceId, params.workspaceId)
+
+      if (params.folderIds) {
+        params.folderIds = await expandFolderIdsWithDescendants(
+          params.workspaceId,
+          params.folderIds
+        )
+      }
 
       const commonFilters = buildFilterConditions(params, { useSimpleLevelFilter: true })
       const whereCondition = commonFilters ? and(workspaceFilter, commonFilters) : workspaceFilter

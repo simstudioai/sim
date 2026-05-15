@@ -10,12 +10,12 @@ export interface BrandfetchSearchParams {
   name: string
 }
 
-export interface BrandLink {
+interface BrandLink {
   name: string
   url: string
 }
 
-export interface BrandLogo {
+interface BrandLogo {
   type: string
   theme: string | null
   formats: Array<{
@@ -27,13 +27,13 @@ export interface BrandLogo {
   }>
 }
 
-export interface BrandColor {
+interface BrandColor {
   hex: string
   type: string
   brightness: number
 }
 
-export interface BrandFont {
+interface BrandFont {
   name: string | null
   type: string
   origin: string
@@ -41,7 +41,7 @@ export interface BrandFont {
   weights: number[]
 }
 
-export interface BrandCompany {
+interface BrandCompany {
   employees: string | null
   foundedYear: number | null
   kind: string | null

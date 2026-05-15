@@ -17,7 +17,7 @@ export interface CopilotWorkflowState {
  * Connections are embedded here instead of separate edges array
  * Loops and parallels have nested structure for clarity
  */
-export interface CopilotBlockState {
+interface CopilotBlockState {
   type: string
   name: string
   inputs?: Record<string, string | number | string[][] | object>
@@ -31,7 +31,7 @@ export interface CopilotBlockState {
 /**
  * Edge state for copilot (only semantic connection data)
  */
-export interface CopilotEdge {
+interface CopilotEdge {
   id: string
   source: string
   target: string

@@ -10,6 +10,7 @@ import {
   Trash,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -81,8 +82,14 @@ export function FilterRuleRow({
 
   const renderHeader = () => (
     <div
+      role='group'
+      aria-label={`Condition ${index + 1}`}
       className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
       onClick={() => onToggleCollapse(rule.id)}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        handleKeyboardActivation(event, () => onToggleCollapse(rule.id))
+      }}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
         <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
@@ -94,9 +101,13 @@ export function FilterRuleRow({
           </Badge>
         )}
       </div>
-      <div className='flex items-center gap-2 pl-2' onClick={(e) => e.stopPropagation()}>
+      <div
+        role='presentation'
+        className='flex items-center gap-2 pl-2'
+        onClick={(e) => e.stopPropagation()}
+      >
         <Button variant='ghost' onClick={onAdd} disabled={isReadOnly} className='h-auto p-0'>
-          <Plus className='h-[14px] w-[14px]' />
+          <Plus className='size-[14px]' />
           <span className='sr-only'>Add Condition</span>
         </Button>
         <Button
@@ -105,7 +116,7 @@ export function FilterRuleRow({
           disabled={isReadOnly}
           className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
         >
-          <Trash className='h-[14px] w-[14px]' />
+          <Trash className='size-[14px]' />
           <span className='sr-only'>Delete Condition</span>
         </Button>
       </div>

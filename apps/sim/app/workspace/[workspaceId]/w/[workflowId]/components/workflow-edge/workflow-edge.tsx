@@ -128,8 +128,9 @@ const WorkflowEdgeComponent = ({
 
       {isSelected && (
         <EdgeLabelRenderer>
-          <div
-            className='nodrag nopan group flex h-[22px] w-[22px] cursor-pointer items-center justify-center transition-colors'
+          <button
+            type='button'
+            className='nodrag nopan group flex size-[22px] cursor-pointer items-center justify-center transition-colors'
             style={{
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
@@ -145,8 +146,8 @@ const WorkflowEdgeComponent = ({
               }
             }}
           >
-            <X className='h-4 w-4 text-[var(--text-error)] transition-colors group-hover:text-[color-mix(in_srgb,var(--text-error)_80%,transparent)]' />
-          </div>
+            <X className='size-4 text-[var(--text-error)] transition-colors group-hover:text-[color-mix(in_srgb,var(--text-error)_80%,transparent)]' />
+          </button>
         </EdgeLabelRenderer>
       )}
     </>

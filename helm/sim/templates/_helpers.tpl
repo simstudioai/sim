@@ -137,24 +137,41 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-Create image name with registry
-Expects context with image object passed as second parameter
-Usage: {{ include "sim.image" (dict "context" . "image" .Values.app.image) }}
+Create image name with optional registry and digest pinning.
+Accepts a context dict with:
+  imageRoot       — the image object (repository, optional tag, optional digest, pullPolicy)
+  global          — .Values.global (for imageRegistry and useRegistryForAllImages)
+  chartAppVersion — .Chart.AppVersion (used as default tag when imageRoot.tag is empty)
+
+Resolution order:
+  1. If imageRoot.digest is set, render "<registry?/>repo@<digest>"
+  2. Else render "<registry?/>repo:<tag>" where tag defaults to chartAppVersion
+Usage: {{ include "sim.image" (dict "imageRoot" .Values.app.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
 */}}
 {{- define "sim.image" -}}
+{{- $imageRoot := .imageRoot -}}
+{{- $global := .global -}}
+{{- $repository := $imageRoot.repository -}}
+{{- $digest := $imageRoot.digest | default "" -}}
+{{- $tag := $imageRoot.tag | default "" | toString -}}
+{{- if and (eq $tag "") (eq $digest "") -}}
+  {{- $tag = .chartAppVersion | default "" | toString -}}
+{{- end -}}
 {{- $registry := "" -}}
-{{- $repository := .image.repository -}}
-{{- $tag := .image.tag | toString -}}
-{{- /* Use global registry for simstudioai images or when explicitly set for all images */ -}}
-{{- if .context.Values.global.imageRegistry -}}
-  {{- if or (hasPrefix "simstudioai/" $repository) .context.Values.global.useRegistryForAllImages -}}
-    {{- $registry = .context.Values.global.imageRegistry -}}
+{{- if and $global $global.imageRegistry -}}
+  {{- if or (hasPrefix "simstudioai/" $repository) $global.useRegistryForAllImages -}}
+    {{- $registry = $global.imageRegistry -}}
   {{- end -}}
 {{- end -}}
+{{- $repoPath := $repository -}}
 {{- if $registry -}}
-{{- printf "%s/%s:%s" $registry $repository $tag }}
+  {{- $repoPath = printf "%s/%s" $registry $repository -}}
+{{- end -}}
+{{- if ne $digest "" -}}
+{{- printf "%s@%s" $repoPath $digest }}
 {{- else -}}
-{{- printf "%s:%s" $repository $tag }}
+{{- $resolvedTag := required (printf "sim.image: no tag or digest resolvable for %q (set imageRoot.tag, imageRoot.digest, or Chart.AppVersion)" $repository) $tag -}}
+{{- printf "%s:%s" $repoPath $resolvedTag }}
 {{- end -}}
 {{- end }}
 
@@ -202,8 +219,15 @@ Skip validation when using existing secrets or External Secrets Operator
 {{- if and .Values.app.enabled (eq .Values.app.env.ENCRYPTION_KEY "CHANGE-ME-32-CHAR-ENCRYPTION-KEY-FOR-PROD") }}
 {{- fail "app.env.ENCRYPTION_KEY must not use the default placeholder value. Generate a secure key with: openssl rand -hex 32" }}
 {{- end }}
+{{- if and .Values.app.enabled (not .Values.app.env.INTERNAL_API_SECRET) }}
+{{- fail "app.env.INTERNAL_API_SECRET is required for production deployment (shared auth between sim-app and sim-realtime pods). Generate one with: openssl rand -hex 32" }}
+{{- end }}
 {{- if and .Values.realtime.enabled (eq .Values.realtime.env.BETTER_AUTH_SECRET "CHANGE-ME-32-CHAR-SECRET-FOR-PRODUCTION-USE") }}
 {{- fail "realtime.env.BETTER_AUTH_SECRET must not use the default placeholder value. Generate a secure secret with: openssl rand -hex 32" }}
+{{- end }}
+{{- /* CRON_SECRET is required when cronjobs are enabled — pods reference it via secretKeyRef and would fail to start if the key is missing from the Secret. */ -}}
+{{- if and .Values.cronjobs.enabled (not .Values.app.env.CRON_SECRET) }}
+{{- fail "app.env.CRON_SECRET is required when cronjobs.enabled=true (every cron pod authenticates with this token). Generate one with: openssl rand -hex 32, or set cronjobs.enabled=false." }}
 {{- end }}
 {{- end }}
 {{- /* PostgreSQL password validation - skip if using existing secret or ESO */ -}}
@@ -227,6 +251,74 @@ Skip validation when using existing secrets or External Secrets Operator
 {{- fail "externalDatabase.password must only contain alphanumeric characters, hyphens, underscores, or periods to ensure DATABASE_URL compatibility." }}
 {{- end }}
 {{- end }}
+{{- /* ESO coverage validation - every key set in app.env / realtime.env must be mapped in externalSecrets.remoteRefs.app */ -}}
+{{- include "sim.validateExternalSecretCoverage" . }}
+{{- end }}
+
+{{/*
+Validate that every key set in app.env / realtime.env is also mapped in
+externalSecrets.remoteRefs.app when ESO is enabled. When ESO is on, the
+chart-managed Secret is not rendered — anything not mapped via ESO would
+be silently missing at runtime.
+
+Chart-computed keys (DATABASE_URL, SOCKET_SERVER_URL, OLLAMA_URL) are
+exempt because they're inlined on the container, not sourced from the
+Secret.
+
+Fail-fast is only safe for ESO because we can introspect remoteRefs at
+template time. For existingSecret we cannot read the user's pre-created
+Secret, so coverage there is documented (values.yaml + README) rather
+than enforced.
+*/}}
+{{- define "sim.validateExternalSecretCoverage" -}}
+{{- if and .Values.externalSecrets .Values.externalSecrets.enabled -}}
+{{- $remoteRefs := default (dict) (default (dict) .Values.externalSecrets.remoteRefs).app -}}
+{{- $chartComputed := list "DATABASE_URL" "SOCKET_SERVER_URL" "OLLAMA_URL" -}}
+{{- $appEnv := default (dict) .Values.app.env -}}
+{{/*
+  Required-key coverage: these are non-optional at runtime. With ESO enabled
+  the chart-managed Secret is not rendered, so a missing key surfaces as a
+  runtime CrashLoopBackOff with cryptic env errors. Fail at template time
+  if the key is neither set in app.env nor mapped via remoteRefs.app.
+*/}}
+{{- if .Values.app.enabled -}}
+{{- $required := list "BETTER_AUTH_SECRET" "ENCRYPTION_KEY" "INTERNAL_API_SECRET" -}}
+{{- if .Values.cronjobs.enabled -}}
+{{- $required = append $required "CRON_SECRET" -}}
+{{- end -}}
+{{- range $key := $required -}}
+{{- $inEnv := index $appEnv $key -}}
+{{- $mapped := index $remoteRefs $key -}}
+{{- if and (or (not $inEnv) (eq (toString $inEnv) "") (eq (toString $inEnv) "<nil>")) (not $mapped) -}}
+{{- fail (printf "Required key '%s' is missing: externalSecrets.enabled=true but the key is neither set in app.env nor mapped in externalSecrets.remoteRefs.app. Map it via externalSecrets.remoteRefs.app.%s='path/in/store' so it is synced into the app Secret." $key $key) }}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.app.enabled -}}
+{{- range $key, $value := default (dict) .Values.app.env -}}
+{{- if not (has $key $chartComputed) -}}
+{{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") -}}
+{{- $mapped := index $remoteRefs $key -}}
+{{- if not $mapped -}}
+{{- fail (printf "Key '%s' is set in app.env but externalSecrets.enabled=true and externalSecrets.remoteRefs.app.%s is not configured. When ESO is enabled the chart-managed app Secret is not rendered, so the container would start with no value. Either map it via externalSecrets.remoteRefs.app.%s='path/in/store' or remove it from app.env." $key $key $key) }}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.realtime.enabled -}}
+{{- range $key, $value := default (dict) .Values.realtime.env -}}
+{{- if not (has $key $chartComputed) -}}
+{{- if and (ne (toString $value) "") (ne (toString $value) "<nil>") -}}
+{{- $mapped := index $remoteRefs $key -}}
+{{- if not $mapped -}}
+{{- fail (printf "Key '%s' is set in realtime.env but externalSecrets.enabled=true and externalSecrets.remoteRefs.app.%s is not configured. Either map it via externalSecrets.remoteRefs.app.%s='path/in/store' or remove it from realtime.env." $key $key $key) }}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- end }}
 
 {{/*
@@ -369,23 +461,39 @@ resources:
 {{- end }}
 
 {{/*
-Security context
+Pod-level security context with Pod Security Standards "restricted" defaults.
+User-supplied `.podSecurityContext` values override defaults (user wins).
+Usage: {{ include "sim.podSecurityContext" .Values.app | nindent 6 }}
 */}}
-{{- define "sim.securityContext" -}}
-{{- if .securityContext }}
+{{- define "sim.podSecurityContext" -}}
+{{- $defaults := dict "runAsNonRoot" true "runAsUser" 1001 "runAsGroup" 1001 "fsGroup" 1001 "seccompProfile" (dict "type" "RuntimeDefault") -}}
+{{- $user := default (dict) .podSecurityContext -}}
+{{- $merged := mergeOverwrite (deepCopy $defaults) $user -}}
 securityContext:
-  {{- toYaml .securityContext | nindent 2 }}
-{{- end }}
+  {{- toYaml $merged | nindent 2 }}
 {{- end }}
 
 {{/*
-Pod security context
+Container-level security context with Pod Security Standards "restricted" defaults.
+User-supplied `.securityContext` values override defaults (user wins).
+`readOnlyRootFilesystem` is intentionally NOT defaulted — set it per-workload in values
+when the container can tolerate a read-only root (Next.js writes to `.next/cache`,
+Postgres writes to `/var/lib/postgresql/data`, so they're left writable by default).
+Usage: {{ include "sim.containerSecurityContext" .Values.app | nindent 10 }}
 */}}
-{{- define "sim.podSecurityContext" -}}
-{{- if .podSecurityContext }}
+{{- define "sim.containerSecurityContext" -}}
+{{- $defaults := dict "runAsNonRoot" true "allowPrivilegeEscalation" false "capabilities" (dict "drop" (list "ALL")) "seccompProfile" (dict "type" "RuntimeDefault") -}}
+{{- $user := default (dict) .securityContext -}}
+{{- $merged := mergeOverwrite (deepCopy $defaults) $user -}}
 securityContext:
-  {{- toYaml .podSecurityContext | nindent 2 }}
+  {{- toYaml $merged | nindent 2 }}
 {{- end }}
+
+{{/*
+Backwards-compatible alias for container security context.
+*/}}
+{{- define "sim.securityContext" -}}
+{{- include "sim.containerSecurityContext" . }}
 {{- end }}
 
 {{/*
@@ -415,6 +523,19 @@ Affinity
 {{- if .affinity }}
 affinity:
   {{- toYaml .affinity | nindent 2 }}
+{{- end }}
+{{- end }}
+
+{{/*
+Topology spread constraints — spreads pods across failure domains.
+Pass the per-component spec (.Values.app, .Values.realtime, ...). Users supply
+the full constraint list including labelSelector; pattern mirrors affinity.
+Usage: {{ include "sim.topologySpreadConstraints" .Values.app | nindent 6 }}
+*/}}
+{{- define "sim.topologySpreadConstraints" -}}
+{{- if .topologySpreadConstraints }}
+topologySpreadConstraints:
+  {{- toYaml .topologySpreadConstraints | nindent 2 }}
 {{- end }}
 {{- end }}
 

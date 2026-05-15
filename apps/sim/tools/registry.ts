@@ -350,8 +350,10 @@ import {
   cloudwatchGetLogEventsTool,
   cloudwatchGetMetricStatisticsTool,
   cloudwatchListMetricsTool,
+  cloudwatchMuteAlarmTool,
   cloudwatchPutMetricDataTool,
   cloudwatchQueryLogsTool,
+  cloudwatchUnmuteAlarmTool,
 } from '@/tools/cloudwatch'
 import {
   confluenceAddLabelTool,
@@ -643,9 +645,12 @@ import {
 } from '@/tools/fathom'
 import {
   fileAppendTool,
+  fileFetchTool,
+  fileGetTool,
   fileParserV2Tool,
   fileParserV3Tool,
   fileParseTool,
+  fileReadTool,
   fileWriteTool,
 } from '@/tools/file'
 import {
@@ -1902,6 +1907,19 @@ import {
   pagerdutyUpdateIncidentTool,
 } from '@/tools/pagerduty'
 import { parallelDeepResearchTool, parallelExtractTool, parallelSearchTool } from '@/tools/parallel'
+import {
+  pdlAutocompleteTool,
+  pdlBulkCompanyEnrichTool,
+  pdlBulkPersonEnrichTool,
+  pdlCleanCompanyTool,
+  pdlCleanLocationTool,
+  pdlCleanSchoolTool,
+  pdlCompanyEnrichTool,
+  pdlCompanySearchTool,
+  pdlPersonEnrichTool,
+  pdlPersonIdentifyTool,
+  pdlPersonSearchTool,
+} from '@/tools/peopledatalabs'
 import { perplexityChatTool, perplexitySearchTool } from '@/tools/perplexity'
 import {
   pineconeFetchTool,
@@ -3200,6 +3218,9 @@ export const tools: Record<string, ToolConfig> = {
   file_parser_v2: fileParserV2Tool,
   file_parser_v3: fileParserV3Tool,
   file_append: fileAppendTool,
+  file_fetch: fileFetchTool,
+  file_get: fileGetTool,
+  file_read: fileReadTool,
   file_write: fileWriteTool,
   firecrawl_scrape: firecrawlScrapeTool,
   firecrawl_search: firecrawlSearchTool,
@@ -3798,8 +3819,10 @@ export const tools: Record<string, ToolConfig> = {
   cloudwatch_get_log_events: cloudwatchGetLogEventsTool,
   cloudwatch_get_metric_statistics: cloudwatchGetMetricStatisticsTool,
   cloudwatch_list_metrics: cloudwatchListMetricsTool,
+  cloudwatch_mute_alarm: cloudwatchMuteAlarmTool,
   cloudwatch_put_metric_data: cloudwatchPutMetricDataTool,
   cloudwatch_query_logs: cloudwatchQueryLogsTool,
+  cloudwatch_unmute_alarm: cloudwatchUnmuteAlarmTool,
   crowdstrike_get_sensor_aggregates: crowdstrikeGetSensorAggregatesTool,
   crowdstrike_get_sensor_details: crowdstrikeGetSensorDetailsTool,
   crowdstrike_query_sensors: crowdstrikeQuerySensorsTool,
@@ -4423,6 +4446,17 @@ export const tools: Record<string, ToolConfig> = {
   google_slides_create_table: googleSlidesCreateTableTool,
   google_slides_create_shape: googleSlidesCreateShapeTool,
   google_slides_insert_text: googleSlidesInsertTextTool,
+  pdl_person_enrich: pdlPersonEnrichTool,
+  pdl_person_search: pdlPersonSearchTool,
+  pdl_person_identify: pdlPersonIdentifyTool,
+  pdl_bulk_person_enrich: pdlBulkPersonEnrichTool,
+  pdl_company_enrich: pdlCompanyEnrichTool,
+  pdl_company_search: pdlCompanySearchTool,
+  pdl_bulk_company_enrich: pdlBulkCompanyEnrichTool,
+  pdl_clean_company: pdlCleanCompanyTool,
+  pdl_clean_location: pdlCleanLocationTool,
+  pdl_clean_school: pdlCleanSchoolTool,
+  pdl_autocomplete: pdlAutocompleteTool,
   perplexity_chat: perplexityChatTool,
   perplexity_search: perplexitySearchTool,
   profound_bot_logs: profoundBotLogsTool,

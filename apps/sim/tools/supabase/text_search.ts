@@ -1,3 +1,4 @@
+import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
 import type { SupabaseTextSearchParams, SupabaseTextSearchResponse } from '@/tools/supabase/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -74,11 +75,12 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
 
   request: {
     url: (params) => {
+      const tableValidation = validateDatabaseIdentifier(params.table, 'table')
+      if (!tableValidation.isValid) throw new Error(tableValidation.error)
       const searchType = params.searchType || 'websearch'
       const language = params.language || 'english'
 
-      // Build the text search filter
-      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=*`
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=*`
 
       // Map search types to PostgREST operators
       // plfts = plainto_tsquery (natural language), phfts = phraseto_tsquery, wfts = websearch_to_tsquery

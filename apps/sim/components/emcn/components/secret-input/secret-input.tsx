@@ -25,7 +25,7 @@
 import * as React from 'react'
 import { Input, type InputProps } from '../input/input'
 
-export interface SecretInputProps
+interface SecretInputProps
   extends Omit<InputProps, 'type' | 'value' | 'onChange' | 'defaultValue'> {
   /** Current value. Rendered as bullets when the input is not focused. */
   value: string

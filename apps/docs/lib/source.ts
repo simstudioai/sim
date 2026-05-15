@@ -1,5 +1,5 @@
 import { createElement, Fragment } from 'react'
-import { type InferPageType, loader, multiple } from 'fumadocs-core/source'
+import { loader, multiple } from 'fumadocs-core/source'
 import type { DocData, DocMethods } from 'fumadocs-mdx/runtime/types'
 import { openapiSource } from 'fumadocs-openapi/server'
 import { docs } from '@/.source/server'
@@ -99,5 +99,3 @@ export type PageData = DocData &
     description?: string
     full?: boolean
   }
-
-export type Page = InferPageType<typeof source>

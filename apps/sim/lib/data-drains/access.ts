@@ -6,7 +6,7 @@ import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled, isDataDrainsEnabled } from '@/lib/core/config/feature-flags'
 
-export interface DrainAccessSession {
+interface DrainAccessSession {
   user: {
     id: string
     name?: string | null

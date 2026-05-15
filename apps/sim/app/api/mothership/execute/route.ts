@@ -10,6 +10,7 @@ import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { buildMothershipToolsForRequest } from '@/lib/mothership/settings/runtime'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
@@ -50,6 +51,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       chatId,
       messageId: providedMessageId,
       requestId: providedRequestId,
+      fileAttachments,
       workflowId,
       executionId,
     } = validation.data.body
@@ -65,11 +67,19 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workflowId,
       executionId,
     })
-    const [workspaceContext, integrationTools, userPermission] = await Promise.all([
-      generateWorkspaceContext(workspaceId, userId),
-      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-      getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
-    ])
+    const [workspaceContext, integrationTools, mothershipToolRuntime, userPermission] =
+      await Promise.all([
+        generateWorkspaceContext(workspaceId, userId),
+        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+        buildMothershipToolsForRequest({ workspaceId, userId }),
+        getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
+      ])
+    const workspaceContextWithMothershipTools = [
+      workspaceContext,
+      mothershipToolRuntime.catalogContext,
+    ]
+      .filter(Boolean)
+      .join('\n\n')
 
     const requestPayload: Record<string, unknown> = {
       messages,
@@ -79,8 +89,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       mode: 'agent',
       messageId,
       isHosted: true,
-      workspaceContext,
+      workspaceContext: workspaceContextWithMothershipTools,
+      ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
+      ...(mothershipToolRuntime.tools.length > 0
+        ? { mothershipTools: mothershipToolRuntime.tools }
+        : {}),
       ...(userPermission ? { userPermission } : {}),
     }
 
@@ -159,6 +173,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({
         content: result.content,
         model: 'mothership',
+        conversationId: effectiveChatId,
         tokens: result.usage
           ? {
               prompt: result.usage.prompt,

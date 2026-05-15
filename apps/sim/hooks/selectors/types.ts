@@ -90,6 +90,7 @@ export interface SelectorContext {
   awsSecretAccessKey?: string
   awsRegion?: string
   logGroupName?: string
+  mcpServerId?: string
 }
 
 export interface SelectorQueryArgs {
@@ -105,7 +106,7 @@ export interface SelectorPage {
   nextCursor?: string
 }
 
-export interface SelectorPageArgs extends SelectorQueryArgs {
+interface SelectorPageArgs extends SelectorQueryArgs {
   cursor?: string
 }
 

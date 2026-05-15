@@ -1,11 +1,11 @@
 ---
 title: Data Drains
-description: Continuously export workflow logs, audit logs, and Mothership data to your own S3 bucket or HTTPS endpoint on a schedule
+description: Continuously export workflow logs, audit logs, and Mothership data to your own object store, data warehouse, observability platform, or HTTPS endpoint on a schedule
 ---
 
 import { FAQ } from '@/components/ui/faq'
 
-Data Drains let organization owners and admins on Enterprise plans continuously export Sim data to a destination they control — a customer-owned S3 bucket or an HTTPS webhook. A drain runs on a schedule, picks up only new rows since its last successful run, and writes them as NDJSON to the destination. Viewing drain configuration and run history is restricted to owners and admins as well, since destinations expose internal bucket names and webhook URLs.
+Data Drains let organization owners and admins on Enterprise plans continuously export Sim data to a destination they control — a customer-owned S3 bucket, Google Cloud Storage bucket, Azure Blob container, BigQuery table, Snowflake table, Datadog logs intake, or an HTTPS webhook. A drain runs on a schedule, picks up only new rows since its last successful run, and writes them to the destination. Viewing drain configuration and run history is restricted to owners and admins as well, since destinations expose internal bucket names, table identifiers, and webhook URLs.
 
 Drains are independent of [Data Retention](/enterprise/data-retention) but designed to compose with it — see [Pairing with Data Retention](#pairing-with-data-retention) below.
 
@@ -14,6 +14,10 @@ Drains are independent of [Data Retention](/enterprise/data-retention) but desig
 ## Setup
 
 Go to **Settings → Enterprise → Data Drains** in your workspace, then click **New drain**.
+
+![Data Drains settings page showing two configured drains — one exporting workflow logs to Amazon S3 daily, another exporting Copilot chats to an HTTPS webhook hourly](/static/enterprise/data-drains-list.png)
+
+![New data drain dialog with fields for name, source, cadence, destination, and S3 credentials](/static/enterprise/data-drains-new.png)
 
 Each drain has four pieces:
 
@@ -62,6 +66,62 @@ Object keys are deterministic:
 ```
 
 Objects are written with `AES256` server-side encryption.
+
+### Google Cloud Storage
+
+Writes one NDJSON object per delivered chunk to your GCS bucket.
+
+- **Bucket** — the bucket name. Must already exist; Sim does not create buckets.
+- **Prefix** *(optional)* — folder path inside the bucket. Trailing slash optional.
+- **Service account JSON key** — paste the full JSON key for a service account with `storage.objects.create` (and `storage.objects.delete` if you want "Test connection" to clean up its probe). Sim authenticates via OAuth2 service-account JWT and uploads through the GCS JSON API.
+
+Object names follow the same `{prefix}/{source}/{drainId}/{yyyy}/{mm}/{dd}/{runId}-{seq}.ndjson` layout as S3. Object metadata mirrors the S3 destination's `sim-*` keys via `x-goog-meta-*` headers.
+
+### Azure Blob Storage
+
+Writes one NDJSON block blob per delivered chunk to your container.
+
+- **Account name** — your storage account (3–24 lowercase chars).
+- **Container** — must already exist; Sim does not create containers.
+- **Prefix** *(optional)* — folder path inside the container.
+- **Account key** — a storage account access key with write access to the container.
+
+Blob names follow the same `{prefix}/{source}/{drainId}/{yyyy}/{mm}/{dd}/{runId}-{seq}.ndjson` layout. The `sim-*` metadata is exposed as Azure blob metadata (collapsed to lowercase per Azure's identifier rules).
+
+For sovereign clouds, set **Endpoint suffix** to `blob.core.usgovcloudapi.net` (US Gov), `blob.core.chinacloudapi.cn` (China), or `blob.core.cloudapi.de` (Germany).
+
+### Google BigQuery
+
+Streams each row into a target table via the `tabledata.insertAll` API, with per-row insertId dedup.
+
+- **Project ID** — your GCP project (supports domain-scoped IDs like `example.com:my-project`).
+- **Dataset ID / Table ID** — must already exist; Sim does not create tables. The table schema must accommodate the source's row shape (one column per top-level field, or a single `JSON`/`STRING` column with the rest as `ignoreUnknownValues`).
+- **Service account JSON key** — needs `roles/bigquery.dataEditor` (insert) and `roles/bigquery.metadataViewer` (for the `tables.get` probe used by "Test connection"). Sim authenticates via OAuth2 service-account JWT.
+
+Each row is sent with an `insertId` of `{drainId}-{runId}-{sequence}-{index}`. BigQuery dedupes inserts with the same `insertId` for ~60 seconds, so retries inside that window won't duplicate. If a chunk reports partial failure (`insertErrors`), the run fails with the offending row indices and an outer-driver retry may duplicate rows that already succeeded — the dispatcher's bounded retry minimizes this risk. Enforced per-request limits: 10 MB body, 50,000 rows.
+
+### Snowflake
+
+Inserts each row into a target VARIANT column via the Snowflake SQL API v2 with key-pair JWT auth.
+
+- **Account** — the Snowflake account identifier. Preferred form is `<orgname>-<acctname>` (no dots). Legacy `<locator>.<region>.<cloud>` is also accepted.
+- **User / Warehouse / Database / Schema / Table** — must already exist. The user needs `INSERT` privilege on the table and `USAGE` on the warehouse, database, and schema.
+- **Column** *(optional)* — target VARIANT column name. Defaults to `DATA` (matches Snowflake's unquoted identifier folding).
+- **Role** *(optional)* — Snowflake role to assume.
+- **Private key (PEM)** — PKCS8-encoded RSA private key. Register the matching public key on the Snowflake user via `ALTER USER ... SET RSA_PUBLIC_KEY = '...'`.
+
+Each chunk becomes a single `INSERT INTO "DB"."SCHEMA"."TABLE" ("col") VALUES (PARSE_JSON(?)), ...` with one TEXT binding per row. Identifiers are quoted to preserve case. The destination handles Snowflake's async 202-then-poll pattern transparently. Per-row JSON payloads are capped at 16 MB to match Snowflake's VARIANT limit.
+
+### Datadog Logs
+
+POSTs each row as a log entry to Datadog's v2 logs intake.
+
+- **Site** — your Datadog site: `us1`, `us3`, `us5`, `eu1`, `ap1`, `ap2`, or `gov`.
+- **Service** *(optional)* — value for the reserved `service` field. Defaults to `sim`.
+- **Tags** *(optional)* — comma-separated `ddtags` appended to every entry alongside auto-injected `sim_drain_id:`, `sim_run_id:`, and `sim_source:` tags.
+- **API key** — a Datadog API key (not an Application key) with logs-write permission.
+
+Top-level row fields are auto-indexed as Datadog log attributes. The reserved fields `ddsource`, `service`, `ddtags`, and `message` are always set by Sim and override anything in the row. Payloads above 1 KB are gzip-compressed. Enforced limits match Datadog's intake: 5 MB per request (post-compression), 1000 entries per request, 1 MB per entry.
 
 ### HTTPS Webhook
 

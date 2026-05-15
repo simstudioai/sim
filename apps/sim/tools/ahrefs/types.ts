@@ -2,7 +2,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Common parameters for all Ahrefs tools
-export interface AhrefsBaseParams {
+interface AhrefsBaseParams {
   apiKey: string
   date?: string // Date in YYYY-MM-DD format, defaults to today
 }
@@ -15,7 +15,7 @@ export interface AhrefsDomainRatingParams extends AhrefsBaseParams {
   target: string
 }
 
-export interface AhrefsDomainRatingResult {
+interface AhrefsDomainRatingResult {
   domain_rating: number
   ahrefs_rank: number
 }
@@ -35,7 +35,7 @@ export interface AhrefsBacklinksParams extends AhrefsBaseParams {
   offset?: number
 }
 
-export interface AhrefsBacklink {
+interface AhrefsBacklink {
   urlFrom: string
   urlTo: string
   anchor: string
@@ -57,7 +57,7 @@ export interface AhrefsBacklinksStatsParams extends AhrefsBaseParams {
   mode?: AhrefsTargetMode
 }
 
-export interface AhrefsBacklinksStatsResult {
+interface AhrefsBacklinksStatsResult {
   total: number
   dofollow: number
   nofollow: number
@@ -80,7 +80,7 @@ export interface AhrefsReferringDomainsParams extends AhrefsBaseParams {
   offset?: number
 }
 
-export interface AhrefsReferringDomain {
+interface AhrefsReferringDomain {
   domain: string
   domainRating: number
   backlinks: number
@@ -104,7 +104,7 @@ export interface AhrefsOrganicKeywordsParams extends AhrefsBaseParams {
   offset?: number
 }
 
-export interface AhrefsOrganicKeyword {
+interface AhrefsOrganicKeyword {
   keyword: string
   volume: number
   position: number
@@ -129,7 +129,7 @@ export interface AhrefsTopPagesParams extends AhrefsBaseParams {
   select?: string // Comma-separated list of fields to return (e.g., "url,traffic,keywords,top_keyword,value")
 }
 
-export interface AhrefsTopPage {
+interface AhrefsTopPage {
   url: string
   traffic: number
   keywords: number
@@ -149,7 +149,7 @@ export interface AhrefsKeywordOverviewParams extends AhrefsBaseParams {
   country?: string
 }
 
-export interface AhrefsKeywordOverviewResult {
+interface AhrefsKeywordOverviewResult {
   keyword: string
   searchVolume: number
   keywordDifficulty: number
@@ -174,7 +174,7 @@ export interface AhrefsBrokenBacklinksParams extends AhrefsBaseParams {
   offset?: number
 }
 
-export interface AhrefsBrokenBacklink {
+interface AhrefsBrokenBacklink {
   urlFrom: string
   urlTo: string
   httpCode: number

@@ -21,8 +21,9 @@
 .idea/
 *.tmproj
 .vscode/
-# Examples directory (included in chart but ignored during packaging)
-examples/
-# Test files
-*_test.yaml
-test/
+# Repo tooling — not part of the chart artifact (anchored to chart root)
+/.claude/
+# Examples — published in-repo, not in the packaged chart
+/examples/
+# Unit-test suites (helm-unittest) — distinct from templates/tests/ which IS shipped
+/tests/

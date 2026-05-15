@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineRouteContract } from '@/lib/api/contracts/types'
+import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import type {
   CsvHeaderMapping,
   Filter,
@@ -15,7 +15,7 @@ import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const domainObjectSchema = <T>() => z.custom<T>(isRecord)
+export const domainObjectSchema = <T>() => z.custom<T>(isRecord)
 
 /**
  * Column types are a fixed enum derived from `COLUMN_TYPES` so callers cannot
@@ -330,6 +330,7 @@ export const listTablesContract = defineRouteContract({
     ),
   },
 })
+export type ListTablesResponse = ContractJsonResponse<typeof listTablesContract>
 
 export const createTableContract = defineRouteContract({
   method: 'POST',
@@ -356,6 +357,7 @@ export const getTableContract = defineRouteContract({
     schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),
   },
 })
+export type GetTableResponse = ContractJsonResponse<typeof getTableContract>
 
 export const renameTableContract = defineRouteContract({
   method: 'PATCH',
@@ -385,7 +387,7 @@ export const restoreTableContract = defineRouteContract({
   params: tableIdParamsSchema,
   response: {
     mode: 'json',
-    schema: z.object({ success: z.literal(true) }),
+    schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),
   },
 })
 
@@ -912,3 +914,21 @@ export type RunColumnBodyInput = z.input<typeof runColumnBodySchema>
 /** Shared `runMode` union — used by every UI / hook / Mothership site that
  *  builds a run-column payload. Single source of truth for the literal pair. */
 export type RunMode = NonNullable<RunColumnBodyInput['runMode']>
+
+export const tableEventStreamQuerySchema = z.object({
+  from: z.preprocess((value) => {
+    if (typeof value !== 'string') return 0
+    const parsed = Number.parseInt(value, 10)
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
+  }, z.number().int().min(0)),
+})
+
+export const tableEventStreamContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/events/stream',
+  params: tableIdParamsSchema,
+  query: tableEventStreamQuerySchema,
+  response: {
+    mode: 'stream',
+  },
+})

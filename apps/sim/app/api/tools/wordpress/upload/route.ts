@@ -11,6 +11,7 @@ import {
   processSingleFileToUserFile,
 } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +25,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized WordPress upload attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -62,7 +63,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    // Process file - convert to UserFile format if needed
     const fileData = validatedData.file
 
     let userFile
@@ -77,6 +77,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: 400 }
       )
     }
+
+    const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+    if (denied) return denied
 
     logger.info(`[${requestId}] Downloading file from storage`, {
       fileName: userFile.name,
@@ -99,7 +102,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    // Use provided filename or fall back to the original file name
     const filename = validatedData.filename || userFile.name
     const mimeType = userFile.type || getMimeTypeFromExtension(getFileExtension(filename))
 
@@ -110,14 +112,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       size: fileBuffer.length,
     })
 
-    // Upload to WordPress using multipart form data
     const formData = new FormData()
-    // Convert Buffer to Uint8Array for Blob compatibility
     const uint8Array = new Uint8Array(fileBuffer)
     const blob = new Blob([uint8Array], { type: mimeType })
     formData.append('file', blob, filename)
 
-    // Add optional metadata
     if (validatedData.title) {
       formData.append('title', validatedData.title)
     }

@@ -7,6 +7,10 @@ export interface CodeExecutionInput {
   sourceCode?: string
   language?: CodeLanguage
   useLocalVM?: boolean
+  /**
+   * Workflow Function blocks pass milliseconds. Copilot/Mothership tool calls pass seconds
+   * and are converted at the request boundary.
+   */
   timeout?: number
   memoryLimit?: number
   outputPath?: string
@@ -23,8 +27,12 @@ export interface CodeExecutionInput {
   contextVariables?: Record<string, unknown>
   _context?: {
     workflowId?: string
+    executionId?: string
+    largeValueExecutionIds?: string[]
+    allowLargeValueWorkflowScope?: boolean
     userId?: string
     workspaceId?: string
+    copilotToolExecution?: boolean
   }
   isCustomTool?: boolean
   _sandboxFiles?: Array<{ path: string; content: string }>

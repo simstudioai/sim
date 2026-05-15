@@ -11,7 +11,7 @@ export interface UsageData {
   copilotCost?: number
 }
 
-export interface UsageLimitData {
+interface UsageLimitData {
   currentLimit: number
   canEdit: boolean
   minimumLimit: number
@@ -41,7 +41,7 @@ export interface SubscriptionData {
 
 export type BillingStatus = 'unknown' | 'ok' | 'warning' | 'exceeded' | 'blocked'
 
-export interface SubscriptionStore {
+interface SubscriptionStore {
   subscriptionData: SubscriptionData | null
   usageLimitData: UsageLimitData | null
   isLoading: boolean

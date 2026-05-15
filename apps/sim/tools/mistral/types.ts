@@ -160,12 +160,12 @@ export interface MistralParserV2Input {
   imageMinSize?: number
 }
 
-export interface MistralOcrUsageInfo {
+interface MistralOcrUsageInfo {
   pagesProcessed: number
   docSizeBytes: number | null
 }
 
-export interface MistralParserMetadata {
+interface MistralParserMetadata {
   jobId: string
   fileType: string
   fileName: string
@@ -178,7 +178,7 @@ export interface MistralParserMetadata {
   processedAt: string
 }
 
-export interface MistralParserOutputData {
+interface MistralParserOutputData {
   content: string
   metadata: MistralParserMetadata
 }
@@ -187,7 +187,7 @@ export interface MistralParserOutput extends ToolResponse {
   output: MistralParserOutputData
 }
 
-export interface MistralOcrImage {
+interface MistralOcrImage {
   id: string
   top_left_x: number
   top_left_y: number
@@ -196,13 +196,13 @@ export interface MistralOcrImage {
   image_base64?: string
 }
 
-export interface MistralOcrDimensions {
+interface MistralOcrDimensions {
   dpi: number
   height: number
   width: number
 }
 
-export interface MistralOcrPage {
+interface MistralOcrPage {
   index: number
   markdown: string
   images: MistralOcrImage[]
@@ -213,7 +213,7 @@ export interface MistralOcrPage {
   footer: string | null
 }
 
-export interface MistralOcrUsageInfoRaw {
+interface MistralOcrUsageInfoRaw {
   pages_processed: number
   doc_size_bytes: number | null
 }

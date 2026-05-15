@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react'
 import { ArrowUp } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
@@ -64,8 +65,14 @@ export function FooterCTA() {
 
       <div className='mt-8 w-full max-w-[42rem]'>
         <div
+          role='group'
+          aria-label='Landing prompt input'
           className='cursor-text rounded-[20px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg-surface)] px-2.5 py-2'
           onClick={() => textareaRef.current?.focus()}
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return
+            handleKeyboardActivation(event, () => textareaRef.current?.focus())
+          }}
         >
           <textarea
             ref={textareaRef}
@@ -76,7 +83,7 @@ export function FooterCTA() {
             aria-label='Describe what you want to build'
             placeholder={animatedPlaceholder}
             rows={2}
-            className='m-0 box-border min-h-[48px] w-full resize-none border-0 bg-transparent px-1 py-1 font-body text-[var(--landing-text)] text-base leading-[24px] tracking-[-0.015em] caret-white outline-none placeholder:font-[380] placeholder:text-[var(--landing-text-muted)] focus-visible:ring-0'
+            className='m-0 box-border min-h-[48px] w-full resize-none border-0 bg-transparent p-1 font-body text-[var(--landing-text)] text-base leading-[24px] tracking-[-0.015em] caret-white outline-none placeholder:font-[380] placeholder:text-[var(--landing-text-muted)] focus-visible:ring-0'
             style={{ maxHeight: `${MAX_HEIGHT}px` }}
           />
           <div className='flex items-center justify-end'>

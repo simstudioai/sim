@@ -15,6 +15,7 @@ import {
   downloadFileFromStorage,
   resolveInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { convertUsageMetadata, extractTextContent } from '@/providers/google/utils'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +28,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized Vision analyze attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -87,6 +88,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       let base64 = userFile.base64
       let bufferLength = 0
       if (!base64) {
+        const denied = await assertToolFileAccess(
+          userFile.key,
+          authResult.userId,
+          requestId,
+          logger
+        )
+        if (denied) return denied
         const buffer = await downloadFileFromStorage(userFile, requestId, logger)
         base64 = buffer.toString('base64')
         bufferLength = buffer.length

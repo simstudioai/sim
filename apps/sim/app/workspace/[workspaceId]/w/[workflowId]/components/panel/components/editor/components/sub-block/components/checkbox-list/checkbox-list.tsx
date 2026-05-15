@@ -63,7 +63,7 @@ function CheckboxItem({ blockId, option, isPreview, subBlockValues, disabled }: 
       {option.description && (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Info className='h-[14px] w-[14px] cursor-default text-[var(--text-muted)]' />
+            <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
           </Tooltip.Trigger>
           <Tooltip.Content side='top' align='start' className='max-w-xs'>
             <p>{option.description}</p>

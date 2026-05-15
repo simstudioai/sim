@@ -9,6 +9,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
@@ -82,6 +83,7 @@ export function RenameDocumentModal({
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='sm'>
         <ModalHeader>Rename Document</ModalHeader>
+        <ModalDescription className='sr-only'>Enter a new name for this document</ModalDescription>
         <form onSubmit={handleSubmit} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody className='!pb-4'>
             <div className='space-y-3'>

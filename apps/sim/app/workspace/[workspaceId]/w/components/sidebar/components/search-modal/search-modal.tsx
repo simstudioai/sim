@@ -34,20 +34,34 @@ import {
   WorkflowsGroup,
   WorkspacesGroup,
 } from './components/search-groups'
-import type { PageItem, SearchModalProps, TaskItem, WorkflowItem, WorkspaceItem } from './utils'
+import type {
+  FileItem,
+  PageItem,
+  SearchModalProps,
+  TaskItem,
+  WorkflowItem,
+  WorkspaceItem,
+} from './utils'
 import { filterAndSort } from './utils'
+
+const EMPTY_WORKFLOWS: WorkflowItem[] = []
+const EMPTY_WORKSPACES: WorkspaceItem[] = []
+const EMPTY_TASKS: TaskItem[] = []
+const EMPTY_TABLES: TaskItem[] = []
+const EMPTY_FILES: FileItem[] = []
+const EMPTY_KNOWLEDGE_BASES: TaskItem[] = []
 
 export type { SearchModalProps } from './utils'
 
 export function SearchModal({
   open,
   onOpenChange,
-  workflows = [],
-  workspaces = [],
-  tasks = [],
-  tables = [],
-  files = [],
-  knowledgeBases = [],
+  workflows = EMPTY_WORKFLOWS,
+  workspaces = EMPTY_WORKSPACES,
+  tasks = EMPTY_TASKS,
+  tables = EMPTY_TABLES,
+  files = EMPTY_FILES,
+  knowledgeBases = EMPTY_KNOWLEDGE_BASES,
   isOnWorkflowPage = false,
 }: SearchModalProps) {
   const params = useParams()
@@ -282,7 +296,7 @@ export function SearchModal({
   )
 
   const handleFileSelect = useCallback(
-    (item: TaskItem) => {
+    (item: FileItem) => {
       routerRef.current.push(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'file',
@@ -394,7 +408,12 @@ export function SearchModal({
     [tables, deferredSearch]
   )
   const filteredFiles = useMemo(
-    () => filterAndSort(files, (f) => `${f.name} file-${f.id}`, deferredSearch),
+    () =>
+      filterAndSort(
+        files,
+        (f) => `${f.name} ${f.folderPath?.join(' / ') ?? ''} file-${f.id}`,
+        deferredSearch
+      ),
     [files, deferredSearch]
   )
   const filteredKnowledgeBases = useMemo(
@@ -425,6 +444,7 @@ export function SearchModal({
   return createPortal(
     <>
       <div
+        role='presentation'
         className={cn(
           'fixed inset-0 z-40 transition-opacity duration-100',
           open ? 'opacity-100' : 'pointer-events-none opacity-0'
@@ -450,10 +470,9 @@ export function SearchModal({
       >
         <Command label='Search' shouldFilter={false}>
           <div className='mx-2 mt-2 mb-1 flex items-center gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
-            <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-muted)]' />
+            <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
             <Command.Input
               ref={inputRef}
-              autoFocus
               onValueChange={handleSearchChange}
               placeholder='Search anything...'
               className='w-full bg-transparent py-1.5 font-base text-[var(--text-primary)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'

@@ -14,6 +14,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
@@ -212,10 +213,13 @@ export function EditConnectorModal({
       <ModalContent size='md'>
         <ModalHeader>
           <div className='flex items-center gap-2'>
-            {Icon && <Icon className='h-5 w-5' />}
+            {Icon && <Icon className='size-5' />}
             Edit {displayName}
           </div>
         </ModalHeader>
+        <ModalDescription className='sr-only'>
+          Configure settings and manage documents for this connector
+        </ModalDescription>
 
         <ModalTabs value={activeTab} onValueChange={setActiveTab}>
           <ModalTabsList>
@@ -256,8 +260,8 @@ export function EditConnectorModal({
             <Button variant='primary' onClick={handleSave} disabled={!hasChanges || isSaving}>
               {isSaving ? (
                 <>
-                  <Loader className='mr-1.5 h-3.5 w-3.5' animate />
-                  Saving...
+                  <Loader className='mr-1.5 size-3.5' animate />
+                  Saving…
                 </>
               ) : (
                 'Save'
@@ -322,10 +326,10 @@ function SettingsTab({
                   <Tooltip.Trigger asChild>
                     <button
                       type='button'
-                      className='flex h-[18px] w-[18px] items-center justify-center rounded-[3px] text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
+                      className='flex size-[18px] items-center justify-center rounded-[3px] text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
                       onClick={() => onToggleCanonicalMode(canonicalId)}
                     >
-                      <ArrowLeftRight className='h-[12px] w-[12px]' />
+                      <ArrowLeftRight className='size-[12px]' />
                     </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>
@@ -453,7 +457,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                       rel='noopener noreferrer'
                       className='flex-shrink-0 text-[var(--text-muted)] hover-hover:text-[var(--text-secondary)]'
                     >
-                      <ExternalLink className='h-3 w-3' />
+                      <ExternalLink className='size-3' />
                     </a>
                   )}
                 </div>
@@ -470,7 +474,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                 >
                   {doc.userExcluded ? (
                     <>
-                      <RotateCcw className='mr-1 h-3 w-3' />
+                      <RotateCcw className='mr-1 size-3' />
                       Restore
                     </>
                   ) : (

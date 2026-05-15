@@ -8,7 +8,7 @@ import {
   FolderLockedError,
   WorkflowLockedError,
 } from '@sim/workflow-authz'
-import { and, eq, isNull, ne, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateWorkflowContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
@@ -16,7 +16,7 @@ import { AuthType, checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/aut
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performDeleteWorkflow } from '@/lib/workflows/orchestration'
+import { performDeleteWorkflow, performUpdateWorkflow } from '@/lib/workflows/orchestration'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
@@ -338,78 +338,33 @@ export const PUT = withRouteHandler(
         await assertFolderMutable(updates.folderId)
       }
 
-      const updateData: Record<string, unknown> = { updatedAt: new Date() }
-      if (updates.name !== undefined) updateData.name = updates.name
-      if (updates.description !== undefined) updateData.description = updates.description
-      if (updates.color !== undefined) updateData.color = updates.color
-      if (updates.folderId !== undefined) updateData.folderId = updates.folderId
-      if (updates.sortOrder !== undefined) updateData.sortOrder = updates.sortOrder
-      if (updates.locked !== undefined) updateData.locked = updates.locked
-
-      if (updates.name !== undefined || updates.folderId !== undefined) {
-        const targetName = updates.name ?? workflowData.name
-        const targetFolderId =
-          updates.folderId !== undefined ? updates.folderId : workflowData.folderId
-
-        if (!workflowData.workspaceId) {
-          logger.error(`[${requestId}] Workflow ${workflowId} has no workspaceId`)
-          return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-        }
-
-        const conditions = [
-          eq(workflow.workspaceId, workflowData.workspaceId),
-          isNull(workflow.archivedAt),
-          eq(workflow.name, targetName),
-          ne(workflow.id, workflowId),
-        ]
-
-        if (targetFolderId) {
-          conditions.push(eq(workflow.folderId, targetFolderId))
-        } else {
-          conditions.push(isNull(workflow.folderId))
-        }
-
-        const [duplicate] = await db
-          .select({ id: workflow.id })
-          .from(workflow)
-          .where(and(...conditions))
-          .limit(1)
-
-        if (duplicate) {
-          logger.warn(
-            `[${requestId}] Duplicate workflow name "${targetName}" in folder ${targetFolderId ?? 'root'}`
-          )
-          return NextResponse.json(
-            { error: `A workflow named "${targetName}" already exists in this folder` },
-            { status: 409 }
-          )
-        }
+      if (!workflowData.workspaceId) {
+        logger.error(`[${requestId}] Workflow ${workflowId} has no workspaceId`)
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
       }
 
-      const [updatedWorkflow] = await db
-        .update(workflow)
-        .set(updateData)
-        .where(eq(workflow.id, workflowId))
-        .returning({
-          id: workflow.id,
-          name: workflow.name,
-          description: workflow.description,
-          color: workflow.color,
-          workspaceId: workflow.workspaceId,
-          folderId: workflow.folderId,
-          sortOrder: workflow.sortOrder,
-          locked: workflow.locked,
-          createdAt: workflow.createdAt,
-          updatedAt: workflow.updatedAt,
-          archivedAt: workflow.archivedAt,
-        })
+      const result = await performUpdateWorkflow({
+        workflowId,
+        userId,
+        workspaceId: workflowData.workspaceId,
+        currentName: workflowData.name,
+        currentFolderId: workflowData.folderId,
+        ...updates,
+        requestId,
+      })
+
+      if (!result.success || !result.workflow) {
+        const status =
+          result.errorCode === 'not_found' ? 404 : result.errorCode === 'conflict' ? 409 : 500
+        return NextResponse.json({ error: result.error }, { status })
+      }
 
       const elapsed = Date.now() - startTime
       logger.info(`[${requestId}] Successfully updated workflow ${workflowId} in ${elapsed}ms`, {
-        updates: updateData,
+        updates,
       })
 
-      return NextResponse.json({ workflow: updatedWorkflow }, { status: 200 })
+      return NextResponse.json({ workflow: result.workflow }, { status: 200 })
     } catch (error: any) {
       if (error instanceof WorkflowLockedError || error instanceof FolderLockedError) {
         return NextResponse.json({ error: error.message }, { status: error.status })

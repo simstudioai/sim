@@ -269,6 +269,9 @@ export function serializeConnectorOverview(connectors: SerializableConnectorConf
 export function serializeFileMeta(file: {
   id: string
   name: string
+  folderId?: string | null
+  folderPath?: string | null
+  vfsPath?: string
   contentType: string
   size: number
   uploadedAt: Date
@@ -277,6 +280,9 @@ export function serializeFileMeta(file: {
     {
       id: file.id,
       name: file.name,
+      folderId: file.folderId || undefined,
+      folderPath: file.folderPath || undefined,
+      vfsPath: file.vfsPath,
       contentType: file.contentType,
       size: file.size,
       uploadedAt: file.uploadedAt.toISOString(),

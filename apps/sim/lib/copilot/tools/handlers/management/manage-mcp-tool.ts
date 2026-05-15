@@ -4,9 +4,11 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { validateMcpDomain } from '@/lib/mcp/domain-check'
-import { mcpService } from '@/lib/mcp/service'
-import { generateMcpServerId } from '@/lib/mcp/utils'
+import {
+  performCreateMcpServer,
+  performDeleteMcpServer,
+  performUpdateMcpServer,
+} from '@/lib/mcp/orchestration'
 
 const logger = createLogger('CopilotToolExecutor')
 
@@ -87,62 +89,34 @@ export async function executeManageMcpTool(
         return { success: false, error: "config.name and config.url are required for 'add'" }
       }
 
-      validateMcpDomain(config.url)
-
-      const serverId = generateMcpServerId(workspaceId, config.url)
-
-      const [existing] = await db
-        .select({ id: mcpServers.id, deletedAt: mcpServers.deletedAt })
-        .from(mcpServers)
-        .where(and(eq(mcpServers.id, serverId), eq(mcpServers.workspaceId, workspaceId)))
-        .limit(1)
-
-      if (existing) {
-        await db
-          .update(mcpServers)
-          .set({
-            name: config.name,
-            transport: config.transport || 'streamable-http',
-            url: config.url,
-            headers: config.headers || {},
-            timeout: config.timeout || 30000,
-            enabled: config.enabled !== false,
-            connectionStatus: 'connected',
-            lastConnected: new Date(),
-            updatedAt: new Date(),
-            deletedAt: null,
-          })
-          .where(eq(mcpServers.id, serverId))
-      } else {
-        await db.insert(mcpServers).values({
-          id: serverId,
-          workspaceId,
-          createdBy: context.userId,
-          name: config.name,
-          description: '',
-          transport: config.transport || 'streamable-http',
-          url: config.url,
-          headers: config.headers || {},
-          timeout: config.timeout || 30000,
-          retries: 3,
-          enabled: config.enabled !== false,
-          connectionStatus: 'connected',
-          lastConnected: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
+      const result = await performCreateMcpServer({
+        workspaceId,
+        userId: context.userId,
+        name: config.name,
+        description: '',
+        transport: config.transport || 'streamable-http',
+        url: config.url,
+        headers: config.headers,
+        timeout: config.timeout,
+        retries: 3,
+        enabled: config.enabled,
+        source: 'tool_input',
+      })
+      if (!result.success || !result.serverId) {
+        return {
+          success: false,
+          error: result.error || `Failed to add MCP server "${config.name}"`,
+        }
       }
-
-      await mcpService.clearCache(workspaceId)
 
       return {
         success: true,
         output: {
           success: true,
           operation,
-          serverId,
+          serverId: result.serverId,
           name: config.name,
-          message: existing
+          message: result.updated
             ? `Updated existing MCP server "${config.name}"`
             : `Added MCP server "${config.name}"`,
         },
@@ -158,35 +132,20 @@ export async function executeManageMcpTool(
         return { success: false, error: "'config' is required for 'edit'" }
       }
 
-      if (config.url) {
-        validateMcpDomain(config.url)
-      }
-
-      const updateData: Record<string, unknown> = { updatedAt: new Date() }
-      if (config.name !== undefined) updateData.name = config.name
-      if (config.transport !== undefined) updateData.transport = config.transport
-      if (config.url !== undefined) updateData.url = config.url
-      if (config.headers !== undefined) updateData.headers = config.headers
-      if (config.timeout !== undefined) updateData.timeout = config.timeout
-      if (config.enabled !== undefined) updateData.enabled = config.enabled
-
-      const [updated] = await db
-        .update(mcpServers)
-        .set(updateData)
-        .where(
-          and(
-            eq(mcpServers.id, params.serverId),
-            eq(mcpServers.workspaceId, workspaceId),
-            isNull(mcpServers.deletedAt)
-          )
-        )
-        .returning()
-
-      if (!updated) {
+      const result = await performUpdateMcpServer({
+        workspaceId,
+        userId: context.userId,
+        serverId: params.serverId,
+        name: config.name,
+        transport: config.transport,
+        url: config.url,
+        headers: config.headers,
+        timeout: config.timeout,
+        enabled: config.enabled,
+      })
+      if (!result.success || !result.server) {
         return { success: false, error: `MCP server not found: ${params.serverId}` }
       }
-
-      await mcpService.clearCache(workspaceId)
 
       return {
         success: true,
@@ -194,8 +153,8 @@ export async function executeManageMcpTool(
           success: true,
           operation,
           serverId: params.serverId,
-          name: updated.name,
-          message: `Updated MCP server "${updated.name}"`,
+          name: result.server.name,
+          message: `Updated MCP server "${result.server.name}"`,
         },
       }
     }
@@ -205,16 +164,15 @@ export async function executeManageMcpTool(
         return { success: false, error: "'serverId' is required for 'delete'" }
       }
 
-      const [deleted] = await db
-        .delete(mcpServers)
-        .where(and(eq(mcpServers.id, params.serverId), eq(mcpServers.workspaceId, workspaceId)))
-        .returning()
-
-      if (!deleted) {
+      const result = await performDeleteMcpServer({
+        workspaceId,
+        userId: context.userId,
+        serverId: params.serverId,
+        source: 'tool_input',
+      })
+      if (!result.success || !result.server) {
         return { success: false, error: `MCP server not found: ${params.serverId}` }
       }
-
-      await mcpService.clearCache(workspaceId)
 
       return {
         success: true,
@@ -222,7 +180,7 @@ export async function executeManageMcpTool(
           success: true,
           operation,
           serverId: params.serverId,
-          message: `Deleted MCP server "${deleted.name}"`,
+          message: `Deleted MCP server "${result.server.name}"`,
         },
       }
     }

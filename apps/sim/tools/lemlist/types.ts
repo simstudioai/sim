@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface LemlistBaseParams {
+interface LemlistBaseParams {
   apiKey: string
 }
 
@@ -13,7 +13,7 @@ export interface LemlistGetActivitiesParams extends LemlistBaseParams {
   offset?: number
 }
 
-export interface LemlistActivity {
+interface LemlistActivity {
   _id: string
   type: string
   leadId: string
@@ -34,7 +34,7 @@ export interface LemlistGetLeadParams extends LemlistBaseParams {
   leadIdentifier: string
 }
 
-export interface LemlistLead {
+interface LemlistLead {
   _id: string
   email: string
   firstName: string | null

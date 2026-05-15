@@ -10,8 +10,9 @@ vi.mock('@/stores/workflows/utils', () => ({
   mergeSubblockState: vi.fn(),
 }))
 
+import { UNDO_REDO_OPERATIONS } from '@sim/realtime-protocol/constants'
 import { mergeSubblockState } from '@/stores/workflows/utils'
-import { captureLatestEdges, captureLatestSubBlockValues } from './utils'
+import { captureLatestEdges, captureLatestSubBlockValues, createInverseOperation } from './utils'
 
 const mockMergeSubblockState = mergeSubblockState as Mock
 
@@ -389,6 +390,60 @@ describe('captureLatestSubBlockValues', () => {
 
     expect(result).toEqual({
       'block-1': { temperature: 0 },
+    })
+  })
+})
+
+describe('createInverseOperation', () => {
+  it('inverts batch subblock updates', () => {
+    const operation = {
+      id: 'op-1',
+      type: UNDO_REDO_OPERATIONS.BATCH_UPDATE_SUBBLOCKS,
+      timestamp: 1,
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      data: {
+        updates: [
+          {
+            blockId: 'block-1',
+            subBlockId: 'prompt',
+            before: 'old',
+            after: 'new',
+          },
+        ],
+        subflowUpdates: [
+          {
+            blockId: 'loop-1',
+            blockType: 'loop',
+            fieldId: 'subflowIterations',
+            before: 2,
+            after: 3,
+          },
+        ],
+      },
+    }
+
+    expect(createInverseOperation(operation)).toEqual({
+      ...operation,
+      data: {
+        updates: [
+          {
+            blockId: 'block-1',
+            subBlockId: 'prompt',
+            before: 'new',
+            after: 'old',
+          },
+        ],
+        subflowUpdates: [
+          {
+            blockId: 'loop-1',
+            blockType: 'loop',
+            fieldId: 'subflowIterations',
+            before: 3,
+            after: 2,
+          },
+        ],
+      },
     })
   })
 })

@@ -34,6 +34,7 @@ export interface TaskMetadata {
   updatedAt: Date
   isActive: boolean
   isUnread: boolean
+  isPinned: boolean
 }
 
 export interface TaskChatHistory {
@@ -56,8 +57,6 @@ export const taskKeys = {
   details: () => [...taskKeys.all, 'detail'] as const,
   detail: (chatId: string | undefined) => [...taskKeys.details(), chatId ?? ''] as const,
 }
-
-type ChatHistorySource = 'copilot' | 'mothership'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -150,30 +149,28 @@ function parseStrictStreamSnapshot(
   return snapshot
 }
 
-function parseChatHistory(value: unknown, source: ChatHistorySource): TaskChatHistory {
-  const responseContext = `Invalid ${source} chat response`
+function parseChatHistory(value: unknown): TaskChatHistory {
+  const responseContext = 'Invalid chat response'
   const chatContext = `${responseContext}: chat`
 
   assertValid(isRecord(value), `${responseContext}: body must be an object`)
   assertValid(isRecord(value.chat), `${chatContext} must be an object`)
 
   const chat = value.chat
-  const activeStreamField = source === 'mothership' ? 'conversationId' : 'activeStreamId'
-  const activeStreamId = chat[activeStreamField]
 
   assertValid(typeof chat.id === 'string', `${chatContext}.id must be a string`)
   assertValid(isNullableString(chat.title), `${chatContext}.title must be a string or null`)
   assertValid(Array.isArray(chat.messages), `${chatContext}.messages must be an array`)
   assertValid(
-    isNullableString(activeStreamId),
-    `${chatContext}.${activeStreamField} must be a string or null`
+    isNullableString(chat.activeStreamId),
+    `${chatContext}.activeStreamId must be a string or null`
   )
 
   return {
     id: chat.id,
     title: chat.title,
     messages: normalizeMessages(chat.messages),
-    activeStreamId,
+    activeStreamId: chat.activeStreamId,
     resources: parseResources(chat.resources, `${chatContext}.resources`),
     streamSnapshot: parseStrictStreamSnapshot(chat.streamSnapshot, `${chatContext}.streamSnapshot`),
   }
@@ -197,6 +194,7 @@ function mapTask(chat: MothershipTask): TaskMetadata {
     isUnread:
       chat.activeStreamId === null &&
       (chat.lastSeenAt === null || updatedAt > new Date(chat.lastSeenAt)),
+    isPinned: chat.pinned,
   }
 }
 
@@ -233,7 +231,7 @@ export async function fetchChatHistory(
       params: { chatId },
       signal,
     })
-    return parseChatHistory(data, 'mothership')
+    return parseChatHistory(data)
   } catch (error) {
     if (!isApiClientError(error)) throw error
     // Fall through to the legacy copilot-shape alias on any HTTP error (typically 404
@@ -251,7 +249,7 @@ export async function fetchChatHistory(
     throw new Error('Failed to load chat')
   }
 
-  return parseChatHistory(await copilotRes.json(), 'copilot')
+  return parseChatHistory(await copilotRes.json())
 }
 
 /**
@@ -542,6 +540,57 @@ export function useMarkTaskUnread(workspaceId?: string) {
   })
 }
 
+async function setTaskPinned({
+  chatId,
+  pinned,
+}: {
+  chatId: string
+  pinned: boolean
+}): Promise<void> {
+  await requestJson(updateMothershipChatContract, {
+    params: { chatId },
+    body: { pinned },
+  })
+}
+
+/**
+ * Pins or unpins a task with optimistic update. Pinned tasks are sorted to
+ * the top of the list by the server; the optimistic reducer preserves that
+ * ordering by partitioning pinned and unpinned tasks while keeping each
+ * partition in its existing order (server returns desc(updatedAt) within).
+ */
+export function useSetTaskPinned(workspaceId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: setTaskPinned,
+    onMutate: async ({ chatId, pinned }) => {
+      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
+      const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+      if (!previousTasks) return { previousTasks: undefined }
+
+      const updated = previousTasks.map((task) =>
+        task.id === chatId ? { ...task, isPinned: pinned } : task
+      )
+      const pinnedTasks = updated.filter((task) => task.isPinned)
+      const unpinnedTasks = updated.filter((task) => !task.isPinned)
+      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [
+        ...pinnedTasks,
+        ...unpinnedTasks,
+      ])
+
+      return { previousTasks }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+    },
+  })
+}
+
 async function createChat(workspaceId: string): Promise<{ id: string }> {
   const { id } = await requestJson(createMothershipChatContract, { body: { workspaceId } })
   return { id }
@@ -563,8 +612,15 @@ export function useCreateTask(workspaceId?: string) {
         updatedAt: new Date(),
         isActive: false,
         isUnread: false,
+        isPinned: false,
       }
-      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [newTask, ...existing])
+      const pinnedCount = existing.findIndex((task) => !task.isPinned)
+      const insertAt = pinnedCount === -1 ? existing.length : pinnedCount
+      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [
+        ...existing.slice(0, insertAt),
+        newTask,
+        ...existing.slice(insertAt),
+      ])
     },
     onSettled: () => {
       if (!workspaceId) return
@@ -601,10 +657,14 @@ export function useForkTask(workspaceId?: string) {
           updatedAt: new Date(),
           isActive: false,
           isUnread: false,
+          isPinned: false,
         }
+        const pinnedCount = existing.findIndex((task) => !task.isPinned)
+        const insertAt = pinnedCount === -1 ? existing.length : pinnedCount
         queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), [
+          ...existing.slice(0, insertAt),
           optimisticTask,
-          ...existing,
+          ...existing.slice(insertAt),
         ])
       }
     },

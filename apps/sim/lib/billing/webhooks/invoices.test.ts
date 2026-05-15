@@ -103,6 +103,7 @@ vi.mock('@react-email/render', () => ({
 import {
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
+  resetUsageForSubscription,
 } from '@/lib/billing/webhooks/invoices'
 
 interface SelectResponse {
@@ -127,6 +128,7 @@ function installSelectResponseQueue() {
       throw new Error('No queued db.select response')
     }
     const builder = {
+      for: vi.fn(() => builder),
       limit: vi.fn(async () => next.limitResult ?? next.whereResult ?? []),
       orderBy: vi.fn(async () => next.limitResult ?? next.whereResult ?? []),
       returning: vi.fn(async () => next.limitResult ?? next.whereResult ?? []),
@@ -222,5 +224,41 @@ describe('invoice billing recovery', () => {
 
     expect(mockUnblockOrgMembers).toHaveBeenCalledWith('org-1', 'payment_failed')
     expect(mockBlockOrgMembers).not.toHaveBeenCalled()
+  })
+
+  it('coordinates org usage reset with owner tracker and organization locks', async () => {
+    queueSelectResponse({ limitResult: [{ userId: 'owner-1' }] })
+    queueSelectResponse({ limitResult: [{ userId: 'owner-1' }] })
+    queueSelectResponse({ limitResult: [{ id: 'org-1' }] })
+    queueSelectResponse({ whereResult: [{ userId: 'owner-1' }, { userId: 'member-1' }] })
+    queueSelectResponse({
+      whereResult: [
+        { userId: 'owner-1', current: '125', currentCopilot: '10' },
+        { userId: 'member-1', current: '75', currentCopilot: '5' },
+      ],
+    })
+    queueSelectResponse({ whereResult: [] })
+    queueSelectResponse({ whereResult: [] })
+
+    await resetUsageForSubscription({ plan: 'team', referenceId: 'org-1' })
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(2)
+    expect(Object.keys(dbChainMockFns.select.mock.calls[0][0] ?? {})).toEqual(['userId'])
+    expect(Object.keys(dbChainMockFns.select.mock.calls[1][0] ?? {})).toEqual(['userId'])
+    expect(Object.keys(dbChainMockFns.select.mock.calls[2][0] ?? {})).toEqual(['id'])
+
+    const statsReset = dbChainMockFns.set.mock.calls[0][0] as Record<string, unknown>
+    expect(statsReset.currentPeriodCost).not.toBe('0')
+    expect(statsReset.currentPeriodCopilotCost).not.toBe('0')
+    expect(statsReset.lastPeriodCost).toMatchObject({
+      toSQL: expect.any(Function),
+    })
+    expect((statsReset.lastPeriodCost as { toSQL: () => { sql: string } }).toSQL().sql).toContain(
+      'CASE'
+    )
+    expect(
+      (statsReset.currentPeriodCost as { toSQL: () => { sql: string } }).toSQL().sql
+    ).toContain('GREATEST')
   })
 })

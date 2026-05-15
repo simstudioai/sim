@@ -33,7 +33,7 @@ interface EnqueueWorkflowOperationArgs {
  * Queues a workflow socket operation so it flows through the standard operation queue,
  * ensuring consistent retries, confirmations, and telemetry.
  */
-export async function enqueueWorkflowOperation({
+async function enqueueWorkflowOperation({
   operation,
   target,
   payload,

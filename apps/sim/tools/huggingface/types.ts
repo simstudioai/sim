@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface HuggingFaceUsage {
+interface HuggingFaceUsage {
   prompt_tokens: number
   completion_tokens: number
   total_tokens: number

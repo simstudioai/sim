@@ -423,7 +423,7 @@ describe('Chat OTP API Route', () => {
       expect(headerSet).toHaveBeenCalledWith('Retry-After', '900')
     })
 
-    it('skips IP rate limit when client IP is unknown', async () => {
+    it('folds spoofed `unknown` client IPs into a single shared bucket', async () => {
       requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce('unknown')
       buildDeploymentSelect()
 
@@ -434,8 +434,11 @@ describe('Chat OTP API Route', () => {
 
       await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
 
-      // Only the email-scoped check should run, not the IP-scoped one
-      expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(1)
+      expect(mockCheckRateLimitDirect).toHaveBeenCalledTimes(2)
+      expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
+        expect.stringMatching(/^chat-otp:ip:.*:unknown$/),
+        expect.any(Object)
+      )
       expect(mockCheckRateLimitDirect).toHaveBeenCalledWith(
         expect.stringContaining('chat-otp:email:'),
         expect.any(Object)

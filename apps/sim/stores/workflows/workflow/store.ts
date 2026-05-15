@@ -26,6 +26,7 @@ import type {
   WorkflowStore,
 } from '@/stores/workflows/workflow/types'
 import {
+  clampParallelBatchSize,
   findAllDescendantNodes,
   generateLoopBlocks,
   generateParallelBlocks,
@@ -995,7 +996,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
               ...block,
               data: {
                 ...block.data,
-                count: Math.max(1, Math.min(1000, count)), // Clamp between 1-1000
+                count: Math.max(1, count),
               },
             },
           }
@@ -1163,7 +1164,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             ...block,
             data: {
               ...block.data,
-              count: Math.max(1, Math.min(20, count)), // Clamp between 1-20
+              count: Math.max(1, count),
             },
           },
         }
@@ -1178,6 +1179,32 @@ export const useWorkflowStore = create<WorkflowStore>()(
         set(newState)
         get().updateLastSaved()
         // Note: Socket.IO handles real-time sync automatically
+      },
+
+      updateParallelBatchSize: (parallelId: string, batchSize: number) => {
+        const block = get().blocks[parallelId]
+        if (!block || block.type !== 'parallel') return
+
+        const newBlocks = {
+          ...get().blocks,
+          [parallelId]: {
+            ...block,
+            data: {
+              ...block.data,
+              batchSize: clampParallelBatchSize(batchSize),
+            },
+          },
+        }
+
+        const newState = {
+          blocks: newBlocks,
+          edges: [...get().edges],
+          loops: { ...get().loops },
+          parallels: generateParallelBlocks(newBlocks),
+        }
+
+        set(newState)
+        get().updateLastSaved()
       },
 
       updateParallelCollection: (parallelId: string, collection: string) => {

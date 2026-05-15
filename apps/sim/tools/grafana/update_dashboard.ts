@@ -74,7 +74,8 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
       type: 'boolean',
       required: false,
       visibility: 'user-only',
-      description: 'Overwrite even if there is a version conflict',
+      description:
+        'Overwrite even if there is a version conflict (defaults to false to surface 412 conflicts)',
     },
     message: {
       type: 'string',
@@ -159,7 +160,7 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
     // Build the request body
     const body: Record<string, any> = {
       dashboard: updatedDashboard,
-      overwrite: params.overwrite !== false,
+      overwrite: params.overwrite === true,
     }
 
     // Use existing folder if not specified

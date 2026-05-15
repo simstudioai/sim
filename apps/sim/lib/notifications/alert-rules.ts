@@ -35,7 +35,7 @@ export interface AlertConfig {
 /**
  * Metadata for alert rule types
  */
-export interface AlertRuleDefinition {
+interface AlertRuleDefinition {
   type: AlertRuleType
   name: string
   description: string

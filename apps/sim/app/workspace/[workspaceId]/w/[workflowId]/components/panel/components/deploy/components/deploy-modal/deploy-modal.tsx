@@ -12,6 +12,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
@@ -482,11 +483,12 @@ export function DeployModal({
   const handleCloseModal = useCallback(() => {
     deployActionIdRef.current += 1
     setIsFinalizingDeploy(false)
+    if (workflowId) releaseDeployAction(workflowId)
     setChatSubmitting(false)
     setDeployError(null)
     setDeployWarnings([])
     onOpenChange(false)
-  }, [onOpenChange])
+  }, [workflowId, onOpenChange])
 
   const handleChatDeployed = useCallback(async () => {
     if (!workflowId) return
@@ -603,6 +605,10 @@ export function DeployModal({
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>
+              <ModalDescription className='sr-only'>
+                Configure and manage workflow deployment settings including API, MCP, A2A, and chat
+                options.
+              </ModalDescription>
               {(deployError || deployWarnings.length > 0) && (
                 <div className='mb-3 flex flex-col gap-2'>
                   {deployError && (
@@ -610,9 +616,9 @@ export function DeployModal({
                       {deployError}
                     </Badge>
                   )}
-                  {deployWarnings.map((warning, index) => (
+                  {deployWarnings.map((warning) => (
                     <Badge
-                      key={index}
+                      key={warning}
                       variant='amber'
                       size='lg'
                       dot
@@ -973,12 +979,12 @@ export function DeployModal({
         <ModalContent size='sm'>
           <ModalHeader>Undeploy API</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to undeploy this workflow?{' '}
               <span className='text-[var(--text-error)]'>
                 This will remove the API endpoint and make it unavailable to external users.
               </span>
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button
@@ -999,7 +1005,7 @@ export function DeployModal({
         <ModalContent size='sm'>
           <ModalHeader>Delete A2A Agent</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {existingA2aAgent?.name || 'this agent'}
@@ -1009,7 +1015,7 @@ export function DeployModal({
                 This will permanently remove the agent configuration.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button
@@ -1050,13 +1056,12 @@ export function DeployModal({
 
 interface StatusBadgeProps {
   isWarning: boolean
-  isSyncing?: boolean
 }
 
-function StatusBadge({ isWarning, isSyncing = false }: StatusBadgeProps) {
-  const label = isSyncing ? 'Syncing changes' : isWarning ? 'Update deployment' : 'Live'
+function StatusBadge({ isWarning }: StatusBadgeProps) {
+  const label = isWarning ? 'Update deployment' : 'Live'
   return (
-    <Badge variant={isSyncing || isWarning ? 'amber' : 'green'} size='lg' dot>
+    <Badge variant={isWarning ? 'amber' : 'green'} size='lg' dot>
       {label}
     </Badge>
   )
@@ -1111,7 +1116,7 @@ function GeneralFooter({
   const isDeployBlocked =
     deployReadiness.isBlocked || isDeploymentSettling || isSubmitting || isUndeploying
   const blockedMessage =
-    deployReadiness.isBlocked && !isDeploymentSettling && !isSubmitting && !isUndeploying
+    deployReadiness.isBlocked && !deployReadiness.isSyncing && !isSubmitting && !isUndeploying
       ? deployReadiness.tooltip
       : null
   const deployActionLoading = isSubmitting || isDeploymentSettling
@@ -1122,7 +1127,7 @@ function GeneralFooter({
         <div className='max-w-[260px] text-muted-foreground text-xs'>{blockedMessage}</div>
         <div className='flex items-center gap-2'>
           <Button variant='tertiary' onClick={onDeploy} disabled={isDeployBlocked}>
-            {deployActionLoading && <Loader className='mr-1.5 h-3.5 w-3.5' animate />}
+            {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
             Deploy
           </Button>
         </div>
@@ -1133,7 +1138,7 @@ function GeneralFooter({
   return (
     <ModalFooter className='items-center justify-between'>
       <div className='flex min-w-0 flex-col gap-1'>
-        <StatusBadge isWarning={needsRedeployment} isSyncing={isDeploymentSettling} />
+        <StatusBadge isWarning={needsRedeployment} />
         {blockedMessage && (
           <div className='max-w-[300px] text-muted-foreground text-xs'>{blockedMessage}</div>
         )}
@@ -1144,7 +1149,7 @@ function GeneralFooter({
         </Button>
         {(needsRedeployment || isDeploymentSettling) && (
           <Button variant='tertiary' onClick={onRedeploy} disabled={isDeployBlocked}>
-            {deployActionLoading && <Loader className='mr-1.5 h-3.5 w-3.5' animate />}
+            {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
             Update
           </Button>
         )}

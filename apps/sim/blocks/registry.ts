@@ -55,7 +55,7 @@ import { EvernoteBlock } from '@/blocks/blocks/evernote'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { ExtendBlock, ExtendV2Block } from '@/blocks/blocks/extend'
 import { FathomBlock } from '@/blocks/blocks/fathom'
-import { FileBlock, FileV2Block, FileV3Block } from '@/blocks/blocks/file'
+import { FileBlock, FileV2Block, FileV3Block, FileV4Block } from '@/blocks/blocks/file'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
 import { FirefliesBlock, FirefliesV2Block } from '@/blocks/blocks/fireflies'
 import { FunctionBlock } from '@/blocks/blocks/function'
@@ -148,6 +148,7 @@ import { OpenAIBlock } from '@/blocks/blocks/openai'
 import { OutlookBlock } from '@/blocks/blocks/outlook'
 import { PagerDutyBlock } from '@/blocks/blocks/pagerduty'
 import { ParallelBlock } from '@/blocks/blocks/parallel'
+import { PeopleDataLabsBlock } from '@/blocks/blocks/peopledatalabs'
 import { PerplexityBlock } from '@/blocks/blocks/perplexity'
 import { PineconeBlock } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock } from '@/blocks/blocks/pipedrive'
@@ -298,6 +299,7 @@ export const registry: Record<string, BlockConfig> = {
   file: FileBlock,
   file_v2: FileV2Block,
   file_v3: FileV3Block,
+  file_v4: FileV4Block,
   firecrawl: FirecrawlBlock,
   fireflies: FirefliesBlock,
   fireflies_v2: FirefliesV2Block,
@@ -399,6 +401,7 @@ export const registry: Record<string, BlockConfig> = {
   outlook: OutlookBlock,
   pagerduty: PagerDutyBlock,
   parallel_ai: ParallelBlock,
+  peopledatalabs: PeopleDataLabsBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,

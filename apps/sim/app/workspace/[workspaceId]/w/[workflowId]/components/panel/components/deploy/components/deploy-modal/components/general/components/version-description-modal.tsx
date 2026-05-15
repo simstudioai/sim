@@ -6,6 +6,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -95,10 +96,10 @@ export function VersionDescriptionModal({
           </ModalHeader>
           <ModalBody className='space-y-2.5'>
             <div className='flex items-center justify-between'>
-              <p className='text-[var(--text-secondary)]'>
+              <ModalDescription className='text-[var(--text-secondary)]'>
                 {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
-              </p>
+              </ModalDescription>
               <Button
                 variant='active'
                 className='-my-1 h-5 px-2 py-0 text-xs'
@@ -151,9 +152,9 @@ export function VersionDescriptionModal({
             <span>Unsaved Changes</span>
           </ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)] text-sm'>
+            <ModalDescription className='text-[var(--text-secondary)] text-sm'>
               You have unsaved changes. Are you sure you want to discard them?
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>

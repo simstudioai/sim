@@ -9,15 +9,72 @@ import { generateShortId } from '@sim/utils/id'
 import { z } from 'zod'
 import { validateExternalUrl } from '@/lib/core/security/input-validation'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { buildObjectKey, normalizePrefix } from '@/lib/data-drains/destinations/utils'
 import type { DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainS3Destination')
 
+/** https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html */
+const S3_BUCKET_NAME_RE = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/
+const S3_IPV4_LIKE_RE = /^(\d{1,3}\.){3}\d{1,3}$/
+/** Matches standard and 4-segment ISO partition codes (e.g. `us-iso-east-1`). */
+const AWS_REGION_RE = /^[a-z]{2,}(-[a-z]+)+-\d+$/
+/** Cap is over key + value bytes only (no `x-amz-meta-` prefix). */
+const MAX_S3_METADATA_BYTES = 2 * 1024
+const MAX_S3_KEY_BYTES = 1024
+
+const s3BucketSchema = z
+  .string()
+  .min(3, 'bucket must be 3-63 characters')
+  .max(63, 'bucket must be 3-63 characters')
+  .refine((v) => S3_BUCKET_NAME_RE.test(v), {
+    message:
+      'bucket must be lowercase, 3-63 chars, start/end alphanumeric, only letters/digits/./-',
+  })
+  .refine((v) => !v.includes('..'), { message: 'bucket must not contain consecutive dots' })
+  .refine((v) => !v.includes('-.') && !v.includes('.-'), {
+    message: 'bucket must not contain a dash adjacent to a dot',
+  })
+  .refine((v) => !S3_IPV4_LIKE_RE.test(v), { message: 'bucket must not look like an IP address' })
+  .refine((v) => !v.startsWith('xn--'), { message: 'bucket must not start with "xn--"' })
+  .refine((v) => !v.startsWith('sthree-'), { message: 'bucket must not start with "sthree-"' })
+  .refine((v) => !v.startsWith('amzn-s3-demo-'), {
+    message: 'bucket must not start with "amzn-s3-demo-" (reserved by AWS)',
+  })
+  .refine((v) => !v.endsWith('-s3alias') && !v.endsWith('--ol-s3') && !v.endsWith('.mrap'), {
+    message: 'bucket must not end with reserved suffix (-s3alias, --ol-s3, .mrap)',
+  })
+  .refine((v) => !v.endsWith('--x-s3'), {
+    message:
+      'bucket must not end with "--x-s3" (reserved for S3 Express One Zone directory buckets)',
+  })
+  .refine((v) => !v.endsWith('--table-s3'), {
+    message: 'bucket must not end with "--table-s3" (reserved for S3 Tables)',
+  })
+
+const s3RegionSchema = z
+  .string()
+  .min(1, 'region is required')
+  .max(32, 'region is too long')
+  .refine((v) => AWS_REGION_RE.test(v), {
+    message: 'region must look like an AWS region code, e.g. us-east-1',
+  })
+
 const s3ConfigSchema = z.object({
-  bucket: z.string().min(1, 'bucket is required').max(255),
-  region: z.string().min(1, 'region is required').max(64),
-  /** Optional prefix; trailing slash is added automatically when assembling keys. */
-  prefix: z.string().max(512).optional(),
+  bucket: s3BucketSchema,
+  region: s3RegionSchema,
+  /**
+   * Optional prefix; trailing slash is added automatically when assembling keys.
+   * Bounded by UTF-8 byte length (not code units) so non-ASCII prefixes can't
+   * push assembled keys past S3's 1024-byte object key limit.
+   */
+  prefix: z
+    .string()
+    .max(512)
+    .refine((v) => Buffer.byteLength(v, 'utf8') <= 512, {
+      message: 'prefix must be at most 512 bytes (UTF-8)',
+    })
+    .optional(),
   /**
    * Optional override for non-AWS S3-compatible providers (MinIO, R2, GCS interop, etc.).
    * SSRF-validated: HTTPS-only, must not resolve syntactically to a private,
@@ -27,6 +84,7 @@ const s3ConfigSchema = z.object({
   endpoint: z
     .string()
     .url()
+    .refine((v) => v.startsWith('https://'), { message: 'endpoint must use https://' })
     .refine((value) => validateExternalUrl(value, 'endpoint').isValid, {
       message: 'endpoint must be HTTPS and not point at a private, loopback, or metadata address',
     })
@@ -58,35 +116,6 @@ function buildClient(config: S3DestinationConfig, credentials: S3DestinationCred
   })
 }
 
-function normalizePrefix(raw: string | undefined): string {
-  if (!raw) return ''
-  // S3 keys cannot start with `/` (creates an empty-name segment); also
-  // collapse trailing slashes so the joiner produces a single boundary.
-  const trimmed = raw.replace(/^\/+/, '').replace(/\/+$/, '')
-  return trimmed.length === 0 ? '' : `${trimmed}/`
-}
-
-function buildKey(
-  config: S3DestinationConfig,
-  metadata: {
-    drainId: string
-    runId: string
-    source: string
-    sequence: number
-    runStartedAt: Date
-  }
-): string {
-  // Partition by the run's start time so all chunks from one run share a
-  // single date prefix even if delivery crosses a midnight boundary.
-  const partition = metadata.runStartedAt
-  const yyyy = partition.getUTCFullYear().toString().padStart(4, '0')
-  const mm = (partition.getUTCMonth() + 1).toString().padStart(2, '0')
-  const dd = partition.getUTCDate().toString().padStart(2, '0')
-  const seq = metadata.sequence.toString().padStart(5, '0')
-  const prefix = normalizePrefix(config.prefix)
-  return `${prefix}${metadata.source}/${metadata.drainId}/${yyyy}/${mm}/${dd}/${metadata.runId}-${seq}.ndjson`
-}
-
 function isS3ServiceException(error: unknown): error is S3ServiceException {
   return (
     typeof error === 'object' &&
@@ -96,13 +125,7 @@ function isS3ServiceException(error: unknown): error is S3ServiceException {
   )
 }
 
-/**
- * Resolves the optional custom endpoint and confirms it does not point at a
- * private, loopback, or cloud-metadata address. The schema-level
- * `validateExternalUrl` only catches IP literals, so a hostname like
- * `evil.example.com` resolving to `169.254.169.254` would slip past it; the
- * AWS SDK then resolves the host itself, bypassing the SSRF guard.
- */
+/** DNS-aware SSRF check: catches hostnames that resolve to internal IPs (the schema check only catches IP literals). */
 async function assertEndpointIsPublic(endpoint: string | undefined): Promise<void> {
   if (!endpoint) return
   const result = await validateUrlWithDNS(endpoint, 'endpoint')
@@ -125,8 +148,7 @@ async function withS3ErrorContext<T>(action: string, fn: () => Promise<T>): Prom
       const status = error.$metadata?.httpStatusCode
       const requestId = error.$metadata?.requestId
       logger.warn('S3 operation failed', { action, code, status, requestId })
-      // Preserve the original SDK error as `cause` so callers can still
-      // branch on `code` / `$metadata` while getting an actionable message.
+      /** Preserve SDK error as `cause` so callers can still branch on `code` / `$metadata`. */
       throw new Error(
         `S3 ${action} failed (${code}${status ? ` ${status}` : ''}): ${error.message}`,
         { cause: error }
@@ -145,8 +167,7 @@ export const s3Destination: DrainDestination<S3DestinationConfig, S3DestinationC
   async test({ config, credentials, signal }) {
     await assertEndpointIsPublic(config.endpoint)
     const client = buildClient(config, credentials)
-    // Probe with a real write so read-only creds and write-only IAM policies
-    // surface here instead of at the first scheduled run.
+    /** Real write probe so write-only IAM policies surface here, not at first run. */
     const probeKey = `${normalizePrefix(config.prefix)}.sim-drain-write-probe/${generateShortId(12)}`
     try {
       await withS3ErrorContext('test-put', () =>
@@ -161,8 +182,7 @@ export const s3Destination: DrainDestination<S3DestinationConfig, S3DestinationC
           { abortSignal: signal }
         )
       )
-      // Best-effort cleanup; ignore failures so a missing s3:DeleteObject
-      // doesn't fail the test (write was already proven).
+      /** Best-effort cleanup: write was already proven, so a missing s3:DeleteObject must not fail the test. */
       try {
         await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: probeKey }), {
           abortSignal: signal,
@@ -181,18 +201,40 @@ export const s3Destination: DrainDestination<S3DestinationConfig, S3DestinationC
 
   openSession({ config, credentials }) {
     const client = buildClient(config, credentials)
-    // Cache the DNS-aware endpoint check across all chunks in a run so we
-    // pay the lookup once. The SDK creates its own connections, so we can't
-    // pin the IP — but doing the check before any S3 call still rejects
-    // hostnames that resolve to internal targets at the start of the run.
-    // Lazy-init avoids an unhandled rejection if the source yields no chunks
-    // and `deliver` never runs (e.g., a drain with nothing new to export).
+    /**
+     * Lazy + cached DNS-aware endpoint check. SDK manages its own connections
+     * so we can't pin the IP, but failing the first deliver still rejects
+     * hostnames that resolve to internal targets. Lazy init avoids an
+     * unhandled rejection when the source yields no chunks.
+     */
     let endpointCheck: Promise<void> | null = null
     return {
       async deliver({ body, contentType, metadata, signal }) {
         if (endpointCheck === null) endpointCheck = assertEndpointIsPublic(config.endpoint)
         await endpointCheck
-        const key = buildKey(config, metadata)
+        const key = buildObjectKey(config.prefix, metadata)
+        const keyBytes = Buffer.byteLength(key, 'utf8')
+        if (keyBytes > MAX_S3_KEY_BYTES) {
+          throw new Error(
+            `S3 object key is ${keyBytes} bytes, exceeds the ${MAX_S3_KEY_BYTES}-byte limit`
+          )
+        }
+        const userMetadata: Record<string, string> = {
+          'sim-drain-id': metadata.drainId,
+          'sim-run-id': metadata.runId,
+          'sim-source': metadata.source,
+          'sim-sequence': metadata.sequence.toString(),
+          'sim-row-count': metadata.rowCount.toString(),
+        }
+        let metadataBytes = 0
+        for (const [k, v] of Object.entries(userMetadata)) {
+          metadataBytes += Buffer.byteLength(k, 'utf8') + Buffer.byteLength(v, 'utf8')
+        }
+        if (metadataBytes > MAX_S3_METADATA_BYTES) {
+          throw new Error(
+            `S3 user metadata is ${metadataBytes} bytes, exceeds the ${MAX_S3_METADATA_BYTES}-byte per-object limit`
+          )
+        }
         await withS3ErrorContext('put-object', () =>
           client.send(
             new PutObjectCommand({
@@ -201,13 +243,7 @@ export const s3Destination: DrainDestination<S3DestinationConfig, S3DestinationC
               Body: body,
               ContentType: contentType,
               ServerSideEncryption: 'AES256',
-              Metadata: {
-                'sim-drain-id': metadata.drainId,
-                'sim-run-id': metadata.runId,
-                'sim-source': metadata.source,
-                'sim-sequence': metadata.sequence.toString(),
-                'sim-row-count': metadata.rowCount.toString(),
-              },
+              Metadata: userMetadata,
             }),
             { abortSignal: signal }
           )

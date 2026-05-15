@@ -47,51 +47,52 @@ async function scanFrontmatters(): Promise<BlogMeta[]> {
   await ensureContentDirs()
   const entries = await fs.readdir(BLOG_DIR).catch(() => [])
   const authorsMap = await loadAuthors()
-  const results: BlogMeta[] = []
-  for (const slug of entries) {
-    const postDir = path.join(BLOG_DIR, slug)
-    const stat = await fs.stat(postDir).catch(() => null)
-    if (!stat || !stat.isDirectory()) continue
-    const mdxPath = path.join(postDir, 'index.mdx')
-    const hasMdx = await fs
-      .stat(mdxPath)
-      .then((s) => s.isFile())
-      .catch(() => false)
-    if (!hasMdx) continue
-    const raw = await fs.readFile(mdxPath, 'utf-8')
-    const { data, content: mdxContent } = matter(raw)
-    const fm = BlogFrontmatterSchema.parse(data)
-    const wordCount = mdxContent
-      .replace(/```[\s\S]*?```/g, '')
-      .replace(/import\s+.*?from\s+['"].*?['"]/g, '')
-      .replace(/<[^>]+>/g, '')
-      .replace(/[#*_~`[\]()!|>-]/g, '')
-      .split(/\s+/)
-      .filter((w) => w.length > 0).length
-    const authors = fm.authors.map((id) => authorsMap[id]).filter(Boolean)
-    if (authors.length === 0) throw new Error(`Authors not found for "${slug}"`)
-    results.push({
-      slug: fm.slug,
-      title: fm.title,
-      description: fm.description,
-      date: toIsoDate(fm.date),
-      updated: fm.updated ? toIsoDate(fm.updated) : undefined,
-      author: authors[0],
-      authors,
-      readingTime: fm.readingTime,
-      tags: fm.tags,
-      ogImage: fm.ogImage,
-      canonical: fm.canonical,
-      ogAlt: fm.ogAlt,
-      about: fm.about,
-      timeRequired: fm.timeRequired,
-      faq: fm.faq,
-      wordCount,
-      draft: fm.draft,
-      featured: fm.featured ?? false,
+  const results = await Promise.all(
+    entries.map(async (slug): Promise<BlogMeta | null> => {
+      const postDir = path.join(BLOG_DIR, slug)
+      const stat = await fs.stat(postDir).catch(() => null)
+      if (!stat || !stat.isDirectory()) return null
+      const mdxPath = path.join(postDir, 'index.mdx')
+      const hasMdx = await fs
+        .stat(mdxPath)
+        .then((s) => s.isFile())
+        .catch(() => false)
+      if (!hasMdx) return null
+      const raw = await fs.readFile(mdxPath, 'utf-8')
+      const { data, content: mdxContent } = matter(raw)
+      const fm = BlogFrontmatterSchema.parse(data)
+      const wordCount = mdxContent
+        .replace(/```[\s\S]*?```/g, '')
+        .replace(/import\s+.*?from\s+['"].*?['"]/g, '')
+        .replace(/<[^>]+>/g, '')
+        .replace(/[#*_~`[\]()!|>-]/g, '')
+        .split(/\s+/)
+        .filter((w) => w.length > 0).length
+      const authors = fm.authors.map((id) => authorsMap[id]).filter(Boolean)
+      if (authors.length === 0) throw new Error(`Authors not found for "${slug}"`)
+      return {
+        slug: fm.slug,
+        title: fm.title,
+        description: fm.description,
+        date: toIsoDate(fm.date),
+        updated: fm.updated ? toIsoDate(fm.updated) : undefined,
+        author: authors[0],
+        authors,
+        readingTime: fm.readingTime,
+        tags: fm.tags,
+        ogImage: fm.ogImage,
+        canonical: fm.canonical,
+        ogAlt: fm.ogAlt,
+        about: fm.about,
+        timeRequired: fm.timeRequired,
+        faq: fm.faq,
+        wordCount,
+        draft: fm.draft,
+        featured: fm.featured ?? false,
+      }
     })
-  }
-  cachedMeta = results.sort(byDateDesc)
+  )
+  cachedMeta = results.filter((result): result is BlogMeta => result !== null).sort(byDateDesc)
   return cachedMeta
 }
 
@@ -124,13 +125,28 @@ export async function getAllTags(): Promise<TagWithCount[]> {
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const BLOG_COMPONENT_LOADERS: Record<
+  string,
+  () => Promise<Record<string, React.ComponentType<any>>>
+> = {
+  enterprise: () => import('@/content/blog/enterprise/components'),
+  'v0-5': () => import('@/content/blog/v0-5/components'),
+}
+
 async function loadPostComponents(slug: string): Promise<Record<string, React.ComponentType>> {
   if (postComponentsRegistry[slug]) {
     return postComponentsRegistry[slug]
   }
 
+  const loader = BLOG_COMPONENT_LOADERS[slug]
+  if (!loader) {
+    postComponentsRegistry[slug] = {}
+    return {}
+  }
+
   try {
-    const postComponents = await import(`@/content/blog/${slug}/components`)
+    const postComponents = await loader()
     postComponentsRegistry[slug] = postComponents
     return postComponents
   } catch {

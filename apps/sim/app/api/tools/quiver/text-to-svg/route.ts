@@ -8,6 +8,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 const logger = createLogger('QuiverTextToSvgAPI')
 
@@ -15,9 +16,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
-  if (!authResult.success) {
+  if (!authResult.success || !authResult.userId) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
+  const userId = authResult.userId
 
   try {
     const parsed = await parseRequest(
@@ -51,6 +53,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             if (parsed && typeof parsed === 'object') {
               const userFiles = processFilesToUserFiles([parsed as RawFileInput], requestId, logger)
               if (userFiles.length > 0) {
+                const denied = await assertToolFileAccess(
+                  userFiles[0].key,
+                  userId,
+                  requestId,
+                  logger
+                )
+                if (denied) return denied
                 const buffer = await downloadFileFromStorage(userFiles[0], requestId, logger)
                 apiReferences.push({ base64: buffer.toString('base64') })
               }
@@ -61,6 +70,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         } else if (typeof ref === 'object' && ref !== null) {
           const userFiles = processFilesToUserFiles([ref as RawFileInput], requestId, logger)
           if (userFiles.length > 0) {
+            const denied = await assertToolFileAccess(userFiles[0].key, userId, requestId, logger)
+            if (denied) return denied
             const buffer = await downloadFileFromStorage(userFiles[0], requestId, logger)
             apiReferences.push({ base64: buffer.toString('base64') })
           }

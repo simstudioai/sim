@@ -21,6 +21,10 @@ export interface LoopScope {
 export interface ParallelScope {
   parallelId: string
   totalBranches: number
+  batchSize?: number
+  currentBatchStart?: number
+  currentBatchSize?: number
+  accumulatedOutputs?: Map<number, NormalizedBlockOutput[]>
   branchOutputs: Map<number, NormalizedBlockOutput[]>
   items?: any[]
   /** Error message if parallel validation failed (e.g., exceeded max branches) */

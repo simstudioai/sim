@@ -29,7 +29,7 @@ const DEFAULT_ICONS = {
   destructive: AlertTriangle,
 } as const
 
-export interface CalloutProps
+interface CalloutProps
   extends React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof calloutVariants> {
   /** Icon component shown before the content. Pass `null` to hide. Defaults per variant. */
@@ -51,7 +51,7 @@ function Callout({ className, variant, icon, children, role = 'note', ...props }
 
   return (
     <div role={role} className={cn(calloutVariants({ variant }), className)} {...props}>
-      {Icon && <Icon className='h-[14px] w-[14px] shrink-0' />}
+      {Icon && <Icon className='size-[14px] shrink-0' />}
       <span>{children}</span>
     </div>
   )

@@ -7,6 +7,16 @@ import { usePanelStore } from '../store'
 
 let renameCallback: (() => void) | null = null
 
+export interface ActiveSearchTarget {
+  matchId: string
+  blockId: string
+  subBlockId: string
+  canonicalSubBlockId: string
+  valuePath: Array<string | number>
+  kind: string
+  resourceGroupKey?: string
+}
+
 /**
  * State for the Editor panel.
  * Tracks the currently selected block to edit its subblocks/values and connections panel height.
@@ -14,8 +24,12 @@ let renameCallback: (() => void) | null = null
 interface PanelEditorState {
   /** Currently selected block identifier, or null when nothing is selected */
   currentBlockId: string | null
+  /** Ephemeral workflow search target used for scrolling/highlighting editor fields */
+  activeSearchTarget: ActiveSearchTarget | null
   /** Sets the current selected block identifier (use null to clear) */
   setCurrentBlockId: (blockId: string | null) => void
+  /** Sets an active search target to highlight in the editor */
+  setActiveSearchTarget: (target: ActiveSearchTarget | null) => void
   /** Clears the current selection */
   clearCurrentBlock: () => void
   /** Height of the connections section in pixels */
@@ -38,6 +52,7 @@ export const usePanelEditorStore = create<PanelEditorState>()(
   persist(
     (set, get) => ({
       currentBlockId: null,
+      activeSearchTarget: null,
       connectionsHeight: EDITOR_CONNECTIONS_HEIGHT.DEFAULT,
       registerRenameCallback: (callback) => {
         renameCallback = callback
@@ -51,8 +66,14 @@ export const usePanelEditorStore = create<PanelEditorState>()(
           usePanelStore.getState().setActiveTab('editor')
         }
       },
+      setActiveSearchTarget: (target) => {
+        set({ activeSearchTarget: target })
+        if (target) {
+          usePanelStore.getState().setActiveTab('editor')
+        }
+      },
       clearCurrentBlock: () => {
-        set({ currentBlockId: null })
+        set({ currentBlockId: null, activeSearchTarget: null })
       },
       setConnectionsHeight: (height) => {
         const clampedHeight = Math.max(

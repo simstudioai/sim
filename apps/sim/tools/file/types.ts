@@ -1,10 +1,11 @@
 import type { UserFile } from '@/executor/types'
-import type { ToolResponse } from '@/tools/types'
+import type { TableRow, ToolResponse } from '@/tools/types'
 
 export interface FileParserInput {
   filePath?: string | string[]
   file?: UserFile | UserFile[] | FileUploadInput | FileUploadInput[]
   fileType?: string
+  headers?: TableRow[] | Record<string, unknown> | string | null
   workspaceId?: string
   workflowId?: string
   executionId?: string
@@ -54,7 +55,7 @@ export interface FileParserV3Output extends ToolResponse {
 }
 
 /** API response structure for single file parse */
-export interface FileParseApiResponse {
+interface FileParseApiResponse {
   success: boolean
   output?: FileParseResult
   content?: string
@@ -64,7 +65,7 @@ export interface FileParseApiResponse {
 }
 
 /** API response structure for multiple file parse */
-export interface FileParseApiMultiResponse {
+interface FileParseApiMultiResponse {
   success: boolean
   results: Array<{
     success: boolean

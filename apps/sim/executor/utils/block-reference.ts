@@ -1,6 +1,10 @@
 import { USER_FILE_ACCESSIBLE_PROPERTIES } from '@/lib/workflows/types'
 import { normalizeName } from '@/executor/constants'
-import { navigatePath } from '@/executor/variables/resolvers/reference'
+import {
+  type AsyncPathNavigator,
+  navigatePath,
+  type ResolutionContext,
+} from '@/executor/variables/resolvers/reference'
 
 /**
  * A single schema node encountered while walking an `OutputSchema`. Captures
@@ -204,7 +208,11 @@ function getSchemaFieldNames(schema: OutputSchema | undefined): string[] {
 export function resolveBlockReference(
   blockName: string,
   pathParts: string[],
-  context: BlockReferenceContext
+  context: BlockReferenceContext,
+  options: {
+    allowLargeValueRefs?: boolean
+    executionContext?: ResolutionContext['executionContext']
+  } = {}
 ): BlockReferenceResult | undefined {
   const normalizedName = normalizeName(blockName)
   const blockId = context.blockNameMapping[normalizedName]
@@ -227,7 +235,42 @@ export function resolveBlockReference(
     return { value: blockOutput, blockId }
   }
 
-  const value = navigatePath(blockOutput, pathParts)
+  const value = navigatePath(blockOutput, pathParts, options)
+
+  const schema = context.blockOutputSchemas?.[blockId]
+  if (value === undefined && schema) {
+    if (!isPathInSchema(schema, pathParts)) {
+      throw new InvalidFieldError(blockName, pathParts.join('.'), getSchemaFieldNames(schema))
+    }
+  }
+
+  return { value, blockId }
+}
+
+export async function resolveBlockReferenceAsync(
+  blockName: string,
+  pathParts: string[],
+  context: BlockReferenceContext,
+  resolutionContext: ResolutionContext,
+  navigatePathAsync: AsyncPathNavigator
+): Promise<BlockReferenceResult | undefined> {
+  const normalizedName = normalizeName(blockName)
+  const blockId = context.blockNameMapping[normalizedName]
+
+  if (!blockId) {
+    return undefined
+  }
+
+  const blockOutput = context.blockData[blockId]
+  if (blockOutput === undefined) {
+    return { value: undefined, blockId }
+  }
+
+  if (pathParts.length === 0) {
+    return { value: blockOutput, blockId }
+  }
+
+  const value = await navigatePathAsync(blockOutput, pathParts, resolutionContext)
 
   const schema = context.blockOutputSchemas?.[blockId]
   if (value === undefined && schema) {

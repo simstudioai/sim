@@ -7,12 +7,12 @@ export interface MemoryResponse extends ToolResponse {
   }
 }
 
-export interface AgentMemoryData {
+interface AgentMemoryData {
   role: 'user' | 'assistant' | 'system'
   content: string
 }
 
-export interface MemoryRecord {
+interface MemoryRecord {
   id: string
   key: string
   conversationId: string
@@ -23,7 +23,7 @@ export interface MemoryRecord {
   workspaceId?: string
 }
 
-export interface MemoryError {
+interface MemoryError {
   code: string
   message: string
   details?: Record<string, any>

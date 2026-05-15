@@ -71,9 +71,11 @@ Search and list all dashboards
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `query` | string | No | Search query to filter dashboards by title |
 | `tag` | string | No | Filter by tag \(comma-separated for multiple tags\) |
-| `folderIds` | string | No | Filter by folder IDs \(comma-separated, e.g., 1,2,3\) |
+| `folderUIDs` | string | No | Filter by folder UIDs \(comma-separated, e.g., abc123,def456\) |
+| `dashboardUIDs` | string | No | Filter by dashboard UIDs \(comma-separated, e.g., abc123,def456\) |
 | `starred` | boolean | No | Only return starred dashboards |
-| `limit` | number | No | Maximum number of dashboards to return |
+| `limit` | number | No | Maximum number of dashboards to return \(default 1000\) |
+| `page` | number | No | Page number for pagination \(1-based\) |
 
 #### Output
 
@@ -136,7 +138,7 @@ Update an existing dashboard. Fetches the current dashboard and merges your chan
 | `timezone` | string | No | Dashboard timezone \(e.g., browser, utc\) |
 | `refresh` | string | No | Auto-refresh interval \(e.g., 5s, 1m, 5m\) |
 | `panels` | string | No | JSON array of panel configurations |
-| `overwrite` | boolean | No | Overwrite even if there is a version conflict |
+| `overwrite` | boolean | No | Overwrite even if there is a version conflict \(defaults to false to surface 412 conflicts\) |
 | `message` | string | No | Commit message for this version |
 
 #### Output
@@ -188,13 +190,26 @@ List all alert rules in the Grafana instance
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `rules` | array | List of alert rules |
+|   ↳ `id` | number | Alert rule numeric ID |
 |   ↳ `uid` | string | Alert rule UID |
 |   ↳ `title` | string | Alert rule title |
-|   ↳ `condition` | string | Alert condition |
-|   ↳ `folderUID` | string | Parent folder UID |
-|   ↳ `ruleGroup` | string | Rule group name |
+|   ↳ `condition` | string | RefId of the query used as the alert condition |
+|   ↳ `data` | json | Alert rule query/expression data array |
+|   ↳ `updated` | string | Last update timestamp |
 |   ↳ `noDataState` | string | State when no data is returned |
 |   ↳ `execErrState` | string | State on execution error |
+|   ↳ `for` | string | Duration the condition must hold before firing |
+|   ↳ `keepFiringFor` | string | Duration to keep firing after condition stops |
+|   ↳ `missingSeriesEvalsToResolve` | number | Number of missing series evaluations before resolving |
+|   ↳ `annotations` | json | Alert annotations |
+|   ↳ `labels` | json | Alert labels |
+|   ↳ `isPaused` | boolean | Whether the rule is paused |
+|   ↳ `folderUID` | string | Parent folder UID |
+|   ↳ `ruleGroup` | string | Rule group name |
+|   ↳ `orgID` | number | Organization ID |
+|   ↳ `provenance` | string | Provisioning source \(empty if API-managed\) |
+|   ↳ `notification_settings` | json | Per-rule notification settings \(overrides\) |
+|   ↳ `record` | json | Recording rule configuration \(recording rules only\) |
 
 ### `grafana_get_alert_rule`
 
@@ -213,16 +228,26 @@ Get a specific alert rule by its UID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `id` | number | Alert rule numeric ID |
 | `uid` | string | Alert rule UID |
 | `title` | string | Alert rule title |
-| `condition` | string | Alert condition |
-| `data` | json | Alert rule query data |
-| `folderUID` | string | Parent folder UID |
-| `ruleGroup` | string | Rule group name |
+| `condition` | string | RefId of the query used as the alert condition |
+| `data` | json | Alert rule query/expression data array |
+| `updated` | string | Last update timestamp |
 | `noDataState` | string | State when no data is returned |
 | `execErrState` | string | State on execution error |
+| `for` | string | Duration the condition must hold before firing |
+| `keepFiringFor` | string | Duration to keep firing after condition stops |
+| `missingSeriesEvalsToResolve` | number | Number of missing series evaluations before resolving |
 | `annotations` | json | Alert annotations |
 | `labels` | json | Alert labels |
+| `isPaused` | boolean | Whether the rule is paused |
+| `folderUID` | string | Parent folder UID |
+| `ruleGroup` | string | Rule group name |
+| `orgID` | number | Organization ID |
+| `provenance` | string | Provisioning source \(empty if API-managed\) |
+| `notification_settings` | json | Per-rule notification settings \(overrides\) |
+| `record` | json | Recording rule configuration \(recording rules only\) |
 
 ### `grafana_create_alert_rule`
 
@@ -238,22 +263,45 @@ Create a new alert rule
 | `title` | string | Yes | The title of the alert rule |
 | `folderUid` | string | Yes | The UID of the folder to create the alert in \(e.g., folder-abc123\) |
 | `ruleGroup` | string | Yes | The name of the rule group |
-| `condition` | string | Yes | The refId of the query or expression to use as the alert condition |
+| `condition` | string | No | The refId of the query or expression to use as the alert condition \(required for alerting rules; omit for recording rules\) |
 | `data` | string | Yes | JSON array of query/expression data objects |
 | `forDuration` | string | No | Duration to wait before firing \(e.g., 5m, 1h\) |
 | `noDataState` | string | No | State when no data is returned \(NoData, Alerting, OK\) |
-| `execErrState` | string | No | State on execution error \(Alerting, OK\) |
+| `execErrState` | string | No | State on execution error \(Error, Alerting, OK\) |
 | `annotations` | string | No | JSON object of annotations |
 | `labels` | string | No | JSON object of labels |
+| `uid` | string | No | Optional custom UID for the alert rule |
+| `isPaused` | boolean | No | Whether the rule is paused on creation |
+| `keepFiringFor` | string | No | Duration to keep firing after the condition stops \(e.g., 5m\) |
+| `missingSeriesEvalsToResolve` | number | No | Number of missing series evaluations before resolving |
+| `notificationSettings` | string | No | JSON object of per-rule notification settings \(overrides\) |
+| `record` | string | No | JSON object configuring this as a recording rule \(omit for alerting rules\) |
+| `disableProvenance` | boolean | No | Set X-Disable-Provenance header so the rule remains editable in the Grafana UI |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `uid` | string | The UID of the created alert rule |
+| `id` | number | Alert rule numeric ID |
+| `uid` | string | Alert rule UID |
 | `title` | string | Alert rule title |
+| `condition` | string | RefId of the query used as the alert condition |
+| `data` | json | Alert rule query/expression data array |
+| `updated` | string | Last update timestamp |
+| `noDataState` | string | State when no data is returned |
+| `execErrState` | string | State on execution error |
+| `for` | string | Duration the condition must hold before firing |
+| `keepFiringFor` | string | Duration to keep firing after condition stops |
+| `missingSeriesEvalsToResolve` | number | Number of missing series evaluations before resolving |
+| `annotations` | json | Alert annotations |
+| `labels` | json | Alert labels |
+| `isPaused` | boolean | Whether the rule is paused |
 | `folderUID` | string | Parent folder UID |
 | `ruleGroup` | string | Rule group name |
+| `orgID` | number | Organization ID |
+| `provenance` | string | Provisioning source \(empty if API-managed\) |
+| `notification_settings` | json | Per-rule notification settings \(overrides\) |
+| `record` | json | Recording rule configuration \(recording rules only\) |
 
 ### `grafana_update_alert_rule`
 
@@ -274,18 +322,40 @@ Update an existing alert rule. Fetches the current rule and merges your changes.
 | `data` | string | No | New JSON array of query/expression data objects |
 | `forDuration` | string | No | Duration to wait before firing \(e.g., 5m, 1h\) |
 | `noDataState` | string | No | State when no data is returned \(NoData, Alerting, OK\) |
-| `execErrState` | string | No | State on execution error \(Alerting, OK\) |
+| `execErrState` | string | No | State on execution error \(Error, Alerting, OK\) |
 | `annotations` | string | No | JSON object of annotations |
 | `labels` | string | No | JSON object of labels |
+| `isPaused` | boolean | No | Whether the rule is paused |
+| `keepFiringFor` | string | No | Duration to keep firing after the condition stops \(e.g., 5m\) |
+| `missingSeriesEvalsToResolve` | number | No | Number of missing series evaluations before resolving |
+| `notificationSettings` | string | No | JSON object of per-rule notification settings \(overrides\) |
+| `record` | string | No | JSON object configuring this as a recording rule |
+| `disableProvenance` | boolean | No | Set X-Disable-Provenance header so the rule remains editable in the Grafana UI |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `uid` | string | The UID of the updated alert rule |
+| `id` | number | Alert rule numeric ID |
+| `uid` | string | Alert rule UID |
 | `title` | string | Alert rule title |
+| `condition` | string | RefId of the query used as the alert condition |
+| `data` | json | Alert rule query/expression data array |
+| `updated` | string | Last update timestamp |
+| `noDataState` | string | State when no data is returned |
+| `execErrState` | string | State on execution error |
+| `for` | string | Duration the condition must hold before firing |
+| `keepFiringFor` | string | Duration to keep firing after condition stops |
+| `missingSeriesEvalsToResolve` | number | Number of missing series evaluations before resolving |
+| `annotations` | json | Alert annotations |
+| `labels` | json | Alert labels |
+| `isPaused` | boolean | Whether the rule is paused |
 | `folderUID` | string | Parent folder UID |
 | `ruleGroup` | string | Rule group name |
+| `orgID` | number | Organization ID |
+| `provenance` | string | Provisioning source \(empty if API-managed\) |
+| `notification_settings` | json | Per-rule notification settings \(overrides\) |
+| `record` | json | Recording rule configuration \(recording rules only\) |
 
 ### `grafana_delete_alert_rule`
 
@@ -317,6 +387,7 @@ List all alert notification contact points
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `name` | string | No | Filter contact points by exact name match |
 
 #### Output
 
@@ -327,6 +398,8 @@ List all alert notification contact points
 |   ↳ `name` | string | Contact point name |
 |   ↳ `type` | string | Notification type \(email, slack, etc.\) |
 |   ↳ `settings` | object | Type-specific settings |
+|   ↳ `disableResolveMessage` | boolean | Whether resolve messages are disabled |
+|   ↳ `provenance` | string | Provisioning source \(empty if API-managed\) |
 
 ### `grafana_create_annotation`
 
@@ -341,7 +414,7 @@ Create an annotation on a dashboard or as a global annotation
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `text` | string | Yes | The text content of the annotation |
 | `tags` | string | No | Comma-separated list of tags |
-| `dashboardUid` | string | Yes | UID of the dashboard to add the annotation to \(e.g., abc123def\) |
+| `dashboardUid` | string | No | UID of the dashboard to add the annotation to \(e.g., abc123def\). Omit to create a global organization annotation. |
 | `panelId` | number | No | ID of the panel to add the annotation to \(e.g., 1, 2\) |
 | `time` | number | No | Start time in epoch milliseconds \(e.g., 1704067200000, defaults to now\) |
 | `timeEnd` | number | No | End time in epoch milliseconds for range annotations \(e.g., 1704153600000\) |
@@ -366,8 +439,11 @@ Query annotations by time range, dashboard, or tags
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `from` | number | No | Start time in epoch milliseconds \(e.g., 1704067200000\) |
 | `to` | number | No | End time in epoch milliseconds \(e.g., 1704153600000\) |
-| `dashboardUid` | string | Yes | Dashboard UID to query annotations from \(e.g., abc123def\) |
+| `dashboardUid` | string | No | Dashboard UID to query annotations from \(e.g., abc123def\). Omit to query annotations across the organization. |
+| `dashboardId` | number | No | Legacy numeric dashboard ID filter \(prefer dashboardUid\) |
 | `panelId` | number | No | Filter by panel ID \(e.g., 1, 2\) |
+| `alertId` | number | No | Filter by alert ID |
+| `userId` | number | No | Filter by ID of the user who created the annotation |
 | `tags` | string | No | Comma-separated list of tags to filter by |
 | `type` | string | No | Filter by type \(alert or annotation\) |
 | `limit` | number | No | Maximum number of annotations to return |
@@ -378,17 +454,19 @@ Query annotations by time range, dashboard, or tags
 | --------- | ---- | ----------- |
 | `annotations` | array | List of annotations |
 |   ↳ `id` | number | Annotation ID |
+|   ↳ `alertId` | number | Associated alert ID \(0 if not alert-driven\) |
 |   ↳ `dashboardId` | number | Dashboard ID |
 |   ↳ `dashboardUID` | string | Dashboard UID |
-|   ↳ `created` | number | Creation timestamp in epoch ms |
-|   ↳ `updated` | number | Last update timestamp in epoch ms |
+|   ↳ `panelId` | number | Panel ID within the dashboard |
+|   ↳ `userId` | number | ID of the user who created the annotation |
+|   ↳ `userName` | string | Username of the user who created the annotation |
+|   ↳ `newState` | string | New alert state \(alert annotations only\) |
+|   ↳ `prevState` | string | Previous alert state \(alert annotations only\) |
 |   ↳ `time` | number | Start time in epoch ms |
 |   ↳ `timeEnd` | number | End time in epoch ms |
 |   ↳ `text` | string | Annotation text |
+|   ↳ `metric` | string | Metric associated with the annotation |
 |   ↳ `tags` | array | Annotation tags |
-|   ↳ `login` | string | Login of the user who created the annotation |
-|   ↳ `email` | string | Email of the user who created the annotation |
-|   ↳ `avatarUrl` | string | Avatar URL of the user |
 |   ↳ `data` | json | Additional annotation data object from Grafana |
 
 ### `grafana_update_annotation`
@@ -403,7 +481,7 @@ Update an existing annotation
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `annotationId` | number | Yes | The ID of the annotation to update |
-| `text` | string | Yes | New text content for the annotation |
+| `text` | string | No | New text content for the annotation \(PATCH supports partial updates\) |
 | `tags` | string | No | Comma-separated list of new tags |
 | `time` | number | No | New start time in epoch milliseconds \(e.g., 1704067200000\) |
 | `timeEnd` | number | No | New end time in epoch milliseconds \(e.g., 1704153600000\) |
@@ -453,10 +531,22 @@ List all data sources configured in Grafana
 | `dataSources` | array | List of data sources |
 |   ↳ `id` | number | Data source ID |
 |   ↳ `uid` | string | Data source UID |
+|   ↳ `orgId` | number | Organization ID |
 |   ↳ `name` | string | Data source name |
 |   ↳ `type` | string | Data source type \(prometheus, mysql, etc.\) |
+|   ↳ `typeLogoUrl` | string | Logo URL for the data source type |
+|   ↳ `access` | string | Access mode \(proxy or direct\) |
 |   ↳ `url` | string | Data source URL |
+|   ↳ `user` | string | Username used to connect |
+|   ↳ `database` | string | Database name \(if applicable\) |
+|   ↳ `basicAuth` | boolean | Whether basic auth is enabled |
+|   ↳ `basicAuthUser` | string | Basic auth username |
+|   ↳ `withCredentials` | boolean | Whether to send credentials with cross-origin requests |
 |   ↳ `isDefault` | boolean | Whether this is the default data source |
+|   ↳ `jsonData` | object | Type-specific JSON configuration |
+|   ↳ `secureJsonFields` | object | Map of secure fields that are set \(values are not returned\) |
+|   ↳ `version` | number | Data source version |
+|   ↳ `readOnly` | boolean | Whether the data source is read-only |
 
 ### `grafana_get_data_source`
 
@@ -477,12 +567,22 @@ Get a data source by its ID or UID
 | --------- | ---- | ----------- |
 | `id` | number | Data source ID |
 | `uid` | string | Data source UID |
+| `orgId` | number | Organization ID |
 | `name` | string | Data source name |
 | `type` | string | Data source type |
+| `typeLogoUrl` | string | Logo URL for the data source type |
+| `access` | string | Access mode \(proxy or direct\) |
 | `url` | string | Data source connection URL |
+| `user` | string | Username used to connect |
 | `database` | string | Database name \(if applicable\) |
+| `basicAuth` | boolean | Whether basic auth is enabled |
+| `basicAuthUser` | string | Basic auth username |
+| `withCredentials` | boolean | Whether to send credentials with cross-origin requests |
 | `isDefault` | boolean | Whether this is the default data source |
 | `jsonData` | json | Additional data source configuration |
+| `secureJsonFields` | object | Map of secure fields that are set \(values are not returned\) |
+| `version` | number | Data source version |
+| `readOnly` | boolean | Whether the data source is read-only |
 
 ### `grafana_list_folders`
 
@@ -497,6 +597,7 @@ List all folders in Grafana
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `limit` | number | No | Maximum number of folders to return |
 | `page` | number | No | Page number for pagination |
+| `parentUid` | string | No | List children of this folder UID \(requires nested folders enabled\) |
 
 #### Output
 
@@ -506,16 +607,18 @@ List all folders in Grafana
 |   ↳ `id` | number | Folder ID |
 |   ↳ `uid` | string | Folder UID |
 |   ↳ `title` | string | Folder title |
+|   ↳ `url` | string | Folder URL path |
+|   ↳ `parentUid` | string | Parent folder UID \(nested folders only\) |
+|   ↳ `parents` | array | Ancestor folder hierarchy \(nested folders only\) |
 |   ↳ `hasAcl` | boolean | Whether the folder has custom ACL permissions |
 |   ↳ `canSave` | boolean | Whether the current user can save the folder |
 |   ↳ `canEdit` | boolean | Whether the current user can edit the folder |
 |   ↳ `canAdmin` | boolean | Whether the current user has admin rights |
-|   ↳ `canDelete` | boolean | Whether the current user can delete the folder |
 |   ↳ `createdBy` | string | Username of who created the folder |
 |   ↳ `created` | string | Timestamp when the folder was created |
 |   ↳ `updatedBy` | string | Username of who last updated the folder |
 |   ↳ `updated` | string | Timestamp when the folder was last updated |
-|   ↳ `version` | number | Version number of the folder |
+|   ↳ `version` | number | Folder version number |
 
 ### `grafana_create_folder`
 
@@ -530,6 +633,7 @@ Create a new folder in Grafana
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
 | `title` | string | Yes | The title of the new folder |
 | `uid` | string | No | Optional UID for the folder \(auto-generated if not provided\) |
+| `parentUid` | string | No | Parent folder UID for nested folders \(requires nested folders enabled\) |
 
 #### Output
 
@@ -539,11 +643,12 @@ Create a new folder in Grafana
 | `uid` | string | The UID of the created folder |
 | `title` | string | The title of the created folder |
 | `url` | string | The URL path to the folder |
+| `parentUid` | string | Parent folder UID \(nested folders only\) |
+| `parents` | array | Ancestor folder hierarchy \(nested folders only\) |
 | `hasAcl` | boolean | Whether the folder has custom ACL permissions |
 | `canSave` | boolean | Whether the current user can save the folder |
 | `canEdit` | boolean | Whether the current user can edit the folder |
 | `canAdmin` | boolean | Whether the current user has admin rights on the folder |
-| `canDelete` | boolean | Whether the current user can delete the folder |
 | `createdBy` | string | Username of who created the folder |
 | `created` | string | Timestamp when the folder was created |
 | `updatedBy` | string | Username of who last updated the folder |

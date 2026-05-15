@@ -130,12 +130,12 @@ function computeFieldDiff(
   return { changedFields, unchangedFields }
 }
 
-export interface DiffMetadata {
+interface DiffMetadata {
   source: string
   timestamp: number
 }
 
-export interface EdgeDiff {
+interface EdgeDiff {
   new_edges: string[]
   deleted_edges: string[]
   unchanged_edges: string[]

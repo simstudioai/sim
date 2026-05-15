@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -11,6 +11,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Trash,
@@ -72,9 +73,9 @@ function UnsavedChangesModal({
       <ModalContent size='sm'>
         <ModalHeader>Unsaved Changes</ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
+          <ModalDescription className='text-[var(--text-secondary)]'>
             You have unsaved changes. Are you sure you want to discard them?
-          </p>
+          </ModalDescription>
         </ModalBody>
         <ModalFooter>
           <Button variant='default' onClick={onKeepEditing}>
@@ -362,17 +363,19 @@ export function Document({
     }
   }, [pendingAction, closeEditor])
 
+  const handleSaveEvent = useEffectEvent(handleSave)
+
   useEffect(() => {
     if (!isInEditorView) return
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-        handleSave()
+        handleSaveEvent()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isInEditorView, handleSave])
+  }, [isInEditorView])
 
   useEffect(() => {
     if (!isDirty) return
@@ -859,7 +862,7 @@ export function Document({
             content: {
               content: (
                 <div className='flex items-center gap-2'>
-                  <FileText className='h-5 w-5 flex-shrink-0 text-[var(--text-muted)]' />
+                  <FileText className='size-5 flex-shrink-0 text-[var(--text-muted)]' />
                   <span className='text-[var(--text-muted)] text-sm italic'>
                     {documentData?.processingStatus === 'pending' &&
                       'Document processing pending...'}
@@ -1077,7 +1080,7 @@ export function Document({
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
           <ResourceHeader icon={FileText} breadcrumbs={loadingBreadcrumbs} />
           <div className='flex flex-1 items-center justify-center'>
-            <span className='text-[var(--text-muted)] text-sm'>Loading chunk...</span>
+            <span className='text-[var(--text-muted)] text-sm'>Loading chunk…</span>
           </div>
         </div>
       )
@@ -1170,7 +1173,7 @@ export function Document({
         <ModalContent size='sm'>
           <ModalHeader>Delete Document</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {effectiveDocumentName}
@@ -1189,7 +1192,7 @@ export function Document({
               ) : (
                 <>This action cannot be undone.</>
               )}
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

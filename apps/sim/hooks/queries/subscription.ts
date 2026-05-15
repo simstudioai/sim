@@ -3,19 +3,17 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
-  type BillingUsageData,
   createBillingPortalContract,
   getUserBillingContract,
   getUserUsageLimitContract,
   purchaseCreditsContract,
   type SubscriptionApiResponse,
-  type SubscriptionBillingData,
   updateUsageLimitContract,
 } from '@/lib/api/contracts/subscription'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
-export type { BillingUsageData, SubscriptionApiResponse, SubscriptionBillingData }
+export type { SubscriptionApiResponse }
 
 /**
  * Query key factories for subscription-related queries

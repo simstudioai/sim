@@ -8,6 +8,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +43,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       fileName: userFile.name,
       size: userFile.size,
     })
+
+    const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+    if (denied) return denied
 
     const buffer = await downloadFileFromStorage(userFile, requestId, logger)
 

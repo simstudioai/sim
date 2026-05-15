@@ -292,7 +292,7 @@ export function Preview({
                 onClick={handleGoBack}
                 className='flex h-[28px] items-center gap-[5px] rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 text-[var(--text-secondary)] shadow-sm hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
               >
-                <ArrowLeft className='h-[12px] w-[12px]' />
+                <ArrowLeft className='size-[12px]' />
                 <span className='font-medium text-caption'>Back</span>
               </Button>
             </Tooltip.Trigger>
@@ -308,7 +308,7 @@ export function Preview({
         </div>
       )}
 
-      <div className='h-full flex-1' onContextMenu={onCanvasContextMenu}>
+      <div role='presentation' className='h-full flex-1' onContextMenu={onCanvasContextMenu}>
         <PreviewWorkflow
           workflowState={workflowState}
           isPannable={true}
@@ -327,6 +327,8 @@ export function Preview({
         <div style={{ width: panelWidth }} className='relative h-full flex-shrink-0'>
           {/* Left-edge resize handle */}
           <div
+            role='separator'
+            aria-orientation='vertical'
             className='absolute top-0 bottom-0 left-0 z-10 w-1 cursor-ew-resize transition-colors hover-hover:bg-[var(--border-1)]'
             onMouseDown={handleResizeMouseDown}
           />

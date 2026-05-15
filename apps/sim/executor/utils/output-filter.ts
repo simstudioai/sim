@@ -1,3 +1,4 @@
+import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { getBlock } from '@/blocks'
 import { isHiddenFromDisplay } from '@/blocks/types'
@@ -25,6 +26,9 @@ export function filterOutputForLog(
   }
 ): NormalizedBlockOutput {
   if (typeof output !== 'object' || output === null || Array.isArray(output)) {
+    return output as NormalizedBlockOutput
+  }
+  if (isLargeValueRef(output)) {
     return output as NormalizedBlockOutput
   }
   const blockConfig = blockType ? getBlock(blockType) : undefined

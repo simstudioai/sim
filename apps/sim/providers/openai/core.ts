@@ -133,7 +133,7 @@ export async function executeResponsesProviderRequest(
     allMessages.push(...request.messages)
   }
 
-  const initialInput = buildResponsesInputFromMessages(allMessages)
+  const initialInput = buildResponsesInputFromMessages(allMessages, config.providerId)
 
   const basePayload: Record<string, unknown> = {
     model: config.modelName,

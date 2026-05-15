@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface GoogleBigQueryBaseParams {
+interface GoogleBigQueryBaseParams {
   accessToken: string
   projectId: string
 }
@@ -37,7 +37,7 @@ export interface GoogleBigQueryInsertRowsParams extends GoogleBigQueryBaseParams
   ignoreUnknownValues?: boolean
 }
 
-export interface GoogleBigQueryJobReference {
+interface GoogleBigQueryJobReference {
   projectId: string
   jobId: string
   location: string

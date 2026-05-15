@@ -106,7 +106,7 @@ export interface StreamingContext {
   subAgentTraceSpans?: Map<string, RequestTraceV1Span>
 }
 
-export interface FileAttachment {
+interface FileAttachment {
   id: string
   key: string
   name: string
@@ -114,7 +114,7 @@ export interface FileAttachment {
   size: number
 }
 
-export interface OrchestratorRequest {
+interface OrchestratorRequest {
   message: string
   workflowId: string
   userId: string

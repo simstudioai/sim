@@ -65,7 +65,7 @@ export const CLEANUP_CONFIG = {
  * Bulk-lookup workspace IDs for a non-enterprise plan category. Enterprise is
  * per-workspace (routed through the owning organization's retention config).
  */
-export async function resolveWorkspaceIdsForPlan(plan: NonEnterprisePlan): Promise<string[]> {
+async function resolveWorkspaceIdsForPlan(plan: NonEnterprisePlan): Promise<string[]> {
   if (plan === 'free') {
     const rows = await db
       .select({ id: workspace.id })

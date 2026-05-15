@@ -10,11 +10,11 @@ export interface SMSOptions {
   from?: string
 }
 
-export interface BatchSMSOptions {
+interface BatchSMSOptions {
   messages: SMSOptions[]
 }
 
-export interface SMSResponseData {
+interface SMSResponseData {
   sid?: string
   status?: string
   to?: string
@@ -30,7 +30,7 @@ export interface SendSMSResult {
   data?: SMSResponseData
 }
 
-export interface BatchSendSMSResult {
+interface BatchSendSMSResult {
   success: boolean
   message: string
   results: SendSMSResult[]
@@ -145,7 +145,7 @@ async function sendSingleSMS(to: string, body: string, from: string): Promise<Se
   }
 }
 
-export async function sendBatchSMS(options: BatchSMSOptions): Promise<BatchSendSMSResult> {
+async function sendBatchSMS(options: BatchSMSOptions): Promise<BatchSendSMSResult> {
   try {
     const results: SendSMSResult[] = []
 

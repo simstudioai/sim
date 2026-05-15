@@ -131,7 +131,7 @@ spec:
         fsGroup: 10001
       containers:
         - name: otel-collector
-          image: {{ include "sim.image" (dict "context" . "image" .Values.telemetry.image) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.telemetry.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.telemetry.image.pullPolicy }}
           command:
             - /otelcol-contrib

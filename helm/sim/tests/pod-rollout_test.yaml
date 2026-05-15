@@ -1,0 +1,87 @@
+suite: pod rollout — checksum annotations + topology spread
+release:
+  name: t
+  namespace: sim
+defaults: &defaults
+  app.env.BETTER_AUTH_SECRET: x
+  app.env.ENCRYPTION_KEY: x
+  app.env.INTERNAL_API_SECRET: x
+  app.env.CRON_SECRET: x
+  postgresql.auth.password: x
+
+tests:
+  - it: app pod template has checksum/secret annotation
+    template: deployment-app.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - isNotEmpty:
+          path: spec.template.metadata.annotations["checksum/secret"]
+
+  - it: realtime pod template has checksum/secret annotation
+    template: deployment-realtime.yaml
+    set:
+      <<: *defaults
+    asserts:
+      - isNotEmpty:
+          path: spec.template.metadata.annotations["checksum/secret"]
+
+  - it: changing a secret value changes the app pod checksum (forces rollout)
+    template: deployment-app.yaml
+    set:
+      <<: *defaults
+      app.env.BETTER_AUTH_SECRET: original-value
+    asserts:
+      - notEqual:
+          path: spec.template.metadata.annotations["checksum/secret"]
+          value: ""
+
+  - it: topologySpreadConstraints render on the app pod when set
+    template: deployment-app.yaml
+    set:
+      <<: *defaults
+      app.topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: sim
+    asserts:
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+          value: topology.kubernetes.io/zone
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].whenUnsatisfiable
+          value: ScheduleAnyway
+
+  - it: topologySpreadConstraints render on the realtime pod when set
+    template: deployment-realtime.yaml
+    set:
+      <<: *defaults
+      realtime.topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: sim
+    asserts:
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0].topologyKey
+          value: topology.kubernetes.io/zone
+
+  - it: app topologySpreadConstraints do not leak onto realtime pod
+    template: deployment-realtime.yaml
+    set:
+      <<: *defaults
+      app.topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: sim
+    asserts:
+      - isNull:
+          path: spec.template.spec.topologySpreadConstraints

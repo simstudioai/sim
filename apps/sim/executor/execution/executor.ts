@@ -18,6 +18,7 @@ import { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { BlockState, ExecutionContext, ExecutionResult } from '@/executor/types'
+import { ParallelExpander } from '@/executor/utils/parallel-expansion'
 import {
   computeExecutionSets,
   type RunFromBlockContext,
@@ -34,6 +35,7 @@ import {
   extractParallelIdFromSentinel,
 } from '@/executor/utils/subflow-utils'
 import { VariableResolver } from '@/executor/variables/resolver'
+import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedWorkflow } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
@@ -78,6 +80,8 @@ export class DAGExecutor {
       triggerBlockId,
       savedIncomingEdges,
     })
+    this.restoreSnapshotParallelBatches(dag, this.contextExtensions.snapshotState)
+    this.restoreSavedIncomingEdges(dag, savedIncomingEdges)
     const { context, state } = this.createExecutionContext(workflowId, triggerBlockId)
     context.subflowParentMap = this.buildSubflowParentMap(dag)
 
@@ -212,8 +216,45 @@ export class DAGExecutor {
     return await engine.run()
   }
 
+  private restoreSavedIncomingEdges(dag: DAG, savedIncomingEdges?: Record<string, string[]>): void {
+    if (!savedIncomingEdges) return
+
+    for (const [nodeId, incomingEdges] of Object.entries(savedIncomingEdges)) {
+      const node = dag.nodes.get(nodeId)
+      if (node) {
+        node.incomingEdges = new Set(incomingEdges)
+      }
+    }
+  }
+
+  private restoreSnapshotParallelBatches(
+    dag: DAG,
+    snapshotState?: SerializableExecutionState
+  ): void {
+    if (!snapshotState?.parallelExecutions) return
+
+    const expander = new ParallelExpander()
+    for (const [parallelId, scope] of Object.entries(snapshotState.parallelExecutions)) {
+      const currentBatchSize = Number(scope.currentBatchSize ?? 0)
+      if (!Number.isFinite(currentBatchSize) || currentBatchSize <= 0) continue
+
+      const currentBatchStart = Number(scope.currentBatchStart ?? 0)
+      const totalBranches = Number(scope.totalBranches ?? currentBatchStart + currentBatchSize)
+      const items = Array.isArray(scope.items)
+        ? scope.items.slice(currentBatchStart, currentBatchStart + currentBatchSize)
+        : undefined
+
+      expander.expandParallel(dag, parallelId, currentBatchSize, items, {
+        branchIndexOffset: currentBatchStart,
+        totalBranches,
+      })
+    }
+  }
+
   private buildExecutionPipeline(context: ExecutionContext, dag: DAG, state: ExecutionState) {
-    const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
+    const resolver = new VariableResolver(this.workflow, this.workflowVariables, state, {
+      navigatePathAsync,
+    })
     const allHandlers = createBlockHandlers()
     const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions, state)
     const edgeManager = new EdgeManager(dag)
@@ -271,6 +312,8 @@ export class DAGExecutor {
       workflowId,
       workspaceId: this.contextExtensions.workspaceId,
       executionId: this.contextExtensions.executionId,
+      largeValueExecutionIds: this.contextExtensions.largeValueExecutionIds,
+      allowLargeValueWorkflowScope: this.contextExtensions.allowLargeValueWorkflowScope,
       userId: this.contextExtensions.userId,
       isDeployedContext: this.contextExtensions.isDeployedContext,
       enforceCredentialAccess: this.contextExtensions.enforceCredentialAccess,
@@ -317,9 +360,17 @@ export class DAGExecutor {
                 branchOutputs: scope.branchOutputs
                   ? new Map(Object.entries(scope.branchOutputs).map(([k, v]) => [Number(k), v]))
                   : new Map(),
+                accumulatedOutputs: scope.accumulatedOutputs
+                  ? new Map(
+                      Object.entries(scope.accumulatedOutputs).map(([k, v]) => [Number(k), v])
+                    )
+                  : new Map(),
               },
             ])
           )
+        : new Map(),
+      parallelBlockMapping: snapshotState?.parallelBlockMapping
+        ? new Map(Object.entries(snapshotState.parallelBlockMapping))
         : new Map(),
       executedBlocks: state.getExecutedBlocks(),
       activeExecutionPath: snapshotState?.activeExecutionPath

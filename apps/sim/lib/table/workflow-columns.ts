@@ -29,12 +29,8 @@ const logger = createLogger('WorkflowGroupScheduler')
 import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from './deps'
 
 export {
-  areGroupDepsSatisfied,
-  areOutputsFilled,
   getUnmetGroupDeps,
-  isExecInFlight,
   optimisticallyScheduleNewlyEligibleGroups,
-  type UnmetDeps,
 } from './deps'
 
 /**
@@ -241,7 +237,7 @@ export async function scheduleRunsForTable(
  * Re-evaluate eligibility on the rows with these ids. Sugar for callers that
  * have row ids but not materialized rows.
  */
-export async function scheduleRunsForRowIds(
+async function scheduleRunsForRowIds(
   table: TableDefinition,
   rowIds: string[],
   opts?: ScheduleOpts

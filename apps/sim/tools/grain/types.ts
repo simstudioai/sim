@@ -5,18 +5,19 @@
  */
 
 import type { ToolResponse } from '@/tools/types'
-export interface GrainTeam {
+
+interface GrainTeam {
   id: string
   name: string
 }
 
-export interface GrainMeetingType {
+interface GrainMeetingType {
   id: string
   name: string
   scope: 'internal' | 'external'
 }
 
-export interface GrainParticipant {
+interface GrainParticipant {
   id: string
   name: string
   email: string | null
@@ -25,7 +26,7 @@ export interface GrainParticipant {
   hs_contact_id?: string | null
 }
 
-export interface GrainHighlight {
+interface GrainHighlight {
   id: string
   recording_id: string
   text: string
@@ -39,29 +40,29 @@ export interface GrainHighlight {
   created_datetime: string
 }
 
-export interface GrainAiSummary {
+interface GrainAiSummary {
   text: string
 }
 
-export interface GrainCalendarEvent {
+interface GrainCalendarEvent {
   ical_uid: string
 }
 
-export interface GrainHubspotData {
+interface GrainHubspotData {
   hubspot_company_ids: string[]
   hubspot_deal_ids: string[]
 }
 
-export interface GrainAiTemplateSection {
+interface GrainAiTemplateSection {
   title: string
   data: Record<string, unknown>
 }
 
-export interface GrainPrivateNotes {
+interface GrainPrivateNotes {
   text: string
 }
 
-export interface GrainTranscriptSection {
+interface GrainTranscriptSection {
   participant_id: string | null
   speaker: string
   start: number
@@ -69,7 +70,7 @@ export interface GrainTranscriptSection {
   text: string
 }
 
-export interface GrainRecording {
+interface GrainRecording {
   id: string
   title: string
   start_datetime: string
@@ -91,7 +92,7 @@ export interface GrainRecording {
   ai_template_sections?: GrainAiTemplateSection[]
 }
 
-export interface GrainHook {
+interface GrainHook {
   id: string
   enabled: boolean
   version?: number
@@ -101,7 +102,7 @@ export interface GrainHook {
   inserted_at: string
 }
 
-export interface GrainView {
+interface GrainView {
   id: string
   name?: string
   type?: 'recordings' | 'highlights' | 'stories'

@@ -6,6 +6,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, asc, eq, inArray, isNull, max, min, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { materializeLargeValueRefsSync } from '@/lib/execution/payloads/cache'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -319,13 +320,14 @@ export const createHttpResponseFromBlock = (
   executionResult: Pick<ExecutionResult, 'output'>
 ): NextResponse => {
   const { data = {}, status = 200, headers = {} } = executionResult.output
+  const responseData = materializeLargeValueRefsSync(data)
 
   const responseHeaders = new Headers({
     'Content-Type': 'application/json',
     ...headers,
   })
 
-  return NextResponse.json(data, {
+  return NextResponse.json(responseData, {
     status: status,
     headers: responseHeaders,
   })

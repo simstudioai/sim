@@ -10,7 +10,15 @@ export const SOURCE_TYPES = [
 
 export type SourceType = (typeof SOURCE_TYPES)[number]
 
-export const DESTINATION_TYPES = ['s3', 'webhook'] as const
+export const DESTINATION_TYPES = [
+  's3',
+  'gcs',
+  'azure_blob',
+  'datadog',
+  'bigquery',
+  'snowflake',
+  'webhook',
+] as const
 
 export type DestinationType = (typeof DESTINATION_TYPES)[number]
 
@@ -65,12 +73,12 @@ export interface DeliveryMetadata {
   runStartedAt: Date
 }
 
-export interface DeliveryResult {
+interface DeliveryResult {
   /** Stable identifier for the written object: e.g. `s3://bucket/key` or `https://host/path`. */
   locator: string
 }
 
-export interface DrainDeliverySession {
+interface DrainDeliverySession {
   deliver(input: {
     body: Buffer
     contentType: 'application/x-ndjson'

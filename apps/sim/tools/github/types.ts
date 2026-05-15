@@ -1836,7 +1836,7 @@ export interface GetTreeParams extends BaseGitHubParams {
 }
 
 // File/Content metadata interfaces
-export interface FileContentMetadata {
+interface FileContentMetadata {
   name: string
   path: string
   sha: string
@@ -1846,7 +1846,7 @@ export interface FileContentMetadata {
   html_url?: string
 }
 
-export interface FileCommitMetadata {
+interface FileCommitMetadata {
   sha: string
   message: string
   author: {
@@ -1862,7 +1862,7 @@ export interface FileCommitMetadata {
   html_url: string
 }
 
-export interface TreeItemMetadata {
+interface TreeItemMetadata {
   name: string
   path: string
   sha: string

@@ -298,7 +298,7 @@ export async function updateOrganizationUsageLimit(
 /**
  * Get organization billing summary for admin dashboard
  */
-export async function getOrganizationBillingSummary(organizationId: string) {
+async function getOrganizationBillingSummary(organizationId: string) {
   try {
     const billingData = await getOrganizationBillingData(organizationId)
 

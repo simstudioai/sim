@@ -20,11 +20,14 @@ import {
 } from '@/components/emcn'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
+import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface Field {
   id: string
@@ -49,6 +52,7 @@ interface FieldFormatProps {
   valuePlaceholder?: string
   descriptionPlaceholder?: string
   config?: any
+  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -103,6 +107,7 @@ export function FieldFormat({
   showDescription = false,
   valuePlaceholder = 'Enter default value',
   descriptionPlaceholder = 'Describe this field',
+  activeSearchTarget,
 }: FieldFormatProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<Field[]>(blockId, subBlockId)
   const valueInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement>>({})
@@ -126,6 +131,17 @@ export function FieldFormat({
   const value = isPreview ? previewValue : storeValue
   const fields: Field[] = Array.isArray(value) && value.length > 0 ? value : [createDefaultField()]
   const isReadOnly = isPreview || disabled
+
+  const isNestedSearchHighlighted = (fieldIndex: number, fieldKey: keyof Field) =>
+    activeSearchTarget?.subBlockId === subBlockId &&
+    activeSearchTarget.valuePath[0] === fieldIndex &&
+    activeSearchTarget.valuePath.at(-1) === fieldKey
+
+  const renderFieldLabel = (label: string, highlighted: boolean) => (
+    <Label className='text-small'>
+      {highlighted ? <mark className={WORKFLOW_SEARCH_HIGHLIGHT_CLASS}>{label}</mark> : label}
+    </Label>
+  )
 
   /**
    * Adds a new field to the list
@@ -309,8 +325,14 @@ export function FieldFormat({
    */
   const renderFieldHeader = (field: Field, index: number) => (
     <div
+      role='group'
+      aria-label={`${title} ${index + 1}`}
       className='flex cursor-pointer items-center justify-between rounded-t-[3px] bg-[var(--surface-4)] px-2.5 py-[5px]'
       onClick={() => toggleCollapse(field.id)}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        handleKeyboardActivation(event, () => toggleCollapse(field.id))
+      }}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
         <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
@@ -322,9 +344,13 @@ export function FieldFormat({
           </Badge>
         )}
       </div>
-      <div className='flex items-center gap-2 pl-2' onClick={(e) => e.stopPropagation()}>
+      <div
+        role='presentation'
+        className='flex items-center gap-2 pl-2'
+        onClick={(e) => e.stopPropagation()}
+      >
         <Button variant='ghost' onClick={addField} disabled={isReadOnly} className='h-auto p-0'>
-          <Plus className='h-[14px] w-[14px]' />
+          <Plus className='size-[14px]' />
           <span className='sr-only'>Add {title}</span>
         </Button>
         <Button
@@ -333,7 +359,7 @@ export function FieldFormat({
           disabled={isReadOnly}
           className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)] hover-hover:opacity-90'
         >
-          <Trash className='h-[14px] w-[14px]' />
+          <Trash className='size-[14px]' />
           <span className='sr-only'>Delete Field</span>
         </Button>
       </div>
@@ -555,13 +581,13 @@ export function FieldFormat({
             <ExpandableContent>
               <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
                 <div className='flex flex-col gap-1.5'>
-                  <Label className='text-small'>Name</Label>
+                  {renderFieldLabel('Name', isNestedSearchHighlighted(index, 'name'))}
                   <div className='relative'>{renderNameInput(field)}</div>
                 </div>
 
                 {showType && (
                   <div className='flex flex-col gap-1.5'>
-                    <Label className='text-small'>Type</Label>
+                    {renderFieldLabel('Type', isNestedSearchHighlighted(index, 'type'))}
                     <Combobox
                       options={TYPE_OPTIONS}
                       value={field.type}
@@ -573,7 +599,10 @@ export function FieldFormat({
 
                 {showDescription && (
                   <div className='flex flex-col gap-1.5'>
-                    <Label className='text-small'>Description</Label>
+                    {renderFieldLabel(
+                      'Description',
+                      isNestedSearchHighlighted(index, 'description')
+                    )}
                     <Input
                       value={field.description ?? ''}
                       onChange={(e) => updateField(field.id, 'description', e.target.value)}
@@ -585,7 +614,7 @@ export function FieldFormat({
 
                 {showValue && (
                   <div className='flex flex-col gap-1.5'>
-                    <Label className='text-small'>Value</Label>
+                    {renderFieldLabel('Value', isNestedSearchHighlighted(index, 'value'))}
                     <div className='relative'>{renderValueInput(field)}</div>
                   </div>
                 )}

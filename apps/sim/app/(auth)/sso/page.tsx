@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
@@ -14,5 +15,9 @@ export default async function SSOPage() {
     redirect('/login')
   }
 
-  return <SSOForm />
+  return (
+    <Suspense fallback={null}>
+      <SSOForm />
+    </Suspense>
+  )
 }

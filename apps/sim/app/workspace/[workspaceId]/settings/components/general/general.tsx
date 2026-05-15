@@ -13,6 +13,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Switch,
@@ -24,6 +25,7 @@ import { signOut, useSession } from '@/lib/auth/auth-client'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { GeneralSkeleton } from '@/app/workspace/[workspaceId]/settings/components/general/general-skeleton'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
@@ -71,10 +73,10 @@ export function General() {
   const [name, setName] = useState(profile?.name || '')
   const [isEditingName, setIsEditingName] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const [prevProfileName, setPrevProfileName] = useState(profile?.name)
+  const prevProfileNameRef = useRef<string | undefined>(profile?.name)
 
-  if (profile?.name && profile.name !== prevProfileName) {
-    setPrevProfileName(profile.name)
+  if (profile?.name && profile.name !== prevProfileNameRef.current) {
+    prevProfileNameRef.current = profile.name
     setName(profile.name)
   }
 
@@ -256,8 +258,11 @@ export function General() {
       <div className='flex items-center gap-3'>
         <div className='relative'>
           <div
+            role='button'
+            tabIndex={0}
             className={`group relative flex h-9 w-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-all hover-hover:bg-[var(--bg)] ${!imageUrl ? 'border border-[var(--border)]' : ''}`}
             onClick={handleProfilePictureClick}
+            onKeyDown={(event) => handleKeyboardActivation(event, handleProfilePictureClick)}
           >
             {(() => {
               if (imageUrl) {
@@ -286,9 +291,9 @@ export function General() {
               }`}
             >
               {isUploadingProfilePicture ? (
-                <div className='h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent' />
+                <div className='size-4 animate-spin rounded-full border-2 border-white border-t-transparent' />
               ) : (
-                <Camera className='h-4 w-4 text-white' />
+                <Camera className='size-4 text-white' />
               )}
             </div>
           </div>
@@ -329,12 +334,12 @@ export function General() {
                 </div>
                 <Button
                   variant='ghost'
-                  className='h-[12px] w-[12px] flex-shrink-0 p-0'
+                  className='size-[12px] flex-shrink-0 p-0'
                   onClick={handleUpdateName}
                   disabled={updateProfile.isPending}
                   aria-label='Save name'
                 >
-                  <Check className='h-[12px] w-[12px]' />
+                  <Check className='size-[12px]' />
                 </Button>
               </>
             ) : (
@@ -342,11 +347,11 @@ export function General() {
                 <h3 className='font-medium text-base'>{profile?.name || ''}</h3>
                 <Button
                   variant='ghost'
-                  className='h-[10.5px] w-[10.5px] flex-shrink-0 p-0'
+                  className='size-[10.5px] flex-shrink-0 p-0'
                   onClick={() => setIsEditingName(true)}
                   aria-label='Edit name'
                 >
-                  <Pencil className='h-[10.5px] w-[10.5px]' />
+                  <Pencil className='size-[10.5px]' />
                 </Button>
               </>
             )}
@@ -380,7 +385,7 @@ export function General() {
           <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Info className='h-[14px] w-[14px] cursor-default text-[var(--text-muted)]' />
+              <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
             </Tooltip.Trigger>
             <Tooltip.Content side='bottom' align='start'>
               <p>Automatically connect blocks when dropped near each other</p>
@@ -404,7 +409,7 @@ export function General() {
           <Label htmlFor='error-notifications'>Canvas error notifications</Label>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Info className='h-[14px] w-[14px] cursor-default text-[var(--text-muted)]' />
+              <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
             </Tooltip.Trigger>
             <Tooltip.Content side='bottom' align='start'>
               <p>Show error popups on blocks when a workflow run fails</p>
@@ -505,11 +510,11 @@ export function General() {
         <ModalContent size='sm'>
           <ModalHeader>Reset Password</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               A password reset link will be sent to{' '}
               <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>.
               Click the link in the email to create a new password.
-            </p>
+            </ModalDescription>
             {resetPassword.error && (
               <p className='mt-2 text-[var(--text-error)] text-small'>
                 {resetPassword.error.message}

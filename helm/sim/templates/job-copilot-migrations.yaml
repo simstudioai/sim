@@ -24,11 +24,10 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      automountServiceAccountToken: false
       restartPolicy: {{ .Values.copilot.migrations.restartPolicy }}
-      {{- with .Values.copilot.migrations.podSecurityContext }}
-      securityContext:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      {{- include "sim.podSecurityContext" .Values.copilot.migrations | nindent 6 }}
       {{- with .Values.copilot.server.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -36,7 +35,7 @@ spec:
       {{- if .Values.copilot.postgresql.enabled }}
       initContainers:
         - name: wait-for-postgres
-          image: {{ include "sim.image" (dict "context" . "image" .Values.copilot.postgresql.image) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.copilot.postgresql.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           command:
             - /bin/sh
             - -c
@@ -49,14 +48,11 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ include "sim.fullname" . }}-copilot-postgresql-secret
-          {{- with .Values.copilot.migrations.securityContext }}
-          securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+          {{- include "sim.containerSecurityContext" .Values.copilot.migrations | nindent 10 }}
       {{- end }}
       containers:
         - name: migrations
-          image: {{ include "sim.image" (dict "context" . "image" .Values.copilot.migrations.image) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.copilot.migrations.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.copilot.migrations.image.pullPolicy }}
           command: ["/usr/local/bin/migrate"]
           envFrom:
@@ -75,9 +71,6 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.copilot.migrations.securityContext }}
-          securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+          {{- include "sim.containerSecurityContext" .Values.copilot.migrations | nindent 10 }}
 {{- end }}
 

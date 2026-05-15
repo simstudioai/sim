@@ -15,6 +15,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
@@ -134,6 +135,9 @@ function AddMembersModal({
       <ModalContent size='sm'>
         <ModalHeader>Add Members</ModalHeader>
         <ModalBody className='!pb-4'>
+          <ModalDescription className='sr-only'>
+            Search and select workspace members to add to this permission group
+          </ModalDescription>
           {availableMembers.length === 0 ? (
             <p className='text-[var(--text-muted)] text-sm'>
               All workspace members are already in this group.
@@ -142,7 +146,7 @@ function AddMembersModal({
             <div className='flex flex-col gap-3'>
               <div className='flex items-center gap-2'>
                 <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                  <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                  <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                   <BaseInput
                     placeholder='Search members...'
                     value={searchTerm}
@@ -235,7 +239,7 @@ function AccessControlSkeleton() {
         <Skeleton className='h-[14px] w-[100px]' />
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-3'>
-            <Skeleton className='h-9 w-9 rounded-md' />
+            <Skeleton className='size-9 rounded-md' />
             <div className='flex flex-col gap-1'>
               <Skeleton className='h-[14px] w-[120px]' />
               <Skeleton className='h-[12px] w-[80px]' />
@@ -800,7 +804,7 @@ export function AccessControl() {
               <div className='flex items-center justify-between'>
                 <span className='font-medium text-[var(--text-secondary)] text-sm'>Members</span>
                 <Button variant='primary' onClick={handleOpenAddMembersModal}>
-                  <Plus className='mr-1.5 h-[13px] w-[13px]' />
+                  <Plus className='mr-1.5 size-[13px]' />
                   Add
                 </Button>
               </div>
@@ -810,7 +814,7 @@ export function AccessControl() {
                   {[1, 2].map((i) => (
                     <div key={i} className='flex items-center justify-between'>
                       <div className='flex items-center gap-3'>
-                        <Skeleton className='h-8 w-8 rounded-full' />
+                        <Skeleton className='size-8 rounded-full' />
                         <div className='flex flex-col gap-1'>
                           <Skeleton className='h-[14px] w-[100px]' />
                           <Skeleton className='h-[12px] w-[150px]' />
@@ -904,10 +908,14 @@ export function AccessControl() {
               </ModalTabsList>
 
               <ModalBody className='min-h-0 flex-1'>
+                <ModalDescription className='sr-only'>
+                  Configure model provider, block, and platform permissions for this permission
+                  group
+                </ModalDescription>
                 <ModalTabsContent value='providers'>
                   <div className='flex items-center gap-2 pb-3'>
                     <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                       <BaseInput
                         placeholder='Search providers...'
                         value={providerSearchTerm}
@@ -955,7 +963,7 @@ export function AccessControl() {
                             checked={isProviderAllowed(providerId)}
                             onCheckedChange={() => toggleProvider(providerId)}
                           />
-                          <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+                          <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
                             {ProviderIcon && <ProviderIcon className='!h-[16px] !w-[16px]' />}
                           </div>
                           <span className='truncate font-medium text-sm'>{providerName}</span>
@@ -968,7 +976,7 @@ export function AccessControl() {
                 <ModalTabsContent value='blocks'>
                   <div className='flex items-center gap-2 pb-3'>
                     <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                       <BaseInput
                         placeholder='Search blocks...'
                         value={integrationSearchTerm}
@@ -1023,7 +1031,7 @@ export function AccessControl() {
                                   onCheckedChange={() => toggleIntegration(block.type)}
                                 />
                                 <div
-                                  className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                                  className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
                                   style={{ background: block.bgColor }}
                                 >
                                   {BlockIcon && (
@@ -1058,7 +1066,7 @@ export function AccessControl() {
                                   onCheckedChange={() => toggleIntegration(block.type)}
                                 />
                                 <div
-                                  className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                                  className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
                                   style={{ background: block.bgColor }}
                                 >
                                   {BlockIcon && (
@@ -1078,7 +1086,7 @@ export function AccessControl() {
                 <ModalTabsContent value='platform'>
                   <div className='flex items-center gap-2 pb-3'>
                     <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px]'>
-                      <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
+                      <Search className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]' />
                       <BaseInput
                         placeholder='Search features...'
                         value={platformSearchTerm}
@@ -1179,9 +1187,9 @@ export function AccessControl() {
           <ModalContent size='sm'>
             <ModalHeader>Unsaved Changes</ModalHeader>
             <ModalBody>
-              <p className='text-[var(--text-secondary)]'>
+              <ModalDescription className='text-[var(--text-secondary)]'>
                 You have unsaved changes. Do you want to save them before closing?
-              </p>
+              </ModalDescription>
             </ModalBody>
             <ModalFooter>
               <Button
@@ -1234,7 +1242,7 @@ export function AccessControl() {
         <div className='flex items-center gap-2'>
           <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
             <Search
-              className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
             />
             <BaseInput
@@ -1245,7 +1253,7 @@ export function AccessControl() {
             />
           </div>
           <Button variant='primary' onClick={() => setShowCreateModal(true)}>
-            <Plus className='mr-1.5 h-[13px] w-[13px]' />
+            <Plus className='mr-1.5 size-[13px]' />
             Create
           </Button>
         </div>
@@ -1299,6 +1307,9 @@ export function AccessControl() {
         <ModalContent size='sm'>
           <ModalHeader>Create Permission Group</ModalHeader>
           <ModalBody>
+            <ModalDescription className='sr-only'>
+              Enter a name and optional description to create a new permission group
+            </ModalDescription>
             <div className='flex flex-col gap-3'>
               <div className='flex flex-col gap-1'>
                 <Label>Name</Label>
@@ -1351,14 +1362,14 @@ export function AccessControl() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Permission Group</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{deletingGroup?.name}</span>?
               <span className='text-[var(--text-error)]'>
                 All members will be removed from this group.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setDeletingGroup(null)}>

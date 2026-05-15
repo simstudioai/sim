@@ -12,6 +12,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -103,6 +104,9 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='sm'>
         <ModalHeader>Edit Knowledge Base</ModalHeader>
+        <ModalDescription className='sr-only'>
+          Update the name and description of this knowledge base
+        </ModalDescription>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody>

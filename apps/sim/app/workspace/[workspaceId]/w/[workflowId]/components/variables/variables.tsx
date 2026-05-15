@@ -84,6 +84,134 @@ const STRINGS = {
   emptyState: 'No variables yet',
 }
 
+interface VariableHeaderProps {
+  variable: Variable
+  index: number
+  isCollapsed: boolean
+  onToggleCollapse: () => void
+  onRemove: () => void
+  readOnly: boolean
+}
+
+function VariableHeader({
+  variable,
+  index,
+  isCollapsed,
+  onToggleCollapse,
+  onRemove,
+  readOnly,
+}: VariableHeaderProps) {
+  function handleHeaderKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onToggleCollapse()
+    }
+  }
+
+  return (
+    <div
+      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
+      onClick={onToggleCollapse}
+      onKeyDown={handleHeaderKeyDown}
+      role='button'
+      tabIndex={0}
+      aria-expanded={!isCollapsed}
+      aria-controls={`variable-content-${variable.id}`}
+    >
+      <div className='flex min-w-0 flex-1 items-center gap-2'>
+        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+          {variable.name || `Variable ${index + 1}`}
+        </span>
+        {variable.name && (
+          <Badge variant='type' size='sm'>
+            {variable.type}
+          </Badge>
+        )}
+      </div>
+      <Button
+        variant='ghost'
+        onClick={(e) => {
+          e.stopPropagation()
+          onRemove()
+        }}
+        className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
+        disabled={readOnly}
+        aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
+      >
+        <Trash style={{ width: `${ICON_SIZE}px`, height: `${ICON_SIZE}px` }} />
+        <span className='sr-only'>Delete Variable</span>
+      </Button>
+    </div>
+  )
+}
+
+interface VariableValueInputProps {
+  variable: Variable
+  onUpdate: (variableId: string, field: 'name' | 'value' | 'type', value: any) => void
+  readOnly: boolean
+}
+
+function VariableValueInput({ variable, onUpdate, readOnly }: VariableValueInputProps) {
+  const variableValue =
+    variable.value === ''
+      ? ''
+      : typeof variable.value === 'string'
+        ? variable.value
+        : JSON.stringify(variable.value)
+
+  if (variable.type === 'object' || variable.type === 'array') {
+    const lineCount = variableValue.split('\n').length
+    const gutterWidth = calculateGutterWidth(lineCount)
+    const placeholder =
+      variable.type === 'object' ? STRINGS.placeholders.object : STRINGS.placeholders.array
+
+    return (
+      <Code.Container style={{ minHeight: `${MIN_EDITOR_HEIGHT}px` }}>
+        <Code.Gutter width={gutterWidth}>
+          {Array.from({ length: lineCount }, (_, i) => (
+            <div
+              key={i}
+              className='font-medium font-mono text-[var(--text-muted)] text-xs'
+              style={{ height: `${LINE_HEIGHT}px`, lineHeight: `${LINE_HEIGHT}px` }}
+            >
+              {i + 1}
+            </div>
+          ))}
+        </Code.Gutter>
+        <Code.Content paddingLeft={`${gutterWidth}px`}>
+          <Code.Placeholder gutterWidth={gutterWidth} show={variableValue.length === 0}>
+            {placeholder}
+          </Code.Placeholder>
+          <Editor
+            value={variableValue}
+            onValueChange={(newValue) => onUpdate(variable.id, 'value', newValue)}
+            highlight={(code) => highlight(code, languages.json, 'json')}
+            {...getCodeEditorProps()}
+            disabled={readOnly}
+          />
+        </Code.Content>
+      </Code.Container>
+    )
+  }
+
+  return (
+    <Input
+      name='value'
+      autoComplete='off'
+      value={variableValue}
+      onChange={(e) => onUpdate(variable.id, 'value', e.target.value)}
+      disabled={readOnly}
+      placeholder={
+        variable.type === 'number'
+          ? STRINGS.placeholders.number
+          : variable.type === 'boolean'
+            ? STRINGS.placeholders.boolean
+            : STRINGS.placeholders.plain
+      }
+    />
+  )
+}
+
 /**
  * Floating Variables modal component
  *
@@ -196,13 +324,6 @@ export function Variables({ readOnly = false }: VariablesProps) {
     }))
   }
 
-  const handleHeaderKeyDown = (e: React.KeyboardEvent, variableId: string) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      toggleCollapsed(variableId)
-    }
-  }
-
   const clearVariableState = (variableId: string, clearNames = true) => {
     if (clearNames) {
       setLocalNames((prev) => {
@@ -307,123 +428,13 @@ export function Variables({ readOnly = false }: VariablesProps) {
     setIsOpen(false)
   }
 
-  const renderVariableHeader = useCallback(
-    (variable: Variable, index: number) => {
-      const isCollapsed = collapsedById[variable.id] ?? false
-      return (
-        <div
-          className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
-          onClick={() => toggleCollapsed(variable.id)}
-          onKeyDown={(e) => handleHeaderKeyDown(e, variable.id)}
-          role='button'
-          tabIndex={0}
-          aria-expanded={!isCollapsed}
-          aria-controls={`variable-content-${variable.id}`}
-        >
-          <div className='flex min-w-0 flex-1 items-center gap-2'>
-            <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
-              {variable.name || `Variable ${index + 1}`}
-            </span>
-            {variable.name && (
-              <Badge variant='type' size='sm'>
-                {variable.type}
-              </Badge>
-            )}
-          </div>
-          <Button
-            variant='ghost'
-            onClick={(e) => {
-              e.stopPropagation()
-              handleRemoveVariable(variable.id)
-            }}
-            className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
-            disabled={readOnly}
-            aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
-          >
-            <Trash style={{ width: `${ICON_SIZE}px`, height: `${ICON_SIZE}px` }} />
-            <span className='sr-only'>Delete Variable</span>
-          </Button>
-        </div>
-      )
-    },
-    [collapsedById, toggleCollapsed, handleRemoveVariable, readOnly]
-  )
-
-  /**
-   * Renders the value input based on variable type.
-   * Memoized with useCallback to prevent unnecessary re-renders.
-   */
-  const renderValueInput = useCallback(
-    (variable: Variable) => {
-      const variableValue =
-        variable.value === ''
-          ? ''
-          : typeof variable.value === 'string'
-            ? variable.value
-            : JSON.stringify(variable.value)
-
-      if (variable.type === 'object' || variable.type === 'array') {
-        const lineCount = variableValue.split('\n').length
-        const gutterWidth = calculateGutterWidth(lineCount)
-        const placeholder =
-          variable.type === 'object' ? STRINGS.placeholders.object : STRINGS.placeholders.array
-
-        const renderLineNumbers = () => {
-          return Array.from({ length: lineCount }, (_, i) => (
-            <div
-              key={i}
-              className='font-medium font-mono text-[var(--text-muted)] text-xs'
-              style={{ height: `${LINE_HEIGHT}px`, lineHeight: `${LINE_HEIGHT}px` }}
-            >
-              {i + 1}
-            </div>
-          ))
-        }
-
-        return (
-          <Code.Container style={{ minHeight: `${MIN_EDITOR_HEIGHT}px` }}>
-            <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
-            <Code.Content paddingLeft={`${gutterWidth}px`}>
-              <Code.Placeholder gutterWidth={gutterWidth} show={variableValue.length === 0}>
-                {placeholder}
-              </Code.Placeholder>
-              <Editor
-                value={variableValue}
-                onValueChange={(newValue) => handleUpdateVariable(variable.id, 'value', newValue)}
-                highlight={(code) => highlight(code, languages.json, 'json')}
-                {...getCodeEditorProps()}
-                disabled={readOnly}
-              />
-            </Code.Content>
-          </Code.Container>
-        )
-      }
-
-      return (
-        <Input
-          name='value'
-          autoComplete='off'
-          value={variableValue}
-          onChange={(e) => handleUpdateVariable(variable.id, 'value', e.target.value)}
-          disabled={readOnly}
-          placeholder={
-            variable.type === 'number'
-              ? STRINGS.placeholders.number
-              : variable.type === 'boolean'
-                ? STRINGS.placeholders.boolean
-                : STRINGS.placeholders.plain
-          }
-        />
-      )
-    },
-    [handleUpdateVariable, readOnly]
-  )
-
   if (!isOpen) return null
 
   return (
     <div
       ref={preventZoomRef}
+      role='dialog'
+      aria-label='Variables'
       className='fixed z-30 flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
       style={{
         left: `${actualPosition.x}px`,
@@ -438,6 +449,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
     >
       {/* Header (drag handle) */}
       <div
+        role='presentation'
         className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >
@@ -487,7 +499,14 @@ export function Variables({ readOnly = false }: VariablesProps) {
                     (collapsedById[variable.id] ?? false) ? 'overflow-hidden' : 'overflow-visible'
                   )}
                 >
-                  {renderVariableHeader(variable, index)}
+                  <VariableHeader
+                    variable={variable}
+                    index={index}
+                    isCollapsed={collapsedById[variable.id] ?? false}
+                    onToggleCollapse={() => toggleCollapsed(variable.id)}
+                    onRemove={() => handleRemoveVariable(variable.id)}
+                    readOnly={readOnly}
+                  />
 
                   {!(collapsedById[variable.id] ?? false) && (
                     <div
@@ -525,7 +544,13 @@ export function Variables({ readOnly = false }: VariablesProps) {
 
                       <div className='space-y-1'>
                         <Label className='text-small'>{STRINGS.labels.value}</Label>
-                        <div className='relative'>{renderValueInput(variable)}</div>
+                        <div className='relative'>
+                          <VariableValueInput
+                            variable={variable}
+                            onUpdate={handleUpdateVariable}
+                            readOnly={readOnly}
+                          />
+                        </div>
                       </div>
                     </div>
                   )}

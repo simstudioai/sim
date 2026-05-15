@@ -224,7 +224,7 @@ export function handlePreDeploymentVerification(
   return null
 }
 
-export async function findWebhookAndWorkflow(
+async function findWebhookAndWorkflow(
   options: WebhookProcessorOptions
 ): Promise<{ webhook: any; workflow: any } | null> {
   if (options.webhookId) {

@@ -2,9 +2,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { generateCopilotApiKeyContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
+import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -16,13 +16,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     const userId = session.user.id
+    const mothershipBaseURL = await getMothershipBaseURL({ userId })
 
     const parsed = await parseRequest(generateCopilotApiKeyContract, req, {})
     if (!parsed.success) return parsed.response
 
     const { name } = parsed.data.body
 
-    const res = await fetchGo(`${SIM_AGENT_API_URL}/api/validate-key/generate`, {
+    const res = await fetchGo(`${mothershipBaseURL}/api/validate-key/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,7 +1,7 @@
 import type { UserFile } from '@/executor/types'
 import type { ToolFileData, ToolResponse } from '@/tools/types'
 
-export interface SftpConnectionConfig {
+interface SftpConnectionConfig {
   host: string
   port: number
   username: string

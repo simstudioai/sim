@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   chat,
@@ -8,14 +7,14 @@ import {
   workflowMcpTool,
 } from '@sim/db/schema'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { mcpPubSub } from '@/lib/mcp/pubsub'
-import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
-import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import {
+  performCreateWorkflowMcpServer,
+  performDeleteWorkflowMcpServer,
+  performUpdateWorkflowMcpServer,
+} from '@/lib/mcp/orchestration'
 import { performRevertToVersion } from '@/lib/workflows/orchestration'
-import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
 import { ensureWorkflowAccess, ensureWorkspaceAccess } from '../access'
 import type {
   CheckDeploymentStatusParams,
@@ -121,15 +120,18 @@ export async function executeListWorkspaceMcpServers(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const workflowId = params.workflowId || context.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
+    let workspaceId = params.workspaceId || context.workspaceId
+    const workflowId = context.workflowId
+
+    if (!workspaceId && workflowId) {
+      const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+      workspaceId = workflowRecord.workspaceId ?? undefined
     }
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
-    const workspaceId = workflowRecord.workspaceId
+
     if (!workspaceId) {
       return { success: false, error: 'workspaceId is required' }
     }
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'read')
 
     const servers = await db
       .select({
@@ -181,90 +183,41 @@ export async function executeCreateWorkspaceMcpServer(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const workflowId = params.workflowId || context.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
+    let workspaceId = params.workspaceId || context.workspaceId
+    const workflowId = context.workflowId
+
+    if (!workspaceId && workflowId) {
+      const { workflow: workflowRecord } = await ensureWorkflowAccess(
+        workflowId,
+        context.userId,
+        'write'
+      )
+      workspaceId = workflowRecord.workspaceId ?? undefined
     }
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'write'
-    )
-    const workspaceId = workflowRecord.workspaceId
+
     if (!workspaceId) {
       return { success: false, error: 'workspaceId is required' }
     }
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'admin')
 
     const name = params.name?.trim()
     if (!name) {
       return { success: false, error: 'name is required' }
     }
 
-    const serverId = generateId()
-    const [server] = await db
-      .insert(workflowMcpServer)
-      .values({
-        id: serverId,
-        workspaceId,
-        createdBy: context.userId,
-        name,
-        description: params.description?.trim() || null,
-        isPublic: params.isPublic ?? false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .returning()
-
-    const workflowIds: string[] = params.workflowIds || []
-    const addedTools: Array<{ workflowId: string; toolName: string }> = []
-
-    if (workflowIds.length > 0) {
-      const workflows = await db.select().from(workflow).where(inArray(workflow.id, workflowIds))
-
-      for (const wf of workflows) {
-        if (wf.workspaceId !== workspaceId || !wf.isDeployed) {
-          continue
-        }
-        const hasStartBlock = await hasValidStartBlock(wf.id)
-        if (!hasStartBlock) {
-          continue
-        }
-        const toolName = sanitizeToolName(wf.name || `workflow_${wf.id}`)
-        const parameterSchema = await generateParameterSchemaForWorkflow(wf.id)
-        await db.insert(workflowMcpTool).values({
-          id: generateId(),
-          serverId,
-          workflowId: wf.id,
-          toolName,
-          toolDescription: wf.description || `Execute ${wf.name} workflow`,
-          parameterSchema,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        addedTools.push({ workflowId: wf.id, toolName })
-      }
-    }
-
-    if (addedTools.length > 0) {
-      mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
-    }
-
-    recordAudit({
+    const result = await performCreateWorkflowMcpServer({
       workspaceId,
-      actorId: context.userId,
-      action: AuditAction.MCP_SERVER_ADDED,
-      resourceType: AuditResourceType.MCP_SERVER,
-      resourceId: serverId,
-      resourceName: name,
-      description: `Created MCP server "${name}"`,
-      metadata: {
-        isPublic: params.isPublic ?? false,
-        toolCount: addedTools.length,
-        source: 'copilot',
-      },
+      userId: context.userId,
+      name,
+      description: params.description,
+      isPublic: params.isPublic,
+      workflowIds: params.workflowIds,
     })
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to create MCP server' }
+    }
 
-    return { success: true, output: { server, addedTools } }
+    return { success: true, output: { server: result.server, addedTools: result.addedTools || [] } }
   } catch (error) {
     return { success: false, error: toError(error).message }
   }
@@ -280,8 +233,7 @@ export async function executeUpdateWorkspaceMcpServer(
       return { success: false, error: 'serverId is required' }
     }
 
-    const updates: Record<string, unknown> = { updatedAt: new Date() }
-
+    const updates: { name?: string; description?: string | null; isPublic?: boolean } = {}
     if (typeof params.name === 'string') {
       const name = params.name.trim()
       if (!name) return { success: false, error: 'name cannot be empty' }
@@ -294,7 +246,7 @@ export async function executeUpdateWorkspaceMcpServer(
       updates.isPublic = params.isPublic
     }
 
-    if (Object.keys(updates).length <= 1) {
+    if (Object.keys(updates).length === 0) {
       return { success: false, error: 'At least one of name, description, or isPublic is required' }
     }
 
@@ -313,21 +265,17 @@ export async function executeUpdateWorkspaceMcpServer(
 
     await ensureWorkspaceAccess(existing.workspaceId, context.userId, 'write')
 
-    await db.update(workflowMcpServer).set(updates).where(eq(workflowMcpServer.id, serverId))
-
-    recordAudit({
-      actorId: context.userId,
-      action: AuditAction.MCP_SERVER_UPDATED,
-      resourceType: AuditResourceType.MCP_SERVER,
-      resourceId: params.serverId,
-      description: `Updated MCP server`,
-      metadata: {
-        updatedFields: Object.keys(updates).filter((k) => k !== 'updatedAt'),
-        source: 'copilot',
-      },
+    const result = await performUpdateWorkflowMcpServer({
+      serverId,
+      workspaceId: existing.workspaceId,
+      userId: context.userId,
+      ...updates,
     })
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to update MCP server' }
+    }
 
-    return { success: true, output: { serverId, ...updates, updatedAt: undefined } }
+    return { success: true, output: { serverId, ...updates } }
   } catch (error) {
     return { success: false, error: toError(error).message }
   }
@@ -359,19 +307,14 @@ export async function executeDeleteWorkspaceMcpServer(
 
     await ensureWorkspaceAccess(existing.workspaceId, context.userId, 'admin')
 
-    await db.delete(workflowMcpServer).where(eq(workflowMcpServer.id, serverId))
-
-    mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId: existing.workspaceId })
-
-    recordAudit({
-      actorId: context.userId,
-      action: AuditAction.MCP_SERVER_REMOVED,
-      resourceType: AuditResourceType.MCP_SERVER,
-      resourceId: params.serverId,
-      resourceName: existing.name,
-      description: `Deleted MCP server "${existing.name}"`,
-      metadata: { source: 'copilot' },
+    const result = await performDeleteWorkflowMcpServer({
+      serverId,
+      workspaceId: existing.workspaceId,
+      userId: context.userId,
     })
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to delete MCP server' }
+    }
 
     return { success: true, output: { serverId, name: existing.name, deleted: true } }
   } catch (error) {

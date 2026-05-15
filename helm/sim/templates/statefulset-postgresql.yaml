@@ -90,9 +90,17 @@ metadata:
   labels:
     {{- include "sim.postgresql.labels" . | nindent 4 }}
 spec:
+  # Must remain {{ include "sim.fullname" . }}-postgresql (not the -headless
+  # name) — spec.serviceName is immutable on a StatefulSet, and the prior
+  # chart shipped with this value. Changing it would break `helm upgrade` for
+  # every existing install with `Forbidden: updates to statefulset spec ...`.
+  # The headless Service in services.yaml is added alongside, not as a swap.
   serviceName: {{ include "sim.fullname" . }}-postgresql
   replicas: 1
   minReadySeconds: 10
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       {{- include "sim.postgresql.selectorLabels" . | nindent 6 }}
@@ -113,13 +121,14 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "sim.serviceAccountName" . }}
+      automountServiceAccountToken: false
       {{- include "sim.podSecurityContext" .Values.postgresql | nindent 6 }}
       {{- include "sim.nodeSelector" .Values.postgresql | nindent 6 }}
       {{- include "sim.tolerations" .Values | nindent 6 }}
       {{- include "sim.affinity" .Values | nindent 6 }}
       containers:
         - name: postgresql
-          image: {{ include "sim.image" (dict "context" . "image" .Values.postgresql.image) }}
+          image: {{ include "sim.image" (dict "imageRoot" .Values.postgresql.image "global" .Values.global "chartAppVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
           args: ["-c", "config_file=/etc/postgresql/postgresql.conf"]
           ports:
@@ -131,6 +140,10 @@ spec:
                 name: {{ include "sim.fullname" . }}-postgresql-env
             - secretRef:
                 name: {{ include "sim.postgresqlSecretName" . }}
+          {{- if .Values.postgresql.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.postgresql.startupProbe | nindent 12 }}
+          {{- end }}
           {{- if .Values.postgresql.livenessProbe }}
           livenessProbe:
             {{- toYaml .Values.postgresql.livenessProbe | nindent 12 }}
@@ -140,7 +153,7 @@ spec:
             {{- toYaml .Values.postgresql.readinessProbe | nindent 12 }}
           {{- end }}
           {{- include "sim.resources" .Values.postgresql | nindent 10 }}
-          {{- include "sim.securityContext" .Values.postgresql | nindent 10 }}
+          {{- include "sim.containerSecurityContext" .Values.postgresql | nindent 10 }}
           volumeMounts:
             {{- if .Values.postgresql.persistence.enabled }}
             - name: postgresql-data

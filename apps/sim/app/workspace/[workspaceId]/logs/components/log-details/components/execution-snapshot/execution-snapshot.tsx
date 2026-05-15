@@ -14,6 +14,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalHeader,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -95,8 +96,8 @@ export function ExecutionSnapshot({
           style={{ height, width }}
         >
           <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
-            <Loader className='h-[16px] w-[16px]' animate />
-            <span className='text-small'>Loading run snapshot...</span>
+            <Loader className='size-[16px]' animate />
+            <span className='text-small'>Loading run snapshot…</span>
           </div>
         </div>
       )
@@ -109,7 +110,7 @@ export function ExecutionSnapshot({
           style={{ height, width }}
         >
           <div className='flex items-center gap-2 text-[var(--text-error)]'>
-            <AlertCircle className='h-[16px] w-[16px]' />
+            <AlertCircle className='size-[16px]' />
             <span className='text-small'>Failed to load run snapshot: {error.message}</span>
           </div>
         </div>
@@ -123,8 +124,8 @@ export function ExecutionSnapshot({
           style={{ height, width }}
         >
           <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
-            <Loader className='h-[16px] w-[16px]' animate />
-            <span className='text-small'>Loading run snapshot...</span>
+            <Loader className='size-[16px]' animate />
+            <span className='text-small'>Loading run snapshot…</span>
           </div>
         </div>
       )
@@ -137,7 +138,7 @@ export function ExecutionSnapshot({
           style={{ height, width }}
         >
           <div className='flex items-center gap-3 text-[var(--text-warning)]'>
-            <AlertCircle className='h-[20px] w-[20px]' />
+            <AlertCircle className='size-[20px]' />
             <span className='font-medium text-base'>Logged State Not Found</span>
           </div>
           <div className='max-w-md text-center text-[var(--text-secondary)] text-small'>
@@ -216,7 +217,12 @@ export function ExecutionSnapshot({
           <ModalContent size='full' className='flex h-[90vh] flex-col'>
             <ModalHeader>Workflow State</ModalHeader>
 
-            <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>{renderContent()}</ModalBody>
+            <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
+              <ModalDescription className='sr-only'>
+                View the workflow state snapshot for this execution
+              </ModalDescription>
+              {renderContent()}
+            </ModalBody>
           </ModalContent>
         </Modal>
         {canvasContextMenu}
