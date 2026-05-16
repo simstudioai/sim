@@ -52,6 +52,7 @@ export async function markExecutionCancelled(
     return { durablyRecorded: true, reason: 'recorded' }
   } catch (error) {
     logger.error('Failed to mark execution as cancelled', { executionId, error })
+    getCancellationChannel().publish({ executionId })
     return { durablyRecorded: false, reason: 'redis_write_failed' }
   }
 }

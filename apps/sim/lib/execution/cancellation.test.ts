@@ -59,6 +59,15 @@ describe('markExecutionCancelled', () => {
     })
   })
 
+  it('publishes even when the Redis write fails so local subscribers wake up', async () => {
+    mockRedisSet.mockRejectedValue(new Error('set failed'))
+    mockGetRedisClient.mockReturnValue({ set: mockRedisSet })
+
+    await markExecutionCancelled('execution-write-failed')
+
+    expect(mockPublish).toHaveBeenCalledWith({ executionId: 'execution-write-failed' })
+  })
+
   it('publishes a cancellation event after a successful Redis write', async () => {
     mockRedisSet.mockResolvedValue('OK')
     mockGetRedisClient.mockReturnValue({ set: mockRedisSet })
