@@ -166,7 +166,7 @@ describe('mothership-stream-outbox', () => {
     expect(mockRedis.zremrangebyrank).toHaveBeenCalledWith(
       'mothership_stream:stream-1:events',
       0,
-      expect.any(Number)
+      -5_001
     )
   })
 
