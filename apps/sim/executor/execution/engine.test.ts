@@ -451,7 +451,7 @@ describe('ExecutionEngine', () => {
       expect(nodeOrchestrator.executionCount).toBe(0)
     })
 
-    it('should respect cancellation check interval', async () => {
+    it('calls isExecutionCancelled once as the startup backstop check', async () => {
       ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
       ;(isExecutionCancelled as Mock).mockResolvedValue(false)
 
@@ -464,7 +464,7 @@ describe('ExecutionEngine', () => {
       const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
       await engine.run('start')
 
-      expect((isExecutionCancelled as Mock).mock.calls.length).toBeGreaterThanOrEqual(1)
+      expect((isExecutionCancelled as Mock).mock.calls.length).toBe(1)
     })
   })
 
