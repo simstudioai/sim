@@ -200,6 +200,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
+          let forwardedAssistantContent = ''
           const send = (event: unknown) => {
             if (!cancelled) {
               controller.enqueue(encodeNdjson(event))
@@ -221,7 +222,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                   event.payload.channel === MothershipStreamV1TextChannel.assistant &&
                   event.payload.text
                 ) {
-                  send({ type: 'chunk', content: event.payload.text })
+                  const text = event.payload.text
+                  const content = text.startsWith(forwardedAssistantContent)
+                    ? text.slice(forwardedAssistantContent.length)
+                    : text
+                  if (content) {
+                    forwardedAssistantContent += content
+                    send({ type: 'chunk', content })
+                  }
                 }
               })
               allowExplicitAbort = false

@@ -164,6 +164,7 @@ async function readMothershipExecuteResponse(response: Response): Promise<Mother
 function createMothershipStreamingExecution(
   response: Response,
   fallbackChatId: string,
+  blockId: string,
   options: {
     onCancel?: (reason?: unknown) => void
     onDone?: () => void
@@ -265,6 +266,7 @@ function createMothershipStreamingExecution(
     execution: {
       success: true,
       output,
+      blockId,
       logs: [],
       metadata: {
         duration: 0,
@@ -438,7 +440,7 @@ export class MothershipBlockHandler implements BlockHandler {
 
       if (isContentSelectedForStreaming(ctx, block)) {
         cleanupImmediately = false
-        return createMothershipStreamingExecution(response, chatId, {
+        return createMothershipStreamingExecution(response, chatId, block.id, {
           onCancel: (reason) => {
             if (!abortController.signal.aborted) {
               abortController.abort(reason ?? 'mothership_stream_cancelled')
