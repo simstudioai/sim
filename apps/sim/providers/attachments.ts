@@ -308,9 +308,9 @@ export function prepareProviderAttachments(
     const rawSizeLimit = Math.floor(AGENT_ATTACHMENT_MAX_BYTES * 0.75)
     if (Number.isFinite(file.size) && file.size > rawSizeLimit) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
-      const maxMB = (rawSizeLimit / (1024 * 1024)).toFixed(0)
+      const maxMB = (AGENT_ATTACHMENT_MAX_BYTES / (1024 * 1024)).toFixed(0)
       throw new Error(
-        `File "${file.name}" (${sizeMB}MB) exceeds the ~${maxMB}MB agent attachment limit for provider "${providerId}" (base64 encoding adds ~33% overhead)`
+        `File "${file.name}" (${sizeMB}MB) exceeds the ${maxMB}MB agent attachment limit for provider "${providerId}"`
       )
     }
 
