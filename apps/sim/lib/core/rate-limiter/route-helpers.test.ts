@@ -12,15 +12,9 @@ const { mockAdapter } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/core/rate-limiter/storage', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/core/rate-limiter/storage')>(
-    '@/lib/core/rate-limiter/storage'
-  )
-  return {
-    ...actual,
-    createStorageAdapter: () => mockAdapter,
-  }
-})
+vi.mock('@/lib/core/rate-limiter/storage', () => ({
+  createStorageAdapter: () => mockAdapter,
+}))
 
 function passThroughClientIp() {
   requestUtilsMockFns.mockGetClientIp.mockImplementation(

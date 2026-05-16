@@ -181,7 +181,9 @@ describe('redis config', () => {
     })
 
     it('returns true as a no-op when Redis is unavailable', async () => {
+      // hygiene-suppress: redis module caches a singleton client at import time — must re-evaluate to test the no-Redis path
       vi.resetModules()
+      // hygiene-suppress: redis module caches a singleton client at import time — must re-evaluate to test the no-Redis path
       vi.doMock('@/lib/core/config/env', () =>
         createEnvMock({ REDIS_URL: undefined as unknown as string })
       )

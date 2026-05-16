@@ -90,7 +90,8 @@
         "noControlCharactersInRegex": "off",
         "noThenProperty": "off",
         "noAssignInExpressions": "off",
-        "noDocumentCookie": "off"
+        "noDocumentCookie": "off",
+        "noConsole": "error"
       },
       "correctness": {
         "useExhaustiveDependencies": "off",
@@ -160,5 +161,22 @@
       "enabled": true,
       "indentWidth": 2
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "scripts/**",
+        "apps/*/scripts/**",
+        "**/vitest.setup.ts",
+        "apps/sim/app/_shell/hydration-error-handler.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    }
+  ]
 }

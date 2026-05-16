@@ -221,6 +221,7 @@ async function loadExecutionModule(options: {
       : null
   )
 
+  // hygiene-suppress: isolated-vm initializes worker state at module scope — must re-evaluate per test scenario
   vi.resetModules()
 
   const mod = await import('@/lib/execution/isolated-vm')
