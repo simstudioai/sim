@@ -16,6 +16,7 @@ import {
   ToolListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   type McpClientOptions,
@@ -131,7 +132,7 @@ export class McpClient {
         protocolVersion: serverVersion,
       })
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = getErrorMessage(error, 'Unknown error')
       this.connectionStatus.lastError = errorMessage
       this.isConnected = false
       logger.error(`Failed to connect to MCP server ${this.config.name}:`, error)

@@ -3,7 +3,7 @@ import '@sim/testing/mocks/executor'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import { MothershipBlockHandler } from '@/executor/handlers/mothership/mothership-handler'
-import type { ExecutionContext } from '@/executor/types'
+import type { ExecutionContext, StreamingExecution } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
 const {
@@ -66,6 +66,22 @@ function createAbortableFetchPromise(signal?: AbortSignal): Promise<Response> {
   })
 }
 
+async function readStreamText(stream: ReadableStream): Promise<string> {
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  let text = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    text += decoder.decode(value, { stream: true })
+  }
+
+  text += decoder.decode()
+  reader.releaseLock()
+  return text
+}
+
 describe('MothershipBlockHandler', () => {
   let handler: MothershipBlockHandler
   let block: SerializedBlock
@@ -119,6 +135,24 @@ describe('MothershipBlockHandler', () => {
     vi.unstubAllGlobals()
   })
 
+  function createNdjsonResponse(events: unknown[]): Response {
+    const encoder = new TextEncoder()
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          for (const event of events) {
+            controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`))
+          }
+          controller.close()
+        },
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
+      }
+    )
+  }
+
   it('forwards workflow and execution metadata with generated UUID ids', async () => {
     mockGenerateId.mockReturnValueOnce('chat-uuid')
     mockGenerateId.mockReturnValueOnce('message-uuid')
@@ -156,6 +190,10 @@ describe('MothershipBlockHandler', () => {
     expect(url).toBe('http://localhost:3000/api/mothership/execute')
     expect(options.method).toBe('POST')
     expect(options.signal).toBeInstanceOf(AbortSignal)
+    expect(options.headers).toMatchObject({
+      Accept: 'application/x-ndjson',
+      'X-Mothership-Execute-Stream': 'ndjson',
+    })
 
     const body = JSON.parse(String(options.body))
     expect(body).toEqual({
@@ -217,6 +255,144 @@ describe('MothershipBlockHandler', () => {
       executionId: 'execution-1',
     })
     expect(mockGenerateId).toHaveBeenCalledTimes(2)
+  })
+
+  it('consumes mothership execute heartbeat streams until the final result', async () => {
+    mockGenerateId.mockReturnValueOnce('chat-uuid')
+    mockGenerateId.mockReturnValueOnce('message-uuid')
+    mockGenerateId.mockReturnValueOnce('request-uuid')
+
+    fetchMock.mockResolvedValue(
+      createNdjsonResponse([
+        { type: 'heartbeat', timestamp: '2026-05-15T18:13:48.000Z' },
+        {
+          type: 'final',
+          data: {
+            content: 'streamed done',
+            model: 'mothership',
+            conversationId: 'chat-uuid',
+            tokens: { total: 7 },
+            toolCalls: [{ name: 'tool_a', params: { a: 1 }, result: 'ok', durationMs: 42 }],
+            cost: { total: 0.1 },
+          },
+        },
+      ])
+    )
+
+    const result = await handler.execute(context, block, { prompt: 'Hello from workflow' })
+
+    expect(result).toEqual({
+      content: 'streamed done',
+      model: 'mothership',
+      conversationId: 'chat-uuid',
+      tokens: { total: 7 },
+      toolCalls: {
+        list: [
+          {
+            name: 'tool_a',
+            arguments: { a: 1 },
+            result: 'ok',
+            error: undefined,
+            duration: 42,
+          },
+        ],
+        count: 1,
+      },
+      cost: { total: 0.1 },
+    })
+  })
+
+  it('surfaces mothership execute stream errors', async () => {
+    mockGenerateId.mockReturnValueOnce('chat-uuid')
+    mockGenerateId.mockReturnValueOnce('message-uuid')
+    mockGenerateId.mockReturnValueOnce('request-uuid')
+
+    fetchMock.mockResolvedValue(
+      createNdjsonResponse([
+        { type: 'heartbeat', timestamp: '2026-05-15T18:13:48.000Z' },
+        { type: 'error', error: 'Mothership execution aborted' },
+      ])
+    )
+
+    await expect(
+      handler.execute(context, block, { prompt: 'Hello from workflow' })
+    ).rejects.toThrow('Mothership execution failed: Mothership execution aborted')
+  })
+
+  it('streams mothership assistant chunks and preserves final metadata', async () => {
+    context.stream = true
+    context.selectedOutputs = [`${block.id}_content`]
+    mockGenerateId.mockReturnValueOnce('chat-uuid')
+    mockGenerateId.mockReturnValueOnce('message-uuid')
+    mockGenerateId.mockReturnValueOnce('request-uuid')
+
+    fetchMock.mockResolvedValue(
+      createNdjsonResponse([
+        { type: 'heartbeat', timestamp: '2026-05-15T18:13:48.000Z' },
+        { type: 'chunk', content: 'Hello' },
+        { type: 'heartbeat', timestamp: '2026-05-15T18:14:03.000Z' },
+        { type: 'chunk', content: ' world' },
+        {
+          type: 'final',
+          data: {
+            content: 'Hello world',
+            model: 'mothership',
+            conversationId: 'chat-uuid',
+            tokens: { total: 7 },
+            toolCalls: [{ name: 'tool_a', params: { a: 1 }, result: 'ok', durationMs: 42 }],
+            cost: { total: 0.1 },
+          },
+        },
+      ])
+    )
+
+    const result = await handler.execute(context, block, { prompt: 'Hello from workflow' })
+    expect(result).toHaveProperty('stream')
+
+    const streamingExecution = result as StreamingExecution
+    await expect(readStreamText(streamingExecution.stream)).resolves.toBe('Hello world')
+    expect(streamingExecution.execution.output).toEqual({
+      content: 'Hello world',
+      model: 'mothership',
+      conversationId: 'chat-uuid',
+      tokens: { total: 7 },
+      toolCalls: {
+        list: [
+          {
+            name: 'tool_a',
+            arguments: { a: 1 },
+            result: 'ok',
+            error: undefined,
+            duration: 42,
+          },
+        ],
+        count: 1,
+      },
+      cost: { total: 0.1 },
+    })
+  })
+
+  it('surfaces mothership streaming errors while streaming selected content', async () => {
+    context.stream = true
+    context.selectedOutputs = [`${block.id}_content`]
+    mockGenerateId.mockReturnValueOnce('chat-uuid')
+    mockGenerateId.mockReturnValueOnce('message-uuid')
+    mockGenerateId.mockReturnValueOnce('request-uuid')
+
+    fetchMock.mockResolvedValue(
+      createNdjsonResponse([
+        { type: 'chunk', content: 'partial' },
+        { type: 'error', error: 'Mothership execution aborted' },
+      ])
+    )
+
+    const result = (await handler.execute(context, block, {
+      prompt: 'Hello from workflow',
+    })) as StreamingExecution
+
+    await expect(readStreamText(result.stream)).rejects.toThrow(
+      'Mothership execution failed: Mothership execution aborted'
+    )
   })
 
   it('embeds attached files for the mothership execute request', async () => {
@@ -333,5 +509,38 @@ describe('MothershipBlockHandler', () => {
 
     await expect(abortedExecution).resolves.toMatchObject({ name: 'AbortError' })
     expect(mockIsExecutionCancelled).toHaveBeenCalledWith('execution-1')
+  })
+
+  it('aborts the mothership request when selected-output streaming is cancelled', async () => {
+    context.stream = true
+    context.selectedOutputs = [`${block.id}_content`]
+
+    mockGenerateId.mockReturnValueOnce('chat-uuid')
+    mockGenerateId.mockReturnValueOnce('message-uuid')
+    mockGenerateId.mockReturnValueOnce('request-uuid')
+
+    let fetchSignal: AbortSignal | undefined
+    fetchMock.mockImplementation((_url: string, options?: RequestInit) => {
+      fetchSignal = options?.signal as AbortSignal | undefined
+      return Promise.resolve(
+        new Response(
+          new ReadableStream({
+            start() {},
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
+          }
+        )
+      )
+    })
+
+    const result = (await handler.execute(context, block, { prompt: 'Cancel stream' })) as
+      | StreamingExecution
+      | undefined
+
+    await result?.stream.cancel('client_cancelled')
+
+    expect(fetchSignal?.aborted).toBe(true)
   })
 })

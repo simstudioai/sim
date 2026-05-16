@@ -153,7 +153,10 @@ export function createFileContent(fileBuffer: Buffer, mimeType: string): Message
 /**
  * Create message content from base64-encoded file data.
  */
-export function createFileContentFromBase64(base64: string, mimeType: string): MessageContent | null {
+export function createFileContentFromBase64(
+  base64: string,
+  mimeType: string
+): MessageContent | null {
   // SVG is XML text — Claude only supports raster image formats (JPEG, PNG, GIF, WebP),
   // so send SVGs as an XML document instead
   if (mimeType.toLowerCase() === 'image/svg+xml') {
@@ -172,7 +175,7 @@ export function createFileContentFromBase64(base64: string, mimeType: string): M
     return null
   }
 
-  if (contentType === 'image' && !CLAUDE_SUPPORTED_IMAGE_MIME_TYPES.has(mimeType.toLowerCase())) {
+  if (contentType === 'image' && !MODEL_SUPPORTED_IMAGE_MIME_TYPES.has(mimeType.toLowerCase())) {
     return null
   }
 
@@ -186,7 +189,7 @@ export function createFileContentFromBase64(base64: string, mimeType: string): M
   }
 }
 
-const CLAUDE_SUPPORTED_IMAGE_MIME_TYPES = new Set([
+export const MODEL_SUPPORTED_IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
   'image/jpg',
   'image/png',

@@ -17,6 +17,7 @@ export interface FileMetadataInsertOptions {
   originalName: string
   contentType: string
   size: number
+  folderId?: string | null
   /** Optional — a UUID is generated when omitted. */
   id?: string
 }
@@ -34,7 +35,8 @@ interface FileMetadataQueryOptions {
 export async function insertFileMetadata(
   options: FileMetadataInsertOptions
 ): Promise<FileMetadataRecord> {
-  const { key, userId, workspaceId, context, originalName, contentType, size, id } = options
+  const { key, userId, workspaceId, context, originalName, contentType, size, folderId, id } =
+    options
 
   const existingDeleted = await db
     .select()
@@ -48,6 +50,7 @@ export async function insertFileMetadata(
       .set({
         userId,
         workspaceId: workspaceId || null,
+        folderId: folderId ?? null,
         context,
         originalName,
         displayName: originalName,
@@ -84,6 +87,7 @@ export async function insertFileMetadata(
         key,
         userId,
         workspaceId: workspaceId || null,
+        folderId: folderId ?? null,
         context,
         originalName,
         displayName: originalName,

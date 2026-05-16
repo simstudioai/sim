@@ -11,6 +11,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Trash,
@@ -72,9 +73,9 @@ function UnsavedChangesModal({
       <ModalContent size='sm'>
         <ModalHeader>Unsaved Changes</ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
+          <ModalDescription className='text-[var(--text-secondary)]'>
             You have unsaved changes. Are you sure you want to discard them?
-          </p>
+          </ModalDescription>
         </ModalBody>
         <ModalFooter>
           <Button variant='default' onClick={onKeepEditing}>
@@ -1172,7 +1173,7 @@ export function Document({
         <ModalContent size='sm'>
           <ModalHeader>Delete Document</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {effectiveDocumentName}
@@ -1191,7 +1192,7 @@ export function Document({
               ) : (
                 <>This action cannot be undone.</>
               )}
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

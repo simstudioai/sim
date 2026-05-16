@@ -7,7 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { revertCopilotCheckpointContract } from '@/lib/api/contracts/copilot'
 import type { CleanedWorkflowState } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
-import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
+import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -57,7 +57,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return createNotFoundResponse('Checkpoint not found or access denied')
     }
 
-    const chat = await getAccessibleCopilotChat(checkpoint.chatId, userId)
+    const chat = await getAccessibleCopilotChatAuth(checkpoint.chatId, userId)
     if (!chat) {
       return createNotFoundResponse('Checkpoint not found or access denied')
     }

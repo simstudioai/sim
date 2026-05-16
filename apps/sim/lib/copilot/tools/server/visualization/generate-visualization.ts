@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { GenerateVisualization } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -278,7 +279,7 @@ export const generateVisualizationServerTool: BaseServerTool<
         downloadUrl: uploaded.url,
       }
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error'
+      const msg = getErrorMessage(error, 'Unknown error')
       logger.error('Visualization generation failed', { error: msg })
       return { success: false, message: `Failed to generate visualization: ${msg}` }
     }

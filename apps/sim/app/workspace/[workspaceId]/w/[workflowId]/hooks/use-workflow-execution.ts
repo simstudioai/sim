@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { generateId } from '@sim/utils/id'
+import { generateId, generateShortId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
@@ -71,7 +71,7 @@ const logger = createLogger('useWorkflowExecution')
 const activeReconnections = new Set<string>()
 
 function isReconnectNonRetryable(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : ''
+  const message = getErrorMessage(error, '')
   return (
     message.includes('Execution events pruned before requested event id') ||
     (isExecutionStreamHttpError(error) &&
@@ -518,12 +518,13 @@ export function useWorkflowExecution() {
                       presignedEndpoint,
                     })
                     uploadedFiles.push({
-                      id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                      id: `file_${Date.now()}_${generateShortId(7)}`,
                       name: fileData.file.name,
                       url: result.path,
                       size: fileData.file.size,
                       type: fileData.file.type,
                       key: result.key,
+                      context: 'execution',
                     })
                   } catch (uploadError) {
                     if (
@@ -557,14 +558,13 @@ export function useWorkflowExecution() {
                       }
                       const uploadResult = await response.json()
                       const processUploadResult = (r: any) => ({
-                        id:
-                          r.id ||
-                          `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                        id: r.id || `file_${Date.now()}_${generateShortId(7)}`,
                         name: r.name,
                         url: r.url,
                         size: r.size,
                         type: r.type,
                         key: r.key,
+                        context: r.context || 'execution',
                         uploadedAt: r.uploadedAt,
                         expiresAt: r.expiresAt,
                       })
@@ -1126,6 +1126,7 @@ export function useWorkflowExecution() {
         await executionStream.execute({
           workflowId: activeWorkflowId,
           input: finalWorkflowInput,
+          executionId,
           startBlockId,
           selectedOutputs,
           triggerType: overrideTriggerType || 'manual',

@@ -513,6 +513,17 @@ export const schemaMock = {
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
   },
+  workspaceFileFolder: {
+    id: 'id',
+    name: 'name',
+    userId: 'userId',
+    workspaceId: 'workspaceId',
+    parentId: 'parentId',
+    sortOrder: 'sortOrder',
+    deletedAt: 'deletedAt',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  },
   workspaceFile: {
     id: 'id',
     workspaceId: 'workspaceId',

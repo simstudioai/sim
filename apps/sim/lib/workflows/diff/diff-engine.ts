@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { Edge } from 'reactflow'
 import { getTargetedLayoutImpact } from '@/lib/workflows/autolayout'
@@ -42,7 +42,6 @@ function hasBlockChanged(currentBlock: BlockState, proposedBlock: BlockState): b
   if (currentBlock.name !== proposedBlock.name) return true
   if (currentBlock.enabled !== proposedBlock.enabled) return true
   if (currentBlock.triggerMode !== proposedBlock.triggerMode) return true
-  if (!!currentBlock.locked !== !!proposedBlock.locked) return true
   if ((currentBlock.data?.parentId ?? null) !== (proposedBlock.data?.parentId ?? null)) return true
 
   // Compare subBlocks
@@ -74,22 +73,11 @@ function computeFieldDiff(
   const unchangedFields: string[] = []
 
   // Check basic fields
-  const fieldsToCheck = [
-    'type',
-    'name',
-    'enabled',
-    'triggerMode',
-    'horizontalHandles',
-    'locked',
-  ] as const
+  const fieldsToCheck = ['type', 'name', 'enabled', 'triggerMode', 'horizontalHandles'] as const
   for (const field of fieldsToCheck) {
     const currentValue = currentBlock[field]
     const proposedValue = proposedBlock[field]
-    if (
-      field === 'locked'
-        ? !!currentValue !== !!proposedValue
-        : JSON.stringify(currentValue) !== JSON.stringify(proposedValue)
-    ) {
+    if (JSON.stringify(currentValue) !== JSON.stringify(proposedValue)) {
       changedFields.push(field)
     } else if (currentValue !== undefined) {
       unchangedFields.push(field)
@@ -214,7 +202,7 @@ export class WorkflowDiffEngine {
       logger.error('Failed to create diff:', error)
       return {
         success: false,
-        errors: [error instanceof Error ? error.message : 'Failed to create diff'],
+        errors: [getErrorMessage(error, 'Failed to create diff')],
       }
     }
   }
@@ -690,9 +678,7 @@ export class WorkflowDiffEngine {
       logger.error('Failed to create diff from workflow state:', error)
       return {
         success: false,
-        errors: [
-          error instanceof Error ? error.message : 'Failed to create diff from workflow state',
-        ],
+        errors: [getErrorMessage(error, 'Failed to create diff from workflow state')],
       }
     }
   }
@@ -730,7 +716,7 @@ export class WorkflowDiffEngine {
       logger.error('Failed to merge diff:', error)
       return {
         success: false,
-        errors: [error instanceof Error ? error.message : 'Failed to merge diff'],
+        errors: [getErrorMessage(error, 'Failed to merge diff')],
       }
     }
   }

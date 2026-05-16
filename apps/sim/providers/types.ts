@@ -1,4 +1,4 @@
-import type { ProviderTimingSegment, StreamingExecution } from '@/executor/types'
+import type { ProviderTimingSegment, StreamingExecution, UserFile } from '@/executor/types'
 
 export type ProviderId =
   | 'openai'
@@ -121,6 +121,7 @@ export interface ProviderToolConfig {
 export interface Message {
   role: 'system' | 'user' | 'assistant' | 'function' | 'tool'
   content: string | null
+  files?: UserFile[]
   name?: string
   function_call?: {
     name: string

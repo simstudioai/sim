@@ -7,6 +7,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   type ModalSize,
@@ -107,6 +108,11 @@ interface WizardProps {
   nextLabel?: string
   /** Label for the Done button on the final step. @default 'Done' */
   doneLabel?: string
+  /**
+   * Accessible description for the wizard dialog, surfaced to screen readers.
+   * If omitted, a generic sr-only description is rendered automatically.
+   */
+  description?: string
 }
 
 const WizardRoot: React.FC<WizardProps> = ({
@@ -121,6 +127,7 @@ const WizardRoot: React.FC<WizardProps> = ({
   backLabel = 'Back',
   nextLabel = 'Next',
   doneLabel = 'Done',
+  description,
 }) => {
   const steps = React.Children.toArray(children).filter(isStepElement)
   const total = steps.length
@@ -166,7 +173,12 @@ const WizardRoot: React.FC<WizardProps> = ({
           </span>
         </div>
 
-        <ModalBody>{activeStep}</ModalBody>
+        <ModalBody>
+          <ModalDescription className='sr-only'>
+            {description ?? 'Multi-step wizard'}
+          </ModalDescription>
+          {activeStep}
+        </ModalBody>
 
         <ModalFooter>
           <Button variant='default' onClick={handleBack} disabled={clamped === 0}>

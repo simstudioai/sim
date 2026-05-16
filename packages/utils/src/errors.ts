@@ -9,6 +9,20 @@ export function toError(value: unknown): Error {
 }
 
 /**
+ * Extracts a string message from an unknown caught value.
+ * Use instead of `e instanceof Error ? e.message : 'fallback'` in catch clauses.
+ *
+ * - Error instance → `error.message`
+ * - Non-empty string → the string itself (handles `throw 'msg'` patterns)
+ * - Otherwise → `fallback` if provided, or `String(value)`
+ */
+export function getErrorMessage(value: unknown, fallback?: string): string {
+  if (value instanceof Error) return value.message
+  if (typeof value === 'string' && value.length > 0) return value
+  return fallback ?? String(value)
+}
+
+/**
  * Returns PostgreSQL error code (e.g. `23505` for unique_violation) when present on a thrown value.
  * Normalizes common Drizzle / `postgres` driver shapes and walks `cause` chains.
  */

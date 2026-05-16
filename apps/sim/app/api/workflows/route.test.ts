@@ -87,9 +87,9 @@ describe('Workflows API Route - POST ordering', () => {
 
   it('uses top insertion against mixed siblings (folders + workflows)', async () => {
     const minResultsQueue: Array<Array<{ minOrder: number }>> = [
+      [],
       [{ minOrder: 5 }],
       [{ minOrder: 2 }],
-      [],
     ]
 
     mockDbSelect.mockImplementation(() => ({

@@ -31,6 +31,7 @@ import { useLogsList } from '@/hooks/queries/logs'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useTasks } from '@/hooks/queries/tasks'
 import { useWorkflows } from '@/hooks/queries/workflows'
+import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 export interface AddResourceDropdownProps {
@@ -73,6 +74,7 @@ export function useAvailableResources(
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId)
   const { data: folders = [] } = useFolders(workspaceId)
+  const { data: fileFolders = [] } = useWorkspaceFileFolders(workspaceId)
   const { data: tasks = [] } = useTasks(workspaceId)
   const { data: logsData } = useLogsList(workspaceId, LOG_DROPDOWN_FILTERS)
   const logs = useMemo(() => (logsData?.pages ?? []).flatMap((page) => page.logs), [logsData])
@@ -119,7 +121,17 @@ export function useAvailableResources(
         items: files.map((f) => ({
           id: f.id,
           name: f.name,
+          folderId: f.folderId ?? null,
           isOpen: existingKeys.has(`file:${f.id}`),
+        })),
+      },
+      {
+        type: 'filefolder' as const,
+        items: fileFolders.map((f) => ({
+          id: f.id,
+          name: f.name,
+          parentId: f.parentId ?? null,
+          isOpen: existingKeys.has(`filefolder:${f.id}`),
         })),
       },
       {
@@ -162,6 +174,7 @@ export function useAvailableResources(
   }, [
     workflows,
     folders,
+    fileFolders,
     tables,
     files,
     knowledgeBases,
@@ -271,6 +284,91 @@ export function WorkflowFolderTreeItems({ nodes, onSelect }: WorkflowFolderTreeI
   )
 }
 
+export type FileFolderTreeNode =
+  | { kind: 'file'; id: string; name: string; isOpen?: boolean }
+  | { kind: 'folder'; id: string; name: string; isOpen?: boolean; children: FileFolderTreeNode[] }
+
+export function buildFileFolderTree(
+  fileItems: AvailableItem[],
+  folderItems: AvailableItem[]
+): FileFolderTreeNode[] {
+  const byFolder = new Map<string | null, AvailableItem[]>()
+  for (const f of fileItems) {
+    const key = (f.folderId as string | null | undefined) ?? null
+    const bucket = byFolder.get(key) ?? []
+    bucket.push(f)
+    byFolder.set(key, bucket)
+  }
+
+  const buildLevel = (parentId: string | null): FileFolderTreeNode[] => {
+    const childFolders = folderItems.filter(
+      (f) => ((f.parentId as string | null | undefined) ?? null) === parentId
+    )
+    const childFiles = byFolder.get(parentId) ?? []
+    const nodes: FileFolderTreeNode[] = []
+    for (const folder of childFolders) {
+      const children = buildLevel(folder.id)
+      nodes.push({
+        kind: 'folder',
+        id: folder.id,
+        name: folder.name,
+        isOpen: folder.isOpen,
+        children,
+      })
+    }
+    for (const file of childFiles) {
+      nodes.push({ kind: 'file', id: file.id, name: file.name, isOpen: file.isOpen })
+    }
+    return nodes
+  }
+
+  return buildLevel(null)
+}
+
+interface FileFolderTreeItemsProps {
+  nodes: FileFolderTreeNode[]
+  onSelect: (resource: MothershipResource, isOpen?: boolean) => void
+}
+
+export function FileFolderTreeItems({ nodes, onSelect }: FileFolderTreeItemsProps) {
+  return (
+    <>
+      {nodes.map((node) =>
+        node.kind === 'file' ? (
+          <DropdownMenuItem
+            key={node.id}
+            onClick={() => onSelect({ type: 'file', id: node.id, title: node.name }, node.isOpen)}
+          >
+            {getResourceConfig('file').renderDropdownItem({
+              item: { id: node.id, name: node.name },
+            })}
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuSub key={node.id}>
+            <DropdownMenuSubTrigger>
+              <Folder className='size-[14px]' />
+              <span>{node.name}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem
+                onClick={() =>
+                  onSelect({ type: 'filefolder', id: node.id, title: node.name }, node.isOpen)
+                }
+              >
+                <Folder className='size-[14px]' />
+                <span>{node.name}</span>
+              </DropdownMenuItem>
+              {node.children.length > 0 && (
+                <FileFolderTreeItems nodes={node.children} onSelect={onSelect} />
+              )}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )
+      )}
+    </>
+  )
+}
+
 export function AddResourceDropdown({
   workspaceId,
   existingKeys,
@@ -282,7 +380,6 @@ export function AddResourceDropdown({
   const [search, setSearch] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const available = useAvailableResources(workspaceId, existingKeys, excludeTypes)
-
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
     if (!next) {
@@ -306,6 +403,12 @@ export function AddResourceDropdown({
     const workflowGroup = available.find((g) => g.type === 'workflow')
     const folderGroup = available.find((g) => g.type === 'folder')
     return buildWorkflowFolderTree(workflowGroup?.items ?? [], folderGroup?.items ?? [])
+  }, [available])
+
+  const fileFolderTree = useMemo(() => {
+    const fileGroup = available.find((g) => g.type === 'file')
+    const fileFolderGroup = available.find((g) => g.type === 'filefolder')
+    return buildFileFolderTree(fileGroup?.items ?? [], fileFolderGroup?.items ?? [])
   }, [available])
 
   const filtered = useMemo(() => {
@@ -407,8 +510,28 @@ export function AddResourceDropdown({
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
               )}
+              {fileFolderTree.length > 0 && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    {(() => {
+                      const Icon = getResourceConfig('file').icon
+                      return <Icon className='size-[14px]' />
+                    })()}
+                    <span>Files</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <FileFolderTreeItems nodes={fileFolderTree} onSelect={select} />
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
               {available.map(({ type, items }) => {
-                if (type === 'workflow' || type === 'folder') return null
+                if (
+                  type === 'workflow' ||
+                  type === 'folder' ||
+                  type === 'file' ||
+                  type === 'filefolder'
+                )
+                  return null
                 if (items.length === 0) return null
                 const config = getResourceConfig(type)
                 const Icon = config.icon

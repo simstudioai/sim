@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { slackDeleteMessageContract } from '@/lib/api/contracts/tools/communication/slack'
 import { parseRequest } from '@/lib/api/server'
@@ -62,7 +63,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
       },
       { status: 500 }
     )

@@ -3,6 +3,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -18,6 +19,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -364,7 +366,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
       logger.error('Error creating knowledge base:', error)
       setSubmitStatus({
         type: 'error',
-        message: error instanceof Error ? error.message : 'An unknown error occurred',
+        message: getErrorMessage(error, 'An unknown error occurred'),
       })
     }
   }
@@ -373,6 +375,9 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     <Modal open={open} onOpenChange={handleClose}>
       <ModalContent size='lg'>
         <ModalHeader>Create Knowledge Base</ModalHeader>
+        <ModalDescription className='sr-only'>
+          Set up a new knowledge base with documents and chunking options
+        </ModalDescription>
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody>

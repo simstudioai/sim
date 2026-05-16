@@ -62,7 +62,7 @@ export function applyTargetedLayout(
   const changedSet = new Set(changedBlockIds)
   const resizedSet = new Set(resizedBlockIds)
   const shiftSourceSet = new Set(shiftSourceBlockIds)
-  const blocksCopy: Record<string, BlockState> = JSON.parse(JSON.stringify(blocks))
+  const blocksCopy: Record<string, BlockState> = structuredClone(blocks)
 
   prepareContainerDimensions(
     blocksCopy,

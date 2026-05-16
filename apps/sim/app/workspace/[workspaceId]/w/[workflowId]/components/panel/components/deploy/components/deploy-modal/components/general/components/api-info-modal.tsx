@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -12,6 +13,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -194,7 +196,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
       onOpenChange(false)
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to update access settings'
+      const message = getErrorMessage(err, 'Failed to update access settings')
       setSaveError(message)
     } finally {
       setIsSaving(false)
@@ -220,6 +222,10 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
             <span>Edit API Info</span>
           </ModalHeader>
           <ModalBody className='space-y-3'>
+            <ModalDescription className='sr-only'>
+              Edit the API description, access mode, and input parameters for this workflow
+              endpoint.
+            </ModalDescription>
             <div>
               <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
                 Description
@@ -311,9 +317,9 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
             <span>Unsaved Changes</span>
           </ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)] text-sm'>
+            <ModalDescription className='text-[var(--text-secondary)] text-sm'>
               You have unsaved changes. Are you sure you want to discard them?
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>

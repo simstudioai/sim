@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { DatabricksRunJobParams, DatabricksRunJobResponse } from '@/tools/databricks/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -66,7 +67,7 @@ export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResp
           body.job_parameters = JSON.parse(params.jobParameters)
         } catch (error) {
           throw new Error(
-            `Invalid JSON in jobParameters: ${error instanceof Error ? error.message : 'unknown error'}`
+            `Invalid JSON in jobParameters: ${getErrorMessage(error, 'unknown error')}`
           )
         }
       }
@@ -75,7 +76,7 @@ export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResp
           body.notebook_params = JSON.parse(params.notebookParams)
         } catch (error) {
           throw new Error(
-            `Invalid JSON in notebookParams: ${error instanceof Error ? error.message : 'unknown error'}`
+            `Invalid JSON in notebookParams: ${getErrorMessage(error, 'unknown error')}`
           )
         }
       }

@@ -297,14 +297,14 @@ describe('hasWorkflowChanged', () => {
       expect(hasWorkflowChanged(state1, state2)).toBe(true)
     })
 
-    it.concurrent('should detect locked/unlocked changes', () => {
+    it.concurrent('should not detect locked/unlocked toggle as a workflow change', () => {
       const state1 = createWorkflowState({
         blocks: { block1: createBlock('block1', { locked: false }) },
       })
       const state2 = createWorkflowState({
         blocks: { block1: createBlock('block1', { locked: true }) },
       })
-      expect(hasWorkflowChanged(state1, state2)).toBe(true)
+      expect(hasWorkflowChanged(state1, state2)).toBe(false)
     })
 
     it.concurrent('should not detect changes when locked state is the same', () => {
@@ -315,6 +315,18 @@ describe('hasWorkflowChanged', () => {
         blocks: { block1: createBlock('block1', { locked: true }) },
       })
       expect(hasWorkflowChanged(state1, state2)).toBe(false)
+    })
+
+    it.concurrent('should not include locked changes in diff summary', () => {
+      const state1 = createWorkflowState({
+        blocks: { block1: createBlock('block1', { locked: false }) },
+      })
+      const state2 = createWorkflowState({
+        blocks: { block1: createBlock('block1', { locked: true }) },
+      })
+      const summary = generateWorkflowDiffSummary(state2, state1)
+      expect(summary.hasChanges).toBe(false)
+      expect(summary.modifiedBlocks).toEqual([])
     })
   })
 

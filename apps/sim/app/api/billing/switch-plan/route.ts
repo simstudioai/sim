@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { billingSwitchPlanContract } from '@/lib/api/contracts/subscription'
@@ -181,7 +181,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       error: toError(error).message,
     })
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to switch plan' },
+      { error: getErrorMessage(error, 'Failed to switch plan') },
       { status: 500 }
     )
   }

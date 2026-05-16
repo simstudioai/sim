@@ -1,5 +1,5 @@
 {
-  "id": "c9500637-c9b7-4bf8-b78c-1887420b845f",
+  "id": "67dde2dd-485d-4e3d-b2a5-a3caae8b26ae",
   "prevId": "9f14d579-f456-4491-83ae-811130223dae",
   "version": "7",
   "dialect": "postgresql",
@@ -15023,6 +15023,212 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.workspace_file_folders": {
+      "name": "workspace_file_folders",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "workspace_file_folders_workspace_parent_idx": {
+          "name": "workspace_file_folders_workspace_parent_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_file_folders_parent_sort_idx": {
+          "name": "workspace_file_folders_parent_sort_idx",
+          "columns": [
+            {
+              "expression": "parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sort_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_file_folders_deleted_at_idx": {
+          "name": "workspace_file_folders_deleted_at_idx",
+          "columns": [
+            {
+              "expression": "deleted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_file_folders_workspace_deleted_partial_idx": {
+          "name": "workspace_file_folders_workspace_deleted_partial_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "deleted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"workspace_file_folders\".\"deleted_at\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_file_folders_workspace_parent_name_active_unique": {
+          "name": "workspace_file_folders_workspace_parent_name_active_unique",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"parent_id\", '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"workspace_file_folders\".\"deleted_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workspace_file_folders_user_id_user_id_fk": {
+          "name": "workspace_file_folders_user_id_user_id_fk",
+          "tableFrom": "workspace_file_folders",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workspace_file_folders_workspace_id_workspace_id_fk": {
+          "name": "workspace_file_folders_workspace_id_workspace_id_fk",
+          "tableFrom": "workspace_file_folders",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workspace_file_folders_parent_id_workspace_file_folders_id_fk": {
+          "name": "workspace_file_folders_parent_id_workspace_file_folders_id_fk",
+          "tableFrom": "workspace_file_folders",
+          "tableTo": "workspace_file_folders",
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.workspace_files": {
       "name": "workspace_files",
       "schema": "",
@@ -15047,6 +15253,12 @@
         },
         "workspace_id": {
           "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "folder_id": {
+          "name": "folder_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -15125,13 +15337,19 @@
           "method": "btree",
           "with": {}
         },
-        "workspace_files_workspace_name_active_unique": {
-          "name": "workspace_files_workspace_name_active_unique",
+        "workspace_files_workspace_folder_name_active_unique": {
+          "name": "workspace_files_workspace_folder_name_active_unique",
           "columns": [
             {
               "expression": "workspace_id",
               "isExpression": false,
               "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"folder_id\", '')",
+              "asc": true,
+              "isExpression": true,
               "nulls": "last"
             },
             {
@@ -15204,6 +15422,21 @@
           "columns": [
             {
               "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_files_folder_id_idx": {
+          "name": "workspace_files_folder_id_idx",
+          "columns": [
+            {
+              "expression": "folder_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -15299,6 +15532,15 @@
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workspace_files_folder_id_workspace_file_folders_id_fk": {
+          "name": "workspace_files_folder_id_workspace_file_folders_id_fk",
+          "tableFrom": "workspace_files",
+          "tableTo": "workspace_file_folders",
+          "columnsFrom": ["folder_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "workspace_files_chat_id_copilot_chats_id_fk": {

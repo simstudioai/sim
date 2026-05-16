@@ -1,6 +1,7 @@
 'use server'
 
 import type { Logger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   secureFetchWithPinnedIP,
@@ -62,7 +63,7 @@ export async function resolveFileInputToUrl(
       return {
         error: {
           status: 400,
-          message: error instanceof Error ? error.message : 'Failed to process file',
+          message: getErrorMessage(error, 'Failed to process file'),
         },
       }
     }

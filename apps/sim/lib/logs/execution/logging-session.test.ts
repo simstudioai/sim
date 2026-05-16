@@ -453,6 +453,75 @@ describe('LoggingSession completion retries', () => {
   })
 })
 
+describe('completeWithError cancelled-status guard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    dbMocks.updateWhere.mockResolvedValue(undefined)
+    dbMocks.execute.mockResolvedValue(undefined)
+  })
+
+  it('skips writing failed and marks session complete when DB status is already cancelled', async () => {
+    dbMocks.selectLimit.mockResolvedValue([{ status: 'cancelled' }])
+    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
+
+    await session.safeCompleteWithError({ error: { message: 'block errored mid-cancel' } })
+
+    expect(completeWorkflowExecutionMock).not.toHaveBeenCalled()
+    expect(session.hasCompleted()).toBe(true)
+  })
+
+  it('writes failed when DB status is running (no cancel in flight)', async () => {
+    dbMocks.selectLimit.mockResolvedValue([{ status: 'running' }])
+    completeWorkflowExecutionMock.mockResolvedValue({})
+    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
+
+    await session.safeCompleteWithError({ error: { message: 'genuine block failure' } })
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed' })
+    )
+    expect(session.hasCompleted()).toBe(true)
+  })
+
+  it('writes failed when no execution log exists yet', async () => {
+    dbMocks.selectLimit.mockResolvedValue([])
+    completeWorkflowExecutionMock.mockResolvedValue({})
+    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
+
+    await session.safeCompleteWithError({ error: { message: 'pre-log error' } })
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed' })
+    )
+  })
+
+  it('deduplicates all subsequent completion attempts after guard early-return', async () => {
+    dbMocks.selectLimit.mockResolvedValue([{ status: 'cancelled' }])
+    completeWorkflowExecutionMock.mockResolvedValue({})
+    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
+
+    await session.safeCompleteWithError({ error: { message: 'error 1' } })
+    await session.safeCompleteWithError({ error: { message: 'error 2' } })
+    await session.safeComplete({ finalOutput: { ok: true } })
+
+    expect(completeWorkflowExecutionMock).not.toHaveBeenCalled()
+    expect(session.hasCompleted()).toBe(true)
+  })
+
+  it('falls through to cost-only fallback when the DB check itself throws', async () => {
+    dbMocks.selectLimit.mockRejectedValueOnce(new Error('DB connection lost'))
+    completeWorkflowExecutionMock.mockResolvedValue({})
+    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
+
+    await session.safeCompleteWithError({ error: { message: 'block failed' } })
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ finalizationPath: 'force_failed' })
+    )
+    expect(session.hasCompleted()).toBe(true)
+  })
+})
+
 describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
   beforeEach(() => {
     vi.clearAllMocks()

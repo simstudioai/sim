@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { randomFloat } from '@sim/utils/random'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -710,6 +711,12 @@ async function processFileOutputs(
   }
 }
 
+export interface ExecuteToolOptions {
+  skipPostProcess?: boolean
+  executionContext?: ExecutionContext
+  signal?: AbortSignal
+}
+
 /**
  * Execute a tool by making the appropriate HTTP request
  * All requests go directly - internal routes use regular fetch, external use SSRF-protected fetch
@@ -717,9 +724,9 @@ async function processFileOutputs(
 export async function executeTool(
   toolId: string,
   params: Record<string, any>,
-  skipPostProcess = false,
-  executionContext?: ExecutionContext
+  options: ExecuteToolOptions = {}
 ): Promise<ToolResponse> {
+  const { skipPostProcess = false, executionContext, signal } = options
   // Capture start time for precise timing
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
@@ -812,7 +819,8 @@ export async function executeTool(
         params,
         executionContext,
         requestId,
-        startTimeISO
+        startTimeISO,
+        signal
       )
     } else {
       // For built-in tools, use the synchronous version
@@ -1009,13 +1017,13 @@ export async function executeTool(
     // Execute the tool request directly (internal routes use regular fetch, external use SSRF-protected fetch)
     // Wrap with retry logic for hosted keys to handle rate limiting due to higher usage
     const result = hostedKeyInfo.isUsingHostedKey
-      ? await executeWithRetry(() => executeToolRequest(toolId, tool, contextParams), {
+      ? await executeWithRetry(() => executeToolRequest(toolId, tool, contextParams, signal), {
           requestId,
           toolId,
           envVarName: hostedKeyInfo.envVarName!,
           executionContext,
         })
-      : await executeToolRequest(toolId, tool, contextParams)
+      : await executeToolRequest(toolId, tool, contextParams, signal)
 
     // Apply post-processing if available and not skipped
     let finalResult = result
@@ -1273,7 +1281,7 @@ function isRetryableFailure(error: unknown, status?: number): boolean {
 
 function calculateBackoff(attempt: number, initialDelayMs: number, maxDelayMs: number): number {
   const base = Math.min(initialDelayMs * 2 ** attempt, maxDelayMs)
-  return Math.round(base / 2 + Math.random() * (base / 2))
+  return Math.round(base / 2 + randomFloat() * (base / 2))
 }
 
 function parseRetryAfterHeader(header: string | null): number {
@@ -1299,7 +1307,8 @@ function parseRetryAfterHeader(header: string | null): number {
 async function executeToolRequest(
   toolId: string,
   tool: ToolConfig,
-  params: Record<string, any>
+  params: Record<string, any>,
+  signal?: AbortSignal
 ): Promise<ToolResponse> {
   const requestId = generateRequestId()
 
@@ -1396,6 +1405,16 @@ async function executeToolRequest(
             timeout
           )
 
+          let abortListener: (() => void) | null = null
+          if (signal) {
+            if (signal.aborted) {
+              controller.abort('caller_aborted')
+            } else {
+              abortListener = () => controller.abort('caller_aborted')
+              signal.addEventListener('abort', abortListener, { once: true })
+            }
+          }
+
           try {
             response = await fetch(fullUrl, {
               method: requestParams.method,
@@ -1405,11 +1424,19 @@ async function executeToolRequest(
             })
           } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
+              // Distinguish caller cancellation from local timeout: rethrow the AbortError
+              // when the caller's signal triggered the abort so cancellation propagates as-is.
+              if (signal?.aborted) {
+                throw error
+              }
               throw new Error(`Request timed out after ${timeout}ms`)
             }
             throw error
           } finally {
             clearTimeout(timeoutId)
+            if (abortListener) {
+              signal?.removeEventListener('abort', abortListener)
+            }
           }
         } else {
           const urlValidation = await validateUrlWithDNS(fullUrl, 'toolUrl')
@@ -1422,6 +1449,7 @@ async function executeToolRequest(
             headers: headersRecord,
             body: requestParams.body ?? undefined,
             timeout: requestParams.timeout,
+            signal,
           })
 
           const responseHeaders = new Headers(secureResponse.headers.toRecord())
@@ -1701,7 +1729,8 @@ async function executeMcpTool(
   params: Record<string, any>,
   executionContext?: ExecutionContext,
   requestId?: string,
-  startTimeISO?: string
+  startTimeISO?: string,
+  signal?: AbortSignal
 ): Promise<ToolResponse> {
   const actualRequestId = requestId || generateRequestId()
   const actualStartTime = startTimeISO || new Date().toISOString()
@@ -1794,6 +1823,7 @@ async function executeMcpTool(
       method: 'POST',
       headers,
       body,
+      signal,
     })
 
     const endTime = new Date()
@@ -1890,8 +1920,7 @@ async function executeMcpTool(
 
     logger.error(`[${actualRequestId}] Error executing MCP tool ${toolId}:`, error)
 
-    const errorMessage =
-      error instanceof Error ? error.message : `Failed to execute MCP tool ${toolId}`
+    const errorMessage = getErrorMessage(error, `Failed to execute MCP tool ${toolId}`)
 
     return {
       success: false,

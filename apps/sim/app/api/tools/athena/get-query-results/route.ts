@@ -1,5 +1,6 @@
 import { GetQueryResultsCommand } from '@aws-sdk/client-athena'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsAthenaGetQueryResultsContract } from '@/lib/api/contracts/tools/aws/athena-get-query-results'
 import { parseToolRequest } from '@/lib/api/server'
@@ -68,8 +69,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to get Athena query results'
+    const errorMessage = getErrorMessage(error, 'Failed to get Athena query results')
     logger.error('GetQueryResults failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }

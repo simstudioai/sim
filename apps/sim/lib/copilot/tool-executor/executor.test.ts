@@ -54,8 +54,7 @@ describe('copilot tool executor fallback', () => {
           chatId: 'chat-1',
           enforceCredentialAccess: true,
         }),
-      }),
-      false
+      })
     )
     expect(result).toEqual({ success: true, output: { emails: [] } })
   })
@@ -83,8 +82,7 @@ describe('copilot tool executor fallback', () => {
         _context: expect.objectContaining({
           copilotToolExecution: true,
         }),
-      }),
-      false
+      })
     )
   })
 
@@ -108,8 +106,7 @@ describe('copilot tool executor fallback', () => {
       'function_execute',
       expect.objectContaining({
         timeout: 10_000,
-      }),
-      false
+      })
     )
   })
 
@@ -133,8 +130,7 @@ describe('copilot tool executor fallback', () => {
       'function_execute',
       expect.objectContaining({
         timeout: 10_000,
-      }),
-      false
+      })
     )
   })
 
@@ -158,8 +154,7 @@ describe('copilot tool executor fallback', () => {
       'function_execute',
       expect.objectContaining({
         timeout: DEFAULT_EXECUTION_TIMEOUT_MS,
-      }),
-      false
+      })
     )
   })
 })

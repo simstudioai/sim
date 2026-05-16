@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { ChevronDown, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -10,6 +11,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Tooltip,
@@ -627,7 +629,7 @@ export function MCP({ initialServerId }: MCPProps) {
           {error ? (
             <div className='flex h-full flex-col items-center justify-center gap-2'>
               <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
-                {error instanceof Error ? error.message : 'Failed to load MCP servers'}
+                {getErrorMessage(error, 'Failed to load MCP servers')}
               </p>
             </div>
           ) : serversLoading ? (
@@ -689,11 +691,11 @@ export function MCP({ initialServerId }: MCPProps) {
         <ModalContent size='sm'>
           <ModalHeader>Delete MCP Server</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{serverToDelete?.name}</span>
               ? This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowDeleteDialog(false)}>

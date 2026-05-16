@@ -1,5 +1,5 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   renameWorkspaceFileContract,
@@ -9,11 +9,11 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
-  deleteWorkspaceFile,
-  FileConflictError,
-  renameWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace'
+  performDeleteWorkspaceFileItems,
+  performRenameWorkspaceFile,
+} from '@/lib/workspace-files/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
@@ -51,35 +51,39 @@ export const PATCH = withRouteHandler(
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
-      const updatedFile = await renameWorkspaceFile(workspaceId, fileId, name)
-
-      logger.info(`[${requestId}] Renamed workspace file: ${fileId} to "${updatedFile.name}"`)
-
-      recordAudit({
+      const result = await performRenameWorkspaceFile({
         workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.FILE_UPDATED,
-        resourceType: AuditResourceType.FILE,
-        resourceId: fileId,
-        resourceName: updatedFile.name,
-        description: `Renamed file to "${updatedFile.name}"`,
-        request,
+        fileId,
+        name,
+        userId: session.user.id,
       })
+      if (!result.success || !result.file) {
+        return NextResponse.json(
+          { success: false, error: result.error },
+          { status: result.errorCode === 'conflict' ? 409 : 500 }
+        )
+      }
 
+      logger.info(`[${requestId}] Renamed workspace file: ${fileId} to "${result.file.name}"`)
+
+      captureServerEvent(
+        session.user.id,
+        'file_renamed',
+        { workspace_id: workspaceId },
+        { groups: { workspace: workspaceId } }
+      )
       return NextResponse.json({
         success: true,
-        file: updatedFile,
+        file: result.file,
       })
     } catch (error) {
       logger.error(`[${requestId}] Error renaming workspace file:`, error)
       return NextResponse.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to rename file',
+          error: getErrorMessage(error, 'Failed to rename file'),
         },
-        { status: error instanceof FileConflictError ? 409 : 500 }
+        { status: 500 }
       )
     }
   }
@@ -120,22 +124,33 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
-      await deleteWorkspaceFile(workspaceId, fileId)
+      const result = await performDeleteWorkspaceFileItems({
+        workspaceId,
+        userId: session.user.id,
+        fileIds: [fileId],
+      })
+      if (!result.success) {
+        return NextResponse.json(
+          { success: false, error: result.error },
+          {
+            status:
+              result.errorCode === 'validation'
+                ? 400
+                : result.errorCode === 'not_found'
+                  ? 404
+                  : 500,
+          }
+        )
+      }
 
       logger.info(`[${requestId}] Archived workspace file: ${fileId}`)
 
-      recordAudit({
-        workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.FILE_DELETED,
-        resourceType: AuditResourceType.FILE,
-        resourceId: fileId,
-        description: `Archived file "${fileId}"`,
-        request,
-      })
-
+      captureServerEvent(
+        session.user.id,
+        'file_deleted',
+        { workspace_id: workspaceId },
+        { groups: { workspace: workspaceId } }
+      )
       return NextResponse.json({
         success: true,
       })
@@ -144,7 +159,7 @@ export const DELETE = withRouteHandler(
       return NextResponse.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to delete file',
+          error: getErrorMessage(error, 'Failed to delete file'),
         },
         { status: 500 }
       )

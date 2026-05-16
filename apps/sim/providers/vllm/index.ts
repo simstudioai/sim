@@ -1,10 +1,11 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import { env } from '@/lib/core/config/env'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { formatMessagesForProvider } from '@/providers/attachments'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
@@ -75,7 +76,7 @@ export const vllmProvider: ProviderConfig = {
       logger.info(`Discovered ${models.length} vLLM model(s):`, { models })
     } catch (error) {
       logger.warn('vLLM model instantiation failed. The provider will be disabled.', {
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
       })
     }
   },
@@ -123,6 +124,7 @@ export const vllmProvider: ProviderConfig = {
     if (request.messages) {
       allMessages.push(...request.messages)
     }
+    const formattedMessages = formatMessagesForProvider(allMessages, 'vllm') as Message[]
 
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
@@ -137,7 +139,7 @@ export const vllmProvider: ProviderConfig = {
 
     const payload: any = {
       model: request.model.replace(/^vllm\//, ''),
-      messages: allMessages,
+      messages: formattedMessages,
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
@@ -319,7 +321,7 @@ export const vllmProvider: ProviderConfig = {
       }
       const toolCalls = []
       const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...allMessages]
+      const currentMessages = [...formattedMessages]
       let iterationCount = 0
 
       let modelTime = firstResponseTime
@@ -377,7 +379,9 @@ export const vllmProvider: ProviderConfig = {
             if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams)
+            const result = await executeTool(toolName, executionParams, {
+              signal: request.abortSignal,
+            })
             const toolCallEndTime = Date.now()
 
             return {
@@ -400,7 +404,7 @@ export const vllmProvider: ProviderConfig = {
               result: {
                 success: false,
                 output: undefined,
-                error: error instanceof Error ? error.message : 'Tool execution failed',
+                error: getErrorMessage(error, 'Tool execution failed'),
               },
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,

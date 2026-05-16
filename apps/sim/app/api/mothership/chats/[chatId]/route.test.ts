@@ -48,6 +48,7 @@ vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
 
 vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
+  getAccessibleCopilotChatAuth: mockGetAccessibleCopilotChat,
 }))
 
 vi.mock('@/lib/copilot/chat/stream-liveness', () => ({

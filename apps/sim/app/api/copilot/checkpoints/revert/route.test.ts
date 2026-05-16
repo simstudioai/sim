@@ -36,6 +36,7 @@ vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
+  getAccessibleCopilotChatAuth: mockGetAccessibleCopilotChat,
 }))
 
 vi.mock('@sim/db', () => ({

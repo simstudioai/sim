@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
-import { Folder, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
@@ -13,6 +13,7 @@ import {
   SModalTabsList,
   SModalTabsTrigger,
 } from '@/components/emcn'
+import { Folder } from '@/components/emcn/icons'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
@@ -21,11 +22,22 @@ import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
 import { useRestoreWorkflow, useWorkflows } from '@/hooks/queries/workflows'
+import {
+  useRestoreWorkspaceFileFolder,
+  useWorkspaceFileFolders,
+} from '@/hooks/queries/workspace-file-folders'
 import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
-type ResourceType = 'all' | 'workflow' | 'table' | 'knowledge' | 'file' | 'folder'
+type ResourceType =
+  | 'all'
+  | 'workflow'
+  | 'table'
+  | 'knowledge'
+  | 'file'
+  | 'folder'
+  | 'workspace_folder'
 
 function getResourceHref(
   workspaceId: string,
@@ -44,6 +56,8 @@ function getResourceHref(
       return `${base}/files/${id}`
     case 'folder':
       return `${base}/w`
+    case 'workspace_folder':
+      return `${base}/files?folderId=${id}`
   }
 }
 
@@ -82,6 +96,11 @@ interface DeletedResource {
   color?: string
 }
 
+interface RestoredResourceEntry {
+  resource: DeletedResource
+  displayIndex: number
+}
+
 const TABS: { id: ResourceType; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'workflow', label: 'Workflows' },
@@ -94,6 +113,7 @@ const TABS: { id: ResourceType; label: string }[] = [
 const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {
   workflow: 'Workflow',
   folder: 'Folder',
+  workspace_folder: 'File Folder',
   table: 'Table',
   knowledge: 'Knowledge Base',
   file: 'File',
@@ -114,7 +134,7 @@ function ResourceIcon({ resource }: { resource: DeletedResource }) {
     )
   }
 
-  if (resource.type === 'folder') {
+  if (resource.type === 'folder' || resource.type === 'workspace_folder') {
     const color = resource.color ?? '#6B7280'
     return <Folder className={ICON_CLASS} style={{ color }} />
   }
@@ -128,6 +148,12 @@ function ResourceIcon({ resource }: { resource: DeletedResource }) {
   )
 }
 
+function matchesActiveTab(resource: DeletedResource, activeTab: ResourceType): boolean {
+  if (activeTab === 'all') return true
+  if (activeTab === 'file') return resource.type === 'file' || resource.type === 'workspace_folder'
+  return resource.type === activeTab
+}
+
 export function RecentlyDeleted() {
   const params = useParams()
   const router = useRouter()
@@ -136,7 +162,7 @@ export function RecentlyDeleted() {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeSort, setActiveSort] = useState<SortConfig | null>(null)
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set())
-  const [restoredItems, setRestoredItems] = useState<Map<string, DeletedResource>>(new Map())
+  const [restoredItems, setRestoredItems] = useState<Map<string, RestoredResourceEntry>>(new Map())
 
   const workflowsQuery = useWorkflows(workspaceId, { scope: 'archived' })
   const foldersQuery = useFolders(workspaceId, { scope: 'archived' })
@@ -144,26 +170,30 @@ export function RecentlyDeleted() {
   const tablesQuery = useTablesList(workspaceId, 'archived')
   const knowledgeQuery = useKnowledgeBasesQuery(workspaceId, { scope: 'archived' })
   const filesQuery = useWorkspaceFiles(workspaceId, 'archived')
+  const workspaceFoldersQuery = useWorkspaceFileFolders(workspaceId, 'archived')
 
   const restoreWorkflow = useRestoreWorkflow()
   const restoreFolder = useRestoreFolder()
   const restoreTable = useRestoreTable()
   const restoreKnowledgeBase = useRestoreKnowledgeBase()
   const restoreWorkspaceFile = useRestoreWorkspaceFile()
+  const restoreWorkspaceFileFolder = useRestoreWorkspaceFileFolder()
 
   const isLoading =
     workflowsQuery.isLoading ||
     foldersQuery.isLoading ||
     tablesQuery.isLoading ||
     knowledgeQuery.isLoading ||
-    filesQuery.isLoading
+    filesQuery.isLoading ||
+    workspaceFoldersQuery.isLoading
 
   const error =
     workflowsQuery.error ||
     foldersQuery.error ||
     tablesQuery.error ||
     knowledgeQuery.error ||
-    filesQuery.error
+    filesQuery.error ||
+    workspaceFoldersQuery.error
 
   const resources = useMemo<DeletedResource[]>(() => {
     const items: DeletedResource[] = []
@@ -220,11 +250,14 @@ export function RecentlyDeleted() {
       })
     }
 
-    const itemIds = new Set(items.map((i) => i.id))
-    for (const [id, resource] of restoredItems) {
-      if (!itemIds.has(id)) {
-        items.push(resource)
-      }
+    for (const wf of workspaceFoldersQuery.data ?? []) {
+      items.push({
+        id: wf.id,
+        name: wf.name,
+        type: 'workspace_folder',
+        deletedAt: wf.deletedAt ? new Date(wf.deletedAt) : new Date(wf.updatedAt),
+        workspaceId: wf.workspaceId,
+      })
     }
 
     return items
@@ -234,19 +267,19 @@ export function RecentlyDeleted() {
     tablesQuery.data,
     knowledgeQuery.data,
     filesQuery.data,
+    workspaceFoldersQuery.data,
     workspaceId,
-    restoredItems,
   ])
 
   const filtered = useMemo(() => {
-    let items = activeTab === 'all' ? resources : resources.filter((r) => r.type === activeTab)
+    let items = resources.filter((resource) => matchesActiveTab(resource, activeTab))
     if (searchTerm.trim()) {
       const normalized = searchTerm.toLowerCase()
       items = items.filter((r) => r.name.toLowerCase().includes(normalized))
     }
     const col = (activeSort ?? DEFAULT_SORT).column
     const dir = (activeSort ?? DEFAULT_SORT).direction
-    return [...items].sort((a, b) => {
+    items = [...items].sort((a, b) => {
       let cmp = 0
       switch (col) {
         case 'name':
@@ -261,7 +294,22 @@ export function RecentlyDeleted() {
       }
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [resources, activeTab, searchTerm, activeSort])
+
+    const itemIds = new Set(items.map((item) => item.id))
+    for (const [id, entry] of restoredItems) {
+      if (itemIds.has(id)) continue
+      if (!matchesActiveTab(entry.resource, activeTab)) continue
+      if (
+        searchTerm.trim() &&
+        !entry.resource.name.toLowerCase().includes(searchTerm.toLowerCase())
+      ) {
+        continue
+      }
+      items.splice(Math.min(entry.displayIndex, items.length), 0, entry.resource)
+    }
+
+    return items
+  }, [resources, activeTab, searchTerm, activeSort, restoredItems])
 
   const showNoResults = searchTerm.trim() && filtered.length === 0 && resources.length > 0
   const selectedSort = activeSort ?? DEFAULT_SORT
@@ -280,49 +328,60 @@ export function RecentlyDeleted() {
         current = current.parentId ? byId.get(current.parentId) : undefined
       }
     }
-    router.push(getResourceHref(resource.workspaceId, resource.type, resource.id))
+    const href = getResourceHref(resource.workspaceId, resource.type, resource.id)
+    router.push(href)
   }
 
-  function handleRestore(resource: DeletedResource) {
+  async function handleRestore(resource: DeletedResource) {
+    const displayIndex = Math.max(
+      0,
+      filtered.findIndex((item) => item.id === resource.id)
+    )
     setRestoringIds((prev) => new Set(prev).add(resource.id))
 
-    const onSettled = () => {
+    try {
+      switch (resource.type) {
+        case 'workflow':
+          await restoreWorkflow.mutateAsync({
+            workflowId: resource.id,
+            workspaceId: resource.workspaceId,
+          })
+          break
+        case 'folder':
+          await restoreFolder.mutateAsync({
+            folderId: resource.id,
+            workspaceId: resource.workspaceId,
+          })
+          break
+        case 'table':
+          await restoreTable.mutateAsync(resource.id)
+          break
+        case 'knowledge':
+          await restoreKnowledgeBase.mutateAsync(resource.id)
+          break
+        case 'file':
+          await restoreWorkspaceFile.mutateAsync({
+            workspaceId: resource.workspaceId,
+            fileId: resource.id,
+          })
+          break
+        case 'workspace_folder':
+          await restoreWorkspaceFileFolder.mutateAsync({
+            workspaceId: resource.workspaceId,
+            folderId: resource.id,
+          })
+          break
+      }
+
+      setRestoredItems((prev) => new Map(prev).set(resource.id, { resource, displayIndex }))
+    } catch {
+      return
+    } finally {
       setRestoringIds((prev) => {
         const next = new Set(prev)
         next.delete(resource.id)
         return next
       })
-    }
-
-    const onSuccess = () => {
-      setRestoredItems((prev) => new Map(prev).set(resource.id, resource))
-    }
-
-    switch (resource.type) {
-      case 'workflow':
-        restoreWorkflow.mutate(
-          { workflowId: resource.id, workspaceId: resource.workspaceId },
-          { onSettled, onSuccess }
-        )
-        break
-      case 'folder':
-        restoreFolder.mutate(
-          { folderId: resource.id, workspaceId: resource.workspaceId },
-          { onSettled, onSuccess }
-        )
-        break
-      case 'table':
-        restoreTable.mutate(resource.id, { onSettled, onSuccess })
-        break
-      case 'knowledge':
-        restoreKnowledgeBase.mutate(resource.id, { onSettled, onSuccess })
-        break
-      case 'file':
-        restoreWorkspaceFile.mutate(
-          { workspaceId: resource.workspaceId, fileId: resource.id },
-          { onSettled, onSuccess }
-        )
-        break
     }
   }
 
@@ -418,7 +477,11 @@ export function RecentlyDeleted() {
                     </span>
                   </div>
 
-                  {isRestored ? (
+                  {isRestoring ? (
+                    <Button variant='primary' size='sm' disabled className='shrink-0'>
+                      Restoring...
+                    </Button>
+                  ) : isRestored ? (
                     <div className='flex shrink-0 items-center gap-2'>
                       <span className='text-[var(--text-tertiary)] text-small'>Restored</span>
                       <Button variant='primary' size='sm' onClick={() => handleView(resource)}>
@@ -429,11 +492,10 @@ export function RecentlyDeleted() {
                     <Button
                       variant='primary'
                       size='sm'
-                      disabled={isRestoring}
-                      onClick={() => handleRestore(resource)}
+                      onClick={() => void handleRestore(resource)}
                       className='shrink-0'
                     >
-                      {isRestoring ? 'Restoring...' : 'Restore'}
+                      Restore
                     </Button>
                   )}
                 </div>

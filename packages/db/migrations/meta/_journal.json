@@ -1450,6 +1450,13 @@
       "when": 1778705055737,
       "tag": "0207_colorful_secret_warriors",
       "breakpoints": true
+    },
+    {
+      "idx": 208,
+      "version": "7",
+      "when": 1778714378630,
+      "tag": "0208_modern_power_man",
+      "breakpoints": true
     }
   ]
 }

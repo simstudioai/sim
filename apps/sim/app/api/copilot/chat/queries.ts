@@ -51,6 +51,21 @@ function transformChat(chat: {
   }
 }
 
+type CopilotChatListRow = Pick<
+  typeof copilotChats.$inferSelect,
+  'id' | 'title' | 'model' | 'createdAt' | 'updatedAt'
+>
+
+function transformChatListItem(chat: CopilotChatListRow) {
+  return {
+    id: chat.id,
+    title: chat.title,
+    model: chat.model,
+    createdAt: chat.createdAt,
+    updatedAt: chat.updatedAt,
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
@@ -166,9 +181,6 @@ export async function GET(req: NextRequest) {
         id: copilotChats.id,
         title: copilotChats.title,
         model: copilotChats.model,
-        messages: copilotChats.messages,
-        planArtifact: copilotChats.planArtifact,
-        config: copilotChats.config,
         createdAt: copilotChats.createdAt,
         updatedAt: copilotChats.updatedAt,
       })
@@ -181,7 +193,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      chats: chats.map(transformChat),
+      chats: chats.map(transformChatListItem),
     })
   } catch (error) {
     logger.error('Error fetching copilot chats:', error)

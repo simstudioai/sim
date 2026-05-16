@@ -2,6 +2,7 @@ import type { Artifact, Message, PushNotificationConfig, TaskState } from '@a2a-
 import { db } from '@sim/db'
 import { a2aAgent, a2aPushNotificationConfig, a2aTask, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -1394,7 +1395,7 @@ async function handleTaskResubscribe(
           logger.error('Error during SSE poll:', error)
           sendEvent('error', {
             code: A2A_ERROR_CODES.INTERNAL_ERROR,
-            message: error instanceof Error ? error.message : 'Polling failed',
+            message: getErrorMessage(error, 'Polling failed'),
           })
           cleanup()
           try {

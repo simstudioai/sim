@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import Redis from 'ioredis'
 import { type NextRequest, NextResponse } from 'next/server'
 import { redisExecuteContract } from '@/lib/api/contracts/tools/databases/redis'
@@ -54,7 +55,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ result })
   } catch (error) {
     logger.error('Redis command failed', { error })
-    const errorMessage = error instanceof Error ? error.message : 'Redis command failed'
+    const errorMessage = getErrorMessage(error, 'Redis command failed')
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   } finally {
     if (client) {

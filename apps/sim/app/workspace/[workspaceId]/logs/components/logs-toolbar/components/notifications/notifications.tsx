@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Plus, X } from 'lucide-react'
 import {
   Badge,
@@ -13,6 +14,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
@@ -505,7 +507,7 @@ export const NotificationSettings = memo(function NotificationSettings({
       resetForm()
       setShowForm(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save notification'
+      const message = getErrorMessage(error, 'Failed to save notification')
       setFormErrors({ general: message })
     }
   }
@@ -1203,6 +1205,9 @@ export const NotificationSettings = memo(function NotificationSettings({
         <ModalContent size='lg'>
           <ModalHeader>Notifications</ModalHeader>
 
+          <ModalDescription className='sr-only'>
+            Manage webhook, email, and Slack notification subscriptions for this workflow
+          </ModalDescription>
           <ModalTabs
             value={activeTab}
             onValueChange={(value: string) => {
@@ -1300,12 +1305,12 @@ export const NotificationSettings = memo(function NotificationSettings({
         <ModalContent size='sm'>
           <ModalHeader>Delete Notification</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               <span className='text-[var(--text-error)]'>
                 This will permanently remove the notification and stop all deliveries.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

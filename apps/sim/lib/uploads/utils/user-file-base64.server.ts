@@ -361,8 +361,7 @@ async function resolveBase64(
   options: Base64HydrationOptions,
   logger: Logger
 ): Promise<string | null> {
-  const requestedMaxBytes = options.maxBytes ?? DEFAULT_MAX_BASE64_BYTES
-  const maxBytes = Math.min(requestedMaxBytes, DEFAULT_MAX_BASE64_BYTES)
+  const maxBytes = options.maxBytes ?? DEFAULT_MAX_BASE64_BYTES
 
   if (file.base64) {
     const base64Bytes = Buffer.byteLength(file.base64, 'base64')
@@ -440,10 +439,7 @@ async function hydrateUserFile(
 
   const cached = await state.cache.get(file)
   if (cached) {
-    const maxBytes = Math.min(
-      options.maxBytes ?? DEFAULT_MAX_BASE64_BYTES,
-      DEFAULT_MAX_BASE64_BYTES
-    )
+    const maxBytes = options.maxBytes ?? DEFAULT_MAX_BASE64_BYTES
     if (Buffer.byteLength(cached, 'base64') > maxBytes) {
       return stripBase64(file)
     }

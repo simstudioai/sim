@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Check, Clipboard, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -10,6 +11,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Skeleton,
@@ -61,7 +63,7 @@ export function InboxSettingsTab() {
       setIsEditAddressOpen(false)
       setNewUsername('')
     } catch (error) {
-      setEditAddressError(error instanceof Error ? error.message : 'Failed to update address')
+      setEditAddressError(getErrorMessage(error, 'Failed to update address'))
     }
   }, [workspaceId, newUsername])
 
@@ -78,7 +80,7 @@ export function InboxSettingsTab() {
       setNewSenderEmail('')
       setNewSenderLabel('')
     } catch (error) {
-      setAddSenderError(error instanceof Error ? error.message : 'Failed to add sender')
+      setAddSenderError(getErrorMessage(error, 'Failed to add sender'))
     }
   }, [workspaceId, newSenderEmail, newSenderLabel])
 
@@ -88,7 +90,7 @@ export function InboxSettingsTab() {
       try {
         await removeSender.mutateAsync({ workspaceId, senderId })
       } catch (error) {
-        setRemoveSenderError(error instanceof Error ? error.message : 'Failed to remove sender')
+        setRemoveSenderError(getErrorMessage(error, 'Failed to remove sender'))
       }
     },
     [workspaceId]
@@ -239,6 +241,9 @@ export function InboxSettingsTab() {
         <ModalContent size='sm'>
           <ModalHeader>Add allowed sender</ModalHeader>
           <ModalBody>
+            <ModalDescription className='sr-only'>
+              Add an email address to the allowed senders list
+            </ModalDescription>
             <div className='flex flex-col gap-3'>
               <div className='flex flex-col gap-1'>
                 <p className='font-medium text-[var(--text-secondary)] text-sm'>Email address</p>
@@ -287,12 +292,12 @@ export function InboxSettingsTab() {
         <ModalContent size='sm'>
           <ModalHeader>Change email address</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Changing your email address will create a new inbox.{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 The old address will stop receiving emails immediately.
               </span>
-            </p>
+            </ModalDescription>
             <div className='mt-4 flex flex-col gap-1'>
               <p className='font-medium text-[var(--text-secondary)] text-sm'>New email prefix</p>
               <EmcnInput

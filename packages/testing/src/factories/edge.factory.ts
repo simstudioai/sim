@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { generateRandomString } from '@sim/utils/random'
+
 /**
  * Options for creating a mock edge.
  */
@@ -17,7 +19,7 @@ export interface EdgeFactoryOptions {
  * Generates an edge ID from source and target.
  */
 function generateEdgeId(source: string, target: string): string {
-  return `${source}-${target}-${Math.random().toString(36).substring(2, 6)}`
+  return `${source}-${target}-${generateRandomString(4)}`
 }
 
 /**

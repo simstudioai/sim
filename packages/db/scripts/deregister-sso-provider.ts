@@ -13,6 +13,7 @@
  *   SSO_PROVIDER_ID=provider-id (optional, if not provided will remove all providers for user)
  */
 
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -137,7 +138,7 @@ async function deregisterSSOProvider(): Promise<boolean> {
     return true
   } catch (error) {
     logger.error('❌ Failed to deregister SSO provider:', {
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
       stack: error instanceof Error ? error.stack : undefined,
     })
     return false

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { anthropicProvider } from '@/providers/anthropic'
 import { azureAnthropicProvider } from '@/providers/azure-anthropic'
 import { azureOpenAIProvider } from '@/providers/azure-openai'
@@ -57,7 +58,7 @@ export async function initializeProviders(): Promise<void> {
         logger.info(`Initialized provider: ${id}`)
       } catch (error) {
         logger.error(`Failed to initialize ${id} provider`, {
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: getErrorMessage(error, 'Unknown error'),
         })
       }
     }

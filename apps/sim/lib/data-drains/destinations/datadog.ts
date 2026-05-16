@@ -1,13 +1,9 @@
 import { gzipSync } from 'node:zlib'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { z } from 'zod'
-import {
-  backoffWithJitter,
-  parseNdjsonObjects,
-  parseRetryAfter,
-  sleepUntilAborted,
-} from '@/lib/data-drains/destinations/utils'
+import { parseNdjsonObjects, sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainDatadogDestination')

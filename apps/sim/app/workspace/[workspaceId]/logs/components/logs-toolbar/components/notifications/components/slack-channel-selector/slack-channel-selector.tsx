@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Hash, Lock } from 'lucide-react'
 import { Combobox, type ComboboxOption } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
@@ -59,7 +60,7 @@ export function SlackChannelSelector({
       )
     } catch (err) {
       logger.error('Failed to fetch Slack channels', { error: err })
-      setFetchError(err instanceof Error ? err.message : 'Failed to fetch channels')
+      setFetchError(getErrorMessage(err, 'Failed to fetch channels'))
       setChannels([])
     } finally {
       setIsLoading(false)

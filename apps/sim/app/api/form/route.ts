@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
@@ -21,10 +22,6 @@ import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/
 
 const logger = createLogger('FormAPI')
 export const maxDuration = 120
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback
-}
 
 async function cleanupFormAfterDeployFailure(formId: string) {
   try {

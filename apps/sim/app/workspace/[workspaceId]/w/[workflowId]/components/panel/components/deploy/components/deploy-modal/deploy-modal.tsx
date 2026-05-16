@@ -12,6 +12,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTabs,
@@ -604,6 +605,10 @@ export function DeployModal({
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>
+              <ModalDescription className='sr-only'>
+                Configure and manage workflow deployment settings including API, MCP, A2A, and chat
+                options.
+              </ModalDescription>
               {(deployError || deployWarnings.length > 0) && (
                 <div className='mb-3 flex flex-col gap-2'>
                   {deployError && (
@@ -974,12 +979,12 @@ export function DeployModal({
         <ModalContent size='sm'>
           <ModalHeader>Undeploy API</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to undeploy this workflow?{' '}
               <span className='text-[var(--text-error)]'>
                 This will remove the API endpoint and make it unavailable to external users.
               </span>
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button
@@ -1000,7 +1005,7 @@ export function DeployModal({
         <ModalContent size='sm'>
           <ModalHeader>Delete A2A Agent</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {existingA2aAgent?.name || 'this agent'}
@@ -1010,7 +1015,7 @@ export function DeployModal({
                 This will permanently remove the agent configuration.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

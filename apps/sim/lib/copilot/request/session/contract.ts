@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type {
   MothershipStreamV1EventEnvelope,
   MothershipStreamV1StreamRef,
@@ -462,7 +463,7 @@ export function parsePersistedStreamEventEnvelopeJson(raw: string): ParseStreamE
   try {
     parsed = JSON.parse(raw)
   } catch (error) {
-    const rawMessage = error instanceof Error ? error.message : 'Invalid JSON'
+    const rawMessage = getErrorMessage(error, 'Invalid JSON')
     return {
       ok: false,
       reason: 'invalid_json',

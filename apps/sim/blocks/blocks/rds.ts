@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { RDSIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
@@ -404,8 +405,7 @@ Return ONLY the JSON object.`,
             try {
               return JSON.parse(value)
             } catch (parseError) {
-              const errorMsg =
-                parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+              const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
               throw new Error(`Invalid JSON in ${fieldName}: ${errorMsg}`)
             }
           }

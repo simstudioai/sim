@@ -94,6 +94,111 @@ describe.concurrent('Blocks Module', () => {
     })
   })
 
+  describe('File block', () => {
+    it('should keep v3 read and get routed to the legacy tools', () => {
+      const block = getBlock('file_v3')
+
+      expect(block).toBeDefined()
+      expect(block?.hideFromToolbar).toBe(true)
+      expect(block?.subBlocks[0].options?.map((option) => option.id)).toEqual([
+        'file_parser_v3',
+        'file_get',
+        'file_write',
+        'file_append',
+      ])
+      expect(block?.tools.config?.tool({ operation: 'file_parser_v3' })).toBe('file_parser_v3')
+      expect(block?.tools.config?.tool({ operation: 'file_get' })).toBe('file_get')
+    })
+
+    it('should expose v4 with read and fetch routed to the expected tools', () => {
+      const block = getBlock('file_v4')
+
+      expect(block).toBeDefined()
+      expect(block?.hideFromToolbar).toBe(false)
+      expect(block?.subBlocks[0].options?.map((option) => option.id)).toEqual([
+        'file_read',
+        'file_fetch',
+        'file_write',
+        'file_append',
+      ])
+      expect(block?.subBlocks.find((subBlock) => subBlock.id === 'readFile')?.multiple).toBe(true)
+      expect(block?.tools.config?.tool({ operation: 'file_read' })).toBe('file_read')
+      expect(block?.tools.config?.tool({ operation: 'file_fetch' })).toBe('file_fetch')
+      expect(
+        block?.tools.config?.params?.({
+          operation: 'file_read',
+          readFileInput: '["file-1","file-2"]',
+          _context: { workspaceId: 'workspace-1' },
+        })
+      ).toEqual({
+        fileId: ['file-1', 'file-2'],
+        workspaceId: 'workspace-1',
+      })
+      expect(
+        block?.tools.config?.params?.({
+          operation: 'file_read',
+          readFileInput: [
+            {
+              key: 'workspace/workspace-1/example.md',
+              name: 'example.md',
+              path: '/api/files/serve/workspace%2Fworkspace-1%2Fexample.md?context=workspace',
+              size: 123,
+              type: 'text/markdown',
+            },
+          ],
+          _context: { workspaceId: 'workspace-1' },
+        })
+      ).toEqual({
+        fileInput: [
+          {
+            key: 'workspace/workspace-1/example.md',
+            name: 'example.md',
+            path: '/api/files/serve/workspace%2Fworkspace-1%2Fexample.md?context=workspace',
+            size: 123,
+            type: 'text/markdown',
+          },
+        ],
+        workspaceId: 'workspace-1',
+      })
+    })
+  })
+
+  describe('Agent block', () => {
+    it('should expose canonical file attachments and normalize file params', () => {
+      const block = getBlock('agent')
+
+      expect(block).toBeDefined()
+      const uploadSubBlock = block?.subBlocks.find((subBlock) => subBlock.id === 'attachmentFiles')
+      const advancedSubBlock = block?.subBlocks.find((subBlock) => subBlock.id === 'files')
+
+      expect(uploadSubBlock?.type).toBe('file-upload')
+      expect(uploadSubBlock?.canonicalParamId).toBe('files')
+      expect(uploadSubBlock?.multiple).toBe(true)
+      expect(advancedSubBlock?.canonicalParamId).toBe('files')
+      expect(block?.inputs.files).toEqual({
+        type: 'array',
+        description: 'Files to include with the latest user message',
+      })
+
+      expect(
+        block?.tools.config?.params?.({
+          model: 'gpt-4o',
+          files:
+            '[{"id":"file-1","key":"workspace/ws-1/example.png","name":"example.png","url":"/api/files/serve/workspace%2Fws-1%2Fexample.png?context=workspace","size":123,"type":"image/png"}]',
+        })
+      ).toMatchObject({
+        files: [
+          {
+            id: 'file-1',
+            key: 'workspace/ws-1/example.png',
+            name: 'example.png',
+            type: 'image/png',
+          },
+        ],
+      })
+    })
+  })
+
   describe('getBlocksByCategory', () => {
     it('should return blocks in the "blocks" category', () => {
       const blocks = getBlocksByCategory('blocks')

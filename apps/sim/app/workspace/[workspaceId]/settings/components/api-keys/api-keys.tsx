@@ -10,6 +10,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Skeleton,
@@ -378,14 +379,14 @@ export function ApiKeys() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Sim key</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Deleting{' '}
               <span className='font-medium text-[var(--text-primary)]'>{deleteKey?.name}</span>{' '}
               <span className='text-[var(--text-error)]'>
                 will immediately revoke access for any integrations using it.
               </span>{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button

@@ -1,5 +1,6 @@
 import { CloudFormationClient, DetectStackDriftCommand } from '@aws-sdk/client-cloudformation'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsCloudformationDetectStackDriftContract } from '@/lib/api/contracts/tools/aws/cloudformation-detect-stack-drift'
 import { parseToolRequest } from '@/lib/api/server'
@@ -47,8 +48,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to detect CloudFormation stack drift'
+    const errorMessage = getErrorMessage(error, 'Failed to detect CloudFormation stack drift')
     logger.error('DetectStackDrift failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }

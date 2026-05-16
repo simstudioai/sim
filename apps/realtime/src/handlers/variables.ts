@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { VARIABLE_OPERATIONS } from '@sim/realtime-protocol/constants'
+import { getErrorMessage } from '@sim/utils/errors'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import type { AuthenticatedSocket } from '@/middleware/auth'
@@ -195,7 +196,7 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
     } catch (error) {
       logger.error('Error handling variable update:', error)
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = getErrorMessage(error, 'Unknown error')
 
       if (operationId) {
         socket.emit('operation-failed', {
@@ -326,7 +327,7 @@ async function flushVariableUpdate(
     pending.opToSocket.forEach((socketId, opId) => {
       io.to(socketId).emit('operation-failed', {
         operationId: opId,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
         retryable: true,
       })
     })

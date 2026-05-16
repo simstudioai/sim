@@ -63,10 +63,13 @@ export const AuditAction = {
   FILE_UPDATED: 'file.updated',
   FILE_DELETED: 'file.deleted',
   FILE_RESTORED: 'file.restored',
+  FILE_MOVED: 'file.moved',
 
   // Folders
   FOLDER_CREATED: 'folder.created',
+  FOLDER_UPDATED: 'folder.updated',
   FOLDER_DELETED: 'folder.deleted',
+  FOLDER_MOVED: 'folder.moved',
   FOLDER_DUPLICATED: 'folder.duplicated',
   FOLDER_RESTORED: 'folder.restored',
 

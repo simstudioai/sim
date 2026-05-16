@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   Button,
   ButtonGroup,
@@ -12,6 +13,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -299,9 +301,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
       handleClose()
     } catch (error: unknown) {
       logger.error('Schedule submission failed:', { error })
-      setSubmitError(
-        error instanceof Error ? error.message : 'Failed to save scheduled task. Please try again.'
-      )
+      setSubmitError(getErrorMessage(error, 'Failed to save scheduled task. Please try again.'))
     }
   }
 
@@ -310,6 +310,9 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
       <ModalContent size='lg'>
         <ModalHeader>{isEditing ? 'Edit scheduled task' : 'Create new scheduled task'}</ModalHeader>
         <ModalBody>
+          <ModalDescription className='sr-only'>
+            {isEditing ? 'Edit the scheduled task settings' : 'Configure a new scheduled task'}
+          </ModalDescription>
           <div className='flex flex-col gap-4.5'>
             <div className='flex flex-col gap-2'>
               <p className='font-medium text-[var(--text-secondary)] text-sm'>Title</p>

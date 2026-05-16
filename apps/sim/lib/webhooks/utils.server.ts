@@ -1,6 +1,7 @@
 import { db, workflowDeploymentVersion } from '@sim/db'
 import { webhook, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
@@ -223,7 +224,7 @@ export async function syncWebhooksForCredentialSet(params: {
         )
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = getErrorMessage(error, 'Unknown error')
       syncLogger.error(
         `[${requestId}] Failed to sync webhook for credential ${cred.credentialId}: ${errorMessage}`
       )
@@ -247,7 +248,7 @@ export async function syncWebhooksForCredentialSet(params: {
           `[${requestId}] Deleted webhook ${existingWebhook.id} for removed credential ${credentialId}`
         )
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        const errorMessage = getErrorMessage(error, 'Unknown error')
         syncLogger.error(
           `[${requestId}] Failed to delete webhook ${existingWebhook.id} for credential ${credentialId}: ${errorMessage}`
         )

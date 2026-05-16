@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotCredentialsContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
@@ -26,7 +27,7 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to load credentials',
+        error: getErrorMessage(error, 'Failed to load credentials'),
       },
       { status: 500 }
     )

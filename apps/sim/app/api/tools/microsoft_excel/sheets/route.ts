@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { microsoftExcelSheetsSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
 import { parseRequest } from '@/lib/api/server'
@@ -59,7 +60,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       basePath = getItemBasePath(spreadsheetId, driveId)
     } catch (error) {
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Invalid parameters' },
+        { error: getErrorMessage(error, 'Invalid parameters') },
         { status: 400 }
       )
     }

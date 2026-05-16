@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -243,7 +243,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
         },
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      const errorMessage = getErrorMessage(error, 'Unknown error occurred')
       logger.error('Error in edit_content tool', {
         operation: intent.operation,
         fileId: intent.fileId,

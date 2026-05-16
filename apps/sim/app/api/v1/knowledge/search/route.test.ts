@@ -6,7 +6,9 @@
  *
  * @vitest-environment node
  */
+
 import { createMockRequest, knowledgeApiUtilsMock, knowledgeApiUtilsMockFns } from '@sim/testing'
+import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -47,7 +49,7 @@ vi.mock('@/app/api/v1/middleware', () => ({
 
 vi.mock('@/app/api/v1/knowledge/utils', () => ({
   handleError: (e: unknown) =>
-    new Response(JSON.stringify({ error: e instanceof Error ? e.message : 'error' }), {
+    new Response(JSON.stringify({ error: getErrorMessage(e, 'error') }), {
       status: 500,
     }),
 }))

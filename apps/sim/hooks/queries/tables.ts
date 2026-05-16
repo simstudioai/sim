@@ -912,8 +912,16 @@ export function useRestoreTable() {
       if (isValidationError(error)) return
       toast.error(error.message, { duration: 5000 })
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    onSuccess: (response, tableId) => {
+      queryClient.setQueryData(tableKeys.detail(tableId), response.data.table)
+      queryClient.removeQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    },
+    onSettled: (_data, _error, tableId) => {
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: tableKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) }),
+        queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) }),
+      ])
     },
   })
 }

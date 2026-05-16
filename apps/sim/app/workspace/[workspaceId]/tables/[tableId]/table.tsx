@@ -8,6 +8,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   toast,
@@ -618,7 +619,7 @@ export function Table({
               : 'Delete Column'}
           </ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               {deletingColumns && deletingColumns.length > 1 ? (
                 <>
                   Are you sure you want to delete{' '}
@@ -641,7 +642,7 @@ export function Table({
                 {deletingColumns && deletingColumns.length > 1 ? 'these columns' : 'this column'}.
               </span>{' '}
               You can undo this action.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setDeletingColumns(null)}>
@@ -666,14 +667,14 @@ export function Table({
           <ModalContent size='sm'>
             <ModalHeader>Delete Table</ModalHeader>
             <ModalBody>
-              <p className='text-[var(--text-secondary)]'>
+              <ModalDescription className='text-[var(--text-secondary)]'>
                 Are you sure you want to delete{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
                 <span className='text-[var(--text-error)]'>
                   All {tableData?.rowCount ?? 0} rows will be removed.
                 </span>{' '}
                 You can restore it from Recently Deleted in Settings.
-              </p>
+              </ModalDescription>
             </ModalBody>
             <ModalFooter>
               <Button

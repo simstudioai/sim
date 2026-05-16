@@ -367,12 +367,58 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'describe_alarms' },
     },
     {
+      id: 'muteRuleName',
+      title: 'Mute Rule Name',
+      type: 'short-input',
+      placeholder: 'my-mute-rule',
+      condition: { field: 'operation', value: ['mute_alarm', 'unmute_alarm'] },
+      required: { field: 'operation', value: ['mute_alarm', 'unmute_alarm'] },
+    },
+    {
       id: 'alarmNames',
       title: 'Alarm Names',
       type: 'short-input',
       placeholder: 'my-alarm-1, my-alarm-2',
-      condition: { field: 'operation', value: ['mute_alarm', 'unmute_alarm'] },
-      required: { field: 'operation', value: ['mute_alarm', 'unmute_alarm'] },
+      condition: { field: 'operation', value: 'mute_alarm' },
+      required: { field: 'operation', value: 'mute_alarm' },
+    },
+    {
+      id: 'durationValue',
+      title: 'Duration',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'mute_alarm' },
+      required: { field: 'operation', value: 'mute_alarm' },
+    },
+    {
+      id: 'durationUnit',
+      title: 'Duration Unit',
+      type: 'dropdown',
+      options: [
+        { label: 'Minutes', id: 'minutes' },
+        { label: 'Hours', id: 'hours' },
+        { label: 'Days', id: 'days' },
+      ],
+      value: () => 'hours',
+      condition: { field: 'operation', value: 'mute_alarm' },
+      required: { field: 'operation', value: 'mute_alarm' },
+    },
+    {
+      id: 'muteDescription',
+      title: 'Description',
+      type: 'short-input',
+      placeholder: 'Why these alarms are being muted',
+      condition: { field: 'operation', value: 'mute_alarm' },
+      mode: 'advanced',
+    },
+    {
+      id: 'muteStartDate',
+      title: 'Start Date',
+      type: 'short-input',
+      placeholder: 'e.g., 1711900800',
+      condition: { field: 'operation', value: 'mute_alarm' },
+      mode: 'advanced',
+      description: 'Unix epoch seconds. Defaults to now (mute starts immediately).',
     },
     {
       id: 'limit',
@@ -633,8 +679,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               ...(parsedLimit !== undefined && { limit: parsedLimit }),
             }
 
-          case 'mute_alarm':
-          case 'unmute_alarm': {
+          case 'mute_alarm': {
             const alarmNames = rest.alarmNames
             if (!alarmNames) {
               throw new Error('Alarm names are required')
@@ -652,11 +697,45 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               throw new Error('At least one alarm name is required')
             }
 
+            const durationValueRaw = rest.durationValue
+            const parsedDurationValue =
+              typeof durationValueRaw === 'number'
+                ? durationValueRaw
+                : Number.parseInt(String(durationValueRaw ?? ''), 10)
+            if (!Number.isFinite(parsedDurationValue) || parsedDurationValue < 1) {
+              throw new Error('Duration must be a positive integer')
+            }
+
+            const startDateRaw = rest.muteStartDate
+            const parsedStartDate =
+              startDateRaw === undefined || startDateRaw === ''
+                ? undefined
+                : typeof startDateRaw === 'number'
+                  ? startDateRaw
+                  : Number.parseInt(String(startDateRaw), 10)
+            if (parsedStartDate !== undefined && !Number.isFinite(parsedStartDate)) {
+              throw new Error('Start date must be a Unix epoch in seconds')
+            }
+
             return {
               awsRegion,
               awsAccessKeyId,
               awsSecretAccessKey,
+              muteRuleName: rest.muteRuleName,
               alarmNames: names,
+              durationValue: parsedDurationValue,
+              durationUnit: rest.durationUnit,
+              ...(rest.muteDescription && { description: rest.muteDescription }),
+              ...(parsedStartDate !== undefined && { startDate: parsedStartDate }),
+            }
+          }
+
+          case 'unmute_alarm': {
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              muteRuleName: rest.muteRuleName,
             }
           }
 
@@ -700,7 +779,18 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       description: 'Alarm state filter (OK, ALARM, INSUFFICIENT_DATA)',
     },
     alarmType: { type: 'string', description: 'Alarm type filter (MetricAlarm, CompositeAlarm)' },
-    alarmNames: { type: 'string', description: 'Comma-separated alarm names to mute or unmute' },
+    muteRuleName: { type: 'string', description: 'Unique name for the alarm mute rule' },
+    alarmNames: { type: 'string', description: 'Comma-separated alarm names to mute' },
+    durationValue: { type: 'number', description: 'Length of the mute window' },
+    durationUnit: {
+      type: 'string',
+      description: 'Unit for durationValue: minutes, hours, or days',
+    },
+    muteDescription: { type: 'string', description: 'Description of the mute rule' },
+    muteStartDate: {
+      type: 'number',
+      description: 'When the mute begins (Unix epoch seconds). Defaults to now.',
+    },
     limit: { type: 'number', description: 'Maximum number of results' },
   },
   outputs: {
@@ -746,7 +836,19 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
     },
     alarmNames: {
       type: 'array',
-      description: 'Names of the alarms that were muted or unmuted',
+      description: 'Names of the alarms targeted by the mute rule',
+    },
+    muteRuleName: {
+      type: 'string',
+      description: 'Name of the alarm mute rule that was created or deleted',
+    },
+    expression: {
+      type: 'string',
+      description: 'Schedule expression used by the mute rule',
+    },
+    duration: {
+      type: 'string',
+      description: 'ISO 8601 duration of the mute window',
     },
     success: {
       type: 'boolean',

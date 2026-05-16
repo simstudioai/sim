@@ -20,13 +20,30 @@ export interface ChatLoadResult {
   isNew: boolean
 }
 
-export async function getAccessibleCopilotChat(chatId: string, userId: string) {
-  const [chat] = await db
-    .select()
-    .from(copilotChats)
-    .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
-    .limit(1)
+/**
+ * Minimal column set needed to perform workflow/workspace authorization for a
+ * copilot chat. Heavy TOAST-able columns (messages, planArtifact, previewYaml,
+ * config, resources) are intentionally excluded — callers that only need to
+ * verify ownership should not pay the detoast cost for those fields.
+ */
+const copilotChatAuthColumns = {
+  id: copilotChats.id,
+  userId: copilotChats.userId,
+  workflowId: copilotChats.workflowId,
+  workspaceId: copilotChats.workspaceId,
+  type: copilotChats.type,
+} as const
 
+type CopilotChatAuthRow = Pick<
+  typeof copilotChats.$inferSelect,
+  'id' | 'userId' | 'workflowId' | 'workspaceId' | 'type'
+>
+
+async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
+  chat: T | undefined,
+  chatId: string,
+  userId: string
+): Promise<T | null> {
   if (!chat) {
     logger.warn('Copilot chat not found or not owned by user', { chatId, userId })
     return null
@@ -59,6 +76,40 @@ export async function getAccessibleCopilotChat(chatId: string, userId: string) {
   }
 
   return chat
+}
+
+/**
+ * Verify a copilot chat exists, is owned by the user, and the user has access
+ * to its workflow/workspace. Selects only the columns required for the
+ * authorization check — use this for routes that only need ownership
+ * verification before a mutation (rename, delete, update-messages).
+ */
+export async function getAccessibleCopilotChatAuth(
+  chatId: string,
+  userId: string
+): Promise<CopilotChatAuthRow | null> {
+  const [chat] = await db
+    .select(copilotChatAuthColumns)
+    .from(copilotChats)
+    .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
+    .limit(1)
+
+  return authorizeCopilotChatRow(chat, chatId, userId)
+}
+
+/**
+ * Load the full copilot chat row after authorization. Use this only when the
+ * caller actually consumes the heavy columns (`messages`, `planArtifact`,
+ * `config`, etc.) — for example, chat resume or the GET-by-id endpoint.
+ */
+export async function getAccessibleCopilotChat(chatId: string, userId: string) {
+  const [chat] = await db
+    .select()
+    .from(copilotChats)
+    .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
+    .limit(1)
+
+  return authorizeCopilotChatRow(chat, chatId, userId)
 }
 
 /**

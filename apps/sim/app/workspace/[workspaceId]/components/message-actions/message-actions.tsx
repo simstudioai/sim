@@ -10,6 +10,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -239,6 +240,9 @@ export const MessageActions = memo(function MessageActions({
         <ModalContent size='sm'>
           <ModalHeader>Give feedback</ModalHeader>
           <ModalBody>
+            <ModalDescription className='sr-only'>
+              Submit feedback about this response
+            </ModalDescription>
             <div className='flex flex-col gap-2'>
               <div className='flex items-start justify-between gap-2'>
                 <p className='font-medium text-[var(--text-secondary)] text-sm'>

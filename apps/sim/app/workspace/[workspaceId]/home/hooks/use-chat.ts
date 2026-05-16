@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
@@ -4692,7 +4692,7 @@ export function useChat(
               clearActiveTurn()
               setTransportIdle()
             }
-            setError(err instanceof Error ? err.message : 'Failed to stop the previous response')
+            setError(getErrorMessage(err, 'Failed to stop the previous response'))
             return false
           }
         }
@@ -4862,7 +4862,7 @@ export function useChat(
           if (succeeded) return consumedByTranscript
         }
 
-        setError(err instanceof Error ? err.message : 'Failed to send message')
+        setError(getErrorMessage(err, 'Failed to send message'))
         if (gen !== undefined && streamGenRef.current === gen) {
           finalize({
             error: true,
@@ -5193,7 +5193,7 @@ export function useChat(
           pendingStopPromiseRef.current = null
           pendingStopModeRef.current = null
         }
-        setError(err instanceof Error ? err.message : 'Failed to stop the previous response')
+        setError(getErrorMessage(err, 'Failed to stop the previous response'))
         rejectStopOperation(err)
         throw err
       }
@@ -5266,7 +5266,7 @@ export function useChat(
           pendingStopPromiseRef.current = null
           pendingStopModeRef.current = null
         }
-        setError(err instanceof Error ? err.message : 'Failed to stop the previous response')
+        setError(getErrorMessage(err, 'Failed to stop the previous response'))
         rejectStopOperation(err)
         throw err
       }
@@ -5401,7 +5401,7 @@ export function useChat(
         if (activeChatId) {
           invalidateChatQueries()
         }
-        setError(err instanceof Error ? err.message : 'Failed to stop the previous response')
+        setError(getErrorMessage(err, 'Failed to stop the previous response'))
         rejectStopOperation(err)
         throw err
       } finally {

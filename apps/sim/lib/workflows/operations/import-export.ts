@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -518,9 +519,7 @@ export function parseWorkflowJson(
     try {
       data = JSON.parse(jsonContent)
     } catch (parseError) {
-      errors.push(
-        `Invalid JSON: ${parseError instanceof Error ? parseError.message : 'Parse error'}`
-      )
+      errors.push(`Invalid JSON: ${getErrorMessage(parseError, 'Parse error')}`)
       return { data: null, errors }
     }
 
@@ -642,7 +641,7 @@ export function parseWorkflowJson(
     return { data: workflowState, errors: [] }
   } catch (error) {
     logger.error('Failed to parse workflow JSON:', error)
-    errors.push(`Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    errors.push(`Unexpected error: ${getErrorMessage(error, 'Unknown error')}`)
     return { data: null, errors }
   }
 }

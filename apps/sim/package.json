@@ -149,7 +149,7 @@
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.479.0",
     "mammoth": "^1.9.0",
-    "mermaid": "11.14.0",
+    "mermaid": "11.15.0",
     "micromatch": "4.0.8",
     "monaco-editor": "0.55.1",
     "mongodb": "6.19.0",
@@ -243,6 +243,7 @@
   "overrides": {
     "next": "16.2.6",
     "@next/env": "16.2.6",
+    "mermaid": "11.15.0",
     "react-floater": {
       "react": "$react",
       "react-dom": "$react-dom"

@@ -12,6 +12,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Trash,
@@ -390,6 +391,9 @@ export function DocumentTagsModal({
             <span>Document Tags</span>
           </div>
         </ModalHeader>
+        <ModalDescription className='sr-only'>
+          View and edit tags assigned to this document
+        </ModalDescription>
 
         <ModalBody>
           <div className='min-h-0 flex-1 overflow-y-auto'>

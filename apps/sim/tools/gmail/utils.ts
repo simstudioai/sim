@@ -1,3 +1,4 @@
+import { generateRandomString } from '@sim/utils/random'
 import { convert } from 'html-to-text'
 import type {
   GmailAttachment,
@@ -292,7 +293,7 @@ export function createMessagesSummary(messages: any[]): string {
  * Generate a unique MIME boundary string
  */
 function generateBoundary(): string {
-  return `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
+  return `----=_Part_${Date.now()}_${generateRandomString(13)}`
 }
 
 /**

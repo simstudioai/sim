@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   providerModelsResponseSchema,
@@ -65,7 +66,7 @@ export const GET = withRouteHandler(async (_request: NextRequest) => {
     return NextResponse.json(providerModelsResponseSchema.parse({ models }))
   } catch (error) {
     logger.error('Failed to fetch vLLM models', {
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
       baseUrl,
     })
 

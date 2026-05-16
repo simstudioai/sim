@@ -2,9 +2,18 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
+import {
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { CustomToolSkeleton } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tool-skeleton'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
@@ -111,7 +120,7 @@ export function CustomTools() {
           {error ? (
             <div className='flex h-full flex-col items-center justify-center gap-2'>
               <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
-                {error instanceof Error ? error.message : 'Failed to load tools'}
+                {getErrorMessage(error, 'Failed to load tools')}
               </p>
             </div>
           ) : isLoading ? (
@@ -189,11 +198,11 @@ export function CustomTools() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Custom Tool</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
+            <ModalDescription className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{toolToDelete?.name}</span>?{' '}
               This action cannot be undone.
-            </p>
+            </ModalDescription>
           </ModalBody>
           <ModalFooter>
             <Button variant='default' onClick={() => setShowDeleteDialog(false)}>

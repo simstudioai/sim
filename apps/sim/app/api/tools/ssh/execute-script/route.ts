@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sshExecuteScriptContract } from '@/lib/api/contracts/storage-transfer'
@@ -73,7 +74,7 @@ exit $exit_code`
       client.end()
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] SSH script execution failed:`, error)
 
     return NextResponse.json(

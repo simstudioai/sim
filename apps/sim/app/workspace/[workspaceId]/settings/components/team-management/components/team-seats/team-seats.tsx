@@ -7,6 +7,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Tooltip,
@@ -68,7 +69,9 @@ export function TeamSeats({
       <ModalContent size='sm'>
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
-          <p className='text-[var(--text-secondary)]'>{description}</p>
+          <ModalDescription className='text-[var(--text-secondary)]'>
+            {description}
+          </ModalDescription>
 
           <div className='mt-4 flex flex-col gap-1'>
             <Label htmlFor='seats' className='text-small'>

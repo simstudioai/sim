@@ -7,6 +7,7 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
 } from '@/components/emcn'
@@ -60,6 +61,9 @@ export function CreateWorkspaceModal({
       >
         <ModalHeader>Create Workspace</ModalHeader>
         <ModalBody>
+          <ModalDescription className='sr-only'>
+            Enter a name for the new workspace
+          </ModalDescription>
           <Input
             ref={inputRef}
             value={name}

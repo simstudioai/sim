@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { postgresqlIntrospectContract } from '@/lib/api/contracts/tools/databases/postgresql'
@@ -52,7 +53,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       await sql.end()
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] PostgreSQL introspection failed:`, error)
 
     return NextResponse.json(

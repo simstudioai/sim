@@ -1,5 +1,14 @@
 'use client'
-import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type DragEvent,
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ArrowDown, ArrowUp, Button, Checkbox, Loader, Plus, Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -30,10 +39,23 @@ export interface ResourceRow {
 
 export interface SelectableConfig {
   selectedIds: Set<string>
-  onSelectRow: (id: string, checked: boolean) => void
+  onSelectRow: (id: string, checked: boolean, shiftKey?: boolean) => void
   onSelectAll: (checked: boolean) => void
   isAllSelected: boolean
   disabled?: boolean
+}
+
+export interface RowDragDropConfig {
+  activeDropTargetId?: string | null
+  draggedRowIds?: Set<string>
+  isAnyDragActive?: boolean
+  isRowDraggable?: (rowId: string) => boolean
+  isRowDropTarget?: (rowId: string) => boolean
+  onDragStart?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
+  onDragOver?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
+  onDragLeave?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
+  onDrop?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
+  onDragEnd?: (e: DragEvent<HTMLTableRowElement>, rowId: string) => void
 }
 
 export interface PaginationConfig {
@@ -51,10 +73,12 @@ interface ResourceProps {
   defaultSort?: string
   sort?: SortConfig
   headerActions?: HeaderAction[]
+  leadingActions?: ReactNode
   columns: ResourceColumn[]
   rows: ResourceRow[]
   selectedRowId?: string | null
   selectable?: SelectableConfig
+  rowDragDrop?: RowDragDropConfig
   onRowClick?: (rowId: string) => void
   onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
@@ -71,8 +95,6 @@ interface ResourceProps {
 const EMPTY_CELL_PLACEHOLDER = '-  -  -'
 const SKELETON_ROW_COUNT = 5
 
-const stopPropagation = (e: React.MouseEvent) => e.stopPropagation()
-
 /**
  * Shared page shell for resource list pages (tables, files, knowledge, schedules, logs).
  * Renders the header, toolbar with search, and a data table from column/row definitions.
@@ -86,10 +108,12 @@ export const Resource = memo(function Resource({
   defaultSort,
   sort: sortOverride,
   headerActions,
+  leadingActions,
   columns,
   rows,
   selectedRowId,
   selectable,
+  rowDragDrop,
   onRowClick,
   onRowHover,
   onRowContextMenu,
@@ -113,6 +137,7 @@ export const Resource = memo(function Resource({
         breadcrumbs={breadcrumbs}
         create={create}
         actions={headerActions}
+        leadingActions={leadingActions}
       />
       <ResourceOptionsBar
         search={search}
@@ -128,6 +153,7 @@ export const Resource = memo(function Resource({
         sort={sortOverride}
         selectedRowId={selectedRowId}
         selectable={selectable}
+        rowDragDrop={rowDragDrop}
         onRowClick={onRowClick}
         onRowHover={onRowHover}
         onRowContextMenu={onRowContextMenu}
@@ -148,6 +174,7 @@ export interface ResourceTableProps {
   sort?: SortConfig
   selectedRowId?: string | null
   selectable?: SelectableConfig
+  rowDragDrop?: RowDragDropConfig
   onRowClick?: (rowId: string) => void
   onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
@@ -172,6 +199,7 @@ export const ResourceTable = memo(function ResourceTable({
   sort: externalSort,
   selectedRowId,
   selectable,
+  rowDragDrop,
   onRowClick,
   onRowHover,
   onRowContextMenu,
@@ -327,6 +355,7 @@ export const ResourceTable = memo(function ResourceTable({
                 columns={columns}
                 selectedRowId={selectedRowId}
                 selectable={selectable}
+                rowDragDrop={rowDragDrop}
                 onRowClick={onRowClick}
                 onRowHover={onRowHover}
                 onRowContextMenu={onRowContextMenu}
@@ -442,6 +471,7 @@ interface DataRowProps {
   columns: ResourceColumn[]
   selectedRowId?: string | null
   selectable?: SelectableConfig
+  rowDragDrop?: RowDragDropConfig
   onRowClick?: (rowId: string) => void
   onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
@@ -453,16 +483,35 @@ const DataRow = memo(function DataRow({
   columns,
   selectedRowId,
   selectable,
+  rowDragDrop,
   onRowClick,
   onRowHover,
   onRowContextMenu,
   hasCheckbox,
 }: DataRowProps) {
   const isSelected = selectable?.selectedIds.has(row.id) ?? false
+  const isDraggable = rowDragDrop?.isRowDraggable?.(row.id) ?? false
+  const isDropTarget = rowDragDrop?.isRowDropTarget?.(row.id) ?? false
+  const isActiveDropTarget = rowDragDrop?.activeDropTargetId === row.id
+  const isDragging = rowDragDrop?.draggedRowIds?.has(row.id) ?? false
+  const isAnyDragActive = rowDragDrop?.isAnyDragActive ?? false
+  const hasActiveSelection = (selectable?.selectedIds.size ?? 0) > 0
 
-  const handleClick = useCallback(() => {
-    onRowClick?.(row.id)
-  }, [onRowClick, row.id])
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLTableRowElement>) => {
+      if (
+        selectable &&
+        !selectable.disabled &&
+        (e.shiftKey || e.metaKey || e.ctrlKey || !onRowClick || hasActiveSelection)
+      ) {
+        e.preventDefault()
+        selectable.onSelectRow(row.id, !isSelected, e.shiftKey)
+        return
+      }
+      onRowClick?.(row.id)
+    },
+    [hasActiveSelection, isSelected, onRowClick, row.id, selectable]
+  )
 
   const handleMouseEnter = useCallback(() => {
     onRowHover?.(row.id)
@@ -475,25 +524,65 @@ const DataRow = memo(function DataRow({
     [onRowContextMenu, row.id]
   )
 
+  const shiftKeyRef = useRef(false)
+
+  const handleSelectRowClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    shiftKeyRef.current = e.shiftKey
+  }, [])
+
   const handleSelectRow = useCallback(
     (checked: boolean | 'indeterminate') => {
-      selectable?.onSelectRow(row.id, checked as boolean)
+      selectable?.onSelectRow(row.id, checked as boolean, shiftKeyRef.current)
+      shiftKeyRef.current = false
     },
     [selectable, row.id]
   )
+
+  const handleDragStart = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDragStart?.(e, row.id)
+  }
+
+  const handleDragOver = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDragOver?.(e, row.id)
+  }
+
+  const handleDragLeave = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDragLeave?.(e, row.id)
+  }
+
+  const handleDrop = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDrop?.(e, row.id)
+  }
+
+  const handleDragEnd = (e: DragEvent<HTMLTableRowElement>) => {
+    rowDragDrop?.onDragEnd?.(e, row.id)
+  }
 
   return (
     <tr
       data-resource-row
       data-row-id={row.id}
       className={cn(
-        'transition-colors hover-hover:bg-[var(--surface-3)]',
+        'transition-colors',
+        !isAnyDragActive && 'hover-hover:bg-[var(--surface-3)]',
         onRowClick && 'cursor-pointer',
-        (selectedRowId === row.id || isSelected) && 'bg-[var(--surface-3)]'
+        isDraggable && 'cursor-grab active:cursor-grabbing',
+        isDropTarget && 'data-[drop-target=true]:outline-offset-[-1px]',
+        (selectedRowId === row.id || isSelected) && 'bg-[var(--surface-3)]',
+        isActiveDropTarget && 'bg-[var(--surface-4)] outline outline-1 outline-[var(--accent)]',
+        (isDragging || (isAnyDragActive && isSelected && !isActiveDropTarget)) && 'opacity-50'
       )}
-      onClick={onRowClick ? handleClick : undefined}
+      data-drop-target={isDropTarget || undefined}
+      draggable={isDraggable}
+      onClick={onRowClick || selectable ? handleClick : undefined}
       onMouseEnter={handleMouseEnter}
       onContextMenu={onRowContextMenu ? handleContextMenu : undefined}
+      onDragStart={isDraggable ? handleDragStart : undefined}
+      onDragOver={isDropTarget ? handleDragOver : undefined}
+      onDragLeave={isDropTarget ? handleDragLeave : undefined}
+      onDrop={isDropTarget ? handleDrop : undefined}
+      onDragEnd={isDraggable ? handleDragEnd : undefined}
     >
       {hasCheckbox && selectable && (
         <td className='w-[52px] py-2.5 pr-0 pl-5 align-middle'>
@@ -503,7 +592,7 @@ const DataRow = memo(function DataRow({
             onCheckedChange={handleSelectRow}
             disabled={selectable.disabled}
             aria-label='Select row'
-            onClick={stopPropagation}
+            onClick={handleSelectRowClick}
           />
         </td>
       )}
@@ -553,23 +642,37 @@ interface ResourceColGroupProps {
   hasCheckbox?: boolean
 }
 
+const CHECKBOX_COLUMN_WIDTH_PX = 52
+const CHECKBOX_COLUMN_WIDTH = `${CHECKBOX_COLUMN_WIDTH_PX}px`
+
 const ResourceColGroup = memo(function ResourceColGroup({
   columns,
   hasCheckbox,
 }: ResourceColGroupProps) {
+  const weights = columns.map(
+    (col, colIdx) => (colIdx === 0 ? 2.5 : 1.0) * (col.widthMultiplier ?? 1)
+  )
+  const total = weights.reduce((s, w) => s + w, 0)
+
   return (
     <colgroup>
-      {hasCheckbox && <col className='w-[52px]' />}
-      {columns.map((col, colIdx) => (
-        <col
-          key={col.id}
-          style={
-            colIdx === 0
-              ? { width: 400 * (col.widthMultiplier ?? 1) }
-              : { width: 160 * (col.widthMultiplier ?? 1) }
-          }
-        />
-      ))}
+      {hasCheckbox && <col style={{ width: CHECKBOX_COLUMN_WIDTH }} />}
+      {columns.map((col, colIdx) => {
+        const columnRatio = weights[colIdx] / total
+        const columnPercent = columnRatio * 100
+        const checkboxOffset = CHECKBOX_COLUMN_WIDTH_PX * columnRatio
+
+        return (
+          <col
+            key={col.id}
+            style={{
+              width: hasCheckbox
+                ? `calc(${columnPercent}% - ${checkboxOffset}px)`
+                : `${columnPercent}%`,
+            }}
+          />
+        )
+      })}
     </colgroup>
   )
 })

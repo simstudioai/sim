@@ -1,4 +1,8 @@
-import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import {
+  inferContextFromKey,
+  isInternalFileUrl,
+  parseInternalFileUrl,
+} from '@/lib/uploads/utils/file-utils'
 import {
   classifyStartBlockType,
   resolveStartCandidates,
@@ -323,13 +327,68 @@ function getRawInputCandidate(workflowInput: unknown): unknown {
   return workflowInput
 }
 
+function normalizeStartFile(file: unknown): UserFile | null {
+  if (!isPlainObject(file)) {
+    return null
+  }
+
+  const id = typeof file.id === 'string' ? file.id : ''
+  const name = typeof file.name === 'string' ? file.name : ''
+  const url =
+    typeof file.url === 'string' ? file.url : typeof file.path === 'string' ? file.path : ''
+  const size = typeof file.size === 'number' ? file.size : Number.NaN
+  const type = typeof file.type === 'string' ? file.type : ''
+  const explicitKey = typeof file.key === 'string' ? file.key : ''
+
+  let key = explicitKey
+  let context = typeof file.context === 'string' ? file.context : undefined
+
+  if (!key && url && isInternalFileUrl(url)) {
+    try {
+      const parsed = parseInternalFileUrl(url)
+      key = parsed.key
+      context = context || parsed.context
+    } catch {
+      return null
+    }
+  }
+
+  if (!context && key) {
+    try {
+      context = inferContextFromKey(key)
+    } catch {
+      // Older file outputs may have opaque keys; keep the file shape intact.
+    }
+  }
+
+  if (!id || !name || !url || !Number.isFinite(size) || !type || !key) {
+    return null
+  }
+
+  return {
+    id,
+    name,
+    url,
+    size,
+    type,
+    key,
+    ...(context && { context }),
+    ...(typeof file.base64 === 'string' && { base64: file.base64 }),
+  }
+}
+
 function getFilesFromWorkflowInput(workflowInput: unknown): UserFile[] | undefined {
   if (!isPlainObject(workflowInput)) {
     return undefined
   }
   const files = workflowInput.files
-  if (Array.isArray(files) && files.every(isUserFileWithMetadata)) {
-    return files
+  if (!Array.isArray(files)) {
+    return undefined
+  }
+
+  const normalizedFiles = files.map(normalizeStartFile)
+  if (normalizedFiles.every((file): file is UserFile => Boolean(file))) {
+    return normalizedFiles
   }
   return undefined
 }
@@ -341,6 +400,8 @@ function mergeFilesIntoOutput(
   const files = getFilesFromWorkflowInput(workflowInput)
   if (files) {
     output.files = files
+  } else if (isPlainObject(workflowInput) && Object.hasOwn(workflowInput, 'files')) {
+    output.files = undefined
   }
   return output
 }

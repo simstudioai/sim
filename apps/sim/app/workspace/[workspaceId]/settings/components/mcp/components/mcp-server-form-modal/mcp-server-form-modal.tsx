@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   Button,
   Input as EmcnInput,
   Modal,
   ModalBody,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   Textarea,
@@ -326,7 +328,7 @@ export function McpServerFormModal({
   if (open && !prevOpen) {
     const data = initialData ?? DEFAULT_FORM_DATA
     setFormData(data)
-    setOriginalData(JSON.parse(JSON.stringify(data)))
+    setOriginalData(structuredClone(data))
     setFormMode('form')
     setJsonInput('')
     setJsonError(null)
@@ -519,7 +521,7 @@ export function McpServerFormModal({
 
       onOpenChange(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save server'
+      const message = getErrorMessage(error, 'Failed to save server')
       setSubmitError(message)
       logger.error('Failed to save MCP server:', error)
     } finally {
@@ -570,7 +572,7 @@ export function McpServerFormModal({
 
       onOpenChange(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save server'
+      const message = getErrorMessage(error, 'Failed to save server')
       setSubmitError(message)
       logger.error('Failed to save MCP server from JSON:', error)
     } finally {
@@ -597,6 +599,10 @@ export function McpServerFormModal({
       <ModalContent>
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
+          <ModalDescription className='sr-only'>
+            Configure an MCP server by entering the server URL and optional headers, or paste a JSON
+            configuration.
+          </ModalDescription>
           {formMode === 'json' ? (
             <div className='flex flex-col gap-2'>
               <Textarea

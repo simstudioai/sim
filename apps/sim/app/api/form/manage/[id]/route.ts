@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { formIdParamsSchema, updateFormContract } from '@/lib/api/contracts/forms'
@@ -13,10 +14,6 @@ import { checkFormAccess, DEFAULT_FORM_CUSTOMIZATIONS } from '@/app/api/form/uti
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('FormManageAPI')
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback
-}
 
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {

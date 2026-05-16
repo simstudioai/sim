@@ -1,4 +1,5 @@
 import { createLogger, type Logger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
@@ -430,11 +431,11 @@ export function extractAndParseJSON(content: string): any {
         contentLength: content.length,
         extractedLength: jsonStr.length,
         cleanedLength: cleaned.length,
-        error: innerError instanceof Error ? innerError.message : 'Unknown error',
+        error: getErrorMessage(innerError, 'Unknown error'),
       })
 
       throw new Error(
-        `Failed to parse JSON after cleanup: ${innerError instanceof Error ? innerError.message : 'Unknown error'}`
+        `Failed to parse JSON after cleanup: ${getErrorMessage(innerError, 'Unknown error')}`
       )
     }
   }

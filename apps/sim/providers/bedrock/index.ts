@@ -14,9 +14,10 @@ import {
   type ToolUseBlock,
 } from '@aws-sdk/client-bedrock-runtime'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { buildBedrockMessageContent } from '@/providers/attachments'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromBedrockStream,
@@ -178,9 +179,11 @@ export const bedrockProvider: ProviderConfig = {
           }
         } else {
           const role: ConversationRole = msg.role === 'assistant' ? 'assistant' : 'user'
+          const content = buildBedrockMessageContent(msg.content, msg.files, 'bedrock')
           messages.push({
             role,
-            content: [{ text: msg.content || '' }],
+            // double-cast-allowed: shared attachment builder emits Bedrock Converse content blocks while keeping provider-neutral attachment types
+            content: content as unknown as ContentBlock[],
           })
         }
       }
@@ -563,7 +566,9 @@ export const bedrockProvider: ProviderConfig = {
             if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams)
+            const result = await executeTool(toolName, executionParams, {
+              signal: request.abortSignal,
+            })
             const toolCallEndTime = Date.now()
 
             return {
@@ -588,7 +593,7 @@ export const bedrockProvider: ProviderConfig = {
               result: {
                 success: false,
                 output: undefined,
-                error: error instanceof Error ? error.message : 'Tool execution failed',
+                error: getErrorMessage(error, 'Tool execution failed'),
               },
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,

@@ -2,13 +2,14 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema'
 import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages/messages'
 import type { Logger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { BlockTokens, IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromAnthropicStream,
 } from '@/providers/anthropic/utils'
+import { buildAnthropicMessageContent } from '@/providers/attachments'
 import {
   getMaxOutputTokensForModel,
   getThinkingCapability,
@@ -229,9 +230,11 @@ export async function executeAnthropicProviderRequest(
           ],
         })
       } else {
+        const content = buildAnthropicMessageContent(msg.content, msg.files, config.providerId)
         messages.push({
           role: msg.role === 'assistant' ? 'assistant' : 'user',
-          content: msg.content ? [{ type: 'text', text: msg.content }] : [],
+          // double-cast-allowed: shared attachment builder returns Anthropic-compatible content blocks but avoids importing SDK-only union types
+          content: content as unknown as Anthropic.Messages.ContentBlockParam[],
         })
       }
     })
@@ -568,7 +571,9 @@ export async function executeAnthropicProviderRequest(
               if (!tool) return null
 
               const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-              const result = await executeTool(toolName, executionParams)
+              const result = await executeTool(toolName, executionParams, {
+                signal: request.abortSignal,
+              })
               const toolCallEndTime = Date.now()
 
               return {
@@ -593,7 +598,7 @@ export async function executeAnthropicProviderRequest(
                 result: {
                   success: false,
                   output: undefined,
-                  error: error instanceof Error ? error.message : 'Tool execution failed',
+                  error: getErrorMessage(error, 'Tool execution failed'),
                 },
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
@@ -1000,7 +1005,10 @@ export async function executeAnthropicProviderRequest(
             if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, true)
+            const result = await executeTool(toolName, executionParams, {
+              skipPostProcess: true,
+              signal: request.abortSignal,
+            })
             const toolCallEndTime = Date.now()
 
             return {
@@ -1025,7 +1033,7 @@ export async function executeAnthropicProviderRequest(
               result: {
                 success: false,
                 output: undefined,
-                error: error instanceof Error ? error.message : 'Tool execution failed',
+                error: getErrorMessage(error, 'Tool execution failed'),
               },
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,

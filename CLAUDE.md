@@ -10,7 +10,14 @@ You are a professional software engineer. All code must follow best practices: a
 - **Comments**: Use TSDoc for documentation. No `====` separators. No non-TSDoc comments
 - **Styling**: Never update global styles. Keep all styling local to components
 - **ID Generation**: Never use `crypto.randomUUID()`, `nanoid`, or `uuid` package. Use `generateId()` (UUID v4) or `generateShortId()` (compact) from `@sim/utils/id`
-- **Common Utilities**: Use shared helpers from `@sim/utils` instead of inline implementations. `sleep(ms)` from `@sim/utils/helpers` for delays, `toError(e)` from `@sim/utils/errors` to normalize caught values.
+- **Common Utilities**: Use shared helpers from `@sim/utils` instead of inline implementations:
+  - `sleep(ms)` from `@sim/utils/helpers` — never `new Promise(resolve => setTimeout(resolve, ms))`
+  - `toError(e)` from `@sim/utils/errors` — normalize caught values to `Error`
+  - `getErrorMessage(e, fallback?)` from `@sim/utils/errors` — extract message string from unknown caught value; never write `e instanceof Error ? e.message : 'fallback'`
+  - `structuredClone(value)` — built-in deep clone; never `JSON.parse(JSON.stringify(...))`
+  - `omit(obj, keys)` / `filterUndefined(obj)` from `@sim/utils/object` — object trimming; never `Object.fromEntries(Object.entries(...).filter(...))`
+  - `truncate(str, maxLength, suffix?)` from `@sim/utils/string` — never inline slice + ellipsis
+  - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — shared retry pacing; never reimplement exponential backoff inline
 - **Package Manager**: Use `bun` and `bunx`, not `npm` and `npx`
 
 ## Architecture

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { randomInt } from '@sim/utils/random'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
@@ -754,7 +755,7 @@ export function createExecutionEventWriter(
       FLUSH_INTERVAL_MS * 2 ** Math.min(consecutiveFlushFailures, 6),
       FLUSH_MAX_RETRY_INTERVAL_MS
     )
-    return backoff + Math.floor(Math.random() * FLUSH_INTERVAL_MS)
+    return backoff + randomInt(0, FLUSH_INTERVAL_MS)
   }
 
   const scheduleFlush = (delayMs = FLUSH_INTERVAL_MS) => {

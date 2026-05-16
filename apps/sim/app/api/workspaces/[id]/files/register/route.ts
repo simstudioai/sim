@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { registerWorkspaceFileContract } from '@/lib/api/contracts/workspace-files'
 import { parseRequest } from '@/lib/api/server'
@@ -33,7 +34,7 @@ export const POST = withRouteHandler(
     if (!parsed.success) return parsed.response
     const { params, body } = parsed.data
     const workspaceId = params.id
-    const { key, name, contentType } = body
+    const { key, name, contentType, folderId } = body
 
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (permission !== 'admin' && permission !== 'write') {
@@ -56,6 +57,7 @@ export const POST = withRouteHandler(
         key,
         originalName: name,
         contentType,
+        folderId,
       })
 
       if (created) {
@@ -89,7 +91,7 @@ export const POST = withRouteHandler(
     } catch (error) {
       logger.error('Failed to register workspace file:', error)
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to register file'
+      const errorMessage = getErrorMessage(error, 'Failed to register file')
       const isDuplicate =
         error instanceof FileConflictError || errorMessage.includes('already exists')
       const isMissing = errorMessage.includes('not found in storage')

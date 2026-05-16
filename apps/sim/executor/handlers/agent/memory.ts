@@ -122,6 +122,11 @@ export class Memory {
     return messages.slice(-limit)
   }
 
+  private sanitizeMessageForStorage(message: Message): Message {
+    const { files: _files, ...messageWithoutFiles } = message
+    return messageWithoutFiles
+  }
+
   private applyTokenWindow(messages: Message[], maxTokens: number, model?: string): Message[] {
     const result: Message[] = []
     let tokenCount = 0
@@ -177,9 +182,17 @@ export class Memory {
     const data = result[0].data
     if (!Array.isArray(data)) return []
 
-    return data.filter(
-      (msg): msg is Message => msg && typeof msg === 'object' && 'role' in msg && 'content' in msg
-    )
+    return data
+      .filter(
+        (msg): msg is Message =>
+          msg &&
+          typeof msg === 'object' &&
+          'role' in msg &&
+          'content' in msg &&
+          ['system', 'user', 'assistant'].includes(msg.role) &&
+          typeof msg.content === 'string'
+      )
+      .map((msg) => this.sanitizeMessageForStorage(msg))
   }
 
   private async seedMemoryRecord(
@@ -189,13 +202,15 @@ export class Memory {
   ): Promise<void> {
     const now = new Date()
 
+    const sanitizedMessages = messages.map((message) => this.sanitizeMessageForStorage(message))
+
     await db
       .insert(memory)
       .values({
         id: generateId(),
         workspaceId,
         key,
-        data: messages,
+        data: sanitizedMessages,
         createdAt: now,
         updatedAt: now,
       })
@@ -205,20 +220,22 @@ export class Memory {
   private async appendMessage(workspaceId: string, key: string, message: Message): Promise<void> {
     const now = new Date()
 
+    const sanitizedMessage = this.sanitizeMessageForStorage(message)
+
     await db
       .insert(memory)
       .values({
         id: generateId(),
         workspaceId,
         key,
-        data: [message],
+        data: [sanitizedMessage],
         createdAt: now,
         updatedAt: now,
       })
       .onConflictDoUpdate({
         target: [memory.workspaceId, memory.key],
         set: {
-          data: sql`${memory.data} || ${JSON.stringify([message])}::jsonb`,
+          data: sql`${memory.data} || ${JSON.stringify([sanitizedMessage])}::jsonb`,
           updatedAt: now,
         },
       })

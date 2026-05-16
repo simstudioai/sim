@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId, isValidUuid } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
@@ -359,6 +359,7 @@ async function handleExecutePost(
       includeFileBase64,
       base64MaxBytes,
       workflowStateOverride,
+      executionId: requestedExecutionId,
       triggerBlockId: parsedTriggerBlockId,
       startBlockId,
       stopAfterBlockId,
@@ -508,7 +509,8 @@ async function handleExecutePost(
       )
     }
 
-    const executionId = generateId()
+    const executionId =
+      isClientSession && requestedExecutionId ? requestedExecutionId : generateId()
     reqLogger = reqLogger.withMetadata({ userId, executionId })
 
     reqLogger.info('Starting server-side execution', {
@@ -669,7 +671,7 @@ async function handleExecutePost(
 
       await loggingSession.safeCompleteWithError({
         error: {
-          message: `File processing failed: ${fileError instanceof Error ? fileError.message : 'Unable to process input files'}`,
+          message: `File processing failed: ${getErrorMessage(fileError, 'Unable to process input files')}`,
           stackTrace: fileError instanceof Error ? fileError.stack : undefined,
         },
         traceSpans: [],
@@ -677,7 +679,7 @@ async function handleExecutePost(
 
       return NextResponse.json(
         {
-          error: `File processing failed: ${fileError instanceof Error ? fileError.message : 'Unable to process input files'}`,
+          error: `File processing failed: ${getErrorMessage(fileError, 'Unable to process input files')}`,
         },
         { status: 400 }
       )
@@ -812,7 +814,7 @@ async function handleExecutePost(
 
         return NextResponse.json(filteredResult)
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        const errorMessage = getErrorMessage(error, 'Unknown error')
 
         reqLogger.error(`Non-SSE execution failed: ${errorMessage}`)
 
@@ -1369,9 +1371,7 @@ async function handleExecutePost(
           const isTimeout = isTimeoutError(error) || timeoutController.isTimedOut()
           const errorMessage = isTimeout
             ? getTimeoutErrorMessage(error, timeoutController.timeoutMs)
-            : error instanceof Error
-              ? error.message
-              : 'Unknown error'
+            : getErrorMessage(error, 'Unknown error')
 
           reqLogger.error(`SSE execution failed: ${errorMessage}`, { isTimeout })
 
@@ -1431,7 +1431,7 @@ async function handleExecutePost(
             await eventWriter.close().catch((closeError) => {
               reqLogger.warn('Failed to close execution event writer after terminal publish', {
                 executionId,
-                error: closeError instanceof Error ? closeError.message : String(closeError),
+                error: getErrorMessage(closeError),
               })
             })
           } else {

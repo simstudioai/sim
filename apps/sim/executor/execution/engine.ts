@@ -1,6 +1,10 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
+import {
+  getCancellationChannel,
+  isExecutionCancelled,
+  isRedisCancellationEnabled,
+} from '@/lib/execution/cancellation'
 import { BlockType } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
@@ -31,11 +35,9 @@ export class ExecutionEngine {
   private errorFlag = false
   private stoppedEarlyFlag = false
   private executionError: Error | null = null
-  private lastCancellationCheck = 0
-  private readonly useRedisCancellation: boolean
-  private readonly CANCELLATION_CHECK_INTERVAL_MS = 500
-  private abortPromise: Promise<void> | null = null
-  private abortResolve: (() => void) | null = null
+  private abortPromise!: Promise<void>
+  private abortResolve!: () => void
+  private cancellationUnsubscribe: (() => void) | null = null
   private execLogger: Logger
 
   constructor(
@@ -45,7 +47,6 @@ export class ExecutionEngine {
     private nodeOrchestrator: NodeExecutionOrchestrator
   ) {
     this.allowResumeTriggers = this.context.metadata.resumeFromSnapshot === true
-    this.useRedisCancellation = isRedisCancellationEnabled() && !!this.context.executionId
     this.execLogger = logger.withMetadata({
       workflowId: this.context.workflowId,
       workspaceId: this.context.workspaceId,
@@ -54,72 +55,64 @@ export class ExecutionEngine {
       requestId: this.context.metadata.requestId,
     })
     this.initializeAbortHandler()
+    this.subscribeToCancellationChannel()
   }
 
-  /**
-   * Sets up a single abort promise that can be reused throughout execution.
-   * This avoids creating multiple event listeners and potential memory leaks.
-   */
+  private subscribeToCancellationChannel(): void {
+    if (!this.context.executionId) return
+    const executionId = this.context.executionId
+    this.cancellationUnsubscribe = getCancellationChannel().subscribe((event) => {
+      if (event.executionId !== executionId) return
+      this.execLogger.info('Execution cancelled via pub/sub', { executionId })
+      this.signalCancelled()
+    })
+  }
+
   private initializeAbortHandler(): void {
-    if (!this.context.abortSignal) return
-
-    if (this.context.abortSignal.aborted) {
-      this.cancelledFlag = true
-      this.abortPromise = Promise.resolve()
-      return
-    }
-
     this.abortPromise = new Promise<void>((resolve) => {
       this.abortResolve = resolve
     })
 
-    this.context.abortSignal.addEventListener(
-      'abort',
-      () => {
-        this.cancelledFlag = true
-        this.abortResolve?.()
-      },
-      { once: true }
-    )
+    if (!this.context.abortSignal) return
+
+    if (this.context.abortSignal.aborted) {
+      this.signalCancelled()
+      return
+    }
+
+    this.context.abortSignal.addEventListener('abort', () => this.signalCancelled(), { once: true })
   }
 
-  private async checkCancellation(): Promise<boolean> {
-    if (this.cancelledFlag) {
-      return true
+  private signalCancelled(): void {
+    if (this.cancelledFlag) return
+    this.cancelledFlag = true
+    this.abortResolve()
+  }
+
+  private checkCancellation(): boolean {
+    return this.cancelledFlag
+  }
+
+  /** Catches cancellations published before this engine subscribed (e.g. resume from snapshot). */
+  private async checkCancellationBackstop(): Promise<void> {
+    if (!this.context.executionId || !isRedisCancellationEnabled()) return
+    const cancelled = await isExecutionCancelled(this.context.executionId)
+    if (cancelled) {
+      this.execLogger.info('Execution already cancelled at engine start (Redis backstop)', {
+        executionId: this.context.executionId,
+      })
+      this.signalCancelled()
     }
-
-    if (this.useRedisCancellation) {
-      const now = Date.now()
-      if (now - this.lastCancellationCheck < this.CANCELLATION_CHECK_INTERVAL_MS) {
-        return false
-      }
-      this.lastCancellationCheck = now
-
-      const cancelled = await isExecutionCancelled(this.context.executionId!)
-      if (cancelled) {
-        this.cancelledFlag = true
-        this.execLogger.info('Execution cancelled via Redis', {
-          executionId: this.context.executionId,
-        })
-      }
-      return cancelled
-    }
-
-    if (this.context.abortSignal?.aborted) {
-      this.cancelledFlag = true
-      return true
-    }
-
-    return false
   }
 
   async run(triggerBlockId?: string): Promise<ExecutionResult> {
     const startTime = performance.now()
     try {
       this.initializeQueue(triggerBlockId)
+      await this.checkCancellationBackstop()
 
       while (this.hasWork()) {
-        if ((await this.checkCancellation()) || this.errorFlag || this.stoppedEarlyFlag) {
+        if (this.checkCancellation() || this.errorFlag || this.stoppedEarlyFlag) {
           break
         }
         await this.processQueue()
@@ -194,6 +187,15 @@ export class ExecutionEngine {
         attachExecutionResult(error, executionResult)
       }
       throw error
+    } finally {
+      this.cleanup()
+    }
+  }
+
+  private cleanup(): void {
+    if (this.cancellationUnsubscribe) {
+      this.cancellationUnsubscribe()
+      this.cancellationUnsubscribe = null
     }
   }
 
@@ -238,30 +240,15 @@ export class ExecutionEngine {
 
   private async waitForAnyExecution(): Promise<void> {
     if (this.executing.size > 0) {
-      const abortPromise = this.getAbortPromise()
-      if (abortPromise) {
-        await Promise.race([...this.executing, abortPromise])
-      } else {
-        await Promise.race(this.executing)
-      }
+      await Promise.race([...this.executing, this.abortPromise])
     }
   }
 
   private async waitForAllExecutions(): Promise<void> {
-    const abortPromise = this.getAbortPromise()
-    if (abortPromise) {
-      await Promise.race([Promise.all(this.executing), abortPromise])
-    } else {
-      await Promise.all(this.executing)
+    await Promise.race([Promise.all(this.executing), this.abortPromise])
+    if (this.executing.size > 0) {
+      await Promise.allSettled(this.executing)
     }
-  }
-
-  /**
-   * Returns the cached abort promise. This is safe to call multiple times
-   * as it reuses the same promise instance created during initialization.
-   */
-  private getAbortPromise(): Promise<void> | null {
-    return this.abortPromise
   }
 
   private async withQueueLock<T>(fn: () => Promise<T> | T): Promise<T> {
@@ -363,7 +350,7 @@ export class ExecutionEngine {
 
   private async processQueue(): Promise<void> {
     while (this.readyQueue.length > 0) {
-      if ((await this.checkCancellation()) || this.errorFlag) {
+      if (this.checkCancellation() || this.errorFlag) {
         break
       }
       const nodeId = this.dequeue()
@@ -448,19 +435,6 @@ export class ExecutionEngine {
     }
 
     const readyNodes = this.edgeManager.processOutgoingEdges(node, output, false)
-
-    this.execLogger.info('Processing outgoing edges', {
-      nodeId,
-      outgoingEdgesCount: node.outgoingEdges.size,
-      outgoingEdges: Array.from(node.outgoingEdges.entries()).map(([id, e]) => ({
-        id,
-        target: e.target,
-        sourceHandle: e.sourceHandle,
-      })),
-      output,
-      readyNodesCount: readyNodes.length,
-      readyNodes,
-    })
 
     this.addMultipleToQueue(readyNodes)
 

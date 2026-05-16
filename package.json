@@ -26,6 +26,7 @@
     "check:api-validation:strict": "bun run scripts/check-api-validation-contracts.ts --check --enforce-boundary-baseline",
     "check:realtime-prune": "bun run scripts/check-realtime-prune-graph.ts",
     "check:zustand-v5": "bun run scripts/check-zustand-v5-selectors.ts",
+    "check:utils": "bun run scripts/check-utils-enforcement.ts",
     "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",
     "mship-contracts:check": "bun run scripts/sync-mothership-stream-contract.ts --check",
     "mship-tools:generate": "bun run scripts/sync-tool-catalog.ts",
@@ -53,7 +54,8 @@
     "@next/env": "16.2.6",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5",
-    "minimatch": "^10.2.5"
+    "minimatch": "^10.2.5",
+    "mermaid": "11.15.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.0.0-beta.5",
@@ -62,7 +64,7 @@
     "husky": "9.1.7",
     "json-schema-to-typescript": "15.0.4",
     "lint-staged": "16.0.0",
-    "turbo": "2.9.6",
+    "turbo": "2.9.12",
     "yaml": "^2.8.1"
   },
   "lint-staged": {
