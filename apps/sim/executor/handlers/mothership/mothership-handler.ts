@@ -62,21 +62,24 @@ function formatMothershipBlockOutput(
   fallbackChatId: string
 ): NormalizedBlockOutput {
   const formattedList = (result.toolCalls || []).map((tc: Record<string, unknown>) => ({
-    name: tc.name,
-    arguments: tc.params || {},
+    name: typeof tc.name === 'string' ? tc.name : String(tc.name ?? ''),
+    arguments: tc.params && typeof tc.params === 'object' ? tc.params : {},
     result: tc.result,
     error: tc.error,
-    duration: tc.durationMs || 0,
+    duration: typeof tc.durationMs === 'number' ? tc.durationMs : 0,
   }))
-  const toolCalls = { list: formattedList, count: formattedList.length }
+  const toolCalls: NormalizedBlockOutput['toolCalls'] = {
+    list: formattedList,
+    count: formattedList.length,
+  }
 
   return {
     content: result.content || '',
     model: result.model || 'mothership',
     conversationId: result.conversationId || fallbackChatId,
-    tokens: result.tokens || {},
+    tokens: (result.tokens || {}) as NormalizedBlockOutput['tokens'],
     toolCalls,
-    cost: result.cost || undefined,
+    cost: result.cost as NormalizedBlockOutput['cost'] | undefined,
   }
 }
 
