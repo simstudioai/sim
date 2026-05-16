@@ -116,10 +116,11 @@ export function getRedisClient(): Redis | null {
   if (!redisUrl) return null
   if (globalRedisClient) return globalRedisClient
 
+  // Outside the try/catch so config errors aren't silently swallowed.
+  const tls = resolveTlsOptions(redisUrl)
+
   try {
     logger.info('Initializing Redis client')
-
-    const tls = resolveTlsOptions(redisUrl)
 
     globalRedisClient = new Redis(redisUrl, {
       keepAlive: 1000,
