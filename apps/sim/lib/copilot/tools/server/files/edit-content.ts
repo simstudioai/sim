@@ -201,9 +201,10 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
           return { success: false, message: `Unsupported operation in intent: ${operation}` }
       }
 
+      let fileBuffer: Buffer
       if (docInfo.isDoc) {
         try {
-          await runSandboxTask(
+          fileBuffer = await runSandboxTask(
             docInfo.taskId!,
             { code: finalContent, workspaceId },
             { ownerKey: `user:${context.userId}`, signal: context.abortSignal }
@@ -215,9 +216,9 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
             message: `${docInfo.formatName} generation failed: ${msg}. Fix the content and retry.`,
           }
         }
+      } else {
+        fileBuffer = Buffer.from(finalContent, 'utf-8')
       }
-
-      const fileBuffer = Buffer.from(finalContent, 'utf-8')
       assertServerToolNotAborted(context)
       const mime = docInfo.sourceMime || inferContentType(fileRecord.name, intent.contentType)
       await updateWorkspaceFileContent(workspaceId, intent.fileId, context.userId, fileBuffer, mime)

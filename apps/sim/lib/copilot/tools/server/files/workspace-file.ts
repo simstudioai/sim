@@ -199,9 +199,10 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
           const docInfo = getDocumentFormatInfo(fileName)
           let contentType = inferContentType(fileName, explicitType)
+          let fileBuffer: Buffer
           if (docInfo.isDoc) {
             try {
-              await runSandboxTask(
+              fileBuffer = await runSandboxTask(
                 docInfo.taskId!,
                 { code: content, workspaceId },
                 { ownerKey: `user:${context.userId}`, signal: context.abortSignal }
@@ -214,9 +215,9 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
               }
             }
             contentType = docInfo.sourceMime!
+          } else {
+            fileBuffer = Buffer.from(content, 'utf-8')
           }
-
-          const fileBuffer = Buffer.from(content, 'utf-8')
           assertServerToolNotAborted(context)
           const result = await uploadWorkspaceFile(
             workspaceId,
