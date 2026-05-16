@@ -173,7 +173,7 @@
       "get": {
         "operationId": "getWorkflowExecution",
         "summary": "Get Execution Status",
-        "description": "Get the normalized lifecycle status of a workflow execution. Unlike `/api/jobs/{jobId}` (which only tracks async-launched jobs and marks `completed` on the first suspend) or `/api/v1/logs/executions/{executionId}` (which dumps the full state snapshot), this endpoint returns a lightweight, fixed-shape status object that bridges `workflowExecutionLogs` and `pausedExecutions` \u2014 intended for polling clients that want to track a run through suspend/resume cycles.",
+        "description": "Get the current status of a workflow execution. Returns the run's lifecycle state (`running`, `paused`, `completed`, `failed`, etc.), timing, error, and optionally per-block outputs. Designed for polling \u2014 works for any execution, including ones that pause and resume.",
         "tags": ["Workflows"],
         "x-codeSamples": [
           {
@@ -224,7 +224,7 @@
             "name": "selectedOutputs",
             "in": "query",
             "required": false,
-            "description": "Comma-separated list of block-output selectors. Each selector is either a bare `blockId` (returns the full output) or a dot-path like `blockId.field` / `blockId.nested.path` (returns just that value). Selectors are returned in the `blockOutputs` map keyed by the selector string. Pulls from `executionData.traceSpans`; walks `children` recursively.",
+            "description": "Comma-separated block-output selectors. A bare `blockId` returns that block's full output; a dot-path like `blockId.field` or `blockId.nested.path` returns just that value. Results are returned in the `blockOutputs` map keyed by the selector string.",
             "schema": {
               "type": "string",
               "example": "c1b90bce-8a82-42a5-b6a5-5762846c2eaf,c1b90bce-8a82-42a5-b6a5-5762846c2eaf.waitDuration"
@@ -5985,7 +5985,7 @@
       },
       "WorkflowExecutionStatus": {
         "type": "object",
-        "description": "Normalized status of a workflow execution. Bridges workflowExecutionLogs and pausedExecutions so a single response covers the full lifecycle, including post-suspend resumes.",
+        "description": "Current status of a workflow execution.",
         "properties": {
           "executionId": {
             "type": "string",
@@ -6109,7 +6109,7 @@
           "blockOutputs": {
             "type": "object",
             "nullable": true,
-            "description": "Filtered per-block outputs keyed by the selector string. Returned only when ?selectedOutputs is set. A bare blockId returns the full block output; `blockId.field` or `blockId.nested.path` returns just that value.",
+            "description": "Per-block outputs keyed by the selector string. Returned only when `?selectedOutputs` is set.",
             "additionalProperties": true,
             "example": {
               "c1b90bce-8a82-42a5-b6a5-5762846c2eaf.waitDuration": 60000,
