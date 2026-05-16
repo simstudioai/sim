@@ -1,5 +1,6 @@
 import { type ObjectCannedACL, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsS3PutObjectContract } from '@/lib/api/contracts/tools/aws/s3-put-object'
 import { parseToolRequest } from '@/lib/api/server'
@@ -71,7 +72,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json(
           {
             success: false,
-            error: error instanceof Error ? error.message : 'Failed to process file',
+            error: getErrorMessage(error, 'Failed to process file'),
           },
           { status: 400 }
         )
@@ -134,7 +135,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
       },
       { status: 500 }
     )

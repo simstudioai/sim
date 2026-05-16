@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { copilotFeedback } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { submitCopilotFeedbackContract } from '@/lib/api/contracts'
@@ -104,7 +105,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     logger.error(`[${tracker.requestId}] Error submitting copilot feedback:`, {
       duration,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
       stack: error instanceof Error ? error.stack : undefined,
     })
 

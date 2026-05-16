@@ -1,3 +1,4 @@
+import { truncate } from '@sim/utils/string'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
@@ -682,7 +683,7 @@ export function serializeCustomTool(tool: {
       id: tool.id,
       title: tool.title,
       schema: tool.schema,
-      codePreview: tool.code.length > 500 ? `${tool.code.slice(0, 500)}...` : tool.code,
+      codePreview: truncate(tool.code, 500),
     },
     null,
     2
@@ -729,7 +730,7 @@ export function serializeSkill(s: {
       id: s.id,
       name: s.name,
       description: s.description,
-      contentPreview: s.content.length > 500 ? `${s.content.slice(0, 500)}...` : s.content,
+      contentPreview: truncate(s.content, 500),
       createdAt: s.createdAt.toISOString(),
     },
     null,

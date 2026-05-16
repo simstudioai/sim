@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   listWorkspaceFilesQuerySchema,
@@ -78,7 +79,7 @@ export const GET = withRouteHandler(
       return NextResponse.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to list files',
+          error: getErrorMessage(error, 'Failed to list files'),
         },
         { status: 500 }
       )
@@ -183,7 +184,7 @@ export const POST = withRouteHandler(
     } catch (error) {
       logger.error(`[${requestId}] Error uploading workspace file:`, error)
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to upload file'
+      const errorMessage = getErrorMessage(error, 'Failed to upload file')
       const isDuplicate =
         error instanceof FileConflictError || errorMessage.includes('already exists')
 

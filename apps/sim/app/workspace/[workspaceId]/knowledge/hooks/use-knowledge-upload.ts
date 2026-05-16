@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -90,9 +91,6 @@ class ProcessingError extends KnowledgeUploadError {
     super(message, 'PROCESSING_ERROR', details)
   }
 }
-
-const getErrorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error'
 
 interface BatchPresignedFile {
   fileName: string

@@ -8,7 +8,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
 import {
@@ -347,9 +347,7 @@ export async function processDocumentsWithQueue(
   const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
   if (failures.length > 0) {
     logger.error(`[${requestId}] ${failures.length}/${results.length} document dispatches failed`, {
-      errors: failures.map((f) =>
-        f.reason instanceof Error ? f.reason.message : String(f.reason)
-      ),
+      errors: failures.map((f) => getErrorMessage(f.reason)),
     })
   }
 
@@ -674,7 +672,7 @@ export async function processDocumentAsync(
     }
   } catch (error) {
     const processingTime = Date.now() - startTime
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage = getErrorMessage(error, 'Unknown error')
     logger.error(`[${documentId}] Failed to process document after ${processingTime}ms:`, {
       error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
@@ -743,7 +741,7 @@ async function processDocumentsWithTrigger(
 
     return {
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to trigger background jobs',
+      message: getErrorMessage(error, 'Failed to trigger background jobs'),
     }
   }
 }

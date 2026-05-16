@@ -1,6 +1,6 @@
 import { GoogleGenAI, type Part } from '@google/genai'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { GenerateImage } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -243,7 +243,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
         _serviceCost: { service: 'nano_banana_2', cost: NANO_BANANA_IMAGE_COST_USD },
       }
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error'
+      const msg = getErrorMessage(error, 'Unknown error')
       logger.error('Image generation failed', { error: msg })
       return { success: false, message: `Failed to generate image: ${msg}` }
     }

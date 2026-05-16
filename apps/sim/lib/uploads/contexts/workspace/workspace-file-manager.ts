@@ -7,7 +7,7 @@ import { randomBytes } from 'crypto'
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
@@ -286,9 +286,7 @@ export async function uploadWorkspaceFile(
         continue
       }
       logger.error(`Failed to upload workspace file ${fileName}:`, error)
-      throw new Error(
-        `Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
+      throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`)
     }
   }
 
@@ -853,9 +851,7 @@ export async function fetchWorkspaceFileBuffer(fileRecord: WorkspaceFileRecord):
     return buffer
   } catch (error) {
     logger.error(`Failed to download workspace file ${fileRecord.name}:`, error)
-    throw new Error(
-      `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
+    throw new Error(`Failed to download file: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }
 
@@ -938,9 +934,7 @@ export async function updateWorkspaceFileContent(
     }
   } catch (error) {
     logger.error(`Failed to update workspace file content ${fileId}:`, error)
-    throw new Error(
-      `Failed to update file content: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
+    throw new Error(`Failed to update file content: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }
 
@@ -1030,9 +1024,7 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
     logger.info(`Successfully archived workspace file: ${fileRecord.name}`)
   } catch (error) {
     logger.error(`Failed to delete workspace file ${fileId}:`, error)
-    throw new Error(
-      `Failed to delete file: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
+    throw new Error(`Failed to delete file: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }
 

@@ -59,7 +59,7 @@ export function TableSelector({
     [isPreview, disabled, setStoreValue]
   )
 
-  const errorMessage = error instanceof Error ? error.message : error ? String(error) : undefined
+  const errorMessage = error?.message
 
   return (
     <Combobox

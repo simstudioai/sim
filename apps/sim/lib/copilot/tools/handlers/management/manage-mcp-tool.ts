@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import {
@@ -199,7 +199,7 @@ export async function executeManageMcpTool(
     )
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to manage MCP server',
+      error: getErrorMessage(error, 'Failed to manage MCP server'),
     }
   }
 }

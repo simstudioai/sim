@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { getActiveWorkflowRecord } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
@@ -92,7 +93,7 @@ export const GET = withRouteHandler(
 
       return NextResponse.json(apiResponse.body, { headers: apiResponse.headers })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
+      const message = getErrorMessage(error, 'Unknown error')
       logger.error(`[${requestId}] Workflow details fetch error`, { error: message })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }

@@ -2,6 +2,7 @@
 
 import type { ChangeEvent } from 'react'
 import { useCallback, useRef, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Button, Input, Label, Loader, Textarea } from '@/components/emcn'
 import { Upload } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
@@ -72,7 +73,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
         setFileState('idle')
         onImport(parsed)
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to process file'
+        const message = getErrorMessage(err, 'Failed to process file')
         setFileError(message)
         setFileState('error')
       }
@@ -136,7 +137,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
       setGithubState('idle')
       onImport(parsed)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to import from GitHub'
+      const message = getErrorMessage(err, 'Failed to import from GitHub')
       setGithubError(message)
       setGithubState('error')
     }

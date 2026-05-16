@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { StorageService } from '@/lib/uploads'
 import type { ExecutionContext } from '@/lib/uploads/contexts/execution/utils'
@@ -122,9 +123,7 @@ export async function uploadExecutionFile(
     return userFile
   } catch (error) {
     logger.error(`Failed to upload execution file ${fileName}:`, error)
-    throw new Error(
-      `Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
+    throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }
 
@@ -146,9 +145,7 @@ export async function downloadExecutionFile(userFile: UserFile): Promise<Buffer>
     return fileBuffer
   } catch (error) {
     logger.error(`Failed to download execution file ${userFile.name}:`, error)
-    throw new Error(
-      `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
+    throw new Error(`Failed to download file: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }
 

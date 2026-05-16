@@ -36,22 +36,31 @@ const tiny = generateShortId(8)
 ## Common Utilities
 Use shared helpers from `@sim/utils` instead of writing inline implementations:
 
-- `sleep(ms)` — async delay. Never write `new Promise(resolve => setTimeout(resolve, ms))`
-- `toError(value)` — normalize unknown caught values to `Error`. Never write `e instanceof Error ? e : new Error(String(e))`
-- `toError(value).message` — get error message safely. Never write `e instanceof Error ? e.message : String(e)`
+- `sleep(ms)` from `@sim/utils/helpers` — async delay. Never write `new Promise(resolve => setTimeout(resolve, ms))`
+- `toError(value)` from `@sim/utils/errors` — normalize unknown caught values to `Error`. Never write `e instanceof Error ? e : new Error(String(e))`
+- `getErrorMessage(value, fallback?)` from `@sim/utils/errors` — extract error message string. Never write `e instanceof Error ? e.message : 'fallback'`
+- `structuredClone(value)` — built-in deep clone, no import needed. Never write `JSON.parse(JSON.stringify(obj))`
+- `omit(obj, keys)` from `@sim/utils/object` — remove keys from object
+- `filterUndefined(obj)` from `@sim/utils/object` — strip undefined-valued keys. Never write `Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))`
+- `truncate(str, maxLength, suffix?)` from `@sim/utils/string` — safe string truncation with ellipsis
+- `backoffWithJitter(attempt, retryAfterMs, options?)` from `@sim/utils/retry` — exponential backoff with jitter
+- `parseRetryAfter(header)` from `@sim/utils/retry` — parse HTTP `Retry-After` header to milliseconds
 
 ```typescript
 // ✗ Bad
 await new Promise(resolve => setTimeout(resolve, 1000))
-const msg = error instanceof Error ? error.message : String(error)
-const err = error instanceof Error ? error : new Error(String(error))
+const msg = error instanceof Error ? error.message : 'Unknown error'
+const clone = JSON.parse(JSON.stringify(obj))
+const filtered = Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
 
 // ✓ Good
 import { sleep } from '@sim/utils/helpers'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { filterUndefined } from '@sim/utils/object'
 await sleep(1000)
-const msg = toError(error).message
-const err = toError(error)
+const msg = getErrorMessage(error, 'Unknown error')
+const clone = structuredClone(obj)
+const filtered = filterUndefined(obj)
 ```
 
 ## Package Manager

@@ -3,6 +3,8 @@ import { createHash } from 'crypto'
 import fsPromises, { readFile } from 'fs/promises'
 import path from 'path'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import binaryExtensionsList from 'binary-extensions'
 import { type NextRequest, NextResponse } from 'next/server'
 import { fileParseContract } from '@/lib/api/contracts/storage-transfer'
@@ -218,7 +220,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
         filePath: '',
       },
       { status: 500 }
@@ -552,7 +554,7 @@ async function handleCloudFile(
       // If file is already from execution context, create UserFile reference without re-uploading
       if (context === 'execution') {
         userFile = {
-          id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          id: `file_${Date.now()}_${generateShortId(7)}`,
           name: filename,
           url: normalizedFilePath,
           size: fileBuffer.length,

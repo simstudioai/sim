@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -436,7 +437,7 @@ export function useMcpServerTest() {
       logger.info(`MCP server test ${result.success ? 'passed' : 'failed'}:`, variables.name)
     },
     onError: (error) => {
-      logger.error('MCP server test failed:', error instanceof Error ? error.message : error)
+      logger.error('MCP server test failed:', getErrorMessage(error))
     },
   })
 
@@ -447,8 +448,7 @@ export function useMcpServerTest() {
         ? ({
             success: false,
             message: 'Connection failed',
-            error:
-              mutation.error instanceof Error ? mutation.error.message : 'Unknown error occurred',
+            error: getErrorMessage(mutation.error, 'Unknown error occurred'),
           } as McpServerTestResult)
         : null),
     isTestingConnection: mutation.isPending,

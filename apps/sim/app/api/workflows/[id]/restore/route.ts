@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { assertFolderMutable, FolderLockedError, WorkflowLockedError } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { restoreWorkflowContract } from '@/lib/api/contracts/workflows'
@@ -78,7 +79,7 @@ export const POST = withRouteHandler(
 
       logger.error(`[${requestId}] Error restoring workflow ${workflowId}`, error)
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Internal server error' },
+        { error: getErrorMessage(error, 'Internal server error') },
         { status: 500 }
       )
     }

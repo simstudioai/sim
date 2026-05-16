@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -35,7 +36,7 @@ async function fetchProviderModels(
     }
   } catch (error) {
     logger.warn(`Failed to fetch ${provider} models`, {
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
     })
     throw error
   }

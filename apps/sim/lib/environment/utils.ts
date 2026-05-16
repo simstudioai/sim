@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -167,7 +168,7 @@ export async function getPersonalAndWorkspaceEnv(
             userId,
             workspaceId,
             source,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: getErrorMessage(error, 'Unknown error'),
           })
           decryptionFailures.push(k)
           return [k, ''] as const

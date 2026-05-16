@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
@@ -160,7 +161,7 @@ export const Dropdown = memo(function Dropdown({
       const options = await fetchOptions(blockId)
       setFetchedOptions(options)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
+      const errorMessage = getErrorMessage(error, 'Failed to fetch options')
       setFetchError(errorMessage)
       setFetchedOptions([])
     } finally {

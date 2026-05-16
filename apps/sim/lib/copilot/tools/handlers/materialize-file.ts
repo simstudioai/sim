@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflow, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
@@ -225,7 +225,7 @@ export async function executeMaterializeFile(
       })
       failed.push({
         fileName,
-        error: err instanceof Error ? err.message : 'Failed to materialize file',
+        error: getErrorMessage(err, 'Failed to materialize file'),
       })
     }
   }

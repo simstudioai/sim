@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { WrenchIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -446,7 +447,7 @@ export function Admin() {
 
         {usersError && (
           <p className='text-[var(--text-error)] text-small'>
-            {usersError instanceof Error ? usersError.message : 'Failed to fetch users'}
+            {getErrorMessage(usersError, 'Failed to fetch users')}
           </p>
         )}
 

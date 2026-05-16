@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   Button,
   ButtonGroup,
@@ -300,9 +301,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
       handleClose()
     } catch (error: unknown) {
       logger.error('Schedule submission failed:', { error })
-      setSubmitError(
-        error instanceof Error ? error.message : 'Failed to save scheduled task. Please try again.'
-      )
+      setSubmitError(getErrorMessage(error, 'Failed to save scheduled task. Please try again.'))
     }
   }
 

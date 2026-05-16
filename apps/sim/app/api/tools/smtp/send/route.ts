@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { smtpSendContract } from '@/lib/api/contracts/tools/communication/email'
@@ -137,7 +137,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             } catch (error) {
               logger.error(`[${requestId}] Failed to download attachment ${file.name}:`, error)
               throw new Error(
-                `Failed to download attachment "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`
+                `Failed to download attachment "${file.name}": ${getErrorMessage(error, 'Unknown error')}`
               )
             }
           })

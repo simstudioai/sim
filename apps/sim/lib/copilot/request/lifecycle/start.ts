@@ -2,6 +2,7 @@ import { type Context, context as otelContextApi } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import {
@@ -203,7 +204,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               requestContext: { requestId },
             }).catch((error) => {
               logger.warn(`[${requestId}] Failed to create copilot run segment`, {
-                error: error instanceof Error ? error.message : String(error),
+                error: getErrorMessage(error),
               })
             })
           }
@@ -291,11 +292,11 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             const wasCancelled = abortController.signal.aborted || publisher.clientDisconnected
             outcome = wasCancelled ? RequestTraceV1Outcome.cancelled : RequestTraceV1Outcome.error
             if (outcome === RequestTraceV1Outcome.cancelled) {
-              cancelReason = recordCancelled(error instanceof Error ? error.message : String(error))
+              cancelReason = recordCancelled(getErrorMessage(error))
             }
             if (publisher.clientDisconnected) {
               logger.info(`[${requestId}] Stream errored after client disconnect`, {
-                error: error instanceof Error ? error.message : 'Stream error',
+                error: getErrorMessage(error, 'Stream error'),
               })
             }
             // Demote to warn when the throw came from a user-initiated
@@ -327,7 +328,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               await publisher.close()
             } catch (error) {
               logger.warn(`[${requestId}] Failed to flush stream persistence during close`, {
-                error: error instanceof Error ? error.message : String(error),
+                error: getErrorMessage(error),
               })
             }
             unregisterActiveStream(streamId)
@@ -356,7 +357,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             })
             reportTrace(trace, otelContext).catch((err) => {
               logger.warn(`[${requestId}] Failed to report trace`, {
-                error: err instanceof Error ? err.message : String(err),
+                error: getErrorMessage(err),
               })
             })
             rootOutcome = outcome
@@ -399,7 +400,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             activeOtelRoot.finish(rootOutcome, rootError, cancelReason)
           } catch (finishError) {
             logger.error(`[${requestId}] activeOtelRoot.finish threw; force-ending root span`, {
-              error: finishError instanceof Error ? finishError.message : String(finishError),
+              error: getErrorMessage(finishError),
             })
             try {
               activeOtelRoot.span.end()

@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
@@ -236,7 +237,7 @@ async function finalizeExecutionError(params: {
       endedAt: new Date().toISOString(),
       totalDurationMs: executionResult?.metadata?.duration || 0,
       error: {
-        message: error instanceof Error ? error.message : 'Execution failed',
+        message: getErrorMessage(error, 'Execution failed'),
         stackTrace: error instanceof Error ? error.stack : undefined,
       },
       traceSpans,

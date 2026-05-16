@@ -2,13 +2,10 @@ import { createHash, createPublicKey } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { importPKCS8, SignJWT } from 'jose'
 import { z } from 'zod'
-import {
-  backoffWithJitter,
-  parseRetryAfter,
-  sleepUntilAborted,
-} from '@/lib/data-drains/destinations/utils'
+import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import type { DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainSnowflakeDestination')

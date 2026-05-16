@@ -2,6 +2,7 @@ import { type Context as OtelContext, context as otelContextApi } from '@opentel
 import { db } from '@sim/db'
 import { copilotChats, permissions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -450,7 +451,7 @@ function buildOnComplete(params: {
     } catch (error) {
       logger.error(`[${requestId}] Failed to persist chat messages`, {
         chatId,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
       })
     }
   }
@@ -482,7 +483,7 @@ function buildOnError(params: {
     } catch (error) {
       logger.error(`[${requestId}] Failed to finalize errored chat stream`, {
         chatId,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
       })
     }
   }
@@ -815,7 +816,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       const userPermissionPromise = workspaceId
         ? getUserEntityPermissions(authenticatedUserId, 'workspace', workspaceId).catch((error) => {
             logger.warn('Failed to load user permissions', {
-              error: error instanceof Error ? error.message : String(error),
+              error: getErrorMessage(error),
               workspaceId,
             })
             return null
@@ -1019,13 +1020,13 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     }
 
     logger.error(`[${requestId}] Error handling unified chat request`, {
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
       stack: error instanceof Error ? error.stack : undefined,
     })
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
       },
       { status: 500 }
     )

@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { document } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -218,7 +219,7 @@ export const POST = withRouteHandler(
     } catch (error) {
       logger.error(`[${requestId}] Error upserting document`, error)
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to upsert document'
+      const errorMessage = getErrorMessage(error, 'Failed to upsert document')
       const isStorageLimitError =
         errorMessage.includes('Storage limit exceeded') || errorMessage.includes('storage limit')
       const isMissingKnowledgeBase = errorMessage === 'Knowledge base not found'

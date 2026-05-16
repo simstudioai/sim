@@ -1,6 +1,7 @@
 'use client'
 
 import { createElement, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   Badge,
   Button,
@@ -120,7 +121,7 @@ export function ServiceAccountForm({
       })
       onCreated()
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to add service account'
+      const message = getErrorMessage(err, 'Failed to add service account')
       setError(message)
     } finally {
       setIsSubmitting(false)

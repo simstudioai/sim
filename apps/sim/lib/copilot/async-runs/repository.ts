@@ -8,6 +8,7 @@ import {
   copilotRuns,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { filterUndefined } from '@sim/utils/object'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
@@ -40,7 +41,7 @@ async function withDbSpan<T>(
       [TraceAttr.DbSystem]: 'postgresql',
       [TraceAttr.DbOperation]: op,
       [TraceAttr.DbSqlTable]: table,
-      ...Object.fromEntries(Object.entries(attrs).filter(([, v]) => v !== undefined)),
+      ...filterUndefined(attrs),
     },
   })
   try {

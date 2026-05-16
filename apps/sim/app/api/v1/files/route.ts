@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListFilesContract, v1UploadFileFormFieldsSchema } from '@/lib/api/contracts/v1/files'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -171,7 +172,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Failed to upload file'
+    const errorMessage = getErrorMessage(error, 'Failed to upload file')
     const isDuplicate =
       error instanceof FileConflictError || errorMessage.includes('already exists')
 

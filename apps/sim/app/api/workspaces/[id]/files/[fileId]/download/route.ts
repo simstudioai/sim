@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { workspaceFileParamsSchema } from '@/lib/api/contracts/workspace-files'
 import { getValidationErrorMessage } from '@/lib/api/server'
@@ -66,7 +67,7 @@ export const POST = withRouteHandler(
       return NextResponse.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to generate download URL',
+          error: getErrorMessage(error, 'Failed to generate download URL'),
         },
         { status: 500 }
       )

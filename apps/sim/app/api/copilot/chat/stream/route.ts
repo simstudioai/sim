@@ -1,5 +1,6 @@
 import { type Context, context as otelContext, type Span, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotChatStreamContract } from '@/lib/api/contracts/copilot'
@@ -199,7 +200,7 @@ async function handleResumeRequestBody({
   const run = await getLatestRunForStream(streamId, authenticatedUserId).catch((err) => {
     logger.warn('Failed to fetch latest run for stream', {
       streamId,
-      error: err instanceof Error ? err.message : String(err),
+      error: getErrorMessage(err),
     })
     return null
   })
@@ -224,7 +225,7 @@ async function handleResumeRequestBody({
       readFilePreviewSessions(streamId).catch((error) => {
         logger.warn('Failed to read preview sessions for stream batch', {
           streamId,
-          error: error instanceof Error ? error.message : String(error),
+          error: getErrorMessage(error),
         })
         return []
       }),
@@ -395,7 +396,7 @@ async function handleResumeRequestBody({
           (err) => {
             logger.warn('Failed to poll latest run for stream', {
               streamId,
-              error: err instanceof Error ? err.message : String(err),
+              error: getErrorMessage(err),
             })
             return null
           }
@@ -452,7 +453,7 @@ async function handleResumeRequestBody({
       if (!controllerClosed && !request.signal.aborted) {
         logger.warn('Stream replay failed', {
           streamId,
-          error: error instanceof Error ? error.message : String(error),
+          error: getErrorMessage(error),
         })
         emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
           message: 'The stream replay failed before completion.',

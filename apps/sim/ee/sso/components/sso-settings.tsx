@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import {
   Button,
@@ -312,7 +313,7 @@ export function SSO() {
       setIsEditing(false)
       setShowAdvanced(false)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error occurred'
+      const message = getErrorMessage(err, 'Unknown error occurred')
       toast.error(message)
       logger.error('Failed to configure SSO provider', { error: err })
     }

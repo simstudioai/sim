@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -66,7 +67,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     })
   } catch (error) {
     logger.error('Failed to fetch organizations', {
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
       stack: error instanceof Error ? error.stack : undefined,
     })
 
@@ -230,7 +231,7 @@ export const POST = withRouteHandler(async (request: Request) => {
       logger.error('Failed to activate organization after creation', {
         organizationId,
         userId: user.id,
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       })
     }
 
@@ -287,14 +288,14 @@ export const POST = withRouteHandler(async (request: Request) => {
     }
 
     logger.error('Failed to create organization for team plan', {
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
       stack: error instanceof Error ? error.stack : undefined,
     })
 
     return NextResponse.json(
       {
         error: 'Failed to create organization',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: getErrorMessage(error, 'Unknown error'),
       },
       { status: 500 }
     )

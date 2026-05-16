@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { MongoDBIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
@@ -844,7 +845,7 @@ Return ONLY the MongoDB query filter as valid JSON - no explanations, no markdow
           try {
             parsedDocuments = JSON.parse(documents)
           } catch (parseError) {
-            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+            const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
             throw new Error(
               `Invalid JSON documents format: ${errorMsg}. Please check your JSON syntax.`
             )

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { docusignToolContract } from '@/lib/api/contracts/tools/docusign'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -108,7 +109,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
   } catch (error) {
     logger.error('DocuSign API error', { operation, error })
-    const message = error instanceof Error ? error.message : 'Internal server error'
+    const message = getErrorMessage(error, 'Internal server error')
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 })

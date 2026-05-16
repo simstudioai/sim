@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 import { DownloadToWorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
@@ -196,7 +197,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
         downloadUrl: uploaded.url,
       }
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error'
+      const msg = getErrorMessage(error, 'Unknown error')
       logger.error('Failed to download file to workspace', {
         url: params.url,
         error: msg,

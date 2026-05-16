@@ -1,5 +1,6 @@
 import type { Item } from '@1password/sdk'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { onePasswordReplaceItemContract } from '@/lib/api/contracts/tools/onepassword'
@@ -104,7 +105,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(data)
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    const message = getErrorMessage(error, 'Unknown error')
     logger.error(`[${requestId}] Replace item failed:`, error)
     return NextResponse.json({ error: `Failed to replace item: ${message}` }, { status: 500 })
   }

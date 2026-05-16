@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
@@ -259,7 +260,7 @@ export class WorkflowBlockHandler implements BlockHandler {
    * Parses nested error messages to extract workflow chain and root error.
    */
   private buildNestedWorkflowErrorMessage(childWorkflowName: string, error: unknown): string {
-    const originalError = error instanceof Error ? error.message : 'Unknown error'
+    const originalError = getErrorMessage(error, 'Unknown error')
 
     // Extract any nested workflow names from the error message
     const { chain, rootError } = this.parseNestedWorkflowError(originalError)

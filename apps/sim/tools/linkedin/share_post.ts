@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type {
   LinkedInProfileOutput,
   ProfileIdExtractor,
@@ -131,7 +132,7 @@ export const linkedInSharePostTool: ToolConfig<SharePostParams, SharePostRespons
       return {
         success: false,
         output: {},
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
       }
     }
   },

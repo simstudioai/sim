@@ -1,3 +1,4 @@
+import { generateRandomString } from '@sim/utils/random'
 import { type Mock, vi } from 'vitest'
 
 /**
@@ -34,7 +35,7 @@ export function createMockSocket(): IMockSocket {
   const eventHandlers: Record<string, ((...args: any[]) => any)[]> = {}
 
   const socket = {
-    id: `socket-${Math.random().toString(36).substring(2, 10)}`,
+    id: `socket-${generateRandomString(8)}`,
     connected: true,
     disconnected: false,
 

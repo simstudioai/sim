@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { tableIdParamsSchema } from '@/lib/api/contracts/tables'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
@@ -47,7 +48,7 @@ export const POST = withRouteHandler(
     } catch (error) {
       logger.error(`[${requestId}] Error restoring table ${tableId}`, error)
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Internal server error' },
+        { error: getErrorMessage(error, 'Internal server error') },
         { status: 500 }
       )
     }

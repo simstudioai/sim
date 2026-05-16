@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sftpUploadContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
@@ -143,9 +144,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           } catch (error) {
             logger.error(`[${requestId}] Failed to upload file ${file.name}:`, error)
             throw new Error(
-              `Failed to upload file "${file.name}": ${
-                error instanceof Error ? error.message : 'Unknown error'
-              }`
+              `Failed to upload file "${file.name}": ${getErrorMessage(error, 'Unknown error')}`
             )
           }
         }
@@ -210,7 +209,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.end()
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] SFTP upload failed:`, error)
 
     return NextResponse.json({ error: `SFTP upload failed: ${errorMessage}` }, { status: 500 })

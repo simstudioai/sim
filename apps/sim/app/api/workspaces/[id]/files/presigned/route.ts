@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { workspacePresignedUploadContract } from '@/lib/api/contracts/workspace-files'
 import { parseRequest } from '@/lib/api/server'
@@ -52,7 +53,7 @@ export const POST = withRouteHandler(
       targetFolderId = await assertWorkspaceFileFolderTarget(workspaceId, folderId)
     } catch (error) {
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Invalid target folder' },
+        { error: getErrorMessage(error, 'Invalid target folder') },
         { status: 400 }
       )
     }

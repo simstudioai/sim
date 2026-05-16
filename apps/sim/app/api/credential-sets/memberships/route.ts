@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { credentialSet, credentialSetMember, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -132,7 +133,7 @@ export const DELETE = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to leave credential set'
+    const message = getErrorMessage(error, 'Failed to leave credential set')
     logger.error('Error leaving credential set', error)
     return NextResponse.json({ error: message }, { status: 500 })
   }

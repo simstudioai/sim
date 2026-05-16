@@ -2,6 +2,7 @@
 
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { AlertTriangle, Check, Clipboard, Plus, Search, Share2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -278,7 +279,7 @@ export function IntegrationsManager() {
         if (isDescriptionDirty) setSelectedDescriptionDraft((v) => v.trim())
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to save changes'
+      const message = getErrorMessage(error, 'Failed to save changes')
       setDetailsError(message)
       logger.error('Failed to save credential details', error)
     }
@@ -455,7 +456,7 @@ export function IntegrationsManager() {
         callbackURL: window.location.href,
       })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to start OAuth connection'
+      const message = getErrorMessage(error, 'Failed to start OAuth connection')
       setCreateError(message)
       logger.error('Failed to connect OAuth service', error)
     }
@@ -505,7 +506,7 @@ export function IntegrationsManager() {
       setShowDeleteConfirmDialog(false)
       setCredentialToDelete(null)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to disconnect integration'
+      const message = getErrorMessage(error, 'Failed to disconnect integration')
       setDeleteError(message)
       logger.error('Failed to disconnect integration', error)
     }
@@ -530,7 +531,7 @@ export function IntegrationsManager() {
         })
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to share with workspace'
+      const message = getErrorMessage(error, 'Failed to share with workspace')
       setDetailsError(message)
       logger.error('Failed to share credential with workspace', error)
     } finally {
@@ -576,7 +577,7 @@ export function IntegrationsManager() {
         callbackURL: window.location.href,
       })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to start reconnect'
+      const message = getErrorMessage(error, 'Failed to start reconnect')
       setDetailsError(message)
       logger.error('Failed to reconnect OAuth credential', error)
     }

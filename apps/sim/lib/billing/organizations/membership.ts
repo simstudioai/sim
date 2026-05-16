@@ -20,6 +20,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
@@ -1508,7 +1509,7 @@ export async function transferOrganizationOwnership(
     return {
       ...result,
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to transfer ownership',
+      error: getErrorMessage(error, 'Failed to transfer ownership'),
     }
   }
 }

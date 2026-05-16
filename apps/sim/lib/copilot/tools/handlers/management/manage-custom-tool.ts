@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import {
   deleteCustomTool,
@@ -212,7 +212,7 @@ export async function executeManageCustomTool(
     )
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to manage custom tool',
+      error: getErrorMessage(error, 'Failed to manage custom tool'),
     }
   }
 }

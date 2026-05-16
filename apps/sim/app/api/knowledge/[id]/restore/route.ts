@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { restoreKnowledgeBaseContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
@@ -58,7 +59,7 @@ export const POST = withRouteHandler(
     } catch (error) {
       logger.error(`[${requestId}] Error restoring knowledge base ${id}`, error)
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Internal server error' },
+        { error: getErrorMessage(error, 'Internal server error') },
         { status: 500 }
       )
     }

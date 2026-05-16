@@ -152,7 +152,7 @@ export function applyOperationsToWorkflowState(
   permissionConfig: PermissionGroupConfig | null = null
 ): ApplyOperationsResult {
   // Deep clone the workflow state to avoid mutations
-  const modifiedState = JSON.parse(JSON.stringify(workflowState))
+  const modifiedState = structuredClone(workflowState)
 
   // Collect validation errors across all operations
   const validationErrors: ValidationError[] = []

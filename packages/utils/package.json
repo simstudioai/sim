@@ -14,6 +14,10 @@
       "types": "./src/id.ts",
       "default": "./src/id.ts"
     },
+    "./random": {
+      "types": "./src/random.ts",
+      "default": "./src/random.ts"
+    },
     "./errors": {
       "types": "./src/errors.ts",
       "default": "./src/errors.ts"
@@ -25,6 +29,18 @@
     "./formatting": {
       "types": "./src/formatting.ts",
       "default": "./src/formatting.ts"
+    },
+    "./object": {
+      "types": "./src/object.ts",
+      "default": "./src/object.ts"
+    },
+    "./string": {
+      "types": "./src/string.ts",
+      "default": "./src/string.ts"
+    },
+    "./retry": {
+      "types": "./src/retry.ts",
+      "default": "./src/retry.ts"
     }
   },
   "scripts": {

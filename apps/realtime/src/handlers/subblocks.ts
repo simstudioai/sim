@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { SUBBLOCK_OPERATIONS } from '@sim/realtime-protocol/constants'
+import { getErrorMessage } from '@sim/utils/errors'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
 import { and, eq } from 'drizzle-orm'
@@ -208,7 +209,7 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
     } catch (error) {
       logger.error('Error handling subblock update:', error)
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = getErrorMessage(error, 'Unknown error')
 
       if (operationId) {
         socket.emit('operation-failed', {
@@ -360,7 +361,7 @@ async function flushSubblockUpdate(
     pending.opToSocket.forEach((socketId, opId) => {
       io.to(socketId).emit('operation-failed', {
         operationId: opId,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
         retryable: true,
       })
     })

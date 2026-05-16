@@ -5,7 +5,7 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { and, eq, isNull } from 'drizzle-orm'
 import { isTest } from '@/lib/core/config/feature-flags'
@@ -380,8 +380,7 @@ class McpService {
           )
         } else {
           failedCount++
-          const errorMessage =
-            result.reason instanceof Error ? result.reason.message : 'Unknown error'
+          const errorMessage = getErrorMessage(result.reason, 'Unknown error')
           logger.warn(`[${requestId}] Failed to discover tools from server ${server.name}:`)
           statusUpdates.push(this.updateServerStatus(server.id!, workspaceId, false, errorMessage))
         }
@@ -515,7 +514,7 @@ class McpService {
             status: 'error',
             toolCount: 0,
             lastSeen: undefined,
-            error: error instanceof Error ? error.message : 'Connection failed',
+            error: getErrorMessage(error, 'Connection failed'),
           })
         }
       }

@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type {
   BlockChildWorkflowStartedData,
   BlockCompletedData,
@@ -158,7 +159,7 @@ export async function processSSEStream(
             eventType: event.type,
             eventId: event.eventId,
           })
-          const message = error instanceof Error ? error.message : String(error)
+          const message = getErrorMessage(error)
           throw new SSEEventHandlerError(
             message,
             event.type,

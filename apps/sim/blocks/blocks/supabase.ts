@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { SupabaseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -1007,7 +1008,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
             parsedData = JSON.parse(data)
           } catch (parseError) {
             // Provide more detailed error information
-            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+            const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
             throw new Error(
               `Invalid JSON data format: ${errorMsg}. Please check your JSON syntax (e.g., strings must be quoted like "value").`
             )
@@ -1028,7 +1029,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           try {
             parsedQueryEmbedding = JSON.parse(queryEmbedding)
           } catch (parseError) {
-            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+            const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
             throw new Error(
               `Invalid query embedding format: ${errorMsg}. Please provide a valid array of numbers like [0.1, 0.2, 0.3].`
             )
@@ -1043,7 +1044,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           try {
             parsedRpcParams = JSON.parse(rpcParams)
           } catch (parseError) {
-            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+            const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
             throw new Error(
               `Invalid RPC params format: ${errorMsg}. Please provide a valid JSON object.`
             )
@@ -1058,7 +1059,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           try {
             parsedPaths = JSON.parse(paths)
           } catch (parseError) {
-            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+            const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
             throw new Error(
               `Invalid paths format: ${errorMsg}. Please provide a valid JSON array like ["path1", "path2"].`
             )
@@ -1073,7 +1074,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           try {
             parsedAllowedMimeTypes = JSON.parse(allowedMimeTypes)
           } catch (parseError) {
-            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+            const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
             throw new Error(
               `Invalid allowedMimeTypes format: ${errorMsg}. Please provide a valid JSON array.`
             )

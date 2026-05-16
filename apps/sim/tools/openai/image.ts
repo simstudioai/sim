@@ -109,7 +109,7 @@ export const imageTool: ToolConfig = {
     try {
       const data = await response.json()
 
-      const sanitizedData = JSON.parse(JSON.stringify(data))
+      const sanitizedData = structuredClone(data)
       if (sanitizedData.data && Array.isArray(sanitizedData.data)) {
         sanitizedData.data.forEach((item: { b64_json?: string }) => {
           if (item.b64_json) {

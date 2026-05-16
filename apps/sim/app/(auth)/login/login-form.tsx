@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -292,8 +293,7 @@ export default function LoginPage({
           },
         })
       } catch (requestError) {
-        let errorMessage =
-          requestError instanceof Error ? requestError.message : 'Failed to request password reset'
+        let errorMessage = getErrorMessage(requestError, 'Failed to request password reset')
 
         if (
           errorMessage.includes('Invalid body parameters') ||
@@ -325,7 +325,7 @@ export default function LoginPage({
       logger.error('Error requesting password reset:', { error })
       setResetStatus({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Failed to request password reset',
+        message: getErrorMessage(error, 'Failed to request password reset'),
       })
     } finally {
       setIsSubmittingReset(false)

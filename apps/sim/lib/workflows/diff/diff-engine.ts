@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import type { Edge } from 'reactflow'
 import { getTargetedLayoutImpact } from '@/lib/workflows/autolayout'
@@ -214,7 +214,7 @@ export class WorkflowDiffEngine {
       logger.error('Failed to create diff:', error)
       return {
         success: false,
-        errors: [error instanceof Error ? error.message : 'Failed to create diff'],
+        errors: [getErrorMessage(error, 'Failed to create diff')],
       }
     }
   }
@@ -690,9 +690,7 @@ export class WorkflowDiffEngine {
       logger.error('Failed to create diff from workflow state:', error)
       return {
         success: false,
-        errors: [
-          error instanceof Error ? error.message : 'Failed to create diff from workflow state',
-        ],
+        errors: [getErrorMessage(error, 'Failed to create diff from workflow state')],
       }
     }
   }
@@ -730,7 +728,7 @@ export class WorkflowDiffEngine {
       logger.error('Failed to merge diff:', error)
       return {
         success: false,
-        errors: [error instanceof Error ? error.message : 'Failed to merge diff'],
+        errors: [getErrorMessage(error, 'Failed to merge diff')],
       }
     }
   }

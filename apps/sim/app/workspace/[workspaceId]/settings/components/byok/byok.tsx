@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Eye, EyeOff, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -196,7 +197,7 @@ export function BYOK() {
       setApiKeyInput('')
       setShowApiKey(false)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save API key'
+      const message = getErrorMessage(err, 'Failed to save API key')
       setError(message)
       logger.error('Failed to save BYOK key', { error: err })
     }

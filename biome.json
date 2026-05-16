@@ -113,7 +113,16 @@
         "noUnusedTemplateLiteral": "off",
         "useNumberNamespace": "error",
         "noInferrableTypes": "error",
-        "noUselessElse": "error"
+        "noUselessElse": "error",
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "nanoid": "Use generateId() or generateShortId() from @sim/utils/id instead",
+              "uuid": "Use generateId() from @sim/utils/id instead"
+            }
+          }
+        }
       },
       "complexity": {
         "noForEach": "off",

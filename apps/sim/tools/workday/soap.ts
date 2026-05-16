@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { validateWorkdayTenantUrl } from '@/lib/core/security/input-validation'
 
 const logger = createLogger('WorkdaySoapClient')
@@ -587,7 +588,7 @@ async function callOperation(
     logger.error('Failed to parse Workday SOAP response', {
       operation,
       status: response.status,
-      error: err instanceof Error ? err.message : String(err),
+      error: getErrorMessage(err),
     })
     throw new Error(
       `Workday returned an unparseable response (HTTP ${response.status}): ${responseText.slice(0, 500)}`

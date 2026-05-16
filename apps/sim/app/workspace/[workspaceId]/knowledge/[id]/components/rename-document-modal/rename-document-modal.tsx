@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   Button,
   Input,
@@ -73,7 +74,7 @@ export function RenameDocumentModal({
       onOpenChange(false)
     } catch (err) {
       logger.error('Error renaming document:', err)
-      setError(err instanceof Error ? err.message : 'Failed to rename document')
+      setError(getErrorMessage(err, 'Failed to rename document'))
     } finally {
       setIsSubmitting(false)
     }

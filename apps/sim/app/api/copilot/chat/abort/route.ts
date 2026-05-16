@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotChatAbortBodySchema } from '@/lib/api/contracts/copilot'
 import { validationErrorResponse } from '@/lib/api/server'
@@ -36,7 +37,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
 
       const body = await request.json().catch((err) => {
         logger.warn('Abort request body parse failed; continuing with empty object', {
-          error: err instanceof Error ? err.message : String(err),
+          error: getErrorMessage(err),
         })
         return {}
       })
@@ -61,7 +62,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
         const run = await getLatestRunForStream(streamId, authenticatedUserId).catch((err) => {
           logger.warn('getLatestRunForStream failed while resolving chatId for abort', {
             streamId,
-            error: err instanceof Error ? err.message : String(err),
+            error: getErrorMessage(err),
           })
           return null
         })
@@ -115,7 +116,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
       } catch (err) {
         logger.warn('Explicit abort marker request failed after local abort', {
           streamId,
-          error: err instanceof Error ? err.message : String(err),
+          error: getErrorMessage(err),
         })
       }
       rootSpan.setAttribute(TraceAttr.CopilotAbortGoMarkerOk, goAbortOk)

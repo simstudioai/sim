@@ -1,3 +1,4 @@
+import { generateRandomString } from '@sim/utils/random'
 import {
   createAgentBlock,
   createBlock,
@@ -229,7 +230,7 @@ export class WorkflowBuilder {
     value: any
   ): this {
     this.variables?.push({
-      id: `var-${Math.random().toString(36).substring(2, 8)}`,
+      id: `var-${generateRandomString(6)}`,
       name,
       type,
       value,

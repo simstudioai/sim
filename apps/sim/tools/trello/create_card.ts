@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import {
   extractTrelloErrorMessage,
@@ -140,7 +141,7 @@ export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCrea
         },
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to parse created card'
+      const message = getErrorMessage(error, 'Failed to parse created card')
 
       return {
         success: false,

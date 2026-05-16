@@ -1,3 +1,4 @@
+import { generateRandomString } from '@sim/utils/random'
 import type { ExecutionContext } from '../types'
 
 /**
@@ -38,7 +39,7 @@ export function createExecutionContext(
 ): ExecutionContext {
   return {
     workflowId: options.workflowId ?? 'test-workflow',
-    executionId: options.executionId ?? `exec-${Math.random().toString(36).substring(2, 10)}`,
+    executionId: options.executionId ?? `exec-${generateRandomString(8)}`,
     blockStates: options.blockStates ?? new Map(),
     executedBlocks: options.executedBlocks ?? new Set(),
     blockLogs: options.blockLogs ?? [],

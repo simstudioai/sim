@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { settings, user } from '@sim/db/schema'
+import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { adminMothershipQuerySchema } from '@/lib/api/contracts/mothership-tasks'
@@ -109,7 +110,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   } catch (error) {
     return NextResponse.json(
       {
-        error: `Failed to reach mothership (${environment}): ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: `Failed to reach mothership (${environment}): ${getErrorMessage(error, 'Unknown error')}`,
       },
       { status: 502 }
     )
@@ -165,7 +166,7 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
   } catch (error) {
     return NextResponse.json(
       {
-        error: `Failed to reach mothership (${environment}): ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error: `Failed to reach mothership (${environment}): ${getErrorMessage(error, 'Unknown error')}`,
       },
       { status: 502 }
     )

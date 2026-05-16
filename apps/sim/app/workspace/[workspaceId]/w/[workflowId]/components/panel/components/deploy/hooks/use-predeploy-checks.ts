@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { Edge } from 'reactflow'
 import { validateWorkflowSchedules } from '@/lib/workflows/schedules/validation'
 import { Serializer } from '@/serializer'
@@ -40,7 +41,7 @@ const requiredFieldsCheck: PreDeployCheck = ({ blocks, edges, loops, parallels }
   } catch (error) {
     return {
       passed: false,
-      error: error instanceof Error ? error.message : 'Workflow validation failed',
+      error: getErrorMessage(error, 'Workflow validation failed'),
     }
   }
 }

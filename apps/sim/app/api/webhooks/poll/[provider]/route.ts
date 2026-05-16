@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { webhookPollingContract } from '@/lib/api/contracts/webhooks'
@@ -75,7 +76,7 @@ export const GET = withRouteHandler(
         {
           success: false,
           message: `${providerLabel} polling failed`,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: getErrorMessage(error, 'Unknown error'),
           requestId,
         },
         { status: 500 }

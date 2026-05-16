@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { quiverTextToSvgContract } from '@/lib/api/contracts/tools/quiver'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -149,7 +150,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
   } catch (error) {
     logger.error(`[${requestId}] Error in Quiver text-to-svg:`, error)
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    const message = getErrorMessage(error, 'Unknown error')
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 })

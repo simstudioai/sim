@@ -648,7 +648,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             ...acc,
             [subId]: {
               ...subBlock,
-              value: JSON.parse(JSON.stringify(subBlock.value)),
+              value: structuredClone(subBlock.value),
             },
           }),
           {}
@@ -656,10 +656,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         // Remap condition/router IDs in the duplicated subBlocks
         const clonedSubBlockValues = activeWorkflowId
-          ? JSON.parse(
-              JSON.stringify(
-                useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id] || {}
-              )
+          ? structuredClone(
+              useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id] || {}
             )
           : {}
         remapConditionIds(

@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, lt } from 'drizzle-orm'
@@ -448,7 +449,7 @@ export class IdempotencyService {
       logger.debug(`Successfully completed operation: ${claimResult.normalizedKey}`)
       return result
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = getErrorMessage(error, 'Unknown error')
 
       if (this.config.retryFailures) {
         await this.deleteKey(claimResult.normalizedKey, claimResult.storageMethod)

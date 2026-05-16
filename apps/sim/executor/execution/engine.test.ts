@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 vi.mock('@/lib/execution/cancellation', () => ({
@@ -102,7 +103,7 @@ function createMockNodeOrchestrator(executeDelay = 0): MockNodeOrchestrator {
     executeNode: vi.fn().mockImplementation(async () => {
       mock.executionCount++
       if (executeDelay > 0) {
-        await new Promise((resolve) => setTimeout(resolve, executeDelay))
+        await sleep(executeDelay)
       }
       return { nodeId: 'test', output: {}, isFinalOutput: false }
     }),
@@ -620,10 +621,10 @@ describe('ExecutionEngine', () => {
         executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
           executedNodes.push(nodeId)
           if (nodeId === 'parallel0') {
-            await new Promise((resolve) => setTimeout(resolve, 1))
+            await sleep(1)
             throw new Error('Parallel branch failed')
           }
-          await new Promise((resolve) => setTimeout(resolve, 2))
+          await sleep(2)
           return { nodeId, output: {}, isFinalOutput: false }
         }),
         handleNodeCompletion: vi.fn(),
@@ -655,15 +656,15 @@ describe('ExecutionEngine', () => {
         executionCount: 0,
         executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
           if (nodeId === 'parallel0') {
-            await new Promise((resolve) => setTimeout(resolve, 1))
+            await sleep(1)
             throw new Error('First error')
           }
           if (nodeId === 'parallel1') {
-            await new Promise((resolve) => setTimeout(resolve, 1))
+            await sleep(1)
             throw new Error('Second error')
           }
           if (nodeId === 'parallel2') {
-            await new Promise((resolve) => setTimeout(resolve, 1))
+            await sleep(1)
             throw new Error('Third error')
           }
           return { nodeId, output: {}, isFinalOutput: false }
@@ -696,11 +697,11 @@ describe('ExecutionEngine', () => {
         executionCount: 0,
         executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
           if (nodeId === 'fast-error') {
-            await new Promise((resolve) => setTimeout(resolve, 1))
+            await sleep(1)
             throw new Error('Fast error')
           }
           if (nodeId === 'slow') {
-            await new Promise((resolve) => setTimeout(resolve, 1))
+            await sleep(1)
             slowNodeCompleted = true
             return { nodeId, output: {}, isFinalOutput: false }
           }
@@ -1089,7 +1090,7 @@ describe('ExecutionEngine', () => {
             }
           }
           if (nodeId === 'slow-work') {
-            await new Promise((resolve) => setTimeout(resolve, 1))
+            await sleep(1)
             return { nodeId, output: { slow: true }, isFinalOutput: false }
           }
           return { nodeId, output: {}, isFinalOutput: true }
@@ -1208,7 +1209,7 @@ describe('ExecutionEngine', () => {
             }
           }
           if (nodeId === 'other') {
-            await new Promise((resolve) => setTimeout(resolve, 1))
+            await sleep(1)
             return { nodeId, output: { other: true }, isFinalOutput: true }
           }
           return { nodeId, output: {}, isFinalOutput: false }
@@ -1250,7 +1251,7 @@ describe('ExecutionEngine', () => {
             }
           }
           if (nodeId === 'error-node') {
-            await new Promise((resolve) => setTimeout(resolve, 1))
+            await sleep(1)
             throw new Error('Parallel branch failed')
           }
           return { nodeId, output: {}, isFinalOutput: false }

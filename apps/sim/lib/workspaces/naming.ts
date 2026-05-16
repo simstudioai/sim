@@ -2,6 +2,7 @@
  * Utility functions for generating names for workspaces and folders
  */
 
+import { randomItem } from '@sim/utils/random'
 import { requestJson } from '@/lib/api/client/request'
 import { type FolderApi, listFoldersContract } from '@/lib/api/contracts/folders'
 
@@ -89,7 +90,7 @@ export function generateIncrementalName<T extends NameableEntity>(
  * Generates a random cosmos-themed workspace name
  */
 export function generateWorkspaceName(): string {
-  return WORKSPACE_NOUNS[Math.floor(Math.random() * WORKSPACE_NOUNS.length)]
+  return randomItem(WORKSPACE_NOUNS)
 }
 
 async function fetchWorkspaceFolders(workspaceId: string): Promise<FolderApi[]> {

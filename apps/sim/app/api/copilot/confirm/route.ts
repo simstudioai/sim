@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotConfirmContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
@@ -150,7 +150,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
         const existing = await getAsyncToolCall(toolCallId).catch((err) => {
           logger.warn('Failed to fetch async tool call', {
             toolCallId,
-            error: err instanceof Error ? err.message : String(err),
+            error: getErrorMessage(err),
           })
           return null
         })
@@ -165,7 +165,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
         const run = await getRunSegment(existing.runId).catch((err) => {
           logger.warn('Failed to fetch run segment', {
             runId: existing.runId,
-            error: err instanceof Error ? err.message : String(err),
+            error: getErrorMessage(err),
           })
           return null
         })
@@ -205,14 +205,12 @@ export const POST = withRouteHandler((req: NextRequest) => {
 
         logger.error(`[${tracker.requestId}] Unexpected error:`, {
           duration,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: getErrorMessage(error, 'Unknown error'),
           stack: error instanceof Error ? error.stack : undefined,
         })
 
         span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.InternalError)
-        return createInternalServerErrorResponse(
-          error instanceof Error ? error.message : 'Internal server error'
-        )
+        return createInternalServerErrorResponse(getErrorMessage(error, 'Internal server error'))
       }
     }
   )
