@@ -8,7 +8,11 @@ import { createWorkflowMcpServerBodySchema } from '@/lib/api/contracts/workflow-
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { performCreateWorkflowMcpServer } from '@/lib/mcp/orchestration'
-import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import {
+  createMcpErrorResponse,
+  createMcpSuccessResponse,
+  mcpOrchestrationStatus,
+} from '@/lib/mcp/utils'
 
 const logger = createLogger('WorkflowMcpServersAPI')
 
@@ -121,7 +125,7 @@ export const POST = withRouteHandler(
           return createMcpErrorResponse(
             new Error(result.error || 'Failed to create workflow MCP server'),
             result.error || 'Failed to create workflow MCP server',
-            result.errorCode === 'validation' ? 400 : 500
+            mcpOrchestrationStatus(result.errorCode)
           )
         }
 

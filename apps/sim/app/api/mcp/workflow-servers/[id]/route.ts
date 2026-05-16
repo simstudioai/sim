@@ -14,7 +14,11 @@ import {
   performDeleteWorkflowMcpServer,
   performUpdateWorkflowMcpServer,
 } from '@/lib/mcp/orchestration'
-import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import {
+  createMcpErrorResponse,
+  createMcpSuccessResponse,
+  mcpOrchestrationStatus,
+} from '@/lib/mcp/utils'
 
 const logger = createLogger('WorkflowMcpServerAPI')
 
@@ -112,8 +116,7 @@ export const PATCH = withRouteHandler(
           isPublic: body.isPublic,
         })
         if (!result.success || !result.server) {
-          const status =
-            result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
+          const status = mcpOrchestrationStatus(result.errorCode)
           return createMcpErrorResponse(
             new Error(result.error || 'Failed to update workflow MCP server'),
             result.error || 'Failed to update workflow MCP server',
@@ -160,7 +163,7 @@ export const DELETE = withRouteHandler(
           return createMcpErrorResponse(
             new Error(result.error || 'Server not found'),
             result.error || 'Server not found',
-            result.errorCode === 'not_found' ? 404 : 500
+            mcpOrchestrationStatus(result.errorCode)
           )
         }
         const deletedServer = result.server
