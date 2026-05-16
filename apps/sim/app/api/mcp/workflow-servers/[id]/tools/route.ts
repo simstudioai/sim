@@ -11,7 +11,11 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { performCreateWorkflowMcpTool } from '@/lib/mcp/orchestration'
-import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import {
+  createMcpErrorResponse,
+  createMcpSuccessResponse,
+  mcpOrchestrationStatus,
+} from '@/lib/mcp/utils'
 
 const logger = createLogger('WorkflowMcpToolsAPI')
 
@@ -117,12 +121,10 @@ export const POST = withRouteHandler(
           parameterSchema: body.parameterSchema,
         })
         if (!result.success || !result.tool) {
-          const status =
-            result.errorCode === 'not_found' ? 404 : result.errorCode === 'conflict' ? 409 : 400
           return createMcpErrorResponse(
             new Error(result.error || 'Failed to add tool'),
             result.error || 'Failed to add tool',
-            result.errorCode === 'internal' ? 500 : status
+            mcpOrchestrationStatus(result.errorCode)
           )
         }
 
