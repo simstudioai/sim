@@ -43,7 +43,7 @@ export async function executeTool(
   const canUseRegisteredHandler = isKnownTool(toolId) && isSimExecuted(toolId)
   if (!canUseRegisteredHandler) {
     const appParams = buildAppToolParams(toolId, params, context)
-    return executeAppTool(toolId, appParams, false)
+    return executeAppTool(toolId, appParams)
   }
 
   if (context.abortSignal?.aborted) {

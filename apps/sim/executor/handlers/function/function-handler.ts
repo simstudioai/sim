@@ -76,7 +76,7 @@ export class FunctionBlockHandler implements BlockHandler {
       },
     }
 
-    const result = await executeTool('function_execute', toolParams, false, ctx)
+    const result = await executeTool('function_execute', toolParams, { executionContext: ctx })
 
     if (!result.success) {
       throw new Error(result.error || 'Function execution failed')
