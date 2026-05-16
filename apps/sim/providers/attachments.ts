@@ -303,11 +303,14 @@ export function prepareProviderAttachments(
       )
     }
 
-    if (Number.isFinite(file.size) && file.size > AGENT_ATTACHMENT_MAX_BYTES) {
+    // Base64 encoding inflates size by ~33%; pre-validate against 75% of the limit
+    // so files that pass here won't be silently stripped during hydration.
+    const rawSizeLimit = Math.floor(AGENT_ATTACHMENT_MAX_BYTES * 0.75)
+    if (Number.isFinite(file.size) && file.size > rawSizeLimit) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
-      const maxMB = (AGENT_ATTACHMENT_MAX_BYTES / (1024 * 1024)).toFixed(0)
+      const maxMB = (rawSizeLimit / (1024 * 1024)).toFixed(0)
       throw new Error(
-        `File "${file.name}" (${sizeMB}MB) exceeds the ${maxMB}MB agent attachment limit for provider "${providerId}"`
+        `File "${file.name}" (${sizeMB}MB) exceeds the ~${maxMB}MB agent attachment limit for provider "${providerId}" (base64 encoding adds ~33% overhead)`
       )
     }
 
